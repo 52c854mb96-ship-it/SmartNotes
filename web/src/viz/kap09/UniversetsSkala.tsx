@@ -88,7 +88,7 @@ export default function UniversetsSkala() {
       </div>
 
       <Readouts>
-        <Readout label="Avstand i km" value={fmtSig(toKm(d))} unit="km" />
+        <Readout label="Avstand i km" value={fmtSig(toKm(d), 4)} unit="km" />
         <Readout label="I astronomiske enheter" value={fmtSig(toAU(d))} unit="AE" />
         <Readout label="I lysår" value={fmtSig(toLightYears(d))} unit="lysår" />
         <Readout
