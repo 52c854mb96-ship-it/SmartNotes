@@ -428,7 +428,9 @@ export function limitingResult(rx: Reaction, n: readonly number[]): LimitingResu
     const v = b + change[i]!;
     return Math.abs(v) < tol * 10 ? 0 : v;
   });
-  return { ratios, extent, limiting: extent > 0 || ratios.some((r) => r === 0) ? limiting : [], exact: extent > 0 && limiting.length === rx.reactants.length, before, change, after };
+  // Når det ikke er noe av noen av reaktantene, er ingen av dem begrensende.
+  const none = ratios.every((r) => r === 0);
+  return { ratios, extent, limiting: none ? [] : limiting, exact: extent > 0 && limiting.length === rx.reactants.length, before, change, after };
 }
 
 /**

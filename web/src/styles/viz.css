@@ -1246,7 +1246,7 @@
     --bio-cytoplasm: #2c2a1f;
     --bio-membrane: #e39a5c;
     --bio-lipid-head: #c9874a;
-    --bio-lipid-tail: #6b5e48;
+    --bio-lipid-tail: #857558;
     --bio-nucleus: #2f2a4a;
     --bio-nucleus-line: #b3a3ef;
     --bio-nucleolus: #7d69c9;
@@ -1313,10 +1313,10 @@
     --bio-chr-f1: #78a9e6;
     --bio-chr-f2: #4fc9c0;
     --bio-chr-f3: #a593f0;
-    --bio-s: #8fb0d8;
+    --bio-s: #93a8c2;
     --bio-i: #f07f73;
     --bio-r: #6cc48a;
-    --bio-v: #b59af0;
+    --bio-v: #b48af2;
     --bio-prey: #7cc46a;
     --bio-predator: #f0905e;
     --bio-capacity: #a0a68e;
@@ -1332,7 +1332,7 @@
   --bio-cytoplasm: #2c2a1f;
   --bio-membrane: #e39a5c;
   --bio-lipid-head: #c9874a;
-  --bio-lipid-tail: #6b5e48;
+  --bio-lipid-tail: #857558;
   --bio-nucleus: #2f2a4a;
   --bio-nucleus-line: #b3a3ef;
   --bio-nucleolus: #7d69c9;
@@ -1399,10 +1399,10 @@
   --bio-chr-f1: #78a9e6;
   --bio-chr-f2: #4fc9c0;
   --bio-chr-f3: #a593f0;
-  --bio-s: #8fb0d8;
+  --bio-s: #93a8c2;
   --bio-i: #f07f73;
   --bio-r: #6cc48a;
-  --bio-v: #b59af0;
+  --bio-v: #b48af2;
   --bio-prey: #7cc46a;
   --bio-predator: #f0905e;
   --bio-capacity: #a0a68e;
@@ -1465,4 +1465,15 @@
   color: var(--text-3);
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
+}
+
+/* Kromatider som glir til nye plasser når fasen byttes (<Delingsfigur>, <Kromatide>). */
+.bio-anim {
+  transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bio-anim {
+    transition: none;
+  }
 }

@@ -190,3 +190,89 @@ node scripts/viz-shot.mjs --port 5173 --fag kjemi --chapter 3 --out /tmp/shots -
 ```
 
 `?fag=kjemi` gir også kjemitemaet «Tavle» (`data-subject="chemistry"`, mørkegrønn flate i mørkt tema), så sjekk at fargene dine synes der.
+
+## Biologi
+
+Biologi 1 (Bi 1, Gyldendal, 3. utgave 2021, LK20 BIO01-02). Samme oppbygning og regler som fysikk og kjemi, med egne byggeklosser i `biologi/kit/`.
+**Mønster å følge:** `biologi/kap06/DiffusjonOgOsmose.tsx` (tre forsøk i én visualisering med `Segmented`, partikler som krysser en membran, graf over tid, celler i løsning) og `biologi/kap15/Flokkimmunitet.tsx` (SIR-modell, forhåndsvalg, rutenett med individer, avspilling i døgn).
+
+```
+viz/biologi/
+  index.ts          samler kapitlene i kapittelrekkefølge (legg til `...kapNN` her)
+  kit/              biologiens byggeklosser – og hele det felles kit-et: importer ALT fra '../kit'
+  kapNN/            index.ts, model.ts, model.test.ts, Navn.tsx (som i fysikk)
+```
+
+`import { Slider, Figure, Celle, Mitokondrie, BIO, solveSir, fmtPct } from '../kit';` – `biologi/kit/index.ts` eksporterer også `viz/kit` og de generelle hjelperne fra kjemi-kit-et: `seededRandom`, `placeParticles`, `jiggle`, `Box`, `Txt`, `Select`, `useContainerTextScale`, `Partikler`, `Begerglass`, `mixColor`, `fmtSig`. Bruk dem, ikke kopier dem.
+
+**Delkapitler:** innholdsfortegnelsen i Bi 1 er ikke bekreftet, så alle biologivisualiseringer har `sections: []` (de vises under kapittelet). Kapitlene (`server/src/textbooks.ts`): 1 Liv, 2 Systematikk, 3 Biologisk mangfold, 4 Forvaltning av naturressurser, 5 Cellestrukturer og cellefunksjon, 6 Transport og kommunikasjon i celler, 7 Celledeling, 8 Kommunikasjonssystemer i mennesket, 9 Transportsystemer i mennesket, 10 Transportsystemer i dyr, 11 Transportsystemer i planter, 12 Kommunikasjon og bevegelse i planter, 13 Formering, 14 Mikrobielle og virale sykdommer, 15 Bekjempelse av mikrobielle og virale sykdommer. Skriv kompetansemålene (KM1–KM11) som søkeord, f.eks. `keywords: [..., 'KM5']`.
+
+### Byggeklosser (`biologi/kit/`)
+
+| Del | Bruk |
+|---|---|
+| **Celler** `celle.tsx` | `<Celle type="dyr"\|"plante"\|"bakterie" x y w h highlight? dim?>{organeller}</Celle>` tegner cytoplasma og cellemembran (dobbel strek); plantecellen får cellevegg og stor vakuole (`vakuole={0.6}` = andel, `protoplast={0.7}` = plasmolyse, `ytre` = fyllet mellom vegg og membran), bakteriecellen kapsel, cellevegg, flageller (`flageller={2}`), nukleoid, plasmider og ribosomer. Barna klippes til innsiden av membranen. `cellInterior(type, box, protoplast)` gir plassen innenfor membranen. |
+| **Organeller** | `<Cellekjerne x y r ry kjernelegeme kromatin>` (dobbel membran med porer), `<Mitokondrie x y w h rotate>` (cristae), `<Kloroplast x y w h grana>`, `<EndoplasmatiskNettverk x y w h kornet sekker bue>` (`bue` = krumningsradius, så kornet ER ligger rundt kjernen), `<Golgiapparat x y w h sekker>`, `<Ribosomer x y w h n seed>`, `<Lysosom x y r>`, `<Vakuole x y w h>`, `<Vesikkel x y r paint>`, `<Cytoskjelett x y w h n>`. Alle er sentrert i (x, y), har `rotate` (grader med klokka), `highlight` (glorie i kantfargen) og `dim` (nedtonet). Standardstørrelsene passer i en celle på ca. 400 × 300. |
+| **Cellemodell** | `<Cellemodell type x y w h highlight="mitokondrie" dimOthers>` = ferdig celle med organellene på faste plasser. `organelleLayout(type, box)` gir de samme plassene (`{ id, x, y, w, h, rotate }`), så du kan sette `<Etikett>` uten å tegne cella først. `ORGANELLER[id]` = `{ navn, kort, funksjon }` (lærebokformuleringer; `kort` = «Kornet ER» til trange etiketter), `CELL_PARTS[type]` = delene i hver celletype. |
+| **Membran** `membran.tsx` | `<Membran x y length thickness={44} vertical skip>` = lipiddobbeltlag (hoder og haler). Proteiner sentrert i membranen: `<Kanalprotein open>`, `<Akvaporin>`, `<Baereprotein state={0..1}>` (0 = åpen mot side A, 1 = mot side B), `<NaKPumpe state fosfat>`, `<Reseptor bound>`. Gi lipidene plass med `skip={[proteinSlot(y, 'kanal')]}`. Vannrett: side A (utsiden) over, B (cytoplasma) under; `vertical`: A til venstre, B til høyre. |
+| **Partikler gjennom membranen** `transport.ts` | `planCrossings({ n: [nA, nB], rates: [A→B, B→A], tMax, seed, gates, transit })` planlegger alle kryssingene på forhånd (like rater = diffusjon, én rate 0 = aktiv transport, `gates` = antall kanaler/pumper). `<MembranPartikler tracks t geometry fill>` tegner dem ved tiden t; `geometry: CrossingGeometry` = `{ a, b, orientation, at, thickness, gates?: posisjoner, r, speed?, jitter? }`. `countSides(tracks, t)`, `crossingCounts(tracks, t)` → `[A→B, B→A]`, `expectedSideA(spec, t)` (gjennomsnittet), `trackPosition(track, t, geometry)`. Samme t gir alltid samme bilde, også baklengs. |
+| **Kromosomer** `kromosom.tsx` | `<Kromosom x y lengde par opphav="mor"\|"far" kromatider={1\|2} sentromer rot segmenter>` (to søsterkromatider i X-form), `<Kromatide … armU armL kondensert>`. `<Delingsfigur deling="mitose"\|"meiose1"\|"meiose2" fase n={2\|3} box overkrysning orientering replikert>` tegner hele cella i en fase (cellemembran, kjerne som løses opp, spole, ekvatorplan, kromosomer) – bytt `fase`, så glir kromatidene til nye plasser. |
+| **Kromosomlogikk** `kromosomer.ts` | `layoutPhase(opts)` → `{ celler, innsnoring, kjerner, spoler, ekvatorplan, kromatider, sentromerer, kromosomtall }` (rent, testet), `chromosomeSet(n)`, `FASER`, `faseNavn('metafase', 'meiose1')` → «metafase I», `cellOutlinePath(a, b?)` (celle eller to celler med innsnøring), `smoothClosedPath(punkter)`, `insideEllipse`. Overkrysning: mor b og far a bytter enden av den lange armen; `orientering[par] = true` sender mors kromosom til venstre i metafase I (uavhengig fordeling). |
+| **Organismer** `organismer.tsx` | `<Bakterie form="stav"\|"kokk"\|"spiril" flagell>`, `<Virus type="kappekledd"\|"bakteriofag">`, `<Sopp>`, `<Plante>`, `<Tre bartre>`, `<Fisk>`, `<Fugl>`, `<Pattedyr>`, `<Insekt>`, `<Menneske>`, `<RodtBlodlegeme swelling crenation burst>`, `<HvittBlodlegeme type="granulocytt"\|"lymfocytt"\|"makrofag">`, `<Antistoff>`, og `<Organisme type="fisk">` etter navn (`ORGANISME_NAVN`). Felles props: `x y size rotate paint highlight dim title`. `size` ≈ bredden/høyden (standard 40). |
+| **Modeller** `modeller.ts` | RK4 med fast steg: `solveOde(f, y0, { tMax, dt, nonNegative })` → `{ t, y }`, `valueAt(sol, t)`, `column(sol, j)`, `points(sol, j, skala)` (til `linePath`), `rk4Step`. Vekst: `exponential(N0, r, t)`, `doublingTime(r)`, `logistic(N0, r, K, t)`, `logisticRate(N, r, K)`, `exponentialDerivs`, `logisticDerivs`. Høsting: `solveHarvest(N0, r, K, { kind: 'kvote', H } \| { kind: 'andel', h })`, `msy(r, K)` → `{ N: K/2, yield: rK/4, rate: r/2 }`, `quotaEquilibria`, `proportionalEquilibrium`, `harvestRate`. Rovdyr–byttedyr: `solveLotkaVolterra({ a, b, c, d }, bytte0, rov0, opts)` (kolonne 0 = byttedyr, 1 = rovdyr), `lotkaVolterraEquilibrium`, `lotkaVolterraInvariant`. Smitte: `solveSir({ R0, D, I0, p, e }, opts)` → `{ t, S, I, R, V, sol }`, `sirStats` → `{ peak, peakTime, totalInfected }`, `herdImmunityThreshold(R0)`, `requiredCoverage(R0, e)`, `effectiveR(R0, S)`, `finalSize(R0, s0)`, `sirStart`. Bakterier: `bacterialGrowth(p, t)`, `growthPhase(p, t)`, `growthPhaseEnds(p)`, `GROWTH_PHASE_NAMES`, `countAfter(N0, t, g)`, `generations`, `generationTime`, `timeToReach`, `rateFromGenerationTime`. |
+| **Kontroller** `controls.tsx` | `<Forvalg label options={[{ value, label, detail }]} value={match \| null} onPick>` (forhåndsvalg der ingen trenger å være valgt, f.eks. sykdommer som setter en glidebryter), `<PlayBar clock time="dag 34">` (som `PlayControls`, men med egen tidstekst: døgn, timer, år). |
+| **Hjelpere** `felles.tsx`, `format.ts` | `useBioScale()` (1 på PC, ca. 1,5 på mobil, til symboler og partikler), `useLineScale()` (strektykkelser), `useSvgId(prefiks)` (id til clipPath), `<Etikett x y lx ly strong>` (etikett med strek til det den peker på), `<Halo d color>`, `DIM_OPACITY`, `fmtPct(0.456)` → «46 %» (`< 1 %` for små andeler), `fmtCount(2097152)` → «2 097 152». |
+| **Farger** `colors.ts` | `BIO.*` (se under), `kromosomFarge(par, 'mor'\|'far')`, typen `BioPaint = { fill, line }`. |
+
+### Farger (`BIO`, `--bio-*` i `styles/viz.css`)
+
+Celledeler og organismer har `{ fill, line }`: lys fyll og mettet kant i lyst tema, mørk fyll og lys kant i mørkt tema (som atomene i kjemi). Tekst oppå fylte former skrives med `VIZ.ink`.
+
+| Farge | Bruk |
+|---|---|
+| `BIO.cytoplasma`, `BIO.membran`, `BIO.lipidHode`, `BIO.lipidHale` | cytoplasma (krem), cellemembran og fosfolipider (brunoransje) |
+| `BIO.kjerne`, `BIO.kjernelegeme`, `BIO.dna` | cellekjerne, kjernelegeme og DNA/kromatin (fiolett) |
+| `BIO.mitokondrie`, `BIO.kloroplast`, `BIO.klorofyll` | mitokondrier (laks), kloroplaster og klorofyll/grana (grønn) |
+| `BIO.cellevegg`, `BIO.vakuole`, `BIO.er`, `BIO.golgi`, `BIO.lysosom`, `BIO.ribosom`, `BIO.cytoskjelett`, `BIO.kapsel` | cellevegg (oliven), vakuole (lyseblå), ER (rosa), golgi og vesikler (gul), lysosom (blågrønn), ribosomer (mørke prikker), cytoskjelett (grå), bakteriekapsel (gjennomsiktig) |
+| `BIO.protein`, `BIO.atp`, `BIO.signal` | membranproteiner (rolig grå, så partiklene synes), ATP/aktiv transport (oransje), signalstoff/hormon (magenta) |
+| `BIO.opplost`, `BIO.natrium`, `BIO.kalium`, `BIO.vann`, `BIO.vannFyll`, `BIO.sukker` | oppløst stoff (fiolett), Na⁺ og K⁺, vann/xylem (blå) og fyll for vann og løsninger, sukker/floem (rav) |
+| `BIO.oksygenrikt`, `BIO.oksygenfattig` | oksygenrikt blod (rødt) og oksygenfattig blod (blått, som i lærebøkene) |
+| `BIO.rodtBlodlegeme`, `BIO.immuncelle`, `BIO.antistoff`, `BIO.antigen` | røde blodlegemer, hvite blodlegemer/immunceller (blå), antistoffer (gull), antigener (rød) |
+| `BIO.bakterie`, `BIO.virus`, `BIO.sopp`, `BIO.plante`, `BIO.ved`, `BIO.pattedyr`, `BIO.fisk`, `BIO.fugl`, `BIO.insekt`, `BIO.menneske`, `BIO.dod` | organismer og smittestoffer; `dod` = døde celler/individer (grå) |
+| `BIO.kromosom.mor[0..2]`, `BIO.kromosom.far[0..2]` | homologe par: fra mor varme farger (rød, oransje, magenta), fra far kalde (blå, blågrønn, fiolett) |
+| `BIO.sir.S`, `.I`, `.R`, `.V` | mottakelige (stålblå), smittet (rød), immune etter sykdom (grønn), vaksinert og immun (fiolett) |
+| `BIO.byttedyr`, `BIO.rovdyr`, `BIO.baereevne`, `BIO.hosting`, `BIO.serie[0..3]` | populasjonskurver: byttedyr (grønn), rovdyr (rust), bæreevnen K (grå, stiplet), høsting (fiolett), andre serier |
+
+Blanding (f.eks. saltløsning som blir sterkere): `mixColor(BIO.vannFyll, BIO.opplost, t)`.
+
+### Biologikonvensjoner
+
+- Begreper som i norske Biologi 1-bøker: celleånding, fotosyntese, cellemembran, cellevegg, cytoplasma, cellekjerne, kjernelegeme, mitokondrie, kloroplast, kornet og glatt endoplasmatisk nettverk (kornet ER, glatt ER), golgiapparat, ribosom, lysosom, vakuole, diffusjon, fasilitert diffusjon, osmose, aktiv transport, kanalprotein, bæreprotein, natrium-kalium-pumpe, akvaporin, reseptor, signalstoff, hypoton/isoton/hyperton, hemolyse, plasmolyse, turgor, mitose, meiose, interfase, profase, metafase, anafase, telofase, cytokinese, homologe kromosomer, søsterkromatider, sentromer, overkrysning, haploid/diploid (n, 2n), homeostase, negativ tilbakekobling, smittsomhet, basisreproduksjonstall R<sub>0</sub>, flokkimmunitet, vaksinasjonsdekning, antibiotikaresistens, bæreevne, bestand.
+- Vitenskapelige navn i kursiv i HTML: `<em>Escherichia coli</em>`, `<em>Homo sapiens</em>`. I SVG: `<tspan fontStyle="italic">`.
+- Enheter: konsentrasjon i mmol/L eller mol/L, saltløsning i % NaCl (fysiologisk saltvann 0,9 %), tid i s, døgn, timer eller år (bruk `PlayBar` med egen tidstekst), andeler med `fmtPct`.
+- Modeller: alltid deterministiske (RK4 med fast steg, tilfeldige tall med frø). Skriv i forklaringen hva som er forenklet (f.eks. «alle møter alle like ofte»).
+- Misoppfatninger er et mål i seg selv: partikler «vil» ikke noe (diffusjon er tilfeldig bevegelse med netto transport ned gradienten), det er vannet som flytter seg ved osmose, smitten stopper fordi mange er immune, ikke fordi smittestoffet forsvinner.
+
+### Fallgruver
+
+- **Mobil:** figuren skaleres ned til ca. 330 px, og teksten blir ca. 1,8 ganger større (`useTextScale()`/`useContainerTextScale()` → `f`). Symboler, partikler og organeller blir **ikke** større av seg selv: gang radier og størrelser med `useBioScale()` (eller `k = max(1, 0,85 · f)`) når de skal kunne sees. Gjør grafer og scener høyere på mobil (`H = 320 + 260 · (f − 1)` for en `Plot`), ellers blir de flate og aksetitlene klippes.
+- **To figurer ved siden av hverandre** (f.eks. blodlegeme og plantecelle) blir for små på mobil: legg dem under hverandre når `f > 1,3` og tegn dem større (se `CellScene` i kap06).
+- **Lange etiketter:** «Kornet endoplasmatisk nettverk» får ikke plass på mobil. Bruk `ORGANELLER[id].kort` eller sett etikettene i en egen kolonne.
+- **Etiketter i `Legend` med `<Sub>`:** pakk teksten i `<span>…</span>`, ellers blir senket skrift et eget flex-element med mellomrom («p c»).
+- **Partikler som flytter seg:** bruk `planCrossings` (plan på forhånd) eller `placeParticles` i en enhetsboks og skaler posisjonene til boksen (som sukkeret i osmoseforsøket). `Partikler` fra kjemi plasserer på nytt når boksen endres, og hopper da hvis boksen endres for hver ramme.
+- **Animasjon av kromosomer:** `Kromatide` flyttes med CSS-transform (klassen `bio-anim`). Gi hver kromatide en fast `key` (`layoutPhase` gjør det), ellers glir de ikke.
+- **Kromosomer på mobil:** kromosomlengden i `Delingsfigur` følger høyden på `box` (metafasen i mitose må få plass langs ekvatorplanet). Gjør boksen og viewBox-en høyere på mobil, f.eks. `h = 340 + 220 · (f − 1)`, ellers blir kromosomene små. Meiose II tegner to celler (og fire i telofasen) i samme boks.
+- **«NaN» i teksten:** `viz-shot.mjs` feiler på «NaN», «Infinity» og «undefined». `rbcVolume(0)` er uendelig – vis «Sprukket» i stedet for tallet.
+- **Navnekollisjoner:** det felles kit-et har allerede `Block`, `Label`, `Formula`; kjemi har `Atom`, `Formel`. Biologinavnene er norske (`Celle`, `Membran`, `Kromosom`) og modellfunksjonene engelske (`solveSir`, `logistic`).
+
+### Forhåndsvisning og skjermbilder
+
+```bash
+cd web
+npx vite --port 5173                                     # http://localhost:5173/viz-preview.html?fag=biologi&id=k6-diffusjon-og-osmose&theme=dark
+npx vitest run src/viz/biologi                           # kit-modeller, kromosomlogikk, membrantransport og kapittelmodeller
+node scripts/viz-shot.mjs --port 5173 --fag biologi --chapter 6 --out /tmp/shots
+node scripts/viz-shot.mjs --port 5173 --fag biologi --chapter 6 --out /tmp/shots --extremes --themes light
+```
+
+`?fag=biologi` gir også biologitemaet «Salvie» (`data-subject="biology"`, varmt papir og dempet grønn, mørk grønngrå flate i mørkt tema). `viz-shot` flytter bare glidebrytere: klikk også gjennom `Segmented`-valg, forhåndsvalg og avspilling med et eget Playwright-skript før du er ferdig.

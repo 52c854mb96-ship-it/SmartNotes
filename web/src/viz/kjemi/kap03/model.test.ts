@@ -214,6 +214,7 @@ describe('begrensende reaktant', () => {
     expect(none.extent).toBe(0);
     expect(none.limiting).toEqual([0]);
     expect(none.after).toEqual([0, 3, 0]);
+    expect(limitingResult(rx, [0, 0]).limiting).toEqual([]);
   });
 
   it('massen er bevart (før = etter)', () => {

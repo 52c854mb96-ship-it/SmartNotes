@@ -44,7 +44,11 @@ export function rk4Step(f: Derivs, t: number, y: readonly number[], h: number): 
 }
 
 /** Løser y′ = f(t, y) fra t0 til tMax med RK4 og fast steg. */
-export function solveOde(f: Derivs, y0: readonly number[], { tMax, dt, t0 = 0, nonNegative = false, maxSteps = 100_000 }: SolveOptions): OdeSolution {
+export function solveOde(
+  f: Derivs,
+  y0: readonly number[],
+  { tMax, dt, t0 = 0, nonNegative = false, maxSteps = 100_000 }: SolveOptions,
+): OdeSolution {
   const span = tMax - t0;
   const n = span > 0 && dt > 0 ? Math.min(maxSteps, Math.max(1, Math.ceil(span / dt - 1e-9))) : 0;
   const h = n > 0 ? span / n : 0;

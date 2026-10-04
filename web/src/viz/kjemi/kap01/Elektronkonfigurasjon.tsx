@@ -27,7 +27,6 @@ import {
   CONFIG_EXCEPTIONS,
   CONFIG_Z_MAX,
   aufbauFill,
-  configurationText,
   electronConfiguration,
   newestElectron,
   orbitalBoxes,
@@ -43,6 +42,9 @@ import {
 /** Energinivået til hvert delskall i diagrammet (bare rekkefølgen og avstanden er ment å være riktig). */
 const ENERGY: Record<string, number> = { '1s': 0, '2s': 1.2, '2p': 1.9, '3s': 3.05, '3p': 3.75, '4s': 4.8, '3d': 5.4, '4p': 6.1 };
 const E_MAX = 6.1;
+/** Skallmodellen: radius til innerste skall og avstand mellom skallene (ganges med atomskalaen k). */
+const R0 = 40;
+const DR = 26;
 const BLOCK_COLOR: Record<ConfigBlock, string> = { s: VIZ.series[0]!, p: VIZ.series[1]!, d: VIZ.series[2]! };
 const BLOCK_NAME: Record<ConfigBlock, string> = { s: 's-blokka', p: 'p-blokka', d: 'd-blokka' };
 
@@ -151,12 +153,13 @@ interface AtomLayout {
 
 function atomLayout(f: number, k: number): AtomLayout {
   const wide = f <= 1.3;
-  const R = 34 * k + 3 * 22 * k + 6 * k;
-  const b = 26 * k;
-  const bh = 30 * k;
+  const R = R0 * k + 3 * DR * k + 6 * k;
   const labW = 34 * f;
-  const gap = 20 * k;
-  const u = Math.max(36 * k, (bh + 8) / 1.15);
+  const gap = 22 * k;
+  // Boksene krymper hvis diagrammet ellers ikke får plass ved siden av energiaksen (smal skjerm).
+  const b = Math.min(34 * k, (800 - 44 * f - 16 - 3 * labW - 2 * gap) / 9);
+  const bh = 34 * k;
+  const u = Math.max(42 * k, (bh + 10) / 1.15);
   const dW = 3 * labW + 9 * b + 2 * gap;
   const dH = E_MAX * u + bh;
   if (wide) {
@@ -167,7 +170,7 @@ function atomLayout(f: number, k: number): AtomLayout {
     const caption = by + R + 30 * f;
     return {
       wide,
-      bohr: { x: 190, y: by, title, caption },
+      bohr: { x: 175, y: by, title, caption },
       diagram: { x0, top, title, titleX: x0 + dW / 2, u, b, bh, labW, gap },
       H: Math.round(Math.max(caption + 12 * f, top + dH + 30 * f)),
     };
@@ -177,7 +180,7 @@ function atomLayout(f: number, k: number): AtomLayout {
   const caption = by + R + 32 * f;
   const dTitle = caption + 52 * f;
   const top = dTitle + 22 * f;
-  const x0 = Math.max(46 * f, (800 - dW) / 2 + 20 * f);
+  const x0 = Math.min(800 - 8 - dW, Math.max(44 * f, (800 - dW) / 2 + 20 * f));
   return {
     wide,
     bohr: { x: 400, y: by, title, caption },
@@ -209,7 +212,7 @@ function AtomFigure({
       <Txt x={bohr.x} y={bohr.title} muted size={0.9}>
         Skallmodell
       </Txt>
-      <ElectronShells x={bohr.x} y={bohr.y} el={el.symbol} shells={shells} />
+      <ElectronShells x={bohr.x} y={bohr.y} el={el.symbol} shells={shells} r0={R0 * k} dr={DR * k} />
       <Txt x={bohr.x} y={bohr.caption} size={0.9}>
         Skall: {shells.join(', ')}
       </Txt>
@@ -287,7 +290,9 @@ function OrbitalDiagram({ Z, subs, layout, f, k }: { Z: number; subs: FilledSubs
           </g>
         );
       })}
-      {exception && <ExceptionMark from={geo(s4)} to={{ x: geo(d3).x + (d3.orbitals - 1) * d.b, y: geo(d3).y }} b={d.b} bh={d.bh} f={f} k={k} />}
+      {exception && (
+        <ExceptionMark from={geo(s4)} to={{ x: geo(d3).x + (d3.orbitals - 1) * d.b, y: geo(d3).y }} b={d.b} bh={d.bh} f={f} k={k} label={layout.wide ? 'unntak: ett elektron 4s → 3d' : 'unntak: 4s → 3d'} />
+      )}
       {Z >= 19 && !exception && Z <= 20 && (
         <Txt x={geo(d3).x + 2.5 * d.b} y={geo(d3).y - 8 * f} muted size={0.75}>
           3d fylles etter 4s
@@ -312,14 +317,31 @@ function SpinArrow({ x, y, h, up, color, k }: { x: number; y: number; h: number;
   );
 }
 
-/** Unntaket (Cr, Cu): stiplet pil fra den tomme plassen i 4s til det nye elektronet i 3d. */
-function ExceptionMark({ from, to, b, bh, f, k }: { from: { x: number; y: number }; to: { x: number; y: number }; b: number; bh: number; f: number; k: number }) {
-  const sx = from.x + b * 0.68;
-  const sy = from.y + bh * 0.5;
+/** Unntaket (Cr, Cu): stiplet pil fra den tomme plassen i 4s til det nye elektronet i 3d, under 3d-raden. */
+function ExceptionMark({
+  from,
+  to,
+  b,
+  bh,
+  f,
+  k,
+  label,
+}: {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  b: number;
+  bh: number;
+  f: number;
+  k: number;
+  label: string;
+}) {
+  const gx = from.x + b * 0.68;
+  const gy = from.y + bh * 0.5;
+  const sx = from.x + b + 3 * k;
   const ex = to.x + b * 0.5;
-  const ey = to.y + bh + 4 * k;
+  const ey = to.y + bh + 3 * k;
   const cx = (sx + ex) / 2;
-  const cy = Math.max(sy, ey) + 46 * k;
+  const cy = Math.max(gy, ey) + 16 * k;
   const head = 9 * k;
   // Retningen inn mot spissen
   const ux = ex - cx;
@@ -329,14 +351,14 @@ function ExceptionMark({ from, to, b, bh, f, k }: { from: { x: number; y: number
   const hy = uy / ul;
   return (
     <g>
-      <circle cx={sx} cy={sy} r={7 * k} fill="none" stroke={KJEMI.valence} strokeWidth={1.6} strokeDasharray="3 3" />
-      <path d={`M${sx},${sy + 8 * k} Q${cx},${cy} ${ex - hx * head},${ey - hy * head}`} fill="none" stroke={KJEMI.valence} strokeWidth={2 * k} strokeDasharray={`${6 * k} ${4 * k}`} />
+      <circle cx={gx} cy={gy} r={7 * k} fill="none" stroke={KJEMI.valence} strokeWidth={1.6} strokeDasharray="3 3" />
+      <path d={`M${sx},${gy} Q${cx},${cy} ${ex - hx * head},${ey - hy * head}`} fill="none" stroke={KJEMI.valence} strokeWidth={2 * k} strokeDasharray={`${6 * k} ${4 * k}`} />
       <polygon
         points={`${ex},${ey} ${ex - hx * head - hy * head * 0.5},${ey - hy * head + hx * head * 0.5} ${ex - hx * head + hy * head * 0.5},${ey - hy * head - hx * head * 0.5}`}
         fill={KJEMI.valence}
       />
-      <Txt x={cx} y={cy + 4 * f} color={KJEMI.valence} size={0.8} weight={700}>
-        unntak: 4s → 3d
+      <Txt x={to.x + b} y={ey + 36 * f} anchor="end" color={KJEMI.valence} size={0.8} weight={700}>
+        {label}
       </Txt>
     </g>
   );

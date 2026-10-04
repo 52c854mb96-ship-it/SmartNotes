@@ -21,6 +21,26 @@ const viz: VizMeta[] = [
     keywords: ['elektronegativitet', 'ΔEN', 'polar', 'upolar', 'kovalent binding', 'ionebinding', 'metallbinding', 'delladning', 'dipol'],
     load: () => import('./Bindingstype'),
   },
+  {
+    id: 'molekylform',
+    chapter: '1',
+    sections: ['1.4'],
+    title: 'Molekylform og polaritet (VSEPR)',
+    summary:
+      'Se hvordan bindinger og frie elektronpar rundt sentralatomet bestemmer formen og bindingsvinkelen, og om bindingsdipolene opphever hverandre.',
+    keywords: ['VSEPR', 'molekylform', 'Lewisstruktur', 'bindingsvinkel', 'frie elektronpar', 'tetraedrisk', 'vinklet', 'polart molekyl', 'dipol'],
+    load: () => import('./Molekylform'),
+  },
+  {
+    id: 'svake-bindinger',
+    chapter: '1',
+    sections: ['1.5'],
+    title: 'Svake bindinger og kokepunkt',
+    summary:
+      'Sammenlign kokepunktene til hydridene i gruppe 14–17 og alkanene, slå London-krefter, dipol-dipol-krefter og hydrogenbindinger av og på, og se hvorfor vann koker ved 100 °C.',
+    keywords: ['svake bindinger', 'hydrogenbinding', 'London-krefter', 'dipol-dipol', 'van der Waals', 'kokepunkt', 'hydrider', 'alkaner', 'vann'],
+    load: () => import('./SvakeBindinger'),
+  },
 ];
 
 export default viz;

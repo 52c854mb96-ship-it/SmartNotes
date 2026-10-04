@@ -43,6 +43,7 @@ import {
   shapeLayout,
   shellCounts,
   shortConfigurationText,
+  spreadLabels,
   trendEstimate,
   unpairedElectrons,
   valenceElectronCount,
@@ -381,5 +382,16 @@ describe('svake bindinger og kokepunkt (1.5)', () => {
       expect(formula(a.formula).atoms).toEqual({ C: a.carbons, H: 2 * a.carbons + 2 });
       expect(modelBoilingPoint(alkaneParts(a), { london: true, dipole: false, hbond: false })).toBeCloseTo(a.bp, 6);
     }
+  });
+});
+
+describe('etiketter i grafer', () => {
+  it('spreadLabels holder avstand og rekkefølge', () => {
+    expect(spreadLabels([10, 12, 50], 10)).toEqual([10, 20, 50]);
+    expect(spreadLabels([12, 10], 10)).toEqual([20, 10]);
+    expect(spreadLabels([95, 96, 97], 10, 0, 100)).toEqual([80, 90, 100]);
+    expect(spreadLabels([], 10)).toEqual([]);
+    const r = spreadLabels([5, 5, 5, 5], 8, 0, 100);
+    expect(r).toEqual([5, 13, 21, 29]);
   });
 });

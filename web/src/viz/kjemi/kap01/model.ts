@@ -640,13 +640,18 @@ export function shapeLayout(shape: ShapeId, angle?: number): ShapeLayout {
         arc: null,
       };
     }
-    case 'square-planar':
-      // Kvadratet ligger vannrett (sett litt ovenfra): venstre og høyre i papirplanet, foran (kile) og bak (stiplet).
-      return {
-        ligands: [planar(180), planar(0), { deg: 235, stereo: 'wedge', len: 0.78, v: [0, 0, 1] }, { deg: 55, stereo: 'hash', len: 0.78, v: [0, 0, -1] }],
-        lonePairs: [90, 270],
-        arc: null,
+    case 'square-planar': {
+      // Kvadratet ligger vannrett og sees skrått ovenfra og litt fra siden (dreid 25°, vippet 50°), så tegningen er en ekte
+      // projeksjon: venstre og høyre nesten i papirplanet, foran (kile) og bak (stiplet). De frie parene peker opp og ned.
+      const alpha = rad(25);
+      const beta = rad(50);
+      const slot = (theta: number, stereo: LigandSlot['stereo']): LigandSlot => {
+        const t = rad(theta) + alpha;
+        const v: Vec3 = [Math.cos(t), -Math.sin(t) * Math.sin(beta), Math.sin(t) * Math.cos(beta)];
+        return { deg: (Math.atan2(v[1], v[0]) * 180) / Math.PI, stereo, len: Math.hypot(v[0], v[1]), v };
       };
+      return { ligands: [slot(180, 'plane'), slot(0, 'plane'), slot(90, 'wedge'), slot(270, 'hash')], lonePairs: [90, 270], arc: null };
+    }
   }
 }
 
@@ -685,7 +690,7 @@ export const MOLECULES: MoleculePreset[] = [
   { id: 'CCl4', formula: 'CCl4', name: 'tetraklormetan', center: 'C', ligands: ['Cl', 'Cl', 'Cl', 'Cl'], orders: [1, 1, 1, 1], lonePairs: 0, angle: 109.5, dipole: 0 },
   { id: 'CH2O', formula: 'CH2O', name: 'metanal (formaldehyd)', center: 'C', ligands: ['O', 'H', 'H'], orders: [2, 1, 1], lonePairs: 0, angle: 116.5, angleBetween: 'H–C–H', dipole: 2.33 },
   { id: 'PCl3', formula: 'PCl3', name: 'fosfortriklorid', center: 'P', ligands: ['Cl', 'Cl', 'Cl'], orders: [1, 1, 1], lonePairs: 1, angle: 100, dipole: 0.56 },
-  { id: 'CHCl3', formula: 'CHCl3', name: 'triklormetan (kloroform)', center: 'C', ligands: ['H', 'Cl', 'Cl', 'Cl'], orders: [1, 1, 1, 1], lonePairs: 0, angle: 111, angleBetween: 'Cl–C–Cl', dipole: 1.04 },
+  { id: 'CHCl3', formula: 'CHCl3', name: 'triklormetan (kloroform)', center: 'C', ligands: ['H', 'Cl', 'Cl', 'Cl'], orders: [1, 1, 1, 1], lonePairs: 0, angle: 108, angleBetween: 'H–C–Cl', dipole: 1.04 },
 ];
 
 export function moleculeShape(m: MoleculePreset): ShapeId {
@@ -738,7 +743,7 @@ export function netDipole(shape: ShapeId, polarities: readonly number[], angle?:
   const sum: Vec3 = [0, 0, 0];
   lay.ligands.forEach((l, i) => {
     const p = polarities[i] ?? 0;
-    for (let k = 0; k < 3; k++) sum[k] += p * l.v[k]!;
+    for (let k = 0; k < 3; k++) sum[k] = sum[k]! + p * l.v[k]!;
   });
   return sum.map((v) => (Math.abs(v) < 1e-9 ? 0 : v)) as Vec3;
 }
@@ -874,4 +879,19 @@ export function alkaneParts(a: Alkane): ForceParts {
 export function modelBoilingPoint(parts: ForceParts, on: ForceSwitches): number | null {
   const T = (on.london ? parts.london : 0) + (on.dipole ? parts.dipole : 0) + (on.hbond ? parts.hbond : 0);
   return T > 0.5 ? T - KELVIN : null;
+}
+
+/**
+ * Flytter etiketter (y-verdier) fra hverandre så de står minst `gap` fra hverandre, innenfor [lo, hi], og beholder
+ * rekkefølgen. Gir de nye verdiene i samme rekkefølge som inn. (Ren layout-hjelper for grafer med mange linjer.)
+ */
+export function spreadLabels(ys: readonly number[], gap: number, lo = -Infinity, hi = Infinity): number[] {
+  const idx = ys.map((y, i) => ({ y: Number.isFinite(y) ? y : 0, i })).sort((a, b) => a.y - b.y);
+  const out = idx.map((p) => p.y);
+  for (let i = 0; i < out.length; i++) out[i] = Math.max(out[i]!, i === 0 ? lo : out[i - 1]! + gap);
+  for (let i = out.length - 1; i >= 0; i--) out[i] = Math.min(out[i]!, i === out.length - 1 ? hi : out[i + 1]! - gap);
+  for (let i = 0; i < out.length; i++) out[i] = Math.max(out[i]!, i === 0 ? lo : out[i - 1]! + gap);
+  const res: number[] = new Array(ys.length);
+  idx.forEach((p, j) => (res[p.i] = out[j]!));
+  return res;
 }
