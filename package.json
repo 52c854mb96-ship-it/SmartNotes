@@ -18,7 +18,8 @@
     "start": "npm run start --workspace server",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspace server && npm run test --workspace web",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test --project=desktop --project=mobil",
+    "test:e2e:webkit": "playwright test --project=safari --project=ipad"
   },
   "devDependencies": {
     "@playwright/test": "1.56"
