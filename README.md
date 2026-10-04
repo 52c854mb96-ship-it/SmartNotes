@@ -28,7 +28,7 @@ Foreløpig er appen laget for **fysikk**. Andre fag kommer senere, og arkitektur
 ## Slik henger det sammen
 
 ```
- iPad / mobil / PC                                  Server (Docker, f.eks. på Fly.io)
+ iPad / mobil / PC                                  Server (Docker, f.eks. på Railway)
 ┌──────────────────────────┐   HTTPS + synk    ┌──────────────────────────────────────┐
 │ Web-app (PWA)            │ ────────────────▶ │ API (Fastify) + SQLite               │
 │ • IndexedDB: fag, kap.,  │                   │ Kø: bilder → Claude → LaTeX → PDF    │
@@ -73,7 +73,7 @@ SMARTNOTES_FAKE_CLAUDE=1 npm run dev
 
 ## Ta i bruk på ekte (synk mellom enheter)
 
-Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du må ordne selv (API-nøkkel, Fly.io, GitHub og installering på enhetene). Fly.io koster ca. 60–70 kr/mnd. [docs/DEPLOY.md](docs/DEPLOY.md) beskriver det samme med terminalen, og hvordan du kjører serveren hjemme med Docker.
+Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du må ordne selv: API-nøkkel, serveren på Railway og installering på enhetene. [docs/DEPLOY.md](docs/DEPLOY.md) beskriver også Fly.io og hvordan du kjører serveren hjemme med Docker.
 
 **API-nøkkelen ligger bare på serveren** (`ANTHROPIC_API_KEY`). Den sendes aldri til nettleseren og skal aldri sjekkes inn i git.
 

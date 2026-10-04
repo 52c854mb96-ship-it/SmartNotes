@@ -1,17 +1,28 @@
 # Ta i bruk SmartNotes
 
-For at notatene skal synkroniseres mellom enhetene dine, må serveren kjøre et sted som alltid er på. Du har to alternativer:
+For at notatene skal synkroniseres mellom enhetene dine, må serveren kjøre et sted som alltid er på. Du har tre alternativer:
 
-- **A. Fly.io** (anbefalt): ingen maskin å passe på, og HTTPS følger med. Koster ca. 60–70 kr/mnd.
-- **B. Egen maskin med Docker**: en PC, NAS eller Raspberry Pi som står på hjemme.
+- **A. Railway** (anbefalt, du har abonnement der): ingen maskin å passe på, HTTPS følger med, og nye versjoner deployes automatisk fra GitHub.
+- **B. Fly.io**: samme type tjeneste, styres med terminalen. Koster ca. 60–70 kr/mnd.
+- **C. Egen maskin med Docker**: en PC, NAS eller Raspberry Pi som står på hjemme.
 
-Begge bruker samme Docker-image, med Node.js, TeX Live og poppler.
-
-> **Enklest:** følg [OPPSETT.md](OPPSETT.md). Der gjøres Fly.io-oppsettet med to knapper i GitHub Actions, uten å installere noe. Denne siden beskriver det samme med terminalen, og hvordan du kjører serveren hjemme.
+Alle bruker samme Docker-image, med Node.js, TeX Live og poppler. Containeren starter som root bare for å gi lagringsvolumet til brukeren `node` (`scripts/docker-entrypoint.sh`); selve serveren kjører som `node`.
 
 ---
 
-## A. Fly.io
+## A. Railway
+
+Følg **[OPPSETT.md](OPPSETT.md)**, steg 4–6. Kort fortalt:
+
+- Én tjeneste med et volum montert på `/data`, i regionen EU West.
+- Variablene `APP_PASSWORD`, `ANTHROPIC_API_KEY` og `PORT=8080`, og et domene som peker til port 8080.
+- Tjenesten kobles til GitHub-repoet (grenen `main`, med **Wait for CI**). Railway leser `railway.json`: bygg med `Dockerfile`, helsesjekk på `/api/health` og omstart ved feil.
+
+Andre innstillinger fra tabellen i README (f.eks. `CLAUDE_EFFORT`) legges inn som variabler på samme måte.
+
+---
+
+## B. Fly.io
 
 ### 1. Installer verktøyet og logg inn
 
@@ -94,7 +105,7 @@ fly ssh console        # skall inne i maskinen; data ligger i /data
 
 ---
 
-## B. Egen maskin med Docker
+## C. Egen maskin med Docker
 
 ```bash
 cp .env.example .env          # fyll inn APP_PASSWORD og ANTHROPIC_API_KEY
@@ -109,14 +120,3 @@ Appen kjører da på port 8080, og dataene ligger i `./data`.
 - **Cloudflare Tunnel** eller en reverse proxy som **Caddy** med eget domene.
 
 Hvis du absolutt må kjøre uten HTTPS på et lukket nett, sett `COOKIE_SECURE=false`. Da virker ikke offline-modus.
-
----
-
-## Automatisk deploy fra GitHub
-
-Repoet har to workflows for dette (se [OPPSETT.md](OPPSETT.md), steg 4–6):
-
-- **Fly.io – første oppsett** (`.github/workflows/fly-setup.yml`): oppretter appen og volumet og lagrer hemmelighetene. Kjøres manuelt én gang.
-- **Deploy til Fly.io** (`.github/workflows/deploy.yml`): kjører når CI er grønn på `main`, eller manuelt.
-
-De trenger repository secrets `FLY_API_TOKEN` (organisasjonstoken), `APP_PASSWORD` og `ANTHROPIC_API_KEY`, og variabelen `FLY_APP`. Uten `FLY_APP` hoppes deploy over.

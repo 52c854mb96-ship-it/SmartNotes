@@ -18,6 +18,6 @@ Personal app for a Norwegian student: handwritten lecture notes (photos/PDF) →
 
 ## Commands
 - `npm test` (server vitest, needs TeX Live + poppler; plus web vitest for the viz models), `npm run typecheck`, `npm run build`, `npm run test:e2e` (Playwright).
-- Deploy: `docs/OPPSETT.md` (step-by-step for the user) and GitHub workflows `fly-setup.yml` / `deploy.yml` (secrets `FLY_API_TOKEN`, `APP_PASSWORD`, `ANTHROPIC_API_KEY`, variable `FLY_APP`).
+- Deploy: Railway (`railway.json`, Dockerfile, volume on `/data`, variables `APP_PASSWORD`, `ANTHROPIC_API_KEY`, `PORT=8080`, auto-deploy from `main` with Wait for CI). Step-by-step for the user: `docs/OPPSETT.md`; Fly.io/Docker alternatives in `docs/DEPLOY.md`. The image starts as root only to chown the volume (`scripts/docker-entrypoint.sh`), then runs as `node`.
 - Dev: `SMARTNOTES_FAKE_CLAUDE=1 npm run dev` (server :8787, web :5173 with /api proxy).
 - Mutating API calls require header `X-SmartNotes: 1`; auth is the `sn_session` cookie.

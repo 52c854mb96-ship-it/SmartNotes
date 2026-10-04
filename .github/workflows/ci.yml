@@ -51,9 +51,13 @@ jobs:
           cache-to: type=gha,mode=max
       - name: Røyktest av imaget (ekte LaTeX-kompilering, falsk Claude)
         run: |
-          docker run -d --name sn -p 8080:8080 -e APP_PASSWORD=test -e SMARTNOTES_FAKE_CLAUDE=1 -e COOKIE_SECURE=false smartnotes:ci
+          # Volum som eies av root, slik Railway monterer det: oppstartsskriptet må gi det til «node».
+          mkdir -p "$RUNNER_TEMP/sn-data" && sudo chown root:root "$RUNNER_TEMP/sn-data"
+          docker run -d --name sn -p 8080:8080 -v "$RUNNER_TEMP/sn-data:/data" -e APP_PASSWORD=test -e SMARTNOTES_FAKE_CLAUDE=1 -e COOKIE_SECURE=false smartnotes:ci
           for i in $(seq 1 30); do curl -sf http://localhost:8080/api/health && break; sleep 2; done
           BASE=http://localhost:8080 PASSWORD=test scripts/smoke-test.sh
+          # Dataene havnet på volumet, skrevet av «node» (uid 1000) og ikke root.
+          test "$(sudo stat -c %u "$RUNNER_TEMP/sn-data/smartnotes.db")" = "1000"
       - name: Serverlogg
         if: always()
         run: docker logs sn || true
