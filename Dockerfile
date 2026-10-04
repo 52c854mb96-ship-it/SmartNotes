@@ -7,7 +7,7 @@ COPY package.json package-lock.json ./
 COPY shared/package.json shared/
 COPY server/package.json server/
 COPY web/package.json web/
-RUN npm ci
+RUN npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 
@@ -18,7 +18,7 @@ COPY package.json package-lock.json ./
 COPY shared/package.json shared/
 COPY server/package.json server/
 COPY web/package.json web/
-RUN npm ci --omit=dev --workspace server --include-workspace-root=false
+RUN npm ci --ignore-scripts --omit=dev --workspace server --include-workspace-root=false
 
 # ---------- Kjøremiljø med TeX Live og poppler ----------
 FROM node:22-trixie-slim
