@@ -68,7 +68,8 @@ export function Atom({ x, y, el, r, charge, label, showCharge, partial, partialA
   const R = radiusOf({ x, y, el, r, charge }, k);
   const c = atomColors(el);
   const text = label ?? el;
-  const long = typeof text === 'string' && text.length > 1;
+  // Lange symboler (Cl) og egne etiketter (Mg med hevet ladning) får mindre skrift, så de holder seg inne i kula.
+  const long = typeof text !== 'string' || text.length > 1;
   const fs = R * (long ? 0.8 : 0.95);
   const q = charge ?? 0;
   const p = partial ? polar(x, y, R + 9 + 9 * f, partialAngle) : null;

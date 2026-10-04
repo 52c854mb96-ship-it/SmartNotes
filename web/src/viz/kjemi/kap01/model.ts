@@ -23,6 +23,14 @@ export const KIND_NAMES: Record<BondKind, string> = {
   metallisk: 'Metallbinding',
 };
 
+/** Korte navn til avlesningen (får plass på mobil). */
+export const KIND_SHORT: Record<BondKind, string> = {
+  upolar: 'Upolar kovalent',
+  polar: 'Polar kovalent',
+  ionisk: 'Ionisk',
+  metallisk: 'Metallisk',
+};
+
 /** Klassifisering etter ΔEN alene. Akkurat 0,5 regnes som polar og akkurat 1,7 som polar kovalent. */
 export function classifyDEN(dEN: number): DenClass {
   if (dEN < DEN_POLAR) return 'upolar';
