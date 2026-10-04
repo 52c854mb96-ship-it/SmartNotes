@@ -1,0 +1,88 @@
+import type { VizMeta } from '../../types';
+
+/** Kapittel 5 Cellestrukturer og cellefunksjon (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+const viz: VizMeta[] = [
+  {
+    id: 'cellen',
+    chapter: '5',
+    sections: [],
+    title: 'Dyrecelle, plantecelle og bakteriecelle',
+    summary:
+      'Utforsk organellene i en dyrecelle, en plantecelle og en bakteriecelle: trykk på en del for å se hvordan den er bygd og hva den gjør, og sammenlign prokaryote og eukaryote celler.',
+    keywords: [
+      'celle',
+      'organeller',
+      'dyrecelle',
+      'plantecelle',
+      'bakteriecelle',
+      'prokaryot',
+      'eukaryot',
+      'cellekjerne',
+      'mitokondrie',
+      'kloroplast',
+      'endoplasmatisk nettverk',
+      'golgiapparat',
+      'ribosom',
+      'lysosom',
+      'vakuole',
+      'cellevegg',
+      'cellemembran',
+      'plasmid',
+      'struktur og funksjon',
+      'KM5',
+    ],
+    load: () => import('./Cellen'),
+  },
+  {
+    id: 'overflate-og-volum',
+    chapter: '5',
+    sections: [],
+    title: 'Overflate og volum',
+    summary:
+      'Gjør en celle større og se hvordan overflaten, volumet og forholdet mellom dem endrer seg, og hvor lang tid oksygen bruker inn til midten. Se også hvorfor tarmtotter og rothår gir stor overflate.',
+    keywords: [
+      'overflate',
+      'volum',
+      'forholdet overflate/volum',
+      'cellestørrelse',
+      'diffusjon',
+      'diffusjonstid',
+      'flercellet',
+      'tarmtotter',
+      'mikrovilli',
+      'rothår',
+      'alveoler',
+      'KM3',
+      'KM5',
+    ],
+    load: () => import('./OverflateOgVolum'),
+  },
+  {
+    id: 'fotosyntese-og-celleanding',
+    chapter: '5',
+    sections: [],
+    title: 'Fotosyntese og celleånding',
+    summary:
+      'Endre lys, CO₂ og temperatur og se hvordan fotosyntesen og celleåndingen i et blad endrer seg: begrensende faktorer, lysmetning, netto O₂-produksjon og kompensasjonspunktet.',
+    keywords: [
+      'fotosyntese',
+      'celleånding',
+      'kloroplast',
+      'mitokondrie',
+      'begrensende faktor',
+      'lysmetning',
+      'kompensasjonspunkt',
+      'netto fotosyntese',
+      'CO₂',
+      'temperatur',
+      'enzymer',
+      'glukose',
+      'ATP',
+      'KM3',
+      'KM5',
+    ],
+    load: () => import('./FotosynteseOgCelleanding'),
+  },
+];
+
+export default viz;

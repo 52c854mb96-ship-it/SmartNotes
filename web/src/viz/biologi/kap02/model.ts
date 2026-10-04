@@ -81,6 +81,8 @@ export interface Organism {
   id: OrganismId;
   /** Norsk navn (liten forbokstav, som i løpende tekst). */
   name: string;
+  /** Kort navn til trange etiketter (slektskapstreet). */
+  short: string;
   /** Vitenskapelig navn (kursiv i visningen). */
   sci: string;
   glyph: GlyphKind;
@@ -115,6 +117,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'menneske',
     name: 'menneske',
+    short: 'menneske',
     sci: 'Homo sapiens',
     glyph: 'menneske',
     lineage: lineage(EUK, DYR, CHORDATA, MAMMALIA, PRIMATES, HOMINIDAE, { sci: 'Homo' }, { no: 'menneske', sci: 'Homo sapiens' }),
@@ -122,6 +125,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'sjimpanse',
     name: 'sjimpanse',
+    short: 'sjimpanse',
     sci: 'Pan troglodytes',
     glyph: 'ape',
     lineage: lineage(EUK, DYR, CHORDATA, MAMMALIA, PRIMATES, HOMINIDAE, { no: 'Sjimpanser', sci: 'Pan' }, { no: 'sjimpanse', sci: 'Pan troglodytes' }),
@@ -129,6 +133,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'hund',
     name: 'hund',
+    short: 'hund',
     sci: 'Canis lupus familiaris',
     glyph: 'hund',
     lineage: lineage(EUK, DYR, CHORDATA, MAMMALIA, CARNIVORA, CANIDAE, CANIS, CANIS_LUPUS),
@@ -137,6 +142,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'ulv',
     name: 'ulv',
+    short: 'ulv',
     sci: 'Canis lupus',
     glyph: 'hund',
     lineage: lineage(EUK, DYR, CHORDATA, MAMMALIA, CARNIVORA, CANIDAE, CANIS, CANIS_LUPUS),
@@ -144,6 +150,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'katt',
     name: 'katt',
+    short: 'katt',
     sci: 'Felis catus',
     glyph: 'katt',
     lineage: lineage(
@@ -160,6 +167,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'blahval',
     name: 'blåhval',
+    short: 'blåhval',
     sci: 'Balaenoptera musculus',
     glyph: 'hval',
     lineage: lineage(
@@ -176,6 +184,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'kongeorn',
     name: 'kongeørn',
+    short: 'kongeørn',
     sci: 'Aquila chrysaetos',
     glyph: 'fugl',
     lineage: lineage(
@@ -192,6 +201,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'krokodille',
     name: 'nilkrokodille',
+    short: 'krokodille',
     sci: 'Crocodylus niloticus',
     glyph: 'krokodille',
     lineage: lineage(
@@ -208,6 +218,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'firfisle',
     name: 'nordfirfisle',
+    short: 'firfisle',
     sci: 'Zootoca vivipara',
     glyph: 'firfisle',
     lineage: lineage(
@@ -224,6 +235,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'frosk',
     name: 'buttsnutet frosk',
+    short: 'frosk',
     sci: 'Rana temporaria',
     glyph: 'frosk',
     lineage: lineage(
@@ -240,6 +252,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'laks',
     name: 'laks',
+    short: 'laks',
     sci: 'Salmo salar',
     glyph: 'fisk',
     lineage: lineage(
@@ -256,6 +269,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'torsk',
     name: 'torsk',
+    short: 'torsk',
     sci: 'Gadus morhua',
     glyph: 'fisk',
     lineage: lineage(
@@ -272,6 +286,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'eik',
     name: 'sommereik',
+    short: 'eik',
     sci: 'Quercus robur',
     glyph: 'eik',
     lineage: lineage(
@@ -288,6 +303,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'gran',
     name: 'gran',
+    short: 'gran',
     sci: 'Picea abies',
     glyph: 'gran',
     lineage: lineage(
@@ -304,6 +320,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'fluesopp',
     name: 'rød fluesopp',
+    short: 'fluesopp',
     sci: 'Amanita muscaria',
     glyph: 'fluesopp',
     lineage: lineage(
@@ -320,6 +337,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'bakegjaer',
     name: 'bakegjær',
+    short: 'bakegjær',
     sci: 'Saccharomyces cerevisiae',
     glyph: 'gjaer',
     lineage: lineage(
@@ -336,6 +354,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'ecoli',
     name: 'E. coli',
+    short: 'E. coli',
     sci: 'Escherichia coli',
     glyph: 'bakterie',
     lineage: lineage(
@@ -352,6 +371,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'arke',
     name: 'metanarke',
+    short: 'arke',
     sci: 'Methanobrevibacter smithii',
     glyph: 'arke',
     lineage: lineage(
@@ -459,12 +479,12 @@ const TREE_ANATOMI: TreeNode = N(
         'Firfotinger',
         L('frosk'),
         N(
-          undefined,
+          'Amnioter',
           N('Krypdyr', L('krokodille'), L('firfisle')),
           N(
             'Varmblodige',
             L('kongeorn'),
-            N('Pattedyr', N('Primater', L('menneske'), L('sjimpanse')), N('Rovdyr', L('katt'), N(undefined, L('hund'), L('ulv'))), L('blahval')),
+            N('Pattedyr', N('Primater', L('menneske'), L('sjimpanse')), N('Rovdyr', L('katt'), N('Hundeslekten', L('hund'), L('ulv'))), L('blahval')),
           ),
         ),
       ),
@@ -498,7 +518,7 @@ const TREE_DNA: TreeNode = N(
             L('frosk'),
             N(
               'Amnioter',
-              N('Pattedyr', N('Primater', L('menneske'), L('sjimpanse')), N(undefined, L('blahval'), N('Rovdyr', L('katt'), N('Ulv og hund', L('ulv'), L('hund'))))),
+              N('Pattedyr', N('Primater', L('menneske'), L('sjimpanse')), N('Hvaler og rovdyr', L('blahval'), N('Rovdyr', L('katt'), N('Ulv og hund', L('ulv'), L('hund'))))),
               N('Krypdyr med fugler', L('firfisle'), N('Arkosaurer', L('krokodille'), L('kongeorn'))),
             ),
           ),
@@ -639,3 +659,13 @@ export const QUESTIONS: readonly Question[] = [
   { id: 'sopp', label: 'Er sopp planter?', x: 'fluesopp', y: 'eik', z: 'menneske' },
   { id: 'arke', label: 'Er arker bakterier?', x: 'arke', y: 'ecoli', z: 'bakegjaer' },
 ];
+
+/**
+ * Myke bindestreker (U+00AD) i lange sammensatte ord, så de kan deles i trange avlesninger på mobil:
+ * «Ryggstrengdyr» → «Rygg­streng­dyr». Synes bare når ordet faktisk deles.
+ */
+export function softHyphens(text: string): string {
+  return text.replace(/\p{L}{11,}/gu, (w) =>
+    w.replace(/(?<=\p{L}{3})(streng|dyr|fisker|finne|bakterier|aper|fugler|krokodiller|planter|sopper|tinger|kjerne|stamform|øgler)/gu, '\u00AD$1'),
+  );
+}

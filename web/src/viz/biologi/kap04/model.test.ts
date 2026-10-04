@@ -18,6 +18,7 @@ import {
   latitudeBand,
   lincolnPetersen,
   markRecaptureTrial,
+  niceAxis,
   pondLayout,
   recaptureDistribution,
   shiftPerDegreeAltitude,
@@ -249,5 +250,15 @@ describe('klima og utbredelse', () => {
     // En art fra lavlandet mister ikke noe areal i Norge når det blir varmere
     const rod = SPECIES.find((s) => s.id === 'rodrev')!;
     expect(speciesRange(rod, 3, 'nord', 0).remaining!).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('akser', () => {
+  it('niceAxis når alltid opp til maksverdien', () => {
+    expect(niceAxis(4.3).max).toBeGreaterThanOrEqual(4.3);
+    expect(niceAxis(558).max).toBeGreaterThanOrEqual(558);
+    expect(niceAxis(558).ticks[0]).toBe(0);
+    expect(niceAxis(20).max).toBe(20);
+    expect(niceAxis(0).max).toBeGreaterThan(0);
   });
 });

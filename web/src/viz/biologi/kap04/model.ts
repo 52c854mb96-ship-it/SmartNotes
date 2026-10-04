@@ -8,7 +8,7 @@
  * 3. Klima og utbredelse: en arts klimasone langs en temperaturgradient (høyde over havet eller breddegrad) og hvor
  *    mye areal som er igjen når klimaet blir varmere.
  */
-import { harvestRate, logisticRate, msy, proportionalEquilibrium, quotaEquilibria, rk4Step, seededRandom, type Harvest } from '../kit';
+import { harvestRate, logisticRate, msy, niceTicks, proportionalEquilibrium, quotaEquilibria, rk4Step, seededRandom, type Harvest } from '../kit';
 
 /* ====================================================================== */
 /* 1. Bærekraftig høsting                                                   */
@@ -250,10 +250,10 @@ export type McScenario = 'ideell' | 'ikkeBlandet' | 'merkeTap' | 'fellelyst';
  * - fellelyst: merkede fisk har lært at fella har mat og går dobbelt så lett i den (vekt 2) → R for stor.
  */
 export const SCENARIOS: Record<McScenario, { label: string; weight: number; retention: number }> = {
-  ideell: { label: 'Alle forutsetningene holder', weight: 1, retention: 1 },
-  ikkeBlandet: { label: 'Merkede fisk har ikke blandet seg', weight: 0.3, retention: 1 },
-  merkeTap: { label: 'Noen merker har falt av', weight: 1, retention: 0.6 },
-  fellelyst: { label: 'Merkede fisk går lettere i fella', weight: 2, retention: 1 },
+  ideell: { label: 'Ingen feilkilder', weight: 1, retention: 1 },
+  ikkeBlandet: { label: 'Dårlig blanding', weight: 0.3, retention: 1 },
+  merkeTap: { label: 'Merker faller av', weight: 1, retention: 0.6 },
+  fellelyst: { label: 'Merkede fanges lettere', weight: 2, retention: 1 },
 };
 
 /**
@@ -353,16 +353,17 @@ export interface PondFish {
 export function pondLayout(n: number, seed: number): PondFish[] {
   const rnd = seededRandom(seed);
   const out: PondFish[] = [];
-  const minD = 0.9 * Math.sqrt(Math.PI / Math.max(1, n)) * 0.75;
+  // Tilfeldig sekvensiell plassering: avstanden kan ikke være mye over 0,8 · √(π/n) før det blir fullt
+  const minD = 0.8 * Math.sqrt(Math.PI / Math.max(1, n));
   for (let i = 0; i < n; i++) {
     let best: PondFish | null = null;
     let bestD = -1;
-    for (let tries = 0; tries < 24; tries++) {
+    for (let tries = 0; tries < 40; tries++) {
       const a = rnd() * Math.PI * 2;
       const s = Math.sqrt(rnd()) * 0.93;
       const c = { u: s * Math.cos(a), v: s * Math.sin(a), right: rnd() < 0.5 };
       let d = Number.POSITIVE_INFINITY;
-      for (const q of out) d = Math.min(d, Math.hypot((c.u - q.u) * 1.6, c.v - q.v));
+      for (const q of out) d = Math.min(d, Math.hypot((c.u - q.u) * 1.3, c.v - q.v));
       if (d >= minD) {
         best = c;
         break;
@@ -435,9 +436,10 @@ export function markRecaptureTrial({ N, M, C, seed, scenario }: McTrialParams): 
     [order[i], order[j]] = [order[j]!, order[i]!];
   }
   const after: PondFish[] = before.map((p, i) => {
-    if (scenario === 'ikkeBlandet' && marked.has(i)) {
+    if (scenario === 'ikkeBlandet') {
+      // Ingen blanding: alle fisk (også de merkede) svømmer bare litt rundt der de var
       const a = rnd() * Math.PI * 2;
-      const s = 0.12 * Math.sqrt(rnd());
+      const s = 0.1 * Math.sqrt(rnd());
       const u = p.u + s * Math.cos(a);
       const v = p.v + s * Math.sin(a);
       const len = Math.hypot(u, v);
@@ -445,7 +447,6 @@ export function markRecaptureTrial({ N, M, C, seed, scenario }: McTrialParams): 
     }
     return mixed[order[i]!]!;
   });
-  // Ikke blandet: de umerkede fyller dammen tilfeldig (de merkede ligger der de ligger)
 
   const lostTag = new Set<number>();
   if (scenario === 'merkeTap') for (const i of marked) if (rnd() < 1 - SCENARIOS.merkeTap.retention) lostTag.add(i);
@@ -655,4 +656,15 @@ export function speciesRange(sp: Pick<Species, 'Tmin' | 'Tmax'>, dT: number, mod
     gone: areaToday > 0 && areaFuture <= 0,
     squeezed: areaFuture > 0 && latitudeOfTemp(sp.Tmin, dT) >= lastLand,
   };
+}
+
+/* ---------- Akser ---------- */
+
+/** Pene akseverdier fra 0 som alltid når minst opp til `max` (kit-ets niceTicks kan stoppe under). */
+export function niceAxis(max: number, count = 4): { max: number; ticks: number[] } {
+  const top = max > 0 && Number.isFinite(max) ? max : 1;
+  const ticks = niceTicks(0, top, count);
+  const step = ticks.length > 1 ? ticks[1]! - ticks[0]! : top;
+  while (ticks[ticks.length - 1]! < top - 1e-9) ticks.push(Math.round((ticks[ticks.length - 1]! + step) / step) * step);
+  return { max: ticks[ticks.length - 1]!, ticks };
 }

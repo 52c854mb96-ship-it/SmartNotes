@@ -33,7 +33,8 @@ const COL_B = BIO.serie[1];
 const SHARED = BIO.serie[2];
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const OPTIONS = ORGANISMS.map((o) => ({ value: o.id, label: `${cap(o.name)} (${o.sci})` }));
+// Bare norske navn: lange vitenskapelige navn gjør nedtrekkslista for bred på mobil
+const OPTIONS = ORGANISMS.map((o) => ({ value: o.id, label: cap(o.name) }));
 
 export default function Klassifisering() {
   const [a, setA] = useState<OrganismId>('menneske');
@@ -43,7 +44,6 @@ export default function Klassifisering() {
   const s = lowestSharedRankIndex(A, B);
   const pair = PAIRS.find((p) => (p.a === a && p.b === b) || (p.a === b && p.b === a))?.id ?? null;
   const [ref, f] = useContainerTextScale<HTMLDivElement>();
-  const sharedTaxon = s >= 0 ? A.lineage[RANKS[s]!] : null;
 
   return (
     <VizLayout>
@@ -69,9 +69,9 @@ export default function Klassifisering() {
       </div>
 
       <Readouts>
-        <Readout label="Laveste felles nivå" value={s >= 0 ? RANK_NAMES[RANKS[s]!] : 'Ingen'} tone={SHARED} />
-        <Readout label="Felles gruppe" value={sharedTaxon ? (sharedTaxon.no ?? sharedTaxon.sci) : 'Bare livet selv'} />
+        <Readout label="Laveste felles nivå" value={s >= 0 ? RANK_NAMES[RANKS[s]!] : 'Ingen'} tone={s >= 0 ? SHARED : VIZ.muted} />
         <Readout label="Felles nivåer" value={`${s + 1} av 8`} />
+        <Readout label="Skilles på nivået" value={s >= 7 ? 'Ingen' : RANK_NAMES[RANKS[s + 1]!]} tone={s >= 7 ? undefined : VIZ.muted} />
       </Readouts>
 
       <Explain>{explanation(A, B, s)}</Explain>
@@ -96,6 +96,8 @@ interface Geo {
   rootH: number;
   headerH: number;
   glyph: number;
+  /** Midtpunktet til symbolene øverst. */
+  glyphY: number;
   H: number;
 }
 
@@ -107,7 +109,8 @@ function geometry(f: number): Geo {
   const left = X0 + labelW;
   const w = (X1 - left - gap) / 2;
   const glyph = 62 * k;
-  const headerH = glyph + 12 + 24 * f + 22 * f + 14;
+  const glyphY = glyph * 0.62 + 4;
+  const headerH = glyphY + glyph * 0.62 + 46 * f + 12;
   const rootH = 30 * f;
   const rootTop = headerH + 6;
   const rankLabel = narrow ? 22 * f : 0;
@@ -128,6 +131,7 @@ function geometry(f: number): Geo {
     rootH,
     headerH,
     glyph,
+    glyphY,
     H: Math.round(rowTop(8) + 4),
   };
 }
@@ -234,15 +238,15 @@ function Ladder({ A, B, s, f }: { A: Organism; B: Organism; s: number; f: number
         { o: B, cx: cB, col: COL_B, tag: 'B' },
       ].map(({ o, cx, col, tag }) => (
         <g key={tag}>
-          <circle cx={cx} cy={g.glyph / 2 + 6} r={g.glyph * 0.62} fill={col} fillOpacity={0.1} stroke={col} strokeWidth={1.5} />
-          <OrganismGlyph id={o.id} x={cx} y={g.glyph / 2 + 6} size={g.glyph * 0.92} />
-          <Txt x={cx - g.glyph * 0.62 - 10} y={22 * f} anchor="end" size={0.85} weight={700} color={col}>
+          <circle cx={cx} cy={g.glyphY} r={g.glyph * 0.62} fill={col} fillOpacity={0.1} stroke={col} strokeWidth={1.5} />
+          <OrganismGlyph id={o.id} x={cx} y={g.glyphY} size={g.glyph * 0.92} />
+          <Txt x={cx - g.glyph * 0.62 - 10} y={g.glyphY - g.glyph * 0.3} anchor="end" size={0.85} weight={700} color={col}>
             {tag}
           </Txt>
-          <Txt x={cx} y={g.glyph + 12 + 22 * f} weight={700}>
+          <Txt x={cx} y={g.glyphY + g.glyph * 0.62 + 24 * f} weight={700}>
             {cap(o.name)}
           </Txt>
-          <Txt x={cx} y={g.glyph + 12 + 44 * f} size={0.85} muted>
+          <Txt x={cx} y={g.glyphY + g.glyph * 0.62 + 46 * f} size={0.85} muted>
             <tspan fontStyle="italic">{narrow && o.sci.length > 20 ? abbreviateSpecies(o.sci) : o.sci}</tspan>
           </Txt>
         </g>
@@ -336,6 +340,12 @@ function Ladder({ A, B, s, f }: { A: Organism; B: Organism; s: number; f: number
 
 /* ---------- Forklaring ---------- */
 
+/** Et takson i løpende tekst: slekt og art med vitenskapelig navn i kursiv, ellers norsk navn når det finnes. */
+function taxonText(t: Taxon, rank: Rank): ReactNode {
+  if (rank === 'slekt' || rank === 'art') return <em>{t.sci}</em>;
+  return t.no ? t.no.toLowerCase() : t.sci;
+}
+
 function explanation(A: Organism, B: Organism, s: number): ReactNode {
   const a = A.name;
   const b = B.name;
@@ -407,8 +417,8 @@ function explanation(A: Organism, B: Organism, s: number): ReactNode {
           <strong>
             {cap(a)} og {b} har felles {RANK_NAMES[rank].toLowerCase()}: {tName}.
           </strong>{' '}
-          Fra {RANK_NAMES[next!].toLowerCase()} og nedover skilles de ({A.lineage[next!].no ?? A.lineage[next!].sci} og{' '}
-          {B.lineage[next!].no ?? B.lineage[next!].sci}).{' '}
+          Fra {RANK_NAMES[next!].toLowerCase()} og nedover skilles de ({taxonText(A.lineage[next!], next!)} og{' '}
+          {taxonText(B.lineage[next!], next!)}).{' '}
           {s >= 5
             ? 'Det er et lavt nivå, så de er nære slektninger.'
             : s >= 3

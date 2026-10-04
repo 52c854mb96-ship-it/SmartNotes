@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { checkBalance } from '../kit/formel';
+import { checkBalance, formula } from '../kit/formel';
+import { ACID_STRUCTURES, BASE_STRUCTURES, structureComposition } from './strukturer';
 import {
   EVERYDAY,
   INDICATORS,
@@ -278,5 +279,42 @@ describe('protolyse', () => {
     expect(protolysis('NH4', 'NH3').identity).toBe(true);
     expect(protolysis('NH4', 'NH3').kind).toBe('ingen endring');
     expect(protolysis('H2O', 'OH').identity).toBe(true);
+  });
+});
+
+describe('strukturene i protolysefiguren', () => {
+  it('har de samme atomene og den samme ladningen som formelen', () => {
+    for (const a of PROTOLYSIS_ACIDS) {
+      const s = ACID_STRUCTURES[a.id];
+      expect(s, a.id).toBeDefined();
+      const comp = structureComposition(s!);
+      const f = formula(a.formula);
+      expect(comp.atoms, a.id).toEqual({ ...f.atoms });
+      expect(comp.charge, a.id).toBe(f.charge);
+      // Protonet som gis fra seg, er et H bundet til donoratomet
+      expect(s!.atoms[s!.h!]!.el).toBe('H');
+      expect(s!.bonds.some(([x, y]) => (x === s!.key && y === s!.h) || (y === s!.key && x === s!.h))).toBe(true);
+    }
+    for (const b of PROTOLYSIS_BASES) {
+      const s = BASE_STRUCTURES[b.id];
+      expect(s, b.id).toBeDefined();
+      const comp = structureComposition(s!);
+      const f = formula(b.formula);
+      expect(comp.atoms, b.id).toEqual({ ...f.atoms });
+      expect(comp.charge, b.id).toBe(f.charge);
+      // Plassen til det nye protonet (x − 1) er ledig
+      const k = s!.atoms[s!.key]!;
+      expect(s!.atoms.every((a) => Math.hypot(a.x - (k.x - 1), a.y - k.y) > 0.9)).toBe(true);
+    }
+  });
+
+  it('atomene overlapper ikke (minst 0,9 bindingslengder mellom alle par)', () => {
+    for (const s of [...Object.values(ACID_STRUCTURES), ...Object.values(BASE_STRUCTURES)])
+      for (let i = 0; i < s.atoms.length; i++)
+        for (let j = i + 1; j < s.atoms.length; j++) {
+          const a = s.atoms[i]!;
+          const b = s.atoms[j]!;
+          expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThan(0.9);
+        }
   });
 });

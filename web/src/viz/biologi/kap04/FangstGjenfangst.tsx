@@ -21,8 +21,8 @@ import {
   VizLayout,
   fmt,
   fmtPct,
-  niceTicks,
   useContainerTextScale,
+  useSvgId,
   useTextScale,
 } from '../kit';
 import {
@@ -30,6 +30,7 @@ import {
   chapman,
   expectedRecaptures,
   markRecaptureTrial,
+  niceAxis,
   recaptureDistribution,
   summarizeEstimates,
   type McScenario,
@@ -114,7 +115,7 @@ export default function FangstGjenfangst() {
         </button>
       </Toolbar>
       <Toolbar>
-        <Select label="Forutsetning" value={scenario} options={SCENARIO_OPTIONS} onChange={(v) => change(() => setScenario(v))} />
+        <Select label="Feilkilde" value={scenario} options={SCENARIO_OPTIONS} onChange={(v) => change(() => setScenario(v))} />
       </Toolbar>
 
       <div ref={ref}>
@@ -173,16 +174,17 @@ export default function FangstGjenfangst() {
 /* ---------- Dammen ---------- */
 
 function Pond({ trial, step, scenario, f, M, C }: { trial: McTrial; step: Step; scenario: McScenario; f: number; M: number; C: number }) {
+  const clip = useSvgId('dam');
   const k = Math.max(1, f * 0.85);
   const titleH = 30 * f;
   const RX = 372;
-  const RY = Math.round(150 + 150 * (f - 1));
+  const RY = Math.round(185 + 130 * (f - 1));
   const cx = 400;
   const cy = titleH + 14 + RY;
   const H = Math.round(cy + RY + 12);
   const n = trial.before.length;
   const spacing = Math.sqrt((Math.PI * RX * RY) / Math.max(1, n));
-  const size = Math.min(34 * k, Math.max(16, spacing * 0.95));
+  const size = Math.min(32 * k, Math.max(14, spacing * 0.72));
   const pos: PondFish[] = step === 'merking' ? trial.before : step === 'utsetting' ? trial.after : trial.atCatch;
   const net = step === 'merking' ? trial.net1 : step === 'gjenfangst' ? trial.net2 : null;
   const map = (p: { u: number; v: number }) => ({ x: cx + p.u * (RX - size * 0.4), y: cy + p.v * (RY - size * 0.3) });
@@ -200,14 +202,26 @@ function Pond({ trial, step, scenario, f, M, C }: { trial: McTrial; step: Step; 
       viewBox={`0 0 800 ${H}`}
       maxHeight={Math.max(H, 420)}
       label={`Dam med ${n} fisk. ${title}.`}
-      caption={step === 'gjenfangst' ? 'Fisken som ikke ble fanget i gjenfangsten, er tonet ned.' : 'Hver fisk er tegnet der den er i dammen.'}
+      caption={
+        step === 'gjenfangst'
+          ? 'Fisken som ikke ble fanget i gjenfangsten, er tonet ned.'
+          : step === 'merking'
+            ? 'Fisken i garnet får en farget lapp (merke) før den slippes ut igjen.'
+            : 'De merkede er satt tilbake i dammen og svømmer fritt.'
+      }
     >
       <Txt x={24} y={22 * f} anchor="start" weight={700}>
         {f > 1.3 ? shortTitle : title}
       </Txt>
+      <defs>
+        <clipPath id={clip}>
+          <ellipse cx={cx} cy={cy} rx={RX} ry={RY} />
+        </clipPath>
+      </defs>
       <ellipse cx={cx} cy={cy} rx={RX} ry={RY} fill={BIO.vannFyll} stroke={BIO.vann} strokeWidth={2} />
       {net && (
         <ellipse
+          clipPath={`url(#${clip})`}
           cx={cx + net.u * (RX - size * 0.4)}
           cy={cy + net.v * (RY - size * 0.3)}
           rx={net.r * RX}
@@ -269,8 +283,7 @@ function SpreadPlot({
   pNone: number;
 }) {
   const H = Math.round(320 + 260 * (f - 1));
-  const xTicks = niceTicks(0, 3 * N, 5);
-  const xMax = xTicks[xTicks.length - 1]! >= 3 * N ? xTicks[xTicks.length - 1]! : 3 * N;
+  const { max: xMax, ticks: xTicks } = niceAxis(3 * N, 5);
   // Estimater over xMax samles i én pinne helt til høyre
   const sticks: { x: number; p: number; r: number[]; over: boolean }[] = [];
   let overP = 0;
@@ -281,12 +294,11 @@ function SpreadPlot({
     if (est > xMax) {
       overP += p;
       overR.push(r);
-    } else sticks.push({ x: est, p, r: [r], over: false });
+    } else if (p >= 0.0005) sticks.push({ x: est, p, r: [r], over: false });
   });
   if (overP > 0.0005) sticks.push({ x: xMax, p: overP, r: overR, over: true });
   const pMax = Math.max(0.01, ...sticks.map((s) => s.p));
-  const yTicks = niceTicks(0, pMax * 100 * 1.25, 4);
-  const yMax = yTicks[yTicks.length - 1]! >= pMax * 100 * 1.15 ? yTicks[yTicks.length - 1]! : pMax * 100 * 1.25;
+  const { max: yMax, ticks: yTicks } = niceAxis(pMax * 100 * 1.2, 4);
   // Hvor mange av forsøkene som ga hver R
   const hits = new Map<number, number>();
   for (const t of history) hits.set(t.R, (hits.get(t.R) ?? 0) + 1);
@@ -302,8 +314,8 @@ function SpreadPlot({
       }
     >
       <Plot
-        x={{ min: 0, max: xMax, label: 'Estimert antall fisk' }}
-        y={{ min: 0, max: yMax, label: 'Sannsynlighet (%)', ticks: yTicks.filter((v) => v <= yMax) }}
+        x={{ min: 0, max: xMax, label: 'Estimert antall fisk', ticks: xTicks }}
+        y={{ min: 0, max: yMax, label: 'Sannsynlighet (%)', ticks: yTicks }}
         width={800}
         height={H}
       >
@@ -337,9 +349,6 @@ function Sticks({
   return (
     <g>
       <line x1={sx(N)} x2={sx(N)} y1={y0} y2={y1} stroke={VIZ.ink} strokeWidth={2} strokeDasharray="7 5" />
-      <Txt x={sx(N) + 8} y={y1 + 18 * f} anchor="start" size={0.8}>
-        virkelig antall
-      </Txt>
       {sticks.map((s, i) => {
         const count = s.r.reduce((a, r) => a + (hits.get(r) ?? 0), 0);
         const x = sx(s.x);

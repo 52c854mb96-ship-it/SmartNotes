@@ -25,7 +25,6 @@ import {
   jiggle,
   linePath,
   logisticRate,
-  niceTicks,
   placeParticles,
   sample,
   useContainerTextScale,
@@ -38,6 +37,7 @@ import {
   SILD,
   STOP_BELOW,
   analyseHarvest,
+  niceAxis,
   runAt,
   simulateHarvest,
   type HarvestAnalysis,
@@ -164,11 +164,12 @@ export default function BaerekraftigHosting() {
           { color: C_STOCK, label: 'Bestand N (mill. tonn)' },
           { color: C_CATCH, label: 'Fangst (mill. tonn per år)' },
           { color: BIO.baereevne, label: 'Bæreevne K', dashed: true },
+          { color: VIZ.muted, label: 'K/2: størst tilvekst', dashed: true },
           ...(moratorium ? [{ color: VIZ.muted, label: 'Grått felt: fiskestopp' }] : []),
         ]}
       />
 
-      <GrowthPlot params={params} a={a} N={N} f={f} />
+      <GrowthPlot params={params} a={a} N={N} f={f} closed={closedNow} />
       <Legend
         items={[
           { color: C_GROWTH, label: 'Tilvekst rN(1 − N/K)' },
@@ -206,14 +207,20 @@ export default function BaerekraftigHosting() {
             </FormulaLine>
           )
         ) : (
-          <>
+          h >= r ? (
             <FormulaLine>
-              Likevekt: N* = K(1 − h/r) = {fmt(K, 0)} · (1 − {fmt(h, 2)}/{fmt(r, 2)}) = {fmt(a.equilibrium, 1)} mill. tonn
+              h = {fmt(h, 2)} ≥ r = {fmt(r, 2)}: fangsten hN er større enn tilveksten for alle N, så bestanden går mot null.
             </FormulaLine>
-            <FormulaLine>
-              Fangst i likevekt: h · N* = {fmt(h, 2)} · {fmt(a.equilibrium, 1)} = {fmt(a.equilibriumYield, 2)} mill. tonn per år
-            </FormulaLine>
-          </>
+          ) : (
+            <>
+              <FormulaLine>
+                Likevekt: N* = K(1 − h/r) = {fmt(K, 0)} · (1 − {fmt(h, 2)}/{fmt(r, 2)}) = {fmt(a.equilibrium, 1)} mill. tonn
+              </FormulaLine>
+              <FormulaLine>
+                Fangst i likevekt: h · N* = {fmt(h, 2)} · {fmt(a.equilibrium, 1)} = {fmt(a.equilibriumYield, 2)} mill. tonn per år
+              </FormulaLine>
+            </>
+          )
         )}
       </Formula>
 
@@ -271,7 +278,7 @@ function Sea({ N, K, catchNow, closed, t, f, collapsed }: { N: number; K: number
         <Txt x={boatX} y={water.y + 40 * k} weight={700} color={VIZ.muted} size={0.9}>
           Fiskestopp
         </Txt>
-      ) : catchNow > 0 ? (
+      ) : catchNow > 0.005 ? (
         <g>
           <line x1={boatX - 20 * k} y1={water.y} x2={boatX - 40 * k} y2={netDepth} stroke={VIZ.muted} strokeWidth={1.5} />
           <line x1={boatX + 20 * k} y1={water.y} x2={boatX + 40 * k} y2={netDepth} stroke={VIZ.muted} strokeWidth={1.5} />
@@ -318,7 +325,7 @@ function Boat({ x, y, k }: { x: number; y: number; k: number }) {
 
 function StockPlot({ run, t, K, f }: { run: HarvestRun; t: number; K: number; f: number }) {
   const H = Math.round(320 + 260 * (f - 1));
-  const yMax = niceTicks(0, K * 1.12, 5).find((v) => v >= K * 1.08) ?? K * 1.2;
+  const yAxis = niceAxis(K * 1.08, 5);
   const N = runAt(run, run.N, t);
   const c = runAt(run, run.catchRate, t);
   // Perioder med fiskestopp som felt
@@ -336,7 +343,7 @@ function StockPlot({ run, t, K, f }: { run: HarvestRun; t: number; K: number; f:
   const catches = run.t.map((x, i) => [x, run.catchRate[i]!] as [number, number]);
   return (
     <Figure viewBox={`0 0 800 ${H}`} label={`Bestand og fangst over ${HARVEST_YEARS} år. År ${fmt(t, 0)}: bestand ${fmt(N, 1)} og fangst ${fmt(c, 2)} millioner tonn.`}>
-      <Plot x={{ min: 0, max: HARVEST_YEARS, label: 'Tid (år)' }} y={{ min: 0, max: yMax, label: 'Millioner tonn' }} width={800} height={H}>
+      <Plot x={{ min: 0, max: HARVEST_YEARS, label: 'Tid (år)' }} y={{ min: 0, max: yAxis.max, label: 'Millioner tonn', ticks: yAxis.ticks }} width={800} height={H}>
         {({ sx, sy, y0, y1, x1 }) => (
           <g>
             {bands.map(([a, b], i) => (
@@ -346,9 +353,6 @@ function StockPlot({ run, t, K, f }: { run: HarvestRun; t: number; K: number; f:
             <line x1={sx(0)} x2={x1} y1={sy(K / 2)} y2={sy(K / 2)} className="viz-guide" />
             <Txt x={x1 - 6} y={sy(K) - 8} anchor="end" size={0.8} color={BIO.baereevne}>
               K
-            </Txt>
-            <Txt x={sx(0) + 8} y={sy(K / 2) - 8} anchor="start" size={0.8} muted>
-              K/2 (størst tilvekst)
             </Txt>
             <path d={`${linePath(catches, sx, sy)} L${sx(HARVEST_YEARS)},${sy(0)} L${sx(0)},${sy(0)} Z`} fill={C_CATCH} opacity={0.14} />
             <path d={linePath(catches, sx, sy)} fill="none" stroke={C_CATCH} strokeWidth={2.5} />
@@ -365,14 +369,13 @@ function StockPlot({ run, t, K, f }: { run: HarvestRun; t: number; K: number; f:
 
 /* ---------- Tilvekst og fangst mot bestanden ---------- */
 
-function GrowthPlot({ params, a, N, f }: { params: HarvestParams; a: HarvestAnalysis; N: number; f: number }) {
+function GrowthPlot({ params, a, N, f, closed }: { params: HarvestParams; a: HarvestAnalysis; N: number; f: number; closed: boolean }) {
   const { r, K, mode, H: quota, h } = params;
   const Hh = Math.round(320 + 260 * (f - 1));
   const msyY = (r * K) / 4;
-  const harvestAt = (n: number) => (mode === 'kvote' ? (n > 0 ? quota : 0) : h * n);
+  const harvestAt = (n: number) => (closed ? 0 : mode === 'kvote' ? (n > 0 ? quota : 0) : h * n);
   const yTop = Math.max(msyY * 1.35, mode === 'kvote' ? quota * 1.15 : 0);
-  const ticks = niceTicks(0, yTop, 5);
-  const yMax = ticks.find((v) => v >= yTop) ?? yTop;
+  const { max: yMax, ticks } = niceAxis(yTop, 5);
   const dec = yMax < 1 ? 2 : yMax < 4 ? 1 : 0;
   const growth = sample((n) => logisticRate(n, r, K), 0, K, 160);
   const g = logisticRate(N, r, K);
@@ -387,7 +390,7 @@ function GrowthPlot({ params, a, N, f }: { params: HarvestParams; a: HarvestAnal
     >
       <Plot
         x={{ min: 0, max: K, label: 'Bestand N (mill. tonn)' }}
-        y={{ min: 0, max: yMax, label: 'Mill. tonn per år', decimals: dec }}
+        y={{ min: 0, max: yMax, label: 'Mill. tonn per år', decimals: dec, ticks }}
         width={800}
         height={Hh}
       >
@@ -539,7 +542,7 @@ function explanation(p: HarvestParams, a: HarvestAnalysis, run: HarvestRun, tota
             {fmtPct(p.r)} i året (når den er liten). Da minker den hele tida.{' '}
             {a.outcome === 'fiskestopp'
               ? `Føre-var-regelen stopper fisket under ${fmtPct(STOP_BELOW)} av K til bestanden er over halvparten igjen, så bestanden svinger opp og ned i stedet for å forsvinne.`
-              : 'Fordi fangsten minker med bestanden, går det langsomt, men bestanden går mot null.'}
+              : 'Fangsten blir mindre etter hvert som bestanden minker, men bestanden går likevel mot null.'}
           </p>
           {surplus}
         </>

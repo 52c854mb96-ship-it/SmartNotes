@@ -114,7 +114,7 @@ export const INDICATORS: Record<IndicatorId, Indicator> = {
   metylrodt: { id: 'metylrodt', name: 'metylrødt', low: 4.4, high: 6.2, acidColor: 'rød', midColor: 'oransje', baseColor: 'gul' },
   lakmus: { id: 'lakmus', name: 'lakmus', low: 4.5, high: 8.3, acidColor: 'rød', midColor: 'fiolett', baseColor: 'blå' },
   bromtymolblatt: { id: 'bromtymolblatt', name: 'bromtymolblått', low: 6.0, high: 7.6, acidColor: 'gul', midColor: 'grønn', baseColor: 'blå' },
-  fenolftalein: { id: 'fenolftalein', name: 'fenolftalein', low: 8.2, high: 10.0, acidColor: 'fargeløs', midColor: 'svakt rosa', baseColor: 'rosa' },
+  fenolftalein: { id: 'fenolftalein', name: 'fenolftalein', low: 8.2, high: 10.0, acidColor: 'fargeløs', midColor: 'lyserosa', baseColor: 'rosa' },
 };
 
 /** Hvor langt indikatoren har skiftet farge (0 = syrefarge, 1 = basefarge), lineært gjennom omslagsområdet. */
@@ -122,10 +122,10 @@ export function indicatorShift(ind: Indicator, pH: number): number {
   return clamp((pH - ind.low) / (ind.high - ind.low), 0, 1);
 }
 
-/** Fargeordet ved en pH. */
+/** Fargeordet ved en pH: syrefargen i den nederste femtedelen av omslagsområdet, basefargen i den øverste. */
 export function indicatorColorWord(ind: Indicator, pH: number): string {
   const t = indicatorShift(ind, pH);
-  return t <= 0 ? ind.acidColor : t >= 1 ? ind.baseColor : ind.midColor;
+  return t < 0.2 ? ind.acidColor : t > 0.8 ? ind.baseColor : ind.midColor;
 }
 
 /** Midt i omslagsområdet (der vi sier at indikatoren slår om). */

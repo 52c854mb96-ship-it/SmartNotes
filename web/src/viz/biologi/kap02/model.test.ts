@@ -145,3 +145,12 @@ describe('slektskapstrærne', () => {
     }
   });
 });
+
+describe('myke bindestreker', () => {
+  it('deler lange sammensatte ord, men lar korte ord være', async () => {
+    const { softHyphens } = await import('./model');
+    expect(softHyphens('Ryggstrengdyr')).toBe('Rygg\u00ADstreng\u00ADdyr');
+    expect(softHyphens('Strålefinnefisker')).toBe('Stråle\u00ADfinne\u00ADfisker');
+    expect(softHyphens('Sopper og dyr')).toBe('Sopper og dyr');
+  });
+});
