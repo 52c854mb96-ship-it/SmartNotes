@@ -25,7 +25,7 @@ FROM node:22-trixie-slim
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       texlive-latex-base texlive-latex-recommended texlive-latex-extra \
-      texlive-science texlive-pictures texlive-lang-european texlive-fonts-recommended \
+      texlive-science texlive-pictures texlive-plain-generic texlive-lang-european texlive-fonts-recommended \
       lmodern latexmk poppler-utils ca-certificates tini \
  && rm -rf /var/lib/apt/lists/*
 

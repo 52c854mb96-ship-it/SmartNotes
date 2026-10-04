@@ -166,3 +166,6 @@ export const TEXTBOOKS: Record<string, TextbookPreset> = {
     ],
   },
 };
+
+/** Læreboksettene som legges inn som standard (rekkefølgen blir rekkefølgen i sidepanelet). */
+export const DEFAULT_SEED_TEXTBOOKS: string[] = Object.keys(TEXTBOOKS);

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
+import { DEFAULT_SEED_TEXTBOOKS } from './textbooks.js';
 
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -19,7 +20,8 @@ export interface Config {
   /** Bruk en falsk Claude (for utvikling og tester uten API-nøkkel). */
   fakeClaude: boolean;
   /** Lærebok (id i TEXTBOOKS) som faget og kapitlene lages fra ved første oppstart, eller null for et tomt «Fysikk». */
-  seedTextbook: string | null;
+  /** Læreboksett som legges inn (én gang hver). Tom liste = bare et tomt fag ved første oppstart. */
+  seedTextbooks: string[];
   /** Mappe med ferdigbygd web-app som serveres statisk, eller null. */
   webDist: string | null;
   latexTimeoutMs: number;
@@ -87,7 +89,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     effort,
     useFallbacks: bool(env.CLAUDE_FALLBACKS, true),
     fakeClaude,
-    seedTextbook: env.SEED_TEXTBOOK === undefined ? 'ergo-fysikk-1' : env.SEED_TEXTBOOK.trim() && env.SEED_TEXTBOOK !== 'none' ? env.SEED_TEXTBOOK.trim() : null,
+    seedTextbooks: parseSeedList(env.SEED_TEXTBOOKS ?? env.SEED_TEXTBOOK),
     webDist,
     latexTimeoutMs: int(env.LATEX_TIMEOUT_MS, 120_000),
     bundleTimeoutMs: int(env.BUNDLE_TIMEOUT_MS, 300_000),
@@ -99,4 +101,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     sessionDays: int(env.SESSION_DAYS, 365),
     version,
   };
+}
+
+/** «ergo-fysikk-1,aschehoug-kjemi-1» → liste; «none» eller tom → ingen; ikke satt → alle kjente læreboksett. */
+function parseSeedList(value: string | undefined): string[] {
+  if (value === undefined) return [...DEFAULT_SEED_TEXTBOOKS];
+  const v = value.trim();
+  if (!v || v === 'none') return [];
+  return v
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
 }

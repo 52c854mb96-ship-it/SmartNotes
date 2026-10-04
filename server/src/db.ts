@@ -715,23 +715,47 @@ export class Repo {
     this.db.prepare(`DELETE FROM sessions WHERE expires_at <= ?`).run(now());
   }
 
-  /** Første oppstart: opprett faget (med kapitlene fra læreboka hvis en er valgt). */
+  /**
+   * Startoppsett: hvert læreboksett (fag + kapitler + delkapitler + kompetansemål) legges inn én gang.
+   * Hvilke som er lagt inn, huskes i meta, så et fag brukeren har slettet, ikke kommer tilbake. Et fag som
+   * allerede finnes med samme lærebok (lagt inn før denne ordningen), regnes som lagt inn.
+   * Uten læreboksett og uten fag lages et tomt fag «Fysikk». Returnerer navnene på fagene som ble laget.
+   */
   seed(
-    preset: {
+    presets: {
+      id: string;
       subjectName: string;
       textbook: string;
       profile: SubjectProfile;
       aims: CompetenceAim[];
       chapters: (ChapterInput & { sections: Section[] })[];
-    } | null,
-  ): void {
-    const count = (this.db.prepare(`SELECT COUNT(*) AS n FROM subjects`).get() as { n: number }).n;
-    if (count > 0) return;
-    if (!preset) {
-      this.createSubject({ name: 'Fysikk', profile: 'physics', textbook: null });
-      return;
-    }
-    const subject = this.createSubject({ name: preset.subjectName, profile: preset.profile, textbook: preset.textbook, aims: preset.aims });
-    this.createChapters(subject.id, preset.chapters);
+    }[],
+  ): string[] {
+    return this.db.transaction(() => {
+      const created: string[] = [];
+      if (presets.length === 0) {
+        const count = (this.db.prepare(`SELECT COUNT(*) AS n FROM subjects`).get() as { n: number }).n;
+        if (count === 0) {
+          this.createSubject({ name: 'Fysikk', profile: 'physics', textbook: null });
+          created.push('Fysikk');
+        }
+        return created;
+      }
+      const row = this.db.prepare(`SELECT value FROM meta WHERE key = 'seeded_presets'`).get() as { value: string } | undefined;
+      const seeded = new Set<string>(row ? (JSON.parse(row.value) as string[]) : []);
+      const existing = this.listSubjects();
+      for (const preset of presets) {
+        if (seeded.has(preset.id)) continue;
+        seeded.add(preset.id);
+        if (existing.some((s) => s.textbook === preset.textbook && s.profile === preset.profile)) continue;
+        const subject = this.createSubject({ name: preset.subjectName, profile: preset.profile, textbook: preset.textbook, aims: preset.aims });
+        this.createChapters(subject.id, preset.chapters);
+        created.push(preset.subjectName);
+      }
+      this.db
+        .prepare(`INSERT INTO meta (key, value) VALUES ('seeded_presets', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+        .run(JSON.stringify([...seeded]));
+      return created;
+    })();
   }
 }

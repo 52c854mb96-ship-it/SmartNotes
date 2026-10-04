@@ -1,16 +1,35 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { Repo } from '../src/db.js';
-import { TEXTBOOKS } from '../src/textbooks.js';
+import { TEXTBOOKS, type TextbookPreset } from '../src/textbooks.js';
+
+const dirs: string[] = [];
+function freshRepo(): Repo {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-seed-'));
+  dirs.push(dir);
+  return new Repo(path.join(dir, 'db.sqlite'));
+}
+afterEach(() => {
+  for (const d of dirs.splice(0)) fs.rmSync(d, { recursive: true, force: true });
+});
+
+const ergo = TEXTBOOKS['ergo-fysikk-1']!;
+const kjemi: TextbookPreset = {
+  id: 'test-kjemi',
+  subjectName: 'Kjemi 1',
+  textbook: 'Test-kjemi',
+  profile: 'chemistry',
+  aims: [{ code: 'KM1', text: 'Et mål', cross: false }],
+  chapters: [{ number: '1', title: 'Atomer', sections: [{ code: '1.1', title: 'Atomet', aims: ['KM1'] }] }],
+};
 
 describe('startoppsett', () => {
   it('lager Fysikk 1 med kapitlene fra ERGO Fysikk 1 ved første oppstart, og bare da', () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-seed-'));
-    const repo = new Repo(path.join(dir, 'db.sqlite'));
-    repo.seed(TEXTBOOKS['ergo-fysikk-1']!);
-    repo.seed(TEXTBOOKS['ergo-fysikk-1']!);
+    const repo = freshRepo();
+    expect(repo.seed([ergo])).toEqual(['Fysikk 1']);
+    expect(repo.seed([ergo])).toEqual([]);
     const subjects = repo.listSubjects();
     expect(subjects).toHaveLength(1);
     expect(subjects[0]).toMatchObject({ name: 'Fysikk 1', textbook: 'ERGO Fysikk 1', profile: 'physics' });
@@ -28,6 +47,37 @@ describe('startoppsett', () => {
       '10 Elektrisitet',
     ]);
     repo.close();
-    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('legger til nye fag i en database som allerede har fysikk, uten å lage fysikk på nytt', () => {
+    const repo = freshRepo();
+    // Fysikk lagt inn med den gamle ordningen (ingen merknad i meta om hvilke læreboksett som er lagt inn)
+    repo.createSubject({ name: 'Fysikk 1', profile: 'physics', textbook: 'ERGO Fysikk 1' });
+    expect(repo.seed([ergo, kjemi])).toEqual(['Kjemi 1']);
+    const subjects = repo.listSubjects();
+    expect(subjects.map((s) => `${s.name}:${s.profile}`)).toEqual(['Fysikk 1:physics', 'Kjemi 1:chemistry']);
+    expect(repo.listChapters(subjects[1]!.id)[0]).toMatchObject({ number: '1', title: 'Atomer' });
+    expect(subjects[1]!.aims).toEqual(kjemi.aims);
+    // Nye fag får ny rev, så de synkes til enhetene
+    expect(repo.sync(0).subjects).toHaveLength(2);
+    repo.close();
+  });
+
+  it('et fag brukeren har slettet, kommer ikke tilbake', () => {
+    const repo = freshRepo();
+    repo.seed([ergo, kjemi]);
+    const k = repo.listSubjects().find((s) => s.profile === 'chemistry')!;
+    repo.deleteSubject(k.id);
+    expect(repo.seed([ergo, kjemi])).toEqual([]);
+    expect(repo.listSubjects().map((s) => s.name)).toEqual(['Fysikk 1']);
+    repo.close();
+  });
+
+  it('uten læreboksett: et tomt fag «Fysikk» bare i en tom database', () => {
+    const repo = freshRepo();
+    expect(repo.seed([])).toEqual(['Fysikk']);
+    expect(repo.seed([])).toEqual([]);
+    expect(repo.listSubjects()).toHaveLength(1);
+    repo.close();
   });
 });

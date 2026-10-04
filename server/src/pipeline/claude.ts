@@ -2,7 +2,7 @@ import fsp from 'node:fs/promises';
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
-import type { ChapterInput } from '@smartnotes/shared';
+import type { ChapterInput, SubjectProfile } from '@smartnotes/shared';
 import type { Config, Effort } from '../config.js';
 import { ConversionError } from '../errors.js';
 import type { Profile } from '../profiles/index.js';
@@ -276,25 +276,7 @@ export class FakeClaude implements ClaudeService {
     await new Promise((r) => setTimeout(r, this.delayMs));
     const first = req.pages[0]!;
     const broken = /FEIL/.test(req.instructions ?? '');
-    const body = String.raw`\section{Newtons lover}
-
-Newtons første lov: Et legeme som ikke påvirkes av en netto kraft, holder seg i ro eller beveger seg med konstant fart.
-
-\begin{formel}[Newtons 2. lov]
-\[ \sum \vec{F} = m\vec{a} \]
-\end{formel}
-
-Tyngdeakselerasjonen er $g = \qty{9.81}{\meter\per\second\squared}$.${broken ? '\n\\begin{formel}\nMangler slutt\n' : ''}
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[>={Stealth}]
-  \draw[thick] (0,0) -- (4,0) -- (4,2) -- cycle;
-  \draw[->,thick,red] (2.4,1.2) -- ++(0,-1.2) node[below] {$G$};
-\end{tikzpicture}
-\caption{Kloss på skråplan.}
-\end{figure}
-
+    const body = fakeBody(req.profile.id, broken) + String.raw`
 \originalfigur[0.5]{fig1}{Skisse fra notatet}
 
 \begin{merknad}
@@ -305,7 +287,7 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
       title: req.userTitle ?? `Testnotat (${req.pages.length} ${req.pages.length === 1 ? 'side' : 'sider'})`,
       chapter: req.fixedChapter ? null : (req.chapters[0]?.alias ?? null),
       section: (req.fixedChapter ?? req.chapters[0])?.sections[0]?.code ?? null,
-      newChapter: req.fixedChapter || req.chapters.length > 0 ? null : { number: '1', title: 'Fysikk og måling' },
+      newChapter: req.fixedChapter || req.chapters.length > 0 ? null : { number: '1', title: FAKE_TOC[req.profile.id][0]!.title },
       date: req.today,
       figures: [{ id: 'fig1', page: 1, box: [first.width * 0.2, first.height * 0.2, first.width * 0.8, first.height * 0.5] }],
       remarks: ['Dette er et testnotat fra falsk Claude.'],
@@ -319,15 +301,94 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
     return { body, usage: this.usage('fix') };
   }
 
-  async extractToc(): Promise<ChapterInput[]> {
+  async extractToc(profile: Profile): Promise<ChapterInput[]> {
     await new Promise((r) => setTimeout(r, this.delayMs));
-    return [
-      { number: '1', title: 'Fysikk og måling' },
-      { number: '2', title: 'Bevegelse' },
-      { number: '3', title: 'Kraft og bevegelse' },
-      { number: '4', title: 'Energi' },
-    ];
+    return FAKE_TOC[profile.id];
   }
+}
+
+const FAKE_TOC: Record<SubjectProfile, ChapterInput[]> = {
+  physics: [
+    { number: '1', title: 'Fysikk og måling' },
+    { number: '2', title: 'Bevegelse' },
+    { number: '3', title: 'Kraft og bevegelse' },
+    { number: '4', title: 'Energi' },
+  ],
+  chemistry: [
+    { number: '1', title: 'Atomer og periodesystemet' },
+    { number: '2', title: 'Kjemiske bindinger' },
+    { number: '3', title: 'Mol og stoffmengde' },
+  ],
+  biology: [
+    { number: '1', title: 'Cellen' },
+    { number: '2', title: 'Fotosyntese og celleånding' },
+    { number: '3', title: 'Økologi' },
+  ],
+};
+
+/** Testinnhold per fag fra falsk Claude: bruker malens bokser, formler og tegninger, så malene kompileres ordentlig. */
+function fakeBody(profile: SubjectProfile, broken: boolean): string {
+  const brokenTail = broken ? '\n\\begin{formel}\nMangler slutt\n' : '';
+  if (profile === 'chemistry')
+    return String.raw`\section{Stoffmengde}
+
+Forbrenning av hydrogen: \ce{2 H2(g) + O2(g) -> 2 H2O(l)}. Ionene \ce{SO4^2-} og \ce{Fe^3+} finnes i løsningen.
+
+\begin{formel}[Stoffmengde]
+\[ n = \frac{m}{M} \]
+\end{formel}
+
+Konsentrasjonen er $c = \qty{0.10}{mol/L}$, så $\mathrm{pH} = -\lg[\ce{H3O+}]$.${brokenTail}
+
+\begin{center}
+\chemfig{H-C(-[2]H)(-[6]H)-C(-[2]H)(-[6]H)-O-H}
+\end{center}
+`;
+  if (profile === 'biology')
+    return String.raw`\section{Fotosyntesen}
+
+Planter som \textit{Elodea canadensis} lager sukker i lyset:
+\[ \ce{6 CO2 + 6 H2O -> C6H12O6 + 6 O2} \]
+
+\begin{formel}[Mendels første lov]
+To alleler skilles fra hverandre når kjønnscellene dannes.
+\end{formel}
+
+\begin{tabular}{c|cc}
+ & $A$ & $a$ \\ \hline
+$A$ & $AA$ & $Aa$ \\
+$a$ & $Aa$ & $aa$
+\end{tabular}${brokenTail}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>={Stealth}, node distance=2.2cm, every node/.style={draw, rounded corners}]
+  \node (p) {Produsent};
+  \node[right=of p] (k) {Konsument};
+  \draw[->, thick] (p) -- (k);
+\end{tikzpicture}
+\caption{Næringskjede.}
+\end{figure}
+`;
+  return String.raw`\section{Newtons lover}
+
+Newtons første lov: Et legeme som ikke påvirkes av en netto kraft, holder seg i ro eller beveger seg med konstant fart.
+
+\begin{formel}[Newtons 2. lov]
+\[ \sum \vec{F} = m\vec{a} \]
+\end{formel}
+
+Tyngdeakselerasjonen er $g = \qty{9.81}{\meter\per\second\squared}$.${brokenTail}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>={Stealth}]
+  \draw[thick] (0,0) -- (4,0) -- (4,2) -- cycle;
+  \draw[->,thick,red] (2.4,1.2) -- ++(0,-1.2) node[below] {$G$};
+\end{tikzpicture}
+\caption{Kloss på skråplan.}
+\end{figure}
+`;
 }
 
 export function createClaude(config: Config): ClaudeService {

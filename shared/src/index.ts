@@ -2,7 +2,8 @@
 // Kun typer her – ingen kjørbar kode – slik at begge sider kan importere med `import type`.
 
 /** Fagprofil styrer LaTeX-mal og instruksjoner til Claude. Foreløpig bare fysikk. */
-export type SubjectProfile = 'physics';
+/** Fagprofil: bestemmer instruksene til Claude, LaTeX-malen og fargetemaet i appen. */
+export type SubjectProfile = 'physics' | 'chemistry' | 'biology';
 
 /**
  * Livssyklus for et notat på serveren:

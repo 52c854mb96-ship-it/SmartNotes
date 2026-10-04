@@ -40,10 +40,10 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
 
   const storage = new Storage(config.dataDir);
   const repo = new Repo(storage.dbFile);
-  if (config.seedTextbook && !TEXTBOOKS[config.seedTextbook]) {
-    app.log.warn({ seedTextbook: config.seedTextbook }, 'ukjent SEED_TEXTBOOK – lager et tomt fag');
-  }
-  repo.seed(config.seedTextbook ? (TEXTBOOKS[config.seedTextbook] ?? null) : null);
+  const unknown = config.seedTextbooks.filter((id) => !TEXTBOOKS[id]);
+  if (unknown.length > 0) app.log.warn({ unknown }, 'ukjente læreboksett i SEED_TEXTBOOKS – hoppes over');
+  const created = repo.seed(config.seedTextbooks.flatMap((id) => (TEXTBOOKS[id] ? [TEXTBOOKS[id]] : [])));
+  if (created.length > 0) app.log.info({ created }, 'la inn fag fra læreboksett');
   const claude = opts.claude ?? createClaude(config);
   const converter = new Converter(repo, storage, claude, config, app.log);
   const worker = new Worker(repo, converter, config.workerConcurrency, app.log);

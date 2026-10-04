@@ -1,0 +1,133 @@
+% SmartNotes – preamble for biologinotater (stil «Lærebok», farger fra «Salvie»).
+% Claude får IKKE lov til å endre denne; alt innhold skrives i dokumentkroppen.
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[norsk]{babel}
+\usepackage[sc]{mathpazo}
+\linespread{1.06}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.3cm,headheight=14pt]{geometry}
+\usepackage[parfill]{parskip}
+
+% --- Matematikk ---
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{icomma}            % 9,81 skrives riktig i matematikkmodus
+\usepackage{cancel}            % \cancel{} for forkorting
+\usepackage{siunitx}
+\sisetup{
+  output-decimal-marker = {,},
+  group-separator = {\,},
+  group-minimum-digits = 5,
+  exponent-product = \cdot,
+  inter-unit-product = \cdot,
+  per-mode = symbol,
+  range-phrase = {\text{ til }},
+  list-final-separator = {\text{ og }},
+  list-pair-separator = {\text{ og }},
+}
+\usepackage[version=4]{mhchem} % prosesser: \ce{6 CO2 + 6 H2O -> C6H12O6 + 6 O2}
+
+% Egne makroer (dokumentert i instruksene til Claude)
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
+\newcommand{\dd}{\mathop{}\!\mathrm{d}}
+\newcommand{\dv}[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}
+\newcommand{\ddv}[2]{\frac{\mathrm{d}^2#1}{\mathrm{d}#2^2}}
+\newcommand{\pdv}[2]{\frac{\partial#1}{\partial#2}}
+\newcommand{\vb}[1]{\mathbf{#1}}
+\newcommand{\vu}[1]{\hat{\mathbf{#1}}}
+\newcommand{\enhet}[1]{\,[\mathrm{#1}]}
+
+% --- Figurer og tegninger ---
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[labelfont=bf,font=small]{caption}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,angles,quotes,patterns,positioning,
+  decorations.pathmorphing,decorations.markings,shapes.geometric,intersections,babel}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage[european,siunitx]{circuitikz}
+
+% --- Tabeller og lister ---
+\usepackage{booktabs,array,tabularx}
+\usepackage{enumitem}
+
+% --- Bokser ---
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+% Salvie: dempet grønn og varme, rolige toner
+\definecolor{snblue}{HTML}{3F5A6E}
+\definecolor{sngreen}{HTML}{4A5D4A}
+\definecolor{snorange}{HTML}{B07B3A}
+\definecolor{sngray}{HTML}{6B6B66}
+\definecolor{snyellow}{HTML}{9A7B2E}
+\tcbset{snbase/.style={enhanced,breakable,frame hidden,boxrule=0pt,arc=0pt,
+  left=9pt,right=6pt,top=5pt,bottom=5pt,fonttitle=\bfseries,
+  detach title,before upper={\tcbtitle\par\smallskip},
+  before skip=10pt,after skip=10pt}}
+
+\newtcolorbox{definisjon}[1][]{snbase,colback=snblue!5,borderline west={2.4pt}{0pt}{snblue},coltitle=snblue!85!black,
+  title={Definisjon\ifx\relax#1\relax\else: #1\fi}}
+\newtcolorbox{formel}[1][]{snbase,colback=sngreen!5,borderline west={2.4pt}{0pt}{sngreen},coltitle=sngreen!85!black,
+  title={\ifx\relax#1\relax Viktig\else #1\fi}}
+\newtcolorbox{eksempel}[1][]{snbase,colback=sngray!5,borderline west={2.4pt}{0pt}{sngray},coltitle=sngray!85!black,
+  title={Eksempel\ifx\relax#1\relax\else: #1\fi}}
+\newtcolorbox{oppgave}[1][]{snbase,colback=snblue!5,borderline west={2.4pt}{0pt}{snblue},coltitle=snblue!85!black,
+  title={Oppgave\ifx\relax#1\relax\else\ #1\fi}}
+\newtcolorbox{losning}{snbase,colback=white,borderline west={1pt}{0pt}{snblue!50},coltitle=snblue!85!black,title={Løsning}}
+\newtcolorbox{husk}{snbase,colback=snyellow!5,borderline west={2.4pt}{0pt}{snyellow},coltitle=snyellow!85!black,
+  title={Husk}}
+\newtcolorbox{merknad}{snbase,colback=snorange!5,borderline west={2.4pt}{0pt}{snorange},coltitle=snorange!85!black,
+  title={Merknad fra SmartNotes}}
+
+\newcommand{\uleselig}[1]{\textcolor{sngray}{\textit{#1}}\textsuperscript{\textcolor{snorange}{\,?}}}
+\newcommand{\sidenotat}[1]{\marginpar{\footnotesize\raggedright #1}}
+
+% Figurer klippet ut fra originalbildet. \notedir settes av SmartNotes.
+\newcommand{\notedir}{.}
+\newcommand{\originalfigur}[3][0.6]{%
+  \begin{figure}[H]\centering
+  \includegraphics[width=#1\linewidth,height=0.45\textheight,keepaspectratio]{\notedir/#2}%
+  \ifx\relax#3\relax\else\caption{#3}\fi
+  \end{figure}}
+\newcommand{\manglerfigur}[1]{%
+  \begin{center}\fbox{\parbox{0.6\linewidth}{\centering\small\textcolor{sngray}{[Figur mangler: #1]}}}\end{center}}
+
+% --- Sidehode ---
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\newcommand{\snfag}{}
+\newcommand{\snkapittel}{}
+\fancyhead[L]{\small\textcolor{sngray}{\snfag}}
+\fancyhead[R]{\small\textcolor{sngray}{\snkapittel}}
+\fancyfoot[C]{\small\thepage}
+
+% Ingen nummerering av overskrifter i notater
+\setcounter{secnumdepth}{0}
+\setcounter{tocdepth}{1}
+
+% Tittelblokk for ett notat
+\newcommand{\notehode}[3]{%
+  \begingroup
+  \noindent{\LARGE\bfseries #1\par}\vspace{2pt}
+  \noindent{\small\textcolor{sngray}{#2\ifx\relax#3\relax\else\ \textbullet\ #3\fi}\par}
+  \vspace{4pt}\noindent\textcolor{snblue}{\rule{\linewidth}{1pt}}\par
+  \endgroup\vspace{6pt}}
+
+\usepackage{titlesec}
+\titleformat{\section}{\Large\bfseries\color{sngreen!80!black}}{}{0pt}{}
+\titleformat{\subsection}{\large\bfseries\color{sngreen!70!black}}{}{0pt}{}
+\renewcommand{\notehode}[3]{%
+  \begingroup
+  \noindent{\Huge #1\par}\vspace{4pt}
+  \noindent{\small\scshape\textcolor{sngray}{#2\ifx\relax#3\relax\else\ \textperiodcentered\ #3\fi}\par}
+  \vspace{6pt}\noindent\textcolor{sngreen}{\rule{\linewidth}{0.6pt}}\par
+  \endgroup\vspace{8pt}}
+
+\usepackage[hidelinks]{hyperref}
+\usepackage{bookmark}
