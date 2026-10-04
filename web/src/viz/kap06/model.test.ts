@@ -70,6 +70,23 @@ describe('bølger', () => {
     }
   });
 
+  it('det finnes alltid en topp eller en dal som har plass til hele λ-målet i øyeblikksbildet', () => {
+    // Topper og daler kommer annenhver halve bølgelengde, så én av dem ligger alltid i [0, 6 − λ] når λ ≤ 4 m
+    for (const [lambda, f] of [
+      [4, 0.25],
+      [3.5, 0.5],
+      [2, 0.5],
+    ] as const) {
+      for (let t = 0; t < 2 / f; t += 0.05) {
+        const crests = crestPositions(t, lambda, f, 0, 6);
+        const troughs = crestPositions(t + 0.5 / f, lambda, f, 0, 6);
+        const fits = [...crests, ...troughs].some((p) => p + lambda <= 6 + 1e-9);
+        expect(fits).toBe(true);
+        for (const p of troughs) expect(waveDisplacement(p, t, 0.3, lambda, f)).toBeCloseTo(-0.3, 9);
+      }
+    }
+  });
+
   it('longitudinal bølge: partiklene passerer aldri hverandre med den største amplituden', () => {
     const lambda = 0.5;
     const A = maxLongitudinalAmplitude(lambda);
@@ -116,6 +133,12 @@ describe('strålingslovene', () => {
     expect(visibleFraction(5800)).toBeLessThan(0.45);
     expect(visibleFraction(2800)).toBeGreaterThan(0.06);
     expect(visibleFraction(2800)).toBeLessThan(0.12);
+  });
+
+  it('svært kalde legemer sender ut bare noen få prosent synlig lys (vises med én desimal)', () => {
+    expect(visibleFraction(2000)).toBeGreaterThan(0.01);
+    expect(visibleFraction(2000)).toBeLessThan(0.02);
+    expect(Math.round(wienPeak(310) * 1e9 / 100) * 100).toBe(9400);
   });
 
   it('Planck-kurven er null for ugyldige verdier og flyter ikke over', () => {
@@ -173,6 +196,16 @@ describe('strålingsbalansen', () => {
       expect(b.absorbed + b.atmDown).toBeCloseTo(b.surfaceEmit, 9);
       expect(SIGMA * b.Tsurface ** 4).toBeCloseTo(b.surfaceEmit, 6);
     }
+  });
+
+  it('eksemplene: flere drivhusgasser gir omtrent 2,4 K varmere bakke, mer is og snø omtrent 17 K kaldere', () => {
+    const today = radiationBalance(0.3, 0.78).Tsurface;
+    expect(today).toBeCloseTo(288.1, 1);
+    expect(radiationBalance(0.3, 0.82).Tsurface - today).toBeCloseTo(2.4, 1);
+    expect(radiationBalance(0.45, 0.78).Tsurface).toBeCloseTo(271.2, 1);
+    // Uten atmosfære avhenger temperaturen bare av albedoen
+    expect(radiationBalance(0.9, 0).Tsurface).toBeCloseTo(156.5, 1);
+    expect(radiationBalance(0, 0).Tsurface).toBeCloseTo(278.3, 1);
   });
 
   it('høyere albedo gir kaldere jord, mer drivhuseffekt gir varmere bakke', () => {

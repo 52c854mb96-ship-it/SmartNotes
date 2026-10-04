@@ -184,7 +184,8 @@ function Snapshot({
           // Minst 12 partikler per bølgelengde, så fortetningene synes også når λ er kort
           const n = Math.round(X_MAX / Math.min(0.1, lambda / 12));
           const dx = X_MAX / n;
-          const r = clampTo(0.32 * dx * (sx(1) - sx(0)), 1.8, 4.5);
+          // Litt større prikker på mobil, så fortetningene synes også når λ er kort
+          const r = clampTo(0.32 * dx * (sx(1) - sx(0)), 1.8, 4.5) * Math.min(s, 1.6);
           const dots: ReactNode[] = [];
           for (const ry of rows)
             for (let i = 0; i <= n; i++) {
@@ -238,7 +239,8 @@ function Snapshot({
         // λ mellom to bølgedaler (eller topper) nederst, A ved en topp eller dal nær venstre kant
         const crests = crestPositions(t, lambda, f, 0, X_MAX);
         const troughs = crestPositions(t + 0.5 / f, lambda, f, 0, X_MAX);
-        const start = troughs.find((p) => p + lambda <= X_MAX + 1e-9);
+        // Mellom to daler, eller mellom to topper når ingen dal har plass (lange bølger), så målet ikke blinker under avspillingen
+        const start = troughs.find((p) => p + lambda <= X_MAX + 1e-9) ?? crests.find((p) => p + lambda <= X_MAX + 1e-9);
         const dimY = sy(-A - 0.14);
         const aAt = [...crests.map((c) => ({ x: c, up: true })), ...troughs.map((c) => ({ x: c, up: false }))]
           .filter((p) => p.x > 0.25 && p.x < 2.6)
@@ -252,8 +254,8 @@ function Snapshot({
             {beads}
             {start !== undefined && (
               <g>
-                <line x1={sx(start)} x2={sx(start)} y1={sy(-A) + 4} y2={dimY + 8} className="viz-guide" />
-                <line x1={sx(start + lambda)} x2={sx(start + lambda)} y1={sy(-A) + 4} y2={dimY + 8} className="viz-guide" />
+                <line x1={sx(start)} x2={sx(start)} y1={sy(y(start)) + 4} y2={dimY + 8} className="viz-guide" />
+                <line x1={sx(start + lambda)} x2={sx(start + lambda)} y1={sy(y(start + lambda)) + 4} y2={dimY + 8} className="viz-guide" />
                 <Arrow x1={sx(start + lambda / 2)} y1={dimY} x2={sx(start) + 1} y2={dimY} color={VIZ.ink} width={1.8} head={9} />
                 <Arrow x1={sx(start + lambda / 2)} y1={dimY} x2={sx(start + lambda) - 1} y2={dimY} color={VIZ.ink} width={1.8} head={9} />
                 <Tag x={sx(start + lambda / 2)} y={dimY + 22 * s}>
@@ -336,15 +338,18 @@ function explanation(kind: Kind, v: number, T: number, lambda: number, A: number
         {clipped ? ` Amplituden er begrenset til ${fmt(A, 2)} m her, ellers ville nabopartiklene passert hverandre.` : ''}
       </p>
     );
+  // I øyeblikksbildet av en longitudinal bølge er det fortetningene (ikke toppene) som ligger λ fra hverandre
+  const distance =
+    kind === 'transversal'
+      ? 'Avstanden mellom to topper er λ i øyeblikksbildet, men T i grafen for én partikkel.'
+      : 'Avstanden mellom to fortetninger er λ i øyeblikksbildet, mens avstanden mellom to topper i grafen for én partikkel er T.';
   const second = lock ? (
     <p>
-      Bølgefarten bestemmes av mediet, så den er fast her. Øker du frekvensen, blir bølgelengden kortere, og v = λf er den samme. Avstanden
-      mellom to topper er λ i øyeblikksbildet, men T i grafen for én partikkel.
+      Bølgefarten bestemmes av mediet, så den er fast her. Øker du frekvensen, blir bølgelengden kortere, og v = λf er den samme. {distance}
     </p>
   ) : (
     <p>
-      Nå kan λ og f endres hver for seg, som om du byttet til et annet medium med en annen bølgefart. Avstanden mellom to topper er λ i
-      øyeblikksbildet, men T i grafen for én partikkel.
+      Nå kan λ og f endres hver for seg, som om du byttet til et annet medium med en annen bølgefart. {distance}
     </p>
   );
   return (

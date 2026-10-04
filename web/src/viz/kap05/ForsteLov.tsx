@@ -37,7 +37,9 @@ const T0 = 293;
 /** Lengden på prosessen i animasjonen (s). */
 const T_ANIM = 3;
 /** Piksler per joule for pilene (W og Q i samme skala). */
-const PX_PER_J = 0.12;
+const PX_PER_J = 0.09;
+/** Høyden på scenen (viewBox). */
+const SCENE_H = 500;
 /** Hvor langt stempelet flyttes per joule arbeid (bare en skisse). */
 const PISTON_PER_J = 0.05;
 
@@ -84,7 +86,7 @@ export default function ForsteLov() {
       <div ref={sceneRef} style={{ display: 'grid', gap: 12 }}>
         {narrow ? (
           <>
-            <Figure viewBox="0 0 545 470" label={sceneLabel} maxHeight={520}>
+            <Figure viewBox={`0 0 545 ${SCENE_H}`} label={sceneLabel} maxHeight={540}>
               <Cylinder cx={260} thermoX={50} t={clock.t} p={p} W={W} Q={Q} T={Tnow} />
             </Figure>
             <Figure viewBox="0 0 800 440" label="Søylediagram: W pluss Q er lik ΔU">
@@ -92,9 +94,9 @@ export default function ForsteLov() {
             </Figure>
           </>
         ) : (
-          <Figure viewBox="0 0 800 470" label={sceneLabel} maxHeight={470}>
+          <Figure viewBox={`0 0 800 ${SCENE_H}`} label={sceneLabel} maxHeight={480}>
             <Cylinder cx={230} thermoX={50} t={clock.t} p={p} W={W} Q={Q} T={Tnow} />
-            <Waterfall x0={470} w={320} h={470} W={W} Q={Q} p={p} />
+            <Waterfall x0={470} w={320} h={SCENE_H} W={W} Q={Q} p={p} />
           </Figure>
         )}
       </div>
@@ -126,9 +128,9 @@ function Cylinder({ cx, thermoX, t, p, W, Q, T }: { cx: number; thermoX: number;
   const half = 110;
   const wall = 8;
   const top = 60;
-  const bottom = 360;
+  const bottom = 340;
   const pistonH = 20;
-  const y0 = 190;
+  const y0 = 180;
   const yp = y0 + PISTON_PER_J * W * p;
   const gasTop = yp + pistonH;
   const gasLeft = cx - half + wall;
@@ -146,14 +148,17 @@ function Cylinder({ cx, thermoX, t, p, W, Q, T }: { cx: number; thermoX: number;
   const wLen = Math.abs(W) * PX_PER_J;
   const qLen = Math.abs(Q) * PX_PER_J;
   const wx = cx + 46;
-  const plateY = 408;
-  const qy = 400;
+  // Plata står rett under sylinderen, og lenger ned jo lengre Q-pilene er, så pilene får plass mellom dem
+  const plateY = bottom + 16 + qLen;
+  const qy = plateY - 4;
+  // Etikettene står til høyre for sylinderen, så de ikke krysser veggen
+  const labelX = cx + half + 14;
   return (
     <g>
       <Thermometer
         x={thermoX}
         yTop={90}
-        yBottom={346}
+        yBottom={bottom - 14}
         min={150}
         max={450}
         value={T}
@@ -198,7 +203,7 @@ function Cylinder({ cx, thermoX, t, p, W, Q, T }: { cx: number; thermoX: number;
         ) : (
           <Arrow x1={wx} y1={yp - 6} x2={wx} y2={yp - 6 - wLen} color={COLOR_W} width={5} head={16} />
         ))}
-      <Tag x={wx + 16} y={Math.max(30 + 10 * f, yp - 14 - (W > 0 ? wLen / 2 : 0))} anchor="start" color={COLOR_W}>
+      <Tag x={labelX} y={Math.max(30 + 10 * f, yp - wLen / 2)} anchor="start" color={COLOR_W}>
         W = {signed(W)} J
       </Tag>
 
@@ -220,7 +225,7 @@ function Cylinder({ cx, thermoX, t, p, W, Q, T }: { cx: number; thermoX: number;
             <Arrow key={dx} x1={cx + dx} y1={qy - qLen} x2={cx + dx} y2={qy} color={COLOR_Q} width={5} head={16} />
           ),
         )}
-      <Tag x={cx + half + 14} y={bottom + 4} anchor="start" color={COLOR_Q}>
+      <Tag x={labelX} y={Math.max(bottom + 30, qy - qLen / 2 + 6)} anchor="start" color={COLOR_Q}>
         Q = {signed(Q)} J
       </Tag>
       <Tag x={cx} y={plateY + 12 + 22 * f} muted>
@@ -314,7 +319,7 @@ function explanation(W: number, Q: number, dU: number, T1: number): ReactNode {
   let uText: string;
   if (W === 0 && Q === 0) uText = 'Ingen energi går inn eller ut, så den indre energien er uendret.';
   else if (dU > 0)
-    uText = `Den indre energien øker med ΔU = W + Q = ${signed(dU)} J. I en gass er den indre energien bevegelsesenergien til partiklene, så de beveger seg raskere, og temperaturen stiger til ${fmt(T1, 0)} K.`;
+    uText = `Den indre energien øker med ΔU = W + Q = ${signed(dU)} J. I en ideell gass er den indre energien den kinetiske energien til partiklene, så de beveger seg raskere, og temperaturen stiger til ${fmt(T1, 0)} K.`;
   else if (dU < 0)
     uText = `Den indre energien minker med ${fmt(-dU, 0)} J (ΔU = W + Q = ${signed(dU)} J). Partiklene beveger seg langsommere, og temperaturen synker til ${fmt(T1, 0)} K.`;
   else uText = 'Det som kommer inn som den ene formen, går ut som den andre: ΔU = 0, og temperaturen er uendret.';

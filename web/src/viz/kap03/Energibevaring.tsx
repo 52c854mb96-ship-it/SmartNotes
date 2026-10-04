@@ -25,7 +25,7 @@ import {
   useSimClock,
   useTextScale,
 } from '../kit';
-import { liftsOffAtHump, makeTrack, niceCeil, sampleAt, simulateTrack, type Track, type TrackKind, type TrackSample, type TrackSim } from './model';
+import { liftsOffAtHump, makeTrack, niceCeil, sampleAt, simulateTrack, startPosition, type Track, type TrackKind, type TrackSample, type TrackSim } from './model';
 import { Arrow, ColorDot, Label } from './marks';
 import { useNarrow } from './useNarrow';
 
@@ -238,11 +238,32 @@ function Scene({ track, sim, p, h0, m, friction, narrow }: { track: Track; sim: 
   const by = Y(p.h) + ny * r;
   const vLen = p.v * 10 * k;
   // «topp 3,0 m» over toppen, men inne i bakken hvis den ellers ville kollidert med etiketten for h₀ (smal skjerm, h₀ nær 3 m)
+  const bLeft = narrow ? 540 : 600;
+  const bRight = 784;
+
+  // Etiketten «h₀ = …» står over den stiplede linja midt i dalen. Er dalen for trang der (liten h₀, stor tekst på mobil),
+  // flyttes den til søyleområdet, der linja fortsetter som E₀.
   const labelW = 10 * 9.6 * f;
+  const labelH = 22 * f;
+  const startX = X(startPosition(track, h0));
+  const fitsInValley = (cx: number) => {
+    const x0 = cx - labelW / 2;
+    const x1 = cx + labelW / 2;
+    if (startX + r > x0 && startX - r < x1 && h0 < track.top - 0.05) return false; // kula ved start
+    for (let px = x0; px <= x1; px += 4) {
+      const yTrack = Y(track.height(track.xMin + (px - left) / ppm));
+      if (yTrack < Y(h0) + 2 && yTrack > Y(h0) - 8 - labelH) return false;
+    }
+    return true;
+  };
+  const h0Label = fitsInValley(X(track.xBottom))
+    ? { x: X(track.xBottom), anchor: 'middle' as const, x0: X(track.xBottom) - labelW / 2, x1: X(track.xBottom) + labelW / 2 }
+    : { x: bLeft - 4, anchor: 'start' as const, x0: bLeft - 4, x1: bLeft - 4 + labelW };
   let humpLabelY = 0;
   if (track.hump) {
     const above = Y(track.hump.h) - 12;
-    const collides = Math.abs(X(track.hump.x) - X(track.xBottom)) < labelW && Math.abs(Y(h0) - 8 - above) < 22 * f;
+    const hx = X(track.hump.x);
+    const collides = hx + labelW / 2 > h0Label.x0 && hx - labelW / 2 < h0Label.x1 && Math.abs(Y(h0) - 8 - above) < labelH;
     humpLabelY = collides ? Y(track.hump.h) + 26 * f : above;
   }
 
@@ -253,8 +274,6 @@ function Scene({ track, sim, p, h0, m, friction, narrow }: { track: Track; sim: 
     { label: '', value: p.E, color: C_E },
     ...(friction ? [{ label: 'R', value: p.heat, color: C_HEAT }] : []),
   ];
-  const bLeft = narrow ? 540 : 600;
-  const bRight = 784;
   const slot = (bRight - bLeft) / bars.length;
   const bw = Math.min(34 * k, slot * 0.62);
   const bBase = groundY;
@@ -268,7 +287,7 @@ function Scene({ track, sim, p, h0, m, friction, narrow }: { track: Track; sim: 
       <path d={surface} fill="none" stroke={VIZ.muted} strokeWidth={3} />
       {/* Starthøyden */}
       <line x1={X(track.xMin)} x2={bLeft - 6} y1={Y(h0)} y2={Y(h0)} stroke={C_EP} strokeWidth={1.5} strokeDasharray="6 6" opacity={0.8} />
-      <Label x={X(track.xBottom)} y={Y(h0) - 8} anchor="middle" color={C_EP}>
+      <Label x={h0Label.x} y={Y(h0) - 8} anchor={h0Label.anchor} color={C_EP}>
         h<TSub>0</TSub> = {fmt(h0, 1)} m
       </Label>
       <Label x={X(track.xBottom)} y={Y(0) + 22 * f} anchor="middle" muted>

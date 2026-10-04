@@ -175,7 +175,15 @@ export default function Blanding() {
         <Readout label="Sluttemperatur" value={fmt(end.Ts, 1)} unit="°C" />
         <Readout label={`Avgitt av ${name1.toLowerCase()}`} value={fmt(end.Qtotal / 1000, 1)} unit="kJ" tone={HOT} />
         <Readout label={`Mottatt av ${name2.toLowerCase()}`} value={fmt(end.Qtotal / 1000, 1)} unit="kJ" tone={COLD} />
-        <Readout label="Temperaturendringer" value={`${fmt(end.Ts - hot.T, 1)} / +${fmt(end.Ts - cold.T, 1)}`} unit="K" />
+        <Readout
+          label={
+            <>
+              Endring ΔT<Sub>1</Sub> / ΔT<Sub>2</Sub>
+            </>
+          }
+          value={`${fmt(end.Ts - hot.T, 1)} / +${fmt(end.Ts - cold.T, 1)}`}
+          unit="K"
+        />
       </Readouts>
 
       <Formula label="Energien som avgis, er lik energien som mottas">
@@ -334,7 +342,7 @@ function Vessel({
 function EnergyBars({ x0, w, h, st }: { x0: number; w: number; h: number; st: MixState }) {
   const f = useTextScale();
   const base = h - 18 - 22 * f;
-  const topY = 34 + 56 * f;
+  const topY = 34 + 74 * f;
   const k = (base - topY) / Math.max(1e-9, st.Qtotal);
   const bw = Math.min(70, w * 0.26);
   const bars = [
@@ -345,6 +353,9 @@ function EnergyBars({ x0, w, h, st }: { x0: number; w: number; h: number; st: Mi
     <g>
       <Tag x={x0 + w / 2} y={34}>
         Energi Q (kJ)
+      </Tag>
+      <Tag x={x0 + w / 2} y={34 + 24 * f} muted>
+        totalt {fmt(st.Qtotal / 1000, 1)} kJ
       </Tag>
       <line x1={x0 + 10} x2={x0 + w - 10} y1={base} y2={base} stroke={VIZ.muted} strokeWidth={1.5} />
       {bars.map((b) => (
@@ -414,7 +425,8 @@ function explanation(input: MixInput, end: MixState, water: boolean, name1: stri
     <p>
       <strong>Energien går fra varmt til kaldt.</strong> {name1} avgir Q = {fmt(end.Qtotal / 1000, 1)} kJ, og {name2.toLowerCase()} mottar
       like mye (energien er bevart når vi ser bort fra varmetap). Overføringen stopper i termisk likevekt ved {fmt(end.Ts, 1)} °C. Varme er
-      energien som overføres, ikke noe et legeme har.
+      energien som overføres, ikke noe et legeme har. Hvor fort det går, avhenger av omrøring og kontaktflate (tidsaksen er bare en
+      illustrasjon), men sluttemperaturen gjør det ikke.
     </p>
   );
   let second: ReactNode;
@@ -427,18 +439,23 @@ function explanation(input: MixInput, end: MixState, water: boolean, name1: stri
     );
   } else if (water) {
     const avg = (input.T1 + input.T2) / 2;
-    const bigger = C1 > C2 ? 'varme' : 'kalde';
+    const hotBigger = C1 > C2;
     second = (
       <p>
         Sluttemperaturen er ikke gjennomsnittet ({fmt(avg, 1)} °C). Det er {fmt(Math.max(C1, C2) / Math.min(C1, C2), 1)} ganger så mye{' '}
-        {bigger} vann, og den største vannmengden trenger minst temperaturendring for den samme energien: {fmt(d1, 1)} K mot {fmt(d2, 1)} K.
+        {hotBigger ? 'varmt' : 'kaldt'} vann, og den største vannmengden trenger minst temperaturendring for den samme energien: det varme
+        vannet blir {fmt(d1, 1)} K kaldere, mens det kalde blir {fmt(d2, 1)} K varmere. Sluttemperaturen havner derfor nærmest
+        starttemperaturen til det {hotBigger ? 'varme' : 'kalde'} vannet.
       </p>
     );
   } else {
+    // Metallet har som regel mye mindre c·m enn vannet, men ikke alltid (f.eks. 1 kg aluminium i 0,1 kg vann)
+    const metalSmaller = C1 < C2;
     second = (
       <p>
-        {name1} avkjøles {fmt(d1, 1)} K, mens vannet bare blir {fmt(d2, 1)} K varmere, fordi c·m er {fmt(C1, 0)} J/K for metallet mot{' '}
-        {fmt(C2, 0)} J/K for vannet. Måler vi sluttemperaturen, kan vi regne ut c for metallet på denne måten.
+        {name1} blir {fmt(d1, 1)} K kaldere, mens vannet blir {fmt(d2, 1)} K varmere. Det er fordi c·m er {fmt(C1, 0)} J/K for metallet mot{' '}
+        {fmt(C2, 0)} J/K for vannet: {metalSmaller ? 'vannet' : 'metallet'} trenger mest energi per kelvin, så det endrer temperaturen minst.
+        Måler vi sluttemperaturen, kan vi regne ut c for metallet på denne måten.
       </p>
     );
   }

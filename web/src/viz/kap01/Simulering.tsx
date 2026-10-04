@@ -154,8 +154,8 @@ function VelocityPlot({ p, rows, tEnd, vT, free, height }: { p: DragFall; rows: 
             <rect x={x0} y={y1 - 8} width={x1 - x0 + 8} height={y0 - y1 + 16} />
           </clipPath>
           <line x1={x0} x2={x1} y1={sy(vT)} y2={sy(vT)} stroke={VIZ.muted} strokeWidth={2} strokeDasharray="8 6" />
-          {/* Til venstre under linja: der er farten ennå langt under v_T, så punktene ikke dekker teksten */}
-          <Label x={x0 + 10} y={sy(vT) + 24 * f} anchor="start" muted>
+          {/* Til høyre over linja, høyt nok til at den senkede T-en ikke treffer Euler-punktene som ligger på linja */}
+          <Label x={x1 - 6} y={sy(vT) - 16 * f} anchor="end" muted>
             v<TSub>T</TSub> = {fmt(vT, 1)} m/s
           </Label>
           <g clipPath={`url(#${clip})`}>

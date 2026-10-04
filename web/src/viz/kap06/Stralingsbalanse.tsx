@@ -40,7 +40,9 @@ const ATM = VIZ.series[0];
 /** Piksler bredde per W/m² for pilene. */
 const PX_PER_W = 0.065;
 const T_TODAY = 288;
-const T_BARE_TODAY = radiationBalance(0.3, 0).Tbare;
+/** Dagens jord i modellen (α = 0,30, ε = 0,78), som de andre tilstandene sammenlignes med. */
+const TODAY = PRESETS[1]!;
+const TS_TODAY = radiationBalance(TODAY.albedo, TODAY.eps).Tsurface;
 /** Celsius fra en temperatur som vises avrundet i kelvin, så «255 K = −18 °C» henger sammen. */
 const celsius = (K: number) => Math.round(K) - 273.15;
 
@@ -66,7 +68,7 @@ export default function Stralingsbalanse() {
       <Controls>
         <Slider label="Albedo α" value={albedo} onChange={setAlbedo} min={0} max={0.9} step={0.01} decimals={2} />
         <Slider
-          label="Varmestråling atmosfæren absorberer"
+          label="Varmestråling atmosfæren absorberer, ε"
           value={eps}
           onChange={setEps}
           min={0}
@@ -78,11 +80,12 @@ export default function Stralingsbalanse() {
 
       <div ref={sceneRef}>
         <Figure
-          viewBox={`0 0 800 ${narrow ? 500 : 460}`}
+          viewBox={`0 0 800 ${narrow ? 600 : 460}`}
           label={`Energistrømmer for jorda. Albedo ${fmt(albedo, 2)}, atmosfæren absorberer ${fmt(eps * 100, 0)} prosent av varmestrålingen. Temperaturen ved bakken blir ${fmt(b.Tsurface, 0)} K.`}
-          maxHeight={480}
+          maxHeight={narrow ? 600 : 480}
+          caption="Tallene er energistrømmer i W/m², i snitt over hele jordoverflaten. Bredden på pilene viser hvor stor strømmen er."
         >
-          <Flows b={b} eps={eps} height={narrow ? 500 : 460} />
+          <Flows b={b} eps={eps} height={narrow ? 600 : 460} tall={narrow} />
         </Figure>
       </div>
       <Legend
@@ -96,7 +99,7 @@ export default function Stralingsbalanse() {
         viewBox={`0 0 800 ${graphH}`}
         label="Graf over temperaturen ved bakken som funksjon av hvor mye varmestråling atmosfæren absorberer"
       >
-        <TempGraph albedo={albedo} eps={eps} Ts={b.Tsurface} height={graphH} />
+        <TempGraph albedo={albedo} eps={eps} Ts={b.Tsurface} Tbare={b.Tbare} height={graphH} />
       </Figure>
 
       <Readouts>
@@ -111,11 +114,12 @@ export default function Stralingsbalanse() {
           S/4 = {fmt(SOLAR_CONSTANT, 0)} W/m² / 4 = {fmt(b.incoming, 0)} W/m²
         </FormulaLine>
         <FormulaLine>
-          (1 − α) · S/4 = σT<Sup>4</Sup> &nbsp;⇒&nbsp; T = ({fmt(b.absorbed, 1)} W/m² / 5,67 · 10<Sup>−8</Sup> W/(m²·K<Sup>4</Sup>))
+          (1 − α) · S/4 = σT<Sub>uten</Sub>
+          <Sup>4</Sup> &nbsp;⇒&nbsp; T<Sub>uten</Sub> = ({fmt(b.absorbed, 1)} W/m² / 5,67 · 10<Sup>−8</Sup> W/(m²·K<Sup>4</Sup>))
           <Sup>1/4</Sup> = {fmt(b.Tbare, 0)} K
         </FormulaLine>
         <FormulaLine>
-          T<Sub>bakke</Sub> = T · (2 / (2 − ε))<Sup>1/4</Sup> = {fmt(b.Tbare, 0)} K · (2 / (2 − {fmt(eps, 2)}))<Sup>1/4</Sup> ={' '}
+          T<Sub>bakke</Sub> = T<Sub>uten</Sub> · (2 / (2 − ε))<Sup>1/4</Sup> = {fmt(b.Tbare, 0)} K · (2 / (2 − {fmt(eps, 2)}))<Sup>1/4</Sup> ={' '}
           {fmt(b.Tsurface, 0)} K
         </FormulaLine>
       </Formula>
@@ -151,24 +155,28 @@ function FlowArrow({
   return <path d={d} fill={color} opacity={opacity} />;
 }
 
-function Flows({ b, eps, height }: { b: Balance; eps: number; height: number }) {
+function Flows({ b, eps, height, tall }: { b: Balance; eps: number; height: number; tall: boolean }) {
   const f = useTextScale();
   const top = 34;
-  const atmTop = 150;
-  const atmBot = 236;
+  const atmTop = tall ? 190 : 150;
+  const atmBot = tall ? 300 : 236;
   const ground = height - 90;
   const w = (v: number) => v * PX_PER_W;
   const xSun = 120;
   const xRefl = 240;
   const xSurf = 400;
   const xTrans = xSurf + w(b.atmAbsorbed) / 2 + w(b.transmitted) / 2 + 6;
-  const xUp = 580;
-  const xDown = 700;
+  const xUp = 660;
+  const xDown = 750;
   const midLow = (atmBot + ground) / 2;
   const midHigh = (top + atmTop) / 2 + 10;
   const num = (v: number) => fmt(v, 0);
-  // Uten drivhuseffekt er det ingen piler fra atmosfæren, så etiketten får plass til høyre
-  const atmLabelX = eps > 0 ? (xRefl + xSurf) / 2 - 10 : (xUp + xDown) / 2;
+  // Etiketten for atmosfæren står i åpningen mellom varmestrålingen fra bakken og pila som går opp fra atmosfæren.
+  // Uten drivhuseffekt er det ingen piler fra atmosfæren, så den får hele plassen til høyre.
+  const surfRight = Math.max(xSurf + w(b.atmAbsorbed) / 2, b.transmitted >= 0.5 ? xTrans + w(b.transmitted) / 2 : 0);
+  const atmLabelX = eps > 0 ? (surfRight + xUp - w(b.atmUp) / 2) / 2 : 600;
+  // Venstre kant av pilene som går opp fra bakken (uten atmosfære er det bare én pil, rett ved xSurf)
+  const surfLeft = xSurf - (eps > 0 ? w(b.atmAbsorbed) : w(b.transmitted)) / 2;
   return (
     <g>
       {/* Atmosfæren: tettere farge jo mer varmestråling den absorberer */}
@@ -178,9 +186,6 @@ function Flows({ b, eps, height }: { b: Balance; eps: number; height: number }) 
       </Tag>
       <Tag x={atmLabelX} y={(atmTop + atmBot) / 2 + 22 * f} muted>
         {eps > 0 ? `${fmt(b.Tatm, 0)} K` : 'slipper alt gjennom'}
-      </Tag>
-      <Tag x={790} y={top - 8} anchor="end" muted>
-        tall i W/m²
       </Tag>
 
       {/* Bakken */}
@@ -208,7 +213,7 @@ function Flows({ b, eps, height }: { b: Balance; eps: number; height: number }) 
       {b.transmitted >= 0.5 && (
         <FlowArrow x={eps > 0 ? xTrans : xSurf} y1={ground} y2={top} flux={b.transmitted} color={HEAT} opacity={0.75} />
       )}
-      <Tag x={xSurf - w(b.atmAbsorbed) / 2 - 10} y={midLow + 6} anchor="end" color={HEAT}>
+      <Tag x={surfLeft - 10} y={midLow + 6} anchor="end" color={HEAT}>
         {num(b.surfaceEmit)}
       </Tag>
       {b.transmitted >= 0.5 && (
@@ -243,7 +248,7 @@ interface Box {
 
 const overlaps = (a: Box, b: Box) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
 
-function TempGraph({ albedo, eps, Ts, height }: { albedo: number; eps: number; Ts: number; height: number }) {
+function TempGraph({ albedo, eps, Ts, Tbare, height }: { albedo: number; eps: number; Ts: number; Tbare: number; height: number }) {
   const f = useTextScale();
   const curve = sample((e) => radiationBalance(albedo, e).Tsurface, 0, 1, 100);
   return (
@@ -275,7 +280,7 @@ function TempGraph({ albedo, eps, Ts, height }: { albedo: number; eps: number; T
             })),
           );
         const a288 = refPlaces(T_TODAY, 'målt i dag: 288 K');
-        const a255 = refPlaces(T_BARE_TODAY, 'uten atmosfære: 255 K');
+        const a255 = refPlaces(Tbare, `uten atmosfære: ${fmt(Tbare, 0)} K`);
         let best = { score: Infinity, p: a288[0]!, q: a255[0]! };
         a288.forEach((p, i) =>
           a255.forEach((q, j) => {
@@ -308,7 +313,7 @@ function TempGraph({ albedo, eps, Ts, height }: { albedo: number; eps: number; T
         return (
           <g>
             <line x1={x0} x2={x1} y1={sy(T_TODAY)} y2={sy(T_TODAY)} className="viz-guide" />
-            <line x1={x0} x2={x1} y1={sy(T_BARE_TODAY)} y2={sy(T_BARE_TODAY)} className="viz-guide" />
+            <line x1={x0} x2={x1} y1={sy(Tbare)} y2={sy(Tbare)} className="viz-guide" />
             {[best.p, best.q].map((l) => (
               <Tag key={l.text} x={l.x} y={l.y} anchor={l.anchor} muted>
                 {l.text}
@@ -349,10 +354,7 @@ function explanation(b: Balance, albedo: number, eps: number): ReactNode {
     eps > 0 ? (
       <p>
         Atmosfæren slipper sollyset gjennom, men tar opp {fmt(eps * 100, 0)} % av varmestrålingen fra bakken og sender halvparten tilbake
-        ned ({fmt(b.atmDown, 0)} W/m²). Bakken må da bli varmere, {fmt(b.Tsurface, 0)} K, for å bli kvitt energien.{' '}
-        {Math.abs(albedo - 0.3) < 0.005
-          ? 'Denne drivhuseffekten er naturlig og nødvendig: uten den ville middeltemperaturen vært −18 °C.'
-          : `Drivhuseffekten gjør bakken ${fmt(b.Tsurface - b.Tbare, 0)} K varmere enn uten atmosfære.`}
+        ned ({fmt(b.atmDown, 0)} W/m²). Bakken må da bli varmere, {fmt(b.Tsurface, 0)} K, for å bli kvitt energien. {greenhouse(b, albedo, eps)}
       </p>
     ) : (
       <p>
@@ -374,4 +376,16 @@ function explanation(b: Balance, albedo: number, eps: number): ReactNode {
       {third}
     </>
   );
+}
+
+/** Naturlig eller forsterket drivhuseffekt, sammenlignet med dagens jord (ε = 0,78). */
+function greenhouse(b: Balance, albedo: number, eps: number): string {
+  if (Math.abs(albedo - TODAY.albedo) > 0.005)
+    return `Drivhuseffekten gjør bakken ${fmt(b.Tsurface - b.Tbare, 0)} K varmere enn uten atmosfære.`;
+  const diff = b.Tsurface - TS_TODAY;
+  if (Math.abs(eps - TODAY.eps) < 0.005)
+    return `Dette er den naturlige drivhuseffekten, og den er nødvendig: uten den ville middeltemperaturen vært ${fmt(celsius(b.Tbare), 0)} °C i stedet for ${fmt(celsius(T_TODAY), 0)} °C.`;
+  if (eps > TODAY.eps)
+    return `Atmosfæren tar opp mer varmestråling enn i dag, og bakken blir ${fmt(diff, 1)} K varmere. Slik virker den menneskeskapte (forsterkede) drivhuseffekten: utslipp av CO₂ og andre drivhusgasser kommer i tillegg til den naturlige drivhuseffekten, som vi trenger.`;
+  return `Atmosfæren tar opp mindre varmestråling enn i dag, og bakken blir ${fmt(-diff, 1)} K kaldere. Uten noen drivhuseffekt ville middeltemperaturen vært ${fmt(celsius(b.Tbare), 0)} °C.`;
 }

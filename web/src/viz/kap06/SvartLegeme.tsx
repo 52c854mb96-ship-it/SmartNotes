@@ -98,7 +98,9 @@ export default function SvartLegeme() {
             ? [
                 {
                   color: SUN,
-                  label: sunOnScale ? 'Sola, 5800 K' : `Sola, 5800 K: toppen er ${fmt(sunRatio, 0)} ganger høyere og går utenfor grafen`,
+                  label: sunOnScale
+                    ? `Sola, ${fmt(T_SUN, 0)} K`
+                    : `Sola, ${fmt(T_SUN, 0)} K: toppen er ${fmt(sunRatio, 0)} ganger høyere og går utenfor grafen`,
                   dashed: true,
                 },
               ]
@@ -118,7 +120,7 @@ export default function SvartLegeme() {
         />
         <Readout label="Intensitet I = σT⁴" value={fmtSci(I, 2)} unit="W/m²" />
         <Readout label="I forhold til Sola" value={fmt(ratioSun, ratioSun < 0.1 ? 3 : ratioSun < 1 ? 2 : 1)} unit="ganger" />
-        <Readout label="Andel synlig lys" value={fmt(vis * 100, 0)} unit="%" />
+        <Readout label="Andel synlig lys" value={fmt(vis * 100, vis < 0.1 ? 1 : 0)} unit="%" />
       </Readouts>
 
       <Formula label="Wiens forskyvningslov og Stefan–Boltzmanns lov">
@@ -169,14 +171,32 @@ function Spectrum({ T, showSun, height }: { T: number; showSun: boolean; height:
         const px = sx(nm(peak));
         const labelX = Math.min(x1 - 90 * f, Math.max(x0 + 90 * f, px));
         const area = `${linePath(pts, sx, sy)}L${sx(L_MAX_NM)},${y0}L${sx(5)},${y0}Z`;
-        const nmPerPx = L_MAX_NM / (x1 - x0);
-        // Etiketten står øverst i grafen, eller nederst hvis kurven er høy der etiketten skal stå
-        const RegionLabel = ({ x, halfWidthPx, text }: { x: number; halfWidthPx: number; text: string }) => {
-          let high = 0;
-          for (let k = -4; k <= 4; k++) high = Math.max(high, rel(x + (k / 4) * halfWidthPx * nmPerPx, T));
-          const atTop = high < 0.62 * yMax;
+        // Etiketten for UV og IR står der den verken treffer kurven eller den stiplede linja for toppen:
+        // først prøves øverst i grafen, så nederst (under kurven), på noen få steder langs aksen.
+        const font = 17 * f;
+        const fits = (cx: number, base: number, text: string) => {
+          const half = (text.length * 0.56 * font) / 2 + 6;
+          const top = base - 0.8 * font - 3;
+          const bottom = base + 0.25 * font + 3;
+          if (cx - half < x0 || cx + half > x1) return false;
+          // Den stiplede linja for toppen går over hele grafen
+          if (px > cx - half - 4 && px < cx + half + 4) return false;
+          const atTop = base < (y0 + y1) / 2;
+          // Fargeprøven står øverst til høyre
+          if (atTop && cx + half > x1 - 76 * f) return false;
+          for (let k = 0; k <= 12; k++) {
+            const xx = cx - half + (2 * half * k) / 12;
+            const cy = sy(rel(((xx - x0) / (x1 - x0)) * L_MAX_NM, T));
+            // Øverst må kurven ligge under teksten, nederst over den (teksten står da i det skyggelagte feltet)
+            if (atTop ? cy < bottom : cy > top) return false;
+          }
+          return true;
+        };
+        const RegionLabel = ({ xs, text }: { xs: number[]; text: string }) => {
+          const spots = [y1 + 22 * f, y0 - 12].flatMap((base) => xs.map((x) => ({ x: sx(x), base })));
+          const spot = spots.find((p) => fits(p.x, p.base, text)) ?? spots[0]!;
           return (
-            <Tag x={sx(x)} y={atTop ? y1 + 22 * f : y0 - 12} muted>
+            <Tag x={spot.x} y={spot.base} muted>
               {text}
             </Tag>
           );
@@ -200,8 +220,8 @@ function Spectrum({ T, showSun, height }: { T: number; showSun: boolean; height:
               fill={`url(#${uid}-rainbow)`}
               opacity={0.45}
             />
-            <RegionLabel x={190} halfWidthPx={22 * f} text="UV" />
-            <RegionLabel x={1700} halfWidthPx={70 * f} text="infrarødt (IR)" />
+            <RegionLabel xs={[190, 120, 290]} text="UV" />
+            <RegionLabel xs={[1700, 2200, 1200, 2500]} text="infrarødt (IR)" />
 
             <path d={area} fill={CURVE} opacity={0.08} />
             {showSun && (
@@ -240,7 +260,7 @@ function Spectrum({ T, showSun, height }: { T: number; showSun: boolean; height:
 
 function explanation(T: number, peak: number, vis: number): ReactNode {
   const p = nm(peak);
-  const pct = fmt(vis * 100, 0);
+  const pct = fmt(vis * 100, vis < 0.1 ? 1 : 0);
   let first: ReactNode;
   if (p > 750)
     first = (
@@ -270,7 +290,7 @@ function explanation(T: number, peak: number, vis: number): ReactNode {
       <p>
         Dobler du temperaturen, blir λ<Sub>maks</Sub> halvparten så stor (Wiens lov), og intensiteten, som er arealet under kurven, blir 2
         <Sup>4</Sup> = 16 ganger så stor (Stefan–Boltzmanns lov). T må alltid være i kelvin. Alle legemer stråler, også du: ved 310 K ligger
-        toppen på omtrent 9 400 nm, langt inne i infrarødt.
+        toppen på omtrent {fmt(Math.round(nm(wienPeak(310)) / 100) * 100, 0)} nm, langt inne i infrarødt.
       </p>
     </>
   );

@@ -161,7 +161,8 @@ describe('trappeløp', () => {
 
   it('tempo og sammenligninger', () => {
     expect(pace(0.1)).toBe('rolig');
-    expect(pace(0.4)).toBe('gange');
+    expect(pace(0.3)).toBe('gange'); // vanlig gange i trapp, ca. 0,3 m/s
+    expect(pace(0.5)).toBe('løping');
     expect(pace(1.5)).toBe('sprint');
     expect(pace(3)).toBe('urealistisk');
     expect(timeForEnergy(4000, 2000)).toBe(2);

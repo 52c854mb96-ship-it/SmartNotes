@@ -31,6 +31,8 @@ const OPTIONS: { value: MaterialId; label: string }[] = (Object.keys(MATERIALS) 
   label: MATERIALS[id].name,
 }));
 const COLORS = [VIZ.series[0], VIZ.series[1]] as const;
+/** Høyden på hvert av de to feltene når stoffene står under hverandre (smal skjerm). */
+const TALL_H = 470;
 
 interface Run {
   mat: Material;
@@ -108,21 +110,21 @@ export default function Varmekapasitet() {
       {/* På smale skjermer står de to stoffene under hverandre, så figuren blir stor nok */}
       <div ref={sceneRef}>
         <Figure
-          viewBox={sceneNarrow ? '0 0 800 660' : '0 0 800 330'}
+          viewBox={sceneNarrow ? `0 0 800 ${2 * TALL_H}` : '0 0 800 330'}
           label={`${runs[0]!.mat.name} og ${runs[1]!.mat.name}, ${fmt(m, 2)} kg hver, varmes med ${fmt(P, 0)} W. Etter ${fmt(t, 0)} s er temperaturene ${fmt(tempAt(runs[0]!, m, P, t), 1)} °C og ${fmt(tempAt(runs[1]!, m, P, t), 1)} °C.`}
-          maxHeight={sceneNarrow ? 640 : 380}
+          maxHeight={sceneNarrow ? 2 * TALL_H : 380}
         >
           {runs.map((r, i) =>
             sceneNarrow ? (
-              <g key={i} transform={`translate(0 ${330 * i})`}>
-                <Station x0={0} w={800} run={r} m={m} P={P} t={t} T1={T1} />
+              <g key={i} transform={`translate(0 ${TALL_H * i})`}>
+                <Station x0={0} w={800} top={140} bottom={370} run={r} m={m} P={P} t={t} T1={T1} />
               </g>
             ) : (
               <Station key={i} x0={400 * i} w={400} run={r} m={m} P={P} t={t} T1={T1} />
             ),
           )}
           {sceneNarrow ? (
-            <line x1={20} x2={780} y1={330} y2={330} stroke={VIZ.grid} strokeWidth={2} />
+            <line x1={20} x2={780} y1={TALL_H} y2={TALL_H} stroke={VIZ.grid} strokeWidth={2} />
           ) : (
             <line x1={400} x2={400} y1={20} y2={310} stroke={VIZ.grid} strokeWidth={2} />
           )}
@@ -191,7 +193,28 @@ function TimeReadout({ run, T1 }: { run: Run; T1: number }) {
 }
 
 /** Ett stoff på en varmeplate med termometer, tegnet i feltet x0 … x0 + w. */
-function Station({ x0, w, run, m, P, t, T1 }: { x0: number; w: number; run: Run; m: number; P: number; t: number; T1: number }) {
+function Station({
+  x0,
+  w,
+  top = 110,
+  bottom = 250,
+  run,
+  m,
+  P,
+  t,
+  T1,
+}: {
+  x0: number;
+  w: number;
+  /** Toppen og bunnen av begeret (og termometeret). */
+  top?: number;
+  bottom?: number;
+  run: Run;
+  m: number;
+  P: number;
+  t: number;
+  T1: number;
+}) {
   const f = useTextScale();
   const T = tempAt(run, m, P, t);
   const st = heating(run.mat, m, P, T0, Math.min(t, run.tDone));
@@ -199,10 +222,10 @@ function Station({ x0, w, run, m, P, t, T1 }: { x0: number; w: number; run: Run;
   const liquid = run.mat.boil !== undefined;
   const cx = x0 + w / 2;
   const vx = x0 + 0.4 * w;
-  const top = 110;
-  const bottom = 250;
   const halfW = Math.min(0.2 * w, 150);
   const blockW = 1.6 * halfW;
+  const blockH = 0.74 * (bottom - top);
+  const textY = liquid ? top + 0.45 * (bottom - top) + 11 : bottom - 0.56 * blockH;
   // Litt lavere væskenivå når noe har fordampet
   const level = top + 22 + (st.evaporated / m) * (bottom - top - 22);
   const thermoX = x0 + 0.78 * w;
@@ -243,12 +266,12 @@ function Station({ x0, w, run, m, P, t, T1 }: { x0: number; w: number; run: Run;
             })}
         </>
       ) : (
-        <rect x={vx - blockW / 2} y={bottom - 104} width={blockW} height={104} rx={6} fill={VIZ.bodyStrong} className="viz-block" />
+        <rect x={vx - blockW / 2} y={bottom - blockH} width={blockW} height={blockH} rx={6} fill={VIZ.bodyStrong} className="viz-block" />
       )}
-      <Tag x={vx} y={liquid ? top + 74 : bottom - 58} weight={700} size={24 * f}>
+      <Tag x={vx} y={textY} weight={700} size={24 * f}>
         {fmt(T, 1)} °C
       </Tag>
-      <Tag x={vx} y={liquid ? top + 74 + 26 * f : bottom - 58 + 26 * f} muted>
+      <Tag x={vx} y={textY + 26 * f} muted>
         Q = {fmt(st.Q / 1000, 1)} kJ
       </Tag>
 

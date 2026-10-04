@@ -33,6 +33,12 @@ describe('temperatur og trykk i en gass', () => {
     expect(gasPressure(1, 273, 22.4e-3)).toBeCloseTo(101_276, -1);
   });
 
+  it('litt over romtemperatur gir litt høyere trykk (ved samme volum)', () => {
+    const p293 = gasPressure(GAS_N, 293, 2e-3);
+    expect(gasPressure(GAS_N, 300, 2e-3) / p293).toBeCloseTo(300 / 293, 9);
+    expect(gasPressure(GAS_N, 300, 2e-3)).toBeGreaterThan(p293);
+  });
+
   it('trykket er proporsjonalt med T i kelvin, ikke i celsius', () => {
     const p20 = gasPressure(GAS_N, toKelvin(20), 2e-3);
     const p40 = gasPressure(GAS_N, toKelvin(40), 2e-3);
@@ -177,6 +183,17 @@ describe('blanding og termisk likevekt', () => {
     expect(Ts).toBeCloseTo(27.8, 1);
     // Avgitt energi = mottatt energi
     expect(450 * 0.5 * (100 - Ts)).toBeCloseTo(4180 * 0.5 * (Ts - 20), 6);
+  });
+
+  it('legemet med størst c·m endrer temperaturen minst, også når det er metallet', () => {
+    // 1,0 kg aluminium (900 J/K) i bare 0,10 kg vann (418 J/K): her blir vannet mer varmt enn metallet blir kaldt
+    const input = { c1: 900, m1: 1, T1: 100, c2: 4180, m2: 0.1, T2: 20 };
+    const Ts = equilibriumTemp(input);
+    expect(Ts).toBeCloseTo((900 * 100 + 418 * 20) / 1318, 9);
+    expect(100 - Ts).toBeLessThan(Ts - 20);
+    // Vanlig tilfelle: lite metall i mye vann, da endrer vannet seg minst
+    const Ts2 = equilibriumTemp({ c1: 450, m1: 0.5, T1: 100, c2: 4180, m2: 0.5, T2: 20 });
+    expect(100 - Ts2).toBeGreaterThan(Ts2 - 20);
   });
 
   it('energien er bevart hele veien: det det varme avgir, mottar det kalde', () => {

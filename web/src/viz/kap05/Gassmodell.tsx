@@ -32,9 +32,14 @@ const V_REF = 2.4;
 /** Volumene som vises som tynne linjer i grafen. */
 const OTHER_V = [1.0, 2.0, 3.0];
 
-// Geometri i scenen (viewBox 800 × 380)
-const CYL = { left: 230, top: 70, bottom: 300, wall: 6 };
-const GAS_LEFT = CYL.left + CYL.wall;
+// Geometri i scenen (viewBox 800 × 380, eller 800 × 540 på smale skjermer, så sylinderen blir høyere)
+const CYL_LEFT = 230;
+const WALL = 6;
+const GEO = {
+  wide: { top: 70, bottom: 300, height: 380 },
+  tall: { top: 80, bottom: 440, height: 540 },
+};
+const GAS_LEFT = CYL_LEFT + WALL;
 /** Bredden på gassen (piksler) når V = V_MAX. */
 const GAS_W_MAX = 340;
 const PISTON_W = 18;
@@ -50,6 +55,8 @@ export default function Gassmodell() {
   const [V, setV] = useState(V_REF);
   const clock = useSimClock({ tMax: 3600, loop: true });
   const [graphRef, narrow] = useNarrow<HTMLDivElement>();
+  const [sceneRef, sceneNarrow] = useNarrow<HTMLDivElement>();
+  const geo = sceneNarrow ? GEO.tall : GEO.wide;
 
   const p = gasPressure(GAS_N, T, V * 1e-3);
   const F = p * PISTON_AREA;
@@ -75,13 +82,15 @@ export default function Gassmodell() {
         <PlayToggle clock={clock} />
       </Toolbar>
 
-      <Figure
-        viewBox="0 0 800 380"
-        label={`Gass i en sylinder med stempel. Temperatur ${fmt(T, 0)} K, volum ${fmt(V, 2)} liter, trykk ${fmt(p / 1000, 0)} kilopascal.`}
-        maxHeight={400}
-      >
-        <Scene t={clock.t} T={T} V={V} F={F} />
-      </Figure>
+      <div ref={sceneRef}>
+        <Figure
+          viewBox={`0 0 800 ${geo.height}`}
+          label={`Gass i en sylinder med stempel. Temperatur ${fmt(T, 0)} K, volum ${fmt(V, 2)} liter, trykk ${fmt(p / 1000, 0)} kilopascal.`}
+          maxHeight={400}
+        >
+          <Scene t={clock.t} T={T} V={V} F={F} geo={geo} />
+        </Figure>
+      </div>
 
       <div ref={graphRef}>
         <Figure viewBox={`0 0 800 ${graphH}`} label="Graf over trykket som funksjon av temperaturen i celsius for ulike volum">
@@ -119,8 +128,9 @@ export default function Gassmodell() {
   );
 }
 
-function Scene({ t, T, V, F }: { t: number; T: number; V: number; F: number }) {
+function Scene({ t, T, V, F, geo }: { t: number; T: number; V: number; F: number; geo: { top: number; bottom: number } }) {
   const f = useTextScale();
+  const CYL = { left: CYL_LEFT, top: geo.top, bottom: geo.bottom, wall: WALL };
   const gasW = (V / V_MAX) * GAS_W_MAX;
   const xp = GAS_LEFT + gasW;
   const gasTop = CYL.top + CYL.wall;
@@ -147,11 +157,11 @@ function Scene({ t, T, V, F }: { t: number; T: number; V: number; F: number }) {
 
   return (
     <>
-      <Thermometer x={100} yTop={70} yBottom={316} min={0} max={T_MAX} value={T} color={VIZ.series[1]} left={kTicks} right={cTicks} />
-      <Tag x={78} y={44} anchor="end" muted>
+      <Thermometer x={100} yTop={CYL.top} yBottom={CYL.bottom + 16} min={0} max={T_MAX} value={T} color={VIZ.series[1]} left={kTicks} right={cTicks} />
+      <Tag x={78} y={CYL.top - 26} anchor="end" muted>
         K
       </Tag>
-      <Tag x={122} y={44} anchor="start" muted>
+      <Tag x={122} y={CYL.top - 26} anchor="start" muted>
         °C
       </Tag>
 
@@ -242,6 +252,12 @@ function PressureGraph({ T, V, p, height }: { T: number; V: number; p: number; h
         const px = sx(toCelsius(T));
         const py = sy(p / 1000);
         const zeroX = sx(tLo);
+        const pText = `${fmt(p / 1000, 0)} kPa`;
+        const labelRight = px < x0 + 130 * f;
+        // Hvor mye linja stiger (piksler) fra punktet til høyre kant av etiketten
+        const textW = 12 + pText.length * 0.6 * 17 * f;
+        const slope = (sy(0) - sy(gasPressure(GAS_N, 100, V * 1e-3) / 1000)) / (sx(100 + tLo) - sx(tLo));
+        const rise = slope * textW;
         return (
           <g>
             {OTHER_V.map((v) => (
@@ -267,9 +283,10 @@ function PressureGraph({ T, V, p, height }: { T: number; V: number; p: number; h
             {/* Nåværende tilstand */}
             <line x1={px} x2={px} y1={sy(0)} y2={py} stroke={VIZ.series[1]} strokeWidth={1.5} strokeDasharray="4 4" />
             <ColorDot x={px} y={py} r={8} color={VIZ.series[0]} />
-            {/* Linja stiger mot høyre, så etiketten står over linja til venstre for punktet */}
-            <Tag x={px < x0 + 130 * f ? px + 12 : px - 12} y={py - 14} anchor={px < x0 + 130 * f ? 'start' : 'end'} color={VIZ.series[0]}>
-              {fmt(p / 1000, 0)} kPa
+            {/* Linja stiger mot høyre: til venstre for punktet står etiketten over linja. Nær venstre kant må den
+                stå til høyre, og da løftes den så mye som linja stiger under teksten. */}
+            <Tag x={labelRight ? px + 12 : px - 12} y={labelRight ? py - 8 - rise : py - 14} anchor={labelRight ? 'start' : 'end'} color={VIZ.series[0]}>
+              {pText}
             </Tag>
           </g>
         );
@@ -283,7 +300,7 @@ function explanation(T: number, V: number, p: number, F: number, vTyp: number): 
   if (T < 0.5)
     return (
       <p>
-        <strong>Det absolutte nullpunktet.</strong> Ved 0 K = −273,15 °C har partiklene så lite bevegelsesenergi som mulig. I modellen står
+        <strong>Det absolutte nullpunktet.</strong> Ved 0 K = −273,15 °C har partiklene så lite kinetisk energi som mulig. I modellen står
         de helt stille, treffer aldri stempelet, og trykket er null. Lavere temperatur finnes ikke, og derfor starter kelvinskalaen her. (En
         ekte gass blir flytende og fast lenge før.)
       </p>
@@ -302,7 +319,7 @@ function explanation(T: number, V: number, p: number, F: number, vTyp: number): 
   if (atRef && Math.abs(V - V_REF) < 0.03) {
     second = (
       <p>
-        Ved 20 °C og 2,40 L er trykket omtrent som lufttrykket. Øk temperaturen: partiklene får mer bevegelsesenergi og treffer stempelet
+        Ved 20 °C og 2,40 L er trykket omtrent som lufttrykket. Øk temperaturen: partiklene får mer kinetisk energi og treffer stempelet
         både oftere og hardere.
       </p>
     );
@@ -325,15 +342,22 @@ function explanation(T: number, V: number, p: number, F: number, vTyp: number): 
     const ratioK = T / T_REF;
     second = (
       <p>
-        Pass på celsius: {fmt(tC, 0)} °C er {fmt(ratioC, 1)} ganger så mye som 20 °C, men ved samme volum blir trykket bare {fmt(ratioK, 2)}{' '}
-        ganger så stort. Trykket er proporsjonalt med temperaturen i kelvin, {fmt(T, 0)} K mot 293 K.
+        Pass på celsius: tallet {fmt(tC, 0)} er {fmt(ratioC, 1)} ganger så stort som 20, men ved samme volum blir trykket bare {fmt(ratioK, 2)}{' '}
+        ganger så stort som ved 20 °C. Trykket er proporsjonalt med temperaturen i kelvin, {fmt(T, 0)} K mot 293 K.
+      </p>
+    );
+  } else if (T > T_REF) {
+    second = (
+      <p>
+        Høyere temperatur gir raskere partikler, som treffer stempelet oftere og hardere. Trykket er proporsjonalt med temperaturen i kelvin:{' '}
+        {fmt(T, 0)} K / 293 K = {fmt(T / T_REF, 2)}.
       </p>
     );
   } else {
     second = (
       <p>
         Lavere temperatur gir langsommere partikler, som treffer stempelet sjeldnere og svakere. Trykket er proporsjonalt med temperaturen i
-        kelvin.
+        kelvin: {fmt(T, 0)} K / 293 K = {fmt(T / T_REF, 2)}.
       </p>
     );
   }
