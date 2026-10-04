@@ -131,7 +131,10 @@ export const LADDERS: Record<Known, number[]> = {
 export function fmtSig(v: number, sig = 3): string {
   if (!Number.isFinite(v)) return '–';
   if (v === 0) return '0';
-  const exp = Math.floor(Math.log10(Math.abs(v)));
+  // Rund av først, så 99,99 blir «100» og ikke «100,0»
+  const r = Number(v.toPrecision(sig));
+  const exp = Math.floor(Math.log10(Math.abs(r)));
+  v = r;
   if (exp < -3 || exp >= 6) return fmtSci(v, sig - 1);
   return fmt(v, Math.max(0, sig - 1 - exp));
 }
@@ -146,14 +149,14 @@ export interface Landmark {
   range?: [number, number];
 }
 
-/** Sammenligninger, sortert etter størrelse. Grove anslag er merket med «ca.». */
+/** Sammenligninger, sortert etter størrelse. Grove anslag er merket med «ca.». En vanndråpe er regnet som 0,05 mL. */
 export const LANDMARKS: Landmark[] = [
   { label: 'Mennesker på jorda', value: 8.1e9 },
   { label: 'Stjerner i Melkeveien, ca.', value: 2e11, range: [1e11, 4e11] },
   { label: 'Celler i et menneske, ca.', value: 3.7e13 },
   { label: 'Sekunder siden big bang', value: 13.8e9 * 365.25 * 24 * 3600 },
   { label: 'Sandkorn på alle strender, ca.', value: 7.5e18 },
-  { label: 'Vannmolekyler i én dråpe (0,05 mL)', value: (0.05 / 18.02) * N_A },
+  { label: 'Molekyler i en vanndråpe', value: (0.05 / 18.02) * N_A },
   { label: 'Stjerner i universet, ca.', value: 1e23, range: [1e22, 1e24] },
 ];
 

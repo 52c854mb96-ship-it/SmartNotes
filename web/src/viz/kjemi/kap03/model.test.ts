@@ -82,13 +82,15 @@ describe('glidebrytere og tall', () => {
     expect(fmtSig(3.343e24)).toBe('3,34 · 10²⁴');
     expect(fmtSig(0.0001661)).toBe('1,66 · 10⁻⁴');
     expect(fmtSig(0)).toBe('0');
+    expect(fmtSig(99.99)).toBe('100');
+    expect(fmtSig(0.0009999)).toBe('0,00100');
     expect(fmtSig(Number.NaN)).toBe('–');
   });
 
   it('sammenligningene er sortert, og telletiden for 1 mol er mye lenger enn universets alder', () => {
     const v = LANDMARKS.map((l) => l.value);
     expect(v).toEqual([...v].sort((a, b) => a - b));
-    expect(LANDMARKS.find((l) => l.label.startsWith('Vannmolekyler'))!.value).toBeCloseTo(1.671e21, -18);
+    expect(LANDMARKS.find((l) => l.label.startsWith('Molekyler i en vanndråpe'))!.value).toBeCloseTo(1.671e21, -18);
     expect(countingYears(N_A)).toBeCloseTo(1.908e16, -13);
     expect(countingYears(N_A) / 13.8e9).toBeGreaterThan(1e6);
   });
