@@ -35,9 +35,12 @@ import {
 } from './model';
 import { Select, Tag, textWidth, useNarrow } from './parts';
 
-/** Hele skalaen: 10⁵ m (100 km) til 10²⁷ m. */
+/** Hele skalaen: 10⁵ m (100 km) til 10²⁷ m. Glidebryteren stopper ved kanten av det observerbare universet. */
 const LOG_MIN = 5;
 const LOG_MAX = 27;
+const SLIDER_MAX = 26.65;
+/** Lenger ut enn ca. 1 milliard lysår må vi ta hensyn til at universet utvider seg. */
+const EXPANSION_LOG = 25;
 /** Halve bredden av utsnittet, i tierpotenser. */
 const HALF = 2;
 /** Glidebryteren fester seg til et objekt når den er nærmere enn dette (tierpotenser). */
@@ -52,6 +55,8 @@ export default function UniversetsSkala() {
   const focus = near.decades < 1e-6 ? near.obj : null;
   const d = 10 ** logD;
   const travel = focus?.lookbackYears ? { value: focus.lookbackYears, unit: 'år' as const } : lightTravel(d);
+  /** Mellom ca. 1 milliard lysår og universets kant (utenom selve kanten) gir ikke s/c lystiden. */
+  const expanding = !focus?.lookbackYears && logD > EXPANSION_LOG;
   const [wrapRef, narrow] = useNarrow<HTMLDivElement>();
   const H = narrow ? 440 : 300;
 
@@ -63,7 +68,7 @@ export default function UniversetsSkala() {
   return (
     <VizLayout>
       <Controls>
-        <Slider label="Avstand fra oss" value={logD} onChange={onSlide} min={LOG_MIN} max={LOG_MAX} step={0.01} format={(v) => fmtDistance(10 ** v)} />
+        <Slider label="Avstand fra oss" value={logD} onChange={onSlide} min={LOG_MIN} max={SLIDER_MAX} step={0.01} format={(v) => fmtDistance(10 ** v)} />
       </Controls>
       <Toolbar>
         <Select
@@ -93,8 +98,8 @@ export default function UniversetsSkala() {
         <Readout label="I lysår" value={fmtSig(toLightYears(d))} unit="lysår" />
         <Readout
           label="Lyset er underveis i"
-          value={travel.unit === 'år' ? fmtWords(travel.value) : fmtSig(travel.value)}
-          unit={travel.unit}
+          value={expanding ? '–' : travel.unit === 'år' ? fmtWords(travel.value) : fmtSig(travel.value)}
+          unit={expanding ? undefined : travel.unit}
           tone={CURSOR}
         />
       </Readouts>
@@ -104,7 +109,9 @@ export default function UniversetsSkala() {
         <FormulaLine>
           1 lysår = c · 1 år = {fmtSci(LIGHT_YEAR, 2)} m = {fmtSig(LIGHT_YEAR / AU)} AE
         </FormulaLine>
-        {focus?.lookbackYears ? (
+        {expanding ? (
+          <FormulaLine>Så langt ute utvider universet seg mens lyset er underveis, så t = s/c gjelder ikke</FormulaLine>
+        ) : focus?.lookbackYears ? (
           <FormulaLine>Lyset har reist i {fmtWords(focus.lookbackYears)} år, men avstanden er nå {fmtWords(toLightYears(d))} lysår</FormulaLine>
         ) : (
           <FormulaLine>
@@ -194,12 +201,18 @@ function Scale({ logD, focus, H }: { logD: number; focus: SpaceObject | null; H:
             </Label>
             {Array.from({ length: Math.max(0, last - first + 1) }, (_, k) => first + k).map((n) => {
               const x = sx(n + r.offset);
+              const text = fmtPow10(n);
+              // Akseverdier som ville kollidert med radtittelen eller gått ut av figuren, får bare et merke.
+              const half = (text.length * 8 * f) / 2;
+              const room = x - half > X0 - 4 && x + half < 800 - 4;
               return (
                 <g key={n}>
                   <line x1={x} y1={y - 19 * f} x2={x} y2={y - 13 * f} stroke={VIZ.muted} strokeWidth={1.5} />
-                  <text x={x} y={y + 5 * f} textAnchor="middle" className="viz-tick">
-                    {fmtPow10(n)}
-                  </text>
+                  {room && (
+                    <text x={x} y={y + 5 * f} textAnchor="middle" className="viz-tick">
+                      {text}
+                    </text>
+                  )}
                 </g>
               );
             })}
@@ -267,8 +280,10 @@ function explanation(logD: number, focus: SpaceObject | null, travel: { value: n
           <>Du er {fmtDistance(d)} unna. </>
         )}
         Skalaen er logaritmisk: hvert merke på aksen er ti ganger lenger unna enn det forrige. Derfor får både månen og
-        Andromedagalaksen plass på samme akse, selv om Andromeda er ca. 6 · 10¹³ ganger lenger unna. Lyset bruker{' '}
-        {travelText(travel)} hit.
+        Andromedagalaksen plass på samme akse, selv om Andromeda er ca. 6 · 10¹³ ganger lenger unna.{' '}
+        {logD > EXPANSION_LOG
+          ? 'Så langt ute utvider universet seg merkbart mens lyset er underveis, så lystiden er ikke lenger bare s/c.'
+          : `Lyset bruker ${travelText(travel)} hit.`}
       </p>
     );
   }

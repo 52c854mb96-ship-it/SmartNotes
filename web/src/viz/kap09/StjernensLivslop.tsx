@@ -89,7 +89,7 @@ export default function StjernensLivslop() {
   const stage = stages[i]!;
   const pos = alongTrack(stage.track, frac);
   const [wrapRef, narrow] = useNarrow<HTMLDivElement>();
-  const hrH = narrow ? 470 : 420;
+  const hrH = narrow ? 560 : 420;
   const H = narrow ? hrH + 580 : 420;
   const ms = msLifetime(M);
   const dur = durationParts(stage);
@@ -555,7 +555,17 @@ function explanation(stage: Stage, M: number): ReactNode {
         <p>
           <strong>Hovedserien.</strong> Stjerna fusjonerer hydrogen til helium i kjernen, og trykket fra den varme gassen holder igjen
           mot gravitasjonen. Med {m} lyser den {fmtSig(msLuminosity(M), 2)} ganger så sterkt som sola og blir på hovedserien i{' '}
-          {fmtYears(tMS)}. {M > 1.05 ? 'Tyngre stjerner lever kortere, fordi L ∝ M^3,5 vokser mye raskere enn drivstoffet.' : M < 0.95 ? 'Lette stjerner er sparsommelige: L ∝ M^3,5 faller mye raskere enn drivstoffet.' : 'Sola er omtrent halvveis.'}{' '}
+          {fmtYears(tMS)}. {M > 1.05 ? (
+            <>
+              Tyngre stjerner lever kortere, fordi L ∝ M<sup>3,5</sup> vokser mye raskere enn drivstoffet.
+            </>
+          ) : M < 0.95 ? (
+            <>
+              Lette stjerner er sparsommelige: L ∝ M<sup>3,5</sup> blir mye mindre, mens drivstoffet bare minker litt.
+            </>
+          ) : (
+            'Sola er omtrent halvveis.'
+          )}{' '}
           {tMS > UNIVERSE_AGE && 'Det er lenger enn universets alder, så ingen så lette stjerner har forlatt hovedserien ennå.'}
         </p>
       );

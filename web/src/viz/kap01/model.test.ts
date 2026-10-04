@@ -10,6 +10,7 @@ import {
   kmhToMs,
   maxHeight,
   maxVelocityError,
+  niceAxis,
   niceRange,
   pathLength,
   position,
@@ -31,6 +32,22 @@ describe('akser', () => {
     expect(niceRange(-5, 4)).toEqual([-6, 4]);
     expect(niceRange(0, 37)).toEqual([0, 40]);
     expect(niceRange(-142, 0)).toEqual([-150, 0]);
+  });
+
+  it('akseverdiene bruker samme steg som grensene, så det blir minst tre', () => {
+    expect(niceAxis(-35, 38, 4)).toEqual({ min: -40, max: 40, ticks: [-40, -20, 0, 20, 40] });
+    expect(niceAxis(-75, 0, 4, 4).ticks).toEqual([-80, -60, -40, -20, 0]);
+    for (let i = 0; i <= 54; i++)
+      for (let j = 0; j <= 46; j++) {
+        const lo = -3.7 * i;
+        const hi = 4.3 * j;
+        const ax = niceAxis(lo, hi, 4, 4);
+        expect(ax.ticks.length).toBeGreaterThanOrEqual(3);
+        expect(ax.ticks[0]).toBeCloseTo(ax.min, 9);
+        expect(ax.ticks[ax.ticks.length - 1]).toBeCloseTo(ax.max, 9);
+        expect(ax.min).toBeLessThanOrEqual(lo + 1e-9);
+        expect(ax.max).toBeGreaterThanOrEqual(hi - 1e-9);
+      }
   });
 
   it('gir et minste spenn når alt er null, uten å flytte null', () => {

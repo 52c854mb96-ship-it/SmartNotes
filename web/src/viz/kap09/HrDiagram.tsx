@@ -409,9 +409,15 @@ function Diagram({
           <line x1={x0} x2={mx} y1={my} y2={my} className="viz-guide" />
           <line x1={mx} x2={mx} y1={my} y2={y0} className="viz-guide" />
           <circle cx={mx} cy={my} r={clamp(7 + 2 * Math.log10(M) * 2, 6, 14)} fill={starColor(msStar.T)} stroke={VIZ.ink} strokeWidth={2.5} />
-          <Tag x={mx + 22} y={my - 12} anchor="start" weight={700}>
-            {fmtSig(M, 2)} M☉
-          </Tag>
+          {mx + 22 + textWidth(7, f) < x1 ? (
+            <Tag x={mx + 22} y={my - 12} anchor="start" weight={700}>
+              {fmtSig(M, 2)} M☉
+            </Tag>
+          ) : (
+            <Tag x={mx - 22} y={my - 14} anchor="end" weight={700}>
+              {fmtSig(M, 2)} M☉
+            </Tag>
+          )}
         </g>
       )}
     </g>
@@ -452,7 +458,7 @@ function starExplanation(star: Star): ReactNode {
     case 'hovedserie':
       type = (
         <>
-          Den fusjonerer hydrogen til helium i kjernen, slik sola gjør. Hvor på hovedserien en stjerne ligger, bestemmes av massen:
+          Den fusjonerer hydrogen til helium i kjernen{star.id === 'sola' ? '' : ', slik sola gjør'}. Hvor på hovedserien en stjerne ligger, bestemmes av massen:
           tyngre stjerner er både varmere og mye lyssterkere.
         </>
       );
@@ -460,7 +466,7 @@ function starExplanation(star: Star): ReactNode {
     case 'kjempe':
       type = (
         <>
-          Hydrogenet i kjernen er brukt opp, og stjernen har svellet opp til ca. {fmtSig(R, 2)} ganger solas radius. Overflaten er
+          Hydrogenet i kjernen er brukt opp, og stjerna har svellet opp til ca. {fmtSig(R, 2)} ganger solas radius. Overflaten er
           kaldere enn sola, men den enorme overflaten gjør at den likevel lyser {fmtSig(star.L, 2)} ganger så sterkt.
         </>
       );
@@ -468,8 +474,8 @@ function starExplanation(star: Star): ReactNode {
     case 'superkjempe':
       type = (
         <>
-          En massiv stjerne nær slutten av livet, ca. {fmtSig(R, 2)} ganger så stor som sola. Den ender som supernova og etterlater en
-          nøytronstjerne eller et svart hull.
+          En stor og tung stjerne som har brukt opp hydrogenet i kjernen, ca. {fmtSig(R, 2)} ganger så stor som sola. Superkjemper
+          over ca. 8 M☉ ender som supernova og etterlater en nøytronstjerne eller et svart hull.
         </>
       );
       break;
@@ -504,9 +510,9 @@ function massExplanation(M: number): ReactNode {
         {fmtSig(M, 2)} solmasser gir L = {fmtSig(L, 2)} L☉.
       </strong>{' '}
       {heavy
-        ? `Stjernen har ${fmtSig(M, 2)} ganger så mye hydrogen som sola, men bruker det ${fmtSig(L, 2)} ganger så fort. `
+        ? `Stjerna har ${fmtSig(M, 2)} ganger så mye hydrogen som sola, men bruker det ${fmtSig(L, 2)} ganger så fort. `
         : light
-          ? `Stjernen har bare ${fmtSig(M, 2)} av solas hydrogen, men bruker det ${fmtSig(1 / L, 2)} ganger så sakte. `
+          ? `Stjerna har bare ${fmtSig(M, 2)} ganger så mye hydrogen som sola, men bruker det ${fmtSig(1 / L, 2)} ganger så sakte. `
           : 'Dette er sola. '}
       Levetiden er drivstoff delt på forbruk, t ∝ M/L = M<sup>−2,5</sup>, så den blir {fmtYears(t)}.{' '}
       {t > UNIVERSE_AGE

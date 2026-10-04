@@ -12,8 +12,8 @@ export function niceStep(span: number, count = 5): number {
   return (norm >= 5 ? 10 : norm >= 2 ? 5 : norm >= 1 ? 2 : 1) * mag;
 }
 
-/** Utvider [lo, hi] til nærmeste pene akseverdier. Spennet blir minst `minSpan`. */
-export function niceRange(lo: number, hi: number, count = 5, minSpan = 1): [number, number] {
+/** Utvider [lo, hi] til pene grenser og gir steget som ble brukt. Spennet blir minst `minSpan`. */
+function niceBounds(lo: number, hi: number, count: number, minSpan: number): [number, number, number] {
   let a = Math.min(lo, hi);
   let b = Math.max(lo, hi);
   if (b - a < minSpan) {
@@ -30,7 +30,24 @@ export function niceRange(lo: number, hi: number, count = 5, minSpan = 1): [numb
     }
   }
   const step = niceStep(b - a, count);
-  return [Math.floor(a / step + 1e-9) * step + 0, Math.ceil(b / step - 1e-9) * step + 0];
+  return [Math.floor(a / step + 1e-9) * step + 0, Math.ceil(b / step - 1e-9) * step + 0, step];
+}
+
+/** Utvider [lo, hi] til nærmeste pene akseverdier. Spennet blir minst `minSpan`. */
+export function niceRange(lo: number, hi: number, count = 5, minSpan = 1): [number, number] {
+  const [a, b] = niceBounds(lo, hi, count, minSpan);
+  return [a, b];
+}
+
+/**
+ * Som niceRange, men gir også akseverdiene: alle multipler av det samme steget fra min til max (minst tre).
+ * (Å regne ut et nytt steg for akseverdiene etterpå kan gi bare én eller to verdier, f.eks. bare 0 på [−40, 40].)
+ */
+export function niceAxis(lo: number, hi: number, count = 5, minSpan = 1): { min: number; max: number; ticks: number[] } {
+  const [min, max, step] = niceBounds(lo, hi, count, minSpan);
+  const ticks: number[] = [];
+  for (let i = Math.round(min / step); i <= Math.round(max / step); i++) ticks.push(Number((i * step).toPrecision(12)) + 0);
+  return { min, max, ticks };
 }
 
 /* ---------- 1C Bevegelsesgrafer (konstant akselerasjon) ---------- */

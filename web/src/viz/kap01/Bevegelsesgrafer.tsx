@@ -17,13 +17,12 @@ import {
   VizLayout,
   fmt,
   linePath,
-  niceTicks,
   sample,
   scaleLinear,
   useSimClock,
   useTextScale,
 } from '../kit';
-import { displacement, niceRange, pathLength, position, positionExtent, speedTrend, turnTime, velocity, type Motion } from './model';
+import { displacement, niceAxis, pathLength, position, positionExtent, speedTrend, turnTime, velocity, type Motion } from './model';
 import { useNarrow } from './useNarrow';
 import { Arrow, ColorDot, Label } from './marks';
 
@@ -49,9 +48,9 @@ export default function Bevegelsesgrafer() {
   const ds = displacement(m, t);
   const dist = pathLength(m, t);
   const [pLo, pHi] = positionExtent(m, T_END);
-  const sRange = niceRange(Math.min(0, pLo), Math.max(0, pHi), 4, 4);
+  const sAxis = niceAxis(Math.min(0, pLo), Math.max(0, pHi), 4, 4);
   const vEnd = velocity(m, T_END);
-  const vRange = niceRange(Math.min(0, v0, vEnd), Math.max(0, v0, vEnd), 4, 2);
+  const vAxis = niceAxis(Math.min(0, v0, vEnd), Math.max(0, v0, vEnd), 4, 2);
   const heights = narrow ? HEIGHTS.narrow : HEIGHTS.wide;
   const total = heights[0] + heights[1] + heights[2];
 
@@ -101,7 +100,7 @@ export default function Bevegelsesgrafer() {
           label={`Vogn på en rett bane. Ved t = ${fmt(t, 2)} s er posisjonen ${fmt(s, 1)} m og farten ${fmt(v, 1)} m/s.`}
           maxHeight={narrow ? 320 : 220}
         >
-          <Track m={m} t={t} sRange={sRange} narrow={narrow} />
+          <Track m={m} t={t} sAxis={sAxis} narrow={narrow} />
         </Figure>
       </div>
 
@@ -110,7 +109,7 @@ export default function Bevegelsesgrafer() {
         label="Tre grafer over hverandre med samme tidsakse: posisjon, fart og akselerasjon som funksjon av tiden."
         maxHeight={narrow ? 1400 : 760}
       >
-        <Graphs m={m} t={t} sRange={sRange} vRange={vRange} heights={heights} />
+        <Graphs m={m} t={t} sAxis={sAxis} vAxis={vAxis} heights={heights} />
       </Figure>
       <Legend
         items={[
@@ -152,13 +151,17 @@ function q(value: number, decimals: number, unit: string): string {
 
 /* ---------- Vogna på banen ---------- */
 
-function Track({ m, t, sRange, narrow }: { m: Motion; t: number; sRange: [number, number]; narrow: boolean }) {
+type Axis = ReturnType<typeof niceAxis>;
+
+function Track({ m, t, sAxis, narrow }: { m: Motion; t: number; sAxis: Axis; narrow: boolean }) {
   const f = useTextScale();
   const H = narrow ? 240 : 170;
   const trackY = H - 22 - 26 * f;
   // Plass til fartspilen (opptil 110) og etiketten på begge sider av banen
-  const xs = scaleLinear(sRange, [150, 650]);
-  const ticks = niceTicks(sRange[0], sRange[1], narrow ? 4 : 6);
+  const xs = scaleLinear([sAxis.min, sAxis.max], [150, 650]);
+  // På mobil er teksten større: annenhver akseverdi, men alltid med 0
+  const zeroIndex = sAxis.ticks.indexOf(0);
+  const ticks = narrow && sAxis.ticks.length > 4 ? sAxis.ticks.filter((_, i) => (i - zeroIndex) % 2 === 0) : sAxis.ticks;
   // Større vogn og piler på mobil, der figuren skaleres ned
   const k = narrow ? 1.35 : 1;
   const s = position(m, t);
@@ -239,14 +242,14 @@ function Track({ m, t, sRange, narrow }: { m: Motion; t: number; sRange: [number
 function Graphs({
   m,
   t,
-  sRange,
-  vRange,
+  sAxis,
+  vAxis,
   heights,
 }: {
   m: Motion;
   t: number;
-  sRange: [number, number];
-  vRange: [number, number];
+  sAxis: Axis;
+  vAxis: Axis;
   heights: readonly [number, number, number];
 }) {
   const f = useTextScale();
@@ -264,7 +267,7 @@ function Graphs({
       {/* s-t */}
       <Plot
         x={{ min: 0, max: T_END, label: '' }}
-        y={{ min: sRange[0], max: sRange[1], label: 's (m)', ticks: niceTicks(sRange[0], sRange[1], 4) }}
+        y={{ min: sAxis.min, max: sAxis.max, label: 's (m)', ticks: sAxis.ticks }}
         width={800}
         height={h0}
         margin={margin(false)}
@@ -305,7 +308,7 @@ function Graphs({
       <g transform={`translate(0 ${h0})`}>
         <Plot
           x={{ min: 0, max: T_END, label: '' }}
-          y={{ min: vRange[0], max: vRange[1], label: 'v (m/s)', ticks: niceTicks(vRange[0], vRange[1], 4) }}
+          y={{ min: vAxis.min, max: vAxis.max, label: 'v (m/s)', ticks: vAxis.ticks }}
           width={800}
           height={h1}
           margin={margin(false)}

@@ -33,6 +33,8 @@ const fmtW = (P: number) => (P >= 1000 ? `${fmt(P / 1000, P % 1000 === 0 ? 1 : 2
 const fmtHours = (h: number) => (h === 0 ? '0 h' : h < 1 ? `${fmt(h * 60, 0)} min` : `${fmt(h, Number.isInteger(h) ? 0 : 2)} h`);
 const fmtKWh = (e: number) => fmt(e, e >= 100 ? 0 : e >= 10 ? 1 : e >= 1 ? 2 : 3);
 const fmtKr = (k: number) => fmt(k, k >= 100 ? 0 : 2);
+const fmtI = (I: number) => fmt(I, I >= 10 ? 1 : I >= 0.1 ? 2 : 4);
+const fmtR = (R: number) => fmt(R, R >= 100 ? 0 : 1);
 
 export default function EffektOgEnergi() {
   const [preset, setPreset] = useState('panelovn');
@@ -106,18 +108,18 @@ export default function EffektOgEnergi() {
       </Figure>
 
       <Readouts>
-        <Readout label="Strøm I = P/U" value={fmt(I, I >= 10 ? 1 : 2)} unit="A" tone={EL.current} />
-        <Readout label="Resistans R = U²/P" value={fmt(R, R >= 100 ? 0 : 1)} unit="Ω" />
+        <Readout label="Strøm I = P/U" value={fmtI(I)} unit="A" tone={EL.current} />
+        <Readout label="Resistans R = U²/P" value={fmtR(R)} unit="Ω" />
         <Readout label="Energi per måned" value={fmtKWh(m.kWh)} unit="kWh" tone={EL.energy} />
         <Readout label="Kostnad per måned" value={fmtKr(m.cost)} unit="kr" />
       </Readouts>
 
       <Formula label="Effekt, strøm, resistans og energi">
         <FormulaLine>
-          P = U·I gir I = P/U = {fmt(P, P < 10 ? 1 : 0)} W / {MAINS_U} V = {fmt(I, 2)} A
+          P = U·I gir I = P/U = {fmt(P, P < 10 ? 1 : 0)} W / {MAINS_U} V = {fmtI(I)} A
         </FormulaLine>
         <FormulaLine>
-          P = R·I² gir R = P/I² = {fmt(P, P < 10 ? 1 : 0)} W / ({fmt(I, 2)} A)² = {fmt(R, 1)} Ω
+          P = R·I² gir R = P/I² = {fmt(P, P < 10 ? 1 : 0)} W / ({fmtI(I)} A)² = {fmtR(R)} Ω
         </FormulaLine>
         <FormulaLine>
           W = P·t = {fmt(P / 1000, P < 100 ? 3 : 2)} kW · {fmt(hours, Number.isInteger(hours) ? 0 : 2)} h · {DAYS_PER_MONTH} = {fmtKWh(m.kWh)} kWh = {fmtSci(m.kWh * KWH, 2)} J
@@ -195,7 +197,7 @@ function MonthBars({ preset, P, hours, price, narrow, W }: { preset: string; P: 
   if (preset === CUSTOM) rows.push({ id: CUSTOM, name: 'Egendefinert', on: true, ...monthly(P, hours, price) });
   const max = Math.max(1e-9, ...rows.map((r) => r.kWh));
   const nameW = narrow ? 0 : textWidth(19, f) + 16;
-  const valueW = narrow ? 0 : textWidth(17, f);
+  const valueW = narrow ? 0 : textWidth(19, f);
   const x0 = 12 + nameW;
   const x1 = W - 12 - valueW;
   const h = rowH(narrow);
@@ -245,7 +247,7 @@ function explanation(name: string, P: number, hours: number, perDay: number, per
         under grafen er energien. {compare}
       </p>
       <p>
-        Med U = {MAINS_U} V gir P = U·I en strøm på {fmt(I, I >= 10 ? 1 : 2)} A.{' '}
+        Med U = {MAINS_U} V gir P = U·I en strøm på {fmtI(I)} A.{' '}
         {I > FUSE
           ? `Det er mer enn en vanlig kurs på ${FUSE} A tåler, så slike apparater må ha egen kurs.`
           : Math.floor(FUSE / I) <= 10

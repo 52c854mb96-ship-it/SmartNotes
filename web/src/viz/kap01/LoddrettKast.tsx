@@ -23,7 +23,7 @@ import {
   useSimClock,
   useTextScale,
 } from '../kit';
-import { flightTime, impactSpeed, maxHeight, niceRange, throwHeight, throwVelocity, topTime, type Throw } from './model';
+import { flightTime, impactSpeed, maxHeight, niceAxis, niceRange, throwHeight, throwVelocity, topTime, type Throw } from './model';
 import { useNarrow } from './useNarrow';
 import { Arrow, ColorDot, Label } from './marks';
 
@@ -282,7 +282,7 @@ function SceneAndPosition({ th, t, T, height, narrow }: { th: Throw; t: number; 
 function VelocityGraph({ th, t, T, height }: { th: Throw; t: number; T: number; height: number }) {
   const f = useTextScale();
   const vImp = impactSpeed(th);
-  const [vLo, vHi] = niceRange(Math.min(0, -vImp), Math.max(0, th.v0), 6, 4);
+  const vAxis = niceAxis(Math.min(0, -vImp), Math.max(0, th.v0), 5, 4);
   const [, tMax] = niceRange(0, Math.max(T, 1), 5, 1);
   const tTop = topTime(th);
   const v = throwVelocity(th, t);
@@ -292,7 +292,7 @@ function VelocityGraph({ th, t, T, height }: { th: Throw; t: number; T: number; 
   return (
     <Plot
       x={{ min: 0, max: tMax, label: 'Tid t (s)', decimals: tickDecimals(0, tMax) }}
-      y={{ min: vLo, max: vHi, label: 'v (m/s)', ticks: niceTicks(vLo, vHi, 4) }}
+      y={{ min: vAxis.min, max: vAxis.max, label: 'v (m/s)', ticks: vAxis.ticks }}
       width={800}
       height={height}
       margin={{ top: 34 * f, right: 24 * f, bottom: 56 * f, left: 72 * f }}
