@@ -63,6 +63,15 @@ function timeText(k: number, p: HalfLifePreset): string {
   return `${fmt(v, DECIMALS[p.id] ?? 1)} ${p.unit}`;
 }
 
+/** Tre gjeldende siffer: 6218,69 → «6 220», 1,65 · 10¹¹ → «1,65 · 10¹¹». */
+function fmtSig3(v: number): string {
+  if (!Number.isFinite(v) || v === 0) return fmt(v, 0);
+  const exp = Math.floor(Math.log10(Math.abs(v)));
+  if (exp >= 5 || exp < -2) return fmtSci(v, 2);
+  const step = 10 ** (exp - 2);
+  return fmt(Math.round(v / step) * step, Math.max(0, 2 - exp));
+}
+
 /** Halveringstida skrevet om til sekunder, f.eks. «5730 · 3,16 · 10⁷ s». */
 function halfLifeInSeconds(p: HalfLifePreset): string {
   const T = p.id === 'u238' ? '4,47 · 10⁹' : fmt(p.T, p.T >= 100 ? 0 : 2);
@@ -167,7 +176,7 @@ export default function Halveringstid() {
           }
           value={fmt(nTheory, 1)}
         />
-        <Readout label={`Aktivitet til 1,00 g ${iso}`} value={fmtSci(A1g, 2)} unit="Bq" />
+        <Readout label={`Aktivitet til 1,00 g ${iso}`} value={fmtSig3(A1g)} unit="Bq" />
       </Readouts>
 
       <Formula label="Desintegrasjonskonstant og aktivitet">
@@ -178,7 +187,7 @@ export default function Halveringstid() {
           1,00 g {iso}: N<Sub>0</Sub> = m / (A · u) = 1,00 · 10⁻³ kg / ({p.A} · 1,66 · 10⁻²⁷ kg) = {fmtSci(N1g, 2)}
         </FormulaLine>
         <FormulaLine>
-          A = λN = {fmtSci(lambda, 2)} s⁻¹ · {fmtSci(N1g, 2)} · (1/2)<Sup>{fmt(k, 2)}</Sup> = {fmtSci(A1g, 2)} Bq
+          A = λN = {fmtSci(lambda, 2)} s⁻¹ · {fmtSci(N1g, 2)} · (1/2)<Sup>{fmt(k, 2)}</Sup> = {fmtSig3(A1g)} Bq
         </FormulaLine>
       </Formula>
 

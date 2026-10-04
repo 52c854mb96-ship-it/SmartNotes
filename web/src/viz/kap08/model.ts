@@ -127,6 +127,16 @@ export const NUCLIDES: Nuclide[] = [
   nuc(91, 233, 233.040247, '27,0 døgn', 'beta-'),
   nuc(92, 233, 233.039635, '1,59 · 10⁵ år', 'alfa'),
   nuc(90, 229, 229.031762, '7880 år', 'alfa'),
+  nuc(88, 225, 225.023612, '14,9 døgn', 'beta-'),
+  nuc(89, 225, 225.02323, '9,92 døgn', 'alfa'),
+  nuc(87, 221, 221.014255, '4,8 min', 'alfa'),
+  nuc(85, 217, 217.004719, '32 ms', 'alfa'),
+  nuc(83, 213, 212.994385, '45,6 min', 'beta-'),
+  nuc(84, 213, 212.992857, '3,7 µs', 'alfa'),
+  nuc(82, 209, 208.98109, '3,25 timer', 'beta-'),
+  // ²⁰⁹Bi er så vidt radioaktiv, med en halveringstid mye lengre enn universets alder
+  nuc(83, 209, 208.980399, '2,0 · 10¹⁹ år', 'alfa'),
+  nuc(81, 205, 204.974428),
   // Til fisjon
   nuc(94, 239, 239.052163, '2,41 · 10⁴ år', 'alfa'),
   nuc(92, 235, 235.04393, '7,04 · 10⁸ år', 'alfa'),

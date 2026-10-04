@@ -239,6 +239,25 @@ describe('kjernereaksjoner og bevaringslover', () => {
     expect([alpha, beta]).toEqual([8, 6]);
   });
 
+  it('neptuniumserien fra ²⁴¹Am ender i stabilt ²⁰⁵Tl etter 9 α og 4 β⁻', () => {
+    let Z = 95;
+    let A = 241;
+    const seen: string[] = [];
+    for (let i = 0; i < 20; i++) {
+      const n = findNuclide(Z, A);
+      expect(n).toBeDefined();
+      if (!n!.mode) break;
+      seen.push(n!.mode);
+      const d = decay(Z, A, n!.mode);
+      expect(decayEnergy(d)!.Q).toBeGreaterThan(0);
+      Z = d.daughter.Z;
+      A = d.daughter.A;
+    }
+    expect([Z, A]).toEqual([81, 205]);
+    expect(seen.filter((m) => m === 'alfa')).toHaveLength(9);
+    expect(seen.filter((m) => m === 'beta-')).toHaveLength(4);
+  });
+
   it('henfall som ikke frigjør energi, skjer ikke av seg selv: ⁴⁰Ca → ⁴⁰K ved β⁺ gir Q < 0', () => {
     expect(decayEnergy(decay(20, 40, 'beta+'))!.Q).toBeLessThan(0);
     expect(decayEnergy(decay(7, 14, 'beta+'))!.Q).toBeLessThan(0);

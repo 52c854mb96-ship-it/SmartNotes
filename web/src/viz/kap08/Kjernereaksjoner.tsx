@@ -74,12 +74,16 @@ export default function Kjernereaksjoner() {
   const [start, setStart] = useState('92-238');
   const [cur, setCur] = useState<Current>({ Z: 92, A: 238, excited: false });
   const [type, setType] = useState<DecayType>('alfa');
-  const [steps, setSteps] = useState(0);
+  /** Henfallene vi har fulgt fra startkjernen. */
+  const [history, setHistory] = useState<DecayType[]>([]);
   const [ref, f] = useFigureTextScale<HTMLDivElement>();
 
   const dc = decay(cur.Z, cur.A, type, cur.excited);
   const energy = decayEnergy(dc);
   const natural = naturalMode(cur);
+  const stable = isStable(cur.Z, cur.A) === true && !cur.excited;
+  // Stabile kjerner henfaller ikke, så da vises ingen datterkjerne.
+  const shown = dc.possible && !stable;
   const preset = PRESETS.find((p) => p.value === start) ?? PRESETS[0]!;
   const parentLabel = nuclideLabel(cur.Z, cur.A, dc.parent.excited);
   const daughterLabel = nuclideLabel(dc.daughter.Z, dc.daughter.A, dc.daughter.excited);
@@ -90,15 +94,15 @@ export default function Kjernereaksjoner() {
     setStart(v);
     setCur(next);
     setType(naturalMode(next) ?? 'alfa');
-    setSteps(0);
+    setHistory([]);
   };
   const follow = () => {
-    if (!dc.possible) return;
+    if (!shown) return;
     const next = { ...dc.daughter };
     setCur(next);
     const m = naturalMode(next);
     if (m) setType(m);
-    setSteps((s) => s + 1);
+    setHistory((h) => [...h, type]);
   };
 
   const L = layout(f);
@@ -110,11 +114,11 @@ export default function Kjernereaksjoner() {
       </Toolbar>
       <Toolbar>
         <Segmented label="Velg henfallstype" options={TYPES} value={type} onChange={setType} />
-        <button type="button" className="btn btn-sm" onClick={follow} disabled={!dc.possible}>
+        <button type="button" className="btn btn-sm" onClick={follow} disabled={!shown}>
           <ArrowRight size={16} aria-hidden />
-          Fortsett med {dc.possible ? daughterLabel : 'datterkjernen'}
+          Fortsett med {shown ? daughterLabel : 'datterkjernen'}
         </button>
-        {steps > 0 && (
+        {history.length > 0 && (
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => choosePreset(start)}>
             <RotateCcw size={16} aria-hidden />
             Tilbake til {nuclideLabel(preset.Z, preset.A)}
@@ -126,35 +130,37 @@ export default function Kjernereaksjoner() {
         <Figure
           viewBox={`0 0 800 ${Math.round(L.height)}`}
           label={
-            dc.possible
-              ? `${TYPE_TEXT[type]}-henfall: ${parentLabel} blir til ${daughterLabel}. Nukleontall og ladning er bevart.`
-              : `${TYPE_TEXT[type]}-henfall er ikke mulig for ${parentLabel}.`
+            stable
+              ? `${parentLabel} er stabil og henfaller ikke.`
+              : dc.possible
+                ? `${TYPE_TEXT[type]}-henfall: ${parentLabel} blir til ${daughterLabel}. Nukleontall og ladning er bevart.`
+                : `${TYPE_TEXT[type]}-henfall er ikke mulig for ${parentLabel}.`
           }
           maxHeight={620}
         >
-          <ReactionScene dc={dc} scale={f} />
+          <ReactionScene dc={dc} scale={f} stable={stable} />
         </Figure>
       </div>
       <Legend
         items={[
           { color: PARTICLE.proton, label: 'Proton' },
           { color: PARTICLE.neutron, label: 'Nøytron' },
-          ...(type === 'beta-' ? [{ color: PARTICLE.electron, label: 'Elektron' }] : []),
-          ...(type === 'beta+' ? [{ color: PARTICLE.positron, label: 'Positron' }] : []),
-          ...(type === 'gamma' ? [{ color: PARTICLE.photon, label: 'Foton (γ-stråling)' }] : []),
+          ...(type === 'beta-' && shown ? [{ color: PARTICLE.electron, label: 'Elektron' }] : []),
+          ...(type === 'beta+' && shown ? [{ color: PARTICLE.positron, label: 'Positron' }] : []),
+          ...(type === 'gamma' && shown ? [{ color: PARTICLE.photon, label: 'Foton (γ-stråling)' }] : []),
         ]}
       />
 
       <Readouts>
-        <Readout label="Datterkjerne" value={dc.possible ? daughterLabel : '–'} />
+        <Readout label="Datterkjerne" value={shown ? daughterLabel : '–'} />
         <Readout label={`Halveringstid for ${parentLabel}`} value={halfLifeText(cur)} />
-        <Readout label="Energi frigjort Q" value={energy ? qText(energy.Q) : '–'} unit={energy ? 'MeV' : undefined} />
-        <Readout label="Vanlig henfall" value={natural ? TYPE_TEXT[natural] : isStable(cur.Z, cur.A) ? 'Stabil' : 'Ikke i tabellen'} />
+        <Readout label="Energi frigjort Q" value={energy && shown ? qText(energy.Q) : '–'} unit={energy && shown ? 'MeV' : undefined} />
+        <Readout label="Vanlig henfall" value={natural ? TYPE_TEXT[natural] : isStable(cur.Z, cur.A) ? 'Stabil' : 'Ukjent'} />
       </Readouts>
 
-      {energy && <Formula label="Energien som frigjøres, regnet fra atommassene">{energyFormula(dc, energy)}</Formula>}
+      {energy && shown && <Formula label="Energien som frigjøres, regnet fra atommassene">{energyFormula(dc, energy)}</Formula>}
 
-      <Explain>{explanation(dc, energy, natural, cur, steps)}</Explain>
+      <Explain>{stable ? stableExplanation(cur, preset, history) : explanation(dc, energy, natural, cur, history.length)}</Explain>
     </VizLayout>
   );
 }
@@ -202,7 +208,7 @@ function emittedTerm(e: Emitted): Term {
   return { A: e.A, Z: e.Z < 0 ? `−${-e.Z}` : e.Z, symbol: e.symbol };
 }
 
-function ReactionScene({ dc, scale }: { dc: Decay; scale: number }) {
+function ReactionScene({ dc, scale, stable }: { dc: Decay; scale: number; stable: boolean }) {
   const fReal = useTextScale();
   const L = layout(scale);
   const f = fReal;
@@ -216,9 +222,9 @@ function ReactionScene({ dc, scale }: { dc: Decay; scale: number }) {
   const cy = L.cy;
 
   // Reaksjonslikningen: mor → datter + partikler
-  const terms: (Term | '→' | '+')[] = [{ A: p.A, Z: p.Z, symbol: elementSymbol(p.Z), suffix: p.excited ? '*' : undefined }, '→'];
-  if (dc.possible) {
-    terms.push({ A: d.A, Z: d.Z, symbol: elementSymbol(d.Z), suffix: d.excited ? '*' : undefined });
+  const terms: (Term | '→' | '+')[] = [{ A: p.A, Z: p.Z, symbol: elementSymbol(p.Z), suffix: p.excited ? '*' : undefined }];
+  if (dc.possible && !stable) {
+    terms.push('→', { A: d.A, Z: d.Z, symbol: elementSymbol(d.Z), suffix: d.excited ? '*' : undefined });
     for (const e of dc.emitted) terms.push('+', emittedTerm(e));
   }
   const gap = 0.36;
@@ -264,7 +270,11 @@ function ReactionScene({ dc, scale }: { dc: Decay; scale: number }) {
         {p.excited ? ', eksitert' : ''}
       </Txt>
 
-      {dc.possible ? (
+      {stable ? (
+        <Txt x={520} y={cy + 6} muted>
+          Stabil kjerne: henfaller ikke
+        </Txt>
+      ) : dc.possible ? (
         <>
           <Arrow x1={px + R + 18} y1={cy} x2={dx - Rd - 18} y2={cy} color={VIZ.muted} width={2.5} />
           <Txt x={(px + R + dx - Rd) / 2} y={cy - 14} muted>
@@ -288,7 +298,7 @@ function ReactionScene({ dc, scale }: { dc: Decay; scale: number }) {
       )}
 
       {eq}
-      {dc.possible && (
+      {dc.possible && !stable && (
         <>
           <Txt x={400} y={L.cons1} color={COLOR_A} weight={650}>
             Nukleontall: {c.A[0]} = {sumText(aParts)}
@@ -436,6 +446,47 @@ function decayExcitation(dc: Decay): number {
   return n?.daughterExcitation ?? 0;
 }
 
+function signed(n: number): string {
+  return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
+}
+
+/** «−2 · 8 + 6» for åtte α og seks β⁻. */
+function zChange(nA: number, nBm: number, nBp: number): string {
+  const parts: string[] = [];
+  if (nA) parts.push(`−2 · ${nA}`);
+  if (nBm) parts.push(parts.length ? `+ ${nBm}` : `+${nBm}`);
+  if (nBp) parts.push(`− ${nBp}`);
+  return parts.join(' ') || '0';
+}
+
+function stableExplanation(cur: Current, preset: { Z: number; A: number }, history: DecayType[]): ReactNode {
+  const me = nuclideLabel(cur.Z, cur.A);
+  if (history.length === 0)
+    return (
+      <p>
+        {me} er en <strong>stabil kjerne</strong> og henfaller ikke. Velg en radioaktiv startkjerne for å se et henfall.
+      </p>
+    );
+  const nA = history.filter((t) => t === 'alfa').length;
+  const nBm = history.filter((t) => t === 'beta-').length;
+  const nBp = history.filter((t) => t === 'beta+').length;
+  const parts = [nA ? `${nA} α-henfall` : '', nBm ? `${nBm} β⁻-henfall` : '', nBp ? `${nBp} β⁺-henfall` : ''].filter(Boolean);
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} og ${parts[parts.length - 1]}` : (parts[0] ?? 'γ-stråling');
+  return (
+    <p>
+      {me} er <strong>stabil</strong>, så serien slutter her. Fra {nuclideLabel(preset.Z, preset.A)} har kjernen gått gjennom {list}.
+      {nA > 0 ? (
+        <>
+          {' '}
+          Bare α-henfallene endrer nukleontallet: A har sunket med {nA} · 4 = {4 * nA}, fra {preset.A} til {cur.A}.
+        </>
+      ) : null}{' '}
+      Hvert α-henfall senker Z med 2, hvert β⁻-henfall øker Z med 1{nBp ? ' og hvert β⁺-henfall senker Z med 1' : ''}, så Z har endret
+      seg med {zChange(nA, nBm, nBp)} = {signed(cur.Z - preset.Z)}.
+    </p>
+  );
+}
+
 function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null, cur: Current, steps: number): ReactNode {
   const parent = nuclideLabel(cur.Z, cur.A, dc.parent.excited);
   const daughter = nuclideLabel(dc.daughter.Z, dc.daughter.A, dc.daughter.excited);
@@ -524,9 +575,9 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
       </>
     );
 
-  const stable = isStable(cur.Z, cur.A) && !cur.excited;
   let reality: ReactNode = null;
-  if (stable) reality = <> {parent} er stabil og henfaller ikke{steps > 0 ? ': serien slutter her' : ''}.</>;
+  if (!natural && isStable(cur.Z, cur.A) === undefined)
+    reality = <> {parent} er ikke med i tabellen her, så vi vet ikke om den faktisk henfaller på denne måten.</>;
   else if (natural && natural !== dc.type && !(e && e.Q <= 0))
     reality = (
       <>
