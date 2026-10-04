@@ -51,7 +51,9 @@ export default function Balansering() {
 
   const sol = balanceSolution(r);
   const st = balanceState(r, coefs);
-  const layout = tableLayout(r, sol, st, f);
+  // På mobil tegnes tabellen i en smalere viewBox (420 bred) med vanlig tekststørrelse, så kulene blir store nok.
+  const narrow = f > 1.3;
+  const layout = tableLayout(r, sol, st, narrow ? 1 : f, narrow);
 
   const choose = (next: string) => {
     const nr = BALANCE_REACTIONS.find((x) => x.id === next) ?? r;
@@ -94,11 +96,11 @@ export default function Balansering() {
 
       <div ref={ref}>
         <Figure
-          viewBox={`0 0 800 ${layout.H}`}
+          viewBox={`0 0 ${layout.W} ${layout.H}`}
           label={`Atomtelling: ${st.rows.map((x) => `${x.symbol} ${x.left} til venstre og ${x.right} til høyre`).join(', ')}. ${st.balanced ? 'Likningen er balansert.' : 'Likningen er ikke balansert.'}`}
           maxHeight={layout.H}
         >
-          <AtomTable st={st} layout={layout} f={f} />
+          <AtomTable st={st} layout={layout} f={narrow ? 1 : f} />
         </Figure>
       </div>
       <Legend
@@ -154,7 +156,17 @@ const STEPPER: CSSProperties = { display: 'inline-flex', flexDirection: 'column'
 const STEP_BTN: CSSProperties = { minHeight: 28, height: 28, width: 36, padding: 0 };
 const SIGN: CSSProperties = { fontSize: 22, fontWeight: 600, color: 'var(--text-2)', padding: '0 2px' };
 
-function EquationEditor({ r, coefs, onChange, balanced }: { r: BalanceReaction; coefs: number[]; onChange: (i: number, v: number) => void; balanced: boolean }) {
+function EquationEditor({
+  r,
+  coefs,
+  onChange,
+  balanced,
+}: {
+  r: BalanceReaction;
+  coefs: number[];
+  onChange: (i: number, v: number) => void;
+  balanced: boolean;
+}) {
   const n = r.reactants.length;
   const items: ReactNode[] = [];
   [...r.reactants, ...r.products].forEach((fx, i) => {
@@ -175,7 +187,14 @@ function EquationEditor({ r, coefs, onChange, balanced }: { r: BalanceReaction; 
     items.push(
       <span key={fx} style={TERM}>
         <span style={STEPPER}>
-          <button type="button" className="btn btn-sm" style={STEP_BTN} aria-label={`Øk koeffisienten foran ${name}`} disabled={coef >= COEF_MAX} onClick={() => onChange(i, coef + 1)}>
+          <button
+            type="button"
+            className="btn btn-sm"
+            style={STEP_BTN}
+            aria-label={`Øk koeffisienten foran ${name}`}
+            disabled={coef >= COEF_MAX}
+            onClick={() => onChange(i, coef + 1)}
+          >
             <Plus size={16} aria-hidden />
           </button>
           <output
@@ -191,7 +210,14 @@ function EquationEditor({ r, coefs, onChange, balanced }: { r: BalanceReaction; 
           >
             {coef}
           </output>
-          <button type="button" className="btn btn-sm" style={STEP_BTN} aria-label={`Minsk koeffisienten foran ${name}`} disabled={coef <= COEF_MIN} onClick={() => onChange(i, coef - 1)}>
+          <button
+            type="button"
+            className="btn btn-sm"
+            style={STEP_BTN}
+            aria-label={`Minsk koeffisienten foran ${name}`}
+            disabled={coef <= COEF_MIN}
+            onClick={() => onChange(i, coef - 1)}
+          >
             <Minus size={16} aria-hidden />
           </button>
         </span>
@@ -202,7 +228,11 @@ function EquationEditor({ r, coefs, onChange, balanced }: { r: BalanceReaction; 
     );
   });
   return (
-    <div role="group" aria-label={balanced ? 'Reaksjonslikningen, balansert' : 'Reaksjonslikningen med koeffisienter'} style={{ ...WRAP, boxShadow: balanced ? `inset 0 0 0 2px var(--success)` : undefined }}>
+    <div
+      role="group"
+      aria-label={balanced ? 'Reaksjonslikningen, balansert' : 'Reaksjonslikningen med koeffisienter'}
+      style={{ ...WRAP, boxShadow: balanced ? `inset 0 0 0 2px var(--success)` : undefined }}
+    >
       {items}
     </div>
   );
@@ -211,6 +241,8 @@ function EquationEditor({ r, coefs, onChange, balanced }: { r: BalanceReaction; 
 /* ---------- Figur: atomregnskapet ---------- */
 
 interface TableLayout {
+  W: number;
+  narrow: boolean;
   k: number;
   headerY: number;
   rowTop: number;
@@ -229,14 +261,15 @@ interface TableLayout {
 
 const hasChargeRow = (st: BalanceState) => st.hasCharge;
 
-function tableLayout(r: BalanceReaction, sol: number[], st: BalanceState, f: number): TableLayout {
+function tableLayout(r: BalanceReaction, sol: number[], st: BalanceState, f: number, narrow: boolean): TableLayout {
+  const W = narrow ? 420 : 800;
   const k = Math.max(1, 0.85 * f);
-  const ballR = f > 1.3 ? 6.5 * k : 9;
+  const ballR = narrow ? 6 : 9;
   const pitch = 2 * ballR + 3;
-  const badgeX = 26 * k;
-  const inner = (hasChargeRow(st) ? 118 : 108) * k;
-  const outer = badgeX + 22 * k;
-  const perLine = Math.max(4, Math.floor((400 - inner - outer) / pitch));
+  const badgeX = (narrow ? 20 : 26) * k;
+  const inner = (narrow ? (hasChargeRow(st) ? 96 : 64) : hasChargeRow(st) ? 118 : 108) * k;
+  const outer = badgeX + (narrow ? 18 : 22) * k;
+  const perLine = Math.max(4, Math.floor((W / 2 - inner - outer) / pitch));
   // Plass til løsningens atomtall (og ladningen i ionelikninger); mer enn det vises som «+n».
   const solSt = balanceState(r, sol);
   const most = Math.max(...solSt.rows.flatMap((x) => [x.left, x.right]), solSt.hasCharge ? Math.abs(solSt.chargeLeft) : 0);
@@ -246,13 +279,12 @@ function tableLayout(r: BalanceReaction, sol: number[], st: BalanceState, f: num
   const headerY = 24 * f;
   const rowTop = headerY + 16 * f;
   const rows = st.rows.length + (st.hasCharge ? 1 : 0);
-  return { k, headerY, rowTop, rowH, gap, lines, perLine, ballR, pitch, inner, badgeX, rows, H: Math.round(rowTop + rows * (rowH + gap) + 4) };
+  return { W, narrow, k, headerY, rowTop, rowH, gap, lines, perLine, ballR, pitch, inner, badgeX, rows, H: Math.round(rowTop + rows * (rowH + gap) + 4) };
 }
 
 function AtomTable({ st, layout, f }: { st: BalanceState; layout: TableLayout; f: number }) {
-  const { k, rowTop, rowH, gap } = layout;
-  const cx = 400;
-  const narrow = f > 1.3;
+  const { k, rowTop, rowH, gap, narrow } = layout;
+  const cx = layout.W / 2;
   const order = st.rows.map((x) => x.symbol);
   return (
     <g>
@@ -278,7 +310,13 @@ function AtomTable({ st, layout, f }: { st: BalanceState; layout: TableLayout; f
             center={(cy) => (
               <g>
                 <circle cx={cx} cy={cy} r={19 * k} fill={c.fill} stroke={c.line} strokeWidth={2} />
-                <text x={cx} y={cy + 6.5 * k} textAnchor="middle" className="kj-atom-symbol" style={{ fill: c.ink, fontSize: (row.symbol.length > 1 ? 15 : 18) * k }}>
+                <text
+                  x={cx}
+                  y={cy + 6.5 * k}
+                  textAnchor="middle"
+                  className="kj-atom-symbol"
+                  style={{ fill: c.ink, fontSize: (row.symbol.length > 1 ? 15 : 18) * k }}
+                >
                   {row.symbol}
                 </text>
               </g>
@@ -330,17 +368,35 @@ function Row({
   colors: { fill: string; line: string; label?: string };
 }) {
   const { k, rowH, badgeX } = layout;
-  const cx = 400;
+  const cx = layout.W / 2;
   const cy = y + rowH / 2;
   const tone = ok ? OK : BAD;
   const num = (v: number) => (signed ? (v > 0 ? `+${fmt(v, 0)}` : fmt(v, 0)) : fmt(v, 0));
   return (
     <g>
-      <rect x={6} y={y} width={788} height={rowH} rx={12} fill={ok ? OK : 'none'} fillOpacity={ok ? 0.12 : 0} stroke={tone} strokeOpacity={ok ? 0.9 : 0.45} strokeWidth={ok ? 2 : 1.5} />
+      <rect
+        x={6}
+        y={y}
+        width={layout.W - 12}
+        height={rowH}
+        rx={12}
+        fill={ok ? OK : 'none'}
+        fillOpacity={ok ? 0.12 : 0}
+        stroke={tone}
+        strokeOpacity={ok ? 0.9 : 0.45}
+        strokeWidth={ok ? 2 : 1.5}
+      />
       {ok ? (
         <g>
           <circle cx={badgeX} cy={cy} r={13 * k} fill={OK} />
-          <path d={`M${badgeX - 6 * k},${cy} l${4.5 * k},${4.5 * k} l${8 * k},${-9 * k}`} fill="none" stroke={VIZ.surface} strokeWidth={2.8 * k} strokeLinecap="round" strokeLinejoin="round" />
+          <path
+            d={`M${badgeX - 6 * k},${cy} l${4.5 * k},${4.5 * k} l${8 * k},${-9 * k}`}
+            fill="none"
+            stroke={VIZ.surface}
+            strokeWidth={2.8 * k}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </g>
       ) : (
         <g>
@@ -351,10 +407,10 @@ function Row({
         </g>
       )}
       {center(cy)}
-      <Txt x={cx - (signed ? 56 : 30) * k} y={cy + 7 * k} anchor="end" size={1.15} weight={700} color={tone}>
+      <Txt x={cx - (signed ? 48 : 30) * k} y={cy + 7 * k} anchor="end" size={1.15} weight={700} color={tone}>
         {num(left)}
       </Txt>
-      <Txt x={cx + (signed ? 56 : 30) * k} y={cy + 7 * k} anchor="start" size={1.15} weight={700} color={tone}>
+      <Txt x={cx + (signed ? 48 : 30) * k} y={cy + 7 * k} anchor="start" size={1.15} weight={700} color={tone}>
         {num(right)}
       </Txt>
       <Balls n={Math.abs(left)} dir={-1} cy={cy} layout={layout} colors={colors} />
@@ -363,14 +419,26 @@ function Row({
   );
 }
 
-function Balls({ n, dir, cy, layout, colors }: { n: number; dir: 1 | -1; cy: number; layout: TableLayout; colors: { fill: string; line: string; label?: string } }) {
+function Balls({
+  n,
+  dir,
+  cy,
+  layout,
+  colors,
+}: {
+  n: number;
+  dir: 1 | -1;
+  cy: number;
+  layout: TableLayout;
+  colors: { fill: string; line: string; label?: string };
+}) {
   const { perLine, lines, pitch, ballR, inner } = layout;
   const cap = perLine * lines;
   const count = Math.max(0, Math.round(n));
   const shown = count > cap ? cap - 1 : count;
   const usedLines = Math.min(lines, Math.max(1, Math.ceil((count > cap ? cap : count) / perLine)));
   const y0 = cy - ((usedLines - 1) * pitch) / 2;
-  const pos = (i: number) => ({ x: 400 + dir * (inner + (i % perLine) * pitch + ballR), y: y0 + Math.floor(i / perLine) * pitch });
+  const pos = (i: number) => ({ x: layout.W / 2 + dir * (inner + (i % perLine) * pitch + ballR), y: y0 + Math.floor(i / perLine) * pitch });
   const balls: ReactNode[] = [];
   for (let i = 0; i < shown; i++) {
     const p = pos(i);
@@ -424,11 +492,10 @@ function explanation(r: BalanceReaction, coefs: number[], st: BalanceState, sol:
     );
     status = (
       <p>
-        <strong>{revealed ? 'Slik blir likningen balansert.' : 'Likningen er balansert.'}</strong> Det er like mange atomer av hvert grunnstoff
-        på begge sider{st.hasCharge ? ', og ladningen er den samme' : ''}. Atomer blir verken borte eller laget i en kjemisk reaksjon, de bare
-        bytter partner, og derfor er massen bevart: {fmt(st.massLeft, 2)} g reaktanter gir {fmt(st.massRight, 2)} g produkter når koeffisientene
-        leses som mol. Koeffisientene gir forholdet mellom stoffmengdene: {mol(0)} reagerer med {list(r.reactants.slice(1).map((_, j) => mol(j + 1)))} og
-        gir {list(r.products.map((_, j) => mol(n + j)))}.
+        <strong>{revealed ? 'Slik blir likningen balansert.' : 'Likningen er balansert.'}</strong> Det er like mange atomer av hvert grunnstoff på begge sider
+        {st.hasCharge ? ', og ladningen er den samme' : ''}. Atomer blir verken borte eller laget i en kjemisk reaksjon, de bare bytter partner, og derfor er
+        massen bevart: {fmt(st.massLeft, 2)} g reaktanter gir {fmt(st.massRight, 2)} g produkter når koeffisientene leses som mol. Koeffisientene gir forholdet
+        mellom stoffmengdene: {mol(0)} reagerer med {list(r.reactants.slice(1).map((_, j) => mol(j + 1)))} og gir {list(r.products.map((_, j) => mol(n + j)))}.
       </p>
     );
   } else if (st.balanced) {
@@ -441,9 +508,8 @@ function explanation(r: BalanceReaction, coefs: number[], st: BalanceState, sol:
   } else if (st.next === 'ladning') {
     status = (
       <p>
-        <strong>Atomene stemmer, men ladningen gjør ikke det.</strong> Summen av ladningene er {signed(st.chargeLeft)} til venstre og{' '}
-        {signed(st.chargeRight)} til høyre. Hvert kobberatom gir fra seg to elektroner, men hvert sølvion tar bare imot ett, så det trengs to
-        sølvioner per kobberatom.
+        <strong>Atomene stemmer, men ladningen gjør ikke det.</strong> Summen av ladningene er {signed(st.chargeLeft)} til venstre og {signed(st.chargeRight)}{' '}
+        til høyre. Hvert kobberatom gir fra seg to elektroner, men hvert sølvion tar bare imot ett, så det trengs to sølvioner per kobberatom.
       </p>
     );
   } else {
@@ -451,8 +517,7 @@ function explanation(r: BalanceReaction, coefs: number[], st: BalanceState, sol:
     const hint = hintFor(r, coefs, row.symbol);
     status = (
       <p>
-        <strong>Ikke balansert ennå.</strong> Det er {atomWord(row.left, row.symbol)} til venstre og {atomWord(row.right, row.symbol)} til
-        høyre.
+        <strong>Ikke balansert ennå.</strong> Det er {atomWord(row.left, row.symbol)} til venstre og {atomWord(row.right, row.symbol)} til høyre.
         {hint && (
           <>
             {' '}
@@ -471,8 +536,8 @@ function explanation(r: BalanceReaction, coefs: number[], st: BalanceState, sol:
         Metoden: Balanser først grunnstoffene som finnes i færrest stoffer
         {first.length > 0 ? <> (her {list(first.map((s) => <strong key={s}>{s}</strong>))})</> : null}
         {late.length > 0 ? <>, og ta {list(late.map((s) => <strong key={s}>{s}</strong>))} til slutt fordi de ofte finnes i flere stoffer</> : null}
-        . Et grunnstoff som står alene, som <Formel f="O2" /> eller <Formel f="Fe" />, er lettest å justere sist. Du kan bare endre koeffisientene,
-        aldri de små tallene i formlene: <Formel f="H2O2" /> er et helt annet stoff enn <Formel f="H2O" />.
+        . Et grunnstoff som står alene, som <Formel f="O2" /> eller <Formel f="Fe" />, er lettest å justere sist. Du kan bare endre koeffisientene, aldri de små
+        tallene i formlene: <Formel f="H2O2" /> er et helt annet stoff enn <Formel f="H2O" />.
       </p>
       <p>{r.about}</p>
     </>

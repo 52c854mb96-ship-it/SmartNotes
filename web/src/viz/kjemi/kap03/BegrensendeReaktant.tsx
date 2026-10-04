@@ -101,7 +101,8 @@ export default function BegrensendeReaktant() {
                 key={`n${i}`}
                 label={
                   <>
-                    n(<Formel f={fx} />)
+                    n(
+                    <Formel f={fx} />)
                   </>
                 }
                 ariaLabel={`Stoffmengde ${formulaText(fx)}`}
@@ -121,7 +122,8 @@ export default function BegrensendeReaktant() {
               key={`m${i}`}
               label={
                 <>
-                  m(<Formel f={fx} />)
+                  m(
+                  <Formel f={fx} />)
                 </>
               }
               ariaLabel={`Masse ${formulaText(fx)}`}
@@ -161,7 +163,12 @@ export default function BegrensendeReaktant() {
         </Figure>
       </div>
 
-      <Figure viewBox={`0 0 800 ${tab.H}`} label="Støkiometrisk tabell med stoffmengdene før, endringen og etter reaksjonen." caption="Stoffmengder n i mol, masser m i gram og molar masse M i g/mol." maxHeight={tab.H}>
+      <Figure
+        viewBox={`0 0 800 ${tab.H}`}
+        label="Støkiometrisk tabell med stoffmengdene før, endringen og etter reaksjonen."
+        caption="Stoffmengder n i mol, masser m i gram og molar masse M i g/mol."
+        maxHeight={tab.H}
+      >
         <StoichTable terms={terms} nR={nR} M={M} res={res} layout={tab} f={f} yieldIdx={pIdx} />
       </Figure>
 
@@ -188,22 +195,25 @@ export default function BegrensendeReaktant() {
         {mode === 'm' &&
           rx.reactants.map((t, i) => (
             <FormulaLine key={i}>
-              n(<Formel f={bare(t.formula)} />) = m / M = {fmtSig((n[i] ?? 0) * M[i]!)} g / {fmt(M[i]!, 2)} g/mol = {fmtSig(n[i] ?? 0)} mol
+              n(
+              <Formel f={bare(t.formula)} />) = m / M = {fmtSig((n[i] ?? 0) * M[i]!)} g / {fmt(M[i]!, 2)} g/mol = {fmtSig(n[i] ?? 0)} mol
             </FormulaLine>
           ))}
         <FormulaLine>
           {rx.reactants.map((t, i) => (
             <span key={i}>
               {i > 0 && ' og '}
-              n(<Formel f={bare(t.formula)} />) / {t.coef} = {fmtSig(res.ratios[i] ?? 0)}
+              n(
+              <Formel f={bare(t.formula)} />) / {t.coef} = {fmtSig(res.ratios[i] ?? 0)}
             </span>
           ))}
           {res.limiting.length > 0 && !res.exact && <> → minst for {limitingShort(rx.reactants, res)}</>}
           {res.exact && <> → like store: alt brukes opp</>}
         </FormulaLine>
         <FormulaLine>
-          n(<Formel f={bare(product.formula)} />) = {product.coef} · {fmtSig(res.extent)} mol = {fmtSig(res.after[pIdx]!)} mol, m = n · M = {fmtSig(res.after[pIdx]!)} mol ·{' '}
-          {fmt(M[pIdx]!, 2)} g/mol = {fmtSig(theo)} g
+          n(
+          <Formel f={bare(product.formula)} />) = {product.coef} · {fmtSig(res.extent)} mol = {fmtSig(res.after[pIdx]!)} mol, m = n · M ={' '}
+          {fmtSig(res.after[pIdx]!)} mol · {fmt(M[pIdx]!, 2)} g/mol = {fmtSig(theo)} g
         </FormulaLine>
         <FormulaLine>
           Prosentvis utbytte = faktisk / teoretisk · 100 % = {fmtSig(actual)} g / {fmtSig(theo)} g · 100 % = {Number.isFinite(pct) ? `${fmt(pct, 0)} %` : '–'}
@@ -331,7 +341,12 @@ function ParticleScene({
             {i === 0 ? 'Før reaksjonen' : 'Etter reaksjonen'}
           </Txt>
           <rect x={b.x} y={b.y} width={b.w} height={boxH} rx={16} fill={VIZ.body} fillOpacity={0.35} stroke={VIZ.muted} strokeOpacity={0.55} strokeWidth={2} />
-          <Partikler box={{ x: b.x + 8, y: b.y + 8, w: b.w - 16, h: boxH - 16 }} groups={groups(i === 0 ? pic.before : pic.after, i === 1)} seed={i === 0 ? 11 : 23} gap={4} />
+          <Partikler
+            box={{ x: b.x + 8, y: b.y + 8, w: b.w - 16, h: boxH - 16 }}
+            groups={groups(i === 0 ? pic.before : pic.after, i === 1)}
+            seed={i === 0 ? 11 : 23}
+            gap={4}
+          />
           {legend(b, i === 1)}
         </g>
       ))}
@@ -420,7 +435,15 @@ function StoichTable({
         return (
           <g key={i}>
             {(lim || prod) && (
-              <rect x={x0 + labelW + colW * i + 3} y={4} width={colW - 6} height={headH + rows.length * rowH - 2} rx={10} fill={lim ? LEFT_OVER : PRODUCT} opacity={0.12} />
+              <rect
+                x={x0 + labelW + colW * i + 3}
+                y={4}
+                width={colW - 6}
+                height={headH + rows.length * rowH - 2}
+                rx={10}
+                fill={lim ? LEFT_OVER : PRODUCT}
+                opacity={0.12}
+              />
             )}
             <Txt x={cx(i)} y={22 * f} weight={700}>
               {t.coef > 1 ? `${t.coef} ` : ''}
@@ -482,15 +505,15 @@ function explanation({
   if (zero >= 0) {
     first = (
       <p>
-        <strong>Ingenting reagerer.</strong> Det er ingen {F(rx[zero]!)}, så reaksjonen kan ikke skje, og det dannes ikke noe {F(product)}. Øk
-        stoffmengden av begge reaktantene.
+        <strong>Ingenting reagerer.</strong> Det er ingen {F(rx[zero]!)}, så reaksjonen kan ikke skje, og det dannes ikke noe {F(product)}. Øk stoffmengden av
+        begge reaktantene.
       </p>
     );
   } else if (res.exact) {
     first = (
       <p>
-        <strong>Støkiometrisk blanding.</strong> Stoffmengdene står i samme forhold som koeffisientene ({F(a)} : {F(b)} = {ratio}), så begge reaktantene brukes opp
-        samtidig og ingenting blir til overs.
+        <strong>Støkiometrisk blanding.</strong> Stoffmengdene står i samme forhold som koeffisientene ({F(a)} : {F(b)} = {ratio}), så begge reaktantene brukes
+        opp samtidig og ingenting blir til overs.
       </p>
     );
   } else {
@@ -505,20 +528,17 @@ function explanation({
     first = (
       <p>
         <strong>{F(lim)} er begrensende reaktant.</strong> I likningen er forholdet {F(a)} : {F(b)} = {ratio}, så {fmtSig(n[li] ?? 0)} mol {F(lim)} trenger{' '}
-        {fmtSig(needed)} mol {F(other)}. Det er {fmtSig(n[oi] ?? 0)} mol {F(other)}, så {fmtSig(leftover)} mol {F(other)} blir til overs når all{' '}
-        {F(lim)} er brukt opp.
+        {fmtSig(needed)} mol {F(other)}. Det er {fmtSig(n[oi] ?? 0)} mol {F(other)}, så {fmtSig(leftover)} mol {F(other)} blir til overs når all {F(lim)} er
+        brukt opp.
         {lessOfLimiting && (
           <>
             {' '}
-            Legg merke til at det er <em>mer</em> {F(lim)} enn {F(other)}, men {F(lim)} er likevel begrensende fordi den trengs i større mengde.
-            Sammenlign alltid n delt på koeffisienten, ikke stoffmengdene direkte.
+            Legg merke til at det er <em>mer</em> {F(lim)} enn {F(other)}, men {F(lim)} er likevel begrensende fordi den trengs i større mengde. Sammenlign
+            alltid n delt på koeffisienten, ikke stoffmengdene direkte.
           </>
         )}
         {massMisleads && !lessOfLimiting && (
-          <>
-            {' '}
-            Massen av {F(lim)} er størst, men det er stoffmengden som teller: regn alltid om fra masse til mol før du sammenligner.
-          </>
+          <> Massen av {F(lim)} er størst, men det er stoffmengden som teller: regn alltid om fra masse til mol før du sammenligner.</>
         )}
       </p>
     );
@@ -533,8 +553,8 @@ function explanation({
       ) : (
         <p>
           <strong>Prosentvis utbytte {fmt(pct, 0)} %.</strong> Det teoretiske utbyttet, {fmtSig(theo)} g {F(product)}, er det som dannes hvis all den
-          begrensende reaktanten reagerer. I praksis blir utbyttet lavere: noe reagerer ikke, noe går tapt ved filtrering og overføring, og det kan
-          dannes biprodukter.
+          begrensende reaktanten reagerer. I praksis blir utbyttet lavere: noe reagerer ikke, noe går tapt ved filtrering og overføring, og det kan dannes
+          biprodukter.
         </p>
       )
     ) : null;

@@ -87,11 +87,7 @@ export default function Bindingsentalpi() {
       <PlayControls clock={clock} label="t" />
 
       <div ref={ref}>
-        <Figure
-          viewBox={`0 0 800 ${scene.H}`}
-          label={`${stageName(p)}. Bindinger som brytes er blå, bindinger som dannes er oransje.`}
-          maxHeight={scene.H}
-        >
+        <Figure viewBox={`0 0 800 ${scene.H}`} label={`${stageName(p)}. Bindinger som brytes er blå, bindinger som dannes er oransje.`} maxHeight={scene.H}>
           <MoleculeScene scene={scene} p={p} k={k} f={f} />
         </Figure>
       </div>
@@ -122,8 +118,12 @@ export default function Bindingsentalpi() {
         <FormulaLine>
           <Reaksjon r={rx} />
         </FormulaLine>
-        <FormulaLine>Brutt: {tallyText(est.broken)} = {fmt(est.sumBroken, 0)} kJ</FormulaLine>
-        <FormulaLine>Dannet: {tallyText(est.formed)} = {fmt(est.sumFormed, 0)} kJ</FormulaLine>
+        <FormulaLine>
+          Brutt: {tallyText(est.broken)} = {fmt(est.sumBroken, 0)} kJ
+        </FormulaLine>
+        <FormulaLine>
+          Dannet: {tallyText(est.formed)} = {fmt(est.sumFormed, 0)} kJ
+        </FormulaLine>
         <FormulaLine>
           ΔH ≈ Σ brutte − Σ dannede = {fmt(est.sumBroken, 0)} kJ − {fmt(est.sumFormed, 0)} kJ = {signed(est.dH)} kJ
         </FormulaLine>
@@ -268,7 +268,7 @@ function sceneLayout(reactants: Term[], products: Term[], k: number, f: number):
   const idx = A.atoms.map((_, i) => i).sort((i, j) => A.atoms[i]!.x + B.atoms[pairOfB.get(i)!]!.x - (A.atoms[j]!.x + B.atoms[pairOfB.get(j)!]!.x));
   const n = idx.length;
   const rMax = Math.max(...A.atoms.map((a) => a.r));
-  const oneRow = (760 / n) >= 2 * rMax + 12 * k;
+  const oneRow = 760 / n >= 2 * rMax + 12 * k;
   const perRow = oneRow ? n : Math.ceil(n / 2);
   const free = new Map<number, { x: number; y: number }>();
   idx.forEach((ai, pos) => {
@@ -295,7 +295,9 @@ function MoleculeScene({ scene, p, k, f }: { scene: SceneLayout; p: number; k: n
   const u1 = ease(p);
   const u2 = ease(p - 1);
   const pos = (a: SceneAtom) =>
-    p <= 1 ? { x: a.a.x + (a.free.x - a.a.x) * u1, y: a.a.y + (a.free.y - a.a.y) * u1 } : { x: a.free.x + (a.b.x - a.free.x) * u2, y: a.free.y + (a.b.y - a.free.y) * u2 };
+    p <= 1
+      ? { x: a.a.x + (a.free.x - a.a.x) * u1, y: a.a.y + (a.free.y - a.a.y) * u1 }
+      : { x: a.free.x + (a.b.x - a.free.x) * u2, y: a.free.y + (a.b.y - a.free.y) * u2 };
   const P = scene.atoms.map((a) => ({ ...pos(a), el: a.el, r: a.r }));
   const beforeOpacity = p < 1 ? 1 - ease(p * 1.25) : 0;
   const afterOpacity = p > 1 ? ease((p - 1) * 1.25 - 0.25) : 0;
@@ -368,7 +370,21 @@ function energyLayout(narrow: boolean, f: number) {
   };
 }
 
-function EnergyStairs({ est, rx, products, p, E, f }: { est: BondEstimate; rx: Term[]; products: Term[]; p: number; E: ReturnType<typeof energyLayout>; f: number }) {
+function EnergyStairs({
+  est,
+  rx,
+  products,
+  p,
+  E,
+  f,
+}: {
+  est: BondEstimate;
+  rx: Term[];
+  products: Term[];
+  p: number;
+  E: ReturnType<typeof energyLayout>;
+  f: number;
+}) {
   const hMax = est.sumBroken;
   const hMin = Math.min(0, est.dH);
   const sy = scaleLinear([hMin, hMax], [E.low, E.top]);
@@ -377,10 +393,7 @@ function EnergyStairs({ est, rx, products, p, E, f }: { est: BondEstimate; rx: T
   const yP = sy(est.dH);
   const { col1, col2 } = E;
   const tone = est.dH < 0 ? KJEMI.exo : KJEMI.endo;
-  const dot =
-    p <= 1
-      ? { x: col1.x + col1.w / 2, y: y0 + (yTop - y0) * ease(p) }
-      : { x: col2.x + col2.w / 2, y: yTop + (yP - yTop) * ease(p - 1) };
+  const dot = p <= 1 ? { x: col1.x + col1.w / 2, y: y0 + (yTop - y0) * ease(p) } : { x: col2.x + col2.w / 2, y: yTop + (yP - yTop) * ease(p - 1) };
   const segments = (list: BondTally[], x: number, w: number, from: number, dir: -1 | 1, color: string, activeCol: boolean) => {
     let h = from;
     return list.map((b, i) => {
@@ -392,7 +405,16 @@ function EnergyStairs({ est, rx, products, p, E, f }: { est: BondEstimate; rx: T
       const fits = hh > 44 * f;
       return (
         <g key={b.bond}>
-          <rect x={x} y={yTopSeg} width={w} height={hh} fill={color} fillOpacity={(i % 2 ? 0.2 : 0.32) * (activeCol ? 1.3 : 1)} stroke={color} strokeWidth={2} />
+          <rect
+            x={x}
+            y={yTopSeg}
+            width={w}
+            height={hh}
+            fill={color}
+            fillOpacity={(i % 2 ? 0.2 : 0.32) * (activeCol ? 1.3 : 1)}
+            stroke={color}
+            strokeWidth={2}
+          />
           {fits ? (
             <>
               <Txt x={x + w / 2} y={yTopSeg + hh / 2 - 2} size={0.85} weight={700}>
@@ -504,17 +526,18 @@ function explanation(tabulated: number, liquid: number | undefined, est: BondEst
         <strong>
           ΔH ≈ Σ brutte − Σ dannede = {fmt(est.sumBroken, 0)} − {fmt(est.sumFormed, 0)} = {signed(est.dH)} kJ.
         </strong>{' '}
-        Å bryte en binding krever alltid energi, og når en ny binding dannes, frigjøres like mye energi. Reaksjonen er {exo ? 'eksoterm' : 'endoterm'} fordi bindingene i
-        produktene til sammen er {exo ? 'sterkere' : 'svakere'} enn bindingene i reaktantene. Det frigjøres altså ikke energi når bindinger brytes, selv om det er en vanlig
-        misforståelse.
+        Å bryte en binding krever alltid energi, og når en ny binding dannes, frigjøres like mye energi. Reaksjonen er {exo ? 'eksoterm' : 'endoterm'} fordi
+        bindingene i produktene til sammen er {exo ? 'sterkere' : 'svakere'} enn bindingene i reaktantene. Det frigjøres altså ikke energi når bindinger brytes,
+        selv om det er en vanlig misforståelse.
       </p>
       <p>
-        Tabellverdien er {signed(tabulated, 1)} kJ. Bindingsentalpiene er gjennomsnitt for samme binding i mange forskjellige stoffer, så beregningen blir et anslag: her er
-        avviket {fmt(Math.abs(diff), 1)} kJ ({fmtSig(pct, 1)} %).
+        Tabellverdien er {signed(tabulated, 1)} kJ. Bindingsentalpiene er gjennomsnitt for samme binding i mange forskjellige stoffer, så beregningen blir et
+        anslag: her er avviket {fmt(Math.abs(diff), 1)} kJ ({fmtSig(pct, 1)} %).
         {liquid !== undefined && (
           <>
             {' '}
-            Bindingsentalpier gjelder for gasser. Dannes flytende vann, er ΔH = {signed(liquid, 1)} kJ, fordi det frigjøres ekstra energi når vanndampen kondenserer.
+            Bindingsentalpier gjelder for gasser. Dannes flytende vann, er ΔH = {signed(liquid, 1)} kJ, fordi det frigjøres ekstra energi når vanndampen
+            kondenserer.
           </>
         )}
       </p>
@@ -530,7 +553,8 @@ function explanation(tabulated: number, liquid: number | undefined, est: BondEst
           </>
         ) : (
           <>
-            Alle de oransje bindingene i produktene er dannet. {exo ? 'Det ble frigjort mer energi enn det kostet å bryte bindingene.' : 'Det kostet mer energi å bryte bindingene enn det som ble frigjort.'}
+            Alle de oransje bindingene i produktene er dannet.{' '}
+            {exo ? 'Det ble frigjort mer energi enn det kostet å bryte bindingene.' : 'Det kostet mer energi å bryte bindingene enn det som ble frigjort.'}
           </>
         )}
       </p>

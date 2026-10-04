@@ -159,7 +159,11 @@ export default function Entalpidiagram() {
         ]}
       />
 
-      <Figure viewBox={`0 0 ${W} ${S.H}`} label={cur.dH < 0 ? 'Systemet avgir varme til omgivelsene.' : 'Systemet tar opp varme fra omgivelsene.'} maxHeight={S.H}>
+      <Figure
+        viewBox={`0 0 ${W} ${S.H}`}
+        label={cur.dH < 0 ? 'Systemet avgir varme til omgivelsene.' : 'Systemet tar opp varme fra omgivelsene.'}
+        maxHeight={S.H}
+      >
         <SystemScene cur={cur} S={S} f={fi} />
       </Figure>
 
@@ -287,7 +291,23 @@ function splitTerms(terms: Term[], maxW: number, fs: number): Term[][] {
   return lines;
 }
 
-function SideLabel({ terms, x, y, anchor, maxW, f, lineH }: { terms: Term[]; x: number; y: number; anchor: 'start' | 'end'; maxW: number; f: number; lineH: number }) {
+function SideLabel({
+  terms,
+  x,
+  y,
+  anchor,
+  maxW,
+  f,
+  lineH,
+}: {
+  terms: Term[];
+  x: number;
+  y: number;
+  anchor: 'start' | 'end';
+  maxW: number;
+  f: number;
+  lineH: number;
+}) {
   const lines = splitTerms(terms, maxW, 17 * f * 0.9);
   return (
     <g>
@@ -452,8 +472,8 @@ function SystemScene({ cur, S, f }: { cur: Current; S: ReturnType<typeof systemL
     let d = `M${x1},${y}`;
     const n = 4;
     for (let i = 0; i < n; i++) {
-      const xa = x1 + dir * (len * (i + 0.5)) / n;
-      const xb = x1 + dir * (len * (i + 1)) / n;
+      const xa = x1 + (dir * (len * (i + 0.5))) / n;
+      const xb = x1 + (dir * (len * (i + 1))) / n;
       d += ` Q${xa},${y + (i % 2 ? 7 : -7)} ${xb},${y}`;
     }
     const tip = x1 + dir * (len + 12);
@@ -537,8 +557,8 @@ function explanation(cur: Current, useCat: boolean, eaCat: number, stage: Stage,
     brytes: 'På vei opp bakken strekkes og svekkes bindingene i reaktantene. Det krever energi, så entalpien øker.',
     topp: (
       <>
-        Punktet er på toppen: overgangstilstanden (det aktiverte komplekset), der gamle bindinger er delvis brutt og nye delvis dannet. Bare kollisjoner med minst E
-        <Sub>a</Sub> kommer hit.
+        Punktet er på toppen: overgangstilstanden (det aktiverte komplekset), der gamle bindinger er delvis brutt og nye delvis dannet. Bare kollisjoner med
+        minst E<Sub>a</Sub> kommer hit.
       </>
     ),
     mellomprodukt: 'Punktet er i dalen mellom de to toppene: et mellomprodukt som dannes på katalysatoren og reagerer videre.',
@@ -553,13 +573,11 @@ function explanation(cur: Current, useCat: boolean, eaCat: number, stage: Stage,
         </strong>{' '}
         {exo ? (
           <>
-            Produktene har lavere entalpi enn reaktantene, og forskjellen avgis som varme til omgivelsene. Systemet (stoffene som reagerer) taper energi, så ΔH er
-            negativ, selv om det er omgivelsene som blir varmere.
+            Produktene har lavere entalpi enn reaktantene, og forskjellen avgis som varme til omgivelsene. Systemet (stoffene som reagerer) taper energi, så ΔH
+            er negativ, selv om det er omgivelsene som blir varmere.
           </>
         ) : (
-          <>
-            Produktene har høyere entalpi enn reaktantene. Systemet tar opp varme fra omgivelsene, som blir kaldere, og ΔH er positiv.
-          </>
+          <>Produktene har høyere entalpi enn reaktantene. Systemet tar opp varme fra omgivelsene, som blir kaldere, og ΔH er positiv.</>
         )}
       </p>
       <p>
@@ -573,8 +591,8 @@ function explanation(cur: Current, useCat: boolean, eaCat: number, stage: Stage,
                 (E<Sub>a</Sub> fra {fmt(cur.ea, 0)} til {fmt(eaCat, 0)} kJ/mol)
               </>
             ) : null}
-            , så flere kollisjoner har nok energi og reaksjonen går raskere. Start- og sluttnivået er de samme, så ΔH er uendret: katalysatoren gir ikke mer varme,
-            den gjør bare at reaksjonen går fortere.
+            , så flere kollisjoner har nok energi og reaksjonen går raskere. Start- og sluttnivået er de samme, så ΔH er uendret: katalysatoren gir ikke mer
+            varme, den gjør bare at reaksjonen går fortere.
           </>
         ) : catName ? (
           <>Slå på katalysatoren og se at bare toppen flyttes, mens ΔH er den samme.</>

@@ -126,7 +126,12 @@ export default function Hess() {
       <Readouts>
         <Readout label="ΔH for summen" value={signed(sum.dH)} unit="kJ" />
         <Readout label="Gir summen målet?" value={sum.matches ? 'Ja' : 'Ikke ennå'} tone={sum.matches ? OK : BAD} />
-        <Readout label="ΔH for målreaksjonen" value={sum.matches ? signed(ex.target.dH) : '?'} unit={sum.matches ? 'kJ' : undefined} tone={sum.matches ? OK : undefined} />
+        <Readout
+          label="ΔH for målreaksjonen"
+          value={sum.matches ? signed(ex.target.dH) : '?'}
+          unit={sum.matches ? 'kJ' : undefined}
+          tone={sum.matches ? OK : undefined}
+        />
       </Readouts>
 
       <Formula label="Summen av likningene">
@@ -294,14 +299,7 @@ function Stairs({ levels, choices, sumDH, matches, L }: { levels: StairLevel[]; 
             <line x1={10} y1={y} x2={W - 10} y2={y} stroke={VIZ.grid} strokeWidth={1.5} />
             <line x1={10} y1={y} x2={L.labelW} y2={y} stroke={VIZ.ink} strokeWidth={3} />
             {/* Loddrett strek fra nivået til etiketten, så det er tydelig hvilket nivå den hører til */}
-            <line
-              x1={11.5}
-              x2={11.5}
-              y1={y}
-              y2={p.first < y ? p.first - 14 : p.first + (p.lines.length - 1) * L.lineH + 5}
-              stroke={VIZ.ink}
-              strokeWidth={3}
-            />
+            <line x1={11.5} x2={11.5} y1={y} y2={p.first < y ? p.first - 14 : p.first + (p.lines.length - 1) * L.lineH + 5} stroke={VIZ.ink} strokeWidth={3} />
             {p.lines.map((line, j) => (
               <Txt key={j} x={20} y={p.first + j * L.lineH} anchor="start" size={0.9} weight={650}>
                 {line.map((t, k) => (
@@ -396,15 +394,16 @@ function explanation(ex: HessExample, choices: HessChoice[], sum: ReturnType<typ
   return (
     <>
       <p>
-        <strong>Hess' lov:</strong> ΔH for en reaksjon avhenger bare av start og slutt, ikke av veien. Derfor kan vi finne ΔH for en reaksjon vi ikke kan måle, ved å
-        legge sammen likninger med kjent ΔH slik at summen blir målreaksjonen. Snur du en likning, skifter ΔH fortegn. Ganger du en likning med et tall, ganges også ΔH
-        med det samme tallet.
+        <strong>Hess' lov:</strong> ΔH for en reaksjon avhenger bare av start og slutt, ikke av veien. Derfor kan vi finne ΔH for en reaksjon vi ikke kan måle,
+        ved å legge sammen likninger med kjent ΔH slik at summen blir målreaksjonen. Snur du en likning, skifter ΔH fortegn. Ganger du en likning med et tall,
+        ganges også ΔH med det samme tallet.
       </p>
       <p>
         {sum.matches ? (
           <>
-            <strong>Summen gir målreaksjonen.</strong> Stoffene som står på begge sider, strykes, og ΔH = {sum.scaled.map((s, i) => `${i > 0 ? ' + ' : ''}(${signed(s.dH)})`).join('')} ={' '}
-            {signed(sum.dH)} kJ. I trappa ender trinnene på samme nivå som den direkte veien: energien er den samme uansett vei.
+            <strong>Summen gir målreaksjonen.</strong> Stoffene som står på begge sider, strykes, og ΔH ={' '}
+            {sum.scaled.map((s, i) => `${i > 0 ? ' + ' : ''}(${signed(s.dH)})`).join('')} = {signed(sum.dH)} kJ. I trappa ender trinnene på samme nivå som den
+            direkte veien: energien er den samme uansett vei.
           </>
         ) : (
           <>

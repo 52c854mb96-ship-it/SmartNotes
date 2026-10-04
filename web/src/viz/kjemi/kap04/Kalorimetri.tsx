@@ -111,19 +111,33 @@ export default function Kalorimetri() {
           </>
         ) : (
           <>
-            <Slider label={`Saltsyre (${fmt(C_ACID_BASE, 2)} mol/L)`} ariaLabel="Volum saltsyre" value={Vacid} onChange={setVacid} min={10} max={100} step={5} unit="mL" />
-            <Slider label={`Natronlut (${fmt(C_ACID_BASE, 2)} mol/L)`} ariaLabel="Volum natronlut" value={Vbase} onChange={setVbase} min={10} max={100} step={5} unit="mL" />
+            <Slider
+              label={`Saltsyre (${fmt(C_ACID_BASE, 2)} mol/L)`}
+              ariaLabel="Volum saltsyre"
+              value={Vacid}
+              onChange={setVacid}
+              min={10}
+              max={100}
+              step={5}
+              unit="mL"
+            />
+            <Slider
+              label={`Natronlut (${fmt(C_ACID_BASE, 2)} mol/L)`}
+              ariaLabel="Volum natronlut"
+              value={Vbase}
+              onChange={setVbase}
+              min={10}
+              max={100}
+              step={5}
+              unit="mL"
+            />
           </>
         )}
       </Controls>
       <PlayControls clock={clock} decimals={0} />
 
       <div ref={ref}>
-        <Figure
-          viewBox={`0 0 ${W} ${sceneH}`}
-          label={`Kaffekoppkalorimeter. Temperaturen er ${fmt(Tnow, 1)} °C etter ${fmt(tNow, 0)} s.`}
-          maxHeight={sceneH}
-        >
+        <Figure viewBox={`0 0 ${W} ${sceneH}`} label={`Kaffekoppkalorimeter. Temperaturen er ${fmt(Tnow, 1)} °C etter ${fmt(tNow, 0)} s.`} maxHeight={sceneH}>
           <Scene p={p} mSalt={mSalt} Vwater={Vwater} Vacid={Vacid} Vbase={Vbase} T={Tnow} t={tNow} loss={loss} narrow={narrow} />
         </Figure>
       </div>
@@ -151,13 +165,14 @@ export default function Kalorimetri() {
         </FormulaLine>
         {p.kind === 'salt' ? (
           <FormulaLine>
-            n = m / M = {fmt(mSalt, 1)} g / {fmt(molarMass(formula(p.salt!)), 2)} g/mol = {fmtSig(r.n)} mol; &nbsp; m(løsning) = {fmt(Vwater, 0)} g + {fmt(mSalt, 1)} g ={' '}
-            {fmt(r.m, 1)} g
+            n = m / M = {fmt(mSalt, 1)} g / {fmt(molarMass(formula(p.salt!)), 2)} g/mol = {fmtSig(r.n)} mol; &nbsp; m(løsning) = {fmt(Vwater, 0)} g +{' '}
+            {fmt(mSalt, 1)} g = {fmt(r.m, 1)} g
           </FormulaLine>
         ) : (
           <FormulaLine>
-            n(<Formel f="H2O" />) = n(minst av <Formel f="HCl" /> og <Formel f="NaOH" />) = {fmt(C_ACID_BASE, 2)} mol/L · {fmt(Math.min(Vacid, Vbase) / 1000, 3)} L ={' '}
-            {fmtSig(r.n)} mol; &nbsp; m = {fmt(Vacid + Vbase, 0)} g
+            n(
+            <Formel f="H2O" />) = n(minst av <Formel f="HCl" /> og <Formel f="NaOH" />) = {fmt(C_ACID_BASE, 2)} mol/L · {fmt(Math.min(Vacid, Vbase) / 1000, 3)}{' '}
+            L = {fmtSig(r.n)} mol; &nbsp; m = {fmt(Vacid + Vbase, 0)} g
           </FormulaLine>
         )}
         <FormulaLine>
@@ -254,7 +269,12 @@ function Scene({
         <rect x={cx - wTop} y={surface} width={2 * wTop} height={botY - surface + 4} fill={liquid} />
         <line x1={cx - wTop} y1={surface} x2={cx + wTop} y2={surface} stroke={KJEMI.liquidLine} strokeWidth={2} />
         {heap > 2 && (
-          <path d={`M${cx - 10 - heap},${botY - 2} Q${cx - 10},${botY - 2 - heap * 0.9} ${cx - 10 + heap},${botY - 2} Z`} fill={VIZ.surface} stroke={VIZ.muted} strokeWidth={1.2} />
+          <path
+            d={`M${cx - 10 - heap},${botY - 2} Q${cx - 10},${botY - 2 - heap * 0.9} ${cx - 10 + heap},${botY - 2} Z`}
+            fill={VIZ.surface}
+            stroke={VIZ.muted}
+            strokeWidth={1.2}
+          />
         )}
       </g>
       {/* Lokk, rører og lite termometer */}
@@ -324,7 +344,23 @@ function Scene({
 
 /* ---------- Figur 2: temperatur–tid ---------- */
 
-function TempPlot({ dT, loss, t, meas, tone, W, H }: { dT: number; loss: boolean; t: number; meas: { dT: number; t: number }; tone: string; W: number; H: number }) {
+function TempPlot({
+  dT,
+  loss,
+  t,
+  meas,
+  tone,
+  W,
+  H,
+}: {
+  dT: number;
+  loss: boolean;
+  t: number;
+  meas: { dT: number; t: number };
+  tone: string;
+  W: number;
+  H: number;
+}) {
   const lo = Math.min(T_START, T_START + dT);
   const hi = Math.max(T_START, T_START + dT);
   const pad = Math.max(1, (hi - lo) * 0.15);
@@ -390,23 +426,24 @@ function explanation(p: CalProcess, r: CalResult, dTm: number, dHm: number, errP
       <p>
         {loss ? (
           <>
-            <strong>Feilkilde: varmetap.</strong> Koppen utveksler varme med lufta, så temperaturen når ikke helt{' '}
-            {fmt(T_START + r.dT, 1)} °C før den {exo ? 'synker' : 'stiger'} tilbake mot romtemperatur. Den målte |ΔT| blir for liten, og dermed blir også |ΔH| for liten: {signed(dHm, 1)} kJ/mol
-            i stedet for {signed(p.dH, 1)} kJ/mol ({fmt(Math.abs(errPct), 0)} % for lite). Det er en systematisk feil, som blir mindre med lokk og isopor, rask måling, eller
-            ved å forlenge avkjølingskurven tilbake til blandetidspunktet.
+            <strong>Feilkilde: varmetap.</strong> Koppen utveksler varme med lufta, så temperaturen når ikke helt {fmt(T_START + r.dT, 1)} °C før den{' '}
+            {exo ? 'synker' : 'stiger'} tilbake mot romtemperatur. Den målte |ΔT| blir for liten, og dermed blir også |ΔH| for liten: {signed(dHm, 1)} kJ/mol i
+            stedet for {signed(p.dH, 1)} kJ/mol ({fmt(Math.abs(errPct), 0)} % for lite). Det er en systematisk feil, som blir mindre med lokk og isopor, rask
+            måling, eller ved å forlenge avkjølingskurven tilbake til blandetidspunktet.
           </>
         ) : (
           <>
-            Uten varmetap tar løsningen opp all varmen, og beregningen gir tabellverdien {signed(p.dH, 1)} kJ/mol. Modellen antar at løsningen har samme varmekapasitet
-            som vann (4,18 J/(g · °C)) og at koppen selv ikke tar opp varme. Slå på varmetap for å se hvordan en vanlig feilkilde påvirker resultatet.
+            Uten varmetap tar løsningen opp all varmen, og beregningen gir tabellverdien {signed(p.dH, 1)} kJ/mol. Modellen antar at løsningen har samme
+            varmekapasitet som vann (4,18 J/(g · °C)) og at koppen selv ikke tar opp varme. Slå på varmetap for å se hvordan en vanlig feilkilde påvirker
+            resultatet.
           </>
         )}
       </p>
       <p>
         {p.kind === 'salt' ? (
           <>
-            Massen i q = m · c · ΔT er massen av hele løsningen ({fmt(r.m, 1)} g), både vannet og saltet, fordi alt får samme temperatur. Dobler du saltmengden, dobles både q og n,
-            så ΔH per mol er den samme.
+            Massen i q = m · c · ΔT er massen av hele løsningen ({fmt(r.m, 1)} g), både vannet og saltet, fordi alt får samme temperatur. Dobler du saltmengden,
+            dobles både q og n, så ΔH per mol er den samme.
           </>
         ) : r.excess ? (
           <>
@@ -415,8 +452,8 @@ function explanation(p: CalProcess, r: CalResult, dTm: number, dHm: number, errP
           </>
         ) : (
           <>
-            Saltsyre og natronlut reagerer i forholdet 1 : 1, og egentlig er det <Formel f="H3O^+" state="aq" /> og <Formel f="OH^-" state="aq" /> som reagerer og danner vann. Derfor
-            gir alle sterke syrer og baser omtrent den samme nøytralisasjonsentalpien, −57 kJ per mol vann.
+            Saltsyre og natronlut reagerer i forholdet 1 : 1, og egentlig er det <Formel f="H3O^+" state="aq" /> og <Formel f="OH^-" state="aq" /> som reagerer
+            og danner vann. Derfor gir alle sterke syrer og baser omtrent den samme nøytralisasjonsentalpien, −57 kJ per mol vann.
           </>
         )}
       </p>
