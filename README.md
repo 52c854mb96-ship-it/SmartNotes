@@ -2,7 +2,7 @@
 
 Last opp bilder eller PDF-er av de håndskrevne notatene dine, og få dem tilbake som pene LaTeX-PDF-er. Notatene sorteres automatisk etter lærebokas kapitler. Appen fungerer både på og uten nett, og synkroniseres mellom Mac, PC, iPad og mobil.
 
-Foreløpig er appen laget for **fysikk**. Andre fag kommer senere, og arkitekturen er klar for dem (se [Nye fag](#nye-fag)).
+Appen er laget for **Fysikk 1**, **Kjemi 1** og **Biologi 1** (VG2, LK20). Hvert fag har sin egen LaTeX-mal, sitt eget fargetema og egne instrukser til Claude, og flere fag kan legges til (se [Nye fag](#nye-fag)).
 
 ## Hva appen gjør
 
@@ -13,10 +13,10 @@ Foreløpig er appen laget for **fysikk**. Andre fag kommer senere, og arkitektur
   - Enkle tegninger tegnes på nytt i TikZ, som kraftdiagrammer, grafer og kretser. Kompliserte tegninger klippes ut fra originalbildet.
   - Definisjoner, viktige formler, eksempler og oppgaver får hver sin fargede boks.
   - Ord som er vanskelige å lese, markeres med ?.
-- **Kapitler og delkapitler.** ERGO Fysikk 1 er lagt inn med alle kapitler og delkapitler (1A–10D). Claude plasserer hvert notat på riktig delkapittel, og du kan flytte det selv. Andre lærebøker kan legges inn ved å lime inn innholdsfortegnelsen eller ta bilde av den.
-- **Kompetansemål.** Hvert delkapittel er koblet til kompetansemålene i Fysikk 1 (KM1–KM14), så du kan se og filtrere notatene etter mål før eksamen.
+- **Kapitler og delkapitler.** Fagene legges inn etter lærebøkene: ERGO Fysikk 1 (alle kapitler og delkapitler, 1A–10D), Kjemi 1 fra Aschehoug (8 kapitler) og Bi 1 fra Gyldendal (15 kapitler). Claude plasserer hvert notat på riktig kapittel og delkapittel, og du kan flytte det selv. Mangler delkapitlene, tar du bilde av innholdsfortegnelsen i boka. Da legges kapitlene og delkapitlene inn og kobles til kompetansemålene. Det samme gjelder andre lærebøker.
+- **Kompetansemål.** Hvert delkapittel er koblet til kompetansemålene i faget (Fysikk 1: KM1–KM14, Kjemi 1: KM1–KM17, Biologi 1: KM1–KM11, ordrett fra Udir), så du kan se og filtrere notatene etter mål før eksamen.
 - **Søk.** Ctrl/Cmd+K søker i titler og innholdet i alle notatene, også uten nett.
-- **Tre kolonner.** På iPad og PC ser du kapitler, notater og PDF side om side. Lys, mørk eller systemtema.
+- **Tre kolonner.** På iPad og PC ser du kapitler, notater og PDF side om side. Lys, mørk eller systemtema, og hvert fag har sine egne farger (fysikk «Blekk», kjemi «Tavle», biologi «Salvie») og sin egen PDF-mal (Klassisk, Moderne og Lærebok).
 - **Visualiseringer.** Interaktive forklaringer til hvert kapittel, der du styrer situasjonen selv med glidebrytere og knapper: friksjon, kraftpar, energibevaring, støt, bølger, Bohrs atommodell, halveringstid, koblinger og mye mer. Tallene, grafene og forklaringen oppdateres mens du drar. De ligger under **Visualiseringer** i sidepanelet og lenkes fra kapitlene og notatene.
 - **Samle-PDF.** Last ned et helt kapittel eller hele faget som én PDF med innholdsliste.
 - **Offline.**
@@ -42,8 +42,10 @@ Foreløpig er appen laget for **fysikk**. Andre fag kommer senere, og arkitektur
 |---|---|
 | `web/` | Web-appen: React, Vite, Dexie (IndexedDB), pdf.js og service worker |
 | `server/` | API, konverteringskø, Claude-integrasjon, LaTeX-kompilering og samle-PDF-er |
-| `server/latex/physics/preamble.tex` | LaTeX-malen for fysikk (pakker, bokser, sidehode) |
-| `server/src/profiles/physics.ts` | Instruksene Claude får for fysikknotater |
+| `server/latex/<fag>/preamble.tex` | LaTeX-malene (`physics`, `chemistry`, `biology`): pakker, bokser, sidehode |
+| `server/src/profiles/<fag>.ts` | Instruksene Claude får for notater i faget |
+| `server/src/textbooks.ts` | Lærebøkene: kapitler, delkapitler og kompetansemål |
+| `web/src/viz/` | Visualiseringene, én mappe per fag og kapittel |
 | `shared/` | Felles TypeScript-typer for API-et |
 
 ## Kom i gang lokalt
@@ -121,8 +123,10 @@ ANTHROPIC_API_KEY=... npm run convert --workspace server -- ~/Bilder/side1.jpg ~
 
 ## Nye fag
 
-Hvert fag har en *profil* med LaTeX-mal og instrukser til Claude:
+Hvert fag har en *profil* med LaTeX-mal, fargetema og instrukser til Claude. Fysikk, kjemi og biologi finnes allerede. Slik legger du til et nytt:
 
-1. Lag `server/latex/<fag>/preamble.tex` (ta utgangspunkt i fysikk).
+1. Lag `server/latex/<fag>/preamble.tex` (ta utgangspunkt i en av de tre malene).
 2. Lag `server/src/profiles/<fag>.ts` med instrukser, og registrer profilen i `server/src/profiles/index.ts`.
-3. Legg til profil-id-en i `SubjectProfile` i `shared/src/index.ts`, og gjør den valgbar i web-appen.
+3. Legg til profil-id-en i `SubjectProfile` i `shared/src/index.ts` og i `web/src/lib/subjects.tsx` (navn, ikon og PDF-mal), og eventuelt et fargetema i `web/src/styles/subjects.css`.
+4. Valgfritt: et læreboksett i `server/src/textbooks.ts` (kapitler, delkapitler og kompetansemål), som legges inn ved neste oppstart.
+5. Valgfritt: visualiseringer i `web/src/viz/<fag>/` (se `web/src/viz/README.md`).

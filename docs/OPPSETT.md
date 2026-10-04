@@ -105,7 +105,7 @@ Senere skjer alt automatisk: hver gang noe flettes inn i `main` og CI er grønn,
 ## Steg 7: Logg inn og test
 
 1. Åpne adressen fra steg 5 på PC-en og logg inn med passordet.
-2. Faget **Fysikk 1** ligger klart med alle kapitlene og delkapitlene fra ERGO Fysikk 1.
+2. Fagene **Fysikk 1**, **Kjemi 1** og **Biologi 1** ligger klare med kapitlene og kompetansemålene fra lærebøkene. I Kjemi 1 og Biologi 1 mangler de fleste delkapitlene, fordi de ikke kunne bekreftes på nett. Åpne faget, trykk **Importer innholdsfortegnelsen** og ta bilde av innholdsfortegnelsen i boka. Bruk ett bilde per side. Da legges delkapitlene inn og kobles til kompetansemålene.
 3. Trykk **Last opp notater** og last opp et ekte notat på 2–3 sider (bilder eller PDF).
 4. Etter 1–3 minutter er PDF-en klar. Sjekk at:
    - notatet havnet i riktig kapittel og delkapittel,
