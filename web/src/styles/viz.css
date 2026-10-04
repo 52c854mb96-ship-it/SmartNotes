@@ -748,3 +748,402 @@
 .viz-link-chip svg {
   color: var(--accent-text);
 }
+
+/* ======================================================================
+ * Kjemi (viz/kjemi/kit): fargetokens og klasser. Bare kjemivisualiseringene bruker disse.
+ * Samme mønster som øverst i fila: lyst tema i :root, mørkt tema både i prefers-color-scheme-blokken og i
+ * [data-theme='dark']-blokken, med like verdier. Fargene brukes via KJEMI i viz/kjemi/kit/colors.ts.
+ * Atomfargene er CPK-inspirerte: lys fyllfarge + mettet kant i lyst tema, mørk fyllfarge + lys kant i mørkt tema.
+ * ====================================================================== */
+:root {
+  --kj-atom-ink: #17202b;
+  --kj-h: #f7f8fa;
+  --kj-h-line: #8a94a1;
+  --kj-h-ink: #17202b;
+  --kj-c: #b3bac3;
+  --kj-c-line: #4b5563;
+  --kj-n: #bcd0f7;
+  --kj-n-line: #2f5fc4;
+  --kj-o: #f7bdb5;
+  --kj-o-line: #c63a2d;
+  --kj-f: #d2edb4;
+  --kj-f-line: #4d8f22;
+  --kj-cl: #b5e2bd;
+  --kj-cl-line: #23803a;
+  --kj-br: #e8bfae;
+  --kj-br-line: #8e3b22;
+  --kj-i: #d9c6ec;
+  --kj-i-line: #6b3fa0;
+  --kj-s: #f6e08c;
+  --kj-s-line: #9a7b00;
+  --kj-p: #f9c99a;
+  --kj-p-line: #c0640f;
+  --kj-alkali: #ddc8f3;
+  --kj-alkali-line: #7646c2;
+  --kj-alkaline: #b9e4dd;
+  --kj-alkaline-line: #1d7a6e;
+  --kj-metal: #cfd8e3;
+  --kj-metal-line: #56677d;
+  --kj-metalloid: #ecdcc4;
+  --kj-metalloid-line: #8b6a3e;
+  --kj-noble: #c4ebf2;
+  --kj-noble-line: #1b8396;
+  --kj-other: #f3cbe0;
+  --kj-other-line: #a8437a;
+  --kj-electron: #1f5fad;
+  --kj-valence: #d4622a;
+  --kj-shell: #9aa5b3;
+  --kj-plus: #2f6fd6;
+  --kj-minus: #c63a2d;
+  --kj-cloud: rgb(47 111 214 / 0.14);
+  --kj-bond: #3d4756;
+  --kj-hbond: #6b4fd1;
+  --kj-nonpolar: #7c8a9b;
+  --kj-polar: #6b4fd1;
+  --kj-ionic: #d4622a;
+  --kj-metallic: #1d7a6e;
+  --kj-molecule: #8a6fd8;
+  --kj-glass: #7f8b99;
+  --kj-glass-fill: rgb(160 180 200 / 0.1);
+  --kj-glass-shine: rgb(255 255 255 / 0.75);
+  --kj-liquid: #d3e6f7;
+  --kj-liquid-line: #6aa3d8;
+  --kj-btb-acid: #f2cf3a;
+  --kj-btb-neutral: #5cb85c;
+  --kj-btb-base: #3b7dd8;
+  --kj-php-pink: #e05aa0;
+  --kj-ph-1: #d93b30;
+  --kj-ph-3: #ef8a2c;
+  --kj-ph-5: #f2cf3a;
+  --kj-ph-7: #5cb85c;
+  --kj-ph-9: #2a9d8f;
+  --kj-ph-11: #3b6fd8;
+  --kj-ph-13: #6a3fb5;
+  --kj-exo: #d4622a;
+  --kj-endo: #2f6fd6;
+  --kj-oxidation: #b5367a;
+  --kj-reduction: #0f8f8f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --kj-atom-ink: #f1f4f7;
+    --kj-h: #e3e8ee;
+    --kj-h-line: #f5f7fa;
+    --kj-h-ink: #17202b;
+    --kj-c: #3b434e;
+    --kj-c-line: #a9b3bf;
+    --kj-n: #24427f;
+    --kj-n-line: #84a9f5;
+    --kj-o: #7d2c25;
+    --kj-o-line: #f28b7f;
+    --kj-f: #345d1d;
+    --kj-f-line: #a4dc78;
+    --kj-cl: #1d5b2e;
+    --kj-cl-line: #72d487;
+    --kj-br: #62301f;
+    --kj-br-line: #e59a80;
+    --kj-i: #46296a;
+    --kj-i-line: #bb9de6;
+    --kj-s: #5e4f0b;
+    --kj-s-line: #efd25a;
+    --kj-p: #6d3c0f;
+    --kj-p-line: #f5a862;
+    --kj-alkali: #48296e;
+    --kj-alkali-line: #bc95f2;
+    --kj-alkaline: #134f48;
+    --kj-alkaline-line: #62d1c0;
+    --kj-metal: #364352;
+    --kj-metal-line: #aab9ca;
+    --kj-metalloid: #503f28;
+    --kj-metalloid-line: #d9bb8d;
+    --kj-noble: #124b57;
+    --kj-noble-line: #6fd4e8;
+    --kj-other: #5c2342;
+    --kj-other-line: #ea8fc0;
+    --kj-electron: #6ea0f0;
+    --kj-valence: #f08a55;
+    --kj-shell: #66717f;
+    --kj-plus: #6ea0f0;
+    --kj-minus: #f28b7f;
+    --kj-cloud: rgb(110 160 240 / 0.2);
+    --kj-bond: #c3cbd6;
+    --kj-hbond: #a893f2;
+    --kj-nonpolar: #9aa8bd;
+    --kj-polar: #9c87f0;
+    --kj-ionic: #f08a55;
+    --kj-metallic: #62d1c0;
+    --kj-molecule: #a693f0;
+    --kj-glass: #8b97a6;
+    --kj-glass-fill: rgb(180 200 220 / 0.07);
+    --kj-glass-shine: rgb(255 255 255 / 0.14);
+    --kj-liquid: #23435f;
+    --kj-liquid-line: #5b93c9;
+    --kj-btb-acid: #cfae2a;
+    --kj-btb-neutral: #3f9a4f;
+    --kj-btb-base: #3f74c4;
+    --kj-php-pink: #c94a8c;
+    --kj-ph-1: #e0574d;
+    --kj-ph-3: #f09a48;
+    --kj-ph-5: #dcbc35;
+    --kj-ph-7: #4caf5a;
+    --kj-ph-9: #34a597;
+    --kj-ph-11: #5584e0;
+    --kj-ph-13: #8a63d2;
+    --kj-exo: #f08a55;
+    --kj-endo: #6ea0f0;
+    --kj-oxidation: #e57ab0;
+    --kj-reduction: #4fd1c5;
+  }
+}
+
+:root[data-theme='dark'] {
+  --kj-atom-ink: #f1f4f7;
+  --kj-h: #e3e8ee;
+  --kj-h-line: #f5f7fa;
+  --kj-h-ink: #17202b;
+  --kj-c: #3b434e;
+  --kj-c-line: #a9b3bf;
+  --kj-n: #24427f;
+  --kj-n-line: #84a9f5;
+  --kj-o: #7d2c25;
+  --kj-o-line: #f28b7f;
+  --kj-f: #345d1d;
+  --kj-f-line: #a4dc78;
+  --kj-cl: #1d5b2e;
+  --kj-cl-line: #72d487;
+  --kj-br: #62301f;
+  --kj-br-line: #e59a80;
+  --kj-i: #46296a;
+  --kj-i-line: #bb9de6;
+  --kj-s: #5e4f0b;
+  --kj-s-line: #efd25a;
+  --kj-p: #6d3c0f;
+  --kj-p-line: #f5a862;
+  --kj-alkali: #48296e;
+  --kj-alkali-line: #bc95f2;
+  --kj-alkaline: #134f48;
+  --kj-alkaline-line: #62d1c0;
+  --kj-metal: #364352;
+  --kj-metal-line: #aab9ca;
+  --kj-metalloid: #503f28;
+  --kj-metalloid-line: #d9bb8d;
+  --kj-noble: #124b57;
+  --kj-noble-line: #6fd4e8;
+  --kj-other: #5c2342;
+  --kj-other-line: #ea8fc0;
+  --kj-electron: #6ea0f0;
+  --kj-valence: #f08a55;
+  --kj-shell: #66717f;
+  --kj-plus: #6ea0f0;
+  --kj-minus: #f28b7f;
+  --kj-cloud: rgb(110 160 240 / 0.2);
+  --kj-bond: #c3cbd6;
+  --kj-hbond: #a893f2;
+  --kj-nonpolar: #9aa8bd;
+  --kj-polar: #9c87f0;
+  --kj-ionic: #f08a55;
+  --kj-metallic: #62d1c0;
+  --kj-molecule: #a693f0;
+  --kj-glass: #8b97a6;
+  --kj-glass-fill: rgb(180 200 220 / 0.07);
+  --kj-glass-shine: rgb(255 255 255 / 0.14);
+  --kj-liquid: #23435f;
+  --kj-liquid-line: #5b93c9;
+  --kj-btb-acid: #cfae2a;
+  --kj-btb-neutral: #3f9a4f;
+  --kj-btb-base: #3f74c4;
+  --kj-php-pink: #c94a8c;
+  --kj-ph-1: #e0574d;
+  --kj-ph-3: #f09a48;
+  --kj-ph-5: #dcbc35;
+  --kj-ph-7: #4caf5a;
+  --kj-ph-9: #34a597;
+  --kj-ph-11: #5584e0;
+  --kj-ph-13: #8a63d2;
+  --kj-exo: #f08a55;
+  --kj-endo: #6ea0f0;
+  --kj-oxidation: #e57ab0;
+  --kj-reduction: #4fd1c5;
+}
+
+/* Tekst i kjemifigurene (<Txt>): vokser på mobil som .viz-label, ganget med --kj-fs (prop `size`). */
+.kj-txt {
+  font-size: calc(max(17px, calc(12.5px / var(--viz-scale, 1))) * var(--kj-fs, 1));
+  font-weight: 600;
+  fill: var(--viz-ink);
+  paint-order: stroke;
+  stroke: var(--viz-surface);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.kj-txt.is-muted {
+  fill: var(--viz-muted);
+  font-weight: 500;
+}
+
+.kj-txt.no-halo {
+  stroke-width: 0;
+}
+
+.kj-atom {
+  stroke-width: 2;
+}
+
+.kj-atom-symbol {
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+/* Formler i vanlig HTML (<Formel>, <Reaksjon>) */
+.kj-formel {
+  white-space: nowrap;
+}
+
+.kj-formel sub,
+.kj-formel sup {
+  font-size: 0.72em;
+  line-height: 0;
+}
+
+.kj-state {
+  font-size: 0.85em;
+}
+
+.kj-reaction {
+  display: inline;
+}
+
+.kj-reaction-arrow {
+  margin: 0 0.35em;
+}
+
+/* Nedtrekksliste og formelfelt i verktøyraden */
+.kj-select,
+.kj-field {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 14px;
+  font-weight: 560;
+  color: var(--text-2);
+}
+
+.kj-select select {
+  width: auto;
+  max-width: 100%;
+  min-height: 38px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.kj-field input {
+  width: 11em;
+  max-width: 100%;
+  min-height: 38px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.kj-field-preview {
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.kj-field-error {
+  flex-basis: 100%;
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Lite periodesystem for å velge grunnstoff (<ElementPicker>) */
+.kj-picker {
+  display: grid;
+  grid-template-columns: repeat(var(--kj-cols, 8), minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+  max-width: calc(var(--kj-cols, 8) * 62px);
+}
+
+.kj-picker-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 2px;
+  font-size: 11.5px;
+  font-weight: 560;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.kj-picker-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 46px;
+  padding: 2px 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 -3px 0 var(--c, transparent);
+  transition:
+    background-color 0.12s,
+    border-color 0.12s;
+}
+
+.kj-picker-cell:hover {
+  background: var(--surface-2);
+}
+
+.kj-picker-cell:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 -3px 0 var(--c, transparent),
+    var(--focus-ring);
+}
+
+.kj-picker-cell.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow:
+    inset 0 -3px 0 var(--c, transparent),
+    inset 0 0 0 1px var(--accent);
+}
+
+.kj-picker-sym {
+  font-size: 16px;
+  font-weight: 680;
+  line-height: 1.2;
+}
+
+.kj-picker-detail {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.kj-picker-badge {
+  position: absolute;
+  top: -7px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11.5px;
+  font-weight: 700;
+}
