@@ -154,20 +154,14 @@ dialog::backdrop {
   gap: 10px;
   padding: 10px 8px 10px 14px;
   border-radius: 12px;
-  background: #1c2530;
+  background: var(--toast-bg);
+  border: 1px solid var(--toast-border);
   color: #f1f4f7;
   box-shadow: var(--shadow-lg);
   font-size: 14px;
   line-height: 1.4;
   pointer-events: auto;
   animation: toast-in 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-@media (prefers-color-scheme: dark) {
-  .toast {
-    background: #2a3340;
-    border: 1px solid #3a4553;
-  }
 }
 
 @keyframes toast-in {

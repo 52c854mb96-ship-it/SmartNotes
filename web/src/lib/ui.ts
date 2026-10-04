@@ -79,3 +79,39 @@ export const newSubjectStore = createStore<boolean>(false);
 // ---------- Mobilskuff ----------
 
 export const drawerStore = createStore<boolean>(false);
+
+// ---------- Søkepalett ----------
+
+export const searchStore = createStore<boolean>(false);
+
+export function openSearch(): void {
+  searchStore.set(true);
+}
+
+// ---------- Notatlisten (midtkolonnen) ----------
+
+/** Filter på kompetansemål i notatlisten, per fag. */
+export const aimFilterStore = createStore<{ subjectId: string; aim: string } | null>(null);
+
+const COLLAPSED_KEY = 'smartnotes:listCollapsed';
+
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** Om notatlisten er slått sammen til en smal stripe (huskes per enhet). */
+export const listCollapsedStore = createStore<boolean>(readCollapsed());
+
+export function setListCollapsed(collapsed: boolean): void {
+  try {
+    if (collapsed) localStorage.setItem(COLLAPSED_KEY, '1');
+    else localStorage.removeItem(COLLAPSED_KEY);
+  } catch {
+    /* ignorer */
+  }
+  listCollapsedStore.set(collapsed);
+}

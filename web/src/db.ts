@@ -59,8 +59,7 @@ export type SmartNotesDB = Dexie & {
 
 export const db = new Dexie('smartnotes') as SmartNotesDB;
 
-// Versjon 2: indeks på notes.stage (tidlige utviklingsbygg hadde versjon 1 uten den).
-db.version(2).stores({
+const STORES_V2 = {
   subjects: 'id, position',
   chapters: 'id, subjectId, position',
   // `stage` er indeksert slik at vi finner notater som er under arbeid (null indekseres ikke).
@@ -69,7 +68,18 @@ db.version(2).stores({
   pdfs: 'noteId, [noteId+rev]',
   bundlePdfs: 'key',
   outbox: 'clientId, createdAt, subjectId, state',
-});
+};
+
+// Versjon 2: indeks på notes.stage.
+db.version(2).stores(STORES_V2);
+
+// Versjon 3: delkapitler, kompetansemål og søketekst. Lokale rader mangler de nye feltene,
+// så markøren nullstilles – neste synk blir en full synk som henter alt på nytt.
+db.version(3)
+  .stores({ ...STORES_V2, notes: 'id, subjectId, chapterId, status, stage, clientId, section' })
+  .upgrade(async (tx) => {
+    await tx.table('meta').put({ key: 'syncCursor', value: 0 });
+  });
 
 // ---------- meta-hjelpere ----------
 

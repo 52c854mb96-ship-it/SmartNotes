@@ -30,6 +30,11 @@
   --warning: #9a5a06;
   --warning-soft: #fff5e1;
   --warning-border: #f3dcae;
+  --mark-bg: #fde7b0;
+  --mark-text: #3d2a00;
+
+  --toast-bg: #1c2530;
+  --toast-border: transparent;
 
   --radius-sm: 8px;
   --radius: 12px;
@@ -41,6 +46,7 @@
   --focus-ring: 0 0 0 3px rgb(31 95 173 / 0.35);
 
   --sidebar-w: 288px;
+  --list-w: 336px;
   --topbar-h: 56px;
   --tap: 44px;
   --safe-top: env(safe-area-inset-top, 0px);
@@ -49,8 +55,13 @@
   --safe-right: env(safe-area-inset-right, 0px);
 }
 
+/*
+ * Mørkt tema: følger systemet når brukeren ikke har valgt (ingen data-theme),
+ * eller tvinges med data-theme="dark" på <html>. Verdiene må være like i begge blokkene.
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
     --bg: #0f1318;
     --surface: #161b22;
     --surface-2: #1c222a;
@@ -76,6 +87,11 @@
     --warning: #f0b45c;
     --warning-soft: rgb(240 180 92 / 0.1);
     --warning-border: rgb(240 180 92 / 0.25);
+    --mark-bg: rgb(240 180 92 / 0.32);
+    --mark-text: #fff3dc;
+
+    --toast-bg: #2a3340;
+    --toast-border: #3a4553;
 
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
     --shadow: 0 1px 3px rgb(0 0 0 / 0.35);
@@ -83,6 +99,50 @@
     --shadow-lg: 0 16px 44px rgb(0 0 0 / 0.5);
     --focus-ring: 0 0 0 3px rgb(96 156 230 / 0.45);
   }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0f1318;
+  --surface: #161b22;
+  --surface-2: #1c222a;
+  --surface-3: #252c36;
+  --border: #29313b;
+  --border-strong: #3a4451;
+  --text: #e6eaef;
+  --text-2: #a8b2bf;
+  --text-3: #7c8794;
+
+  --accent: #3d7fd1;
+  --accent-hover: #5591dc;
+  --accent-soft: rgb(96 156 230 / 0.13);
+  --accent-soft-2: rgb(96 156 230 / 0.24);
+  --accent-text: #9cc3f3;
+  --on-accent: #ffffff;
+
+  --danger: #f0756a;
+  --danger-hover: #f48f86;
+  --danger-soft: rgb(240 117 106 / 0.13);
+  --success: #5cc392;
+  --success-soft: rgb(92 195 146 / 0.13);
+  --warning: #f0b45c;
+  --warning-soft: rgb(240 180 92 / 0.1);
+  --warning-border: rgb(240 180 92 / 0.25);
+  --mark-bg: rgb(240 180 92 / 0.32);
+  --mark-text: #fff3dc;
+
+  --toast-bg: #2a3340;
+  --toast-border: #3a4553;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  --shadow-md: 0 4px 14px rgb(0 0 0 / 0.35);
+  --shadow-lg: 0 16px 44px rgb(0 0 0 / 0.5);
+  --focus-ring: 0 0 0 3px rgb(96 156 230 / 0.45);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 /* ---------- Grunnlag ---------- */

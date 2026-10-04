@@ -5,9 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>SmartNotes</title>
     <meta name="description" content="Håndskrevne fysikknotater som pene LaTeX-PDF-er, sortert etter kapittel." />
-    <meta name="theme-color" content="#F5F6F8" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#0F1318" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1318" media="(prefers-color-scheme: dark)" />
     <meta name="color-scheme" content="light dark" />
+    <script>
+      // Tema før første opptegning (unngår blink). Samme nøkkel/farger som src/lib/theme.ts.
+      (function () {
+        try {
+          var t = localStorage.getItem('smartnotes:theme');
+          if (t !== 'light' && t !== 'dark') return;
+          document.documentElement.setAttribute('data-theme', t);
+          var c = t === 'dark' ? '#0f1318' : '#f5f6f8';
+          var m = document.querySelectorAll('meta[name="theme-color"]');
+          for (var i = 0; i < m.length; i++) m[i].setAttribute('content', c);
+        } catch (e) {}
+      })();
+    </script>
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

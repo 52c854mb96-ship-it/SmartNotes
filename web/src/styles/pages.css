@@ -24,10 +24,8 @@
 
 .eyebrow {
   margin-bottom: 2px;
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  font-size: 13.5px;
+  font-weight: 550;
   color: var(--text-3);
 }
 
@@ -79,11 +77,10 @@
 
 .section-title {
   margin-bottom: 12px;
-  font-size: 13px;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-3);
+  font-size: 16px;
+  font-weight: 680;
+  letter-spacing: -0.005em;
+  color: var(--text);
 }
 
 .section-intro {
@@ -292,10 +289,8 @@
 }
 
 .date-chip-month {
-  font-size: 11.5px;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .note-card.status-failed .date-chip {
@@ -433,10 +428,8 @@
   align-items: center;
   gap: 8px;
   min-height: 18px;
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 550;
   color: var(--text-3);
 }
 
@@ -853,10 +846,8 @@ select.inline-input {
 }
 
 .chapter-row-head {
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-3);
   padding: 0 2px;
 }

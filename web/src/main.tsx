@@ -7,6 +7,9 @@ import './styles/pages.css';
 import { App } from './App';
 import { boot } from './boot';
 import { registerPwa } from './lib/pwa';
+import { initTheme } from './lib/theme';
+
+initTheme();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Mangler #root');

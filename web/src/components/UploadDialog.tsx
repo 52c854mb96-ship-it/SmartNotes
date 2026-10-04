@@ -199,7 +199,7 @@ function UploadForm({ req, onBusy }: { req: UploadRequest; onBusy: (busy: boolea
           <label className="field">
             <span className="field-label">Kapittel</span>
             <select value={chapterId} onChange={(e) => setChapterId(e.target.value)} disabled={busy}>
-              <option value="auto">✨ La Claude velge kapittel</option>
+              <option value="auto">La Claude velge kapittel</option>
               {chapters?.map((c) => (
                 <option key={c.id} value={c.id}>
                   {chapterLabel(c)}
