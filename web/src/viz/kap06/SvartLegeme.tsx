@@ -169,6 +169,7 @@ function Spectrum({ T, showSun, height }: { T: number; showSun: boolean; height:
     >
       {({ sx, sy, x0, x1, y0, y1 }) => {
         const px = sx(nm(peak));
+        const peakY = sy(rel(nm(peak), T));
         const labelX = Math.min(x1 - 90 * f, Math.max(x0 + 90 * f, px));
         const area = `${linePath(pts, sx, sy)}L${sx(L_MAX_NM)},${y0}L${sx(5)},${y0}Z`;
         // Etiketten for UV og IR står der den verken treffer kurven eller den stiplede linja for toppen:
@@ -179,8 +180,8 @@ function Spectrum({ T, showSun, height }: { T: number; showSun: boolean; height:
           const top = base - 0.8 * font - 3;
           const bottom = base + 0.25 * font + 3;
           if (cx - half < x0 || cx + half > x1) return false;
-          // Den stiplede linja for toppen går over hele grafen
-          if (px > cx - half - 4 && px < cx + half + 4) return false;
+          // Den stiplede linja for toppen går fra aksen opp til toppen av kurven
+          if (px > cx - half - 4 && px < cx + half + 4 && bottom > peakY) return false;
           const atTop = base < (y0 + y1) / 2;
           // Fargeprøven står øverst til høyre
           if (atTop && cx + half > x1 - 76 * f) return false;
@@ -237,7 +238,7 @@ function Spectrum({ T, showSun, height }: { T: number; showSun: boolean; height:
             <path d={linePath(pts, sx, sy)} fill="none" stroke={CURVE} strokeWidth={3.5} strokeLinejoin="round" />
 
             {/* Wiens lov: toppen */}
-            <line x1={px} x2={px} y1={y0} y2={y1 - 6} className="viz-guide" />
+            <line x1={px} x2={px} y1={y0} y2={peakY} className="viz-guide" />
             <Tag x={labelX} y={y1 - 14}>
               λ
               <tspan dy="0.32em" fontSize="0.72em">

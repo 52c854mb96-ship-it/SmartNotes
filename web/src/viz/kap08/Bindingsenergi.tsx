@@ -34,7 +34,7 @@ import {
   type Particle,
   type Reaction,
 } from './model';
-import { useNarrow } from './useNarrow';
+import { useNarrow } from '../kap07/useNarrow';
 
 type Mode = 'kurve' | Reaction['id'];
 
@@ -88,7 +88,7 @@ export default function Bindingsenergi() {
           viewBox={`0 0 800 ${plotH}`}
           label={
             mode === 'kurve'
-              ? `Bindingsenergi per nukleon som funksjon av nukleontallet. Toppen ligger ved jern. Valgt kjerne: ${nuclideText(sel.Z, sel.A)} med ${fmt(b.perNucleon, 2)} MeV per nukleon.`
+              ? `Bindingsenergi per nukleon som funksjon av nukleontallet. Toppen ligger ved jern og nikkel. Valgt kjerne: ${nuclideText(sel.Z, sel.A)} med ${fmt(b.perNucleon, 2)} MeV per nukleon.`
               : `Bindingsenergi per nukleon med ${mode === 'fisjon' ? 'fisjon av uran-235' : 'fusjon av lette kjerner til helium'} markert.`
           }
           maxHeight={narrow ? 640 : 440}
@@ -269,8 +269,10 @@ function ReactionMarks({ r, sx, sy, f }: { r: Reaction; sx: (v: number) => numbe
   const P = (n: Nuclide) => ({ x: sx(n.A), y: sy(perNucleon(n)) });
   // Etikettplassering per kjerne (forskyvning i piksler)
   const offsets: Record<string, { dx: number; dy: number; anchor: 'start' | 'middle' | 'end'; text?: string }> = {
-    '92-235': { dx: -14, dy: 6, anchor: 'end' },
-    '56-141': { dx: 0, dy: 34 * f, anchor: 'middle' },
+    // Under punktet, så etiketten ikke ligger oppå pilene som går ut fra uran
+    '92-235': { dx: 0, dy: 30 * f, anchor: 'middle' },
+    // Under pilen til ⁹²Kr, som går rett under ¹⁴¹Ba
+    '56-141': { dx: 0, dy: 54 * f, anchor: 'middle' },
     '36-92': { dx: 0, dy: 34 * f, anchor: 'middle' },
     '1-2': { dx: 14, dy: 6, anchor: 'start' },
     '1-3': { dx: 14, dy: 6, anchor: 'start' },

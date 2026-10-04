@@ -178,10 +178,18 @@ describe('kjernereaksjoner og bevaringslover', () => {
     expect(decayEnergy(d)!.Q).toBeCloseTo(0.157, 3);
   });
 
-  it('β⁺-henfall av ²²Na gir ²²Ne, og Q trekker fra to elektronmasser', () => {
+  it('β⁺-henfall av ²²Na gir ²²Ne*, og Q trekker fra to elektronmasser', () => {
     const d = decay(11, 22, 'beta+');
-    expect(d.daughter).toMatchObject({ Z: 10, A: 22 });
-    expect(decayEnergy(d)!.Q).toBeCloseTo(1.82, 2);
+    // ²²Na henfaller nesten alltid til den eksiterte ²²Ne* (1,275 MeV), som sender ut γ-fotonet på 1,27 MeV
+    expect(d.daughter).toMatchObject({ Z: 10, A: 22, excited: true });
+    const e = decayEnergy(d)!;
+    expect(e.Qmass).toBeCloseTo(1.82, 2);
+    expect(e.daughterExcitation).toBeCloseTo(1.275, 3);
+    // Positronet og nøytrinoet deler ca. 0,55 MeV (tabellverdi 0,546 MeV)
+    expect(e.Q).toBeCloseTo(0.55, 2);
+    const g = decay(10, 22, 'gamma', true);
+    expect(g.possible).toBe(true);
+    expect(decayEnergy(g)!.Q).toBeCloseTo(1.275, 3);
     // ¹⁸F (brukt i PET): 0,63 MeV
     expect(decayEnergy(decay(9, 18, 'beta+'))!.Q).toBeCloseTo(0.635, 2);
   });
@@ -267,7 +275,49 @@ describe('kjernereaksjoner og bevaringslover', () => {
     expect(decay(2, 4, 'alfa').possible).toBe(false);
     expect(decay(1, 1, 'beta+').possible).toBe(false);
     expect(decayEnergy(decay(2, 4, 'alfa'))).toBeNull();
-    expect(decayEnergy(decay(92, 238, 'beta-'))).toBeNull();
+    expect(decayEnergy(decay(92, 238, 'beta+'))).toBeNull();
     expect(decayEnergy(decay(92, 238, 'gamma'))).toBeNull();
+  });
+
+  it('γ-stråling kommer bare fra eksiterte kjerner, ikke fra grunntilstanden', () => {
+    const g = decay(92, 238, 'gamma');
+    expect(g.possible).toBe(false);
+    expect(g.parent.excited).toBe(false);
+    // Etter γ fra ⁶⁰Ni* er ⁶⁰Ni i grunntilstanden og kan ikke sende ut mer γ
+    expect(decay(28, 60, 'gamma', true).possible).toBe(true);
+    expect(decay(28, 60, 'gamma', false).possible).toBe(false);
+    expect(decay(28, 60, 'gamma', false).parent.excited).toBe(false);
+  });
+
+  it('en eksitert morkjerne har eksitasjonsenergien i tillegg til massetapet', () => {
+    const e = decayEnergy(decay(28, 60, 'beta+', true))!;
+    expect(e.parentExcitation).toBeCloseTo(2.505, 3);
+    expect(e.Q).toBeCloseTo(e.Qmass + 2.505, 6);
+    // Fortsatt negativ: ⁶⁰Ni* blir ikke til ⁶⁰Co
+    expect(e.Q).toBeLessThan(0);
+  });
+
+  it('de andre henfallstypene for startkjernene frigjør ikke energi (Q < 0)', () => {
+    const cases: [number, number, DecayType][] = [
+      [6, 14, 'alfa'], // ¹⁴C → ¹⁰Be + α
+      [6, 14, 'beta+'], // ¹⁴C → ¹⁴B
+      [19, 40, 'alfa'], // ⁴⁰K → ³⁶Cl + α
+      [27, 60, 'alfa'],
+      [27, 60, 'beta+'],
+      [11, 22, 'beta-'],
+      [11, 22, 'alfa'],
+      [9, 18, 'beta-'],
+      [9, 18, 'alfa'],
+      [88, 226, 'beta-'],
+      [95, 241, 'beta+'],
+      [92, 238, 'beta-'], // ²³⁸U er β-stabil: ²³⁸Np er tyngre
+    ];
+    for (const [Z, A, t] of cases) {
+      const e = decayEnergy(decay(Z, A, t));
+      expect(e, `${Z}-${A} ${t}`).not.toBeNull();
+      expect(e!.Q, `${Z}-${A} ${t}`).toBeLessThan(0);
+    }
+    // ¹⁴C → ¹⁰Be + α ville krevd ca. 12 MeV
+    expect(decayEnergy(decay(6, 14, 'alfa'))!.Q).toBeCloseTo(-12.0, 1);
   });
 });

@@ -263,14 +263,19 @@ export function wavelengthToRgb(nm: number): [number, number, number] | null {
   return [c(r), c(g), c(b)];
 }
 
-/** Navnet på fargen til lys med bølgelengde λ (nm). */
+/**
+ * Navnet på fargen til lys med bølgelengde λ (nm). Brukes både i Bohr-figuren og i spektrene, så samme linje får
+ * samme navn: Hα 656 nm rød, Hβ 486 nm blågrønn, Hγ 434 nm blåfiolett, Hδ 410 nm fiolett.
+ */
 export function colorName(nm: number): string {
   if (nm < VISIBLE_MIN) return 'ultrafiolett';
-  if (nm < 450) return 'fiolett';
-  if (nm < 495) return 'blå';
-  if (nm < 570) return 'grønn';
+  if (nm < 425) return 'fiolett';
+  if (nm < 450) return 'blåfiolett';
+  if (nm < 485) return 'blå';
+  if (nm < 500) return 'blågrønn';
+  if (nm < 565) return 'grønn';
   if (nm < 590) return 'gul';
-  if (nm < 620) return 'oransje';
+  if (nm < 625) return 'oransje';
   if (nm <= VISIBLE_MAX) return 'rød';
   return 'infrarødt';
 }

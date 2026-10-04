@@ -38,7 +38,7 @@ import {
   type HalfLifePreset,
 } from './model';
 import { PlayBar } from './PlayBar';
-import { useNarrow } from './useNarrow';
+import { useNarrow } from '../kap07/useNarrow';
 
 const N0 = 400;
 /** Lengden på simuleringen, målt i halveringstider. */
@@ -54,7 +54,7 @@ function capitalize(s: string): string {
 }
 
 /** Desimaler for tida i hver enhet. */
-const DECIMALS: Record<string, number> = { c14: 0, i131: 1, rn222: 1, co60: 1, u238: 2 };
+const DECIMALS: Record<string, number> = { c14: 0, i131: 2, rn222: 2, co60: 2, u238: 2 };
 
 /** Tid målt i halveringstider → tekst i stoffets egen enhet, f.eks. 2 → «11 460 år». */
 function timeText(k: number, p: HalfLifePreset): string {
@@ -188,7 +188,7 @@ export default function Halveringstid() {
           λ = ln 2 / T<Sub>½</Sub> = 0,693 / ({halfLifeInSeconds(p)}) = {fmtSci(lambda, 2)} s⁻¹
         </FormulaLine>
         <FormulaLine>
-          1,00 g {iso}: N<Sub>0</Sub> = m / (A · u) = 1,00 · 10⁻³ kg / ({p.A} · 1,66 · 10⁻²⁷ kg) = {fmtSci(N1g, 2)}
+          1,00 g {iso}: N<Sub>0</Sub> = m / m<Sub>atom</Sub> = 1,00 · 10⁻³ kg / ({p.A} · 1,66 · 10⁻²⁷ kg) = {fmtSci(N1g, 2)}
         </FormulaLine>
         <FormulaLine>
           A = λN = {fmtSci(lambda, 2)} s⁻¹ · {fmtSci(N1g, 2)} · (1/2)<Sup>{fmt(k, 2)}</Sup> = {fmtSig3(A1g)} Bq

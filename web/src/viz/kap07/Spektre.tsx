@@ -117,7 +117,7 @@ export default function Spektre() {
         {mode === 'kontinuerlig' ? (
           <Readout label="Farge" value={capitalize(colorName(cursor))} />
         ) : (
-          <Readout label="Linje ved markøren" value={hit ? lineName(hit) : 'Ingen'} />
+          <Readout label="Linje ved markøren" value={hit ? lineName(hit, mode === 'absorpsjon') : 'Ingen'} />
         )}
       </Readouts>
 
@@ -146,7 +146,9 @@ function layout(f: number, sun: boolean, labels: boolean): Layout {
   // To rader med bølgelengder over linjene (ikke i det kontinuerlige spekteret)
   const row1 = title + 30 * f;
   const row0 = row1 + 24 * f;
-  const barTop = labels ? row0 + 20 : title + 30;
+  // Plass til markørtrekanten over spekteret (den vokser litt på mobil), så den ikke går inn i etikettene
+  const tri = Math.min(Math.max(1, f), 1.5);
+  const barTop = (labels ? row0 + 10 : title + 16) + 13 * tri;
   const barH = 70 + 30 * f;
   const tickY = barTop + barH + 34 + 18 * f;
   const axisTitle = tickY + 26 * f;
@@ -191,8 +193,9 @@ function SpectrumScene({
   // Etiketter over linjene (de sterkeste), i to rader så de ikke overlapper
   const labelled = mode === 'kontinuerlig' ? [] : mergeClose(lines.filter((l) => l.I >= 0.3));
   const fontPx = 17 * fReal;
+  // De sterkeste linjene får etikett først, så de viktigste ikke faller bort når det er trangt (mobil)
   const rows = placeLabels(
-    labelled.map((l) => ({ x: sx(l.nm), width: textWidthEm(fmt(l.nm, 0)) * fontPx * 1.12 })),
+    labelled.map((l) => ({ x: sx(l.nm), width: textWidthEm(fmt(l.nm, 0)) * fontPx * 1.12, priority: l.I })),
     2,
     18,
   );
@@ -354,8 +357,12 @@ function mergeClose(lines: SpectralLine[]): SpectralLine[] {
   return out;
 }
 
-function lineName(l: SpectralLine): string {
-  if (l.from !== undefined && l.to !== undefined) return `${l.name ?? ''} (${l.from} → ${l.to})`.trim();
+/** «Hα (3 → 2)» ved emisjon, «Hα (2 → 3)» ved absorpsjon (elektronet løftes opp). */
+function lineName(l: SpectralLine, absorption: boolean): string {
+  if (l.from !== undefined && l.to !== undefined) {
+    const [a, b] = absorption ? [l.to, l.from] : [l.from, l.to];
+    return `${l.name ?? ''} (${a} → ${b})`.trim();
+  }
   return `${fmt(l.nm, 1)} nm`;
 }
 
@@ -400,7 +407,7 @@ function explanation(
       <>
         <strong>Absorpsjonsspekter.</strong> Når hvitt lys går gjennom en gass av {name} som er kaldere enn lyskilden, tar atomene bare opp
         fotoner med nøyaktig den energien som passer til et sprang mellom to nivåer. De bølgelengdene mangler i lyset som slipper gjennom,
-        og vi ser mørke linjer på nøyaktig samme plass som de lyse linjene i emisjonsspekteret. {hitText(hit)}
+        og vi ser mørke linjer på nøyaktig samme plass som de lyse linjene i emisjonsspekteret. {hitText(hit, true)} {absorptionNote(el)}
       </>
     );
   }
@@ -431,8 +438,10 @@ function explanation(
     else if (el === 'helium')
       sunText = (
         <>
-          Helium gir ingen tydelige mørke linjer i sollyset. Men den gule heliumlinja ved 588 nm ble oppdaget i lys fra sola i 1868, før
-          helium var funnet på jorda. Navnet kommer fra helios, det greske ordet for sol.
+          Helium gir ingen tydelige mørke linjer i sollyset: de synlige heliumlinjene starter i nivåer høyt over grunntilstanden, og selv
+          ved overflaten til sola er nesten ingen heliumatomer der. Men under en solformørkelse i 1868 så man en lys gul linje ved 588 nm i
+          lyset fra de ytterste gasslagene til sola. Den passet ikke med noe kjent grunnstoff, og slik ble helium oppdaget før det var
+          funnet på jorda. Navnet kommer fra helios, det greske ordet for sol.
         </>
       );
     else
@@ -448,10 +457,36 @@ function explanation(
   );
 }
 
-function hitText(hit: SpectralLine | null): ReactNode {
+/**
+ * Forenklingen i absorpsjonsspekteret: en gass tar bare opp lys i sprang fra nivåer der det faktisk er atomer, og i en
+ * kald gass er nesten alle i grunntilstanden.
+ */
+function absorptionNote(el: SpectrumElement): ReactNode {
+  if (el === 'hydrogen')
+    return (
+      <>
+        (Forenklet: de synlige linjene er sprang fra n = 2. I en kald hydrogengass er nesten alle atomene i n = 1, og da tas bare
+        ultrafiolett lys opp. I atmosfæren til sola er gassen så varm at mange atomer er i n = 2.)
+      </>
+    );
+  if (el === 'natrium')
+    return <>De gule D-linjene er sprang fra grunntilstanden, så selv en ganske kald natriumdamp tar opp lys ved 589 nm.</>;
+  return (
+    <>
+      (Forenklet: de synlige linjene til {ELEMENT_NAME[el]} starter i nivåer høyt over grunntilstanden, så de blir bare tydelige i
+      absorpsjon når gassen er svært varm.)
+    </>
+  );
+}
+
+function hitText(hit: SpectralLine | null, absorption = false): ReactNode {
   if (!hit) return null;
   if (hit.from !== undefined && hit.to !== undefined)
-    return (
+    return absorption ? (
+      <>
+        Markøren står på {hit.name}: fotonet løfter elektronet fra n = {hit.to} til n = {hit.from}.
+      </>
+    ) : (
       <>
         Markøren står på {hit.name}, overgangen fra n = {hit.from} til n = {hit.to}.
       </>

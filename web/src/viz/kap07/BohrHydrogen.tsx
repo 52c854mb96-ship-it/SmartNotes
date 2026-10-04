@@ -20,6 +20,7 @@ import {
   useTextScale,
 } from '../kit';
 import {
+  colorName,
   levelEnergyEV,
   levelEnergyJ,
   REGION_NAMES,
@@ -210,10 +211,11 @@ function LevelDiagram({
     </g>
   );
 
-  // Fotonet tegnes der overgangen synes best: i forstørrelsen når begge nivåene er med der.
+  // Fotonet tegnes der overgangen synes best: i forstørrelsen når begge nivåene er med der. Det starter til høyre for
+  // den siste pilen i serien, så bølgen ikke krysser de stiplede overgangene.
   const inZoom = lower >= 3;
   const pn = inZoom ? zoom : main;
-  const ax = arrowX(pn, upper);
+  const ax = arrowX(pn, N_TOP);
   const eTop = inZoom ? levelEnergyEV(upper) : Math.min(levelEnergyEV(upper), zoom.eMin - 0.1);
   const yPh = (yOf(pn, levelEnergyEV(lower)) + yOf(pn, eTop)) / 2;
   const phEnd = inZoom ? pn.lineX1 - 6 : pn.lineX1 + (narrow ? 170 : 110);
@@ -463,7 +465,7 @@ function explanation(mode: Mode, upper: number, lower: number, eV: number, nm: n
     ) : region === 'ir' ? (
       <>infrarødt, fordi nivåene ligger tett og fotonet får lite energi</>
     ) : (
-      <>synlig lys{nm > 620 ? ', rødt' : nm > 470 ? ', blågrønt' : nm > 425 ? ', blått' : ', fiolett'}</>
+      <>synlig lys med {colorName(nm)} farge</>
     );
   const seriesText = visibleBalmer ? (
     <>Overgangene ned til n = 2 kalles Balmer-serien, og de fire første er synlige.</>
@@ -475,6 +477,14 @@ function explanation(mode: Mode, upper: number, lower: number, eV: number, nm: n
   const ionize =
     lower === 1 ? (
       <> Fra grunntilstanden n = 1 trengs {fmt(-levelEnergyEV(1), 1)} eV for å rive løs elektronet helt (ionisering, E = 0).</>
+    ) : null;
+  const ionizeAbs =
+    lower === 1 ? (
+      <>
+        {' '}
+        Unntaket er fotoner med mer enn {fmt(-levelEnergyEV(1), 1)} eV: de kan alltid tas opp, for de river løs elektronet helt
+        (ionisering, E = 0).
+      </>
     ) : null;
   if (mode === 'emisjon')
     return (
@@ -488,9 +498,9 @@ function explanation(mode: Mode, upper: number, lower: number, eV: number, nm: n
   return (
     <p>
       <strong>Absorpsjon.</strong> Atomet tar bare opp et foton som har nøyaktig energien E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> ={' '}
-      {fmt(eV, sigDecimals(eV))} eV (λ = {fmt(nm, 0)} nm, {region === 'synlig' ? 'synlig lys' : REGION_NAMES[region]}). Da løftes elektronet
+      {fmt(eV, sigDecimals(eV))} eV (λ = {fmt(nm, 0)} nm, {region === 'synlig' ? `synlig lys med ${colorName(nm)} farge` : REGION_NAMES[region]}). Da løftes elektronet
       fra n = {lower} til n = {upper}. Fotoner med litt mer eller litt mindre energi går rett gjennom, fordi elektronet ikke kan være mellom
-      nivåene.{ionize}
+      nivåene.{ionizeAbs}
     </p>
   );
 }

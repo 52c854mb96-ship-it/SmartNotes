@@ -169,10 +169,9 @@ function chargeText(q: number): string {
   return q > 0 ? `+${q}` : `−${-q}`;
 }
 
+/** Alle kjerner som ikke er stabile, er radioaktive (ustabil og radioaktiv betyr det samme). */
 function statusShort(a: AtomInfo): string {
-  if (a.status === 'stabil') return 'Stabil';
-  if (a.status === 'radioaktiv') return 'Radioaktiv';
-  return 'Ustabil';
+  return a.status === 'stabil' ? 'Stabil' : 'Radioaktiv';
 }
 
 function explanation(a: AtomInfo): ReactNode {
@@ -218,7 +217,7 @@ function explanation(a: AtomInfo): ReactNode {
     isotope = (
       <>
         {iso} har <strong>for få nøytroner</strong> til å være stabil. Nøytronene trengs som «lim» mellom protonene, som frastøter
-        hverandre. Slike kjerner er radioaktive.
+        hverandre. Slike kjerner er radioaktive og henfaller, typisk ved β⁺-stråling der et proton blir til et nøytron.
       </>
     );
   } else {

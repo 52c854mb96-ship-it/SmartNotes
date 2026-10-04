@@ -24,11 +24,11 @@ const viz: VizMeta[] = [
   {
     id: 'bindingsenergi',
     chapter: '8',
-    sections: ['8A', '8C', '8D'],
+    sections: ['8A', '8B', '8C', '8D'],
     title: 'Bindingsenergi per nukleon',
     summary:
-      'Se hvorfor jern er den mest stabile kjernen, og hvorfor både fisjon av uran og fusjon av hydrogen frigjør energi: E = Δm · c².',
-    keywords: ['massedefekt', 'E = mc²', 'fisjon', 'fusjon', 'kjernekraft', 'sola', 'deuterium', 'tritium', 'uran', 'jern'],
+      'Se hvorfor jern og nikkel er de mest stabile kjernene, og hvorfor både fisjon av uran og fusjon av hydrogen frigjør energi: E = Δm · c².',
+    keywords: ['massedefekt', 'E = mc²', 'fisjon', 'fusjon', 'kjernekraft', 'sola', 'deuterium', 'tritium', 'uran', 'jern', 'nikkel'],
     load: () => import('./Bindingsenergi'),
   },
   {

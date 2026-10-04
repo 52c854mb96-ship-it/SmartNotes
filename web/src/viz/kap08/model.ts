@@ -1,5 +1,5 @@
 /** Ren fysikk for kapittel 8 Kjernefysikk (ingen React), så den kan testes for seg. */
-import { elementSymbol, nuclideText } from '../kap07/elements';
+import { nuclideText } from '../kap07/elements';
 import { seededRandom } from '../kap07/random';
 
 /* ---------- Konstanter med verdiene i ERGO Fysikk 1 ---------- */
@@ -84,7 +84,8 @@ export const NUCLIDES: Nuclide[] = [
   nuc(9, 19, 18.998403),
   nuc(10, 20, 19.99244),
   nuc(10, 22, 21.991385),
-  nuc(11, 22, 21.994437, '2,60 år', 'beta+'),
+  // ²²Na gir nesten alltid ²²Ne* (1,275 MeV), som straks sender ut et γ-foton
+  nuc(11, 22, 21.994437, '2,60 år', 'beta+', { daughterExcitation: 1.275 }),
   nuc(11, 23, 22.989769),
   nuc(12, 24, 23.985042),
   nuc(13, 27, 26.981538),
@@ -149,6 +150,18 @@ export const NUCLIDES: Nuclide[] = [
   nuc(92, 235, 235.04393, '7,04 · 10⁸ år', 'alfa'),
   nuc(90, 231, 231.036304, '25,5 timer', 'beta-'),
   nuc(91, 231, 231.035884, '3,28 · 10⁴ år', 'alfa'),
+  // Datterkjernene når du velger et annet henfall enn det naturlige for startkjernene (så Q kan regnes ut og vise
+  // at henfallet ikke frigjør energi)
+  nuc(4, 10, 10.013535, '1,39 · 10⁶ år', 'beta-'),
+  nuc(5, 14, 14.025404, '12,5 ms', 'beta-'),
+  nuc(10, 18, 18.005709, '1,66 s', 'beta+'),
+  nuc(12, 22, 21.999571, '3,88 s', 'beta+'),
+  nuc(17, 36, 35.968307, '3,01 · 10⁵ år', 'beta-'),
+  nuc(25, 56, 55.938904, '2,58 timer', 'beta-'),
+  nuc(26, 60, 59.934071, '2,6 · 10⁶ år', 'beta-'),
+  nuc(89, 226, 226.026098, '29,4 timer', 'beta-'),
+  nuc(93, 238, 238.050946, '2,10 døgn', 'beta-'),
+  nuc(94, 241, 241.056851, '14,3 år', 'beta-'),
 ];
 
 const BY_KEY = new Map(NUCLIDES.map((n) => [`${n.Z}-${n.A}`, n]));
@@ -372,7 +385,10 @@ export interface Decay {
   daughter: { Z: number; A: number; excited: boolean };
   /** Partiklene som sendes ut (med nøytrino/antinøytrino ved β). */
   emitted: Emitted[];
-  /** Om henfallet i det hele tatt kan skrives (datterkjernen må ha minst ett proton og ikke flere protoner enn nukleoner). */
+  /**
+   * Om henfallet i det hele tatt kan skrives: datterkjernen må ha minst ett proton og ikke flere protoner enn nukleoner,
+   * og γ-stråling krever en eksitert kjerne (en kjerne i grunntilstanden har ingen energi å kvitte seg med).
+   */
   possible: boolean;
 }
 
@@ -409,8 +425,9 @@ export function decay(Z: number, A: number, type: DecayType, excited = false): D
   // Etter et β-henfall kan datterkjernen være eksitert (f.eks. ⁶⁰Co → ⁶⁰Ni*), og etter γ er den i grunntilstanden.
   const nat = findNuclide(Z, A);
   const dExcited = type !== 'gamma' && !excited && nat?.mode === type && nat.daughterExcitation !== undefined;
-  const possible = d.Z >= 1 && d.A >= d.Z && d.A - d.Z >= 0 && d.Z <= 100 && (d.A > 1 || d.Z === 1);
-  return { type, parent: { Z, A, excited: type === 'gamma' ? true : excited }, daughter: { ...d, excited: dExcited }, emitted, possible };
+  const possible =
+    type === 'gamma' ? excited : d.Z >= 1 && d.A >= d.Z && d.A - d.Z >= 0 && d.Z <= 100 && (d.A > 1 || d.Z === 1);
+  return { type, parent: { Z, A, excited }, daughter: { ...d, excited: dExcited }, emitted, possible };
 }
 
 /** Summen av nukleontall og ladning før og etter henfallet. */
@@ -422,9 +439,11 @@ export function conservation(dc: Decay): { A: [number, number]; Z: [number, numb
 
 /** Eksiterte kjerner som dannes i tabellens β-henfall: halveringstid og hvordan energien sendes ut. */
 export const EXCITED_INFO: Record<string, { halfLife: string; photons: number[] }> = {
-  // ⁶⁰Ni* faller ned i to trinn og sender ut to fotoner (1,17 MeV og 1,33 MeV)
-  '28-60': { halfLife: 'under 1 ps', photons: [1.173, 1.332] },
+  // ⁶⁰Ni* faller ned i to trinn og sender ut to fotoner (1,17 MeV og 1,33 MeV). Hvert trinn tar noen pikosekunder.
+  '28-60': { halfLife: 'noen pikosekunder', photons: [1.173, 1.332] },
+  // ¹³⁷Ba* er den metastabile tilstanden ¹³⁷ᵐBa
   '56-137': { halfLife: '2,55 min', photons: [0.662] },
+  '10-22': { halfLife: 'noen pikosekunder', photons: [1.275] },
 };
 
 /** Fotonene (MeV) som en eksitert kjerne sender ut, hvis vi kjenner dem. */
@@ -446,7 +465,12 @@ export function excitationEnergy(Z: number, A: number): number | undefined {
 export interface DecayEnergy {
   /** Massetapet (u). */
   dm: number;
-  /** Frigjort energi (J og MeV). Negativ betyr at henfallet ikke kan skje av seg selv. */
+  /** Energien som svarer til massetapet (MeV), regnet fra atommassene i grunntilstanden. */
+  Qmass: number;
+  /** Eksitasjonsenergien til en eksitert morkjerne (kommer i tillegg) og til en eksitert datterkjerne (blir igjen der), i MeV. */
+  parentExcitation: number;
+  daughterExcitation: number;
+  /** Frigjort energi (J og MeV): Qmass + parentExcitation − daughterExcitation. Negativ betyr at henfallet ikke kan skje av seg selv. */
   QJ: number;
   Q: number;
   /** Hvordan massetapet er regnet ut (tekst med nuklidenavn). */
@@ -457,14 +481,16 @@ export interface DecayEnergy {
  * Q-verdien regnet fra atommasser:
  *   α: m(mor) − m(datter) − m(⁴He)   β⁻: m(mor) − m(datter)   β⁺: m(mor) − m(datter) − 2m_e
  * (Elektronene i atommassene går mot hverandre, bortsett fra ved β⁺.) Hvis datterkjernen dannes eksitert, går
- * eksitasjonsenergien fra (den kommer senere som γ). For γ er Q eksitasjonsenergien.
+ * eksitasjonsenergien fra (den kommer senere som γ), og en eksitert morkjerne har eksitasjonsenergien i tillegg.
+ * For γ er Q eksitasjonsenergien.
  */
 export function decayEnergy(dc: Decay): DecayEnergy | null {
   const { parent: p, daughter: d } = dc;
   if (dc.type === 'gamma') {
     const E = p.excited ? excitationEnergy(p.Z, p.A) : undefined;
     if (E === undefined) return null;
-    return { dm: (E * MEV) / (U_KG * C_LIGHT * C_LIGHT), QJ: E * MEV, Q: E, terms: [] };
+    const dmG = (E * MEV) / (U_KG * C_LIGHT * C_LIGHT);
+    return { dm: dmG, Qmass: E, parentExcitation: 0, daughterExcitation: 0, QJ: E * MEV, Q: E, terms: [] };
   }
   if (!dc.possible) return null;
   const mp = atomicMass(p.Z, p.A);
@@ -477,9 +503,11 @@ export function decayEnergy(dc: Decay): DecayEnergy | null {
   if (dc.type === 'alfa') terms.push({ label: 'm(⁴He)', mass: atomicMass(2, 4)!, sign: -1 });
   if (dc.type === 'beta+') terms.push({ label: '2m(e)', mass: 2 * M_ELECTRON_U, sign: -1 });
   const dm = terms.reduce((s, t) => s + t.sign * t.mass, 0);
-  let Q = massEnergyMeV(dm);
-  if (d.excited) Q -= excitationEnergy(d.Z, d.A) ?? 0;
-  return { dm, QJ: Q * MEV, Q, terms };
+  const Qmass = massEnergyMeV(dm);
+  const parentExcitation = p.excited ? (excitationEnergy(p.Z, p.A) ?? 0) : 0;
+  const daughterExcitation = d.excited ? (excitationEnergy(d.Z, d.A) ?? 0) : 0;
+  const Q = Qmass + parentExcitation - daughterExcitation;
+  return { dm, Qmass, parentExcitation, daughterExcitation, QJ: Q * MEV, Q, terms };
 }
 
 /** Nuklidenavn med stjerne for eksiterte kjerner: «⁶⁰Ni*». */
@@ -493,7 +521,3 @@ export function isStable(Z: number, A: number): boolean | undefined {
   return n ? n.mode === undefined : undefined;
 }
 
-/** Symbolet for protontallet Z, men «n» for et fritt nøytron. */
-export function symbolOf(Z: number): string {
-  return elementSymbol(Z);
-}

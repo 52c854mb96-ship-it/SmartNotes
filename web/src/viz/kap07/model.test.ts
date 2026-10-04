@@ -205,7 +205,7 @@ describe('farger og spektre', () => {
     expect(wavelengthColor(1000, 'x')).toBe('x');
   });
 
-  it('656 nm er rødt, 486 nm blågrønt, 434 nm blått og 410 nm fiolett', () => {
+  it('656 nm er rødt, 486 nm blågrønt, 434 nm blåfiolett og 410 nm fiolett', () => {
     const red = wavelengthToRgb(656)!;
     expect(red[0]).toBeGreaterThan(200);
     expect(red[1]).toBeLessThan(40);
@@ -262,6 +262,28 @@ describe('fargenavn og etiketter', () => {
     expect(colorName(656)).toBe('rød');
     expect(colorName(300)).toBe('ultrafiolett');
     expect(colorName(900)).toBe('infrarødt');
+  });
+
+  it('Balmer-linjene får samme fargenavn overalt: rød, blågrønn, blåfiolett og fiolett', () => {
+    const names = [3, 4, 5, 6].map((n) => colorName(transitionPhoton(n, 2).lambda * 1e9));
+    expect(names).toEqual(['rød', 'blågrønn', 'blåfiolett', 'fiolett']);
+    expect(colorName(589)).toBe('gul');
+    expect(colorName(546)).toBe('grønn');
+  });
+
+  it('etiketter med høyest prioritet plasseres først', () => {
+    // Den svake etiketten til venstre må vike for de to sterke, selv om den kommer først langs aksen
+    const rows = placeLabels(
+      [
+        { x: 110, width: 30, priority: 0.3 },
+        { x: 120, width: 30, priority: 1 },
+        { x: 140, width: 30, priority: 0.9 },
+      ],
+      2,
+    );
+    expect(rows).toEqual([-1, 0, 1]);
+    // Uten prioritet: i rekkefølge etter x
+    expect(placeLabels([{ x: 140, width: 30 }, { x: 100, width: 30 }], 1)).toEqual([0, 0]);
   });
 
   it('plasserer etiketter i rader uten overlapp', () => {
