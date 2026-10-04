@@ -5,6 +5,7 @@ export type ThemePref = 'light' | 'dark' | 'system';
 
 /** Samme nøkkel og farger som det lille skriptet i index.html (som kjører før første opptegning). */
 const KEY = 'smartnotes:theme';
+const SUBJECT_KEY = 'smartnotes:subjectTheme';
 /** Bakgrunnsfargen per fag (samme som --bg i base.css og subjects.css), til statuslinja i nettleseren. */
 const THEME_COLORS = {
   physics: { light: '#f5f6f8', dark: '#0f1318' },
@@ -46,6 +47,12 @@ export function setSubjectTheme(profile: string | null | undefined): void {
   if (next === 'physics') delete document.documentElement.dataset.subject;
   else document.documentElement.dataset.subject = next;
   apply(themeStore.get());
+  // Huskes til neste oppstart, så skriptet i index.html kan bruke riktig fagtema før første opptegning.
+  try {
+    localStorage.setItem(SUBJECT_KEY, next);
+  } catch {
+    /* ignorer */
+  }
 }
 
 export function setTheme(pref: ThemePref): void {

@@ -12,6 +12,11 @@
       // Tema før første opptegning (unngår blink). Samme nøkkel/farger som src/lib/theme.ts.
       (function () {
         try {
+          // Fagtemaet fra forrige gang (kjemi/biologi), når appen åpnes rett i et fag eller notat.
+          var s = localStorage.getItem('smartnotes:subjectTheme');
+          if ((s === 'chemistry' || s === 'biology') && /^\/(fag|notat)\//.test(location.pathname)) {
+            document.documentElement.setAttribute('data-subject', s);
+          }
           var t = localStorage.getItem('smartnotes:theme');
           if (t !== 'light' && t !== 'dark') return;
           document.documentElement.setAttribute('data-theme', t);
