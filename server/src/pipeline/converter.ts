@@ -312,7 +312,7 @@ export class Converter {
     }
     const state = { again: false };
     this.recompiles.set(id, state);
-    void (async () => {
+    const job = (async () => {
       try {
         do {
           state.again = false;
@@ -335,9 +335,17 @@ export class Converter {
         this.recompiles.delete(id);
       }
     })();
+    this.running.add(job);
+    void job.finally(() => this.running.delete(job));
+  }
+
+  /** Venter til alle rekompileringer i bakgrunnen er ferdige (ved avslutning, før databasen lukkes). */
+  async idle(): Promise<void> {
+    while (this.running.size > 0) await Promise.allSettled([...this.running]);
   }
 
   private readonly recompiles = new Map<string, { again: boolean }>();
+  private readonly running = new Set<Promise<void>>();
   /** Maks to samtidige rekompileringer (f.eks. når et kapittel med mange notater får nytt navn). */
   private readonly recompileSlots = new Semaphore(2);
 

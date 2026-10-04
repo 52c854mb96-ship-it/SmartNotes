@@ -126,6 +126,8 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
 
   app.addHook('onClose', async () => {
     await worker.stop();
+    // Rekompileringer i bakgrunnen skriver til databasen – la dem bli ferdige før den lukkes.
+    await converter.idle();
     repo.close();
   });
 
