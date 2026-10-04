@@ -7,7 +7,7 @@ import { EmptyState, PageSkeleton } from '../components/EmptyState';
 import { PdfViewer } from '../components/PdfViewer';
 import { Spinner } from '../components/Status';
 import { useChapter, useChapters, useSubject, useSubjectNotes } from '../data';
-import { db } from '../db';
+import { asBlob, db, storable } from '../db';
 import { useOnline } from '../lib/connectivity';
 import { downloadUrl, saveBlob } from '../lib/download';
 import { chapterHeading, chapterLabel, formatTimestamp, plural, slugify } from '../lib/format';
@@ -60,7 +60,7 @@ export function BundlePage() {
     const request = isChapter ? api.chapterPdf(chapterId, ctrl.signal) : api.subjectPdf(subjectId, ctrl.signal);
     request
       .then(async (blob) => {
-        await db.bundlePdfs.put({ key, blob, fetchedAt: Date.now(), sig });
+        await db.bundlePdfs.put({ key, blob: await storable(blob), fetchedAt: Date.now(), sig });
         if (!ctrl.signal.aborted) setLoading(false);
       })
       .catch((err: unknown) => {
@@ -84,7 +84,7 @@ export function BundlePage() {
   const filename = `${slugify(isChapter && chapter ? `${subject.name} ${chapterLabel(chapter)}` : subject.name, 'samle')}.pdf`;
 
   const download = () => {
-    if (cached) saveBlob(cached.blob, filename);
+    if (cached) saveBlob(asBlob(cached.blob, 'application/pdf'), filename);
     else if (online) downloadUrl(isChapter ? urls.chapterPdfDownload(chapterId) : urls.subjectPdfDownload(subject.id), filename);
     else toast('PDF-en er ikke lagret på denne enheten.', { kind: 'error' });
   };
@@ -105,7 +105,7 @@ export function BundlePage() {
   } else if (cached) {
     body = (
       <PdfViewer
-        blob={cached.blob}
+        blob={asBlob(cached.blob, 'application/pdf')}
         docKey={`${key}:${cached.fetchedAt}`}
         label={`Samle-PDF: ${title}`}
         toolbarExtra={

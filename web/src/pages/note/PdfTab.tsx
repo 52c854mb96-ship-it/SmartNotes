@@ -5,6 +5,7 @@ import { errorMessage } from '../../api';
 import { PdfViewer } from '../../components/PdfViewer';
 import { Spinner } from '../../components/Status';
 import { useCachedPdf } from '../../data';
+import { asBlob } from '../../db';
 import { useOnline } from '../../lib/connectivity';
 import { fetchNotePdf } from '../../sync';
 
@@ -67,7 +68,7 @@ export function PdfTab({ note, onDownload }: { note: Note; onDownload: () => voi
           </p>
         )}
         <PdfViewer
-          blob={cached.blob}
+          blob={asBlob(cached.blob, 'application/pdf')}
           docKey={`${note.id}:${cached.rev}`}
           label={`PDF: ${note.title}`}
           toolbarExtra={

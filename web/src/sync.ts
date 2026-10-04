@@ -8,7 +8,7 @@
 import type { EntityTable, IDType } from 'dexie';
 import type { Chapter, Note, Subject, SyncResponse, SyncedRow } from '@smartnotes/shared';
 import { ApiError, NetworkError, api, errorMessage, isAbortError, isRetryable, uploadNote } from './api';
-import { META, clearAllLocalData, db, getMeta, setMeta, type OutboxEntry } from './db';
+import { META, clearAllLocalData, db, getMeta, setMeta, storable, type OutboxEntry } from './db';
 import { authStore, isOnline, setBrowserOnline } from './lib/connectivity';
 import { createStore } from './lib/store';
 
@@ -268,7 +268,8 @@ async function flushOutbox(): Promise<void> {
 export async function enqueueUpload(
   input: Omit<OutboxEntry, 'createdAt' | 'attempts' | 'lastError' | 'state'>,
 ): Promise<void> {
-  await db.outbox.add({ ...input, createdAt: Date.now(), attempts: 0, lastError: null, state: 'pending' });
+  const files = await Promise.all(input.files.map(async (f) => ({ ...f, blob: await storable(f.blob) })));
+  await db.outbox.add({ ...input, files, createdAt: Date.now(), attempts: 0, lastError: null, state: 'pending' });
   void syncNow();
 }
 
@@ -376,11 +377,12 @@ export function fetchNotePdf(noteId: string, rev: number): Promise<Blob> {
   if (!p) {
     p = (async () => {
       const blob = await api.notePdf(noteId, rev);
+      const stored = await storable(blob);
       await db.transaction('rw', db.pdfs, db.notes, async () => {
         if (!(await db.notes.get(noteId))) return; // slettet i mellomtiden
         const current = await db.pdfs.get(noteId);
         if (current && current.rev > rev) return;
-        await db.pdfs.put({ noteId, rev, blob, size: blob.size, fetchedAt: Date.now() });
+        await db.pdfs.put({ noteId, rev, blob: stored, size: blob.size, fetchedAt: Date.now() });
       });
       return blob;
     })().finally(() => inflightPdfs.delete(key));

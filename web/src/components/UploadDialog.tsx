@@ -8,7 +8,7 @@ import { MAX_FILE_BYTES, MAX_FILES, isPdf, prepareFile } from '../lib/images';
 import { closeUpload, toast, uploadStore, type UploadRequest } from '../lib/ui';
 import { uuid } from '../lib/uuid';
 import { enqueueUpload } from '../sync';
-import type { OutboxFile } from '../db';
+import { byteSize, type OutboxFile } from '../db';
 import { DropZone, PickedList, acceptFiles, usePickedFiles } from './FilePicker';
 import { Modal } from './Modal';
 
@@ -103,7 +103,7 @@ function UploadForm({ req, onBusy }: { req: UploadRequest; onBusy: (busy: boolea
         setProgress(`Forbereder ${i + 1} av ${picked.items.length} …`);
         files.push(await prepareFile(it.file));
       }
-      const tooBig = files.find((f) => f.blob.size > MAX_FILE_BYTES);
+      const tooBig = files.find((f) => byteSize(f.blob) > MAX_FILE_BYTES);
       if (tooBig) {
         setError(`«${tooBig.name}» er større enn 30 MB.`);
         return;
@@ -123,6 +123,7 @@ function UploadForm({ req, onBusy }: { req: UploadRequest; onBusy: (busy: boolea
         kind: 'success',
       });
     } catch (err) {
+      console.error('Kunne ikke lagre opplastingen', err);
       const quota = err instanceof DOMException && err.name === 'QuotaExceededError';
       setError(
         quota

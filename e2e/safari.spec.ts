@@ -74,6 +74,9 @@ async function notePage(title: string): Promise<Buffer> {
 }
 
 test('opplastingsdialogen vises og kan brukes', async ({ page }, info) => {
+  const logLines: string[] = [];
+  page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && logLines.push(`${m.type()}: ${m.text()}`));
+  page.on('pageerror', (e) => logLines.push(`pageerror: ${e.message}`));
   await login(page);
   await page.getByRole('button', { name: 'Last opp notater' }).first().click();
   await page.waitForTimeout(600); // la åpningsanimasjonen bli ferdig
@@ -96,7 +99,13 @@ test('opplastingsdialogen vises og kan brukes', async ({ page }, info) => {
   await expect(dialog.getByText('side1.jpg')).toBeVisible();
   await dialog.getByLabel(/Tittel/).fill(title);
   await dialog.getByRole('button', { name: /^Last opp$/ }).click();
-  await expect(dialog).toBeHidden();
+  try {
+    await expect(dialog).toBeHidden();
+  } catch (err) {
+    const text = (await dialog.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 600);
+    console.log(`DIAG upload-error [${info.project.name}]`, JSON.stringify({ text, log: logLines }));
+    throw err;
+  }
   await expect(page.locator('main').getByText(title).first()).toBeVisible(SLOW);
 });
 

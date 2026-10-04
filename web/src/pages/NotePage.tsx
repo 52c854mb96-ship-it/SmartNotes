@@ -22,7 +22,7 @@ import { PageSkeleton } from '../components/EmptyState';
 import { Menu } from '../components/Menu';
 import { NoteStatusBadge, Spinner } from '../components/Status';
 import { useChapters, useNote, useSubject } from '../data';
-import { db } from '../db';
+import { asBlob, db } from '../db';
 import { useOnline } from '../lib/connectivity';
 import { aimMap, noteAimCodes, noteSectionCode, sectionLabel, sectionsOf } from '../lib/curriculum';
 import { downloadUrl, saveBlob } from '../lib/download';
@@ -174,11 +174,11 @@ async function downloadPdf(note: Note) {
   const cached = await db.pdfs.get(note.id);
   const filename = `${slugify(note.title)}.pdf`;
   if (cached && cached.rev >= note.pdfRev) {
-    saveBlob(cached.blob, filename);
+    saveBlob(asBlob(cached.blob, 'application/pdf'), filename);
   } else if (navigator.onLine && note.pdfRev > 0) {
     downloadUrl(urls.notePdfDownload(note.id, note.pdfRev), filename);
   } else if (cached) {
-    saveBlob(cached.blob, filename);
+    saveBlob(asBlob(cached.blob, 'application/pdf'), filename);
   } else {
     toast('PDF-en er ikke lagret på denne enheten ennå.', { kind: 'error' });
   }

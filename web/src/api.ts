@@ -18,6 +18,7 @@ import type {
   UpdateNoteRequest,
   UpdateSubjectRequest,
 } from '@smartnotes/shared';
+import { asBlob, type StoredBytes } from './db';
 import { authStore, markReachable } from './lib/connectivity';
 
 const BASE = '/api';
@@ -209,9 +210,9 @@ export const api = {
     }),
   parseChapters: (subjectId: string, text: string) =>
     json<ChapterPreviewResponse>('POST', `/subjects/${enc(subjectId)}/chapters/parse`, { json: { text } }),
-  extractChapters: (subjectId: string, files: { blob: Blob; name: string }[], signal?: AbortSignal) => {
+  extractChapters: (subjectId: string, files: { blob: StoredBytes; name: string; type: string }[], signal?: AbortSignal) => {
     const form = new FormData();
-    for (const f of files) form.append('files', f.blob, f.name);
+    for (const f of files) form.append('files', asBlob(f.blob, f.type), f.name);
     return json<ChapterPreviewResponse>('POST', `/subjects/${enc(subjectId)}/chapters/extract`, {
       form,
       signal,
@@ -255,7 +256,7 @@ export interface UploadInput {
   title: string;
   noteDate: string;
   instructions: string;
-  files: { name: string; type: string; blob: Blob }[];
+  files: { name: string; type: string; blob: StoredBytes }[];
 }
 
 export function uploadNote(
@@ -271,7 +272,7 @@ export function uploadNote(
   if (input.title.trim()) form.append('title', input.title.trim());
   if (input.noteDate) form.append('noteDate', input.noteDate);
   if (input.instructions.trim()) form.append('instructions', input.instructions.trim());
-  for (const f of input.files) form.append('files', f.blob, f.name);
+  for (const f of input.files) form.append('files', asBlob(f.blob, f.type), f.name);
 
   return new Promise<Note>((resolve, reject) => {
     const xhr = new XMLHttpRequest();

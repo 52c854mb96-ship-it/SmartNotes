@@ -1,10 +1,17 @@
 import { Dexie, type EntityTable } from 'dexie';
 import type { Chapter, Note, Subject } from '@smartnotes/shared';
 
+/**
+ * Filinnhold slik det lagres i IndexedDB: en Blob der nettleseren kan lagre Blob, ellers rå bytes.
+ * Safari kan ikke lagre Blob i IndexedDB i private vinduer (og i WebKit uten fast lagring), og da
+ * feilet både opplastingskøen og PDF-lageret. Les alltid via `asBlob`, lagre via `storable`.
+ */
+export type StoredBytes = Blob | ArrayBuffer;
+
 export interface OutboxFile {
   name: string;
   type: string;
-  blob: Blob;
+  blob: StoredBytes;
 }
 
 export type OutboxState = 'pending' | 'uploading' | 'error';
@@ -28,7 +35,7 @@ export interface OutboxEntry {
 export interface PdfCacheEntry {
   noteId: string;
   rev: number;
-  blob: Blob;
+  blob: StoredBytes;
   size: number;
   fetchedAt: number;
 }
@@ -36,7 +43,7 @@ export interface PdfCacheEntry {
 export interface BundlePdfEntry {
   /** `chapter:<id>` eller `subject:<id>` */
   key: string;
-  blob: Blob;
+  blob: StoredBytes;
   fetchedAt: number;
   /** Signatur av innholdet (notater + pdfRev) da PDF-en ble hentet – brukes til å se om den er utdatert. */
   sig: string;
@@ -80,6 +87,39 @@ db.version(3)
   .upgrade(async (tx) => {
     await tx.table('meta').put({ key: 'syncCursor', value: 0 });
   });
+
+// ---------- filinnhold ----------
+
+export function asBlob(data: StoredBytes, type: string): Blob {
+  return data instanceof Blob ? data : new Blob([data], { type });
+}
+
+export function byteSize(data: StoredBytes): number {
+  return data instanceof Blob ? data.size : data.byteLength;
+}
+
+let blobSupport: Promise<boolean> | null = null;
+
+/** Om IndexedDB kan lagre Blob i denne nettleseren (prøves én gang). Safari i private vinduer kan ikke det. */
+function canStoreBlobs(): Promise<boolean> {
+  blobSupport ??= db.meta
+    .put({ key: 'blobProbe', value: new Blob(['x'], { type: 'text/plain' }) })
+    .then(() => db.meta.delete('blobProbe'))
+    .then(
+      () => true,
+      () => false,
+    );
+  return blobSupport;
+}
+
+/**
+ * Gjør filinnhold klart til å lagres: Blob der det går (rask og sparer minne), ellers bytes.
+ * Kalles utenfor Dexie-transaksjoner, fordi den venter på ting som ikke er IndexedDB.
+ */
+export async function storable(data: StoredBytes): Promise<StoredBytes> {
+  if (!(data instanceof Blob)) return data;
+  return (await canStoreBlobs()) ? data : data.arrayBuffer();
+}
 
 // ---------- meta-hjelpere ----------
 
