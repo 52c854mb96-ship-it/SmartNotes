@@ -99,7 +99,7 @@ export default function BohrHydrogen() {
       <Legend items={[1, 2, 3, 4, 5].map((n) => ({ color: seriesColor(n), label: `${seriesName(n)} (ned til n = ${n})` }))} />
 
       <Readouts>
-        <Readout label="Fotonenergi" value={fmt(p.eV, 2)} unit="eV" />
+        <Readout label="Fotonenergi" value={fmt(p.eV, sigDecimals(p.eV))} unit="eV" />
         <Readout label="Fotonenergi i joule" value={fmtSci(p.E, 2)} unit="J" />
         <Readout label="Frekvens f" value={fmtSci(p.f, 2)} unit="Hz" />
         <Readout label="Bølgelengde λ" value={fmt(nm, 0)} unit="nm" />
@@ -113,7 +113,7 @@ export default function BohrHydrogen() {
           E<Sub>foton</Sub> = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = ({fmtSci(levelEnergyJ(upper), 2)} J) − ({fmtSci(levelEnergyJ(lower), 2)} J)
         </FormulaLine>
         <FormulaLine>
-          E<Sub>foton</Sub> = {fmtSci(p.E, 2)} J = {fmt(p.eV, 2)} eV
+          E<Sub>foton</Sub> = {fmtSci(p.E, 2)} J = {fmt(p.eV, sigDecimals(p.eV))} eV
         </FormulaLine>
         <FormulaLine>
           f = E/h = {fmtSci(p.E, 2)} J / 6,63 · 10⁻³⁴ J·s = {fmtSci(p.f, 2)} Hz
@@ -154,7 +154,7 @@ function LevelDiagram({ upper, lower, mode, narrow, height }: { upper: number; l
     : { x: 0, y: 24, w: 440, h: 392, eMin: -14.2, eMax: 0.4, lineX0: 116, lineX1: 300 };
   const zoom: Panel = narrow
     ? { x: 0, y: 470 + head, w: 800, h: height - 470 - head - 24, eMin: -1.68, eMax: 0.12, lineX0: 200, lineX1: 540 }
-    : { x: 456, y: 24 + head, w: 344, h: height - 48 - head, eMin: -1.68, eMax: 0.12, lineX0: 500, lineX1: 696 };
+    : { x: 456, y: 24 + head, w: 344, h: height - 48 - head, eMin: -1.68, eMax: 0.12, lineX0: 500, lineX1: 682 };
 
   // Rammen rundt området som er forstørret
   const zTop = yOf(main, zoom.eMax);
@@ -344,12 +344,17 @@ function WavelengthAxis({ upper, lower, height }: { upper: number; lower: number
       <rect x={sx(80)} y={barY} width={sx(VISIBLE_MIN) - sx(80)} height={barH} fill={VIZ.series[3]} opacity={0.18} />
       <rect x={sx(VISIBLE_MIN)} y={barY} width={sx(VISIBLE_MAX) - sx(VISIBLE_MIN)} height={barH} fill={`url(#${gradId})`} />
       <rect x={sx(VISIBLE_MAX)} y={barY} width={sx(8000) - sx(VISIBLE_MAX)} height={barH} fill={VIZ.series[1]} opacity={0.18} />
-      <Txt x={(sx(80) + sx(VISIBLE_MIN)) / 2} y={barY - 10} muted>
-        UV
-      </Txt>
-      <Txt x={(sx(VISIBLE_MAX) + sx(8000)) / 2} y={barY - 10} muted>
-        infrarødt
-      </Txt>
+      {/* Områdenavnet skjules der etiketten til det valgte fotonet står */}
+      {selNm >= VISIBLE_MIN && (
+        <Txt x={(sx(80) + sx(VISIBLE_MIN)) / 2} y={barY - 10} muted>
+          UV
+        </Txt>
+      )}
+      {selNm <= VISIBLE_MAX && (
+        <Txt x={(sx(VISIBLE_MAX) + sx(8000)) / 2} y={barY - 10} muted>
+          infrarødt
+        </Txt>
+      )}
 
       {/* Én rad per serie */}
       {[1, 2, 3, 4, 5].map((L) => {
@@ -443,7 +448,7 @@ function explanation(mode: Mode, upper: number, lower: number, eV: number, nm: n
     return (
       <p>
         <strong>Emisjon.</strong> Elektronet faller fra n = {upper} til n = {lower} og sender ut ett foton med energi lik forskjellen
-        mellom nivåene: E = hf = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = {fmt(eV, 2)} eV. Det gir λ = {fmt(nm, 0)} nm, som er {where}.{' '}
+        mellom nivåene: E = hf = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = {fmt(eV, sigDecimals(eV))} eV. Det gir λ = {fmt(nm, 0)} nm, som er {where}.{' '}
         {seriesText}
         {ionize} Bohrs modell gir riktige nivåer for hydrogen, men virker ikke for atomer med flere elektroner.
       </p>
@@ -451,7 +456,7 @@ function explanation(mode: Mode, upper: number, lower: number, eV: number, nm: n
   return (
     <p>
       <strong>Absorpsjon.</strong> Atomet tar bare opp et foton som har nøyaktig energien E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> ={' '}
-      {fmt(eV, 2)} eV (λ = {fmt(nm, 0)} nm, {region === 'synlig' ? 'synlig lys' : REGION_NAMES[region]}). Da løftes elektronet fra n = {lower} til n ={' '}
+      {fmt(eV, sigDecimals(eV))} eV (λ = {fmt(nm, 0)} nm, {region === 'synlig' ? 'synlig lys' : REGION_NAMES[region]}). Da løftes elektronet fra n = {lower} til n ={' '}
       {upper}. Fotoner med litt mer eller litt mindre energi går rett gjennom, fordi elektronet ikke kan være mellom nivåene.{ionize}
     </p>
   );

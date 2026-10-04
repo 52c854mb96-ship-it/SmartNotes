@@ -104,7 +104,7 @@ export default function Gassmodell() {
 
       <Formula label="Utregning av trykket med tilstandslikningen for idealgass">
         <FormulaLine>
-          T = {fmt(tC, 0)} °C + 273,15 = {fmt(T, 0)} K
+          t = T − 273,15 = {fmt(T, 0)} − 273,15 = {fmt(tC, 2)} °C
         </FormulaLine>
         <FormulaLine>
           p = nRT / V = 0,10 mol · 8,31 J/(mol·K) · {fmt(T, 0)} K / ({fmt(V, 2)} · 10<Sup>−3</Sup> m³) = {fmt(p / 1000, 1)} kPa
@@ -175,21 +175,35 @@ function Scene({ t, T, V, F }: { t: number; T: number; V: number; F: number }) {
         const ty = Math.max(gasTop, Math.min(gasTop + gasH, y - pt.vy * tail));
         return (
           <g key={i}>
-            {scale > 0 && <line x1={tx} y1={ty} x2={x} y2={y} stroke={VIZ.series[0]} strokeWidth={3} strokeLinecap="round" opacity={0.35} />}
+            {scale > 0 && (
+              <line x1={tx} y1={ty} x2={x} y2={y} stroke={VIZ.series[0]} strokeWidth={3} strokeLinecap="round" opacity={0.35} />
+            )}
             <circle cx={x} cy={y} r={r} fill={VIZ.series[0]} />
           </g>
         );
       })}
 
-      {/* Støt mot stempelet */}
-      {sim.flashes.map((h, i) => {
-        const y = gasTop + PARTICLE_R + h.w * (gasH - 2 * PARTICLE_R);
-        return <line key={i} x1={xp - 3} x2={xp - 3} y1={y - 9} y2={y + 9} stroke={VIZ.applied} strokeWidth={4} strokeLinecap="round" opacity={1 - h.age} />;
-      })}
-
       {/* Stempel og stempelstang */}
       <rect x={xp} y={gasTop - 2} width={PISTON_W} height={gasH + 4} rx={3} fill={VIZ.bodyStrong} className="viz-block" />
       <rect x={xp + PISTON_W} y={midY - 6} width={796 - xp - PISTON_W} height={12} rx={3} fill={VIZ.body} className="viz-block" />
+
+      {/* Støt mot stempelet */}
+      {sim.flashes.map((h, i) => {
+        const y = gasTop + PARTICLE_R + h.w * (gasH - 2 * PARTICLE_R);
+        return (
+          <line
+            key={i}
+            x1={xp + 5}
+            x2={xp + 5}
+            y1={y - 13}
+            y2={y + 13}
+            stroke={VIZ.applied}
+            strokeWidth={6}
+            strokeLinecap="round"
+            opacity={1 - 0.8 * h.age}
+          />
+        );
+      })}
 
       {/* Kraften fra gassen på stempelet */}
       {fLen > 3 ? (
@@ -224,14 +238,22 @@ function PressureGraph({ T, V, p, height }: { T: number; V: number; p: number; h
       width={800}
       height={height}
     >
-      {({ sx, sy, y1 }) => {
+      {({ sx, sy, x0, y1 }) => {
         const px = sx(toCelsius(T));
         const py = sy(p / 1000);
         const zeroX = sx(tLo);
         return (
           <g>
             {OTHER_V.map((v) => (
-              <path key={v} d={linePath(line(v), sx, sy)} fill="none" stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="6 5" opacity={0.8} />
+              <path
+                key={v}
+                d={linePath(line(v), sx, sy)}
+                fill="none"
+                stroke={VIZ.muted}
+                strokeWidth={1.5}
+                strokeDasharray="6 5"
+                opacity={0.8}
+              />
             ))}
             <path d={linePath(line(V), sx, sy)} fill="none" stroke={VIZ.series[0]} strokeWidth={3.5} strokeLinecap="round" />
             {/* Det absolutte nullpunktet */}
@@ -246,7 +268,7 @@ function PressureGraph({ T, V, p, height }: { T: number; V: number; p: number; h
             <line x1={px} x2={px} y1={sy(0)} y2={py} stroke={VIZ.series[1]} strokeWidth={1.5} strokeDasharray="4 4" />
             <ColorDot x={px} y={py} r={8} color={VIZ.series[0]} />
             {/* Linja stiger mot høyre, så etiketten står over linja til venstre for punktet */}
-            <Tag x={px - 12} y={py - 14} anchor="end" color={VIZ.series[0]}>
+            <Tag x={px < x0 + 130 * f ? px + 12 : px - 12} y={py - 14} anchor={px < x0 + 130 * f ? 'start' : 'end'} color={VIZ.series[0]}>
               {fmt(p / 1000, 0)} kPa
             </Tag>
           </g>
@@ -261,17 +283,17 @@ function explanation(T: number, V: number, p: number, F: number, vTyp: number): 
   if (T < 0.5)
     return (
       <p>
-        <strong>Det absolutte nullpunktet.</strong> Ved 0 K = −273,15 °C har partiklene så lite bevegelsesenergi som mulig. I
-        modellen står de helt stille, treffer aldri stempelet, og trykket er null. Lavere temperatur finnes ikke, og derfor
-        starter kelvinskalaen her. (En ekte gass blir flytende og fast lenge før.)
+        <strong>Det absolutte nullpunktet.</strong> Ved 0 K = −273,15 °C har partiklene så lite bevegelsesenergi som mulig. I modellen står
+        de helt stille, treffer aldri stempelet, og trykket er null. Lavere temperatur finnes ikke, og derfor starter kelvinskalaen her. (En
+        ekte gass blir flytende og fast lenge før.)
       </p>
     );
   const kPa = fmt(p / 1000, 0);
   const first = (
     <p>
-      <strong>Trykk kommer fra støt.</strong> Partiklene farer rundt med en typisk fart på {fmt(vTyp, 0)} m/s og treffer veggene
-      hele tiden. Hvert støt gir stempelet et lite dytt, og til sammen blir det kraften F = {fmt(F, 0)} N på arealet A = 50 cm²,
-      altså p = F/A = {kPa} kPa.
+      <strong>Trykk kommer fra støt.</strong> Partiklene farer rundt med en typisk fart på {fmt(vTyp, 0)} m/s og treffer veggene hele tiden.
+      Hvert støt gir stempelet et lite dytt, og til sammen blir det kraften F = {fmt(F, 0)} N på arealet A = 50 cm², altså p = F/A = {kPa}{' '}
+      kPa.
     </p>
   );
   const atRef = Math.abs(T - T_REF) < 2;
@@ -280,22 +302,22 @@ function explanation(T: number, V: number, p: number, F: number, vTyp: number): 
   if (atRef && Math.abs(V - V_REF) < 0.03) {
     second = (
       <p>
-        Ved 20 °C og 2,40 L er trykket omtrent som lufttrykket. Øk temperaturen: partiklene får mer bevegelsesenergi og treffer
-        stempelet både oftere og hardere.
+        Ved 20 °C og 2,40 L er trykket omtrent som lufttrykket. Øk temperaturen: partiklene får mer bevegelsesenergi og treffer stempelet
+        både oftere og hardere.
       </p>
     );
   } else if (atRef) {
     second = (
       <p>
-        Med {fmt(V, 2)} L i stedet for 2,40 L treffer partiklene stempelet {fmt(vRatio, 2)} ganger så ofte, så trykket blir{' '}
-        {fmt(vRatio, 2)} ganger så stort. Halvt volum gir dobbelt trykk når temperaturen er den samme (pV = nRT).
+        Med {fmt(V, 2)} L i stedet for 2,40 L treffer partiklene stempelet {fmt(vRatio, 2)} ganger så ofte, så trykket blir {fmt(vRatio, 2)}{' '}
+        ganger så stort. Halvt volum gir dobbelt trykk når temperaturen er den samme (pV = nRT).
       </p>
     );
   } else if (tC < 0) {
     second = (
       <p>
-        Grafen viser at trykket går mot null ved −273,15 °C, uansett volum. Det er det absolutte nullpunktet, 0 K. I
-        tilstandslikningen pV = nRT må T derfor alltid være i kelvin.
+        Grafen viser at trykket går mot null ved −273,15 °C, uansett volum. Det er det absolutte nullpunktet, 0 K. I tilstandslikningen pV =
+        nRT må T derfor alltid være i kelvin.
       </p>
     );
   } else if (tC >= 30) {
@@ -303,15 +325,15 @@ function explanation(T: number, V: number, p: number, F: number, vTyp: number): 
     const ratioK = T / T_REF;
     second = (
       <p>
-        Pass på celsius: {fmt(tC, 0)} °C er {fmt(ratioC, 1)} ganger så mye som 20 °C, men ved samme volum blir trykket bare{' '}
-        {fmt(ratioK, 2)} ganger så stort. Trykket er proporsjonalt med temperaturen i kelvin, {fmt(T, 0)} K mot 293 K.
+        Pass på celsius: {fmt(tC, 0)} °C er {fmt(ratioC, 1)} ganger så mye som 20 °C, men ved samme volum blir trykket bare {fmt(ratioK, 2)}{' '}
+        ganger så stort. Trykket er proporsjonalt med temperaturen i kelvin, {fmt(T, 0)} K mot 293 K.
       </p>
     );
   } else {
     second = (
       <p>
-        Lavere temperatur gir langsommere partikler, som treffer stempelet sjeldnere og svakere. Trykket er proporsjonalt med
-        temperaturen i kelvin.
+        Lavere temperatur gir langsommere partikler, som treffer stempelet sjeldnere og svakere. Trykket er proporsjonalt med temperaturen i
+        kelvin.
       </p>
     );
   }
@@ -322,4 +344,3 @@ function explanation(T: number, V: number, p: number, F: number, vTyp: number): 
     </>
   );
 }
-

@@ -44,7 +44,8 @@ describe('bølger', () => {
     const [A, lambda, f] = [0.2, 1.5, 0.8];
     const v = waveSpeed(lambda, f);
     const dt = 0.37;
-    for (const x of [0, 0.4, 2.2]) expect(waveDisplacement(x + v * dt, dt, A, lambda, f)).toBeCloseTo(waveDisplacement(x, 0, A, lambda, f), 9);
+    for (const x of [0, 0.4, 2.2])
+      expect(waveDisplacement(x + v * dt, dt, A, lambda, f)).toBeCloseTo(waveDisplacement(x, 0, A, lambda, f), 9);
   });
 
   it('partikkelfarten er den deriverte av utslaget, og er null på toppen', () => {

@@ -255,10 +255,17 @@ function explanation(a: AtomInfo): ReactNode {
       <p>
         Det er antall protoner som bestemmer grunnstoffet: alle atomer med Z = {a.Z} er {name}. {isotope} {charge}
       </p>
-      <p>
-        Nesten all massen ({fmt(a.nucleusMassFraction * 100, 2)} %) sitter i kjernen, som bare er ca. 10⁻¹⁵ m, mens hele atomet er
-        ca. 10⁻¹⁰ m. Atomet er altså nesten bare tomrom.
-      </p>
+      {a.electrons > 0 ? (
+        <p>
+          Nesten all massen ({fmt(a.nucleusMassFraction * 100, 2)} %) sitter i kjernen, som bare er ca. 10⁻¹⁵ m, mens hele atomet er
+          ca. 10⁻¹⁰ m. Atomet er altså nesten bare tomrom.
+        </p>
+      ) : (
+        <p>
+          Kjernen er bare ca. 10⁻¹⁵ m. Med elektroner rundt seg blir atomet ca. 10⁻¹⁰ m, så et atom er nesten bare tomrom, men nesten
+          all massen sitter i kjernen.
+        </p>
+      )}
     </>
   );
 }

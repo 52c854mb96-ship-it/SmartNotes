@@ -33,7 +33,10 @@ const MODES: { value: Mode; label: string }[] = [
   { value: 'vann', label: 'Varmt og kaldt vann' },
   { value: 'metall', label: 'Metallbit i vann' },
 ];
-const METALS: { value: Metal; label: string }[] = (['aluminium', 'jern', 'kobber', 'bly'] as const).map((id) => ({ value: id, label: MATERIALS[id].name }));
+const METALS: { value: Metal; label: string }[] = (['aluminium', 'jern', 'kobber', 'bly'] as const).map((id) => ({
+  value: id,
+  label: MATERIALS[id].name,
+}));
 
 const HOT = VIZ.series[1];
 const COLD = VIZ.series[0];
@@ -180,8 +183,8 @@ export default function Blanding() {
           c<Sub>1</Sub>m<Sub>1</Sub>(T<Sub>1</Sub> − T) = c<Sub>2</Sub>m<Sub>2</Sub>(T − T<Sub>2</Sub>)
         </FormulaLine>
         <FormulaLine>
-          c<Sub>1</Sub>m<Sub>1</Sub> = {fmt(c1, 0)} J/(kg·K) · {fmt(hot.m, 2)} kg = {fmt(c1 * hot.m, 0)} J/K, &nbsp; c<Sub>2</Sub>m<Sub>2</Sub> = {fmt(C_WATER, 0)}{' '}
-          J/(kg·K) · {fmt(cold.m, 2)} kg = {fmt(C_WATER * cold.m, 0)} J/K
+          c<Sub>1</Sub>m<Sub>1</Sub> = {fmt(c1, 0)} J/(kg·K) · {fmt(hot.m, 2)} kg = {fmt(c1 * hot.m, 0)} J/K, &nbsp; c<Sub>2</Sub>m
+          <Sub>2</Sub> = {fmt(C_WATER, 0)} J/(kg·K) · {fmt(cold.m, 2)} kg = {fmt(C_WATER * cold.m, 0)} J/K
         </FormulaLine>
         <FormulaLine>
           T = ({fmt(c1 * hot.m, 0)} · {fmt(hot.T, 0)} + {fmt(C_WATER * cold.m, 0)} · {fmt(cold.T, 0)}) / ({fmt(c1 * hot.m, 0)} +{' '}
@@ -224,8 +227,28 @@ function Bodies({
   const flow = (st.T1 - st.T2) / gap;
   return (
     <g>
-      <Vessel cx={cx1} halfW={halfW} top={top} bottom={bottom} fill={HOT} level={metal ? null : 0.25 + 0.35 * hot.m} T={st.T1} Ts={st.Ts} f={f} />
-      <Vessel cx={cx2} halfW={halfW} top={top} bottom={bottom} fill={COLD} level={0.25 + (metal ? 0.7 : 0.35) * cold.m} T={st.T2} Ts={st.Ts} f={f} />
+      <Vessel
+        cx={cx1}
+        halfW={halfW}
+        top={top}
+        bottom={bottom}
+        fill={HOT}
+        level={metal ? null : 0.25 + 0.35 * hot.m}
+        T={st.T1}
+        Ts={st.Ts}
+        f={f}
+      />
+      <Vessel
+        cx={cx2}
+        halfW={halfW}
+        top={top}
+        bottom={bottom}
+        fill={COLD}
+        level={0.25 + (metal ? 0.7 : 0.35) * cold.m}
+        T={st.T2}
+        Ts={st.Ts}
+        f={f}
+      />
       <Tag x={cx1} y={34} color={HOT} weight={700}>
         {name1}
       </Tag>
@@ -253,7 +276,27 @@ function Bodies({
 }
 
 /** Beger med vann (level = andel fylt) eller en metallbit (level = null), med termometer. */
-function Vessel({ cx, halfW, top, bottom, fill, level, T, Ts, f }: { cx: number; halfW: number; top: number; bottom: number; fill: string; level: number | null; T: number; Ts: number; f: number }) {
+function Vessel({
+  cx,
+  halfW,
+  top,
+  bottom,
+  fill,
+  level,
+  T,
+  Ts,
+  f,
+}: {
+  cx: number;
+  halfW: number;
+  top: number;
+  bottom: number;
+  fill: string;
+  level: number | null;
+  T: number;
+  Ts: number;
+  f: number;
+}) {
   const thermoX = cx + 0.62 * halfW;
   return (
     <g>
@@ -261,11 +304,25 @@ function Vessel({ cx, halfW, top, bottom, fill, level, T, Ts, f }: { cx: number;
         <rect x={cx - halfW} y={bottom - 120} width={2 * halfW} height={120} rx={8} fill={VIZ.bodyStrong} className="viz-block" />
       ) : (
         <>
-          <rect x={cx - halfW + 3} y={bottom - level * (bottom - top)} width={2 * halfW - 6} height={level * (bottom - top) - 3} rx={4} fill={fill} opacity={0.22} />
-          <path d={`M ${cx - halfW} ${top} V ${bottom} H ${cx + halfW} V ${top}`} fill="none" stroke={VIZ.muted} strokeWidth={3} strokeLinejoin="round" />
+          <rect
+            x={cx - halfW + 3}
+            y={bottom - level * (bottom - top)}
+            width={2 * halfW - 6}
+            height={level * (bottom - top) - 3}
+            rx={4}
+            fill={fill}
+            opacity={0.22}
+          />
+          <path
+            d={`M ${cx - halfW} ${top} V ${bottom} H ${cx + halfW} V ${top}`}
+            fill="none"
+            stroke={VIZ.muted}
+            strokeWidth={3}
+            strokeLinejoin="round"
+          />
         </>
       )}
-      <Thermometer x={thermoX} yTop={top - 30} yBottom={bottom - 44} min={0} max={100} value={T} color={fill} marker={Ts} />
+      <Thermometer x={thermoX} yTop={top - 8} yBottom={bottom - 44} min={0} max={100} value={T} color={fill} marker={Ts} />
       <Tag x={cx - 0.3 * halfW} y={bottom - 50} weight={700} size={22 * f}>
         {fmt(T, 1)} °C
       </Tag>
@@ -292,7 +349,16 @@ function EnergyBars({ x0, w, h, st }: { x0: number; w: number; h: number; st: Mi
       <line x1={x0 + 10} x2={x0 + w - 10} y1={base} y2={base} stroke={VIZ.muted} strokeWidth={1.5} />
       {bars.map((b) => (
         <g key={b.label}>
-          <rect x={b.x - bw / 2} y={base - st.Qtotal * k} width={bw} height={st.Qtotal * k} fill="none" stroke={b.color} strokeWidth={1.5} strokeDasharray="5 4" />
+          <rect
+            x={b.x - bw / 2}
+            y={base - st.Qtotal * k}
+            width={bw}
+            height={st.Qtotal * k}
+            fill="none"
+            stroke={b.color}
+            strokeWidth={1.5}
+            strokeDasharray="5 4"
+          />
           <rect x={b.x - bw / 2} y={base - st.Q * k} width={bw} height={Math.max(1.5, st.Q * k)} rx={3} fill={b.color} />
           <Tag x={b.x} y={base - st.Q * k - 10}>
             {fmt(st.Q / 1000, 1)}
@@ -311,7 +377,12 @@ function MixGraph({ input, st, t, height }: { input: MixInput; st: MixState; t: 
   const T1 = sample((x) => mixState(input, x).T1, 0, T_END, 160);
   const T2 = sample((x) => mixState(input, x).T2, 0, T_END, 160);
   return (
-    <Plot x={{ min: 0, max: T_END, label: 'Tid t (s)' }} y={{ min: 0, max: 100, label: 'Temperatur (°C)', ticks: [0, 20, 40, 60, 80, 100] }} width={800} height={height}>
+    <Plot
+      x={{ min: 0, max: T_END, label: 'Tid t (s)' }}
+      y={{ min: 0, max: 100, label: 'Temperatur (°C)', ticks: [0, 20, 40, 60, 80, 100] }}
+      width={800}
+      height={height}
+    >
       {({ sx, sy, x0, x1, y0 }) => {
         const tsY = sy(st.Ts);
         // Etiketten for sluttemperaturen står over linja, eller under når kurven for T₁ er i veien helt til høyre
@@ -341,9 +412,9 @@ function explanation(input: MixInput, end: MixState, water: boolean, name1: stri
   const d2 = end.Ts - input.T2;
   const first = (
     <p>
-      <strong>Energien går fra varmt til kaldt.</strong> {name1} avgir Q = {fmt(end.Qtotal / 1000, 1)} kJ, og{' '}
-      {name2.toLowerCase()} mottar like mye (energien er bevart når vi ser bort fra varmetap). Overføringen stopper i termisk likevekt
-      ved {fmt(end.Ts, 1)} °C. Varme er energien som overføres, ikke noe et legeme har.
+      <strong>Energien går fra varmt til kaldt.</strong> {name1} avgir Q = {fmt(end.Qtotal / 1000, 1)} kJ, og {name2.toLowerCase()} mottar
+      like mye (energien er bevart når vi ser bort fra varmetap). Overføringen stopper i termisk likevekt ved {fmt(end.Ts, 1)} °C. Varme er
+      energien som overføres, ikke noe et legeme har.
     </p>
   );
   let second: ReactNode;
@@ -360,8 +431,7 @@ function explanation(input: MixInput, end: MixState, water: boolean, name1: stri
     second = (
       <p>
         Sluttemperaturen er ikke gjennomsnittet ({fmt(avg, 1)} °C). Det er {fmt(Math.max(C1, C2) / Math.min(C1, C2), 1)} ganger så mye{' '}
-        {bigger} vann, og den største vannmengden trenger minst temperaturendring for den samme energien: {fmt(d1, 1)} K mot{' '}
-        {fmt(d2, 1)} K.
+        {bigger} vann, og den største vannmengden trenger minst temperaturendring for den samme energien: {fmt(d1, 1)} K mot {fmt(d2, 1)} K.
       </p>
     );
   } else {

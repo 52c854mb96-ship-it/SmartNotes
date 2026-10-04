@@ -103,7 +103,10 @@ export default function Bolger() {
           <Snapshot kind={kind} t={clock.t} A={Aeff} lambda={lambda} f={f} v={v} height={snapH} />
         </Figure>
       </div>
-      <Figure viewBox={`0 0 800 ${graphH}`} label={`Graf over utslaget til den markerte partikkelen som funksjon av tiden. Perioden er ${fmt(T, 2)} s.`}>
+      <Figure
+        viewBox={`0 0 800 ${graphH}`}
+        label={`Graf over utslaget til den markerte partikkelen som funksjon av tiden. Perioden er ${fmt(T, 2)} s.`}
+      >
         <TimeGraph kind={kind} t={clock.t} A={Aeff} lambda={lambda} f={f} height={graphH} />
       </Figure>
       <Legend
@@ -134,14 +137,35 @@ export default function Bolger() {
   );
 }
 
-function Snapshot({ kind, t, A, lambda, f, v, height }: { kind: Kind; t: number; A: number; lambda: number; f: number; v: number; height: number }) {
+function Snapshot({
+  kind,
+  t,
+  A,
+  lambda,
+  f,
+  v,
+  height,
+}: {
+  kind: Kind;
+  t: number;
+  A: number;
+  lambda: number;
+  f: number;
+  v: number;
+  height: number;
+}) {
   const s = useTextScale();
+
   const longi = kind === 'longitudinal';
   const y = (x: number) => waveDisplacement(x, t, A, lambda, f);
   return (
     <Plot
       x={{ min: 0, max: X_MAX, label: 'Posisjon x (m)' }}
-      y={longi ? { min: -0.95, max: 0.8, label: '', ticks: [] } : { min: -0.95, max: 0.8, label: 'Utslag y (m)', ticks: [-0.5, 0, 0.5], decimals: 1 }}
+      y={
+        longi
+          ? { min: -0.95, max: 0.8, label: '', ticks: [] }
+          : { min: -0.95, max: 0.8, label: 'Utslag y (m)', ticks: [-0.5, 0, 0.5], decimals: 1 }
+      }
       width={800}
       height={height}
     >
@@ -179,7 +203,7 @@ function Snapshot({ kind, t, A, lambda, f, v, height }: { kind: Kind; t: number;
           const rare =
             c0 === undefined
               ? undefined
-              : [c0 + lambda / 2, c0 - lambda / 2, c0 + 1.5 * lambda, c0 - 1.5 * lambda].find(
+              : Array.from({ length: 24 }, (_, k) => c0 + (Math.floor(k / 2) + 0.5) * lambda * (k % 2 === 0 ? 1 : -1)).find(
                   (x) => x > 0.9 && x < X_MAX - 0.9 && Math.abs(sx(x) - sx(c0)) > 130 * s,
                 );
           const showRare = rare !== undefined;
@@ -203,11 +227,13 @@ function Snapshot({ kind, t, A, lambda, f, v, height }: { kind: Kind; t: number;
           );
         }
         const pts = sample(y, 0, X_MAX, 360);
+        // Minst 8 partikler per bølgelengde
+        const nb = Math.round(X_MAX / Math.min(0.2, lambda / 8));
         const beads: ReactNode[] = [];
-        for (let i = 0; i <= 30; i++) {
-          const xe = (i * X_MAX) / 30;
-          if (Math.abs(xe - XP) < 1e-9) continue;
-          beads.push(<circle key={i} cx={sx(xe)} cy={sy(y(xe))} r={4} fill={WAVE} />);
+        for (let i = 0; i <= nb; i++) {
+          const xe = (i * X_MAX) / nb;
+          if (Math.abs(xe - XP) < X_MAX / nb / 2) continue;
+          beads.push(<circle key={i} cx={sx(xe)} cy={sy(y(xe))} r={nb > 40 ? 3 : 4} fill={WAVE} />);
         }
         // λ mellom to bølgedaler (eller topper) nederst, A ved en topp eller dal nær venstre kant
         const crests = crestPositions(t, lambda, f, 0, X_MAX);
@@ -230,12 +256,12 @@ function Snapshot({ kind, t, A, lambda, f, v, height }: { kind: Kind; t: number;
                 <line x1={sx(start + lambda)} x2={sx(start + lambda)} y1={sy(-A) + 4} y2={dimY + 8} className="viz-guide" />
                 <Arrow x1={sx(start + lambda / 2)} y1={dimY} x2={sx(start) + 1} y2={dimY} color={VIZ.ink} width={1.8} head={9} />
                 <Arrow x1={sx(start + lambda / 2)} y1={dimY} x2={sx(start + lambda) - 1} y2={dimY} color={VIZ.ink} width={1.8} head={9} />
-                <Tag x={sx(start + lambda / 2)} y={dimY - 8}>
+                <Tag x={sx(start + lambda / 2)} y={dimY + 22 * s}>
                   λ
                 </Tag>
               </g>
             )}
-            {aAt && (
+            {aAt && Math.abs(sy(A) - sy(0)) > 16 && (
               <g>
                 <Arrow x1={sx(aAt.x)} y1={sy(0)} x2={sx(aAt.x)} y2={sy(aAt.up ? A : -A)} color={VIZ.ink} width={1.8} head={9} />
                 <Tag x={sx(aAt.x) - 10} y={sy(aAt.up ? A / 2 : -A / 2) + 6} anchor="end">
@@ -245,7 +271,9 @@ function Snapshot({ kind, t, A, lambda, f, v, height }: { kind: Kind; t: number;
             )}
             {/* Den markerte partikkelen beveger seg bare opp og ned langs den stiplede streken */}
             <line x1={sx(XP)} x2={sx(XP)} y1={sy(A)} y2={sy(-A)} stroke={MARK} strokeWidth={3} strokeDasharray="4 4" />
-            {Math.abs(uLen) > 8 && <Arrow x1={sx(XP) + 18} y1={sy(y(XP))} x2={sx(XP) + 18} y2={sy(y(XP)) - uLen} color={MARK} width={3} head={11} />}
+            {Math.abs(uLen) > 8 && (
+              <Arrow x1={sx(XP) + 18} y1={sy(y(XP))} x2={sx(XP) + 18} y2={sy(y(XP)) - uLen} color={MARK} width={3} head={11} />
+            )}
             <ColorDot x={sx(XP)} y={sy(y(XP))} r={9} color={MARK} />
             {vArrow}
           </g>
@@ -298,21 +326,20 @@ function explanation(kind: Kind, v: number, T: number, lambda: number, A: number
     kind === 'transversal' ? (
       <p>
         <strong>Bølgen flytter seg, partiklene gjør det ikke.</strong> Formen går mot høyre med v = {fmt(v, 2)} m/s, men den markerte
-        partikkelen svinger bare opp og ned. På én periode, T = {fmt(T, 2)} s, flytter bølgen seg én bølgelengde ({fmt(lambda, 2)} m),
-        mens partikkelen går en strekning 4A = {fmt(4 * A, 2)} m og er tilbake der den startet.
+        partikkelen svinger bare opp og ned. På én periode, T = {fmt(T, 2)} s, flytter bølgen seg én bølgelengde ({fmt(lambda, 2)} m), mens
+        partikkelen går en strekning 4A = {fmt(4 * A, 2)} m og er tilbake der den startet.
       </p>
     ) : (
       <p>
-        <strong>Longitudinal bølge.</strong> Partiklene svinger fram og tilbake langs fartsretningen til bølgen, så det blir
-        fortetninger og fortynninger. Det er mønsteret som flytter seg med v = {fmt(v, 2)} m/s, ikke partiklene. Lyd i luft er en slik
-        bølge.
+        <strong>Longitudinal bølge.</strong> Partiklene svinger fram og tilbake langs fartsretningen til bølgen, så det blir fortetninger og
+        fortynninger. Det er mønsteret som flytter seg med v = {fmt(v, 2)} m/s, ikke partiklene. Lyd i luft er en slik bølge.
         {clipped ? ` Amplituden er begrenset til ${fmt(A, 2)} m her, ellers ville nabopartiklene passert hverandre.` : ''}
       </p>
     );
   const second = lock ? (
     <p>
-      Bølgefarten bestemmes av mediet, så den er fast her. Øker du frekvensen, blir bølgelengden kortere, og v = λf er den samme.
-      Avstanden mellom to topper er λ i øyeblikksbildet, men T i grafen for én partikkel.
+      Bølgefarten bestemmes av mediet, så den er fast her. Øker du frekvensen, blir bølgelengden kortere, og v = λf er den samme. Avstanden
+      mellom to topper er λ i øyeblikksbildet, men T i grafen for én partikkel.
     </p>
   ) : (
     <p>

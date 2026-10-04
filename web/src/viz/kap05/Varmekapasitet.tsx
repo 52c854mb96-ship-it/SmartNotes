@@ -26,7 +26,10 @@ import { ColorDot, Tag, Thermometer, useNarrow } from './marks';
 
 /** Starttemperatur (°C). */
 const T0 = 20;
-const OPTIONS: { value: MaterialId; label: string }[] = (Object.keys(MATERIALS) as MaterialId[]).map((id) => ({ value: id, label: MATERIALS[id].name }));
+const OPTIONS: { value: MaterialId; label: string }[] = (Object.keys(MATERIALS) as MaterialId[]).map((id) => ({
+  value: id,
+  label: MATERIALS[id].name,
+}));
 const COLORS = [VIZ.series[0], VIZ.series[1]] as const;
 
 interface Run {
@@ -75,6 +78,11 @@ export default function Varmekapasitet() {
   const clock = useSimClock({ tMax: tEnd, speed: tEnd / 8 });
   const { setT } = clock;
   useEffect(() => setT(60), [setT]);
+  // Kortere forsøk enn tiden som er spilt av: hopp til slutten, så tidsvisningen stemmer
+  const over = clock.t > tEnd;
+  useEffect(() => {
+    if (over) setT(tEnd);
+  }, [over, tEnd, setT]);
   const t = Math.min(clock.t, tEnd);
   const graphH = narrow ? 440 : 340;
 
@@ -169,8 +177,17 @@ export default function Varmekapasitet() {
 
 function TimeReadout({ run, T1 }: { run: Run; T1: number }) {
   if (!Number.isFinite(run.tDone))
-    return <Readout label={`${run.mat.name} når ikke ${fmt(T1, 0)} °C`} value="koker" unit={`ved ${fmt(run.mat.boil ?? 0, 0)} °C`} tone={run.color} />;
-  return <Readout label={`Tid til ${fmt(T1, 0)} °C for ${run.mat.name.toLowerCase()}`} value={fmt(run.tDone, 0)} unit="s" tone={run.color} />;
+    return (
+      <Readout
+        label={`${run.mat.name} når ikke ${fmt(T1, 0)} °C`}
+        value="koker"
+        unit={`ved ${fmt(run.mat.boil ?? 0, 0)} °C`}
+        tone={run.color}
+      />
+    );
+  return (
+    <Readout label={`Tid til ${fmt(T1, 0)} °C for ${run.mat.name.toLowerCase()}`} value={fmt(run.tDone, 0)} unit="s" tone={run.color} />
+  );
 }
 
 /** Ett stoff på en varmeplate med termometer, tegnet i feltet x0 … x0 + w. */
@@ -202,7 +219,13 @@ function Station({ x0, w, run, m, P, t, T1 }: { x0: number; w: number; run: Run;
       {liquid ? (
         <>
           <rect x={vx - halfW + 3} y={level} width={2 * halfW - 6} height={bottom - level - 3} rx={4} fill={run.color} opacity={0.22} />
-          <path d={`M ${vx - halfW} ${top} V ${bottom} H ${vx + halfW} V ${top}`} fill="none" stroke={VIZ.muted} strokeWidth={3} strokeLinejoin="round" />
+          <path
+            d={`M ${vx - halfW} ${top} V ${bottom} H ${vx + halfW} V ${top}`}
+            fill="none"
+            stroke={VIZ.muted}
+            strokeWidth={3}
+            strokeLinejoin="round"
+          />
           {st.boiling &&
             [0, 1, 2, 3, 4, 5].map((k) => {
               const phase = (t * 1.3 + k * 0.37) % 1;
@@ -222,10 +245,10 @@ function Station({ x0, w, run, m, P, t, T1 }: { x0: number; w: number; run: Run;
       ) : (
         <rect x={vx - blockW / 2} y={bottom - 104} width={blockW} height={104} rx={6} fill={VIZ.bodyStrong} className="viz-block" />
       )}
-      <Tag x={vx} y={liquid ? level + 52 : bottom - 58} weight={700} size={24 * f}>
+      <Tag x={vx} y={liquid ? top + 74 : bottom - 58} weight={700} size={24 * f}>
         {fmt(T, 1)} °C
       </Tag>
-      <Tag x={vx} y={liquid ? level + 52 + 26 * f : bottom - 58 + 26 * f} muted>
+      <Tag x={vx} y={liquid ? top + 74 + 26 * f : bottom - 58 + 26 * f} muted>
         Q = {fmt(st.Q / 1000, 1)} kJ
       </Tag>
 
@@ -241,7 +264,23 @@ function Station({ x0, w, run, m, P, t, T1 }: { x0: number; w: number; run: Run;
   );
 }
 
-function TempGraph({ runs, m, P, T1, t, tEnd, height }: { runs: Run[]; m: number; P: number; T1: number; t: number; tEnd: number; height: number }) {
+function TempGraph({
+  runs,
+  m,
+  P,
+  T1,
+  t,
+  tEnd,
+  height,
+}: {
+  runs: Run[];
+  m: number;
+  P: number;
+  T1: number;
+  t: number;
+  tEnd: number;
+  height: number;
+}) {
   const f = useTextScale();
   return (
     <Plot
@@ -271,7 +310,14 @@ function TempGraph({ runs, m, P, T1, t, tEnd, height }: { runs: Run[]; m: number
               const labelY = y0 - 10 - (close && later ? 28 * f : 0);
               return (
                 <g key={i}>
-                  <path d={linePath(pts, sx, sy)} fill="none" stroke={r.color} strokeWidth={3.5} strokeLinejoin="round" strokeLinecap="round" />
+                  <path
+                    d={linePath(pts, sx, sy)}
+                    fill="none"
+                    stroke={r.color}
+                    strokeWidth={3.5}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
                   {Number.isFinite(x) && (
                     <>
                       <line x1={x} x2={x} y1={sy(T1)} y2={y0} className="viz-guide" />
@@ -282,7 +328,7 @@ function TempGraph({ runs, m, P, T1, t, tEnd, height }: { runs: Run[]; m: number
                     </>
                   )}
                   {!Number.isFinite(r.tDone) && r.mat.boil !== undefined && (
-                    <Tag x={x1 - 8} y={sy(r.mat.boil) - 12} anchor="end" color={r.color}>
+                    <Tag x={x1 - 8} y={sy(r.mat.boil) + 26 * f} anchor="end" color={r.color}>
                       koker ved {fmt(r.mat.boil, 0)} °C
                     </Tag>
                   )}
@@ -317,8 +363,8 @@ function explanation(runs: Run[], m: number, P: number, T1: number): ReactNode {
     </p>
   ) : (
     <p>
-      <strong>Samme energi, ulik temperaturøkning.</strong> Begge får like mye energi hvert sekund (P = {fmt(P, 0)} W) og har samme
-      masse. {hi.mat.name} har {fmt(ratio, 1)} ganger så stor spesifikk varmekapasitet som {lo.mat.name.toLowerCase()}, altså trengs{' '}
+      <strong>Samme energi, ulik temperaturøkning.</strong> Begge får like mye energi hvert sekund (P = {fmt(P, 0)} W) og har samme masse.{' '}
+      {hi.mat.name} har {fmt(ratio, 1)} ganger så stor spesifikk varmekapasitet som {lo.mat.name.toLowerCase()}, altså trengs{' '}
       {fmt(ratio, 1)} ganger så mye energi for hver kelvin, og temperaturen stiger {fmt(ratio, 1)} ganger så langsomt. Stigningstallet i
       grafen er ΔT/Δt = P/(c·m).
     </p>
@@ -329,17 +375,19 @@ function explanation(runs: Run[], m: number, P: number, T1: number): ReactNode {
     const r = boiling[0]!;
     extra = (
       <p>
-        {r.mat.name} koker ved {fmt(r.mat.boil ?? 0, 0)} °C. Da går all tilført energi med til å fordampe væsken, og temperaturen
-        står stille selv om vi varmer videre. Den kommer derfor aldri opp i {fmt(T1, 0)} °C.
+        {r.mat.name} koker ved {fmt(r.mat.boil ?? 0, 0)} °C. Da går all tilført energi med til å fordampe væsken, og temperaturen står
+        stille selv om vi varmer videre. Den kommer derfor aldri opp i {fmt(T1, 0)} °C.
       </p>
     );
   } else if (waterAt100) {
-    extra = <p>Ved 100 °C begynner vannet å koke. Varmer vi videre, går energien med til å fordampe vannet, og temperaturen stiger ikke mer.</p>;
+    extra = (
+      <p>Ved 100 °C begynner vannet å koke. Varmer vi videre, går energien med til å fordampe vannet, og temperaturen stiger ikke mer.</p>
+    );
   } else if (water) {
     extra = (
       <p>
-        Den store varmekapasiteten er grunnen til at vann brukes i radiatorer og kjølesystemer: vannet kan ta opp og frakte mye
-        energi uten at temperaturen endrer seg mye.
+        Den store varmekapasiteten er grunnen til at vann brukes i radiatorer og kjølesystemer: vannet kan ta opp og frakte mye energi uten
+        at temperaturen endrer seg mye.
       </p>
     );
   }

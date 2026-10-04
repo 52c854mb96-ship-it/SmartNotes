@@ -59,9 +59,9 @@ export function Txt({
 export function textWidthEm(s: string): number {
   let w = 0;
   for (const ch of s) {
-    if (/[0-9]/.test(ch)) w += 0.58;
-    else if (/[A-Z]/.test(ch)) w += 0.68;
-    else if (/[a-z]/.test(ch)) w += 0.54;
+    if (/[0-9]/.test(ch)) w += 0.64;
+    else if (/[A-Z]/.test(ch)) w += 0.76;
+    else if (/[a-z]/.test(ch)) w += 0.64;
     else if (ch === ' ') w += 0.28;
     else w += 0.6;
   }

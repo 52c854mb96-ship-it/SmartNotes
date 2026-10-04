@@ -83,7 +83,16 @@ export function Thermometer({
   const top = y(value);
   return (
     <g>
-      <rect x={x - tubeW / 2} y={yTop - 10} width={tubeW} height={yBottom - yTop + 14} rx={tubeW / 2} fill={VIZ.surface} stroke={VIZ.muted} strokeWidth={1.5} />
+      <rect
+        x={x - tubeW / 2}
+        y={yTop - 10}
+        width={tubeW}
+        height={yBottom - yTop + 14}
+        rx={tubeW / 2}
+        fill={VIZ.surface}
+        stroke={VIZ.muted}
+        strokeWidth={1.5}
+      />
       <circle cx={x} cy={yBottom + bulbR} r={bulbR} fill={color} stroke={VIZ.muted} strokeWidth={1.5} />
       <rect x={x - 4} y={top} width={8} height={Math.max(0, yBottom + 6 - top)} rx={3} fill={color} />
       {left.map((t) => (
@@ -154,14 +163,24 @@ export interface GasSim {
 }
 
 /** Hvor lenge et støt mot stempelet vises (s). */
-const FLASH_TIME = 0.25;
+const FLASH_TIME = 0.35;
 
 /**
  * Partikkelsimulering som følger klokka: hver gang `t` øker, flyttes partiklene fram i korte steg.
  * Ved t = 0 (start eller «Start på nytt») begynner de fra samme frø, så figuren er lik hver gang.
  * `scale` er farten i forhold til referansetemperaturen (√(T/T_ref)), `width` × `height` boksen i piksler.
  */
-export function useGasSim(t: number, { count, seed, speed, scale, width, height }: { count: number; seed: number; speed: number; scale: number; width: number; height: number }): GasSim {
+export function useGasSim(
+  t: number,
+  {
+    count,
+    seed,
+    speed,
+    scale,
+    width,
+    height,
+  }: { count: number; seed: number; speed: number; scale: number; width: number; height: number },
+): GasSim {
   const ref = useRef<{ t: number; ps: Particle[]; hits: { w: number; t: number }[] } | null>(null);
   const cur = ref.current;
   if (!cur || t <= 0 || t < cur.t - 1e-9) {

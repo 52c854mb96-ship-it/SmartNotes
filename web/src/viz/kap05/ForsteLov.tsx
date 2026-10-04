@@ -6,7 +6,6 @@ import {
   Figure,
   Formula,
   FormulaLine,
-  PlayControls,
   Readout,
   Readouts,
   Segmented,
@@ -19,7 +18,7 @@ import {
   useTextScale,
 } from '../kit';
 import { AIR_HEAT_CAPACITY, firstLaw, temperatureAfter } from './model';
-import { Tag, Thermometer, useGasSim, useNarrow } from './marks';
+import { PlayToggle, Tag, Thermometer, useGasSim, useNarrow } from './marks';
 
 type Preset = 'oppvarming' | 'kompresjon' | 'utvidelse' | 'isoterm';
 
@@ -78,14 +77,14 @@ export default function ForsteLov() {
         <Slider label="Tilført varme Q" value={Q} onChange={setQ} min={-1000} max={1000} step={50} format={(v) => `${signed(v)} J`} />
       </Controls>
       <Toolbar>
-        <PlayControls clock={clock} decimals={1} />
+        <PlayToggle clock={clock} resetLabel="Til start" />
       </Toolbar>
 
       {/* På smale skjermer får sylinderen og søylene hver sin figur, så begge blir store nok */}
       <div ref={sceneRef} style={{ display: 'grid', gap: 12 }}>
         {narrow ? (
           <>
-            <Figure viewBox="0 0 510 470" label={sceneLabel} maxHeight={520}>
+            <Figure viewBox="0 0 545 470" label={sceneLabel} maxHeight={520}>
               <Cylinder cx={260} thermoX={50} t={clock.t} p={p} W={W} Q={Q} T={Tnow} />
             </Figure>
             <Figure viewBox="0 0 800 440" label="Søylediagram: W pluss Q er lik ΔU">
@@ -199,7 +198,15 @@ function Cylinder({ cx, thermoX, t, p, W, Q, T }: { cx: number; thermoX: number;
       </Tag>
 
       {/* Varme gjennom bunnen */}
-      <rect x={cx - half} y={plateY} width={2 * half} height={12} rx={4} fill={Q > 0 ? VIZ.series[4] : Q < 0 ? VIZ.series[0] : VIZ.bodyStrong} opacity={Q === 0 ? 1 : 0.85} />
+      <rect
+        x={cx - half}
+        y={plateY}
+        width={2 * half}
+        height={12}
+        rx={4}
+        fill={Q > 0 ? VIZ.series[4] : Q < 0 ? VIZ.series[0] : VIZ.bodyStrong}
+        opacity={Q === 0 ? 1 : 0.85}
+      />
       {qLen > 2 &&
         [-60, 0, 60].map((dx) =>
           Q > 0 ? (
@@ -260,7 +267,16 @@ function Waterfall({ x0, w, h, W, Q, p }: { x0: number; w: number; h: number; W:
         const next = cols[i + 1];
         return (
           <g key={b.name}>
-            <rect x={x - bw / 2} y={Math.min(ga, gz)} width={bw} height={Math.abs(gz - ga)} fill="none" stroke={b.color} strokeWidth={1.5} strokeDasharray="5 4" />
+            <rect
+              x={x - bw / 2}
+              y={Math.min(ga, gz)}
+              width={bw}
+              height={Math.abs(gz - ga)}
+              fill="none"
+              stroke={b.color}
+              strokeWidth={1.5}
+              strokeDasharray="5 4"
+            />
             <rect x={x - bw / 2} y={Math.min(a, z)} width={bw} height={Math.max(1.5, Math.abs(z - a))} rx={3} fill={b.color} />
             {/* Hjelpelinje fra enden av denne søyla til starten av den neste */}
             {i < 2 && next !== undefined && <line x1={x + bw / 2} x2={next - bw / 2} y1={z} y2={z} className="viz-guide" />}
