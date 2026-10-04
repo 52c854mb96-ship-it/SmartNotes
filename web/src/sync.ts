@@ -5,7 +5,7 @@
  *  3) forhåndslaster ferdige PDF-er slik at alt kan leses offline.
  * Tilstanden eksponeres gjennom `syncStore`/`useSyncState()`.
  */
-import type { Table } from 'dexie';
+import type { EntityTable, IDType } from 'dexie';
 import type { Chapter, Note, Subject, SyncResponse, SyncedRow } from '@smartnotes/shared';
 import { ApiError, NetworkError, api, errorMessage, isAbortError, isRetryable, uploadNote } from './api';
 import { META, clearAllLocalData, db, getMeta, setMeta, type OutboxEntry } from './db';
@@ -123,22 +123,55 @@ async function runOnce(): Promise<void> {
     setBrowserOnline(false);
     return;
   }
-  try {
-    await withLock('smartnotes-outbox', flushOutbox);
-    await pull();
-    failures = 0;
-    syncStore.set((s) => ({ ...s, lastError: null }));
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 401) return; // authStore er satt til 'required'
+  const fail = (err: unknown) => {
     failures += 1;
     syncStore.set((s) => ({ ...s, lastError: errorMessage(err, 'Synkroniseringen feilet.') }));
+  };
+  const is401 = (err: unknown) => err instanceof ApiError && err.status === 401;
+
+  // 1) Send køen. En serverfeil på én opplasting skal ikke hindre at vi henter endringer.
+  let flushError: unknown = null;
+  try {
+    await withLock('smartnotes-outbox', flushOutbox);
+  } catch (err) {
+    if (is401(err)) return; // authStore er satt til 'required'
+    if (err instanceof NetworkError) {
+      fail(err);
+      return;
+    }
+    flushError = err;
+  }
+
+  // 2) Hent endringer.
+  try {
+    await pull();
+  } catch (err) {
+    if (!is401(err)) fail(err);
     return;
   }
-  try {
-    await withLock('smartnotes-prefetch', () => prefetchPdfs());
-  } catch {
-    /* prøves igjen ved neste synk */
+  if (flushError) {
+    fail(flushError);
+  } else {
+    failures = 0;
+    syncStore.set((s) => ({ ...s, lastError: null }));
   }
+
+  // 3) Forhåndslast PDF-er i bakgrunnen (blokkerer ikke nye opplastinger/synker).
+  void runPrefetch(false);
+}
+
+let prefetchRunning: Promise<{ fetched: number; failed: number }> | null = null;
+
+/** Kjører forhåndslasting, aldri to samtidig i samme fane (og helst ikke på tvers av faner). */
+function runPrefetch(wait: boolean): Promise<{ fetched: number; failed: number }> {
+  if (prefetchRunning) return prefetchRunning;
+  prefetchRunning = withLock('smartnotes-prefetch', prefetchPdfs, wait)
+    .then((r) => r ?? { fetched: 0, failed: 0 })
+    .catch(() => ({ fetched: 0, failed: 0 }))
+    .finally(() => {
+      prefetchRunning = null;
+    });
+  return prefetchRunning;
 }
 
 async function scheduleNext(): Promise<void> {
@@ -174,9 +207,11 @@ export async function countNotesInProgress(): Promise<number> {
   return keys.size;
 }
 
-async function withLock<T>(name: string, fn: () => Promise<T>): Promise<T | undefined> {
+async function withLock<T>(name: string, fn: () => Promise<T>, wait = false): Promise<T | undefined> {
   const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
   if (!locks) return fn();
+  // Vent på låsen ved eksplisitte handlinger.
+  if (wait) return locks.request(name, async () => fn());
   // ifAvailable: hvis en annen fane holder på, hopper vi over (den gjør jobben).
   return locks.request(name, { ifAvailable: true }, async (lock) => (lock ? fn() : undefined));
 }
@@ -289,15 +324,15 @@ async function applySync(res: SyncResponse): Promise<void> {
 }
 
 /** Legger inn rader fra serveren, men overskriver aldri en lokal rad med høyere rev. */
-async function mergeRows<T extends SyncedRow>(table: Table<T, string>, rows: T[]): Promise<void> {
+async function mergeRows<T extends SyncedRow>(table: EntityTable<T, 'id'>, rows: T[]): Promise<void> {
   if (!rows.length) return;
-  const existing = await table.bulkGet(rows.map((r) => r.id));
+  const existing = await table.bulkGet(rows.map((r) => r.id as IDType<T, 'id'>));
   const puts: T[] = [];
-  const deletes: string[] = [];
+  const deletes: IDType<T, 'id'>[] = [];
   rows.forEach((row, i) => {
     const current = existing[i];
     if (current && current.rev > row.rev) return;
-    if (row.deleted) deletes.push(row.id);
+    if (row.deleted) deletes.push(row.id as IDType<T, 'id'>);
     else puts.push(row);
   });
   if (puts.length) await table.bulkPut(puts);
@@ -305,7 +340,7 @@ async function mergeRows<T extends SyncedRow>(table: Table<T, string>, rows: T[]
 }
 
 /** Full synk: erstatt tabellen, men behold lokale rader som er nyere enn øyeblikksbildet. */
-async function replaceRows<T extends SyncedRow>(table: Table<T, string>, rows: T[], cursor: number): Promise<void> {
+async function replaceRows<T extends SyncedRow>(table: EntityTable<T, 'id'>, rows: T[], cursor: number): Promise<void> {
   const newerLocal = (await table.toArray()).filter((r) => r.rev > cursor);
   const byId = new Map<string, T>();
   for (const row of rows) if (!row.deleted) byId.set(row.id, row);
@@ -394,7 +429,9 @@ async function prefetchPdfs(): Promise<{ fetched: number; failed: number }> {
 /** «Last ned alt for offline»: synk og hent alle manglende PDF-er nå. */
 export async function downloadAllForOffline(): Promise<{ fetched: number; failed: number; missing: number }> {
   await syncNow();
-  const result = (await withLock('smartnotes-prefetch', prefetchPdfs)) ?? { fetched: 0, failed: 0 };
+  // En pågående runde fullføres først; deretter en ny runde som tar med alt som mangler.
+  if (prefetchRunning) await prefetchRunning;
+  const result = await runPrefetch(true);
   const missing = (await notesMissingPdf()).length;
   return { ...result, missing };
 }

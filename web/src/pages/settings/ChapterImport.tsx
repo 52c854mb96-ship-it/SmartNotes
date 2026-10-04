@@ -106,6 +106,7 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
     setRows((rs) => rs?.map((r) => (r.key === key ? { ...r, ...patch } : r)) ?? null);
 
   const includedCount = rows?.filter((r) => r.include && r.title.trim()).length ?? 0;
+  const duplicateCount = rows?.filter((r) => r.duplicate).length ?? 0;
   const disabled = !online || busy !== null;
 
   return (
@@ -139,7 +140,7 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
               className="segment"
               onClick={() => setMode('image')}
             >
-              <Camera size={16} aria-hidden /> Ta bilde av innholdsfortegnelsen
+              <Camera size={16} aria-hidden /> Ta bilde<span className="hide-xs">&nbsp;av innholdsfortegnelsen</span>
             </button>
           </div>
 
@@ -215,6 +216,8 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
         <div className="stack">
           <p className="muted">
             Se over og rett opp før du lagrer. Kapitlene legges til etter de som finnes fra før.
+            {duplicateCount > 0 &&
+              ` ${plural(duplicateCount, 'kapittel', 'kapitler')} ser ut til å finnes allerede og er ikke valgt.`}
           </p>
           <ol className="chapter-rows preview-rows" role="list">
             <li className="chapter-row preview-row chapter-row-head" aria-hidden>

@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { X } from 'lucide-react';
+import { toasterRaiseStore } from '../lib/ui';
 
 interface ModalProps {
   open: boolean;
@@ -32,6 +33,7 @@ export function Modal({ open, onClose, title, description, children, footer, siz
     if (!dialog) return;
     if (open && !dialog.open) {
       dialog.showModal();
+      toasterRaiseStore.set((n) => n + 1);
       // Fokuser feltet som er merket med data-autofocus (ellers første fokuserbare element).
       const target = dialog.querySelector<HTMLElement>('[data-autofocus]');
       target?.focus();

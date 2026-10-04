@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, ImageOff, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Note, NotePage } from '@smartnotes/shared';
 import { api, urls } from '../../api';
+import { useOnline } from '../../lib/connectivity';
 
 export function OriginalTab({ note }: { note: Note }) {
   const [pages, setPages] = useState<NotePage[] | null>(null);
@@ -59,11 +60,16 @@ export function OriginalTab({ note }: { note: Note }) {
 
 function PageImage({ noteId, index, alt, ratio }: { noteId: string; index: number; alt: string; ratio: number }) {
   const [failed, setFailed] = useState(false);
+  const { online } = useOnline();
+  // Prøv igjen når vi kommer på nett.
+  useEffect(() => {
+    if (online) setFailed(false);
+  }, [online]);
   if (failed) {
     return (
       <span className="original-missing" style={{ aspectRatio: ratio }}>
         <ImageOff size={22} aria-hidden />
-        <span>Ikke tilgjengelig offline</span>
+        <span>{online ? 'Kunne ikke vise siden' : 'Ikke lagret for offline'}</span>
       </span>
     );
   }

@@ -108,7 +108,10 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
     });
     app.get('/', (_req, reply) => reply.type('text/html').header('Cache-Control', 'no-cache').send(indexHtml));
     app.setNotFoundHandler((req, reply) => {
-      if (req.method === 'GET' && !req.url.startsWith('/api/')) {
+      const urlPath = req.url.split('?')[0]!;
+      // SPA-fallback bare for sider – ikke for filer (en gammel kodebit skal få 404, ikke HTML).
+      const looksLikeFile = urlPath.startsWith('/assets/') || /\.[a-z0-9]{1,12}$/i.test(urlPath);
+      if (req.method === 'GET' && !urlPath.startsWith('/api/') && !looksLikeFile) {
         return reply.type('text/html').header('Cache-Control', 'no-cache').send(indexHtml);
       }
       return reply.code(404).send({ error: 'not_found', message: 'Fant ikke det du lette etter.' });

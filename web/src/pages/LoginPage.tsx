@@ -51,10 +51,13 @@ export function LoginPage() {
           <p className="login-tagline">Håndskrevne notater blir til pene PDF-er – sortert etter kapittel.</p>
         </div>
         <form onSubmit={submit} className="login-form">
-          <label className="field">
-            <span className="field-label">Passord</span>
-            <span className="input-with-action">
+          <div className="field">
+            <label className="field-label" htmlFor="login-password">
+              Passord
+            </label>
+            <span className="input-with-inner-action">
               <input
+                id="login-password"
                 type={show ? 'text' : 'password'}
                 autoComplete="current-password"
                 value={password}
@@ -75,7 +78,7 @@ export function LoginPage() {
                 {show ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
               </button>
             </span>
-          </label>
+          </div>
           {error && (
             <p id="login-error" className="form-error" role="alert">
               {error}

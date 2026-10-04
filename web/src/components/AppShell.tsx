@@ -87,8 +87,8 @@ export function AppShell() {
       const accepted = files.filter(isAcceptedFile);
       if (accepted.length < files.length) toast('Bare bilder og PDF-er kan lastes opp.', { kind: 'error' });
       if (!accepted.length) return;
-      const { subjectId, chapterId } = activeRef.current;
-      openUpload({ subjectId, chapterId, files: accepted });
+      const { subjectId, chapterId, noteId } = activeRef.current;
+      openUpload({ subjectId, chapterId: noteId ? undefined : chapterId, files: accepted });
     };
     window.addEventListener('dragenter', onEnter);
     window.addEventListener('dragover', onOver);
@@ -140,7 +140,7 @@ export function AppShell() {
             type="button"
             className="icon-btn"
             aria-label="Last opp notater"
-            onClick={() => openUpload({ subjectId: active.subjectId, chapterId: active.chapterId })}
+            onClick={() => openUpload({ subjectId: active.subjectId, chapterId: active.noteId ? undefined : active.chapterId })}
           >
             <Upload size={20} aria-hidden />
           </button>

@@ -27,6 +27,9 @@ export function toast(
   return id;
 }
 
+/** Økes når en modal åpnes, slik at varslene kan legges øverst i «top layer» igjen. */
+export const toasterRaiseStore = createStore(0);
+
 export function dismissToast(id: number): void {
   toastStore.set((list) => list.filter((t) => t.id !== id));
 }

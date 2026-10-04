@@ -59,7 +59,8 @@ export type SmartNotesDB = Dexie & {
 
 export const db = new Dexie('smartnotes') as SmartNotesDB;
 
-db.version(1).stores({
+// Versjon 2: indeks på notes.stage (tidlige utviklingsbygg hadde versjon 1 uten den).
+db.version(2).stores({
   subjects: 'id, position',
   chapters: 'id, subjectId, position',
   // `stage` er indeksert slik at vi finner notater som er under arbeid (null indekseres ikke).

@@ -12,7 +12,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       // Vi registrerer selv via `virtual:pwa-register` (src/lib/pwa.ts).
       injectRegister: false,
-      includeAssets: ['icon.svg', 'favicon-32.png', 'apple-touch-icon.png'],
+      // Ikoner og manifest fanges av globPatterns nedenfor (unngår doble precache-oppføringer).
+      includeManifestIcons: false,
       manifest: {
         id: '/',
         name: 'SmartNotes',
@@ -25,7 +26,7 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'any',
         theme_color: ACCENT,
-        background_color: '#F6F7F9',
+        background_color: '#F5F6F8',
         categories: ['education', 'productivity'],
         icons: [
           { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
@@ -35,7 +36,7 @@ export default defineConfig({
       },
       workbox: {
         // .mjs er med slik at pdf.js-workeren blir precachet.
-        globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,webmanifest,woff2}'],
+        globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,woff2}'],
         // pdf.js-workeren er ~1,3 MB.
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallback: '/index.html',

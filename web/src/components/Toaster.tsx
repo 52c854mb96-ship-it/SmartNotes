@@ -1,11 +1,36 @@
-import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
-import { dismissToast, toastStore } from '../lib/ui';
+import { useLayoutEffect, useRef } from 'react';
+import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
+import { dismissToast, toastStore, toasterRaiseStore } from '../lib/ui';
+
+const supportsPopover = typeof HTMLElement !== 'undefined' && 'showPopover' in HTMLElement.prototype;
 
 export function Toaster() {
   const toasts = toastStore.use();
+  const raise = toasterRaiseStore.use();
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Som popover ligger varslene i «top layer» – over åpne modale dialoger.
+  // Vi viser den på nytt ved hvert nytt varsel slik at den havner øverst.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !supportsPopover) return;
+    try {
+      if (el.matches(':popover-open')) el.hidePopover();
+      if (toasts.length > 0) el.showPopover();
+    } catch {
+      /* ignorer */
+    }
+  }, [toasts, raise]);
+
   return (
-    <div className="toaster" role="region" aria-label="Varsler">
-      <div aria-live="polite" aria-atomic="false" className="toaster-list">
+    <div
+      ref={ref}
+      className="toaster"
+      role="region"
+      aria-label="Varsler"
+      popover={supportsPopover ? 'manual' : undefined}
+    >
+      <div aria-live="polite" className="toaster-list">
         {toasts.map((t) => {
           const Icon = t.kind === 'success' ? CheckCircle2 : t.kind === 'error' ? AlertCircle : Info;
           return (

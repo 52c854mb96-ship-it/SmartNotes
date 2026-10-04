@@ -8,7 +8,6 @@ const ZOOM_STEPS = [0.5, 0.67, 0.8, 1, 1.25, 1.5, 2, 2.5, 3];
 const MAX_FIT_WIDTH = 980;
 /** Maks antall piksler per lerret (iOS Safari tåler ca. 16,7 M). */
 const MAX_CANVAS_PIXELS = 16_000_000;
-const PAGE_GAP_PADDING = 16;
 
 interface PageSize {
   width: number;
@@ -29,6 +28,7 @@ export function PdfViewer({ blob, docKey, toolbarExtra, label = 'PDF' }: PdfView
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [width, setWidth] = useState(0);
+  const [padding, setPadding] = useState(16);
   const rootRef = useRef<HTMLDivElement>(null);
   const blobRef = useRef(blob);
   blobRef.current = blob;
@@ -74,13 +74,16 @@ export function PdfViewer({ blob, docKey, toolbarExtra, label = 'PDF' }: PdfView
     const el = rootRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
-      if (entry) setWidth(Math.floor(entry.contentRect.width));
+      if (!entry) return;
+      const pad = parseFloat(getComputedStyle(el).getPropertyValue('--pdf-pad')) || 16;
+      setPadding(pad);
+      setWidth(Math.floor(entry.contentRect.width));
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  const fitWidth = Math.max(200, Math.min(width - PAGE_GAP_PADDING * 2, MAX_FIT_WIDTH));
+  const fitWidth = Math.max(200, Math.min(width - padding * 2, MAX_FIT_WIDTH));
   const baseScale = firstSize ? fitWidth / firstSize.width : 1;
   const scale = baseScale * zoom;
 

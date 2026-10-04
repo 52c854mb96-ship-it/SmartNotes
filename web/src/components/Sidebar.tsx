@@ -34,7 +34,10 @@ export function Sidebar({ id }: { id: string }) {
         <button
           type="button"
           className="btn btn-primary btn-block"
-          onClick={() => openUpload({ subjectId: active.subjectId, chapterId: active.chapterId })}
+          onClick={() => {
+            drawerStore.set(false);
+            openUpload({ subjectId: active.subjectId, chapterId: active.noteId ? undefined : active.chapterId });
+          }}
         >
           <Upload size={18} aria-hidden />
           Last opp notater
@@ -49,7 +52,10 @@ export function Sidebar({ id }: { id: string }) {
             className="icon-btn icon-btn-sm"
             aria-label="Nytt fag"
             title="Nytt fag"
-            onClick={() => newSubjectStore.set(true)}
+            onClick={() => {
+              drawerStore.set(false);
+              newSubjectStore.set(true);
+            }}
           >
             <Plus size={18} aria-hidden />
           </button>

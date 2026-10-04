@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { MessageSquareWarning } from 'lucide-react';
+import { ChevronRight, MessageSquareWarning } from 'lucide-react';
 import type { Note } from '@smartnotes/shared';
 import { dayParts, formatDay, noteDay, plural } from '../lib/format';
 import { NoteStatusBadge } from './Status';
@@ -16,6 +16,7 @@ export function NoteCard({ note }: { note: Note }) {
       <span className="note-card-body">
         <span className="note-card-title">{note.title || 'Uten tittel'}</span>
         <span className="note-card-meta">
+          <NoteStatusBadge note={note} />
           <span>{note.noteDate ? formatDay(note.noteDate) : `Lastet opp ${formatDay(day)}`}</span>
           {note.pageCount > 0 && <span>{plural(note.pageCount, 'side', 'sider')}</span>}
           {note.remarks.length > 0 && (
@@ -26,9 +27,7 @@ export function NoteCard({ note }: { note: Note }) {
           )}
         </span>
       </span>
-      <span className="note-card-status">
-        <NoteStatusBadge note={note} />
-      </span>
+      <ChevronRight size={18} aria-hidden className="note-card-chevron" />
     </Link>
   );
 }

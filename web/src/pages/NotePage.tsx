@@ -270,7 +270,14 @@ function NoteHeader({ note, chapters, onRetry }: { note: Note; chapters: Chapter
           )}
         </label>
         <label className="meta-field">
-          <span className="meta-label">Kapittel</span>
+          <span className="meta-label">
+            Kapittel
+            {note.chapterAuto && note.chapterId && (
+              <span className="meta-hint" title="Claude valgte kapittelet ut fra innholdet">
+                <Sparkles size={12} aria-hidden /> valgt av Claude
+              </span>
+            )}
+          </span>
           <select
             className="inline-input"
             value={note.chapterId ?? ''}
@@ -292,21 +299,19 @@ function NoteHeader({ note, chapters, onRetry }: { note: Note; chapters: Chapter
             ))}
             <option value="">Uten kapittel</option>
           </select>
-          {note.chapterAuto && note.chapterId && (
-            <span className="meta-hint" title="Claude valgte kapittelet ut fra innholdet">
-              <Sparkles size={13} aria-hidden /> valgt av Claude
-            </span>
-          )}
         </label>
-        <span className="meta-field meta-inline">
-          {note.pageCount > 0 && <span className="muted">{plural(note.pageCount, 'side', 'sider')}</span>}
-          <NoteStatusBadge note={note} />
-          {refreshing && (
-            <span className="badge badge-neutral" role="status">
-              <Spinner size={11} /> Oppdaterer PDF …
-            </span>
-          )}
-        </span>
+        <div className="meta-field meta-status-field">
+          <span className="meta-label">Status</span>
+          <span className="meta-status">
+            <NoteStatusBadge note={note} showDone={!refreshing} />
+            {refreshing && (
+              <span className="badge badge-accent" role="status">
+                <Spinner size={11} /> Oppdaterer PDF …
+              </span>
+            )}
+            {note.pageCount > 0 && <span className="muted">{plural(note.pageCount, 'side', 'sider')}</span>}
+          </span>
+        </div>
       </div>
     </header>
   );
