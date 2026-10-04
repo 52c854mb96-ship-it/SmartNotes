@@ -1147,3 +1147,322 @@
   font-size: 11.5px;
   font-weight: 700;
 }
+
+
+/* ======================================================================
+ * Biologi (viz/biologi/kit): fargetokens og klasser. Bare biologivisualiseringene bruker disse.
+ * Samme mønster som øverst i fila: lyst tema i :root, mørkt tema både i prefers-color-scheme-blokken og i
+ * [data-theme='dark']-blokken, med like verdier. Fargene brukes via BIO i viz/biologi/kit/colors.ts.
+ * Celledeler og organismer: lys fyllfarge + mettet kant i lyst tema, mørk fyllfarge + lys kant i mørkt tema
+ * (som atomene i kjemi). Avstemt mot biologitemaet «Salvie» (varmt papir, dempet grønn).
+ * ====================================================================== */
+:root {
+  --bio-cytoplasm: #fbf4e2;
+  --bio-membrane: #b0672a;
+  --bio-lipid-head: #e8a462;
+  --bio-lipid-tail: #d6c4a2;
+  --bio-nucleus: #e7e1f6;
+  --bio-nucleus-line: #6a55b0;
+  --bio-nucleolus: #8c78cf;
+  --bio-dna: #5b46a8;
+  --bio-mito: #f9d6c6;
+  --bio-mito-line: #c4552f;
+  --bio-chloro: #d5eabf;
+  --bio-chloro-line: #3f8a2e;
+  --bio-chlorophyll: #5fa04a;
+  --bio-wall: #ecebd2;
+  --bio-wall-line: #8a8650;
+  --bio-vacuole: #ddecf8;
+  --bio-vacuole-line: #5b93c9;
+  --bio-er: #f6d8e5;
+  --bio-er-line: #b4507e;
+  --bio-golgi: #f8e5a8;
+  --bio-golgi-line: #a8820f;
+  --bio-ribosome: #4b5563;
+  --bio-lysosome: #cfece7;
+  --bio-lysosome-line: #1d7a6e;
+  --bio-cytoskeleton: #c2b9a6;
+  --bio-capsule: rgb(140 74 156 / 0.12);
+  --bio-protein: #dfe5ec;
+  --bio-protein-line: #5c6b80;
+  --bio-atp: #d4622a;
+  --bio-signal: #c2408f;
+  --bio-solute: #7d4fc4;
+  --bio-na: #7d4fc4;
+  --bio-k: #1f8f7a;
+  --bio-water: #2f86c8;
+  --bio-water-fill: #dcebf7;
+  --bio-sugar: #c98a12;
+  --bio-blood-o2: #cf3434;
+  --bio-blood-co2: #4b5bc0;
+  --bio-rbc: #f4aaa0;
+  --bio-rbc-line: #c0392f;
+  --bio-immune: #d9e6f7;
+  --bio-immune-line: #2c5fb0;
+  --bio-antibody: #c98a0e;
+  --bio-antigen: #c0392b;
+  --bio-bacterium: #eedcf0;
+  --bio-bacterium-line: #8c4a9c;
+  --bio-virus: #f8d5d0;
+  --bio-virus-line: #c0392b;
+  --bio-fungus: #efe1ca;
+  --bio-fungus-line: #8f6a3c;
+  --bio-plant: #d3e8c2;
+  --bio-plant-line: #4a8a36;
+  --bio-wood: #9a7550;
+  --bio-animal: #ecdcc9;
+  --bio-animal-line: #8a6a4a;
+  --bio-fish: #d8e7f3;
+  --bio-fish-line: #3f7aa6;
+  --bio-bird: #f1e2c6;
+  --bio-bird-line: #a0742c;
+  --bio-insect: #dedbd3;
+  --bio-insect-line: #4e4a42;
+  --bio-human: #e3e7ec;
+  --bio-human-line: #5c6b80;
+  --bio-dead: #a3a8ad;
+  --bio-chr-m1: #d1493f;
+  --bio-chr-m2: #e08a2c;
+  --bio-chr-m3: #c2408f;
+  --bio-chr-f1: #2f6fbf;
+  --bio-chr-f2: #1f8f8a;
+  --bio-chr-f3: #6a55c0;
+  --bio-s: #6f8fb8;
+  --bio-i: #d1493f;
+  --bio-r: #3e8e5a;
+  --bio-v: #8a5cc8;
+  --bio-prey: #4f8f3a;
+  --bio-predator: #b5532a;
+  --bio-capacity: #7a806a;
+  --bio-harvest: #8a5cc8;
+  --bio-pop-1: #2f6f9f;
+  --bio-pop-2: #b5532a;
+  --bio-pop-3: #4f8f3a;
+  --bio-pop-4: #8a5cc8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bio-cytoplasm: #2c2a1f;
+    --bio-membrane: #e39a5c;
+    --bio-lipid-head: #c9874a;
+    --bio-lipid-tail: #6b5e48;
+    --bio-nucleus: #2f2a4a;
+    --bio-nucleus-line: #b3a3ef;
+    --bio-nucleolus: #7d69c9;
+    --bio-dna: #b9a8f5;
+    --bio-mito: #4f281d;
+    --bio-mito-line: #f29a76;
+    --bio-chloro: #233f1d;
+    --bio-chloro-line: #8fd27a;
+    --bio-chlorophyll: #5d9c49;
+    --bio-wall: #2f2f1e;
+    --bio-wall-line: #c2bd80;
+    --bio-vacuole: #1d3243;
+    --bio-vacuole-line: #6fa3d4;
+    --bio-er: #45202f;
+    --bio-er-line: #e58ab3;
+    --bio-golgi: #463a14;
+    --bio-golgi-line: #e6c45a;
+    --bio-ribosome: #c3cbd6;
+    --bio-lysosome: #153f3a;
+    --bio-lysosome-line: #62d1c0;
+    --bio-cytoskeleton: #555c52;
+    --bio-capsule: rgb(211 154 224 / 0.13);
+    --bio-protein: #2c3540;
+    --bio-protein-line: #9aa8bd;
+    --bio-atp: #f08a55;
+    --bio-signal: #ea84bf;
+    --bio-solute: #a98ef0;
+    --bio-na: #a98ef0;
+    --bio-k: #4fd1b5;
+    --bio-water: #6db3ec;
+    --bio-water-fill: #1c3447;
+    --bio-sugar: #ecb24e;
+    --bio-blood-o2: #f07272;
+    --bio-blood-co2: #8f9cf0;
+    --bio-rbc: #6b2420;
+    --bio-rbc-line: #f0877c;
+    --bio-immune: #1f3354;
+    --bio-immune-line: #8fb0ea;
+    --bio-antibody: #f0bf55;
+    --bio-antigen: #f08f84;
+    --bio-bacterium: #3f2547;
+    --bio-bacterium-line: #d39ae0;
+    --bio-virus: #55201b;
+    --bio-virus-line: #f08f84;
+    --bio-fungus: #403221;
+    --bio-fungus-line: #d8b486;
+    --bio-plant: #24401d;
+    --bio-plant-line: #8fd27a;
+    --bio-wood: #c9a27a;
+    --bio-animal: #3f3124;
+    --bio-animal-line: #d2b08c;
+    --bio-fish: #1f3446;
+    --bio-fish-line: #84b6dc;
+    --bio-bird: #45361b;
+    --bio-bird-line: #e2b770;
+    --bio-insect: #34322d;
+    --bio-insect-line: #bdb7aa;
+    --bio-human: #2c3540;
+    --bio-human-line: #aab5c3;
+    --bio-dead: #646b72;
+    --bio-chr-m1: #f07f73;
+    --bio-chr-m2: #f2a65a;
+    --bio-chr-m3: #ea84bf;
+    --bio-chr-f1: #78a9e6;
+    --bio-chr-f2: #4fc9c0;
+    --bio-chr-f3: #a593f0;
+    --bio-s: #8fb0d8;
+    --bio-i: #f07f73;
+    --bio-r: #6cc48a;
+    --bio-v: #b59af0;
+    --bio-prey: #7cc46a;
+    --bio-predator: #f0905e;
+    --bio-capacity: #a0a68e;
+    --bio-harvest: #b59af0;
+    --bio-pop-1: #78a9e6;
+    --bio-pop-2: #f0905e;
+    --bio-pop-3: #7cc46a;
+    --bio-pop-4: #b59af0;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bio-cytoplasm: #2c2a1f;
+  --bio-membrane: #e39a5c;
+  --bio-lipid-head: #c9874a;
+  --bio-lipid-tail: #6b5e48;
+  --bio-nucleus: #2f2a4a;
+  --bio-nucleus-line: #b3a3ef;
+  --bio-nucleolus: #7d69c9;
+  --bio-dna: #b9a8f5;
+  --bio-mito: #4f281d;
+  --bio-mito-line: #f29a76;
+  --bio-chloro: #233f1d;
+  --bio-chloro-line: #8fd27a;
+  --bio-chlorophyll: #5d9c49;
+  --bio-wall: #2f2f1e;
+  --bio-wall-line: #c2bd80;
+  --bio-vacuole: #1d3243;
+  --bio-vacuole-line: #6fa3d4;
+  --bio-er: #45202f;
+  --bio-er-line: #e58ab3;
+  --bio-golgi: #463a14;
+  --bio-golgi-line: #e6c45a;
+  --bio-ribosome: #c3cbd6;
+  --bio-lysosome: #153f3a;
+  --bio-lysosome-line: #62d1c0;
+  --bio-cytoskeleton: #555c52;
+  --bio-capsule: rgb(211 154 224 / 0.13);
+  --bio-protein: #2c3540;
+  --bio-protein-line: #9aa8bd;
+  --bio-atp: #f08a55;
+  --bio-signal: #ea84bf;
+  --bio-solute: #a98ef0;
+  --bio-na: #a98ef0;
+  --bio-k: #4fd1b5;
+  --bio-water: #6db3ec;
+  --bio-water-fill: #1c3447;
+  --bio-sugar: #ecb24e;
+  --bio-blood-o2: #f07272;
+  --bio-blood-co2: #8f9cf0;
+  --bio-rbc: #6b2420;
+  --bio-rbc-line: #f0877c;
+  --bio-immune: #1f3354;
+  --bio-immune-line: #8fb0ea;
+  --bio-antibody: #f0bf55;
+  --bio-antigen: #f08f84;
+  --bio-bacterium: #3f2547;
+  --bio-bacterium-line: #d39ae0;
+  --bio-virus: #55201b;
+  --bio-virus-line: #f08f84;
+  --bio-fungus: #403221;
+  --bio-fungus-line: #d8b486;
+  --bio-plant: #24401d;
+  --bio-plant-line: #8fd27a;
+  --bio-wood: #c9a27a;
+  --bio-animal: #3f3124;
+  --bio-animal-line: #d2b08c;
+  --bio-fish: #1f3446;
+  --bio-fish-line: #84b6dc;
+  --bio-bird: #45361b;
+  --bio-bird-line: #e2b770;
+  --bio-insect: #34322d;
+  --bio-insect-line: #bdb7aa;
+  --bio-human: #2c3540;
+  --bio-human-line: #aab5c3;
+  --bio-dead: #646b72;
+  --bio-chr-m1: #f07f73;
+  --bio-chr-m2: #f2a65a;
+  --bio-chr-m3: #ea84bf;
+  --bio-chr-f1: #78a9e6;
+  --bio-chr-f2: #4fc9c0;
+  --bio-chr-f3: #a593f0;
+  --bio-s: #8fb0d8;
+  --bio-i: #f07f73;
+  --bio-r: #6cc48a;
+  --bio-v: #b59af0;
+  --bio-prey: #7cc46a;
+  --bio-predator: #f0905e;
+  --bio-capacity: #a0a68e;
+  --bio-harvest: #b59af0;
+  --bio-pop-1: #78a9e6;
+  --bio-pop-2: #f0905e;
+  --bio-pop-3: #7cc46a;
+  --bio-pop-4: #b59af0;
+}
+
+/* Forhåndsvalg (f.eks. sykdommer med kjent R₀): knapperad der ingen eller én er valgt (<Forvalg>). */
+.bio-presets {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  font-size: 14px;
+  font-weight: 560;
+  color: var(--text-2);
+}
+
+.bio-presets-label {
+  margin-right: 2px;
+}
+
+.bio-preset {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 560;
+  line-height: 32px;
+  transition:
+    background-color 0.12s,
+    border-color 0.12s;
+}
+
+.bio-preset:hover {
+  background: var(--surface-2);
+}
+
+.bio-preset:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.bio-preset.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.bio-preset-detail {
+  color: var(--text-3);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
