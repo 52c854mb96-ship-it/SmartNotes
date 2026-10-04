@@ -35,10 +35,24 @@ jobs:
             exit 1
           fi
 
+      - name: Sjekk at appen er opprettet
+        id: app
+        run: |
+          if flyctl status --app "$FLY_APP" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Fant ikke appen $FLY_APP hos Fly.io. Kjør «Fly.io – første oppsett» først (steg 6 i docs/OPPSETT.md), og sjekk FLY_API_TOKEN."
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            # Startet for hånd: vis det som feil. Automatisk etter CI: hopp over uten å feile.
+            if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then exit 1; fi
+          fi
+
       - name: Bygg og deploy (første gang tar det noen minutter)
+        if: steps.app.outputs.exists == 'true'
         run: flyctl deploy --remote-only --ha=false --app "$FLY_APP"
 
       - name: Sjekk at appen svarer
+        if: steps.app.outputs.exists == 'true'
         run: |
           for i in $(seq 1 30); do
             if curl -fsS "https://$FLY_APP.fly.dev/api/health"; then
