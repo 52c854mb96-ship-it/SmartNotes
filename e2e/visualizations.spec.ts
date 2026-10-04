@@ -34,8 +34,13 @@ test('visualiseringer: oversikt, friksjon og neste', async ({ page }) => {
   await expect(main.getByText('Klossen glir.')).toBeVisible();
   await expect(main.getByRole('img', { name: /Klossen glir/ })).toBeVisible();
 
-  // Bla til neste visualisering
-  await main.getByRole('link', { name: /Kraftpar: bok, bord og jord/ }).click();
+  // Bla til neste visualisering (rekkefølgen kan endre seg når nye legges til)
+  await main.getByRole('navigation', { name: 'Andre visualiseringer' }).getByRole('link').last().click();
+  await expect(page).not.toHaveURL(/k2-friksjon$/);
+  await expect(main.locator('.viz')).toBeVisible();
+
+  // Kraftparet: velg gravitasjonsparet
+  await page.goto(page.url().replace(/\/visualiseringer\/[^/]+$/, '/visualiseringer/k2-kraftpar'));
   await expect(page.getByRole('heading', { name: 'Kraftpar: bok, bord og jord', level: 1 })).toBeVisible();
   await main.getByRole('radio', { name: 'Gravitasjonsparet' }).click();
   await expect(main.getByText(/Jorda trekker boka nedover/)).toBeVisible();
