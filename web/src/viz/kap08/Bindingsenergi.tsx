@@ -99,7 +99,14 @@ export default function Bindingsenergi() {
       <Legend
         items={[
           { color: CURVE_COLOR, label: 'Stabile og langlivede kjerner' },
-          ...(mode === 'kurve' ? [] : [{ color: REACTION_COLOR, label: mode === 'fisjon' ? 'Fisjon: tung kjerne spaltes' : 'Fusjon: lette kjerner smelter sammen' }]),
+          ...(mode === 'kurve'
+            ? []
+            : [
+                {
+                  color: REACTION_COLOR,
+                  label: mode === 'fisjon' ? 'Fisjon: tung kjerne spaltes' : 'Fusjon: lette kjerner smelter sammen',
+                },
+              ]),
         ]}
       />
 
@@ -159,7 +166,10 @@ function CurvePlot({ mode, sel, height, narrow }: { mode: Mode; sel: Nuclide; he
   const xMax = light ? 30 : 250;
   const reaction = mode === 'kurve' ? null : REACTIONS[mode];
   // Ved fisjon forstørres toppen av kurven, så økningen fra uran til bruddstykkene synes.
-  const yAxis = mode === 'fisjon' ? { min: 7.4, max: 9, ticks: [7.5, 8, 8.5, 9], decimals: 1 } : { min: 0, max: 10, ticks: [0, 2, 4, 6, 8, 10], decimals: 0 };
+  const yAxis =
+    mode === 'fisjon'
+      ? { min: 7.4, max: 9, ticks: [7.5, 8, 8.5, 9], decimals: 1 }
+      : { min: 0, max: 10, ticks: [0, 2, 4, 6, 8, 10], decimals: 0 };
   const shown = CURVE.filter((n) => n.A <= xMax && perNucleon(n) >= yAxis.min);
   return (
     <Plot
@@ -359,7 +369,9 @@ function explanation(mode: Mode, sel: Nuclide): ReactNode {
         <>
           {iso} ligger til venstre for toppen. Lette kjerner kan frigjøre energi ved å smelte sammen til tyngre kjerner (fusjon), fordi
           nukleonene da blir sterkere bundet.
-          {sel.Z === 2 && sel.A === 4 ? ' ⁴He ligger høyt over naboene sine: den er ekstra godt bundet, og derfor sendes nettopp heliumkjerner ut ved α-stråling.' : ''}
+          {sel.Z === 2 && sel.A === 4
+            ? ' ⁴He ligger høyt over naboene sine: den er ekstra godt bundet, og derfor sendes nettopp heliumkjerner ut ved α-stråling.'
+            : ''}
         </>
       );
     else if (sel.A <= 62)
@@ -394,10 +406,10 @@ function explanation(mode: Mode, sel: Nuclide): ReactNode {
   if (mode === 'fisjon')
     return (
       <p>
-        <strong>Fisjon.</strong> Et nøytron treffer ²³⁵U, som spaltes i ¹⁴¹Ba og ⁹²Kr og sender ut 3 nye nøytroner. Bruddstykkene
-        ligger høyere på kurven (ca. 8,4 MeV per nukleon mot 7,6 for uran), så nukleonene blir sterkere bundet. Massen etter er{' '}
-        {fmt(r.dm, 3)} u mindre enn før, og den manglende massen er blitt {fmt(r.Q, 1)} MeV, mest som bevegelsesenergi til bruddstykkene.
-        De nye nøytronene kan spalte flere urankjerner: en kjedereaksjon.
+        <strong>Fisjon.</strong> Et nøytron treffer ²³⁵U, som spaltes i ¹⁴¹Ba og ⁹²Kr og sender ut 3 nye nøytroner. Bruddstykkene ligger
+        høyere på kurven (ca. 8,4 MeV per nukleon mot 7,6 for uran), så nukleonene blir sterkere bundet. Massen etter er {fmt(r.dm, 3)} u
+        mindre enn før, og den manglende massen er blitt {fmt(r.Q, 1)} MeV, mest som bevegelsesenergi til bruddstykkene. De nye nøytronene
+        kan spalte flere urankjerner: en kjedereaksjon.
       </p>
     );
   if (mode === 'fusjon')
@@ -413,8 +425,8 @@ function explanation(mode: Mode, sel: Nuclide): ReactNode {
     <p>
       <strong>Fusjon i sola.</strong> I kjernen av sola blir fire hydrogenkjerner (protoner) til én heliumkjerne i flere trinn. Underveis
       blir to protoner til nøytroner ved β⁺-henfall. Til sammen forsvinner {fmt((r.dm / r.mBefore) * 100, 1)} % av massen, og det gir{' '}
-      {fmt(r.Q, 1)} MeV per heliumkjerne. Temperaturen i kjernen av sola er ca. 15 millioner K, og det enorme trykket holder
-      reaksjonene i gang.
+      {fmt(r.Q, 1)} MeV per heliumkjerne. Temperaturen i kjernen av sola er ca. 15 millioner K, og det enorme trykket holder reaksjonene i
+      gang.
     </p>
   );
 }

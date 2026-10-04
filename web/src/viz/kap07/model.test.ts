@@ -237,7 +237,8 @@ describe('farger og spektre', () => {
 
   it('absorpsjonslinjene i sollys passer med hydrogen og natrium, ikke med kvikksølv', () => {
     for (const h of hydrogenVisibleLines().slice(0, 4)) expect(nearestLine(sunLinesOf('hydrogen'), h.nm, 1.5)).not.toBeNull();
-    for (const na of elementLines('natrium').filter((l) => l.I > 0.5)) expect(nearestLine(sunLinesOf('natrium'), na.nm, 0.5)).not.toBeNull();
+    for (const na of elementLines('natrium').filter((l) => l.I > 0.5))
+      expect(nearestLine(sunLinesOf('natrium'), na.nm, 0.5)).not.toBeNull();
     expect(sunLinesOf('kvikksolv')).toEqual([]);
   });
 

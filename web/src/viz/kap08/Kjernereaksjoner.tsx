@@ -182,19 +182,21 @@ const R_SLOT = 72;
 
 function layout(f: number) {
   const k = Math.max(1, f * 0.8);
-  const cy = 26 + R_SLOT;
-  const lab1 = cy + R_SLOT + 28 * f;
+  // Større kjerner på mobil, der figuren er smal
+  const rSlot = R_SLOT * Math.min(1.4, Math.max(1, f * 0.75));
+  const cy = 26 + rSlot;
+  const lab1 = cy + rSlot + 28 * f;
   const lab2 = lab1 + 24 * f;
   const S = 46 * k;
   const eqY = lab2 + 30 * f + S * 0.85;
   const cons1 = eqY + S * 0.45 + 28 * f;
   const cons2 = cons1 + 26 * f;
-  return { k, cy, lab1, lab2, S, eqY, cons1, cons2, height: cons2 + 16 };
+  return { k, rSlot, cy, lab1, lab2, S, eqY, cons1, cons2, height: cons2 + 16 };
 }
 
 /** Kulestørrelse så tunge kjerner får plass, mens lette kjerner ikke blir bittesmå. */
-function ballRadius(A: number): number {
-  return Math.min(14, R_SLOT / (1.02 * Math.sqrt(Math.max(A, 1)) + 0.6));
+function ballRadius(A: number, rSlot: number): number {
+  return Math.min(14 * (rSlot / R_SLOT), rSlot / (1.02 * Math.sqrt(Math.max(A, 1)) + 0.6));
 }
 
 interface Term {
@@ -213,7 +215,7 @@ function ReactionScene({ dc, scale, stable }: { dc: Decay; scale: number; stable
   const L = layout(scale);
   const f = fReal;
   const { parent: p, daughter: d } = dc;
-  const r = ballRadius(p.A);
+  const r = ballRadius(p.A, L.rSlot);
   const R = r * (1.02 * Math.sqrt(p.A) + 0.6);
   const Rd = r * (1.02 * Math.sqrt(Math.max(d.A, 1)) + 0.6);
   const px = 140;
@@ -247,7 +249,20 @@ function ReactionScene({ dc, scale, stable }: { dc: Decay; scale: number; stable
       );
       x += w + gap * S;
     } else {
-      eq.push(<NuclideSymbol key={i} x={x} y={L.eqY} A={t.A} Z={t.Z} symbol={t.symbol} suffix={t.suffix} size={S} colorA={COLOR_A} colorZ={COLOR_Z} />);
+      eq.push(
+        <NuclideSymbol
+          key={i}
+          x={x}
+          y={L.eqY}
+          A={t.A}
+          Z={t.Z}
+          symbol={t.symbol}
+          suffix={t.suffix}
+          size={S}
+          colorA={COLOR_A}
+          colorZ={COLOR_Z}
+        />,
+      );
       x += nuclideSymbolWidth(t.A, t.Z, t.symbol, S, t.suffix);
     }
   });
@@ -338,7 +353,17 @@ function EmittedParticles({
         {dc.emitted.map((_, i) => {
           const dy = dc.emitted.length > 1 ? (i === 0 ? -34 : 26) : -20;
           return (
-            <PhotonWave key={i} x1={startX} y1={cy + dy * 0.3} x2={x + 80} y2={cy + dy} color={PARTICLE.photon} amplitude={9} wavelength={20} width={3} />
+            <PhotonWave
+              key={i}
+              x1={startX}
+              y1={cy + dy * 0.3}
+              x2={x + 80}
+              y2={cy + dy}
+              color={PARTICLE.photon}
+              amplitude={9}
+              wavelength={20}
+              width={3}
+            />
           );
         })}
         <Txt x={x + 10} y={lab1} weight={700} color={PARTICLE.photon}>
@@ -352,7 +377,7 @@ function EmittedParticles({
   if (dc.type === 'alfa')
     return (
       <>
-        <Nucleus cx={x} cy={cy - 10} Z={2} N={2} r={Math.max(6, r)} />
+        <Nucleus cx={x} cy={cy - 10} Z={2} N={2} r={Math.max(9, r)} />
         <Arrow x1={x + 30} y1={cy - 10} x2={x + 90} y2={cy - 10} color={VIZ.velocity} width={2.5} />
         <Txt x={x + 10} y={lab1} weight={700}>
           ⁴He
@@ -388,11 +413,7 @@ function energyFormula(dc: Decay, e: DecayEnergy | null): ReactNode {
   if (dc.type === 'gamma') {
     const photons = gammaPhotons(dc.parent.Z, dc.parent.A);
     if (!e || !photons)
-      return (
-        <FormulaLine>
-          Energien til γ-fotonet er ikke kjent for {nuclideLabel(dc.parent.Z, dc.parent.A, true)} i tabellen.
-        </FormulaLine>
-      );
+      return <FormulaLine>Energien til γ-fotonet er ikke kjent for {nuclideLabel(dc.parent.Z, dc.parent.A, true)} i tabellen.</FormulaLine>;
     const top = Math.max(...photons);
     return (
       <>
@@ -429,8 +450,8 @@ function energyFormula(dc: Decay, e: DecayEnergy | null): ReactNode {
       </FormulaLine>
       {exc > 0 && (
         <FormulaLine>
-          {qText(exc)} MeV blir igjen i den eksiterte {nuclideLabel(dc.daughter.Z, dc.daughter.A, true)}, så henfallet gir {qText(Qmass)} MeV −{' '}
-          {qText(exc)} MeV = {qText(e.Q)} MeV
+          {qText(exc)} MeV blir igjen i den eksiterte {nuclideLabel(dc.daughter.Z, dc.daughter.A, true)}, så henfallet gir {qText(Qmass)}{' '}
+          MeV − {qText(exc)} MeV = {qText(e.Q)} MeV
         </FormulaLine>
       )}
     </>
@@ -485,8 +506,8 @@ function stableExplanation(cur: Current, preset: { Z: number; A: number }, histo
           Bare α-henfallene endrer nukleontallet: A har sunket med {nA} · 4 = {4 * nA}, fra {preset.A} til {cur.A}.
         </>
       ) : null}{' '}
-      Hvert α-henfall senker Z med 2, hvert β⁻-henfall øker Z med 1{nBp ? ' og hvert β⁺-henfall senker Z med 1' : ''}, så Z har endret
-      seg med {zChange(nA, nBm, nBp)} = {signed(cur.Z - preset.Z)}.
+      Hvert α-henfall senker Z med 2, hvert β⁻-henfall øker Z med 1{nBp ? ' og hvert β⁺-henfall senker Z med 1' : ''}, så Z har endret seg
+      med {zChange(nA, nBm, nBp)} = {signed(cur.Z - preset.Z)}.
     </p>
   );
 }
@@ -500,8 +521,8 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
     case 'alfa':
       what = (
         <>
-          Ved <strong>α-henfall</strong> sender kjernen ut en alfapartikkel, ⁴₂He: to protoner og to nøytroner. Nukleontallet synker med
-          4 og protontallet med 2, så {parent} blir til {daughter}
+          Ved <strong>α-henfall</strong> sender kjernen ut en alfapartikkel, ⁴₂He: to protoner og to nøytroner. Nukleontallet synker med 4
+          og protontallet med 2, så {parent} blir til {daughter}
           {newElement}.
         </>
       );
@@ -527,8 +548,8 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
     case 'gamma':
       what = (
         <>
-          Ved <strong>γ-stråling</strong> kvitter en eksitert kjerne (*) seg med energi som {dc.emitted.length > 1 ? 'fotoner' : 'et foton'},
-          ofte rett etter et α- eller β-henfall. Verken A eller Z endres, så det er fortsatt {elementName(cur.Z)}.
+          Ved <strong>γ-stråling</strong> kvitter en eksitert kjerne (*) seg med energi som {dc.emitted.length > 1 ? 'fotoner' : 'et foton'}
+          , ofte rett etter et α- eller β-henfall. Verken A eller Z endres, så det er fortsatt {elementName(cur.Z)}.
         </>
       );
       break;
@@ -538,8 +559,8 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
       <p>Grunnstofftabellen i denne figuren stopper ved Z = 100. Velg en annen henfallstype, eller start på nytt.</p>
     ) : (
       <p>
-        {parent} har bare {cur.Z} {cur.Z === 1 ? 'proton' : 'protoner'}, så dette henfallet ville gitt en kjerne uten protoner. Det kan
-        ikke skje. Velg en annen henfallstype.
+        {parent} har bare {cur.Z} {cur.Z === 1 ? 'proton' : 'protoner'}, så dette henfallet ville gitt en kjerne uten protoner. Det kan ikke
+        skje. Velg en annen henfallstype.
       </p>
     );
   const sums = <>Nukleontall og ladning er bevart, men massen er ikke:</>;
@@ -555,7 +576,8 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
   else if (e && e.Q > 0)
     energyText = (
       <>
-        {sums} produktene er {fmt(e.dm, 6)} u lettere, og forskjellen er blitt {qText(e.Q)} MeV{dc.type === 'gamma' ? (dc.emitted.length > 1 ? ' i fotonene' : ' i fotonet') : ' bevegelsesenergi'} (E = mc²).
+        {sums} produktene er {fmt(e.dm, 6)} u lettere, og forskjellen er blitt {qText(e.Q)} MeV
+        {dc.type === 'gamma' ? (dc.emitted.length > 1 ? ' i fotonene' : ' i fotonet') : ' bevegelsesenergi'} (E = mc²).
       </>
     );
   else if (e && e.Q <= 0)
@@ -587,8 +609,7 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
       </>
     );
   else if (natural === dc.type && note) reality = <> {capitalize(note)}.</>;
-  else if (natural === dc.type && steps === 0 && !cur.excited)
-    reality = <> Trykk «Fortsett» for å følge datterkjernen videre.</>;
+  else if (natural === dc.type && steps === 0 && !cur.excited) reality = <> Trykk «Fortsett» for å følge datterkjernen videre.</>;
   if (dc.type === 'beta+' && e) reality = <>{reality} Med atommasser må vi trekke fra to elektronmasser, 2m(e), i Δm.</>;
   return (
     <p>

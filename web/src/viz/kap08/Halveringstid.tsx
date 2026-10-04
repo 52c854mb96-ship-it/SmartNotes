@@ -80,7 +80,8 @@ function halfLifeInSeconds(p: HalfLifePreset): string {
 
 export default function Halveringstid() {
   const [presetId, setPresetId] = useState('c14');
-  const [seed, setSeed] = useState(1);
+  // Frø 24 gir et typisk forløp (avviker lite fra teorien) når siden åpnes. «Nytt tilfeldig forsøk» går videre.
+  const [seed, setSeed] = useState(24);
   const clock = useSimClock({ tMax: T_MAX, speed: 0.5 });
   const { setT, pause } = clock;
   useEffect(() => setT(1), [setT]);
@@ -148,7 +149,10 @@ export default function Halveringstid() {
         ]}
       />
 
-      <Figure viewBox={`0 0 800 ${plotH}`} label={`Graf over antall kjerner som er igjen. Teorien gir ${fmt(nTheory, 0)}, simuleringen ${nSim}.`}>
+      <Figure
+        viewBox={`0 0 800 ${plotH}`}
+        label={`Graf over antall kjerner som er igjen. Teorien gir ${fmt(nTheory, 0)}, simuleringen ${nSim}.`}
+      >
         <DecayPlot times={times} t={k} p={p} height={plotH} nSim={nSim} />
       </Figure>
       <Legend
@@ -256,7 +260,16 @@ function DecayPlot({ times, t, p, height, nSim }: { times: number[]; t: number; 
               </Txt>
             </g>
           ))}
-          <path d={linePath(sample((x) => remaining(N0, x, p.T), 0, xMax, 240), sx, sy)} fill="none" stroke={THEORY} strokeWidth={3} />
+          <path
+            d={linePath(
+              sample((x) => remaining(N0, x, p.T), 0, xMax, 240),
+              sx,
+              sy,
+            )}
+            fill="none"
+            stroke={THEORY}
+            strokeWidth={3}
+          />
           <path d={linePath(steps, sx, sy)} fill="none" stroke={MOTHER} strokeWidth={2.5} strokeLinejoin="round" />
           <circle cx={sx(t * p.T)} cy={sy(remaining(N0, t, 1))} r={6} fill={VIZ.surface} stroke={THEORY} strokeWidth={3} />
           <circle cx={sx(t * p.T)} cy={sy(nSim)} r={7} fill={MOTHER} stroke={VIZ.surface} strokeWidth={2.5} />
@@ -272,23 +285,22 @@ function explanation(p: HalfLifePreset, k: number, nSim: number, nTheory: number
   if (k < 0.005)
     return (
       <p>
-        Alle {N0} kjernene av {iso} er urørte. Hver kjerne har like stor sannsynlighet for å henfalle i hvert tidsrom, uansett hvor
-        lenge den har eksistert. Halveringstida T<Sub>½</Sub> = {T} er tida det tar før halvparten har henfalt. Trykk «Spill av».
+        Alle {N0} kjernene av {iso} er urørte. Hver kjerne har like stor sannsynlighet for å henfalle i hvert tidsrom, uansett hvor lenge
+        den har eksistert. Halveringstida T<Sub>½</Sub> = {T} er tida det tar før halvparten har henfalt. Trykk «Spill av».
       </p>
     );
   const later =
     k >= 2 ? (
       <>
         {' '}
-        Legg merke til at det ikke er tomt etter to halveringstider: da er en firedel igjen, etter tre en åttedel, og slik fortsetter
-        det.
+        Legg merke til at det ikke er tomt etter to halveringstider: da er en firedel igjen, etter tre en åttedel, og slik fortsetter det.
       </>
     ) : null;
   return (
     <p>
-      Etter {timeText(k, p)}, altså {fmt(k, 2)} halveringstider, er <strong>{nSim}</strong> av {N0} kjerner igjen. Teorien gir N ={' '}
-      {N0} · (1/2)<Sup>{fmt(k, 2)}</Sup> = {fmt(nTheory, 1)}. Vi kan ikke vite hvilken kjerne som henfaller neste gang, bare hvor mange som
-      gjør det i gjennomsnitt, så simuleringen blir litt forskjellig hver gang.
+      Etter {timeText(k, p)}, altså {fmt(k, 2)} halveringstider, er <strong>{nSim}</strong> av {N0} kjerner igjen. Teorien gir N = {N0} ·
+      (1/2)<Sup>{fmt(k, 2)}</Sup> = {fmt(nTheory, 1)}. Vi kan ikke vite hvilken kjerne som henfaller neste gang, bare hvor mange som gjør
+      det i gjennomsnitt, så simuleringen blir litt forskjellig hver gang.
       {later ?? ' Aktiviteten A = λN avtar i samme takt som antall kjerner.'}
     </p>
   );

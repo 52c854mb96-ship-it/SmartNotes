@@ -58,7 +58,12 @@ const SUN_ELEMENT_NAMES: Record<string, string> = {
   'O₂': 'oksygen i jordatmosfæren',
 };
 
-const ELEMENT_NAME: Record<SpectrumElement, string> = { hydrogen: 'hydrogen', helium: 'helium', natrium: 'natrium', kvikksolv: 'kvikksølv' };
+const ELEMENT_NAME: Record<SpectrumElement, string> = {
+  hydrogen: 'hydrogen',
+  helium: 'helium',
+  natrium: 'natrium',
+  kvikksolv: 'kvikksølv',
+};
 
 /** Fysisk mørke (ingen lys) i spekterfigurene. Fargene i spektrene er lysets egne farger, ikke temafarger. */
 const DARK = 'rgb(6, 7, 12)';
@@ -96,13 +101,13 @@ export default function Spektre() {
       </Controls>
 
       <div ref={figRef}>
-      <Figure
-        viewBox={`0 0 800 ${figureHeight(f, sun, mode !== 'kontinuerlig')}`}
-        label={`${mode === 'kontinuerlig' ? 'Kontinuerlig spekter' : `${mode === 'emisjon' ? 'Emisjonsspekter' : 'Absorpsjonsspekter'} for ${ELEMENT_NAME[el]}`} fra 380 til 750 nm${sun ? ', sammenlignet med sollys' : ''}. Markøren står på ${cursor} nm.`}
-        maxHeight={560}
-      >
-        <SpectrumScene mode={mode} el={el} sun={sun} cursor={cursor} lines={lines} scale={f} />
-      </Figure>
+        <Figure
+          viewBox={`0 0 800 ${figureHeight(f, sun, mode !== 'kontinuerlig')}`}
+          label={`${mode === 'kontinuerlig' ? 'Kontinuerlig spekter' : `${mode === 'emisjon' ? 'Emisjonsspekter' : 'Absorpsjonsspekter'} for ${ELEMENT_NAME[el]}`} fra 380 til 750 nm${sun ? ', sammenlignet med sollys' : ''}. Markøren står på ${cursor} nm.`}
+          maxHeight={560}
+        >
+          <SpectrumScene mode={mode} el={el} sun={sun} cursor={cursor} lines={lines} scale={f} />
+        </Figure>
       </div>
 
       <Readouts>
@@ -178,7 +183,9 @@ function SpectrumScene({
   const gradId = `spekter-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const stops: ReactNode[] = [];
   for (let nm = VISIBLE_MIN; nm <= VISIBLE_MAX; nm += 5) {
-    stops.push(<stop key={nm} offset={`${((nm - VISIBLE_MIN) / (VISIBLE_MAX - VISIBLE_MIN)) * 100}%`} stopColor={wavelengthColor(nm, DARK)} />);
+    stops.push(
+      <stop key={nm} offset={`${((nm - VISIBLE_MIN) / (VISIBLE_MAX - VISIBLE_MIN)) * 100}%`} stopColor={wavelengthColor(nm, DARK)} />,
+    );
   }
 
   // Etiketter over linjene (de sterkeste), i to rader så de ikke overlapper
@@ -196,6 +203,8 @@ function SpectrumScene({
   const ticks = [400, 450, 500, 550, 600, 650, 700, 750];
   const matches = sunLinesOf(el);
   const cx = sx(cursor);
+  // Markøren blir litt større på mobil
+  const tri = Math.min(Math.max(1, fReal), 1.5);
 
   return (
     <>
@@ -230,7 +239,15 @@ function SpectrumScene({
           absorberer en gass bare fra nivåer som er besatt, så noen linjer er mye svakere i absorpsjon.) */}
       {mode === 'absorpsjon' &&
         lines.map((l) => (
-          <rect key={l.nm} x={sx(l.nm) - 1.5 - l.I} y={L.barTop} width={3 + 2 * l.I} height={L.barH} fill={DARK} opacity={0.5 + 0.5 * l.I} />
+          <rect
+            key={l.nm}
+            x={sx(l.nm) - 1.5 - l.I}
+            y={L.barTop}
+            width={3 + 2 * l.I}
+            height={L.barH}
+            fill={DARK}
+            opacity={0.5 + 0.5 * l.I}
+          />
         ))}
       <rect x={X0} y={L.barTop} width={X1 - X0} height={L.barH} fill="none" stroke={VIZ.grid} strokeWidth={1.5} />
 
@@ -267,14 +284,30 @@ function SpectrumScene({
         <>
           <rect x={X0} y={L.sunTop} width={X1 - X0} height={L.sunH} fill={`url(#${gradId})`} />
           {SUN_LINES.map((l) => (
-            <rect key={l.nm} x={sx(l.nm) - 0.8 - l.I} y={L.sunTop} width={1.6 + 2 * l.I} height={L.sunH} fill={DARK} opacity={0.45 + 0.55 * l.I} />
+            <rect
+              key={l.nm}
+              x={sx(l.nm) - 0.8 - l.I}
+              y={L.sunTop}
+              width={1.6 + 2 * l.I}
+              height={L.sunH}
+              fill={DARK}
+              opacity={0.45 + 0.55 * l.I}
+            />
           ))}
           <rect x={X0} y={L.sunTop} width={X1 - X0} height={L.sunH} fill="none" stroke={VIZ.grid} strokeWidth={1.5} />
           {/* Linjene fra grunnstoffet som også finnes i sollyset */}
           {mode !== 'kontinuerlig' &&
             mergeClose(matches).map((l) => (
               <g key={l.nm}>
-                <line x1={sx(l.nm)} x2={sx(l.nm)} y1={L.axisTitle + 8} y2={L.sunTop - 2} stroke={VIZ.ink} strokeWidth={1.5} strokeDasharray="3 4" />
+                <line
+                  x1={sx(l.nm)}
+                  x2={sx(l.nm)}
+                  y1={L.axisTitle + 8}
+                  y2={L.sunTop - 2}
+                  stroke={VIZ.ink}
+                  strokeWidth={1.5}
+                  strokeDasharray="3 4"
+                />
                 <path d={`M${sx(l.nm)},${L.sunTop + L.sunH + 4} l-6,10 h12 z`} fill={VIZ.ink} />
               </g>
             ))}
@@ -296,8 +329,13 @@ function SpectrumScene({
 
       {/* Markøren: trekanter over og under spekteret, så linjene under ikke dekkes */}
       <g>
-        <path d={`M${cx},${L.barTop - 1} l-8,-13 h16 z`} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.5} />
-        <path d={`M${cx},${L.barTop + L.barH + 1} l-8,13 h16 z`} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.5} />
+        <path d={`M${cx},${L.barTop - 1} l${-8 * tri},${-13 * tri} h${16 * tri} z`} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.5} />
+        <path
+          d={`M${cx},${L.barTop + L.barH + 1} l${-8 * tri},${13 * tri} h${16 * tri} z`}
+          fill={VIZ.ink}
+          stroke={VIZ.surface}
+          strokeWidth={1.5}
+        />
       </g>
     </>
   );
@@ -351,8 +389,8 @@ function explanation(
   } else if (mode === 'emisjon') {
     main = (
       <>
-        <strong>Emisjonsspekter.</strong> En tynn, varm gass av {name} sender bare ut lys med bestemte bølgelengder. Hver linje er
-        fotoner fra én overgang mellom to energinivåer, E = hf = E<sub>øvre</sub> − E<sub>nedre</sub>
+        <strong>Emisjonsspekter.</strong> En tynn, varm gass av {name} sender bare ut lys med bestemte bølgelengder. Hver linje er fotoner
+        fra én overgang mellom to energinivåer, E = hf = E<sub>øvre</sub> − E<sub>nedre</sub>
         {el === 'hydrogen' ? ', her Balmer-serien ned til n = 2' : ''}. {hitText(hit)} Linjemønsteret er et fingeravtrykk: ingen andre
         grunnstoffer har akkurat de samme linjene.
       </>
@@ -360,9 +398,9 @@ function explanation(
   } else {
     main = (
       <>
-        <strong>Absorpsjonsspekter.</strong> Når hvitt lys går gjennom en gass av {name} som er kaldere enn lyskilden, tar atomene bare opp fotoner med
-        nøyaktig den energien som passer til et sprang mellom to nivåer. De bølgelengdene mangler i lyset som slipper gjennom, og vi
-        ser mørke linjer på nøyaktig samme plass som de lyse linjene i emisjonsspekteret. {hitText(hit)}
+        <strong>Absorpsjonsspekter.</strong> Når hvitt lys går gjennom en gass av {name} som er kaldere enn lyskilden, tar atomene bare opp
+        fotoner med nøyaktig den energien som passer til et sprang mellom to nivåer. De bølgelengdene mangler i lyset som slipper gjennom,
+        og vi ser mørke linjer på nøyaktig samme plass som de lyse linjene i emisjonsspekteret. {hitText(hit)}
       </>
     );
   }
@@ -379,8 +417,8 @@ function explanation(
     else if (el === 'hydrogen')
       sunText = (
         <>
-          Sollyset har mørke linjer fordi gassen i atmosfæren til sola absorberer. Hydrogenlinjene Hα, Hβ, Hγ og Hδ finnes blant dem,
-          så sola inneholder hydrogen. Slik finner vi ut hva fjerne stjerner består av.
+          Sollyset har mørke linjer fordi gassen i atmosfæren til sola absorberer. Hydrogenlinjene Hα, Hβ, Hγ og Hδ finnes blant dem, så
+          sola inneholder hydrogen. Slik finner vi ut hva fjerne stjerner består av.
         </>
       );
     else if (el === 'natrium')

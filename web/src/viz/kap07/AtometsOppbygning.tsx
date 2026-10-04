@@ -53,14 +53,14 @@ export default function AtometsOppbygning() {
       </Controls>
 
       <div ref={ref}>
-      <Figure
-        viewBox={`0 0 800 ${narrow ? NARROW_H : 430}`}
-        label={`${elementNameCap(a.Z)}-${a.A} med ${a.Z} protoner og ${a.N} nøytroner i kjernen og ${a.electrons} elektroner i skallene ${a.shells.join(', ')}.`}
-        caption="Figuren er ikke i målestokk: kjernen er i virkeligheten rundt 100 000 ganger mindre enn atomet."
-        maxHeight={narrow ? NARROW_H : 430}
-      >
-        <AtomScene a={a} narrow={narrow} />
-      </Figure>
+        <Figure
+          viewBox={`0 0 800 ${narrow ? NARROW_H : 430}`}
+          label={`${elementNameCap(a.Z)}-${a.A} med ${a.Z} protoner og ${a.N} nøytroner i kjernen og ${a.electrons} elektroner i skallene ${a.shells.join(', ')}.`}
+          caption="Figuren er ikke i målestokk: kjernen er i virkeligheten rundt 100 000 ganger mindre enn atomet."
+          maxHeight={narrow ? NARROW_H : 430}
+        >
+          <AtomScene a={a} narrow={narrow} />
+        </Figure>
       </div>
       <Legend
         items={[
@@ -113,7 +113,9 @@ function AtomScene({ a, narrow }: { a: AtomInfo; narrow: boolean }) {
   });
   const descriptor = a.electrons === 0 ? 'Bare kjernen' : a.charge === 0 ? 'Nøytralt atom' : a.charge > 0 ? 'Positivt ion' : 'Negativt ion';
   // PC: atomet til venstre og symbolet til høyre. Mobil: atomet forstørret øverst, symbol og tekst under.
-  const atomTransform = narrow ? `translate(400 ${NARROW_ATOM_Y}) scale(${NARROW_ATOM_SCALE}) translate(${-ATOM.cx} ${-ATOM.cy})` : undefined;
+  const atomTransform = narrow
+    ? `translate(400 ${NARROW_ATOM_Y}) scale(${NARROW_ATOM_SCALE}) translate(${-ATOM.cx} ${-ATOM.cy})`
+    : undefined;
   const sym = narrow ? { x: 250, y: NARROW_TEXT_Y, anchor: 'middle' as const } : { x: 600, y: 196, anchor: 'middle' as const };
   const tx = narrow ? 420 : 600;
   const ty = narrow ? NARROW_TEXT_Y - 44 * k : 196 + 58 * k;
@@ -193,8 +195,9 @@ function explanation(a: AtomInfo): ReactNode {
         </>
       ) : (
         <>
-          {iso} er en stabil isotop: samme protontall som {nuclideText(a.Z, common ?? a.A)}, men {plural(Math.abs(a.A - (common ?? a.A)), 'nøytron', 'nøytroner')}{' '}
-          {a.A > (common ?? a.A) ? 'mer' : 'mindre'}, så nukleontallet A blir {a.A}.
+          {iso} er en stabil isotop: samme protontall som {nuclideText(a.Z, common ?? a.A)}, men{' '}
+          {plural(Math.abs(a.A - (common ?? a.A)), 'nøytron', 'nøytroner')} {a.A > (common ?? a.A) ? 'mer' : 'mindre'}, så nukleontallet A
+          blir {a.A}.
         </>
       );
   } else if (a.status === 'radioaktiv') {
@@ -207,8 +210,8 @@ function explanation(a: AtomInfo): ReactNode {
   } else if (a.status === 'for-mange-noytroner') {
     isotope = (
       <>
-        {iso} har <strong>for mange nøytroner</strong> til å være stabil. Slike kjerner er radioaktive og henfaller, typisk ved
-        β⁻-stråling der et nøytron blir til et proton.
+        {iso} har <strong>for mange nøytroner</strong> til å være stabil. Slike kjerner er radioaktive og henfaller, typisk ved β⁻-stråling
+        der et nøytron blir til et proton.
       </>
     );
   } else if (a.status === 'for-faa-noytroner') {
@@ -257,13 +260,13 @@ function explanation(a: AtomInfo): ReactNode {
       </p>
       {a.electrons > 0 ? (
         <p>
-          Nesten all massen ({fmt(a.nucleusMassFraction * 100, 2)} %) sitter i kjernen, som bare er ca. 10⁻¹⁵ m, mens hele atomet er
-          ca. 10⁻¹⁰ m. Atomet er altså nesten bare tomrom.
+          Nesten all massen ({fmt(a.nucleusMassFraction * 100, 2)} %) sitter i kjernen, som bare er ca. 10⁻¹⁵ m, mens hele atomet er ca.
+          10⁻¹⁰ m. Atomet er altså nesten bare tomrom.
         </p>
       ) : (
         <p>
-          Kjernen er bare ca. 10⁻¹⁵ m. Med elektroner rundt seg blir atomet ca. 10⁻¹⁰ m, så et atom er nesten bare tomrom, men nesten
-          all massen sitter i kjernen.
+          Kjernen er bare ca. 10⁻¹⁵ m. Med elektroner rundt seg blir atomet ca. 10⁻¹⁰ m, så et atom er nesten bare tomrom, men nesten all
+          massen sitter i kjernen.
         </p>
       )}
     </>

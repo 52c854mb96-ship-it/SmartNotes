@@ -47,7 +47,14 @@ export interface Nuclide {
   note?: string;
 }
 
-const nuc = (Z: number, A: number, mass: number, halfLife: string | null = null, mode?: DecayType, extra: Partial<Nuclide> = {}): Nuclide => ({
+const nuc = (
+  Z: number,
+  A: number,
+  mass: number,
+  halfLife: string | null = null,
+  mode?: DecayType,
+  extra: Partial<Nuclide> = {},
+): Nuclide => ({
   Z,
   A,
   mass,
@@ -176,10 +183,10 @@ export function bindingEnergy(Z: number, A: number, mass: number): Binding {
 }
 
 /** Kjernene i grafen over bindingsenergi per nukleon (stabile og noen langlivede). */
-export const CURVE_KEYS = [
-  '1-1', '1-2', '2-3', '2-4', '3-6', '3-7', '4-9', '5-11', '6-12', '7-14', '8-16', '9-19', '10-20', '11-23', '12-24', '13-27', '14-28',
-  '16-32', '20-40', '24-52', '26-56', '28-62', '36-84', '40-90', '47-107', '50-120', '56-138', '79-197', '82-208', '92-235', '92-238',
-];
+export const CURVE_KEYS = (
+  '1-1 1-2 2-3 2-4 3-6 3-7 4-9 5-11 6-12 7-14 8-16 9-19 10-20 11-23 12-24 13-27 ' +
+  '14-28 16-32 20-40 24-52 26-56 28-62 36-84 40-90 47-107 50-120 56-138 79-197 82-208 92-235 92-238'
+).split(' ');
 
 export const CURVE: Nuclide[] = CURVE_KEYS.map((k) => BY_KEY.get(k)!).filter(Boolean);
 

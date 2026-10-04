@@ -25,8 +25,18 @@ const viz: VizMeta[] = [
     chapter: '7',
     sections: ['7C'],
     title: 'Spektre: kontinuerlig, emisjon og absorpsjon',
-    summary: 'Sammenlign spektrene til hydrogen, helium, natrium og kvikksølv med sollys, og se at linjene er fingeravtrykk for grunnstoffene.',
-    keywords: ['spektrallinjer', 'linjespekter', 'emisjonsspekter', 'absorpsjonsspekter', 'Fraunhofer', 'sollys', 'fingeravtrykk', 'fotonenergi'],
+    summary:
+      'Sammenlign spektrene til hydrogen, helium, natrium og kvikksølv med sollys, og se at linjene er fingeravtrykk for grunnstoffene.',
+    keywords: [
+      'spektrallinjer',
+      'linjespekter',
+      'emisjonsspekter',
+      'absorpsjonsspekter',
+      'Fraunhofer',
+      'sollys',
+      'fingeravtrykk',
+      'fotonenergi',
+    ],
     load: () => import('./Spektre'),
   },
 ];

@@ -110,7 +110,8 @@ export default function BohrHydrogen() {
           E<Sub>n</Sub> = −2,18 · 10⁻¹⁸ J / n²
         </FormulaLine>
         <FormulaLine>
-          E<Sub>foton</Sub> = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = ({fmtSci(levelEnergyJ(upper), 2)} J) − ({fmtSci(levelEnergyJ(lower), 2)} J)
+          E<Sub>foton</Sub> = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = ({fmtSci(levelEnergyJ(upper), 2)} J) − (
+          {fmtSci(levelEnergyJ(lower), 2)} J)
         </FormulaLine>
         <FormulaLine>
           E<Sub>foton</Sub> = {fmtSci(p.E, 2)} J = {fmt(p.eV, sigDecimals(p.eV))} eV
@@ -144,7 +145,19 @@ function yOf(pn: Panel, E: number): number {
   return pn.y + pn.h - ((E - pn.eMin) / (pn.eMax - pn.eMin)) * pn.h;
 }
 
-function LevelDiagram({ upper, lower, mode, narrow, height }: { upper: number; lower: number; mode: Mode; narrow: boolean; height: number }) {
+function LevelDiagram({
+  upper,
+  lower,
+  mode,
+  narrow,
+  height,
+}: {
+  upper: number;
+  lower: number;
+  mode: Mode;
+  narrow: boolean;
+  height: number;
+}) {
   const f = useTextScale();
   const clipId = `bohr-clip-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const head = 34 * Math.min(f, 1.5);
@@ -268,12 +281,29 @@ function LevelDiagram({ upper, lower, mode, narrow, height }: { upper: number; l
       {transitions(main, false)}
 
       {/* Forstørrelse av nivåene nær null */}
-      <rect x={zoom.x + 4} y={zoom.y - head} width={zoom.w - 8} height={zoom.h + head + 10} rx={10} fill="none" stroke={VIZ.grid} strokeWidth={1.5} />
+      <rect
+        x={zoom.x + 4}
+        y={zoom.y - head}
+        width={zoom.w - 8}
+        height={zoom.h + head + 10}
+        rx={10}
+        fill="none"
+        stroke={VIZ.grid}
+        strokeWidth={1.5}
+      />
       <Txt x={zoom.x + 18} y={zoom.y - head + 24 * Math.min(f, 1.5)} anchor="start" muted>
         Forstørret: n = 3 til ∞
       </Txt>
       {[7, 8, 9, 10, 12, 15].map((n) => (
-        <line key={n} x1={zoom.lineX0} x2={zoom.lineX1} y1={yOf(zoom, levelEnergyEV(n))} y2={yOf(zoom, levelEnergyEV(n))} stroke={VIZ.grid} strokeWidth={1.5} />
+        <line
+          key={n}
+          x1={zoom.lineX0}
+          x2={zoom.lineX1}
+          y1={yOf(zoom, levelEnergyEV(n))}
+          y2={yOf(zoom, levelEnergyEV(n))}
+          stroke={VIZ.grid}
+          strokeWidth={1.5}
+        />
       ))}
       {[3, 4, 5, 6].map((n) => (
         <g key={n}>
@@ -328,7 +358,9 @@ function WavelengthAxis({ upper, lower, height }: { upper: number; lower: number
   const ticks = [100, 200, 500, 1000, 2000, 5000];
   const stops: ReactNode[] = [];
   for (let nm = VISIBLE_MIN; nm <= VISIBLE_MAX; nm += 10) {
-    stops.push(<stop key={nm} offset={`${((nm - VISIBLE_MIN) / (VISIBLE_MAX - VISIBLE_MIN)) * 100}%`} stopColor={wavelengthColor(nm, 'black')} />);
+    stops.push(
+      <stop key={nm} offset={`${((nm - VISIBLE_MIN) / (VISIBLE_MAX - VISIBLE_MIN)) * 100}%`} stopColor={wavelengthColor(nm, 'black')} />,
+    );
   }
   const selX = sx(selNm);
   const labelAnchor = selX > 680 ? 'end' : selX < 120 ? 'start' : 'middle';
@@ -447,17 +479,18 @@ function explanation(mode: Mode, upper: number, lower: number, eV: number, nm: n
   if (mode === 'emisjon')
     return (
       <p>
-        <strong>Emisjon.</strong> Elektronet faller fra n = {upper} til n = {lower} og sender ut ett foton med energi lik forskjellen
-        mellom nivåene: E = hf = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = {fmt(eV, sigDecimals(eV))} eV. Det gir λ = {fmt(nm, 0)} nm, som er {where}.{' '}
-        {seriesText}
+        <strong>Emisjon.</strong> Elektronet faller fra n = {upper} til n = {lower} og sender ut ett foton med energi lik forskjellen mellom
+        nivåene: E = hf = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = {fmt(eV, sigDecimals(eV))} eV. Det gir λ = {fmt(nm, 0)} nm, som er{' '}
+        {where}. {seriesText}
         {ionize} Bohrs modell gir riktige nivåer for hydrogen, men virker ikke for atomer med flere elektroner.
       </p>
     );
   return (
     <p>
       <strong>Absorpsjon.</strong> Atomet tar bare opp et foton som har nøyaktig energien E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> ={' '}
-      {fmt(eV, sigDecimals(eV))} eV (λ = {fmt(nm, 0)} nm, {region === 'synlig' ? 'synlig lys' : REGION_NAMES[region]}). Da løftes elektronet fra n = {lower} til n ={' '}
-      {upper}. Fotoner med litt mer eller litt mindre energi går rett gjennom, fordi elektronet ikke kan være mellom nivåene.{ionize}
+      {fmt(eV, sigDecimals(eV))} eV (λ = {fmt(nm, 0)} nm, {region === 'synlig' ? 'synlig lys' : REGION_NAMES[region]}). Da løftes elektronet
+      fra n = {lower} til n = {upper}. Fotoner med litt mer eller litt mindre energi går rett gjennom, fordi elektronet ikke kan være mellom
+      nivåene.{ionize}
     </p>
   );
 }

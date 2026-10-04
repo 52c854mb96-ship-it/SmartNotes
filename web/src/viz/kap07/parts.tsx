@@ -132,7 +132,21 @@ export function nucleusRadius(count: number, r: number): number {
  * Kjerne av protoner (med +) og nøytroner, pakket som en solsikke. Protonene og nøytronene blandes med en fast
  * tallgenerator, så samme kjerne alltid ser lik ut.
  */
-export function Nucleus({ cx, cy, Z, N, r = 7, plus = true }: { cx: number; cy: number; Z: number; N: number; r?: number; plus?: boolean }) {
+export function Nucleus({
+  cx,
+  cy,
+  Z,
+  N,
+  r = 7,
+  plus = true,
+}: {
+  cx: number;
+  cy: number;
+  Z: number;
+  N: number;
+  r?: number;
+  plus?: boolean;
+}) {
   const count = Math.max(0, Z + N);
   if (count === 0) return null;
   // Fordel protonene jevnt utover (ikke alle i midten): bland rekkefølgen med fast frø.
@@ -156,9 +170,20 @@ export function Nucleus({ cx, cy, Z, N, r = 7, plus = true }: { cx: number; cy: 
     const isP = kinds[k]!;
     balls.push(
       <g key={k}>
-        <circle cx={x} cy={y} r={r} fill={isP ? PARTICLE.proton : PARTICLE.neutron} stroke={VIZ.surface} strokeWidth={Math.max(1, r * 0.18)} />
+        <circle
+          cx={x}
+          cy={y}
+          r={r}
+          fill={isP ? PARTICLE.proton : PARTICLE.neutron}
+          stroke={VIZ.surface}
+          strokeWidth={Math.max(1, r * 0.18)}
+        />
         {isP && plus && r >= 6 && (
-          <path d={`M${x - r * 0.45},${y}h${r * 0.9}M${x},${y - r * 0.45}v${r * 0.9}`} stroke={VIZ.surface} strokeWidth={Math.max(1.2, r * 0.2)} />
+          <path
+            d={`M${x - r * 0.45},${y}h${r * 0.9}M${x},${y - r * 0.45}v${r * 0.9}`}
+            stroke={VIZ.surface}
+            strokeWidth={Math.max(1.2, r * 0.2)}
+          />
         )}
       </g>,
     );
