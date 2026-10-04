@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BookOpen, FileText, Hash, Search, X } from 'lucide-react';
+import { BookOpen, FileText, Hash, Search, Shapes, X } from 'lucide-react';
 import { db } from '../db';
 import { noteSearchText, sectionAnchor } from '../lib/curriculum';
 import { chapterHeading, formatDayShort, noteDay } from '../lib/format';
@@ -16,6 +16,8 @@ import {
   type Segment,
 } from '../lib/search';
 import { searchStore } from '../lib/ui';
+import { VIZ_ENTRIES, hasVisualizations, matchesViz } from '../viz/registry';
+import type { VizEntry } from '../viz/types';
 
 const DEBOUNCE_MS = 80;
 
@@ -27,7 +29,18 @@ export function SearchPalette() {
 
 type Item =
   | { kind: 'note'; id: string; href: string; hit: NoteHit }
-  | { kind: 'place'; id: string; href: string; hit: PlaceHit };
+  | { kind: 'place'; id: string; href: string; hit: PlaceHit }
+  | { kind: 'viz'; id: string; href: string; viz: VizEntry };
+
+const MAX_VIZ = 4;
+
+/** Visualiseringene som passer med søket (alle ordene må finnes), med lenke under første fysikkfag. */
+function vizItems(query: string, subjectId: string | null): Item[] {
+  if (!subjectId || !query.trim()) return [];
+  return VIZ_ENTRIES.filter((e) => matchesViz(e, query))
+    .slice(0, MAX_VIZ)
+    .map((viz) => ({ kind: 'viz', id: `sr-viz-${viz.key}`, href: `/fag/${subjectId}/visualiseringer/${viz.key}`, viz }));
+}
 
 function Marked({ segments }: { segments: Segment[] }) {
   return (
@@ -46,14 +59,17 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
   const [debounced, setDebounced] = useState('');
   const [active, setActive] = useState(0);
 
-  const index = useLiveQuery(async () => {
+  const data = useLiveQuery(async () => {
     const [subjects, chapters, notes] = await Promise.all([
       db.subjects.toArray(),
       db.chapters.toArray(),
       db.notes.toArray(),
     ]);
-    return buildIndex(subjects, chapters, notes);
+    const vizSubject = [...subjects].sort((a, b) => a.position - b.position).find((sub) => hasVisualizations(sub));
+    return { index: buildIndex(subjects, chapters, notes), vizSubjectId: vizSubject?.id ?? null };
   }, []);
+  const index = data?.index;
+  const vizSubjectId = data?.vizSubjectId ?? null;
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query), DEBOUNCE_MS);
@@ -77,8 +93,8 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
       href: `/fag/${hit.chapter.subjectId}/kapittel/${hit.chapter.id}${hit.section ? `#${sectionAnchor(hit.section.code)}` : ''}`,
       hit,
     }));
-    return [...notes, ...places];
-  }, [result]);
+    return [...notes, ...places, ...vizItems(debounced, vizSubjectId)];
+  }, [result, debounced, vizSubjectId]);
 
   useEffect(() => setActive(0), [items]);
 
@@ -140,6 +156,8 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
             hit: place,
           });
         }
+        const viz = vizItems(query, vizSubjectId)[0];
+        if (viz) return go(viz);
         return;
       }
       go(items[active]);
@@ -148,6 +166,7 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
 
   const noteItems = items.filter((i) => i.kind === 'note');
   const placeItems = items.filter((i) => i.kind === 'place');
+  const vizResults = items.filter((i) => i.kind === 'viz');
   const activeId = items[active]?.id;
   const hasQuery = terms.length > 0;
 
@@ -261,11 +280,44 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
               </ul>
             </li>
           )}
+          {vizResults.length > 0 && (
+            <li role="presentation">
+              <div id="sr-group-viz" className="search-group-label" role="presentation">
+                Visualiseringer
+              </div>
+              <ul role="group" aria-labelledby="sr-group-viz" className="search-group">
+                {vizResults.map((item) => {
+                  if (item.kind !== 'viz') return null;
+                  const { viz } = item;
+                  return option(
+                    item,
+                    <>
+                      <Shapes size={17} aria-hidden className="search-option-icon" />
+                      <span className="search-option-body">
+                        <span className="search-option-title">
+                          <Marked segments={highlightSegments(viz.title, terms)} />
+                        </span>
+                        <span className="search-option-meta">
+                          {viz.sections.map((code) => (
+                            <span key={code} className="section-code">
+                              {code}
+                            </span>
+                          ))}
+                          <span>Kapittel {viz.chapter}</span>
+                        </span>
+                        <span className="search-option-snippet">{viz.summary}</span>
+                      </span>
+                    </>,
+                  );
+                })}
+              </ul>
+            </li>
+          )}
         </ul>
 
         {!hasQuery && (
           <p className="search-empty">
-            Søk etter ord fra notatene, en tittel, et kapittel eller en kode som «2E». Søket virker også uten nett.
+            Søk etter ord fra notatene, en tittel, et kapittel, en visualisering eller en kode som «2E». Søket virker også uten nett.
           </p>
         )}
         {hasQuery && result && items.length === 0 && (

@@ -42,3 +42,17 @@ test('visualiseringer: oversikt, friksjon og neste', async ({ page }) => {
 
   expect(errors).toEqual([]);
 });
+
+test('søket finner visualiseringer', async ({ page }) => {
+  await page.goto('/');
+  await expect(page).toHaveURL(/logg-inn/);
+  await page.getByLabel('Passord', { exact: true }).fill(PASSWORD);
+  await page.getByRole('button', { name: 'Logg inn' }).click();
+  await expect(page.getByRole('heading', { name: 'Fysikk', level: 1 })).toBeVisible();
+
+  await page.keyboard.press('Control+k');
+  const palette = page.getByRole('dialog', { name: 'Søk' });
+  await palette.getByRole('combobox', { name: 'Søk' }).fill('kraftpar');
+  await palette.getByRole('option', { name: /Kraftpar: bok, bord og jord/ }).click();
+  await expect(page.getByRole('heading', { name: 'Kraftpar: bok, bord og jord', level: 1 })).toBeVisible();
+});
