@@ -84,7 +84,8 @@ Bruk alltid `VIZ.*`, aldri egne fargekoder. Samme størrelse har samme farge i a
 
 - **Språk:** norsk bokmål. Stor forbokstav bare i første ord (aldri STORE BOKSTAVER), ingen emojier. Fysikkbegreper og symboler som i ERGO Fysikk 1: G, N, R (friksjon), L (luftmotstand), S (snordrag), F; v, a, s, t; E<sub>k</sub>, E<sub>p</sub>, W, P, p (bevegelsesmengde), I (impuls).
 - **Tall:** alltid `fmt()` (desimalkomma). Enheter med mellomrom: `12,0 N`, `1,50 m/s²`. Bruk `·` for gange og `−` (ekte minus) i tekst.
-- **Fysikk:** riktig først. Legg all regning i `model.ts` som rene funksjoner, og test dem (kjente lærebokeksempler, grensetilfeller, bevaringslover). Ingen tilfeldige tall.
+- **Fysikk:** riktig først. Legg all regning i `model.ts` som rene funksjoner, og test dem (kjente lærebokeksempler, grensetilfeller, bevaringslover). Tilfeldige tall bare der fysikken er statistisk (f.eks. radioaktivt henfall), og da fra en enkel tallgenerator med fast frø, så tester og skjermbilder blir like hver gang.
+- **Ytterverdier:** alle kombinasjoner av glidebryterne skal gi fornuftige figurer uten `NaN`, piler som går ut av figuren eller tekst som overlapper (sjekk med `--extremes`).
 - **Tydelig:** figuren skal fylle viewBox-en (ikke mye tom plass), piler skal være lange nok til å sees (velg en skala px/N som passer verdiområdet), og etiketter skal ikke overlappe ved standardverdiene.
 - **Mobil:** figuren skaleres ned til ca. 330 px bredde, og da blir teksten i SVG-en større (se `useTextScale`). Gi etikettene luft, og sjekk skjermbilde på 390 px.
 - **Tema:** ingen faste farger i SVG (bruk `VIZ` og CSS-klassene i `styles/viz.css`), så både lyst og mørkt tema fungerer.
@@ -101,6 +102,7 @@ npx vite --port 5173                       # http://localhost:5173/viz-preview.h
 npx vitest run src/viz/kap02               # modelltester
 npx tsc -p tsconfig.json --noEmit          # typer
 node scripts/viz-shot.mjs --port 5173 --chapter 2 --out /tmp/shots   # skjermbilder (lyst/mørkt, 1000/390 px)
+node scripts/viz-shot.mjs --port 5173 --chapter 2 --out /tmp/shots --extremes --themes light   # også min/maks
 ```
 
 Forhåndsvisningen trenger ikke server eller innlogging, og laster bare kapittelet som vises.

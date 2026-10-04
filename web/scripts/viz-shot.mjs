@@ -5,6 +5,7 @@
  *   npx vite --port 5311 --strictPort &
  *   node scripts/viz-shot.mjs --port 5311 --chapter 2 --out /tmp/shots
  *   node scripts/viz-shot.mjs --port 5311 --ids k2-friksjon,k2-kraftpar --themes dark --widths 390
+ *   node scripts/viz-shot.mjs --port 5311 --chapter 2 --extremes     # også med alle glidebrytere på min og på maks
  *
  * Skriver én PNG per visualisering × tema × bredde, og lister konsollfeil. Avslutter med kode 1 ved feil.
  */
@@ -55,13 +56,27 @@ try {
           errors.push('Visualiseringen ble ikke vist innen 30 s');
         }
         await page.waitForTimeout(300);
-        const file = path.join(out, `${id}-${theme}-${width}.png`);
-        await page.screenshot({ path: file, fullPage: true });
-        const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
-        if (overflow) errors.push(`Siden scroller sidelengs ved ${width} px`);
-        console.log(`${errors.length ? 'FEIL' : 'ok  '} ${file}`);
-        for (const e of errors) console.log(`     ${e}`);
-        if (errors.length) failed = true;
+        const variants = args.extremes ? ['', 'min', 'max'] : [''];
+        for (const variant of variants) {
+          if (variant) {
+            // Sett alle glidebryterne til ytterverdien (React lytter på input-hendelsen).
+            for (const slider of await page.$$('input[type=range]')) {
+              const value = await slider.getAttribute(variant);
+              if (value !== null) await slider.fill(value);
+            }
+            await page.waitForTimeout(200);
+          }
+          const file = path.join(out, `${id}-${theme}-${width}${variant ? `-${variant}` : ''}.png`);
+          await page.screenshot({ path: file, fullPage: true });
+          const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
+          if (overflow) errors.push(`Siden scroller sidelengs ved ${width} px${variant ? ` (${variant})` : ''}`);
+          const bad = await page.evaluate(() => /NaN|Infinity|undefined/.test(document.querySelector('.viz')?.textContent ?? ''));
+          if (bad) errors.push(`Teksten inneholder NaN/Infinity/undefined${variant ? ` (${variant})` : ''}`);
+          console.log(`${errors.length ? 'FEIL' : 'ok  '} ${file}`);
+          for (const e of errors) console.log(`     ${e}`);
+          if (errors.length) failed = true;
+          errors.length = 0;
+        }
         await page.close();
       }
     }

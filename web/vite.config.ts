@@ -5,6 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 const ACCENT = '#1F5FAD';
 
 export default defineConfig({
+  // Egen cache per utviklingsserver når flere kjører samtidig (f.eks. VITE_CACHE_DIR=node_modules/.vite-5311).
+  cacheDir: process.env.VITE_CACHE_DIR || 'node_modules/.vite',
   plugins: [
     react(),
     VitePWA({

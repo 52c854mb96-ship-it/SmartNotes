@@ -101,10 +101,16 @@ export default function Friksjon() {
                   <>
                     <line x1={sx(peak)} y1={sy(peak)} x2={sx(peak)} y2={sy(r.Rk)} className="viz-guide" />
                     <line x1={sx(peak)} y1={sy(r.Rk)} x2={x1} y2={sy(r.Rk)} stroke={VIZ.friction} strokeWidth={3.5} />
-                    <Label x={sx(peak) + 8} y={sy(peak) - 8} anchor="start" color={VIZ.friction}>
+                    {/* Etikettene flyttes så de ikke går ut av grafen eller overlapper hverandre */}
+                    <Label
+                      x={peak > F_MAX * 0.55 ? sx(peak) - 10 : sx(peak) + 8}
+                      y={sy(peak) - 10}
+                      anchor={peak > F_MAX * 0.55 ? 'end' : 'start'}
+                      color={VIZ.friction}
+                    >
                       μ<TSub>s</TSub>N = {fmt(r.Rmax, 1)} N
                     </Label>
-                    <Label x={x1 - 4} y={sy(r.Rk) - 12} anchor="end" color={VIZ.friction}>
+                    <Label x={x1 - 4} y={r.Rmax - r.Rk < 12 && r.Rk > 15 ? sy(r.Rk) + 30 : sy(r.Rk) - 12} anchor="end" color={VIZ.friction}>
                       μ<TSub>k</TSub>N = {fmt(r.Rk, 1)} N
                     </Label>
                   </>
