@@ -13,9 +13,11 @@ Personal app for a Norwegian student: handwritten lecture notes (photos/PDF) →
   - `notes.search_text` = `latexToText(body)`, synced to the client for offline search.
   - LaTeX safety: compile with `latexmk -no-shell-escape`, `openin_any=p`, `openout_any=p`; `sanitizeBody` strips file/preamble commands.
 - `web/` – React 19 + Vite 8 PWA (vite-plugin-pwa), Dexie as local source of truth, outbox for offline uploads, pdf.js viewer. Three-column layout ≥1180px (sidebar | list pane | content), search palette (Ctrl/Cmd+K), light/dark/system theme via `data-theme`.
+- Visualizations (`web/src/viz/`, read `web/src/viz/README.md` first): interactive physics explanations per ERGO chapter, pages `/fag/:id/visualiseringer[/:vizKey]` (physics subjects only). One folder per chapter `kapNN/` (`index.ts` meta list, `model.ts` pure physics + `model.test.ts`, one component per viz); shared building blocks in `kit/`; `registry.ts` collects all chapters. Dev preview without server/login: `/viz-preview.html?id=k2-friksjon&theme=dark`; screenshots: `node web/scripts/viz-shot.mjs --chapter N [--extremes]`.
 - UI conventions (from the user's earlier project Momentum, `/home/user/momentum` if cloned): sentence case everywhere (no ALL CAPS labels), no emojis, calm UI, CSS variables only.
 
 ## Commands
-- `npm test` (server vitest, needs TeX Live + poppler), `npm run typecheck`, `npm run build`, `npm run test:e2e` (Playwright).
+- `npm test` (server vitest, needs TeX Live + poppler; plus web vitest for the viz models), `npm run typecheck`, `npm run build`, `npm run test:e2e` (Playwright).
+- Deploy: `docs/OPPSETT.md` (step-by-step for the user) and GitHub workflows `fly-setup.yml` / `deploy.yml` (secrets `FLY_API_TOKEN`, `APP_PASSWORD`, `ANTHROPIC_API_KEY`, variable `FLY_APP`).
 - Dev: `SMARTNOTES_FAKE_CLAUDE=1 npm run dev` (server :8787, web :5173 with /api proxy).
 - Mutating API calls require header `X-SmartNotes: 1`; auth is the `sn_session` cookie.
