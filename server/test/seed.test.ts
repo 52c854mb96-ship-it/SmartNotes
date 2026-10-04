@@ -81,3 +81,33 @@ describe('startoppsett', () => {
     repo.close();
   });
 });
+
+describe('læreboksettene', () => {
+  it('standard er fysikk, kjemi og biologi, i den rekkefølgen', async () => {
+    const { DEFAULT_SEED_TEXTBOOKS } = await import('../src/textbooks.js');
+    expect(DEFAULT_SEED_TEXTBOOKS).toEqual(['ergo-fysikk-1', 'aschehoug-kjemi-1', 'gyldendal-bi-1']);
+    const repo = freshRepo();
+    expect(repo.seed(DEFAULT_SEED_TEXTBOOKS.map((id) => TEXTBOOKS[id]!))).toEqual(['Fysikk 1', 'Kjemi 1', 'Biologi 1']);
+    expect(repo.listSubjects().map((s) => `${s.name}:${s.profile}:${s.aims.length}`)).toEqual([
+      'Fysikk 1:physics:14',
+      'Kjemi 1:chemistry:17',
+      'Biologi 1:biology:11',
+    ]);
+    repo.close();
+  });
+
+  it.each(Object.values(TEXTBOOKS))('$id henger sammen: mål KM1…, unike kapitler og delkapitler, kjente mål', (preset) => {
+    expect(preset.aims.map((a) => a.code)).toEqual(preset.aims.map((_, i) => `KM${i + 1}`));
+    const codes = new Set(preset.aims.map((a) => a.code));
+    const numbers = preset.chapters.map((c) => c.number);
+    expect(new Set(numbers).size).toBe(numbers.length);
+    const sections = preset.chapters.flatMap((c) => c.sections.map((s) => ({ ...s, chapter: c.number })));
+    expect(new Set(sections.map((s) => s.code)).size).toBe(sections.length);
+    for (const s of sections) {
+      // «2C» eller «2.3»: koden starter med kapittelnummeret
+      expect(s.code).toMatch(new RegExp(`^${s.chapter}(?:[A-Z]|\\.\\d+)$`));
+      expect(s.aims.length).toBeGreaterThan(0);
+      for (const a of s.aims) expect(codes.has(a)).toBe(true);
+    }
+  });
+});

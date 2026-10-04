@@ -1,11 +1,12 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { BookOpen, FileStack, FolderOpen, ListPlus, Settings, Shapes, Upload } from 'lucide-react';
-import type { Chapter } from '@smartnotes/shared';
+import { BookOpen, Camera, FileStack, FolderOpen, ListPlus, ListTree, Settings, Shapes, Upload, X } from 'lucide-react';
+import type { Chapter, Subject } from '@smartnotes/shared';
 import { AimsBlock } from '../components/AimsBlock';
 import { EmptyState, PageSkeleton } from '../components/EmptyState';
 import { WorkInProgress } from '../components/WorkInProgress';
 import { chapterStats, useChapters, useOutbox, useSubject, useSubjectNotes, type ChapterStats } from '../data';
+import { sectionsOf } from '../lib/curriculum';
 import { formatDayShort, plural } from '../lib/format';
 import { openUpload } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
@@ -81,6 +82,8 @@ export function SubjectPage() {
       </header>
 
       <WorkInProgress outbox={outbox ?? []} notes={notes} />
+
+      <MissingSectionsHint subject={subject} chapters={chapters} />
 
       {chapters.length === 0 ? (
         <EmptyState
@@ -160,5 +163,56 @@ function ChapterCard({
         </span>
       </span>
     </Link>
+  );
+}
+
+const HINT_KEY = (subjectId: string) => `smartnotes:sectionsHint:${subjectId}`;
+
+/**
+ * Når noen kapitler mangler delkapitler (f.eks. Kjemi 1 og Biologi 1, der innholdsfortegnelsen ikke kunne bekreftes),
+ * foreslås bildeimport av innholdsfortegnelsen. Kan skjules på denne enheten.
+ */
+function MissingSectionsHint({ subject, chapters }: { subject: Subject; chapters: Chapter[] }) {
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem(HINT_KEY(subject.id)) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const missing = chapters.filter((c) => sectionsOf(c).length === 0).length;
+  if (hidden || chapters.length === 0 || missing === 0) return null;
+  const hide = () => {
+    setHidden(true);
+    try {
+      localStorage.setItem(HINT_KEY(subject.id), '1');
+    } catch {
+      /* ignorer */
+    }
+  };
+  return (
+    <aside className="callout callout-accent hint-card" aria-label="Delkapitler mangler">
+      <ListTree size={18} aria-hidden />
+      <div className="hint-card-body">
+        <strong>
+          {missing === chapters.length
+            ? 'Kapitlene har ingen delkapitler ennå.'
+            : `${plural(missing, 'kapittel', 'kapitler')} mangler delkapitler.`}
+        </strong>
+        <span>
+          Ta bilde av innholdsfortegnelsen i {subject.textbook ? `«${subject.textbook}»` : 'læreboka'}, så legges
+          delkapitlene inn{subject.aims.length > 0 ? ' og kobles til kompetansemålene' : ''}. Da kan Claude plassere
+          notatene mer presist.
+        </span>
+        <span className="hint-card-actions">
+          <Link to={`/fag/${subject.id}/innstillinger#innholdsfortegnelse`} className="btn btn-sm">
+            <Camera size={16} aria-hidden /> Importer innholdsfortegnelsen
+          </Link>
+        </span>
+      </div>
+      <button type="button" className="icon-btn" onClick={hide} aria-label="Skjul forslaget" title="Skjul">
+        <X size={17} aria-hidden />
+      </button>
+    </aside>
   );
 }

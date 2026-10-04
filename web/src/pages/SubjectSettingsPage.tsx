@@ -20,6 +20,7 @@ import { chapterHeading, plural } from '../lib/format';
 import { PROFILES, SubjectIcon, profileOf } from '../lib/subjects';
 import { confirmDialog, toast } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { useHashScroll } from '../lib/useHashScroll';
 import { ChapterImport } from './settings/ChapterImport';
 import { NotFoundPage } from './NotFoundPage';
 
@@ -32,6 +33,7 @@ export function SubjectSettingsPage() {
   const notes = useSubjectNotes(subjectId);
   const { online } = useOnline();
   useDocumentTitle(subject ? `Innstillinger for ${subject.name}` : null);
+  useHashScroll([subject !== undefined && chapters !== undefined]);
 
   if (subject === undefined || chapters === undefined) return <PageSkeleton />;
   if (subject === null) return <NotFoundPage what="faget" />;

@@ -13,11 +13,13 @@ describe('registeret for visualiseringer', () => {
       expect(e.profile).toBe(profile);
       expect(e.id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
       expect(e.chapter).toMatch(/^\d+$/);
-      expect(e.sections.length).toBeGreaterThan(0);
+      // Fysikk har bekreftede delkapitler. I kjemi og biologi kan listen være tom til innholdsfortegnelsen er bekreftet,
+      // og da vises visualiseringen etter kapittelet.
+      if (profile === 'physics') expect(e.sections.length).toBeGreaterThan(0);
       // «2C» i ERGO Fysikk 1, «3.2» eller «3A» i de andre bøkene: koden starter med kapittelnummeret,
       // og minst ett av delkapitlene hører til kapittelet visualiseringen står under.
       for (const code of e.sections) expect(code).toMatch(/^\d+([A-Z]|\.\d+)$/);
-      expect(e.sections.some((code) => code.replace(/([A-Z]|\.\d+)$/, '') === e.chapter)).toBe(true);
+      if (e.sections.length) expect(e.sections.some((code) => code.replace(/([A-Z]|\.\d+)$/, '') === e.chapter)).toBe(true);
       expect(e.title).not.toMatch(/^[A-ZÆØÅ ]{4,}$/);
       expect(getViz(profile, e.key)).toBe(e);
     }

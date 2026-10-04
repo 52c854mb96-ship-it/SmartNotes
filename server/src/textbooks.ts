@@ -52,6 +52,130 @@ const FYSIKK1_AIMS: CompetenceAim[] = [
   { code: 'KM14', text: 'forstå begrepet fusjon og vurdere hvordan ulike grunnstoff kan dannes når stjerner lever, kolliderer og dør', cross: false },
 ];
 
+/** Kompetansemål i Kjemi 1 (KJE01-02, LK20, kompetansemålsett KV532). Ordlyd fra Udir (Grep). */
+const KJEMI1_AIMS: CompetenceAim[] = [
+  { code: 'KM1', text: 'forstå og bruke kjemisk terminologi og regler for navnsetting i faglig kommunikasjon', cross: true },
+  {
+    code: 'KM2',
+    text: 'planlegge og gjennomføre forsøk, estimere usikkerhet og vurdere feilkilder, presentere resultater og argumentere for gyldigheten av resultater og konklusjoner',
+    cross: true,
+  },
+  {
+    code: 'KM3',
+    text: 'bruke informasjon fra sikkerhetsdatablad til å gjøre vurderinger knyttet til helse, miljø og sikkerhet i praktisk arbeid',
+    cross: true,
+  },
+  { code: 'KM4', text: 'bruke data, simuleringer og beregninger i tolkninger og til å trekke konklusjoner', cross: true },
+  {
+    code: 'KM5',
+    text: 'bruke modeller til å forklare observasjoner og kjemiske fenomener, og argumentere for modellenes styrker og begrensinger',
+    cross: true,
+  },
+  {
+    code: 'KM6',
+    text: 'gjøre rede for oppbygningen av periodesystemet, og bruke kjerneladning og elektronkonfigurasjon til å forklare periodiske trender',
+    cross: false,
+  },
+  {
+    code: 'KM7',
+    text: 'gjøre rede for kjemisk binding som elektrostatiske krefter som virker mellom partikler, og bruke dette til å forklare molekylgeometri og organiske og uorganiske stoffers struktur, sammensetning og egenskaper',
+    cross: false,
+  },
+  {
+    code: 'KM8',
+    text: 'utforske og gjøre beregninger på kjemiske reaksjoner, og bruke observasjoner og teoretiske vurderinger til å identifisere reaksjonstype',
+    cross: false,
+  },
+  {
+    code: 'KM9',
+    text: 'gjøre beregninger med ulike enheter for konsentrasjon og bruke stoffkonsentrasjon i vurderinger av vann- og luftkvalitet',
+    cross: false,
+  },
+  { code: 'KM10', text: 'gjennomføre volumetrisk og gravimetrisk titreranalyse og drøfte bruk av titreranalyse', cross: false },
+  {
+    code: 'KM11',
+    text: 'gjøre rede for sammenhengen mellom atomets oppbygning og grunnstoffers absorbsjons- og emisjonsspektre og bruke spektroskopiske metoder i kvalitativ og kvantitativ analyse',
+    cross: false,
+  },
+  {
+    code: 'KM12',
+    text: 'gjøre rede for entalpi og bruke beregninger og forsøk til å utforske entalpiendringer i reaksjoner',
+    cross: false,
+  },
+  {
+    code: 'KM13',
+    text: 'gjøre rede for kollisjonsteori og utforske faktorer som påvirker reaksjonsfart og kjemisk likevekt',
+    cross: false,
+  },
+  {
+    code: 'KM14',
+    text: 'utforske løseligheten til stoffer, og gjøre rede for betydningen av ladning, polaritet og temperatur for løselighet',
+    cross: false,
+  },
+  {
+    code: 'KM15',
+    text: 'gjøre rede for begrepene syre, base, protolyse og pH, og utforske egenskapene til sterke og svake syrer og baser',
+    cross: false,
+  },
+  {
+    code: 'KM16',
+    text: 'gjøre rede for prinsipper for grønn kjemi og drøfte hvordan bruk av prinsippene kan bidra til bærekraftig utvikling',
+    cross: false,
+  },
+  {
+    code: 'KM17',
+    text: 'presentere kjemifaglig innhold fra ulike kilder, kritisk vurdere kildene og bruke relevant teori til å drøfte innholdet',
+    cross: true,
+  },
+];
+
+/** Kompetansemål i Biologi 1 (BIO01-02, LK20, kompetansemålsett KV538). Ordlyd fra Udir (Grep). */
+const BIOLOGI1_AIMS: CompetenceAim[] = [
+  {
+    code: 'KM1',
+    text: 'planlegge og gjennomføre undersøkelser, samle, behandle og tolke data og presentere resultater og funn',
+    cross: true,
+  },
+  {
+    code: 'KM2',
+    text: 'utforske hvordan de taksonomiske kriteriene har endret seg i tråd med den teknologiske utviklingen, og sammenligne organismer med hensyn til fellestrekk og variasjon',
+    cross: false,
+  },
+  {
+    code: 'KM3',
+    text: 'utforske sammenhenger mellom anatomi og fysiologi og gjøre rede for prinsippene for livsprosessene i organismer',
+    cross: false,
+  },
+  {
+    code: 'KM4',
+    text: 'gjøre rede for hvordan utvalgte reguleringsmekanismer styrer homeostase hos mennesket, og undersøke hvordan livsstil kan påvirke disse mekanismene',
+    cross: false,
+  },
+  {
+    code: 'KM5',
+    text: 'utforske sammenhenger mellom cellestrukturer og -funksjoner og gjøre rede for hvordan cellulære membraner danner grunnlag for kommunikasjon mellom celler',
+    cross: false,
+  },
+  {
+    code: 'KM6',
+    text: 'sammenligne hvordan ulike celler deler seg, og gjøre rede for hvorfor regulering av celledeling er viktig for vekst og reparasjon',
+    cross: false,
+  },
+  { code: 'KM7', text: 'gjøre rede for hvordan virale og mikrobielle sykdommer oppstår, spres og nedkjempes', cross: false },
+  { code: 'KM8', text: 'drøfte hvordan vaksiner forebygger og verner mot sykdom på individ- og populasjonsnivå', cross: false },
+  { code: 'KM9', text: 'gjøre rede for bruk av antibiotika og drøfte mulige konsekvenser', cross: false },
+  {
+    code: 'KM10',
+    text: 'utforske abiotiske og biotiske faktorer i et økosystem, drøfte sammenhenger som forklarer det biologiske mangfoldet, og reflektere over naturens egenverdi',
+    cross: false,
+  },
+  {
+    code: 'KM11',
+    text: 'utforske hvilke konsekvenser endringer i klima og arealutnytting kan ha for det biologiske mangfoldet, og drøfte tiltak for en mer bærekraftig forvaltning',
+    cross: false,
+  },
+];
+
 const s = (code: string, title: string, aims: string[]): Section => ({ code, title, aims });
 
 export const TEXTBOOKS: Record<string, TextbookPreset> = {
@@ -163,6 +287,71 @@ export const TEXTBOOKS: Record<string, TextbookPreset> = {
           s('10D', 'Elektrisk energi og effekt', ['KM9']),
         ],
       },
+    ],
+  },
+
+  /**
+   * Kjemi 1 (Aschehoug, LK20, 2021; Haraldsrud, Sandtorv, Hushovd og Brandt). Kapitlene er godt belagt i forlagets
+   * egne sider og skolers planer. Delkapitlene er bare funnet for kapittel 1 (1.3 er mest usikker), og resten er ikke
+   * gjettet: eleven legger dem inn fra innholdsfortegnelsen (bilde) i faginnstillingene, som også kobler dem til målene.
+   * Kapittel 2 kalles «Periodiske egenskaper og reaksjoner» ett sted hos forlaget, men «Egenskaper og reaksjoner» i
+   * alle andre kilder.
+   */
+  'aschehoug-kjemi-1': {
+    id: 'aschehoug-kjemi-1',
+    subjectName: 'Kjemi 1',
+    textbook: 'Kjemi 1 (Aschehoug)',
+    profile: 'chemistry',
+    aims: KJEMI1_AIMS,
+    chapters: [
+      {
+        number: '1',
+        title: 'Kjemiske bindinger',
+        sections: [
+          s('1.1', 'Hva er kjemi?', ['KM1', 'KM5']),
+          s('1.2', 'Atomer', ['KM6', 'KM11', 'KM5']),
+          s('1.3', 'Periodesystemet', ['KM6']),
+          s('1.4', 'Sterke bindinger', ['KM7', 'KM1']),
+          s('1.5', 'Svake bindinger', ['KM7', 'KM14']),
+        ],
+      },
+      { number: '2', title: 'Egenskaper og reaksjoner', sections: [] },
+      { number: '3', title: 'Støkiometri', sections: [] },
+      { number: '4', title: 'Termokjemi', sections: [] },
+      { number: '5', title: 'Organisk kjemi', sections: [] },
+      { number: '6', title: 'Likevekter', sections: [] },
+      { number: '7', title: 'Syrer og baser', sections: [] },
+      { number: '8', title: 'Miljøanalyse', sections: [] },
+    ],
+  },
+
+  /**
+   * Bi 1 (Gyldendal, 3. utgave 2021, LK20; Grønlien, Tandberg og Glørstad Tsigaridas). De 15 kapitlene er belagt av
+   * flere uavhengige elevkilder (middels sikkerhet; titlene på kapittel 8, 13 og 15 kan være litt annerledes i boka).
+   * Delkapitlene er bare funnet bruddstykkevis og er derfor ikke lagt inn: eleven importerer innholdsfortegnelsen.
+   */
+  'gyldendal-bi-1': {
+    id: 'gyldendal-bi-1',
+    subjectName: 'Biologi 1',
+    textbook: 'Bi 1 (Gyldendal)',
+    profile: 'biology',
+    aims: BIOLOGI1_AIMS,
+    chapters: [
+      { number: '1', title: 'Liv', sections: [] },
+      { number: '2', title: 'Systematikk', sections: [] },
+      { number: '3', title: 'Biologisk mangfold', sections: [] },
+      { number: '4', title: 'Forvaltning av naturressurser', sections: [] },
+      { number: '5', title: 'Cellestrukturer og cellefunksjon', sections: [] },
+      { number: '6', title: 'Transport og kommunikasjon i celler', sections: [] },
+      { number: '7', title: 'Celledeling', sections: [] },
+      { number: '8', title: 'Kommunikasjonssystemer i mennesket', sections: [] },
+      { number: '9', title: 'Transportsystemer i mennesket', sections: [] },
+      { number: '10', title: 'Transportsystemer i dyr', sections: [] },
+      { number: '11', title: 'Transportsystemer i planter', sections: [] },
+      { number: '12', title: 'Kommunikasjon og bevegelse i planter', sections: [] },
+      { number: '13', title: 'Formering', sections: [] },
+      { number: '14', title: 'Mikrobielle og virale sykdommer', sections: [] },
+      { number: '15', title: 'Bekjempelse av mikrobielle og virale sykdommer', sections: [] },
     ],
   },
 };

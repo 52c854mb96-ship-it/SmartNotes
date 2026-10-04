@@ -38,7 +38,7 @@ async function waitFor(id: string, pred: (n: Note) => boolean): Promise<Note> {
 
 beforeAll(async () => {
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-sections-'));
-  const config = loadConfig({ ...process.env, NODE_ENV: 'test', DATA_DIR: dataDir, APP_PASSWORD: 'pw', WEB_DIST: '' });
+  const config = loadConfig({ ...process.env, NODE_ENV: 'test', DATA_DIR: dataDir, APP_PASSWORD: 'pw', WEB_DIST: '', SEED_TEXTBOOKS: 'ergo-fysikk-1' });
   ctx = await buildApp({ ...config, webDist: null }, { claude: new FakeClaude(5), logger: false });
   ctx.worker.start();
   const login = await ctx.app.inject({

@@ -48,7 +48,8 @@ function isSubset(imported: Section[], stored: Section[]): boolean {
 let rowSeq = 0;
 
 export function ChapterImport({ subject, existing, online }: { subject: Subject; existing: Chapter[]; online: boolean }) {
-  const [mode, setMode] = useState<Mode>('text');
+  // Fra forslaget på fagsiden («Ta bilde av innholdsfortegnelsen») åpnes bildeimporten med en gang.
+  const [mode, setMode] = useState<Mode>(() => (location.hash === '#innholdsfortegnelse' ? 'image' : 'text'));
   const [text, setText] = useState('');
   const picked = usePickedFiles();
   const [busy, setBusy] = useState<null | 'parse' | 'extract' | 'save'>(null);
@@ -167,7 +168,7 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
         : `Legg til ${plural(newCount, 'kapittel', 'kapitler')}`;
 
   return (
-    <section className="card" aria-labelledby="import-h">
+    <section className="card" aria-labelledby="import-h" id="innholdsfortegnelse">
       <div className="card-head">
         <h2 id="import-h" className="card-title">
           Importer innholdsfortegnelse

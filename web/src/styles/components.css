@@ -328,6 +328,43 @@ dialog::backdrop {
   color: var(--warning);
 }
 
+.callout-accent {
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--text);
+}
+
+.callout-accent > svg {
+  color: var(--accent-text);
+}
+
+/* Forslag på fagsiden (f.eks. importer innholdsfortegnelsen) */
+.hint-card {
+  margin-bottom: 20px;
+  padding: 12px 8px 12px 14px;
+}
+
+.hint-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  line-height: 1.5;
+}
+
+.hint-card-body > span {
+  color: var(--text-2);
+}
+
+.hint-card-actions {
+  margin-top: 6px;
+}
+
+.hint-card > .icon-btn {
+  margin-top: -4px;
+}
+
 .inline-note {
   display: flex;
   align-items: center;

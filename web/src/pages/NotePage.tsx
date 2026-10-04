@@ -34,7 +34,7 @@ import { LatexTab } from './note/LatexTab';
 import { OriginalTab } from './note/OriginalTab';
 import { PdfTab } from './note/PdfTab';
 import { RetryDialog } from './note/RetryDialog';
-import { vizForSection } from '../viz/registry';
+import { vizForChapter, vizForSection } from '../viz/registry';
 
 type Tab = 'pdf' | 'original' | 'latex';
 const TABS: { id: Tab; label: string; icon: typeof FileText }[] = [
@@ -205,7 +205,8 @@ function NoteHeader({
   const sectionCode = noteSectionCode(note);
   const aimCodes = noteAimCodes(note, chapter);
   const aims = useMemo(() => aimMap(subject), [subject]);
-  const vizEntries = vizForSection(subject?.profile, sectionCode);
+  // Etter delkapittelet, eller alle i kapittelet når notatet ikke har delkapittel (f.eks. før delkapitlene er lagt inn).
+  const vizEntries = sectionCode ? vizForSection(subject?.profile, sectionCode) : vizForChapter(subject?.profile, chapter?.number);
 
   const patch = async (req: Parameters<typeof updateNote>[1], success?: string) => {
     try {
