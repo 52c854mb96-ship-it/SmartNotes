@@ -55,7 +55,7 @@ export const SPACE_OBJECTS: SpaceObject[] = [
     id: 'sola',
     label: 'Sola',
     d: AU,
-    fact: 'Middelavstanden til sola er definert som 1 astronomisk enhet (AE). Sollyset du ser, ble sendt ut for over 8 minutter siden.',
+    fact: 'Middelavstanden mellom jorda og sola er definert som 1 astronomisk enhet (AE), enheten vi bruker for avstander i solsystemet.',
   },
   {
     id: 'jupiter',
