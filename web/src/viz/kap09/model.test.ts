@@ -45,7 +45,7 @@ describe('enheter for avstand', () => {
 
   it('1 lysår ≈ 63 200 AE og 1 parsec ≈ 3,26 lysår', () => {
     expect(LIGHT_YEAR / AU).toBeCloseTo(63235, -2);
-    expect(PARSEC / LIGHT_YEAR).toBeCloseTo(3.27, 1);
+    expect(PARSEC / LIGHT_YEAR).toBeCloseTo(3.26, 2);
   });
 
   it('lyset bruker ca. 1,3 s fra månen og 8,3 min fra sola', () => {

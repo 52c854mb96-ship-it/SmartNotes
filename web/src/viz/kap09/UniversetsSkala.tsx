@@ -22,6 +22,7 @@ import {
   AU,
   C_LIGHT,
   LIGHT_YEAR,
+  PARSEC,
   SPACE_OBJECTS,
   YEAR,
   lightTime,
@@ -31,6 +32,7 @@ import {
   toAU,
   toKm,
   toLightYears,
+  toParsec,
   type SpaceObject,
 } from './model';
 import { Select, Tag, textWidth, useNarrow } from './parts';
@@ -108,6 +110,9 @@ export default function UniversetsSkala() {
         <FormulaLine>1 AE = {fmtSci(AU, 3)} m</FormulaLine>
         <FormulaLine>
           1 lysår = c · 1 år = {fmtSci(LIGHT_YEAR, 2)} m = {fmtSig(LIGHT_YEAR / AU)} AE
+        </FormulaLine>
+        <FormulaLine>
+          1 parsec = {fmtSci(PARSEC, 2)} m = {fmtSig(PARSEC / LIGHT_YEAR)} lysår, så avstanden er {fmtSig(toParsec(d))} pc
         </FormulaLine>
         {expanding ? (
           <FormulaLine>Så langt ute utvider universet seg mens lyset er underveis, så t = s/c gjelder ikke</FormulaLine>

@@ -9,7 +9,7 @@ export const AU = 1.496e11;
 /** Ett lysår: strekningen lyset går på ett år (m). */
 export const LIGHT_YEAR = 9.46e15;
 /** Én parsec (m), 3,26 lysår. */
-export const PARSEC = 3.09e16;
+export const PARSEC = 3.086e16;
 /** Ett år i sekunder (365,25 døgn). */
 export const YEAR = 3.156e7;
 /** Stefan–Boltzmann-konstanten (W/(m²·K⁴)). */
@@ -115,7 +115,7 @@ export const SPACE_OBJECTS: SpaceObject[] = [
     id: 'andromeda',
     label: 'Andromeda',
     d: 2.5e6 * LIGHT_YEAR,
-    fact: 'Andromedagalaksen er det fjerneste du kan se med bare øyet. Lyset som treffer øyet ditt i natt, ble sendt ut før det fantes mennesker.',
+    fact: 'Andromedagalaksen er et av de fjerneste objektene du kan se med bare øyet. Lyset som treffer øyet ditt i natt, ble sendt ut lenge før det fantes moderne mennesker.',
   },
   {
     id: 'virgo',

@@ -237,6 +237,14 @@ function Scene({ track, sim, p, h0, m, friction, narrow }: { track: Track; sim: 
   const bx = X(p.x) + nx * r;
   const by = Y(p.h) + ny * r;
   const vLen = p.v * 10 * k;
+  // «topp 3,0 m» over toppen, men inne i bakken hvis den ellers ville kollidert med etiketten for h₀ (smal skjerm, h₀ nær 3 m)
+  const labelW = 10 * 9.6 * f;
+  let humpLabelY = 0;
+  if (track.hump) {
+    const above = Y(track.hump.h) - 12;
+    const collides = Math.abs(X(track.hump.x) - X(track.xBottom)) < labelW && Math.abs(Y(h0) - 8 - above) < 22 * f;
+    humpLabelY = collides ? Y(track.hump.h) + 26 * f : above;
+  }
 
   // Søylene
   const bars = [
@@ -267,7 +275,7 @@ function Scene({ track, sim, p, h0, m, friction, narrow }: { track: Track; sim: 
         nullnivå, h = 0
       </Label>
       {track.hump && (
-        <Label x={X(track.hump.x) + 18 * k} y={Y(track.hump.h) - 14} anchor="start" muted>
+        <Label x={X(track.hump.x)} y={humpLabelY} anchor="middle" muted>
           topp {fmt(track.hump.h, 1)} m
         </Label>
       )}
@@ -388,8 +396,8 @@ function explanation({
   if (stopped)
     phase = (
       <>
-        <strong>Kula har stoppet.</strong> Friksjonen har gjort om {fmt(p.heat, 0)} J av den mekaniske energien til termisk energi
-        (varme).
+        <strong>Kula har stoppet.</strong> Nå er E<Sub>k</Sub> = 0, og E = E<Sub>p</Sub> = {fmt(p.E, 0)} J er det som er igjen av den
+        mekaniske energien.
       </>
     );
   else if (t === 0)

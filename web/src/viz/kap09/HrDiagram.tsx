@@ -332,7 +332,10 @@ function Diagram({
 
       {/* Massemerker langs hovedserien */}
       {mode === 'masse' &&
-        massTicks.map((mm) => {
+        massTicks
+          // Merker nær den valgte massen skjules, så etikettene ikke kolliderer.
+          .filter((mm) => Math.abs(Math.log10(mm / M)) > 0.2)
+          .map((mm) => {
           const [x, y] = P(msTemperature(mm), msLuminosity(mm));
           const text = `${fmt(mm, mm < 1 ? 1 : 0)} M☉`;
           // Merket står under til venstre for hovedserien, eller over til høyre når det ikke er plass.

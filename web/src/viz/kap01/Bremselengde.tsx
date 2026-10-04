@@ -205,7 +205,8 @@ function Road({
   const f = useTextScale();
   const H = roadHeight(narrow, half !== null);
   const [, dMax] = niceRange(0, r.total, 5, 10);
-  const xs = scaleLinear([0, dMax], [70, 760]);
+  // Plass til bilen (som står bak 0 m ved start) og den siste akseverdien («200 m»), også med stor tekst og bil på mobil
+  const xs = scaleLinear([0, dMax], narrow ? [92, 730] : [70, 760]);
   const ticks = niceTicks(0, dMax, narrow ? 4 : 6);
   const axisY = H - 10;
   // Større bil og tykkere stolper på mobil, der figuren skaleres ned
