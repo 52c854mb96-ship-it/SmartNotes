@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import { useNavigate } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BookOpen, FileText, Hash, Search, Shapes, X } from 'lucide-react';
+import type { Subject, SubjectProfile } from '@smartnotes/shared';
 import { db } from '../db';
 import { noteSearchText, sectionAnchor } from '../lib/curriculum';
 import { chapterHeading, formatDayShort, noteDay } from '../lib/format';
@@ -16,7 +17,7 @@ import {
   type Segment,
 } from '../lib/search';
 import { searchStore } from '../lib/ui';
-import { VIZ_ENTRIES, hasVisualizations, matchesViz } from '../viz/registry';
+import { matchesViz, vizEntries } from '../viz/registry';
 import type { VizEntry } from '../viz/types';
 
 const DEBOUNCE_MS = 80;
@@ -30,16 +31,44 @@ export function SearchPalette() {
 type Item =
   | { kind: 'note'; id: string; href: string; hit: NoteHit }
   | { kind: 'place'; id: string; href: string; hit: PlaceHit }
-  | { kind: 'viz'; id: string; href: string; viz: VizEntry };
+  | { kind: 'viz'; id: string; href: string; viz: VizEntry; subjectName: string | null };
 
 const MAX_VIZ = 4;
 
-/** Visualiseringene som passer med søket (alle ordene må finnes), med lenke under første fysikkfag. */
-function vizItems(query: string, subjectId: string | null): Item[] {
-  if (!subjectId || !query.trim()) return [];
-  return VIZ_ENTRIES.filter((e) => matchesViz(e, query))
-    .slice(0, MAX_VIZ)
-    .map((viz) => ({ kind: 'viz', id: `sr-viz-${viz.key}`, href: `/fag/${subjectId}/visualiseringer/${viz.key}`, viz }));
+/** Faget visualiseringene for en fagtype lenkes under: det første faget av hver type som har visualiseringer. */
+interface VizSource {
+  subjectId: string;
+  subjectName: string;
+  profile: SubjectProfile;
+}
+
+function vizSources(subjects: Subject[]): VizSource[] {
+  const seen = new Set<SubjectProfile>();
+  const out: VizSource[] = [];
+  for (const sub of [...subjects].sort((a, b) => a.position - b.position)) {
+    if (seen.has(sub.profile) || vizEntries(sub.profile).length === 0) continue;
+    seen.add(sub.profile);
+    out.push({ subjectId: sub.id, subjectName: sub.name, profile: sub.profile });
+  }
+  return out;
+}
+
+/** Visualiseringene som passer med søket (alle ordene må finnes), i fagrekkefølge. */
+function vizItems(query: string, sources: VizSource[]): Item[] {
+  if (!query.trim()) return [];
+  return sources
+    .flatMap((src) =>
+      vizEntries(src.profile)
+        .filter((e) => matchesViz(e, query))
+        .map((viz): Item => ({
+          kind: 'viz',
+          id: `sr-viz-${src.profile}-${viz.key}`,
+          href: `/fag/${src.subjectId}/visualiseringer/${viz.key}`,
+          viz,
+          subjectName: sources.length > 1 ? src.subjectName : null,
+        })),
+    )
+    .slice(0, MAX_VIZ);
 }
 
 function Marked({ segments }: { segments: Segment[] }) {
@@ -65,11 +94,10 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
       db.chapters.toArray(),
       db.notes.toArray(),
     ]);
-    const vizSubject = [...subjects].sort((a, b) => a.position - b.position).find((sub) => hasVisualizations(sub));
-    return { index: buildIndex(subjects, chapters, notes), vizSubjectId: vizSubject?.id ?? null };
+    return { index: buildIndex(subjects, chapters, notes), vizSources: vizSources(subjects) };
   }, []);
   const index = data?.index;
-  const vizSubjectId = data?.vizSubjectId ?? null;
+  const sources = useMemo(() => data?.vizSources ?? [], [data]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query), DEBOUNCE_MS);
@@ -93,8 +121,8 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
       href: `/fag/${hit.chapter.subjectId}/kapittel/${hit.chapter.id}${hit.section ? `#${sectionAnchor(hit.section.code)}` : ''}`,
       hit,
     }));
-    return [...notes, ...places, ...vizItems(debounced, vizSubjectId)];
-  }, [result, debounced, vizSubjectId]);
+    return [...notes, ...places, ...vizItems(debounced, sources)];
+  }, [result, debounced, sources]);
 
   useEffect(() => setActive(0), [items]);
 
@@ -156,7 +184,7 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
             hit: place,
           });
         }
-        const viz = vizItems(query, vizSubjectId)[0];
+        const viz = vizItems(query, sources)[0];
         if (viz) return go(viz);
         return;
       }
@@ -303,7 +331,9 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
                               {code}
                             </span>
                           ))}
-                          <span>Kapittel {viz.chapter}</span>
+                          <span>
+                            {item.subjectName ? `${item.subjectName} · ` : ''}Kapittel {viz.chapter}
+                          </span>
                         </span>
                         <span className="search-option-snippet">{viz.summary}</span>
                       </span>

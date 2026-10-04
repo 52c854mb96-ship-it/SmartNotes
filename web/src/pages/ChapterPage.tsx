@@ -14,7 +14,7 @@ import { useListPaneShown } from '../lib/layout';
 import { openUpload } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { useHashScroll } from '../lib/useHashScroll';
-import { hasVisualizations, vizForChapter } from '../viz/registry';
+import { vizForChapter } from '../viz/registry';
 import { NotFoundPage } from './NotFoundPage';
 
 export function ChapterPage() {
@@ -46,7 +46,7 @@ export function ChapterPage() {
   const doneCount = notes.filter((n) => n.status === 'done').length;
   const sections = sectionsOf(chapter);
   const upload = () => openUpload({ subjectId: subject.id, chapterId: unsorted ? undefined : chapterId });
-  const vizEntries = !unsorted && hasVisualizations(subject) ? vizForChapter(chapter?.number) : [];
+  const vizEntries = unsorted ? [] : vizForChapter(subject.profile, chapter?.number);
 
   return (
     <div className="page">

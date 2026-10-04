@@ -5,7 +5,7 @@ import { PageSkeleton } from '../components/EmptyState';
 import { useChapters, useSubject } from '../data';
 import { sectionLabel, sectionsOf } from '../lib/curriculum';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
-import { VIZ_ENTRIES, getViz } from '../viz/registry';
+import { getViz, vizEntries } from '../viz/registry';
 import { NotFoundPage } from './NotFoundPage';
 
 /** Én interaktiv visualisering. */
@@ -13,24 +13,26 @@ export function VisualizationPage() {
   const { subjectId, vizKey } = useParams();
   const subject = useSubject(subjectId);
   const chapters = useChapters(subjectId);
-  const entry = getViz(vizKey);
+  const entry = getViz(subject?.profile, vizKey);
   useDocumentTitle(entry?.title ?? null);
 
-  if (!entry) return <NotFoundPage what="visualiseringen" />;
   if (subject === undefined || chapters === undefined) return <PageSkeleton />;
   if (subject === null) return <NotFoundPage what="faget" />;
+  if (!entry) return <NotFoundPage what="visualiseringen" />;
 
   const chapter = chapters.find((c) => c.number === entry.chapter) ?? null;
-  const sections = sectionsOf(chapter);
+  // Delkapitler fra alle kapitlene, siden en visualisering kan høre til delkapitler i flere kapitler.
+  const sections = chapters.flatMap((c) => sectionsOf(c));
   const sectionText = entry.sections
     .map((code) => {
       const s = sections.find((x) => x.code === code);
       return s ? sectionLabel(s) : code;
     })
     .join(' · ');
-  const i = VIZ_ENTRIES.indexOf(entry);
-  const prev = i > 0 ? VIZ_ENTRIES[i - 1] : undefined;
-  const next = i < VIZ_ENTRIES.length - 1 ? VIZ_ENTRIES[i + 1] : undefined;
+  const all = vizEntries(subject.profile);
+  const i = all.indexOf(entry);
+  const prev = i > 0 ? all[i - 1] : undefined;
+  const next = i < all.length - 1 ? all[i + 1] : undefined;
   const base = `/fag/${subject.id}/visualiseringer`;
   const Viz = entry.Component;
 

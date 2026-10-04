@@ -34,7 +34,7 @@ import { LatexTab } from './note/LatexTab';
 import { OriginalTab } from './note/OriginalTab';
 import { PdfTab } from './note/PdfTab';
 import { RetryDialog } from './note/RetryDialog';
-import { hasVisualizations, vizForSection } from '../viz/registry';
+import { vizForSection } from '../viz/registry';
 
 type Tab = 'pdf' | 'original' | 'latex';
 const TABS: { id: Tab; label: string; icon: typeof FileText }[] = [
@@ -205,7 +205,7 @@ function NoteHeader({
   const sectionCode = noteSectionCode(note);
   const aimCodes = noteAimCodes(note, chapter);
   const aims = useMemo(() => aimMap(subject), [subject]);
-  const vizEntries = hasVisualizations(subject) && chapter ? vizForSection(sectionCode).filter((e) => e.chapter === chapter.number) : [];
+  const vizEntries = vizForSection(subject?.profile, sectionCode);
 
   const patch = async (req: Parameters<typeof updateNote>[1], success?: string) => {
     try {

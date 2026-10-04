@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { ChevronLeft, NotebookPen, Shapes } from 'lucide-react';
-import type { Chapter } from '@smartnotes/shared';
 import { EmptyState, PageSkeleton } from '../components/EmptyState';
 import { useChapters, useSubject } from '../data';
+import { sectionsOf } from '../lib/curriculum';
 import { plural } from '../lib/format';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
-import { VIZ_ENTRIES, hasVisualizations, matchesViz, vizChapterNumbers } from '../viz/registry';
+import { matchesViz, vizChapterNumbers, vizEntries } from '../viz/registry';
 import type { VizEntry } from '../viz/types';
 import { NotFoundPage } from './NotFoundPage';
 
@@ -18,14 +18,23 @@ export function VisualizationsPage() {
   const [query, setQuery] = useState('');
   useDocumentTitle(subject ? `Visualiseringer · ${subject.name}` : null);
 
+  const profile = subject?.profile;
+  const all = vizEntries(profile);
   const groups = useMemo(() => {
     const byNumber = new Map((chapters ?? []).map((c) => [c.number, c]));
-    return vizChapterNumbers().map((no) => ({
+    const entries = vizEntries(profile);
+    return vizChapterNumbers(profile).map((no) => ({
       no,
       chapter: byNumber.get(no) ?? null,
-      entries: VIZ_ENTRIES.filter((e) => e.chapter === no && matchesViz(e, query)),
+      entries: entries.filter((e) => e.chapter === no && matchesViz(e, query)),
     }));
-  }, [chapters, query]);
+  }, [chapters, query, profile]);
+
+  // Titlene på alle delkapitlene, siden en visualisering kan høre til delkapitler i flere kapitler.
+  const sectionTitles = useMemo(
+    () => new Map((chapters ?? []).flatMap((c) => sectionsOf(c)).map((s) => [s.code, s.title])),
+    [chapters],
+  );
 
   if (subject === undefined || chapters === undefined) return <PageSkeleton />;
   if (subject === null) return <NotFoundPage what="faget" />;
@@ -39,19 +48,19 @@ export function VisualizationsPage() {
     </nav>
   );
 
-  if (!hasVisualizations(subject)) {
+  if (all.length === 0) {
     return (
       <div className="page">
         {back}
         <EmptyState icon={<Shapes size={30} aria-hidden />} title="Ingen visualiseringer for dette faget ennå">
-          <p>Visualiseringene finnes foreløpig bare for fysikk.</p>
+          <p>Visualiseringene lages etter kapitlene i læreboka, og finnes foreløpig for fysikk, kjemi og biologi.</p>
         </EmptyState>
       </div>
     );
   }
 
   const shown = groups.filter((g) => g.entries.length > 0);
-  const total = VIZ_ENTRIES.length;
+  const total = all.length;
 
   return (
     <div className="page">
@@ -105,7 +114,7 @@ export function VisualizationsPage() {
           <ul className="viz-cards" role="list">
             {g.entries.map((e) => (
               <li key={e.key}>
-                <VizCard subjectId={subject.id} entry={e} chapter={g.chapter} />
+                <VizCard subjectId={subject.id} entry={e} sectionTitles={sectionTitles} />
               </li>
             ))}
           </ul>
@@ -115,8 +124,7 @@ export function VisualizationsPage() {
   );
 }
 
-function VizCard({ subjectId, entry, chapter }: { subjectId: string; entry: VizEntry; chapter: Chapter | null }) {
-  const sectionTitles = new Map((chapter?.sections ?? []).map((s) => [s.code, s.title]));
+function VizCard({ subjectId, entry, sectionTitles }: { subjectId: string; entry: VizEntry; sectionTitles: Map<string, string> }) {
   return (
     <Link to={`/fag/${subjectId}/visualiseringer/${entry.key}`} className="viz-card">
       <span className="viz-card-title">{entry.title}</span>
