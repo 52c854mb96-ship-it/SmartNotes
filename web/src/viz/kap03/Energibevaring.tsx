@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  Arrow,
   Controls,
   Explain,
   Figure,
   Formula,
   FormulaLine,
   G_EARTH,
-  Label,
   Legend,
   PlayControls,
   Plot,
@@ -27,8 +25,8 @@ import {
   useSimClock,
   useTextScale,
 } from '../kit';
-import { makeTrack, niceCeil, sampleAt, simulateTrack, type Track, type TrackKind, type TrackSample, type TrackSim } from './model';
-import { ColorDot } from './marks';
+import { liftsOffAtHump, makeTrack, niceCeil, sampleAt, simulateTrack, type Track, type TrackKind, type TrackSample, type TrackSim } from './model';
+import { Arrow, ColorDot, Label } from './marks';
 import { useNarrow } from './useNarrow';
 
 /** Friksjonstallet når friksjon er slått på (R = μmg). */
@@ -43,7 +41,7 @@ const KINDS: { value: TrackKind; label: string }[] = [
 const C_EP = VIZ.gravity;
 const C_EK = VIZ.velocity;
 const C_E = VIZ.ink;
-const C_Q = VIZ.friction;
+const C_HEAT = VIZ.friction;
 
 export default function Energibevaring() {
   const [kind, setKind] = useState<TrackKind>('rampe');
@@ -101,7 +99,7 @@ export default function Energibevaring() {
       <div ref={ref}>
         <Figure
           viewBox={`0 0 800 ${sceneHeight(track, narrow)}`}
-          label={`Kule på en ${kind === 'rampe' ? 'U-rampe' : 'bakke med en topp i midten'}, startet i ${fmt(h0, 1)} m høyde, med søyler for potensiell, kinetisk og mekanisk energi${friction ? ' og varme' : ''}.`}
+          label={`Kule på en ${kind === 'rampe' ? 'U-rampe' : 'bakke med en topp i midten'}, startet i ${fmt(h0, 1)} m høyde, med søyler for potensiell, kinetisk og mekanisk energi${friction ? ' og termisk energi fra friksjonen' : ''}.`}
           maxHeight={narrow ? 480 : 440}
         >
           <Scene track={track} sim={sim} p={p} h0={h0} m={m} friction={friction} narrow={narrow} />
@@ -109,11 +107,22 @@ export default function Energibevaring() {
       </div>
       <Legend
         items={[
-          { color: C_EP, label: 'Potensiell energi Ep' },
-          { color: C_EK, label: 'Kinetisk energi Ek' },
-          { color: C_E, label: 'Mekanisk energi E = Ep + Ek' },
-          ...(friction ? [{ color: C_Q, label: 'Varme Q (fra friksjonsarbeidet)' }] : []),
-        ].map((it) => ({ ...it, label: <LegendText text={it.label} /> }))}
+          { color: C_EP, label: <LegendText text="Potensiell energi Ep" /> },
+          { color: C_EK, label: <LegendText text="Kinetisk energi Ek" /> },
+          { color: C_E, label: <LegendText text="Mekanisk energi E = Ep + Ek" /> },
+          ...(friction
+            ? [
+                {
+                  color: C_HEAT,
+                  label: (
+                    <span>
+                      Termisk energi fra friksjonen, −W<Sub>R</Sub>
+                    </span>
+                  ),
+                },
+              ]
+            : []),
+        ]}
       />
 
       <Figure viewBox={`0 0 800 ${narrow ? 460 : 320}`} label="Energi som funksjon av posisjonen langs banen." maxHeight={narrow ? 500 : 360}>
@@ -142,7 +151,11 @@ export default function Energibevaring() {
           tone={C_EK}
         />
         <Readout label="Mekanisk E" value={fmt(p.E, 0)} unit="J" />
-        {friction ? <Readout label="Varme Q" value={fmt(p.heat, 0)} unit="J" tone={C_Q} /> : <Readout label="Fart v" value={fmt(Math.abs(p.v), 1)} unit="m/s" tone={C_EK} />}
+        {friction ? (
+          <Readout label="Termisk energi" value={fmt(p.heat, 0)} unit="J" tone={C_HEAT} />
+        ) : (
+          <Readout label="Fart v" value={fmt(Math.abs(p.v), 1)} unit="m/s" tone={C_EK} />
+        )}
       </Readouts>
 
       <Formula label="Energien akkurat nå">
@@ -230,7 +243,7 @@ function Scene({ track, sim, p, h0, m, friction, narrow }: { track: Track; sim: 
     { label: 'p', value: p.Ep, color: C_EP },
     { label: 'k', value: p.Ek, color: C_EK },
     { label: '', value: p.E, color: C_E },
-    { label: 'Q', value: p.heat, color: C_Q },
+    ...(friction ? [{ label: 'R', value: p.heat, color: C_HEAT }] : []),
   ];
   const bLeft = narrow ? 540 : 600;
   const bRight = 784;
@@ -247,7 +260,7 @@ function Scene({ track, sim, p, h0, m, friction, narrow }: { track: Track; sim: 
       <path d={surface} fill="none" stroke={VIZ.muted} strokeWidth={3} />
       {/* Starthøyden */}
       <line x1={X(track.xMin)} x2={bLeft - 6} y1={Y(h0)} y2={Y(h0)} stroke={C_EP} strokeWidth={1.5} strokeDasharray="6 6" opacity={0.8} />
-      <Label x={X(track.xMax) - 4} y={Y(h0) - 8} anchor="end" color={C_EP}>
+      <Label x={X(track.xBottom)} y={Y(h0) - 8} anchor="middle" color={C_EP}>
         h<TSub>0</TSub> = {fmt(h0, 1)} m
       </Label>
       <Label x={X(track.xBottom)} y={Y(0) + 22 * f} anchor="middle" muted>
@@ -290,10 +303,20 @@ function Scene({ track, sim, p, h0, m, friction, narrow }: { track: Track; sim: 
                 <rect x={cx - bw / 2} y={bBase - hgt} width={bw} height={hgt} fill="none" stroke={C_E} strokeWidth={2} />
               </>
             ) : (
-              <rect x={cx - bw / 2} y={bBase - hgt} width={bw} height={hgt} fill={b.color} opacity={i === 3 && !friction ? 0.3 : 0.85} />
+              <rect x={cx - bw / 2} y={bBase - hgt} width={bw} height={hgt} fill={b.color} opacity={0.85} />
             )}
             <Label x={cx} y={bBase + 24 * f} anchor="middle" color={b.color}>
-              {b.label === 'Q' ? 'Q' : b.label ? <>E<TSub>{b.label}</TSub></> : 'E'}
+              {b.label === 'R' ? (
+                <>
+                  −W<TSub>R</TSub>
+                </>
+              ) : b.label ? (
+                <>
+                  E<TSub>{b.label}</TSub>
+                </>
+              ) : (
+                'E'
+              )}
             </Label>
           </g>
         );
@@ -365,7 +388,8 @@ function explanation({
   if (stopped)
     phase = (
       <>
-        <strong>Kula har stoppet.</strong> Friksjonen har gjort om {fmt(p.heat, 0)} J av den mekaniske energien til varme.
+        <strong>Kula har stoppet.</strong> Friksjonen har gjort om {fmt(p.heat, 0)} J av den mekaniske energien til termisk energi
+        (varme).
       </>
     );
   else if (t === 0)
@@ -380,7 +404,7 @@ function explanation({
     phase = (
       <>
         <strong>Vendepunkt:</strong> farten er null, så all den mekaniske energien er potensiell.
-        {friction && p.h < h0 - 0.05 ? ' Vendepunktet ligger lavere enn startpunktet, fordi en del av energien er blitt varme.' : ''}
+        {friction && p.h < h0 - 0.05 ? ' Vendepunktet ligger lavere enn startpunktet, fordi en del av energien er blitt termisk energi.' : ''}
       </>
     );
   else
@@ -397,7 +421,7 @@ function explanation({
   const balance = friction ? (
     <>
       Friksjonen gjør negativt arbeid, W<Sub>R</Sub> = −R·s = −{fmt(p.heat, 0)} J, så den mekaniske energien har minket like mye: ΔE = W
-      <Sub>R</Sub>. Energien forsvinner ikke, men blir varme Q.
+      <Sub>R</Sub>. Energien forsvinner ikke, men blir termisk energi (varme) i kula og banen.
     </>
   ) : (
     <>
@@ -418,6 +442,8 @@ function explanation({
         <>
           {' '}
           Kula kommer over toppen i midten fordi E er større enn mg · {fmt(track.hump.h, 1)} m = {fmt(need, 0)} J.
+          {liftsOffAtHump(track, p.E, m) &&
+            ' Her følger kula banen som en vogn på skinner. En løs kule ville lettet fra banen på toppen, fordi farten der er så stor at v²/r > g.'}
         </>
       );
   } else if (!friction) {

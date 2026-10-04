@@ -142,10 +142,16 @@ function Battery({ x, y, U }: { x: number; y: number; U: number }) {
   );
 }
 
-function Resistor({ x, y, k, vertical }: { x: number; y: number; k: number; vertical?: boolean }) {
-  const w = vertical ? 30 : 76;
-  const h = vertical ? 76 : 30;
-  return <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={4} fill={VIZ.body} stroke={EL.resistors[k]} strokeWidth={3} />;
+function Resistor({ x, y, k }: { x: number; y: number; k: number }) {
+  const f = useTextScale();
+  return (
+    <g>
+      <rect x={x - 38} y={y - 16} width={76} height={32} rx={4} fill={VIZ.body} stroke={EL.resistors[k]} strokeWidth={3} />
+      <text x={x} y={y + 6 * f} textAnchor="middle" className="viz-block-label is-strong">
+        R<TSub>{k + 1}</TSub>
+      </text>
+    </g>
+  );
 }
 
 function SeriesDrawing({ Rs, c, U, W, H }: { Rs: number[]; c: Circuit; U: number; W: number; H: number }) {
@@ -169,11 +175,16 @@ function SeriesDrawing({ Rs, c, U, W, H }: { Rs: number[]; c: Circuit; U: number
       {xs.map((x, k) => (
         <g key={k}>
           <Resistor x={x} y={top} k={k} />
-          <Tag x={x} y={top - 24} anchor="middle" weight={700}>
-            R<TSub>{k + 1}</TSub> = {Rs[k]} Ω
+          <Tag x={x} y={top - 26} anchor="middle" weight={700}>
+            {Rs[k]} Ω
           </Tag>
           <Tag x={x} y={top + 30 + 18 * f} anchor="middle" color={EL.voltage} weight={700}>
-            U<TSub>{k + 1}</TSub> = {fU(c.U[k] ?? 0)} V
+            {W >= 700 && (
+              <>
+                U<TSub>{k + 1}</TSub> ={' '}
+              </>
+            )}
+            {fU(c.U[k] ?? 0)} V
           </Tag>
         </g>
       ))}
@@ -202,9 +213,9 @@ function ParallelDrawing({ Rs, c, U, W, H }: { Rs: number[]; c: Circuit; U: numb
   const gap = (H - top - 44 - 14 * f) / n;
   const ys = Rs.map((_, k) => top + k * gap);
   const yBot = H - 22;
-  const cx = railL + (railR - railL) * 0.32;
+  const cx = railL + (railR - railL) * 0.27;
   const lastY = ys[n - 1]!;
-  const labelW = textWidth(11, f);
+  const labelW = textWidth(12.5, f);
   return (
     <g>
       {/* Batteri med egen sløyfe: opp til første gren, ned fra høyre skinne */}
@@ -221,13 +232,13 @@ function ParallelDrawing({ Rs, c, U, W, H }: { Rs: number[]; c: Circuit; U: numb
           <circle cx={railL} cy={y} r={4.5} fill={VIZ.ink} />
           <circle cx={railR} cy={y} r={4.5} fill={VIZ.ink} />
           <Resistor x={cx} y={y} k={k} />
-          <Tag x={cx} y={y - 24} anchor="middle" weight={700}>
-            R<TSub>{k + 1}</TSub> = {Rs[k]} Ω
+          <Tag x={cx} y={y - 26} anchor="middle" weight={700}>
+            {Rs[k]} Ω
           </Tag>
           {(c.Ik[k] ?? 0) > 0 && (
             <g>
-              <Arrow x1={cx + 50} y1={y - 12} x2={cx + 50 + 40} y2={y - 12} color={EL.current} width={2.2} head={9} />
-              <Tag x={Math.min(cx + 100, railR - 8 - labelW)} y={y - 12 + 6 * f} anchor="start" color={EL.current} weight={700}>
+              <Arrow x1={cx + 48} y1={y - 12} x2={cx + 48 + 36} y2={y - 12} color={EL.current} width={2.2} head={9} />
+              <Tag x={Math.min(cx + 92, railR - 8 - labelW)} y={y - 12 + 6 * f} anchor="start" color={EL.current} weight={700}>
                 I<TSub>{k + 1}</TSub> = {fI(c.Ik[k] ?? 0)} A
               </Tag>
             </g>

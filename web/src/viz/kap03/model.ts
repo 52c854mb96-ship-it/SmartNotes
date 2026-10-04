@@ -87,8 +87,8 @@ export interface Track {
   top: number;
   /** Laveste punkt (der kula starter fra venstre side ned mot). */
   xBottom: number;
-  /** Toppen i midten (bare for «bakke»). */
-  hump: { x: number; h: number } | null;
+  /** Toppen i midten (bare for «bakke»), med den minste krumningsradien r der (m). */
+  hump: { x: number; h: number; r: number } | null;
   height: (x: number) => number;
   slope: (x: number) => number;
 }
@@ -135,13 +135,15 @@ export function makeTrack(kind: TrackKind): Track {
     };
   }
   // Bakke: høy start, dal, en topp på 3 m, ny dal og en vegg til høyre
-  const c = cosineTrack([
+  const segments = [
     { x0: 0, x1: 4.5, h0: TRACK_TOP, h1: 0 },
     { x0: 4.5, x1: 9, h0: 0, h1: 3 },
     { x0: 9, x1: 12.5, h0: 3, h1: 0 },
     { x0: 12.5, x1: 16, h0: 0, h1: TRACK_TOP },
-  ]);
-  return { kind, xMin: 0, xMax: 16, top: TRACK_TOP, xBottom: 4.5, hump: { x: 9, h: 3 }, ...c };
+  ];
+  // Krumningsradien på toppen av en cosinusbue med lengde L og høyde H er r = 2L²/(π²H); den bratteste siden gir minst r.
+  const r = Math.min(...segments.slice(1, 3).map((sg) => (2 * (sg.x1 - sg.x0) ** 2) / (Math.PI ** 2 * Math.abs(sg.h1 - sg.h0))));
+  return { kind, xMin: 0, xMax: 16, top: TRACK_TOP, xBottom: 4.5, hump: { x: 9, h: 3, r }, ...cosineTrack(segments) };
 }
 
 /** Startpunktet på venstre side av banen der høyden er h₀ (halveringsmetoden). */
@@ -258,6 +260,16 @@ export function simulateTrack({ track, h0, m, mu, tMax, dt = 0.002, every = 0.02
     if (i % per === 0) record(i * dt);
   }
   return { samples, every: per * dt, stopTime, E0, R };
+}
+
+/**
+ * Om en løs kule med mekanisk energi E ville lettet fra banen på toppen i midten: der må tyngden alene gi
+ * sentripetalakselerasjonen, så den følger banen bare hvis v²/r ≤ g. Simuleringen lar kula følge banen uansett.
+ */
+export function liftsOffAtHump(track: Track, E: number, m: number, g = G_EARTH): boolean {
+  if (!track.hump) return false;
+  const v2 = 2 * (E / m - g * track.hump.h);
+  return v2 > g * track.hump.r;
 }
 
 /** Punktet som er nærmest tiden t. */

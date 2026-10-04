@@ -25,8 +25,8 @@ const viz: VizMeta[] = [
     chapter: '3',
     sections: ['3C', '3D', '3E', '3F'],
     title: 'Bevaring av mekanisk energi',
-    summary: 'Slipp en kule i en U-rampe eller over en bakketopp og se potensiell og kinetisk energi bytte plass. Med friksjon blir mekanisk energi til varme.',
-    keywords: ['potensiell energi', 'kinetisk energi', 'mekanisk energi', 'energibevaring', 'friksjonsarbeid', 'varme', 'referansenivå'],
+    summary: 'Slipp en kule i en U-rampe eller over en bakketopp og se potensiell og kinetisk energi bytte plass. Med friksjon blir mekanisk energi til termisk energi (varme).',
+    keywords: ['potensiell energi', 'kinetisk energi', 'mekanisk energi', 'energibevaring', 'friksjonsarbeid', 'termisk energi', 'varme', 'referansenivå'],
     load: () => import('./Energibevaring'),
   },
 ];

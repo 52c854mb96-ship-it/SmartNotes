@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { POWER_REFS, makeTrack, niceCeil, pace, sampleAt, simulateTrack, sledWork, stairRun, startPosition, timeForEnergy } from './model';
+import {
+  POWER_REFS,
+  liftsOffAtHump,
+  makeTrack,
+  niceCeil,
+  pace,
+  sampleAt,
+  simulateTrack,
+  sledWork,
+  stairRun,
+  startPosition,
+  timeForEnergy,
+} from './model';
 
 describe('akser', () => {
   it('runder opp til pene verdier', () => {
@@ -66,6 +78,21 @@ describe('bane for energibevaring', () => {
     }
     expect(tr.height(9)).toBeCloseTo(3, 12);
     expect(tr.height(4.5)).toBeCloseTo(0, 12);
+  });
+
+  it('krumningsradien på toppen stemmer med den andrederiverte, og en rask, løs kule ville lettet', () => {
+    const tr = makeTrack('bakke');
+    const hump = tr.hump!;
+    // Høyre side er brattest: r = 2 · 3,5² / (π² · 3) ≈ 0,83 m
+    expect(hump.r).toBeCloseTo(0.8275, 3);
+    // h′ = 0 på toppen, så r = 1/|h″| (h″ regnet numerisk rett til høyre for toppen)
+    const curvRight = (tr.slope(hump.x + 2e-4) - tr.slope(hump.x + 1e-4)) / 1e-4;
+    expect(1 / Math.abs(curvRight)).toBeCloseTo(hump.r, 2);
+    // v² på toppen = 2g(h₀ − 3 m); lettet når v² > g·r, altså h₀ > 3 m + r/2 ≈ 3,41 m
+    const m = 50;
+    expect(liftsOffAtHump(tr, m * 9.81 * 3.2, m)).toBe(false);
+    expect(liftsOffAtHump(tr, m * 9.81 * 4, m)).toBe(true);
+    expect(liftsOffAtHump(makeTrack('rampe'), m * 9.81 * 5, m)).toBe(false);
   });
 
   it('startpunktet ligger på riktig høyde på venstre side', () => {
