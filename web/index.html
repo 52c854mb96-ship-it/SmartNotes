@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="nb">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>SmartNotes</title>
+    <meta name="description" content="Håndskrevne notater i fysikk, kjemi og biologi som pene LaTeX-PDF-er, sortert etter kapittel." />
+    <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0f1318" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Tema før første opptegning (unngår blink). Samme nøkkel/farger som src/lib/theme.ts.
+      (function () {
+        try {
+          // Fagtemaet fra forrige gang (kjemi/biologi), når appen åpnes rett i et fag eller notat.
+          var s = localStorage.getItem('smartnotes:subjectTheme');
+          if ((s === 'chemistry' || s === 'biology') && /^\/(fag|notat)\//.test(location.pathname)) {
+            document.documentElement.setAttribute('data-subject', s);
+          }
+          var t = localStorage.getItem('smartnotes:theme');
+          if (t !== 'light' && t !== 'dark') return;
+          document.documentElement.setAttribute('data-theme', t);
+          var c = t === 'dark' ? '#0f1318' : '#f5f6f8';
+          var m = document.querySelectorAll('meta[name="theme-color"]');
+          for (var i = 0; i < m.length; i++) m[i].setAttribute('content', c);
+        } catch (e) {}
+      })();
+    </script>
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="SmartNotes" />
+    <meta name="format-detection" content="telephone=no" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

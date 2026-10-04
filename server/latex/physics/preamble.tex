@@ -1,0 +1,122 @@
+% SmartNotes – felles preamble for fysikknotater.
+% Claude får IKKE lov til å endre denne; alt innhold skrives i dokumentkroppen.
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[norsk]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.3cm,headheight=14pt]{geometry}
+\usepackage[parfill]{parskip}
+
+% --- Matematikk ---
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{icomma}            % 9,81 skrives riktig i matematikkmodus
+\usepackage{cancel}            % \cancel{} for forkorting
+\usepackage{siunitx}
+\sisetup{
+  output-decimal-marker = {,},
+  group-separator = {\,},
+  group-minimum-digits = 5,
+  exponent-product = \cdot,
+  inter-unit-product = \cdot,
+  per-mode = symbol,
+  range-phrase = {\text{ til }},
+  list-final-separator = {\text{ og }},
+  list-pair-separator = {\text{ og }},
+}
+\usepackage[version=4]{mhchem} % kjernereaksjoner, \ce{^{235}_{92}U}
+
+% Egne fysikkmakroer (dokumentert i instruksene til Claude)
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
+\newcommand{\dd}{\mathop{}\!\mathrm{d}}
+\newcommand{\dv}[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}
+\newcommand{\ddv}[2]{\frac{\mathrm{d}^2#1}{\mathrm{d}#2^2}}
+\newcommand{\pdv}[2]{\frac{\partial#1}{\partial#2}}
+\newcommand{\vb}[1]{\mathbf{#1}}
+\newcommand{\vu}[1]{\hat{\mathbf{#1}}}
+\newcommand{\enhet}[1]{\,[\mathrm{#1}]}
+
+% --- Figurer og tegninger ---
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[labelfont=bf,font=small]{caption}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,angles,quotes,patterns,positioning,
+  decorations.pathmorphing,decorations.markings,shapes.geometric,intersections,babel}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage[european,siunitx]{circuitikz}
+
+% --- Tabeller og lister ---
+\usepackage{booktabs,array,tabularx}
+\usepackage{enumitem}
+
+% --- Bokser ---
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+\definecolor{snblue}{HTML}{1F5FAD}
+\definecolor{sngreen}{HTML}{1E7A4C}
+\definecolor{snorange}{HTML}{C2620A}
+\definecolor{sngray}{HTML}{5B6573}
+\definecolor{snyellow}{HTML}{B38B00}
+\tcbset{snbase/.style={enhanced,breakable,boxrule=0.6pt,arc=2pt,
+  left=6pt,right=6pt,top=4pt,bottom=4pt,fonttitle=\bfseries\small,
+  before skip=8pt,after skip=8pt}}
+
+\newtcolorbox{definisjon}[1][]{snbase,colback=snblue!4,colframe=snblue,
+  title={Definisjon\ifx\relax#1\relax\else: #1\fi}}
+\newtcolorbox{formel}[1][]{snbase,colback=sngreen!5,colframe=sngreen,
+  title={\ifx\relax#1\relax Viktig\else #1\fi}}
+\newtcolorbox{eksempel}[1][]{snbase,colback=sngray!4,colframe=sngray,
+  title={Eksempel\ifx\relax#1\relax\else: #1\fi}}
+\newtcolorbox{oppgave}[1][]{snbase,colback=snblue!2,colframe=snblue!70,
+  title={Oppgave\ifx\relax#1\relax\else\ #1\fi}}
+\newtcolorbox{losning}{snbase,colback=white,colframe=snblue!35,
+  colbacktitle=snblue!12,coltitle=snblue!80!black,title={Løsning}}
+\newtcolorbox{husk}{snbase,colback=snyellow!7,colframe=snyellow,
+  title={Husk}}
+\newtcolorbox{merknad}{snbase,colback=snorange!6,colframe=snorange,
+  boxrule=0.8pt,borderline={0.4pt}{2pt}{snorange!60,dashed},
+  title={Merknad fra SmartNotes}}
+
+\newcommand{\uleselig}[1]{\textcolor{sngray}{\textit{#1}}\textsuperscript{\textcolor{snorange}{\,?}}}
+\newcommand{\sidenotat}[1]{\marginpar{\footnotesize\raggedright #1}}
+
+% Figurer klippet ut fra originalbildet. \notedir settes av SmartNotes.
+\newcommand{\notedir}{.}
+\newcommand{\originalfigur}[3][0.6]{%
+  \begin{figure}[H]\centering
+  \includegraphics[width=#1\linewidth,height=0.45\textheight,keepaspectratio]{\notedir/#2}%
+  \ifx\relax#3\relax\else\caption{#3}\fi
+  \end{figure}}
+\newcommand{\manglerfigur}[1]{%
+  \begin{center}\fbox{\parbox{0.6\linewidth}{\centering\small\textcolor{sngray}{[Figur mangler: #1]}}}\end{center}}
+
+% --- Sidehode ---
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\newcommand{\snfag}{}
+\newcommand{\snkapittel}{}
+\fancyhead[L]{\small\textcolor{sngray}{\snfag}}
+\fancyhead[R]{\small\textcolor{sngray}{\snkapittel}}
+\fancyfoot[C]{\small\thepage}
+
+% Ingen nummerering av overskrifter i notater
+\setcounter{secnumdepth}{0}
+\setcounter{tocdepth}{1}
+
+% Tittelblokk for ett notat
+\newcommand{\notehode}[3]{%
+  \begingroup
+  \noindent{\LARGE\bfseries #1\par}\vspace{2pt}
+  \noindent{\small\textcolor{sngray}{#2\ifx\relax#3\relax\else\ \textbullet\ #3\fi}\par}
+  \vspace{4pt}\noindent\textcolor{snblue}{\rule{\linewidth}{1pt}}\par
+  \endgroup\vspace{6pt}}
+
+\usepackage[hidelinks]{hyperref}
+\usepackage{bookmark}

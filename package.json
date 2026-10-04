@@ -1,0 +1,27 @@
+{
+  "name": "smartnotes",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Last opp håndskrevne notater og få dem som pene LaTeX-PDF-er, sortert etter fag og kapittel.",
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspace server & npm run dev --workspace web",
+    "build": "npm run build --workspace web && npm run build --workspace server",
+    "start": "npm run start --workspace server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspace server && npm run test --workspace web",
+    "test:e2e": "playwright test --project=desktop --project=mobil",
+    "test:e2e:webkit": "playwright test --project=safari --project=ipad"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56"
+  }
+}
