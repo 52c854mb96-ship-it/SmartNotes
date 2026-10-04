@@ -186,7 +186,8 @@ function Scene({ k, v, a, s, L, G, vT, t }: { k: number; v: number; a: number; s
         label="L"
         labelAnchor="start"
         labelX={CX + 14}
-        labelY={CY - lLen + 14}
+        // Over kroppen (toppen er 22 px over midten), så etiketten ikke havner oppå hopperen når L er liten
+        labelY={Math.min(CY - lLen + 14, CY - 30)}
         minLength={4}
       />
 

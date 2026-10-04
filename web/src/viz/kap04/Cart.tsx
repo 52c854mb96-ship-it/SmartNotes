@@ -26,20 +26,24 @@ export function Cart({ x, ground, w, color, name }: { x: number; ground: number;
   );
 }
 
+/** Korteste fartspil (piksler), så en liten fart ikke forsvinner. */
+const MIN_ARROW = 9;
+
 /**
  * Fartspil over en vogn. Etiketten står over vogna (ikke ved pilspissen), så to vogner som står inntil
  * hverandre ikke får etiketter oppå hverandre.
  */
 export function VelocityArrow({ cx, y, v, pxPerMs, name }: { cx: number; y: number; v: number; pxPerMs: number; name: ReactNode }) {
   const f = useTextScale();
-  const len = v * pxPerMs;
   const labelY = y - 14 - 8 * f;
-  if (Math.abs(len) < 4)
+  // «= 0» bare når farten faktisk er null (avrundet). Små farter får en kort pil, så de ikke ser ut som ro.
+  if (Math.abs(v) < 0.005)
     return (
       <Label x={cx} y={labelY} color={VIZ.velocity}>
         {name} = 0
       </Label>
     );
+  const len = Math.sign(v) * Math.max(Math.abs(v) * pxPerMs, MIN_ARROW);
   return (
     <>
       <Arrow x1={cx - Math.sign(len) * 6} y1={y} x2={cx + len} y2={y} color={VIZ.velocity} />

@@ -224,7 +224,7 @@ export default function Eksplosjon() {
 
       <Formula label="Bevaring av bevegelsesmengde">
         <FormulaLine>
-          Σp = m<Sub>1</Sub>v<Sub>1</Sub> + m<Sub>2</Sub>v<Sub>2</Sub> = {mass(inp.m1)} · ({fmt(r.v1, 2)} m/s) + {mass(inp.m2)} ·{' '}
+          Σp = m<Sub>1</Sub>v<Sub>1</Sub> + m<Sub>2</Sub>v<Sub>2</Sub> = {massKg(inp.m1)} · ({fmt(r.v1, 2)} m/s) + {massKg(inp.m2)} ·{' '}
           {fmt(r.v2, id === 'fjaer' ? 2 : 0)} m/s = 0
         </FormulaLine>
         <FormulaLine>
@@ -242,6 +242,11 @@ export default function Eksplosjon() {
 
 function mass(m: number): string {
   return m < 0.1 ? `${fmt(m * 1000, 0)} g` : `${fmt(m, 1)} kg`;
+}
+
+/** Masse i kg i utregninger (samme enhet i alle ledd): 0,010 kg, 4,0 kg. */
+function massKg(m: number): string {
+  return `${fmt(m, m < 0.1 ? 3 : 1)} kg`;
 }
 
 function energy(E: number): string {

@@ -356,7 +356,7 @@ export const WD_RADIUS = 0.012;
 
 /**
  * Stadiene i livet til en stjerne med masse M (i solmasser), med en forenklet vei i HR-diagrammet.
- * Varighetene er grove anslag: protostjerne 0,5 % og kjempefasen 10 % av tiden på hovedserien.
+ * Varighetene er grove anslag: kjempefasen varer ca. 10 % av tiden på hovedserien.
  */
 export function lifeStages(M: number): Stage[] {
   const tMS = msLifetime(M);
@@ -364,9 +364,11 @@ export function lifeStages(M: number): Stage[] {
   const Lms = msLuminosity(M);
   const zams = pt(Tms * 1.03, Lms * 0.75);
   const tams = pt(Tms * 0.97, Lms * 1.3);
-  const protoStart = pt(3500, Lms * Math.max(1.2, 10 / M));
-  const knee = pt(3500 * 1.15, Lms * (M < 2 ? 0.8 : 1));
-  const proto: Stage = { id: 'protostjerne', years: 0.005 * tMS, track: [protoStart, knee, zams], layers: ['H'], fusion: [] };
+  const protoStart = pt(Math.min(3500, Tms * 0.95), Lms * Math.max(1.2, 10 / M));
+  const knee = pt(Math.min(4025, Tms * 0.97), Lms * (M < 2 ? 0.8 : 1));
+  // Sammentrekningen tar ca. 50 millioner år for sola, kortere for tunge og lengre for lette stjerner.
+  const tProto = 5e7 * M ** (M < 1 ? -1.3 : -2.5);
+  const proto: Stage = { id: 'protostjerne', years: tProto, track: [protoStart, knee, zams], layers: ['H'], fusion: [] };
   const ms: Stage = { id: 'hovedserie', years: tMS, track: [zams, tams], layers: ['H', 'He'], fusion: ['H → He i kjernen'] };
   const f = fate(M);
 
@@ -419,7 +421,7 @@ export function lifeStages(M: number): Stage[] {
       layers: ['H', 'He', 'C', 'O', 'Si', 'Fe'],
       fusion: ['H → He', 'He → C', 'C → O og Ne', 'O → Si', 'Si → Fe'],
     },
-    { id: 'supernova', years: 0.3, track: [rsg], layers: ['Fe'], fusion: ['Grunnstoffer tyngre enn jern'] },
+    { id: 'supernova', years: 0.3, track: [rsg], layers: ['Fe'], fusion: [] },
     f === 'noytronstjerne'
       ? { id: 'noytronstjerne', years: Infinity, track: [], layers: ['n'], fusion: [] }
       : { id: 'svart-hull', years: Infinity, track: [], layers: [], fusion: [] },

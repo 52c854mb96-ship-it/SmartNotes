@@ -44,6 +44,26 @@ describe('impulsloven', () => {
   it('støttiden for en gitt største kraft', () => {
     const r = impact(m, v, 0.012);
     expect(dtForFmax(r.dp, r.Fmax)).toBeCloseTo(0.012, 12);
+    // Egget (tåler ca. 35 N) holder når støttiden er over ca. 12 ms
+    const dtEgg = dtForFmax(r.dp, 35);
+    expect(dtEgg * 1000).toBeCloseTo(11.9, 1);
+    expect(impact(m, v, dtEgg).Fmax).toBeCloseTo(35, 9);
+  });
+
+  it('bremselengden vΔt/2 stemmer også når kraften er en halv sinusbue', () => {
+    // v(t) = v − (1/m)·∫F dt, og s = ∫v dt (midtpunktsmetoden)
+    for (const dt of [0.005, 0.03]) {
+      const r = impact(m, v, dt);
+      const n = 4000;
+      let s = 0;
+      for (let i = 0; i < n; i++) {
+        const t = ((i + 0.5) * dt) / n;
+        s += (v - pulseImpulse(r.Fmax, dt, t) / m) * (dt / n);
+      }
+      expect(s).toBeCloseTo(r.stopDist, 7);
+      // Farten er null akkurat når støtet er over
+      expect(v - pulseImpulse(r.Fmax, dt, dt) / m).toBeCloseTo(0, 12);
+    }
   });
 
   it('bilfører på 75 kg som stopper fra 50 km/h: kraften i antall G', () => {

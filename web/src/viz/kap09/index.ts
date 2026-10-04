@@ -22,6 +22,16 @@ const viz: VizMeta[] = [
     keywords: ['Hertzsprung–Russell', 'hovedserien', 'luminositet', 'overflatetemperatur', 'kjempe', 'superkjempe', 'hvit dverg', 'spektralklasse', 'levetid', 'Stefan–Boltzmann'],
     load: () => import('./HrDiagram'),
   },
+  {
+    id: 'stjernens-livslop',
+    chapter: '9',
+    sections: ['9B', '9C'],
+    title: 'Livsløpet til en stjerne',
+    summary:
+      'Velg massen til en stjerne og følg den fra protostjerne til hvit dverg, nøytronstjerne eller svart hull, med veien i HR-diagrammet og fusjonen inni stjerna.',
+    keywords: ['protostjerne', 'hovedserie', 'rød kjempe', 'planetarisk tåke', 'hvit dverg', 'superkjempe', 'supernova', 'nøytronstjerne', 'svart hull', 'fusjon', 'grunnstoffer', 'stjernestøv'],
+    load: () => import('./StjernensLivslop'),
+  },
 ];
 
 export default viz;

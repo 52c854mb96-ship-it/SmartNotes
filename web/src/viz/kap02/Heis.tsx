@@ -130,7 +130,12 @@ export default function Heis() {
         </FormulaLine>
       </Formula>
 
-      <Explain>{explanation(st.phase, trip, st.a, st.v, N, G, m, reading, clock.t)}</Explain>
+      <Explain>
+        {explanation(st.phase, trip, st.a, st.v, N, G, m, reading, clock.t)}
+        {(st.a < -1e-9 || st.v < -1e-9) && (
+          <p>Positiv retning er oppover, så fart og akselerasjon nedover har negativt fortegn.</p>
+        )}
+      </Explain>
     </VizLayout>
   );
 }
@@ -153,14 +158,14 @@ function phaseName(phase: LiftPhase, trip: LiftTrip): string {
   }
 }
 
-/** Høyden (m) heisen starter i, så hele turen får plass i sjakten (0–40 m). */
+/** Høyden (m) heisen starter i, så hele turen og heisen (3 m) får plass i sjakten (0–44 m). */
 function startHeight(trip: LiftTrip, a0: number): number {
   if (trip === 'opp') return 0;
   if (trip === 'ned') return 12 * a0;
   return 2 * G_EARTH * 2;
 }
 
-const SHAFT = { x: 40, w: 76, top: 20, bottom: 404, metres: 42 };
+const SHAFT = { x: 40, w: 76, top: 20, bottom: 404, metres: 44 };
 const CAR = { x: 168, w: 304, top: 46, floor: 394 };
 const CX = CAR.x + CAR.w / 2;
 const SCALE_TOP = CAR.floor - 24;
@@ -318,7 +323,7 @@ function Scene({
       <Label x={CAR.x + CAR.w + 34} y={CAR.floor - 44 * f} anchor="start" muted>
         vekta viser
       </Label>
-      <Label x={CAR.x + CAR.w + 34} y={CAR.floor} anchor="start" size={34} weight={700}>
+      <Label x={CAR.x + CAR.w + 34} y={CAR.floor} anchor="start" size={34 * Math.min(f, 1.5)} weight={700}>
         {fmt(reading, 1)} kg
       </Label>
     </>
@@ -430,8 +435,9 @@ function explanation(
       return (
         <p>
           <strong>Heisen står i ro{t > 1 ? ' igjen' : ''}.</strong> Da er a = 0, og kraftsummen på deg er null: N = G = mg = {n(G)}. Vekta
-          måler egentlig normalkraften og deler på g, så den viser massen din, {fmt(m, 0)} kg. Trykk «Spill av» for å se hva som skjer når
-          heisen setter i gang.
+          måler egentlig normalkraften og deler på g, så den viser massen din, {fmt(m, 0)} kg.
+          {t < 1 &&
+            ` Trykk «Spill av» for å se hva som skjer når ${trip === 'fritt-fall' ? 'kabelen ryker' : 'heisen setter i gang'}.`}
         </p>
       );
     case 'akselererer':

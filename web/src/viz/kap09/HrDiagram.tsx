@@ -20,7 +20,7 @@ import {
   scaleLinear,
   useTextScale,
 } from '../kit';
-import { fmtPow10, fmtSig, fmtYears } from './format';
+import { fmtPow10, fmtSig, fmtYears, yearsParts } from './format';
 import {
   M_SUPERNOVA,
   MAIN_SEQUENCE,
@@ -182,7 +182,7 @@ function MassReadouts({ M }: { M: number }) {
         <Readout label="Luminositet L" value={fmtSig(L, 2)} unit="L☉" />
         <Readout label="Overflatetemperatur T" value={fmt(Math.round(T / 10) * 10, 0)} unit="K" />
         <Readout label="Radius R" value={fmtSig(msRadius(M), 2)} unit="R☉" />
-        <Readout label="Levetid på hovedserien" value={fmtYears(t)} />
+        <Readout label="Levetid på hovedserien" value={yearsParts(t).value} unit={yearsParts(t).unit} />
       </Readouts>
       <Formula label="Luminositet og levetid for en hovedseriestjerne">
         <FormulaLine>
@@ -305,9 +305,13 @@ function Diagram({
           <path key={R} d={radiusLine(R)} className="viz-guide" strokeOpacity={0.55} />
         ))}
       </g>
-      <RadiusTag R={1} sx={sx} sy={sy} logT={4.6} />
-      <RadiusTag R={100} sx={sx} sy={sy} logT={3.43} anchor="end" />
-      <RadiusTag R={0.01} sx={sx} sy={sy} logT={4.64} anchor="start" />
+      {mode === 'stjerner' && (
+        <g>
+          <RadiusTag R={1} sx={sx} sy={sy} logT={4.6} />
+          <RadiusTag R={100} sx={sx} sy={sy} logT={3.43} anchor="end" />
+          <RadiusTag R={0.01} sx={sx} sy={sy} logT={4.64} anchor="start" />
+        </g>
+      )}
 
       {!narrow && (
         <g>
@@ -330,11 +334,14 @@ function Diagram({
       {mode === 'masse' &&
         massTicks.map((mm) => {
           const [x, y] = P(msTemperature(mm), msLuminosity(mm));
+          const text = `${fmt(mm, mm < 1 ? 1 : 0)} M☉`;
+          // Merket står under til venstre for hovedserien, eller over til høyre når det ikke er plass.
+          const below = x - 22 - textWidth(text.length, f) * 0.8 > x0 + 6;
           return (
             <g key={mm}>
-              <line x1={x} y1={y} x2={x - 18} y2={y + 22} stroke={VIZ.muted} strokeWidth={1.2} />
-              <text x={x - 20} y={y + 22 + 12 * f} textAnchor="end" className="viz-tick">
-                {fmt(mm, mm < 1 ? 1 : 0)} M☉
+              <line x1={x} y1={y} x2={below ? x - 18 : x + 18} y2={below ? y + 22 : y - 22} stroke={VIZ.muted} strokeWidth={1.2} />
+              <text x={below ? x - 20 : x + 20} y={below ? y + 22 + 12 * f : y - 26} textAnchor={below ? 'end' : 'start'} className="viz-tick">
+                {text}
               </text>
             </g>
           );

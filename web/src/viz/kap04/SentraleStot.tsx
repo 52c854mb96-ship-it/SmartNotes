@@ -62,6 +62,8 @@ export default function SentraleStot() {
   const e = s.kind === 'elastisk' ? 1 : s.kind === 'fullstendig' ? 0 : elasticityForLossShare(s.share);
   const r = collide(s.m1, s.v1, s.m2, s.v2, e);
   const lossPct = r.EkBefore > 0 ? (100 * r.lost) / r.EkBefore : 0;
+  // Flere desimaler når energiene er små (lave farter), så tallene ikke rundes til 0,01 J.
+  const eDec = r.EkBefore < 0.1 ? 3 : 2;
 
   return (
     <VizLayout>
@@ -198,28 +200,34 @@ export default function SentraleStot() {
               Tap av E<Sub>k</Sub>
             </span>
           }
-          value={fmt(r.lost, 2)}
+          value={fmt(r.lost, eDec)}
           unit={`J (${fmt(lossPct, 0)} %)`}
         />
       </Readouts>
 
       <Formula label="Bevaring av bevegelsesmengde">
         <FormulaLine>
-          Før: m<Sub>1</Sub>v<Sub>1</Sub> + m<Sub>2</Sub>v<Sub>2</Sub> = {fmt(s.m1, 1)} kg · {fmt(s.v1, 2)} m/s + {fmt(s.m2, 1)} kg ·{' '}
-          {fmt(s.v2, 2)} m/s = {fmt(r.pBefore, 2)} kg·m/s
+          Før: m<Sub>1</Sub>v<Sub>1</Sub> + m<Sub>2</Sub>v<Sub>2</Sub> = {fmt(s.m1, 1)} kg · {speed(s.v1)} + {fmt(s.m2, 1)} kg ·{' '}
+          {speed(s.v2)} = {fmt(r.pBefore, 2)} kg·m/s
         </FormulaLine>
         <FormulaLine>
-          Etter: m<Sub>1</Sub>v<Sub>1</Sub>′ + m<Sub>2</Sub>v<Sub>2</Sub>′ = {fmt(s.m1, 1)} kg · {fmt(r.u1, 2)} m/s + {fmt(s.m2, 1)} kg ·{' '}
-          {fmt(r.u2, 2)} m/s = {fmt(r.pAfter, 2)} kg·m/s
+          Etter: m<Sub>1</Sub>v<Sub>1</Sub>′ + m<Sub>2</Sub>v<Sub>2</Sub>′ = {fmt(s.m1, 1)} kg · {speed(r.u1)} + {fmt(s.m2, 1)} kg ·{' '}
+          {speed(r.u2)} = {fmt(r.pAfter, 2)} kg·m/s
         </FormulaLine>
         <FormulaLine>
-          E<Sub>k</Sub> før = {fmt(r.EkBefore, 2)} J, E<Sub>k</Sub> etter = {fmt(r.EkAfter, 2)} J
+          E<Sub>k</Sub> før = {fmt(r.EkBefore, eDec)} J, E<Sub>k</Sub> etter = {fmt(r.EkAfter, eDec)} J
         </FormulaLine>
       </Formula>
 
       <Explain>{explanation(s, r, lossPct)}</Explain>
     </VizLayout>
   );
+}
+
+/** Fart i en utregning: negative tall i parentes, «1,0 kg · (−0,67 m/s)». */
+function speed(v: number): string {
+  const t = `${fmt(v, 2)} m/s`;
+  return v < -0.005 ? `(${t})` : t;
 }
 
 /** Posisjonen (m) til høyre kant av vogn 1 og venstre kant av vogn 2 ved tiden t. */
@@ -305,7 +313,10 @@ function Scene({ s, r, t }: { s: State; r: CollisionResult; t: number }) {
 
 function Bars({ s, r, height }: { s: State; r: CollisionResult; height: number }) {
   const ek = (m: number, v: number) => 0.5 * m * v * v;
-  const decimals = (vals: number[]) => (Math.max(...vals.map(Math.abs)) >= 10 ? 1 : 2);
+  const decimals = (vals: number[]) => {
+    const big = Math.max(...vals.map(Math.abs));
+    return big >= 10 ? 1 : big < 0.1 ? 3 : 2;
+  };
   const pVals = [s.m1 * s.v1, s.m2 * s.v2, s.m1 * r.u1, s.m2 * r.u2, r.pBefore];
   return (
     <>
@@ -370,6 +381,7 @@ function Bars({ s, r, height }: { s: State; r: CollisionResult; height: number }
 
 function explanation(s: State, r: CollisionResult, lossPct: number): ReactNode {
   const p = `${fmt(r.pBefore, 2)} kg·m/s`;
+  const eDec = r.EkBefore < 0.1 ? 3 : 2;
   const vector =
     s.v1 < 0 || s.v2 < 0 || r.u1 < -1e-9 || r.u2 < -1e-9
       ? ' Husk at p er en vektor: fart mot venstre regnes negativ, og da er også bevegelsesmengden negativ.'
@@ -387,7 +399,7 @@ function explanation(s: State, r: CollisionResult, lossPct: number): ReactNode {
     return (
       <p>
         <strong>Elastisk støt.</strong> Både bevegelsesmengden og den kinetiske energien er bevart: Σp = {p} og E<Sub>k</Sub> ={' '}
-        {fmt(r.EkBefore, 2)} J både før og etter.{' '}
+        {fmt(r.EkBefore, eDec)} J både før og etter.{' '}
         {swap
           ? 'Med like masser bytter vognene fart.'
           : bounce
@@ -400,9 +412,10 @@ function explanation(s: State, r: CollisionResult, lossPct: number): ReactNode {
   if (s.kind === 'uelastisk')
     return (
       <p>
-        <strong>Uelastisk støt.</strong> Bevegelsesmengden er bevart, Σp = {p}, men {fmt(r.lost, 2)} J ({fmt(lossPct, 0)} %) av den
-        kinetiske energien går over til indre energi (varme og deformasjon). Σp er alltid bevart i et støt fordi kreftene mellom vognene er
-        indre krefter, men E<Sub>k</Sub> er bare bevart i elastiske støt.{vector}
+        <strong>Uelastisk støt.</strong> Bevegelsesmengden er bevart, Σp = {p}, men {fmt(r.lost, eDec)} J ({fmt(lossPct, 0)} %) av den
+        kinetiske energien går over til andre energiformer, mest indre energi: vognene blir deformert og litt varmere, og noe blir lyd. Σp
+        er alltid bevart i et støt fordi kreftene mellom vognene er indre krefter, men E<Sub>k</Sub> er bare bevart i elastiske støt.
+        {vector}
       </p>
     );
   const allLost = Math.abs(r.pBefore) < 1e-9;
@@ -410,7 +423,7 @@ function explanation(s: State, r: CollisionResult, lossPct: number): ReactNode {
     <p>
       <strong>Fullstendig uelastisk støt.</strong> Vognene henger sammen og får felles fart v′ = (m<Sub>1</Sub>v<Sub>1</Sub> + m<Sub>2</Sub>
       v<Sub>2</Sub>)/(m<Sub>1</Sub> + m<Sub>2</Sub>) = {fmt(r.u1, 2)} m/s. Det gir størst mulig tap av kinetisk energi:{' '}
-      {fmt(maxLoss(s.m1, s.v1, s.m2, s.v2), 2)} J ({fmt(lossPct, 0)} %).
+      {fmt(maxLoss(s.m1, s.v1, s.m2, s.v2), eDec)} J ({fmt(lossPct, 0)} %).
       {allLost ? ' Her er Σp = 0, så vognene stopper helt, og all den kinetiske energien går over til andre energiformer.' : ''}
       {vector}
     </p>

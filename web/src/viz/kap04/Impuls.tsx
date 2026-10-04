@@ -24,7 +24,7 @@ import {
   sample,
   useTextScale,
 } from '../kit';
-import { impact, pulseForce, type ImpactResult } from './model';
+import { dtForFmax, impact, pulseForce, type ImpactResult } from './model';
 import { useNarrow } from './useNarrow';
 
 type ScenarioId = 'egg' | 'bil';
@@ -215,9 +215,9 @@ function EggScene({ sc, r, dtMs, broken }: { sc: Scenario; r: ImpactResult; dtMs
   const thick = Math.max(14, sPx / 0.72);
   const top = ground - thick;
   const cx = 290;
-  const W = 30;
-  const UP = 46;
-  const DOWN = 35;
+  const W = 38;
+  const UP = 58;
+  const DOWN = 44;
   const dent = W * 1.6;
   const left = cx - 170;
   const right = cx + 170;
@@ -243,14 +243,14 @@ function EggScene({ sc, r, dtMs, broken }: { sc: Scenario; r: ImpactResult; dtMs
       )}
       <Arrow
         x1={cx - W - 50}
-        y1={midGhost - 80}
+        y1={midGhost - 64}
         x2={cx - W - 50}
         y2={midGhost}
         color={VIZ.velocity}
         label="v"
         labelAnchor="end"
         labelX={cx - W - 62}
-        labelY={midGhost - 34}
+        labelY={midGhost - 26}
       />
       <Arrow
         x1={cx}
@@ -275,7 +275,7 @@ function EggScene({ sc, r, dtMs, broken }: { sc: Scenario; r: ImpactResult; dtMs
       <Label x={790} y={34} anchor="end" muted>
         {surfaceName('egg', dtMs)}
       </Label>
-      <Label x={790} y={34 + 30 * f} anchor="end" color={broken ? VIZ.gravity : VIZ.applied}>
+      <Label x={790} y={34 + 30 * f} anchor="end" weight={700}>
         {broken ? 'Egget knuses' : 'Egget holder'}
       </Label>
     </>
@@ -386,7 +386,8 @@ function ForceGraph({ sc, r, dtMs, height }: { sc: Scenario; r: ImpactResult; dt
           <Label x={sx(dtMs / 2) + 10} y={sy(Fmax) - 10} anchor="start" color={VIZ.applied}>
             F<TSub>maks</TSub> = {fmt(Fmax, Fmax < 10 ? 1 : 0)} {sc.unit}
           </Label>
-          <Label x={x1 - 6} y={y1 + 22 * f} anchor="end">
+          {/* Øverst til høyre, men midt i grafen når toppen av en kort puls ellers ville kollidert med F_maks-etiketten */}
+          <Label x={x1 - 6} y={Fmax > 0.6 * sc.yMax ? sy(0.55 * sc.yMax) : y1 + 22 * f} anchor="end">
             arealet = I = {fmt(r.dp, r.dp < 10 ? 3 : 0)} N·s
           </Label>
         </g>
@@ -411,7 +412,7 @@ function explanation(id: ScenarioId, sc: Scenario, r: ImpactResult, dtMs: number
           samme uansett underlag: I = Δp = {I}. Det er arealet under F-t-grafen. På {surfaceName('egg', dtMs).toLocaleLowerCase('nb')}{' '}
           stopper egget på {fmt(dtMs, 1)} ms over {fmt(r.stopDist * 100, 1)} cm, og den største kraften blir {forceText(sc, r.Fmax)}
           {broken
-            ? ` – mer enn egget tåler.${dtMs < 7 ? ' På betong er støttiden under 1 ms, og kraften blir enda større.' : ''} Gjør støttiden lengre, så blir kraften mindre for samme areal.`
+            ? ` – mer enn egget tåler.${dtMs < 7 ? ' På betong er støttiden under 1 ms, og kraften blir enda større.' : ''} Gjør støttiden lengre, så blir kraften mindre for samme areal: med denne modellen holder egget når støttiden er over ca. ${fmt(1000 * dtForFmax(r.dp, sc.limit ?? Infinity), 0)} ms.`
             : '. Lang støttid gir liten kraft. Samme idé brukes i sykkelhjelmer: skummet presses sammen og forlenger støttiden.'}
         </p>
         {area}

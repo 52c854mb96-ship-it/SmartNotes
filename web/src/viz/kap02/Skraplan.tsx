@@ -27,6 +27,7 @@ import {
   useTextScale,
 } from '../kit';
 import { criticalAngleDeg, incline, type InclineResult } from './model';
+import { useNarrow } from './useNarrow';
 
 const RAD = Math.PI / 180;
 const ALPHA_MAX = 60;
@@ -52,6 +53,8 @@ export default function Skraplan() {
   const r = incline({ alphaDeg: s.alpha, m: s.m, muS: s.muS, muK: s.muK });
   const crit = criticalAngleDeg(s.muS);
   const kinetic = criticalAngleDeg(s.muK);
+  const [graphRef, narrow] = useNarrow<HTMLDivElement>();
+  const graphH = narrow ? 460 : 360;
 
   return (
     <VizLayout>
@@ -107,9 +110,11 @@ export default function Skraplan() {
         <Scene alpha={s.alpha} m={s.m} r={r} parts={parts} />
       </Figure>
 
-      <Figure viewBox="0 0 800 360" label="Graf over G∥, største statiske friksjon og friksjonen R som funksjon av vinkelen α">
-        <ForceGraph alpha={s.alpha} r={r} muS={s.muS} muK={s.muK} crit={crit} />
-      </Figure>
+      <div ref={graphRef}>
+        <Figure viewBox={`0 0 800 ${graphH}`} label="Graf over G∥, største statiske friksjon og friksjonen R som funksjon av vinkelen α">
+          <ForceGraph alpha={s.alpha} r={r} muS={s.muS} muK={s.muK} crit={crit} height={graphH} />
+        </Figure>
+      </div>
       <Legend
         items={[
           {
@@ -173,7 +178,8 @@ export default function Skraplan() {
         </FormulaLine>
         {r.moving ? (
           <FormulaLine>
-            a = g(sin α − μ<Sub>k</Sub> cos α) = {fmt(r.a, 2)} m/s²
+            a = g(sin α − μ<Sub>k</Sub> cos α) = 9,81 m/s² · (sin {fmt(s.alpha, 0)}° − {fmt(Math.min(s.muK, s.muS), 2)} · cos{' '}
+            {fmt(s.alpha, 0)}°) = {fmt(r.a, 2)} m/s²
           </FormulaLine>
         ) : (
           <FormulaLine>
@@ -226,8 +232,10 @@ interface Pt {
 }
 const add = (p: Pt, v: Pt, k = 1): Pt => ({ x: p.x + v.x * k, y: p.y + v.y * k });
 
-// Scenen (viewBox 800 × 400). Klossen står fast, og skråplanet dreies rundt kontaktpunktet P0.
-const P0: Pt = { x: 340, y: 228 };
+// Scenen (viewBox 800 × 400). Klossen står (nesten) fast, og skråplanet dreies rundt kontaktpunktet P0.
+const P0_X = 340;
+/** Lavest mulige kontaktpunkt (ved små vinkler, der N-pila er lang). */
+const P0_Y_MAX = 228;
 const X_LEFT = 30;
 const X_RIGHT = 770;
 const Y_TOP = 14;
@@ -244,6 +252,12 @@ function Scene({ alpha, m, r, parts }: { alpha: number; m: number; r: InclineRes
   const d: Pt = { x: c, y: sn };
   const n: Pt = { x: sn, y: -c };
 
+  const w = 70 + m * 5;
+  const h = 46 + m * 2.4;
+  // Ved bratte vinkler er N-pila kort, så klossen løftes til N-spissen ligger like under toppen. Da får
+  // G-pila og vinkelen ved foten av planet plass hver for seg i stedet for å havne oppå hverandre.
+  const P0: Pt = { x: P0_X, y: Math.min(P0_Y_MAX, Y_TOP + 50 + c * (h / 2 + LG * c)) };
+
   // Skråplanet: linjen P0 + d·t, klippet mot figurkanten og bakken.
   let tL = (X_LEFT - P0.x) / c;
   if (P0.y + tL * sn < Y_TOP) tL = (Y_TOP - P0.y) / sn;
@@ -253,8 +267,6 @@ function Scene({ alpha, m, r, parts }: { alpha: number; m: number; r: InclineRes
   const left = add(P0, d, tL);
   const right = add(P0, d, tR);
 
-  const w = 70 + m * 5;
-  const h = 46 + m * 2.4;
   const C = add(P0, n, h / 2);
   const k = LG / r.G;
 
@@ -384,7 +396,21 @@ function niceMax(v: number): number {
   return Math.ceil(v / 50) * 50;
 }
 
-function ForceGraph({ alpha, r, muS, muK, crit }: { alpha: number; r: InclineResult; muS: number; muK: number; crit: number }) {
+function ForceGraph({
+  alpha,
+  r,
+  muS,
+  muK,
+  crit,
+  height,
+}: {
+  alpha: number;
+  r: InclineResult;
+  muS: number;
+  muK: number;
+  crit: number;
+  height: number;
+}) {
   const f = useTextScale();
   const G = r.G;
   const yMax = niceMax(G);
@@ -393,7 +419,7 @@ function ForceGraph({ alpha, r, muS, muK, crit }: { alpha: number; r: InclineRes
   const kin = (a: number) => Math.min(muK, muS) * G * Math.cos(a * RAD);
   const critShown = crit <= ALPHA_MAX;
   return (
-    <Plot x={{ min: 0, max: ALPHA_MAX, label: 'Vinkel α (°)' }} y={{ min: 0, max: yMax, label: 'Kraft (N)' }} width={800} height={360}>
+    <Plot x={{ min: 0, max: ALPHA_MAX, label: 'Vinkel α (°)' }} y={{ min: 0, max: yMax, label: 'Kraft (N)' }} width={800} height={height}>
       {({ sx, sy, x0, y0, y1 }) => {
         const restPart = sample(gPar, 0, Math.min(crit, ALPHA_MAX), 80);
         const slidePart = critShown ? sample(kin, crit, ALPHA_MAX, 80) : [];
@@ -418,10 +444,12 @@ function ForceGraph({ alpha, r, muS, muK, crit }: { alpha: number; r: InclineRes
                 </Label>
               </>
             )}
-            <path d={linePath(restPart, sx, sy)} fill="none" stroke={VIZ.friction} strokeWidth={3.5} strokeLinejoin="round" />
+            <path d={linePath(restPart, sx, sy)} fill="none" stroke={VIZ.friction} strokeWidth={6} strokeLinejoin="round" />
             {critShown && (
               <path d={linePath(slidePart, sx, sy)} fill="none" stroke={VIZ.friction} strokeWidth={3.5} strokeLinejoin="round" />
             )}
+            {/* I ro er R = G∥: G∥ tegnes tynt oppå friksjonen, så begge linjene syns */}
+            <path d={linePath(restPart, sx, sy)} fill="none" stroke={VIZ.gravity} strokeWidth={2} />
             <Label x={sx(ALPHA_MAX - 1)} y={sy(gPar(ALPHA_MAX - 1)) + 28 * f} anchor="end" color={VIZ.gravity}>
               G<TSub>∥</TSub>
             </Label>

@@ -1,5 +1,7 @@
 /** Små byggeklosser som kit-et mangler (lokale for kapittel 9). */
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Pause, Play, RotateCcw } from 'lucide-react';
+import type { SimClock } from '../kit';
 
 /**
  * Tekst i figuren i en bestemt farge. Kit-ets <Label color> blir alltid blekkfarget fordi .viz-label i viz.css
@@ -88,3 +90,24 @@ export function useNarrow<T extends HTMLElement>(limit = 560) {
 
 /** Omtrentlig bredde (figurenheter) av en etikett med `chars` tegn ved tekstskala `f`. */
 export const textWidth = (chars: number, f = 1): number => chars * 9.6 * f;
+
+/**
+ * Som <PlayControls> i kit-et, men med egen tekst i stedet for «t = … s» (klokka her teller stadier, ikke sekunder).
+ */
+export function PlayBar({ clock, status }: { clock: SimClock; status: ReactNode }) {
+  return (
+    <div className="viz-play">
+      <button type="button" className="btn btn-sm" onClick={clock.toggle} aria-pressed={clock.playing}>
+        {clock.playing ? <Pause size={16} aria-hidden /> : <Play size={16} aria-hidden />}
+        {clock.playing ? 'Pause' : 'Spill av livet'}
+      </button>
+      <button type="button" className="btn btn-sm btn-ghost" onClick={clock.reset}>
+        <RotateCcw size={16} aria-hidden />
+        Start på nytt
+      </button>
+      <span className="viz-play-time" aria-live="off">
+        {status}
+      </span>
+    </div>
+  );
+}

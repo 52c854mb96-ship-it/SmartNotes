@@ -15,6 +15,11 @@ export interface BarGroup {
   bars: Bar[];
 }
 
+/** Omtrent halve bredden av en etikett i figurens enheter (ca. 9,6 per tegn ved 17 px), så den kan holdes inne i panelet. */
+function halfText(text: string, f: number): number {
+  return (text.length * 9.6 * f) / 2 + 2;
+}
+
 /**
  * Søylediagram med grupper (f.eks. «Før» og «Etter») for én størrelse. Tegnes inne i en <Figure>,
  * forskjøvet til (x, 0). Søylene kan være negative (bevegelsesmengde mot venstre).
@@ -55,6 +60,10 @@ export function BarPanel({
   const totalW = groups.length * groupW + (groups.length - 1) * groupGap;
   const x0 = x + (width - totalW) / 2;
 
+  // Tallet over (eller under) den høyeste (laveste) søylen i gruppen, så det ikke havner oppå nabosøylene.
+  const groupTop = (g: BarGroup) => Math.min(zeroY, ...g.bars.flatMap((b) => [sy(b.value), sy(b.ghost ?? 0)]));
+  const groupBottom = (g: BarGroup) => Math.max(zeroY, ...g.bars.map((b) => sy(b.value)));
+
   return (
     <g>
       <Label x={x + 6} y={22 * f} anchor="start">
@@ -87,7 +96,11 @@ export function BarPanel({
                   )}
                   <rect x={bx} y={top} width={bw} height={h} rx={3} fill={b.color} />
                   {b.showValue && (
-                    <Label x={bx + bw / 2} y={neg ? y + 20 * f : Math.min(y, b.ghost !== undefined ? sy(b.ghost) : y) - 8} anchor="middle">
+                    <Label
+                      x={Math.min(bx + bw / 2, x + width - halfText(fmt(b.value, decimals), f))}
+                      y={neg ? groupBottom(g) + 20 * f : groupTop(g) - 8}
+                      anchor="middle"
+                    >
                       {fmt(b.value, decimals)}
                     </Label>
                   )}

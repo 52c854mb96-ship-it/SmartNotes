@@ -41,3 +41,14 @@ export function fmtYears(y: number): string {
   if (y < 1) return `${fmtSig(y * 12, 2)} måneder`;
   return `${fmtWords(y, 2)} år`;
 }
+
+/** Som fmtYears, men delt i tall og enhet for avlesninger: 1,8e9 → { value: «1,8», unit: «milliarder år» }. */
+export function yearsParts(y: number): { value: string; unit: string } {
+  if (!Number.isFinite(y)) return { value: '–', unit: 'år' };
+  if (y < 1) return { value: fmtSig(y * 12, 2), unit: 'måneder' };
+  const a = Math.abs(y);
+  if (a >= 1e12) return { value: fmtSig(y / 1e12, 2), unit: 'billioner år' };
+  if (a >= 1e9) return { value: fmtSig(y / 1e9, 2), unit: 'milliarder år' };
+  if (a >= 1e6) return { value: fmtSig(y / 1e6, 2), unit: 'millioner år' };
+  return { value: fmtSig(y, 2), unit: 'år' };
+}
