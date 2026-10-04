@@ -1,0 +1,133 @@
+/*
+ * Fargetema per fag. Fysikk bruker standardfargene («Blekk», base.css).
+ * Kjemi = «Tavle» (tavlegrønn og krittgul), biologi = «Salvie» (dempet grønn på varmt papir).
+ * <html data-subject="chemistry|biology"> settes av AppShell når et fag er åpent.
+ * Hvert fag har en lys og en mørk variant som følger lys/mørk/system-valget (samme mønster som base.css).
+ * Den mørke varianten må definere alle variablene den lyse definerer.
+ */
+
+/* ---------- Kjemi: Tavle ---------- */
+:root[data-subject='chemistry'] {
+  --bg: #f3f4ef;
+  --surface: #ffffff;
+  --surface-2: #eceee6;
+  --surface-3: #e1e5da;
+  --border: #dce1d5;
+  --border-strong: #c2cabb;
+  --text: #1b2420;
+  --text-2: #4a5850;
+  --text-3: #7b8880;
+  --accent: #2e4a3f;
+  --accent-hover: #233a31;
+  --accent-soft: #f5edcf;
+  --accent-soft-2: #ecdfae;
+  --accent-text: #2b453b;
+  --on-accent: #ffffff;
+  --focus-ring: 0 0 0 3px rgb(46 74 63 / 0.32);
+  --viz-surface: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-subject='chemistry']:not([data-theme='light']) {
+    --bg: #1b2420;
+    --surface: #222d28;
+    --surface-2: #29352f;
+    --surface-3: #313f38;
+    --border: #34433c;
+    --border-strong: #4a5b53;
+    --text: #eef0e8;
+    --text-2: #b8c2b9;
+    --text-3: #87938a;
+    --accent: #e6c35c;
+    --accent-hover: #f0d278;
+    --accent-soft: rgb(230 195 92 / 0.12);
+    --accent-soft-2: rgb(230 195 92 / 0.22);
+    --accent-text: #f0d278;
+    --on-accent: #1b2420;
+    --focus-ring: 0 0 0 3px rgb(230 195 92 / 0.4);
+    --viz-surface: #222d28;
+  }
+}
+
+:root[data-subject='chemistry'][data-theme='dark'] {
+  --bg: #1b2420;
+  --surface: #222d28;
+  --surface-2: #29352f;
+  --surface-3: #313f38;
+  --border: #34433c;
+  --border-strong: #4a5b53;
+  --text: #eef0e8;
+  --text-2: #b8c2b9;
+  --text-3: #87938a;
+  --accent: #e6c35c;
+  --accent-hover: #f0d278;
+  --accent-soft: rgb(230 195 92 / 0.12);
+  --accent-soft-2: rgb(230 195 92 / 0.22);
+  --accent-text: #f0d278;
+  --on-accent: #1b2420;
+  --focus-ring: 0 0 0 3px rgb(230 195 92 / 0.4);
+  --viz-surface: #222d28;
+}
+
+/* ---------- Biologi: Salvie ---------- */
+:root[data-subject='biology'] {
+  --bg: #fafaf7;
+  --surface: #ffffff;
+  --surface-2: #f3f3ee;
+  --surface-3: #e9e8e1;
+  --border: #e3e1da;
+  --border-strong: #c8c6bd;
+  --text: #1a1a1a;
+  --text-2: #55554f;
+  --text-3: #8a8a83;
+  --accent: #4a5d4a;
+  --accent-hover: #3c4d3c;
+  --accent-soft: #eef1ea;
+  --accent-soft-2: #dde5d8;
+  --accent-text: #3f553f;
+  --on-accent: #ffffff;
+  --focus-ring: 0 0 0 3px rgb(74 93 74 / 0.3);
+  --viz-surface: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-subject='biology']:not([data-theme='light']) {
+    --bg: #141814;
+    --surface: #1b201c;
+    --surface-2: #222823;
+    --surface-3: #2b322c;
+    --border: #2e362f;
+    --border-strong: #435044;
+    --text: #e9ece6;
+    --text-2: #b3bcb2;
+    --text-3: #859084;
+    --accent: #93b48d;
+    --accent-hover: #a8c4a2;
+    --accent-soft: rgb(147 180 141 / 0.14);
+    --accent-soft-2: rgb(147 180 141 / 0.26);
+    --accent-text: #abc9a5;
+    --on-accent: #141814;
+    --focus-ring: 0 0 0 3px rgb(147 180 141 / 0.4);
+    --viz-surface: #1b201c;
+  }
+}
+
+:root[data-subject='biology'][data-theme='dark'] {
+  --bg: #141814;
+  --surface: #1b201c;
+  --surface-2: #222823;
+  --surface-3: #2b322c;
+  --border: #2e362f;
+  --border-strong: #435044;
+  --text: #e9ece6;
+  --text-2: #b3bcb2;
+  --text-3: #859084;
+  --accent: #93b48d;
+  --accent-hover: #a8c4a2;
+  --accent-soft: rgb(147 180 141 / 0.14);
+  --accent-soft-2: rgb(147 180 141 / 0.26);
+  --accent-text: #abc9a5;
+  --on-accent: #141814;
+  --focus-ring: 0 0 0 3px rgb(147 180 141 / 0.4);
+  --viz-surface: #1b201c;
+}

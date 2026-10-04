@@ -1066,3 +1066,66 @@ dialog.lightbox::backdrop {
 .status-line-icon.bad {
   color: var(--danger);
 }
+
+/* ---------- Valg av fagtype (nytt fag) ---------- */
+.profile-choice {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.profile-choice legend {
+  margin-bottom: 2px;
+}
+
+.profile-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+}
+
+.profile-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.profile-option input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.profile-option:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.profile-option.is-on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.profile-option-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.profile-option-label {
+  font-weight: 650;
+  color: var(--text);
+}
+
+.profile-option-meta {
+  font-size: 12.5px;
+  color: var(--text-3);
+}

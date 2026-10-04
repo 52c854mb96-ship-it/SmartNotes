@@ -98,7 +98,7 @@ export function SubjectPage() {
           }
         >
           <p>
-            Notatene sorteres etter kapitlene i læreboka{subject.textbook ? ` (${subject.textbook})` : ''}. Lim inn
+            Notatene sorteres etter kapitlene i læreboka{subject.textbook ? ` «${subject.textbook}»` : ''}. Lim inn
             innholdsfortegnelsen eller ta et bilde av den, så plasserer Claude hvert notat i riktig kapittel.
           </p>
         </EmptyState>

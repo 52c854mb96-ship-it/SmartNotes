@@ -7,7 +7,9 @@ import { drawerStore, listCollapsedStore, openSearch, openUpload, searchStore, t
 import { isAcceptedFile } from '../lib/images';
 import { isListRoute } from '../lib/layout';
 import { NARROW_QUERY, WIDE_QUERY, useMediaQuery } from '../lib/media';
+import { setSubjectTheme } from '../lib/theme';
 import { useActiveIds } from '../lib/useActive';
+import { useSubject } from '../data';
 import { ListPane } from './ListPane';
 import { Logo } from './Logo';
 import { NewSubjectDialog } from './NewSubjectDialog';
@@ -35,6 +37,13 @@ export function AppShell() {
   const collapsed = listCollapsedStore.use();
   const active = useActiveIds();
   const showList = wide && isListRoute(location.pathname) && !!active.subjectId;
+  const activeSubject = useSubject(active.subjectId);
+
+  // Fargetemaet følger faget som er åpent (forsiden og innstillinger bruker standardfargene).
+  const activeProfile = active.subjectId ? activeSubject?.profile : null;
+  useEffect(() => {
+    if (activeProfile !== undefined) setSubjectTheme(activeProfile);
+  }, [activeProfile]);
   const firstPath = useRef(location.pathname);
   const [dragging, setDragging] = useState(false);
 

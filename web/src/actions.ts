@@ -2,15 +2,15 @@
  * Endringer som krever nett (alt unntatt opplasting). Hver handling kaller API-et,
  * legger svaret inn i Dexie med en gang og trigger en synk for å hente resten.
  */
-import type { Chapter, ChapterInput, Note, UpdateNoteRequest } from '@smartnotes/shared';
+import type { Chapter, ChapterInput, Note, SubjectProfile, UpdateNoteRequest } from '@smartnotes/shared';
 import { api } from './api';
 import { db } from './db';
 import { applyServerRows, syncNow } from './sync';
 
 // ---------- Fag ----------
 
-export async function createSubject(name: string, textbook: string | null) {
-  const subject = await api.createSubject({ name, profile: 'physics', textbook });
+export async function createSubject(name: string, textbook: string | null, profile: SubjectProfile = 'physics') {
+  const subject = await api.createSubject({ name, profile, textbook });
   await applyServerRows({ subjects: [subject] });
   void syncNow();
   return subject;

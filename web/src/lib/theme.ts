@@ -5,7 +5,15 @@ export type ThemePref = 'light' | 'dark' | 'system';
 
 /** Samme nøkkel og farger som det lille skriptet i index.html (som kjører før første opptegning). */
 const KEY = 'smartnotes:theme';
-const THEME_COLORS = { light: '#f5f6f8', dark: '#0f1318' } as const;
+/** Bakgrunnsfargen per fag (samme som --bg i base.css og subjects.css), til statuslinja i nettleseren. */
+const THEME_COLORS = {
+  physics: { light: '#f5f6f8', dark: '#0f1318' },
+  chemistry: { light: '#f3f4ef', dark: '#1b2420' },
+  biology: { light: '#fafaf7', dark: '#141814' },
+} as const;
+
+type SubjectTheme = keyof typeof THEME_COLORS;
+let subjectTheme: SubjectTheme = 'physics';
 
 function readPref(): ThemePref {
   try {
@@ -26,8 +34,18 @@ function apply(pref: ThemePref): void {
   for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
     const forDark = (meta.getAttribute('media') ?? '').includes('dark');
     const scheme = pref === 'system' ? (forDark ? 'dark' : 'light') : pref;
-    meta.content = THEME_COLORS[scheme];
+    meta.content = THEME_COLORS[subjectTheme][scheme];
   }
+}
+
+/** Fargetema for faget som er åpent (fysikk = standard). Settes av AppShell. */
+export function setSubjectTheme(profile: string | null | undefined): void {
+  const next: SubjectTheme = profile === 'chemistry' || profile === 'biology' ? profile : 'physics';
+  if (next === subjectTheme && document.documentElement.dataset.subject === (next === 'physics' ? undefined : next)) return;
+  subjectTheme = next;
+  if (next === 'physics') delete document.documentElement.dataset.subject;
+  else document.documentElement.dataset.subject = next;
+  apply(themeStore.get());
 }
 
 export function setTheme(pref: ThemePref): void {

@@ -20,7 +20,7 @@ export default defineConfig({
         id: '/',
         name: 'SmartNotes',
         short_name: 'SmartNotes',
-        description: 'Håndskrevne fysikknotater som pene LaTeX-PDF-er, sortert etter kapittel.',
+        description: 'Håndskrevne notater i fysikk, kjemi og biologi som pene LaTeX-PDF-er, sortert etter kapittel.',
         lang: 'nb',
         dir: 'ltr',
         start_url: '/',

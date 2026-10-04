@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
-import { Atom, ChevronRight, FolderOpen, Plus, Search, Settings, Shapes, Upload, X } from 'lucide-react';
+import { ChevronRight, FolderOpen, Plus, Search, Settings, Shapes, Upload, X } from 'lucide-react';
 import type { Subject } from '@smartnotes/shared';
 import { chapterStats, useChapters, useSubjectNotes, useSubjects } from '../data';
 import { useActiveIds } from '../lib/useActive';
+import { SubjectIcon } from '../lib/subjects';
 import { drawerStore, newSubjectStore, openSearch, openUpload } from '../lib/ui';
 import { hasVisualizations } from '../viz/registry';
 import { Logo } from './Logo';
@@ -150,7 +151,7 @@ function SubjectItem({
             navigate(`/fag/${subject.id}`);
           }}
         >
-          <Atom size={18} aria-hidden className="subject-icon" />
+          <SubjectIcon profile={subject.profile} size={18} className="subject-icon" />
           <span className="subject-name">{subject.name}</span>
         </button>
         <button

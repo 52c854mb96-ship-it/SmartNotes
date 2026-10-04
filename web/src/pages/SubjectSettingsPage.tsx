@@ -17,6 +17,7 @@ import { chapterStats, useChapters, useSubject, useSubjectNotes } from '../data'
 import { useOnline } from '../lib/connectivity';
 import { aimMap, sectionsOf } from '../lib/curriculum';
 import { chapterHeading, plural } from '../lib/format';
+import { PROFILES, SubjectIcon, profileOf } from '../lib/subjects';
 import { confirmDialog, toast } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { ChapterImport } from './settings/ChapterImport';
@@ -113,14 +114,17 @@ function SubjectForm({ subject, online }: { subject: Subject; online: boolean })
           <input
             value={textbook}
             onChange={(e) => setTextbook(e.target.value)}
-            placeholder="F.eks. Ergo Fysikk 1"
+            placeholder="F.eks. ERGO Fysikk 1"
             maxLength={200}
             disabled={!online}
           />
         </label>
         <div className="field field-full">
-          <span className="field-label">Mal</span>
-          <p className="field-static">Fysikk-mal</p>
+          <span className="field-label">Fagtype</span>
+          <p className="field-static with-icon">
+            <SubjectIcon profile={subject.profile} size={16} /> {PROFILES[profileOf(subject.profile)].label}, PDF-mal «
+            {PROFILES[profileOf(subject.profile)].template}»
+          </p>
         </div>
       </div>
       <div className="card-actions">

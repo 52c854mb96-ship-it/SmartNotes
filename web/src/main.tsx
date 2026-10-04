@@ -6,6 +6,7 @@ import './styles/components.css';
 import './styles/pages.css';
 import './styles/workspace.css';
 import './styles/viz.css';
+import './styles/subjects.css';
 import { App } from './App';
 import { boot } from './boot';
 import { registerPwa } from './lib/pwa';
