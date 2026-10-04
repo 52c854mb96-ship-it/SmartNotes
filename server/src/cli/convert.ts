@@ -51,7 +51,7 @@ const chapters = (chapterArg ?? '')
   .filter(Boolean)
   .map((s, i) => {
     const m = /^(\S+)\s+(.+)$/.exec(s);
-    return { alias: `k${i + 1}`, number: m ? m[1]! : null, title: m ? m[2]! : s };
+    return { alias: `k${i + 1}`, number: m ? m[1]! : null, title: m ? m[2]! : s, sections: [] };
   });
 
 const t0 = Date.now();

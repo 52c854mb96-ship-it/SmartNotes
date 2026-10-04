@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import type { Chapter, ChapterInput, Note, NoteStage, NoteStatus, Subject, SubjectProfile } from '@smartnotes/shared';
+import type { Chapter, ChapterInput, CompetenceAim, Note, NoteStage, NoteStatus, Section, Subject, SubjectProfile } from '@smartnotes/shared';
 
 type DB = Database.Database;
 
@@ -85,6 +85,14 @@ const MIGRATIONS: string[] = [
     user_agent TEXT
   );
   `,
+  // 2: delkapitler, kompetansemål og søketekst
+  `
+  ALTER TABLE subjects ADD COLUMN aims TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE chapters ADD COLUMN sections TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE notes ADD COLUMN section TEXT;
+  ALTER TABLE notes ADD COLUMN section_auto INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE notes ADD COLUMN search_text TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 // ---------- Rad-typer (slik de ligger i SQLite) ----------
@@ -95,6 +103,7 @@ interface SubjectRow {
   profile: string;
   textbook: string | null;
   position: number;
+  aims: string;
   rev: number;
   deleted: number;
   created_at: string;
@@ -107,6 +116,7 @@ interface ChapterRow {
   number: string | null;
   title: string;
   position: number;
+  sections: string;
   rev: number;
   deleted: number;
   created_at: string;
@@ -117,6 +127,8 @@ export interface NoteRow {
   id: string;
   subject_id: string;
   chapter_id: string | null;
+  section: string | null;
+  section_auto: number;
   client_id: string | null;
   title: string;
   title_auto: number;
@@ -134,6 +146,7 @@ export interface NoteRow {
   attempts: number;
   not_before: string | null;
   usage: string | null;
+  search_text: string;
   rev: number;
   deleted: number;
   created_at: string;
@@ -159,6 +172,7 @@ export function toSubject(r: SubjectRow): Subject {
     profile: r.profile as SubjectProfile,
     textbook: r.textbook,
     position: r.position,
+    aims: parseJsonArray(r.aims).filter(isAim),
     rev: r.rev,
     deleted: r.deleted === 1,
     createdAt: r.created_at,
@@ -173,11 +187,31 @@ export function toChapter(r: ChapterRow): Chapter {
     number: r.number,
     title: r.title,
     position: r.position,
+    sections: parseJsonArray(r.sections).filter(isSection),
     rev: r.rev,
     deleted: r.deleted === 1,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
   };
+}
+
+function parseJsonArray(s: string): unknown[] {
+  try {
+    const v: unknown = JSON.parse(s);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
+function isAim(v: unknown): v is CompetenceAim {
+  const a = v as CompetenceAim;
+  return !!a && typeof a.code === 'string' && typeof a.text === 'string' && typeof a.cross === 'boolean';
+}
+
+function isSection(v: unknown): v is Section {
+  const x = v as Section;
+  return !!x && typeof x.code === 'string' && typeof x.title === 'string' && Array.isArray(x.aims);
 }
 
 function parseRemarks(s: string): string[] {
@@ -194,6 +228,7 @@ export function toNote(r: NoteRow): Note {
     id: r.id,
     subjectId: r.subject_id,
     chapterId: r.chapter_id,
+    section: r.section,
     clientId: r.client_id,
     title: r.title,
     noteDate: r.note_date,
@@ -206,6 +241,7 @@ export function toNote(r: NoteRow): Note {
     chapterAuto: r.chapter_auto === 1,
     instructions: r.instructions,
     position: r.position,
+    searchText: r.search_text,
     rev: r.rev,
     deleted: r.deleted === 1,
     createdAt: r.created_at,
@@ -218,7 +254,10 @@ const now = () => new Date().toISOString();
 export interface NoteResultUpdate {
   title?: string;
   chapterId?: string | null;
+  /** Delkapittel valgt av Claude; brukes bare hvis brukeren ikke har valgt selv. */
+  section?: string | null;
   noteDate?: string | null;
+  searchText?: string;
   remarks: string[];
   pageCount: number;
   usage?: unknown;
@@ -292,15 +331,15 @@ export class Repo {
     return r ? toSubject(r) : null;
   }
 
-  createSubject(input: { name: string; profile: SubjectProfile; textbook?: string | null }): Subject {
+  createSubject(input: { name: string; profile: SubjectProfile; textbook?: string | null; aims?: CompetenceAim[] }): Subject {
     const id = randomUUID();
     const t = now();
     const position = (this.db.prepare(`SELECT COALESCE(MAX(position), -1) + 1 AS p FROM subjects WHERE deleted = 0`).get() as { p: number }).p;
     this.db
       .prepare(
-        `INSERT INTO subjects (id, name, profile, textbook, position, rev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO subjects (id, name, profile, textbook, position, aims, rev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, input.name, input.profile, input.textbook ?? null, position, this.nextRev(), t, t);
+      .run(id, input.name, input.profile, input.textbook ?? null, position, JSON.stringify(input.aims ?? []), this.nextRev(), t, t);
     return this.getSubject(id)!;
   }
 
@@ -344,7 +383,7 @@ export class Repo {
     return r ? toChapter(r) : null;
   }
 
-  createChapters(subjectId: string, inputs: ChapterInput[]): Chapter[] {
+  createChapters(subjectId: string, inputs: (ChapterInput & { sections?: Section[] })[]): Chapter[] {
     return this.db.transaction(() => {
       let position = (
         this.db.prepare(`SELECT COALESCE(MAX(position), -1) + 1 AS p FROM chapters WHERE subject_id = ? AND deleted = 0`).get(subjectId) as {
@@ -357,21 +396,39 @@ export class Repo {
         const t = now();
         this.db
           .prepare(
-            `INSERT INTO chapters (id, subject_id, number, title, position, rev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO chapters (id, subject_id, number, title, position, sections, rev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
-          .run(id, subjectId, input.number, input.title, position++, this.nextRev(), t, t);
+          .run(id, subjectId, input.number, input.title, position++, JSON.stringify(input.sections ?? []), this.nextRev(), t, t);
         ids.push(id);
       }
       return ids.map((id) => this.getChapter(id)!);
     })();
   }
 
-  updateChapter(id: string, patch: { number?: string | null; title?: string }): Chapter | null {
+  updateChapter(id: string, patch: { number?: string | null; title?: string; sections?: Section[] }): Chapter | null {
     const c = this.getChapter(id);
     if (!c) return null;
     this.db
-      .prepare(`UPDATE chapters SET number = ?, title = ?, rev = ?, updated_at = ? WHERE id = ?`)
-      .run(patch.number === undefined ? c.number : patch.number, patch.title ?? c.title, this.nextRev(), now(), id);
+      .prepare(`UPDATE chapters SET number = ?, title = ?, sections = ?, rev = ?, updated_at = ? WHERE id = ?`)
+      .run(
+        patch.number === undefined ? c.number : patch.number,
+        patch.title ?? c.title,
+        JSON.stringify(patch.sections ?? c.sections),
+        this.nextRev(),
+        now(),
+        id,
+      );
+    if (patch.sections) {
+      // Notater med et delkapittel som ikke finnes lenger, mister det.
+      const codes = new Set(patch.sections.map((x) => x.code));
+      const stale = (this.db.prepare(`SELECT id, section FROM notes WHERE chapter_id = ? AND deleted = 0 AND section IS NOT NULL`).all(id) as {
+        id: string;
+        section: string;
+      }[]).filter((n) => !codes.has(n.section));
+      for (const n of stale) {
+        this.db.prepare(`UPDATE notes SET section = NULL, rev = ?, updated_at = ? WHERE id = ?`).run(this.nextRev(), now(), n.id);
+      }
+    }
     return this.getChapter(id);
   }
 
@@ -464,20 +521,28 @@ export class Repo {
     return this.db.prepare(`SELECT * FROM note_files WHERE note_id = ? ORDER BY position`).all(noteId) as NoteFileRow[];
   }
 
-  updateNoteUser(id: string, patch: { title?: string; chapterId?: string | null; noteDate?: string | null }): Note | null {
+  updateNoteUser(
+    id: string,
+    patch: { title?: string; chapterId?: string | null; section?: string | null; noteDate?: string | null },
+  ): Note | null {
     const r = this.getNoteRow(id);
     if (!r) return null;
     const title = patch.title !== undefined ? patch.title : r.title;
     const titleAuto = patch.title !== undefined ? 0 : r.title_auto;
     const chapterId = patch.chapterId !== undefined ? patch.chapterId : r.chapter_id;
     const chapterAuto = patch.chapterId !== undefined ? 0 : r.chapter_auto;
+    const chapterChanged = patch.chapterId !== undefined && patch.chapterId !== r.chapter_id;
+    // Nytt kapittel uten oppgitt delkapittel: delkapittelet nullstilles og kan velges av Claude ved ny konvertering.
+    const section = patch.section !== undefined ? patch.section : chapterChanged ? null : r.section;
+    const sectionAuto = patch.section !== undefined ? 0 : chapterChanged ? 1 : r.section_auto;
     const noteDate = patch.noteDate !== undefined ? patch.noteDate : r.note_date;
     const noteDateAuto = patch.noteDate !== undefined ? (patch.noteDate ? 0 : 1) : r.note_date_auto;
     this.db
       .prepare(
-        `UPDATE notes SET title = ?, title_auto = ?, chapter_id = ?, chapter_auto = ?, note_date = ?, note_date_auto = ?, rev = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE notes SET title = ?, title_auto = ?, chapter_id = ?, chapter_auto = ?, section = ?, section_auto = ?, note_date = ?, note_date_auto = ?,
+           rev = ?, updated_at = ? WHERE id = ?`,
       )
-      .run(title, titleAuto, chapterId, chapterAuto, noteDate, noteDateAuto, this.nextRev(), now(), id);
+      .run(title, titleAuto, chapterId, chapterAuto, section, sectionAuto, noteDate, noteDateAuto, this.nextRev(), now(), id);
     return this.getNote(id);
   }
 
@@ -521,17 +586,22 @@ export class Repo {
     const title = r.title_auto === 1 && result.title ? result.title : r.title;
     const chapterId = r.chapter_auto === 1 && result.chapterId !== undefined ? result.chapterId : r.chapter_id;
     const noteDate = r.note_date_auto === 1 && result.noteDate !== undefined ? result.noteDate : r.note_date;
+    const section = r.section_auto === 1 && result.section !== undefined ? result.section : r.section;
+    const searchText = result.searchText ?? r.search_text;
     this.db
       .prepare(
         opts.done
-          ? `UPDATE notes SET status = 'done', stage = NULL, error = NULL, not_before = NULL, attempts = 0, title = ?, chapter_id = ?, note_date = ?,
-               remarks = ?, page_count = ?, pdf_rev = pdf_rev + 1, usage = ?, rev = ?, updated_at = ? WHERE id = ?`
-          : `UPDATE notes SET title = ?, chapter_id = ?, note_date = ?, remarks = ?, page_count = ?, usage = ?, rev = ?, updated_at = ? WHERE id = ?`,
+          ? `UPDATE notes SET status = 'done', stage = NULL, error = NULL, not_before = NULL, attempts = 0, title = ?, chapter_id = ?, section = ?,
+               note_date = ?, search_text = ?, remarks = ?, page_count = ?, pdf_rev = pdf_rev + 1, usage = ?, rev = ?, updated_at = ? WHERE id = ?`
+          : `UPDATE notes SET title = ?, chapter_id = ?, section = ?, note_date = ?, search_text = ?, remarks = ?, page_count = ?, usage = ?, rev = ?,
+               updated_at = ? WHERE id = ?`,
       )
       .run(
         title,
         chapterId,
+        section,
         noteDate,
+        searchText,
         JSON.stringify(result.remarks),
         result.pageCount,
         result.usage === undefined ? r.usage : JSON.stringify(result.usage),
@@ -543,10 +613,13 @@ export class Repo {
   }
 
   /** Etter at brukeren har redigert LaTeX og den kompilerte. */
-  bumpPdf(id: string): Note | null {
+  bumpPdf(id: string, searchText?: string): Note | null {
     this.db
-      .prepare(`UPDATE notes SET status = 'done', stage = NULL, error = NULL, pdf_rev = pdf_rev + 1, rev = ?, updated_at = ? WHERE id = ? AND deleted = 0`)
-      .run(this.nextRev(), now(), id);
+      .prepare(
+        `UPDATE notes SET status = 'done', stage = NULL, error = NULL, pdf_rev = pdf_rev + 1, search_text = COALESCE(?, search_text), rev = ?, updated_at = ?
+         WHERE id = ? AND deleted = 0`,
+      )
+      .run(searchText ?? null, this.nextRev(), now(), id);
     return this.getNote(id);
   }
 
@@ -643,14 +716,22 @@ export class Repo {
   }
 
   /** Første oppstart: opprett faget (med kapitlene fra læreboka hvis en er valgt). */
-  seed(preset: { subjectName: string; textbook: string; profile: SubjectProfile; chapters: ChapterInput[] } | null): void {
+  seed(
+    preset: {
+      subjectName: string;
+      textbook: string;
+      profile: SubjectProfile;
+      aims: CompetenceAim[];
+      chapters: (ChapterInput & { sections: Section[] })[];
+    } | null,
+  ): void {
     const count = (this.db.prepare(`SELECT COUNT(*) AS n FROM subjects`).get() as { n: number }).n;
     if (count > 0) return;
     if (!preset) {
       this.createSubject({ name: 'Fysikk', profile: 'physics', textbook: null });
       return;
     }
-    const subject = this.createSubject({ name: preset.subjectName, profile: preset.profile, textbook: preset.textbook });
+    const subject = this.createSubject({ name: preset.subjectName, profile: preset.profile, textbook: preset.textbook, aims: preset.aims });
     this.createChapters(subject.id, preset.chapters);
   }
 }

@@ -31,6 +31,15 @@ const chapterNumber = z
   .transform((v) => (v ? v : null));
 const chapterTitle = z.string().trim().min(1, 'Kapittelet må ha en tittel.').max(200, 'Tittelen er for lang.');
 const chapterInput = z.object({ number: chapterNumber.optional().default(null), title: chapterTitle });
+const sectionList = z
+  .array(
+    z.object({
+      code: z.string().trim().min(1, 'Delkapittelet må ha en kode.').max(12, 'Koden er for lang.'),
+      title: z.string().trim().min(1, 'Delkapittelet må ha en tittel.').max(200, 'Tittelen er for lang.'),
+      aims: z.array(z.string().trim().max(12)).max(30).default([]),
+    }),
+  )
+  .max(60, 'For mange delkapitler.');
 
 /** Validerer en request-body med zod og gir norsk feilmelding. */
 export function parse<T extends z.ZodType>(schema: T, data: unknown): z.infer<T> {
@@ -174,7 +183,11 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
 
   app.patch<{ Params: { id: string } }>('/api/chapters/:id', async (req) => {
     const id = idParam(req.params.id);
-    const body = parse(z.object({ number: chapterNumber.optional(), title: chapterTitle.optional() }), req.body);
+    const body = parse(z.object({ number: chapterNumber.optional(), title: chapterTitle.optional(), sections: sectionList.optional() }), req.body);
+    if (body.sections) {
+      const codes = body.sections.map((x) => x.code.toUpperCase());
+      if (new Set(codes).size !== codes.length) throw badRequest('To delkapitler har samme kode.');
+    }
     const c = repo.updateChapter(id, body);
     if (!c) throw notFound('Fant ikke kapittelet.');
     recompileChapter(id);

@@ -5,13 +5,15 @@ export interface NoteMeta {
   title: string | null;
   /** Kapittel-alias fra listen i forespørselen, f.eks. «k3». */
   chapter: string | null;
+  /** Kode for delkapittelet, f.eks. «2E». */
+  section: string | null;
   newChapter: { number: string | null; title: string } | null;
   date: string | null;
   figures: FigureBox[];
   remarks: string[];
 }
 
-export const EMPTY_META: NoteMeta = { title: null, chapter: null, newChapter: null, date: null, figures: [], remarks: [] };
+export const EMPTY_META: NoteMeta = { title: null, chapter: null, section: null, newChapter: null, date: null, figures: [], remarks: [] };
 
 const str = (v: unknown, max = 200): string | null => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
 
@@ -65,6 +67,7 @@ export function parseMeta(raw: string): NoteMeta {
   return {
     title: str(obj.title, 120),
     chapter: str(obj.chapter, 20),
+    section: str(obj.section, 12),
     newChapter,
     date: date && isValidDate(date) ? date : null,
     figures,

@@ -9,6 +9,14 @@ import { getProfile, readPreamble } from '../profiles/index.js';
 import { exists, type Storage } from '../storage.js';
 import { assembleBundleDoc, chapterLabel, compileLatex, formatErrors, type BundleNote, type BundleSection } from './latex.js';
 
+interface BuildInput {
+  subjectName: string;
+  title: string;
+  subtitle: string;
+  headerLabel: string;
+  sections: { heading: string | null; pageHeader?: string; notes: NoteRow[] }[];
+}
+
 /**
  * Samle-PDF-er: alle ferdige notater i et kapittel, eller i et helt fag, i én PDF med innholdsliste.
  * Lages ved behov og caches på disk med en nøkkel som endres når noe av innholdet endres.
@@ -31,12 +39,20 @@ export class Bundler {
     const notes = this.repo.doneNotes({ chapterId });
     if (notes.length === 0) throw notFound('Det er ingen ferdige notater i dette kapittelet ennå.');
     const label = chapterLabel(chapter);
+    // Grupper etter delkapittel når kapittelet har delkapitler; notater uten delkapittel kommer sist.
+    const groups: { heading: string | null; notes: NoteRow[] }[] =
+      chapter.sections.length === 0
+        ? [{ heading: null, notes }]
+        : [
+            ...chapter.sections.map((x) => ({ heading: `${x.code} ${x.title}`, notes: notes.filter((n) => n.section === x.code) })),
+            { heading: 'Uten delkapittel', notes: notes.filter((n) => !n.section || !chapter.sections.some((x) => x.code === n.section)) },
+          ].filter((g) => g.notes.length > 0);
     const file = await this.build(`chapter-${chapterId}`, subject.profile, {
       subjectName: subject.name,
       title: label,
       subtitle: [subject.name, subject.textbook].filter(Boolean).join(' · '),
       headerLabel: label,
-      sections: [{ heading: null, notes }],
+      sections: groups,
     });
     return { file, filename: `${slug(`${subject.name} ${label}`)}.pdf` };
   }
@@ -47,12 +63,12 @@ export class Bundler {
     const notes = this.repo.doneNotes({ subjectId });
     if (notes.length === 0) throw notFound('Det er ingen ferdige notater i dette faget ennå.');
     const chapters = this.repo.listChapters(subjectId);
-    const sections: { heading: string; notes: NoteRow[] }[] = chapters
-      .map((c) => ({ heading: chapterLabel(c), notes: notes.filter((n) => n.chapter_id === c.id) }))
+    const sections: { heading: string; pageHeader: string; notes: NoteRow[] }[] = chapters
+      .map((c) => ({ heading: chapterLabel(c), pageHeader: chapterLabel(c), notes: notes.filter((n) => n.chapter_id === c.id) }))
       .filter((s) => s.notes.length > 0);
     const known = new Set(chapters.map((c) => c.id));
     const unsorted = notes.filter((n) => !n.chapter_id || !known.has(n.chapter_id));
-    if (unsorted.length > 0) sections.push({ heading: 'Uten kapittel', notes: unsorted });
+    if (unsorted.length > 0) sections.push({ heading: 'Uten kapittel', pageHeader: 'Uten kapittel', notes: unsorted });
     const file = await this.build(`subject-${subjectId}`, subject.profile, {
       subjectName: subject.name,
       title: subject.name,
@@ -66,7 +82,7 @@ export class Bundler {
   private async build(
     prefix: string,
     profileId: string,
-    input: { subjectName: string; title: string; subtitle: string; headerLabel: string; sections: { heading: string | null; notes: NoteRow[] }[] },
+    input: BuildInput,
   ): Promise<string> {
     const profile = getProfile(profileId);
     const preamble = readPreamble(profile);
@@ -75,7 +91,7 @@ export class Bundler {
         JSON.stringify({
           preamble,
           ...input,
-          sections: input.sections.map((s) => ({ h: s.heading, n: s.notes.map((n) => [n.id, n.pdf_rev, n.title, n.note_date]) })),
+          sections: input.sections.map((s) => ({ h: s.heading, n: s.notes.map((n) => [n.id, n.pdf_rev, n.title, n.note_date, n.section]) })),
         }),
       )
       .digest('hex')
@@ -94,7 +110,7 @@ export class Bundler {
     target: string,
     prefix: string,
     preamble: string,
-    input: { subjectName: string; title: string; subtitle: string; headerLabel: string; sections: { heading: string | null; notes: NoteRow[] }[] },
+    input: BuildInput,
   ): Promise<string> {
     const work = await this.storage.makeTmpDir('bundle');
     try {
@@ -108,7 +124,7 @@ export class Bundler {
           if (await exists(figDir)) await fsp.cp(figDir, path.join(work, n.id), { recursive: true });
           notes.push({ id: n.id, title: n.title || 'Notat', dateIso: n.note_date, figureDir: n.id, body });
         }
-        if (notes.length > 0) sections.push({ heading: s.heading, notes });
+        if (notes.length > 0) sections.push({ heading: s.heading, pageHeader: s.pageHeader, notes });
       }
       if (sections.length === 0) throw notFound('Fant ingen ferdige notater å sette sammen.');
       const tex = assembleBundleDoc({ preamble, ...input, sections });

@@ -12,7 +12,7 @@ import { MAX_FILE_BYTES } from '../limits.js';
 import { slug } from '../pipeline/bundle.js';
 import type { Converter } from '../pipeline/converter.js';
 import { MIME_BY_KIND, sniffKind, type FileKind, type PageImage } from '../pipeline/images.js';
-import { replaceMissingFigures, sanitizeBody } from '../pipeline/latex.js';
+import { latexToText, replaceMissingFigures, sanitizeBody } from '../pipeline/latex.js';
 import type { Worker } from '../pipeline/worker.js';
 import { exists, isId, type Storage } from '../storage.js';
 import { parse, sendPdf } from './library.js';
@@ -129,6 +129,7 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
       z.object({
         title: z.string().trim().min(1, 'Tittelen kan ikke være tom.').max(120, 'Tittelen er for lang.').optional(),
         chapterId: z.string().nullable().optional(),
+        section: z.string().trim().max(12).nullable().optional(),
         noteDate: dateField.optional(),
       }),
       req.body,
@@ -137,10 +138,19 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
       const c = isId(body.chapterId) ? repo.getChapter(body.chapterId) : null;
       if (!c || c.subjectId !== row.subject_id) throw badRequest('Kapittelet finnes ikke i dette faget.');
     }
+    if (body.section) {
+      // Delkapittelet må høre til kapittelet notatet ender opp i.
+      const chapterId = body.chapterId !== undefined ? body.chapterId : row.chapter_id;
+      const chapter = chapterId ? repo.getChapter(chapterId) : null;
+      const match = chapter?.sections.find((x) => x.code.toUpperCase() === body.section!.toUpperCase());
+      if (!match) throw badRequest('Delkapittelet finnes ikke i dette kapittelet.');
+      body.section = match.code;
+    }
     const note = repo.updateNoteUser(row.id, body);
     const changed =
       (body.title !== undefined && body.title !== row.title) ||
       (body.chapterId !== undefined && body.chapterId !== row.chapter_id) ||
+      (note !== null && note.section !== row.section) ||
       (body.noteDate !== undefined && body.noteDate !== row.note_date);
     if (changed) converter.recompileInBackground(row.id);
     return note;
@@ -186,7 +196,7 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
     const body = replaceMissingFigures(sanitizeBody(raw), await converter.availableFigures(row.id));
     const res = await converter.compileNote(row.id, body);
     if (res.ok) {
-      return { ok: true, note: repo.bumpPdf(row.id)! };
+      return { ok: true, note: repo.bumpPdf(row.id, latexToText(body))! };
     }
     return { ok: false, note: repo.getNote(row.id)!, error: res.message };
   });

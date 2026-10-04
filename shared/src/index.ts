@@ -27,12 +27,33 @@ export interface SyncedRow {
   updatedAt: string;
 }
 
+/** Kompetansemål fra læreplanen, f.eks. KM5 i Fysikk 1 (FYS01-02). */
+export interface CompetenceAim {
+  /** Kort kode, f.eks. «KM5». */
+  code: string;
+  /** Målet slik det står i læreplanen («forstå sammenhenger mellom krefter …»). */
+  text: string;
+  /** Mål som går på tvers av kapitlene (metamål), f.eks. forsøk og modellering. */
+  cross: boolean;
+}
+
+/** Delkapittel i læreboka, f.eks. «2E Newtons 2. lov». */
+export interface Section {
+  /** Kode slik den står i boka, f.eks. «2E». Unik innen faget. */
+  code: string;
+  title: string;
+  /** Koder for kompetansemålene delkapittelet dekker, f.eks. ["KM5"]. */
+  aims: string[];
+}
+
 export interface Subject extends SyncedRow {
   name: string;
   profile: SubjectProfile;
   /** Lærebok/emne, f.eks. «Ergo Fysikk 1» eller «FYS-MEK1110». Gis til Claude som kontekst. */
   textbook: string | null;
   position: number;
+  /** Kompetansemålene i faget (tom liste hvis ikke lagt inn). */
+  aims: CompetenceAim[];
 }
 
 export interface Chapter extends SyncedRow {
@@ -41,12 +62,16 @@ export interface Chapter extends SyncedRow {
   number: string | null;
   title: string;
   position: number;
+  /** Delkapitlene i rekkefølge (tom liste hvis ikke lagt inn). */
+  sections: Section[];
 }
 
 export interface Note extends SyncedRow {
   subjectId: string;
   /** null = «Uten kapittel» (ikke sortert ennå). */
   chapterId: string | null;
+  /** Kode for delkapittelet i kapittelet, f.eks. «2E», eller null. Kompetansemålene følger av delkapittelet. */
+  section: string | null;
   /** Klient-generert UUID for idempotent opplasting fra offline-køen. */
   clientId: string | null;
   title: string;
@@ -66,6 +91,8 @@ export interface Note extends SyncedRow {
   /** Ekstra instruksjoner brukeren ga ved opplasting. */
   instructions: string | null;
   position: number;
+  /** Ren tekst fra notatet (uten LaTeX-kommandoer), for søk – også offline. */
+  searchText: string;
 }
 
 // ---------- Auth ----------
@@ -129,6 +156,7 @@ export interface ChapterPreviewResponse {
 export interface UpdateChapterRequest {
   number?: string | null;
   title?: string;
+  sections?: Section[];
 }
 
 /** POST /api/subjects/:id/chapters/reorder */
@@ -147,7 +175,10 @@ export interface ReorderRequest {
 
 export interface UpdateNoteRequest {
   title?: string;
+  /** Flytter notatet. Delkapittelet nullstilles hvis `section` ikke sendes samtidig. */
   chapterId?: string | null;
+  /** Kode for et delkapittel i notatets (nye) kapittel, eller null. */
+  section?: string | null;
   noteDate?: string | null;
 }
 

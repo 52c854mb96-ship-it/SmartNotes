@@ -1,6 +1,7 @@
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
+import type { Chapter, Section } from '@smartnotes/shared';
 import type { Config } from '../config.js';
 import type { NoteRow, Repo } from '../db.js';
 import { ConversionError } from '../errors.js';
@@ -14,6 +15,7 @@ import {
   compileLatex,
   errorExcerpt,
   formatErrors,
+  latexToText,
   replaceMissingFigures,
   sanitizeBody,
   type LatexErrorInfo,
@@ -57,6 +59,7 @@ export interface DocInfo {
   title: string;
   dateIso: string | null;
   chapterLabel: string;
+  sectionLabel: string | null;
 }
 
 export class Converter {
@@ -109,14 +112,24 @@ export class Converter {
     // 2. Claude leser notatet
     this.repo.setStage(id, 'reading');
     const chapters = this.repo.listChapters(subject.id);
-    const refs: ChapterRef[] = chapters.map((c, i) => ({ alias: `k${i + 1}`, number: c.number, title: c.title }));
+    const refs: ChapterRef[] = chapters.map((c, i) => ({
+      alias: `k${i + 1}`,
+      number: c.number,
+      title: c.title,
+      sections: c.sections.map((x) => ({ code: x.code, title: x.title })),
+    }));
     const fixed = row.chapter_auto === 0 ? (row.chapter_id ? this.repo.getChapter(row.chapter_id) : null) : null;
     const result = await this.claude.convert({
       profile,
       subjectName: subject.name,
       textbook: subject.textbook,
       chapters: refs,
-      fixedChapter: row.chapter_auto === 0 ? (fixed ? { number: fixed.number, title: fixed.title } : { number: null, title: 'Uten kapittel' }) : null,
+      fixedChapter:
+        row.chapter_auto === 0
+          ? fixed
+            ? { number: fixed.number, title: fixed.title, sections: fixed.sections.map((x) => ({ code: x.code, title: x.title })) }
+            : { number: null, title: 'Uten kapittel', sections: [] }
+          : null,
       userTitle: row.title_auto === 0 ? row.title : null,
       userDate: row.note_date_auto === 0 ? row.note_date : null,
       instructions: row.instructions,
@@ -133,10 +146,17 @@ export class Converter {
     const match = row.chapter_auto === 1 ? this.matchChapter(result.meta, refs, chapters) : null;
     const headerChapter =
       row.chapter_auto === 1 ? (match === null ? null : 'id' in match ? chapters.find((c) => c.id === match.id)! : match.create) : fixed;
+    // Delkapittelet må finnes i kapittelet notatet havner i; ellers ignoreres forslaget.
+    const targetSections: Section[] = headerChapter && 'sections' in headerChapter ? (headerChapter as Chapter).sections : [];
+    const proposed = result.meta.section?.toUpperCase() ?? null;
+    const sectionCode =
+      row.section_auto === 1 ? (targetSections.find((x) => x.code.toUpperCase() === proposed)?.code ?? null) : row.section;
+    const sectionInfo = targetSections.find((x) => x.code === sectionCode) ?? null;
     const docInfo: DocInfo = {
       title: (row.title_auto === 0 ? row.title : result.meta.title) || row.title || 'Notat',
       dateIso: row.note_date_auto === 0 ? row.note_date : (result.meta.date ?? row.note_date),
       chapterLabel: chapterLabel(headerChapter),
+      sectionLabel: sectionInfo ? `${sectionInfo.code} ${sectionInfo.title}` : null,
     };
 
     // 5. LaTeX → PDF, med inntil N runder automatisk retting
@@ -162,7 +182,16 @@ export class Converter {
     }
     this.repo.completeNote(
       id,
-      { title: docInfo.title, chapterId, noteDate: docInfo.dateIso, remarks: result.meta.remarks, pageCount: pages.length, usage },
+      {
+        title: docInfo.title,
+        chapterId,
+        section: row.section_auto === 1 ? sectionCode : undefined,
+        noteDate: docInfo.dateIso,
+        remarks: result.meta.remarks,
+        pageCount: pages.length,
+        usage,
+        searchText: latexToText(body),
+      },
       { done: outcome.ok },
     );
     if (!outcome.ok) {
@@ -235,6 +264,7 @@ export class Converter {
         preamble: readPreamble(profile),
         subjectName: subject?.name ?? '',
         chapterLabel: d.chapterLabel,
+        sectionLabel: d.sectionLabel,
         title: d.title,
         dateIso: d.dateIso,
         figureDir: 'fig',
@@ -259,7 +289,13 @@ export class Converter {
 
   private docInfo(row: NoteRow): DocInfo {
     const chapter = row.chapter_id ? this.repo.getChapter(row.chapter_id) : null;
-    return { title: row.title || 'Notat', dateIso: row.note_date, chapterLabel: chapterLabel(chapter) };
+    const section = chapter?.sections.find((x) => x.code === row.section);
+    return {
+      title: row.title || 'Notat',
+      dateIso: row.note_date,
+      chapterLabel: chapterLabel(chapter),
+      sectionLabel: section ? `${section.code} ${section.title}` : null,
+    };
   }
 
   /**
@@ -325,6 +361,7 @@ export class Converter {
       preamble: readPreamble(getProfile(subject?.profile ?? 'physics')),
       subjectName: subject?.name ?? '',
       chapterLabel: chapterLabel(chapter),
+      sectionLabel: this.docInfo(row).sectionLabel,
       title: row.title || 'Notat',
       dateIso: row.note_date,
       figureDir: 'figurer',

@@ -9,6 +9,7 @@ import {
   parseLatexErrors,
   referencedFigures,
   replaceMissingFigures,
+  latexToText,
   sanitizeBody,
 } from '../src/pipeline/latex.js';
 import { parseConversion, parseMeta } from '../src/pipeline/parse.js';
@@ -44,6 +45,23 @@ describe('sanitizeBody', () => {
   });
 });
 
+describe('latexToText', () => {
+  it('beholder tekst, overskrifter og boksetitler, og fjerner kommandoer og tegninger', () => {
+    const body = String.raw`\section{Newtons lover}
+% en kommentar
+\begin{definisjon}[Kraft]
+En kraft måles i \unit{\newton}.
+\end{definisjon}
+\begin{figure}[H]\centering
+\begin{tikzpicture}\draw (0,0) -- (1,1) node {HEMMELIG};\end{tikzpicture}
+\caption{Kloss på skråplan}
+\end{figure}
+$F = ma$ og \uleselig{akselerasjon}`;
+    const t = latexToText(body);
+    expect(t).toBe('Newtons lover Kraft En kraft måles i . Kloss på skråplan F = ma og akselerasjon');
+  });
+});
+
 describe('figurer', () => {
   it('finner og erstatter manglende figurer', () => {
     const body = 'A\n\\originalfigur[0.5]{fig1}{Skisse}\nB\n\\originalfigur{fig2}{}\n';
@@ -57,7 +75,7 @@ describe('figurer', () => {
 describe('parseConversion', () => {
   it('leser metadata og latex', () => {
     const text = `<metadata>
-{"title":"Newtons lover","chapter":"k3","new_chapter":null,"date":"2026-09-12",
+{"title":"Newtons lover","chapter":"k3","section":"3E","new_chapter":null,"date":"2026-09-12",
  "figures":[{"id":"fig1","page":1,"box":[10,20,300,400]},{"id":"bad id","page":1,"box":[1,2,3,4]}],
  "remarks":["Ett ord var uleselig."]}
 </metadata>
@@ -68,6 +86,7 @@ $F = ma$
     const { meta, body } = parseConversion(text);
     expect(meta.title).toBe('Newtons lover');
     expect(meta.chapter).toBe('k3');
+    expect(meta.section).toBe('3E');
     expect(meta.date).toBe('2026-09-12');
     expect(meta.figures).toEqual([{ id: 'fig1', page: 1, box: [10, 20, 300, 400] }]);
     expect(meta.remarks).toEqual(['Ett ord var uleselig.']);
@@ -155,8 +174,8 @@ describe('forespørsel til Claude', () => {
       subjectName: 'Fysikk',
       textbook: 'Ergo Fysikk 1',
       chapters: [
-        { alias: 'k1', number: '1', title: 'Fysikk og måling' },
-        { alias: 'k2', number: '2', title: 'Bevegelse' },
+        { alias: 'k1', number: '1', title: 'Fysikk og måling', sections: [{ code: '1A', title: 'Fysikk som målefag' }] },
+        { alias: 'k2', number: '2', title: 'Bevegelse', sections: [] },
       ],
       fixedChapter: null,
       userTitle: null,
@@ -166,6 +185,7 @@ describe('forespørsel til Claude', () => {
       pages: [],
     });
     expect(ctx).toContain('k2: 2 Bevegelse');
+    expect(ctx).toContain('k1: 1 Fysikk og måling – delkapitler: 1A Fysikk som målefag');
     expect(ctx).toContain('Lærebok/emne: Ergo Fysikk 1');
     expect(ctx).toContain('Ekstra instruksjoner fra brukeren: Side 2 er en fortsettelse');
   });

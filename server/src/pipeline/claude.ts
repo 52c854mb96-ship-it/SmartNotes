@@ -13,6 +13,8 @@ export interface ChapterRef {
   alias: string;
   number: string | null;
   title: string;
+  /** Delkapitlene, f.eks. [{ code: '2E', title: 'Newtons 2. lov' }]. */
+  sections: { code: string; title: string }[];
 }
 
 export interface ConvertRequest {
@@ -21,7 +23,7 @@ export interface ConvertRequest {
   textbook: string | null;
   chapters: ChapterRef[];
   /** Kapittelet brukeren har valgt selv (Claude skal da ikke velge). */
-  fixedChapter: { number: string | null; title: string } | null;
+  fixedChapter: { number: string | null; title: string; sections: { code: string; title: string }[] } | null;
   userTitle: string | null;
   userDate: string | null;
   instructions: string | null;
@@ -63,6 +65,8 @@ export interface ClaudeService {
 // ---------- Bygging av forespørselen ----------
 
 /** Tekst-konteksten som sendes foran sidebildene. Eksportert for testing. */
+const sectionList = (sections: { code: string; title: string }[]) => sections.map((x) => `${x.code} ${x.title}`).join('; ');
+
 export function buildContext(req: ConvertRequest): string {
   const lines: string[] = ['<context>', `Fag: ${req.subjectName}`, `Lærebok/emne: ${req.textbook?.trim() || 'ikke oppgitt'}`, `Dagens dato: ${req.today}`];
   if (req.fixedChapter) {
@@ -70,9 +74,12 @@ export function buildContext(req: ConvertRequest): string {
     lines.push(
       `Kapittel: brukeren har allerede plassert notatet i «${c.number ? `${c.number} ` : ''}${c.title}». Sett "chapter" og "new_chapter" til null.`,
     );
+    if (c.sections.length > 0) lines.push(`Delkapitler i dette kapittelet (svar med koden i "section"): ${sectionList(c.sections)}`);
   } else if (req.chapters.length > 0) {
-    lines.push('Kapitler i læreboka (svar med id-en i "chapter"):');
-    for (const c of req.chapters) lines.push(`${c.alias}: ${c.number ? `${c.number} ` : ''}${c.title}`);
+    lines.push('Kapitler i læreboka (svar med id-en i "chapter" og koden for delkapittelet i "section"):');
+    for (const c of req.chapters) {
+      lines.push(`${c.alias}: ${c.number ? `${c.number} ` : ''}${c.title}${c.sections.length > 0 ? ` – delkapitler: ${sectionList(c.sections)}` : ''}`);
+    }
   } else {
     lines.push('Faget har ingen kapittelliste ennå. Sett "chapter" til null og foreslå et lærebokkapittel i "new_chapter".');
   }
@@ -297,6 +304,7 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
     const meta: NoteMeta = {
       title: req.userTitle ?? `Testnotat (${req.pages.length} ${req.pages.length === 1 ? 'side' : 'sider'})`,
       chapter: req.fixedChapter ? null : (req.chapters[0]?.alias ?? null),
+      section: (req.fixedChapter ?? req.chapters[0])?.sections[0]?.code ?? null,
       newChapter: req.fixedChapter || req.chapters.length > 0 ? null : { number: '1', title: 'Fysikk og måling' },
       date: req.today,
       figures: [{ id: 'fig1', page: 1, box: [first.width * 0.2, first.height * 0.2, first.width * 0.8, first.height * 0.5] }],

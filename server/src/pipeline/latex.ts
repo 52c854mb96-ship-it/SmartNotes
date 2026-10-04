@@ -111,12 +111,36 @@ export function replaceMissingFigures(body: string, available: Set<string>): str
   );
 }
 
+// ---------- Ren tekst for søk ----------
+
+const DRAWINGS = /\\begin\{(tikzpicture|circuitikz|axis)\}[\s\S]*?\\end\{\1\}/g;
+
+/**
+ * Gjør en dokumentkropp om til ren tekst for søk: tegninger fjernes, kommandoer fjernes men teksten i
+ * argumentene beholdes (overskrifter, bildetekster, boksetitler), og matematikk blir stående som tegn.
+ */
+export function latexToText(body: string, max = 30_000): string {
+  let t = body.replace(/(^|[^\\])%.*$/gm, '$1');
+  t = t.replace(DRAWINGS, ' ');
+  t = t.replace(/\\originalfigur\s*(?:\[[^\]]*\])?\s*\{[^}]*\}/g, ' ');
+  t = t.replace(/\\(?:begin|end)\{[^}]*\}(?:\[([^\]]*)\])?/g, (_m, opt: string | undefined) =>
+    opt && !/^[htbpH!]+$/.test(opt.trim()) ? ` ${opt} ` : ' ',
+  );
+  t = t.replace(/\\(?:includegraphics|label|ref|eqref|pageref)\s*(?:\[[^\]]*\])?\s*\{[^}]*\}/g, ' ');
+  t = t.replace(/\\[a-zA-Z@]+\*?/g, ' ');
+  t = t.replace(/\\./g, ' ');
+  t = t.replace(/[{}$&~^_]|\[|\]/g, ' ');
+  return t.replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
 // ---------- Sammensetting av dokumenter ----------
 
 export interface NoteDocInput {
   preamble: string;
   subjectName: string;
   chapterLabel: string;
+  /** Delkapittel, f.eks. «2E Newtons 2. lov», eller null. */
+  sectionLabel?: string | null;
   title: string;
   dateIso: string | null;
   /** Relativ mappe (fra byggemappen) med figurene til notatet. */
@@ -144,7 +168,7 @@ export function assembleNoteDoc(d: NoteDocInput): AssembledDoc {
     `\\renewcommand{\\notedir}{${d.figureDir}}`,
     `\\hypersetup{pdftitle={${escapeLatex(d.title)}},pdfauthor={SmartNotes}}`,
     '\\begin{document}',
-    `\\notehode{${escapeLatex(d.title)}}{${escapeLatex(`${d.subjectName} · ${d.chapterLabel}`)}}{${escapeLatex(formatDateNo(d.dateIso))}}`,
+    `\\notehode{${escapeLatex(d.title)}}{${escapeLatex([d.subjectName, d.chapterLabel, d.sectionLabel].filter(Boolean).join(' · '))}}{${escapeLatex(formatDateNo(d.dateIso))}}`,
     '',
   ].join('\n');
   const bodyStartLine = head.split('\n').length;
@@ -160,8 +184,10 @@ export interface BundleNote {
 }
 
 export interface BundleSection {
-  /** Kapitteloverskrift (null når samle-PDF-en bare gjelder ett kapittel). */
+  /** Overskrift for gruppen (kapittel i fag-PDF, delkapittel i kapittel-PDF), eller null. */
   heading: string | null;
+  /** Ny tekst i sidehodet fra denne gruppen; udefinert = behold sidehodet. */
+  pageHeader?: string;
   notes: BundleNote[];
 }
 
@@ -209,7 +235,8 @@ export function assembleBundleDoc(d: BundleDocInput): string {
   n = 0;
   for (const s of d.sections) {
     if (s.heading) {
-      out.push('\\clearpage', `\\renewcommand{\\snkapittel}{${escapeLatex(s.heading)}}`);
+      out.push('\\clearpage');
+      if (s.pageHeader !== undefined) out.push(`\\renewcommand{\\snkapittel}{${escapeLatex(s.pageHeader)}}`);
       out.push(`\\pdfbookmark[0]{${escapeLatex(s.heading)}}{sn-ch-${n + 1}}`);
     }
     for (const note of s.notes) {
