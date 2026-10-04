@@ -14,9 +14,9 @@ Alt som kan gjøres i koden, er gjort. Det som gjenstår, er kontoer, betaling o
 | 1 | GitHub | Flett koden inn i `main` | når Claude sier at koden er klar |
 | 2 | Anthropic | Konto, kreditt, forbruksgrense og API-nøkkel | nå |
 | 3 | Passordbehandler | Velg passord til appen | nå |
-| 4 | Railway | Prosjekt, tjeneste og lagringsvolum | nå |
+| 4 | Railway | Importer repoet, region og lagringsvolum | nå |
 | 5 | Railway | Variabler og adresse | nå |
-| 6 | Railway | Koble tjenesten til GitHub, første deploy | etter steg 1 |
+| 6 | Railway | Første deploy fra `main` | etter steg 1 |
 | 7 | Appen | Logg inn og test et ekte notat | etter steg 6 |
 | 8 | Enhetene | Installer appen på iPad, mobil og PC | etter steg 7 |
 
@@ -55,20 +55,23 @@ Velg et langt passord som du bare bruker her, f.eks. fire eller fem tilfeldige o
 
 - [ ] Passord valgt og lagret
 
-## Steg 4: Railway – prosjekt, tjeneste og lagringsvolum
+## Steg 4: Railway – importer repoet og lag lagringsvolum
 
 Railway kjører serveren som synkroniserer enhetene og gjør om notatene til PDF. Navnene på knappene kan variere litt i Railway, men stegene er de samme.
 
 1. Logg inn på <https://railway.com> med kontoen der du har abonnementet.
-2. Trykk **New Project → Empty Project**. Gi prosjektet navnet `SmartNotes` under prosjektets **Settings**.
-3. Trykk **Create** (eller **+ New**) i prosjektet og velg **Empty Service**. Gi tjenesten navnet `smartnotes`.
-4. **Region:** åpne tjenesten, gå til **Settings → Deploy → Region** og velg **EU West (Amsterdam)**, som er nærmest Norge. Gjør dette før du lager volumet.
-5. **Lagringsvolum:** høyreklikk tjenesten i prosjektet (eller trykk **Create → Volume**) og koble et volum til tjenesten med **Mount path `/data`**. Her ligger databasen, originalbildene og PDF-ene.
-   - Uten volum forsvinner alle notatene hver gang serveren oppdateres. Sjekk at stien er nøyaktig `/data`.
-6. Sjekk at **Serverless** (at appen sover når ingen bruker den) er **av** under **Settings → Deploy**. Det er av som standard. Serveren må være våken for å gjøre om notatene i bakgrunnen.
+2. Trykk **New Project → Deploy from GitHub repo** og velg `52c854mb96-ship-it/SmartNotes`. Første gang må du gi Railway tilgang til repoet på GitHub (**Configure GitHub App**).
+3. Railway starter et bygg med en gang. Før steg 1 er gjort, finnes bare en tom start på `main`, så dette første bygget **feiler. Det er helt greit**, og du kan se bort fra det.
+4. Gi prosjektet navnet `SmartNotes` (prosjektets **Settings**) og tjenesten navnet `smartnotes` (tjenestens **Settings**), hvis Railway har valgt andre navn.
+5. **Region:** åpne tjenesten, gå til **Settings → Deploy → Region** og velg **EU West (Amsterdam)**, som er nærmest Norge. Gjør dette før du lager volumet.
+6. **Lagringsvolum:** høyreklikk tjenesten i prosjektet (eller trykk **Create → Volume**) og koble et volum til tjenesten med **Mount path `/data`**. Her ligger databasen, originalbildene og PDF-ene.
+   - Uten volum forsvinner alle notatene hver gang serveren oppdateres. Sjekk at stien er nøyaktig `/data`, og at volumet er på plass før du laster opp ekte notater.
+7. Sjekk at **Serverless** (at appen sover når ingen bruker den) er **av** under **Settings → Deploy**. Det er av som standard. Serveren må være våken for å gjøre om notatene i bakgrunnen.
+8. Slå på **Wait for CI** under **Settings → Source**. Da oppdateres serveren bare når testene på GitHub er grønne.
 
-- [ ] Prosjekt og tjeneste laget i EU West
+- [ ] Repoet importert, tjenesten i EU West
 - [ ] Volum montert på `/data`
+- [ ] Wait for CI slått på
 
 ## Steg 5: Railway – variabler og adresse
 
@@ -82,19 +85,20 @@ Railway kjører serveren som synkroniserer enhetene og gjør om notatene til PDF
 
    For API-nøkkelen kan du velge **Seal** i menyen på variabelen. Da kan ingen lese den i Railway etterpå, men den kan byttes ut.
 2. Gå til **Settings → Networking** og trykk **Generate Domain**. Velg port **8080** hvis du blir spurt. Du får en adresse som `https://smartnotes-production-xxxx.up.railway.app`. Lagre den, for dette er adressen til appen.
-3. Hvis Railway viser en knapp for å ta i bruk endringene (**Deploy** eller **Apply changes**), trykker du på den. Tjenesten har ingen kode ennå, så ingenting starter før steg 6.
+3. Hvis Railway viser en knapp for å ta i bruk endringene (**Deploy** eller **Apply changes**), trykker du på den.
 
 - [ ] Tre variabler lagt inn
 - [ ] Adresse laget og lagret
 
-## Steg 6: Koble tjenesten til GitHub (etter steg 1)
+## Steg 6: Første deploy (etter steg 1)
 
-1. Åpne tjenesten, gå til **Settings → Source** og trykk **Connect Repo**. Velg `52c854mb96-ship-it/SmartNotes`. Første gang må du gi Railway tilgang til repoet på GitHub (**Configure GitHub App**).
-2. Velg grenen **`main`**.
-3. Slå på **Wait for CI**. Da oppdateres serveren bare når testene på GitHub er grønne.
-4. Railway finner `railway.json` og `Dockerfile` i repoet og starter byggingen selv. Første gang tar det 5–10 minutter, fordi LaTeX skal installeres. Følg med under **Deployments**. Når deployen er grønn (**Active**), er appen klar på adressen fra steg 5.
+1. Sjekk under **Settings → Source** at tjenesten følger grenen **`main`**.
+2. Når koden er flettet inn i `main` (steg 1) og CI er grønn, starter Railway byggingen selv. Første gang tar det 5–10 minutter, fordi LaTeX skal installeres. Starter den ikke, trykker du **Deploy** (eller **Redeploy** på siste deploy) under **Deployments**.
+3. Følg med under **Deployments**. Når deployen er grønn (**Active**), er appen klar på adressen fra steg 5.
 
-Senere skjer alt automatisk: hver gang noe flettes inn i `main` og CI er grønn, bygger Railway en ny versjon og bytter over.
+Senere skjer alt automatisk: hver gang noe flettes inn i `main` og CI er grønn, bygger Railway en ny versjon og bytter over. Notatene ligger trygt på volumet imens.
+
+> **Vil du prøve serveren før steg 1?** Velg grenen `claude/smartnotes-offline-app-j25mqo` under **Settings → Source** i stedet for `main`. Da bygges den nyeste versjonen med en gang, og du kan sjekke at oppsettet virker mens Claude fortsatt jobber. Bytt tilbake til `main` etter steg 1.
 
 - [ ] Første deploy er grønn
 
@@ -161,7 +165,7 @@ I skyøktene med Claude Code finnes det ingen API-nøkkel, så Claude har bare t
 
 | Hva skjer | Hva du gjør |
 |---|---|
-| Bygget feiler | Se **Build Logs** under **Deployments**. Sjekk at **Root Directory** under **Settings → Source** er tomt, slik at Railway finner `Dockerfile` og `railway.json`. |
+| Bygget feiler | Det aller første bygget før steg 1 skal feile (se steg 4). Ellers: se **Build Logs** under **Deployments**. Sjekk at **Root Directory** under **Settings → Source** er tomt, slik at Railway finner `Dockerfile` og `railway.json`. |
 | Deployen henger på *healthcheck* | Sjekk at variabelen `PORT` er `8080`, og at adressen under **Networking** peker til port 8080. Se **Deploy Logs**. |
 | Notatene er borte etter en oppdatering | Volumet mangler eller er montert feil. Det må være montert på `/data` (steg 4). |
 | Innloggingen avvises | Passordet er feil. Bytt passord (se over). |

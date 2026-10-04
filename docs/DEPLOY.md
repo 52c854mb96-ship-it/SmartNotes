@@ -16,7 +16,7 @@ Følg **[OPPSETT.md](OPPSETT.md)**, steg 4–6. Kort fortalt:
 
 - Én tjeneste med et volum montert på `/data`, i regionen EU West.
 - Variablene `APP_PASSWORD`, `ANTHROPIC_API_KEY` og `PORT=8080`, og et domene som peker til port 8080.
-- Tjenesten kobles til GitHub-repoet (grenen `main`, med **Wait for CI**). Railway leser `railway.json`: bygg med `Dockerfile`, helsesjekk på `/api/health` og omstart ved feil.
+- Prosjektet lages med **Deploy from GitHub repo** (grenen `main`, med **Wait for CI**). Railway leser `railway.json`: bygg med `Dockerfile`, helsesjekk på `/api/health` og omstart ved feil.
 
 Andre innstillinger fra tabellen i README (f.eks. `CLAUDE_EFFORT`) legges inn som variabler på samme måte.
 
