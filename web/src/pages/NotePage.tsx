@@ -17,6 +17,7 @@ import type { Chapter, Note, Subject } from '@smartnotes/shared';
 import { deleteNote, retryNote, updateNote } from '../actions';
 import { errorMessage, urls } from '../api';
 import { AimChips } from '../components/AimChips';
+import { VizLinks } from '../components/VizLinks';
 import { PageSkeleton } from '../components/EmptyState';
 import { Menu } from '../components/Menu';
 import { NoteStatusBadge, Spinner } from '../components/Status';
@@ -33,6 +34,7 @@ import { LatexTab } from './note/LatexTab';
 import { OriginalTab } from './note/OriginalTab';
 import { PdfTab } from './note/PdfTab';
 import { RetryDialog } from './note/RetryDialog';
+import { hasVisualizations, vizForSection } from '../viz/registry';
 
 type Tab = 'pdf' | 'original' | 'latex';
 const TABS: { id: Tab; label: string; icon: typeof FileText }[] = [
@@ -203,6 +205,7 @@ function NoteHeader({
   const sectionCode = noteSectionCode(note);
   const aimCodes = noteAimCodes(note, chapter);
   const aims = useMemo(() => aimMap(subject), [subject]);
+  const vizEntries = hasVisualizations(subject) && chapter ? vizForSection(sectionCode).filter((e) => e.chapter === chapter.number) : [];
 
   const patch = async (req: Parameters<typeof updateNote>[1], success?: string) => {
     try {
@@ -356,6 +359,12 @@ function NoteHeader({
             <span className="meta-status">
               <AimChips codes={aimCodes} aims={aims} />
             </span>
+          </div>
+        )}
+        {subject && vizEntries.length > 0 && (
+          <div className="meta-field meta-status-field">
+            <span className="meta-label">Visualiseringer</span>
+            <VizLinks subjectId={subject.id} entries={vizEntries} />
           </div>
         )}
         <div className="meta-field meta-status-field">

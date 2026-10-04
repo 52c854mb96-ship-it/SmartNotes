@@ -4,6 +4,7 @@ import { ChevronLeft, FileStack, MousePointerClick, NotebookPen, Upload } from '
 import type { Chapter, Note, Subject } from '@smartnotes/shared';
 import { AimChips } from '../components/AimChips';
 import { EmptyState, PageSkeleton } from '../components/EmptyState';
+import { ChapterVizCard } from '../components/VizLinks';
 import { NoteCardGroups } from '../components/NoteGroups';
 import { WorkInProgress } from '../components/WorkInProgress';
 import { useChapter, useOutbox, useSubject, useSubjectNotes } from '../data';
@@ -13,6 +14,7 @@ import { useListPaneShown } from '../lib/layout';
 import { openUpload } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { useHashScroll } from '../lib/useHashScroll';
+import { hasVisualizations, vizForChapter } from '../viz/registry';
 import { NotFoundPage } from './NotFoundPage';
 
 export function ChapterPage() {
@@ -44,6 +46,7 @@ export function ChapterPage() {
   const doneCount = notes.filter((n) => n.status === 'done').length;
   const sections = sectionsOf(chapter);
   const upload = () => openUpload({ subjectId: subject.id, chapterId: unsorted ? undefined : chapterId });
+  const vizEntries = !unsorted && hasVisualizations(subject) ? vizForChapter(chapter?.number) : [];
 
   return (
     <div className="page">
@@ -75,7 +78,10 @@ export function ChapterPage() {
       </header>
 
       {paneShown ? (
-        <ChapterOverview subject={subject} chapter={unsorted ? null : (chapter ?? null)} notes={notes} />
+        <>
+          <ChapterOverview subject={subject} chapter={unsorted ? null : (chapter ?? null)} notes={notes} />
+          <ChapterVizCard subjectId={subject.id} entries={vizEntries} />
+        </>
       ) : (
         <>
           <WorkInProgress outbox={queued} notes={[]} />
@@ -101,6 +107,9 @@ export function ChapterPage() {
               <NoteCardGroups groups={groups} showSection={false} />
             </section>
           )}
+          <div className="section-gap">
+            <ChapterVizCard subjectId={subject.id} entries={vizEntries} />
+          </div>
         </>
       )}
     </div>

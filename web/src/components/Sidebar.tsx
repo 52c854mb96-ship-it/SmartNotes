@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
-import { Atom, ChevronRight, FolderOpen, Plus, Search, Settings, Upload, X } from 'lucide-react';
+import { Atom, ChevronRight, FolderOpen, Plus, Search, Settings, Shapes, Upload, X } from 'lucide-react';
 import type { Subject } from '@smartnotes/shared';
 import { chapterStats, useChapters, useSubjectNotes, useSubjects } from '../data';
 import { useActiveIds } from '../lib/useActive';
 import { drawerStore, newSubjectStore, openSearch, openUpload } from '../lib/ui';
+import { hasVisualizations } from '../viz/registry';
 import { Logo } from './Logo';
 import { SyncStatus } from './SyncStatus';
 import { ThemeSwitch } from './ThemeSwitch';
@@ -163,12 +164,24 @@ function SubjectItem({
           <ChevronRight size={16} aria-hidden className={`chevron${expanded ? ' is-open' : ''}`} />
         </button>
       </div>
-      {expanded && <ChapterList subjectId={subject.id} id={listId} activeChapterId={activeChapterId} />}
+      {expanded && (
+        <ChapterList subjectId={subject.id} id={listId} activeChapterId={activeChapterId} showViz={hasVisualizations(subject)} />
+      )}
     </li>
   );
 }
 
-function ChapterList({ subjectId, id, activeChapterId }: { subjectId: string; id: string; activeChapterId?: string }) {
+function ChapterList({
+  subjectId,
+  id,
+  activeChapterId,
+  showViz,
+}: {
+  subjectId: string;
+  id: string;
+  activeChapterId?: string;
+  showViz: boolean;
+}) {
   const chapters = useChapters(subjectId);
   const notes = useSubjectNotes(subjectId);
   const stats = useMemo(() => chapterStats(notes ?? []), [notes]);
@@ -215,6 +228,14 @@ function ChapterList({ subjectId, id, activeChapterId }: { subjectId: string; id
             <FolderOpen size={15} aria-hidden className="chapter-num-icon" />
             <span className="chapter-title">Uten kapittel</span>
             <span className="count-badge">{unsorted.count}</span>
+          </NavLink>
+        </li>
+      )}
+      {showViz && (
+        <li className="chapter-list-extra">
+          <NavLink to={`/fag/${subjectId}/visualiseringer`} className="chapter-link is-viz">
+            <Shapes size={15} aria-hidden className="chapter-num-icon" />
+            <span className="chapter-title">Visualiseringer</span>
           </NavLink>
         </li>
       )}

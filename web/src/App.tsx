@@ -11,6 +11,8 @@ import { NotePage } from './pages/NotePage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SubjectPage } from './pages/SubjectPage';
 import { SubjectSettingsPage } from './pages/SubjectSettingsPage';
+import { VisualizationPage } from './pages/VisualizationPage';
+import { VisualizationsPage } from './pages/VisualizationsPage';
 
 function Root() {
   return (
@@ -37,6 +39,8 @@ const router = createBrowserRouter([
           { path: 'fag/:subjectId/pdf', element: <BundlePage /> },
           { path: 'fag/:subjectId/kapittel/:chapterId', element: <ChapterPage /> },
           { path: 'fag/:subjectId/kapittel/:chapterId/pdf', element: <BundlePage /> },
+          { path: 'fag/:subjectId/visualiseringer', element: <VisualizationsPage /> },
+          { path: 'fag/:subjectId/visualiseringer/:vizKey', element: <VisualizationPage /> },
           { path: 'notat/:noteId', element: <NotePage /> },
           { path: 'innstillinger', element: <SettingsPage /> },
           { path: '*', element: <NotFoundPage /> },

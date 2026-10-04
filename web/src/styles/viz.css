@@ -1,0 +1,736 @@
+/* ---------- Visualiseringer: fargetokens ---------- */
+/*
+ * Faste farger per fysisk størrelse (se viz/kit/colors.ts). Samme mønster for mørkt tema som base.css:
+ * systemvalg uten data-theme, eller tvunget med data-theme="dark". Verdiene må være like i begge blokkene.
+ */
+:root {
+  --viz-gravity: #d4622a;
+  --viz-normal: #2f6fd6;
+  --viz-friction: #6b4fd1;
+  --viz-applied: #1e8a52;
+  --viz-tension: #5c6b80;
+  --viz-velocity: #0f8f8f;
+  --viz-accel: #b5367a;
+  --viz-s1: #1f5fad;
+  --viz-s2: #d4622a;
+  --viz-s3: #1e8a52;
+  --viz-s4: #6b4fd1;
+  --viz-s5: #b5367a;
+  --viz-ink: #17202b;
+  --viz-muted: #6b7684;
+  --viz-grid: #e3e7ed;
+  --viz-axis: #8a94a1;
+  --viz-surface: #ffffff;
+  --viz-body: #e9edf2;
+  --viz-body-strong: #d5dce5;
+  --viz-body-stroke: #9aa5b3;
+  --viz-boundary: #1f5fad;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --viz-gravity: #f08a55;
+    --viz-normal: #6ea0f0;
+    --viz-friction: #9c87f0;
+    --viz-applied: #52c48a;
+    --viz-tension: #9aa8bd;
+    --viz-velocity: #4fd1c5;
+    --viz-accel: #e57ab0;
+    --viz-s1: #6ea0f0;
+    --viz-s2: #f08a55;
+    --viz-s3: #52c48a;
+    --viz-s4: #9c87f0;
+    --viz-s5: #e57ab0;
+    --viz-ink: #e6eaef;
+    --viz-muted: #95a0ad;
+    --viz-grid: #262e38;
+    --viz-axis: #5d6876;
+    --viz-surface: #161b22;
+    --viz-body: #252c36;
+    --viz-body-strong: #313a46;
+    --viz-body-stroke: #566170;
+    --viz-boundary: #6ea0f0;
+  }
+}
+
+:root[data-theme='dark'] {
+  --viz-gravity: #f08a55;
+  --viz-normal: #6ea0f0;
+  --viz-friction: #9c87f0;
+  --viz-applied: #52c48a;
+  --viz-tension: #9aa8bd;
+  --viz-velocity: #4fd1c5;
+  --viz-accel: #e57ab0;
+  --viz-s1: #6ea0f0;
+  --viz-s2: #f08a55;
+  --viz-s3: #52c48a;
+  --viz-s4: #9c87f0;
+  --viz-s5: #e57ab0;
+  --viz-ink: #e6eaef;
+  --viz-muted: #95a0ad;
+  --viz-grid: #262e38;
+  --viz-axis: #5d6876;
+  --viz-surface: #161b22;
+  --viz-body: #252c36;
+  --viz-body-strong: #313a46;
+  --viz-body-stroke: #566170;
+  --viz-boundary: #6ea0f0;
+}
+
+/* ---------- Ramme ---------- */
+.viz {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 24px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 600px) {
+  .viz {
+    gap: 16px;
+    padding: 16px 14px 18px;
+    border-radius: var(--radius);
+  }
+}
+
+/* ---------- Glidebrytere ---------- */
+/* Etikett · skinne · verdi i felles kolonner (subgrid), så skinnene står på linje. */
+.viz-controls {
+  display: grid;
+  grid-template-columns: fit-content(220px) minmax(120px, 1fr) auto;
+  gap: 10px 18px;
+}
+
+.viz-slider {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+}
+
+.viz-slider-label {
+  font-size: 14.5px;
+  font-weight: 560;
+  color: var(--text-2);
+}
+
+.viz-slider-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  font-size: 15px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.viz-slider input[type='range'] {
+  --pct: 50%;
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.viz-slider input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--accent) var(--pct), var(--surface-3) var(--pct));
+}
+
+.viz-slider input[type='range']::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+
+.viz-slider input[type='range']::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.viz-slider input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.viz-slider input[type='range']::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+}
+
+.viz-slider input[type='range']:focus,
+.viz-slider input[type='range']:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.viz-slider input[type='range']:focus-visible::-webkit-slider-thumb {
+  box-shadow: var(--focus-ring);
+}
+
+.viz-slider input[type='range']:focus-visible::-moz-range-thumb {
+  box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 520px) {
+  .viz-controls {
+    grid-template-columns: 1fr auto;
+    gap: 4px 12px;
+  }
+  .viz-slider {
+    row-gap: 0;
+  }
+  .viz-slider input[type='range'] {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    height: 32px;
+  }
+}
+
+/* ---------- Knapperad og brytere ---------- */
+.viz-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.viz-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.viz-segmented button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 560;
+  transition:
+    background-color 0.12s,
+    color 0.12s;
+}
+
+.viz-segmented button:hover {
+  color: var(--text);
+}
+
+@media (max-width: 600px) {
+  .viz-segmented {
+    display: flex;
+    width: 100%;
+  }
+  .viz-segmented button {
+    flex: 1 1 auto;
+    padding: 0 10px;
+  }
+}
+
+.viz-segmented button.is-on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.viz-segmented button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.viz-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  font-size: 14px;
+  font-weight: 560;
+  color: var(--text-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.viz-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.viz-toggle-track {
+  position: relative;
+  width: 36px;
+  height: 22px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  transition: background-color 0.15s;
+}
+
+.viz-toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s;
+}
+
+.viz-toggle input:checked + .viz-toggle-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.viz-toggle input:checked + .viz-toggle-track::after {
+  transform: translateX(14px);
+}
+
+.viz-toggle input:focus-visible + .viz-toggle-track {
+  box-shadow: var(--focus-ring);
+}
+
+.viz-toggle input:checked ~ span:last-child {
+  color: var(--text);
+}
+
+/* ---------- Avspilling ---------- */
+.viz-play {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.viz-play-time {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.viz-play-note {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+/* ---------- Figur ---------- */
+.viz-figure {
+  margin: 0;
+  padding: 8px;
+  background: var(--viz-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.viz-figure svg {
+  width: 100%;
+  height: auto;
+  max-height: 440px;
+  font-family: var(--font);
+}
+
+.viz-figure figcaption {
+  padding: 6px 8px 2px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.viz-label {
+  font-size: 17px;
+  font-weight: 600;
+  fill: var(--viz-ink);
+  /* Lys kant rundt teksten så den kan leses oppå piler og legemer */
+  paint-order: stroke;
+  stroke: var(--viz-surface);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.viz-label .is-muted,
+.viz-label.is-muted {
+  fill: var(--viz-muted);
+  font-weight: 500;
+}
+
+.viz-block {
+  stroke: var(--viz-body-stroke);
+  stroke-width: 1.5;
+}
+
+.viz-block-label {
+  font-size: 17px;
+  font-weight: 600;
+  fill: var(--viz-ink);
+}
+
+.viz-block-label.is-strong {
+  font-weight: 700;
+}
+
+.viz-ground {
+  stroke: var(--viz-axis);
+  stroke-width: 2;
+}
+
+.viz-hatch {
+  stroke: var(--viz-grid);
+  stroke-width: 1.5;
+}
+
+.viz-gridline {
+  stroke: var(--viz-grid);
+  stroke-width: 1;
+}
+
+.viz-axis {
+  stroke: var(--viz-axis);
+  stroke-width: 1.5;
+}
+
+.viz-tick {
+  font-size: 14px;
+  fill: var(--viz-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.viz-axis-label {
+  font-size: 15px;
+  font-weight: 560;
+  fill: var(--viz-muted);
+}
+
+.viz-dot {
+  fill: var(--viz-ink);
+  stroke: var(--viz-surface);
+  stroke-width: 3;
+}
+
+.viz-spring {
+  fill: none;
+  stroke: var(--viz-tension);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.viz-boundary {
+  fill: none;
+  stroke: var(--viz-boundary);
+  stroke-width: 2;
+  stroke-dasharray: 8 6;
+}
+
+.viz-guide {
+  stroke: var(--viz-muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 5;
+  fill: none;
+}
+
+/*
+ * Når figuren skaleres ned (mobil), blir teksten i SVG-en større i figurens koordinater, slik at den
+ * aldri blir mindre enn ca. 12 px på skjermen. --viz-scale settes av <Figure> (bredde / viewBox-bredde).
+ */
+.viz-figure svg .viz-label,
+.viz-figure svg .viz-block-label {
+  font-size: max(17px, calc(12.5px / var(--viz-scale, 1)));
+}
+
+.viz-figure svg .viz-tick {
+  font-size: max(14px, calc(11px / var(--viz-scale, 1)));
+}
+
+.viz-figure svg .viz-axis-label {
+  font-size: max(15px, calc(11.5px / var(--viz-scale, 1)));
+}
+
+@media (max-width: 600px) {
+  .viz-figure {
+    padding: 4px;
+  }
+}
+
+/* ---------- Avlesninger ---------- */
+.viz-readouts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 136px), 1fr));
+  gap: 10px;
+}
+
+.viz-readout {
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
+
+.viz-readout dt {
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+
+.viz-readout dd {
+  margin-top: 2px;
+  font-size: 22px;
+  font-weight: 680;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.viz-readout-unit {
+  font-size: 15px;
+  font-weight: 560;
+  color: var(--text-2);
+}
+
+/* ---------- Formler og forklaring ---------- */
+.viz-formula {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  font-family: 'Cambria Math', 'STIX Two Math', 'Latin Modern Math', Cambria, Georgia, serif;
+  font-size: 18px;
+  line-height: 1.45;
+  overflow-x: auto;
+}
+
+.viz-formula-line {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.viz-formula sub,
+.viz-formula sup {
+  font-size: 0.7em;
+}
+
+.viz-explain {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.viz-explain strong {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.viz-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.viz-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.viz-legend-swatch {
+  width: 22px;
+  height: 0;
+  border-top: 3px solid var(--c);
+  border-radius: 2px;
+}
+
+.viz-legend-swatch.is-dashed {
+  border-top-style: dashed;
+}
+
+/* ---------- Oversiktsside ---------- */
+.viz-chapter {
+  margin-bottom: 28px;
+}
+
+.viz-chapter-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.viz-chapter-title {
+  font-size: 17px;
+  font-weight: 680;
+  letter-spacing: -0.005em;
+}
+
+.viz-chapter-title .viz-chapter-no {
+  color: var(--text-3);
+  font-weight: 600;
+  margin-right: 6px;
+}
+
+.viz-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.viz-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  transition:
+    border-color 0.12s,
+    box-shadow 0.12s;
+}
+
+.viz-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+  text-decoration: none;
+}
+
+.viz-card:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.viz-card-title {
+  font-size: 15.5px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.viz-card-summary {
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.viz-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+.viz-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.viz-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 24px;
+}
+
+.viz-search {
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+
+.viz-empty-chapter {
+  padding: 14px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text-3);
+  font-size: 14px;
+}
+
+/* ---------- Enkeltside ---------- */
+.viz-page-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.viz-page-nav .btn {
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
+}
+
+.viz-loading {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text-3);
+}
+
+/* Lenker til visualiseringer fra kapittel- og notatsider */
+.viz-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.viz-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 560;
+}
+
+.viz-link-chip:hover {
+  background: var(--surface-2);
+  text-decoration: none;
+}
+
+.viz-link-chip svg {
+  color: var(--accent-text);
+}

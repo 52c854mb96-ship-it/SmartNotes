@@ -428,6 +428,7 @@ button:disabled {
 
 /* ---------- Skjemaer ---------- */
 input[type='text'],
+input[type='search'],
 input[type='password'],
 input[type='date'],
 input:not([type]),

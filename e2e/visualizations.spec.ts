@@ -1,0 +1,44 @@
+import { expect, test } from '@playwright/test';
+
+/** Visualiseringssiden: oversikt per kapittel, én visualisering med glidebryter, og bla videre. */
+
+const PASSWORD = 'e2e-passord';
+
+test('visualiseringer: oversikt, friksjon og neste', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+
+  await page.goto('/');
+  await expect(page).toHaveURL(/logg-inn/);
+  await page.getByLabel('Passord', { exact: true }).fill(PASSWORD);
+  await page.getByRole('button', { name: 'Logg inn' }).click();
+  await expect(page.getByRole('heading', { name: 'Fysikk', level: 1 })).toBeVisible();
+
+  const main = page.locator('main');
+  await main.getByRole('link', { name: 'Visualiseringer' }).click();
+  await expect(page.getByRole('heading', { name: 'Visualiseringer', level: 1 })).toBeVisible();
+  // Kapittelnavnet kommer fra læreboka (ERGO Fysikk 1).
+  await expect(main.getByRole('heading', { name: /Krefter$/ })).toBeVisible();
+
+  // Filteret
+  await main.getByRole('searchbox', { name: 'Filtrer visualiseringene' }).fill('friksjon');
+  await expect(main.getByRole('link', { name: /Koblede klosser/ })).toHaveCount(0);
+  await main.getByRole('link', { name: /Statisk friksjon og glidefriksjon/ }).click();
+
+  await expect(page).toHaveURL(/\/visualiseringer\/k2-friksjon$/);
+  await expect(page.getByRole('heading', { name: 'Statisk friksjon og glidefriksjon', level: 1 })).toBeVisible();
+  await expect(main.getByText('Klossen står i ro.')).toBeVisible();
+
+  // Dytt hardere enn μs·N (29,4 N ved 6 kg og μs = 0,5): klossen glir.
+  await main.getByRole('slider', { name: 'Dytt F' }).fill('40');
+  await expect(main.getByText('Klossen glir.')).toBeVisible();
+  await expect(main.getByRole('img', { name: /Klossen glir/ })).toBeVisible();
+
+  // Bla til neste visualisering
+  await main.getByRole('link', { name: /Kraftpar: bok, bord og jord/ }).click();
+  await expect(page.getByRole('heading', { name: 'Kraftpar: bok, bord og jord', level: 1 })).toBeVisible();
+  await main.getByRole('radio', { name: 'Gravitasjonsparet' }).click();
+  await expect(main.getByText(/Jorda trekker boka nedover/)).toBeVisible();
+
+  expect(errors).toEqual([]);
+});

@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { Link, useParams } from 'react-router';
-import { BookOpen, FileStack, FolderOpen, ListPlus, Settings, Upload } from 'lucide-react';
+import { BookOpen, FileStack, FolderOpen, ListPlus, Settings, Shapes, Upload } from 'lucide-react';
 import type { Chapter } from '@smartnotes/shared';
 import { AimsBlock } from '../components/AimsBlock';
 import { EmptyState, PageSkeleton } from '../components/EmptyState';
@@ -10,6 +10,7 @@ import { formatDayShort, plural } from '../lib/format';
 import { openUpload } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { LAST_SUBJECT_KEY } from './HomePage';
+import { hasVisualizations } from '../viz/registry';
 import { NotFoundPage } from './NotFoundPage';
 
 export function SubjectPage() {
@@ -58,6 +59,11 @@ export function SubjectPage() {
           <button type="button" className="btn btn-primary" onClick={() => openUpload({ subjectId: subject.id })}>
             <Upload size={18} aria-hidden /> Last opp notater
           </button>
+          {hasVisualizations(subject) && (
+            <Link to={`/fag/${subject.id}/visualiseringer`} className="btn">
+              <Shapes size={18} aria-hidden /> Visualiseringer
+            </Link>
+          )}
           {doneCount > 0 && (
             <Link to={`/fag/${subject.id}/pdf`} className="btn">
               <FileStack size={18} aria-hidden /> Hele faget som PDF

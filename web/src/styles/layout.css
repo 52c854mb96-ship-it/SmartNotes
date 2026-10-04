@@ -495,3 +495,14 @@
     padding: 10px 16px;
   }
 }
+
+/* Lenken til visualiseringene nederst i kapittellisten */
+.chapter-list-extra {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.chapter-link.is-viz .chapter-num-icon {
+  color: var(--accent-text);
+}
