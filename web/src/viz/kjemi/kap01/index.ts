@@ -1,7 +1,17 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 1 Kjemiske bindinger (Kjemi 1). */
+/** Kapittel 1 Kjemiske bindinger (Kjemi 1). Rekkefølgen følger delkapitlene. */
 const viz: VizMeta[] = [
+  {
+    id: 'elektronkonfigurasjon',
+    chapter: '1',
+    sections: ['1.2', '1.3'],
+    title: 'Elektronkonfigurasjon og periodesystemet',
+    summary:
+      'Velg et grunnstoff og se hvordan elektronene fyller skall og orbitaler, og hvordan konfigurasjonen bestemmer perioden og gruppa i periodesystemet.',
+    keywords: ['elektronkonfigurasjon', 'skall', 'orbital', 'Hunds regel', 'oppbyggingsprinsippet', 'valenselektroner', 'periode', 'gruppe', 'krom', 'kobber'],
+    load: () => import('./Elektronkonfigurasjon'),
+  },
   {
     id: 'bindingstype',
     chapter: '1',
