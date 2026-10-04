@@ -6,6 +6,7 @@
  *   node scripts/viz-shot.mjs --port 5311 --chapter 2 --out /tmp/shots
  *   node scripts/viz-shot.mjs --port 5311 --ids k2-friksjon,k2-kraftpar --themes dark --widths 390
  *   node scripts/viz-shot.mjs --port 5311 --chapter 2 --extremes     # også med alle glidebrytere på min og på maks
+ *   node scripts/viz-shot.mjs --port 5311 --fag kjemi --chapter 3     # kjemi eller biologi (standard: fysikk)
  *
  * Skriver én PNG per visualisering × tema × bredde, og lister konsollfeil. Avslutter med kode 1 ved feil.
  */
@@ -28,6 +29,7 @@ const port = Number(args.port ?? 5173);
 const out = path.resolve(args.out ?? 'viz-shots');
 const themes = (args.themes ?? 'light,dark').split(',');
 const widths = (args.widths ?? '1000,390').split(',').map(Number);
+const fag = args.fag ?? 'fysikk';
 const base = `http://localhost:${port}/viz-preview.html`;
 
 fs.mkdirSync(out, { recursive: true });
@@ -37,8 +39,8 @@ try {
   let ids = args.ids ? args.ids.split(',') : null;
   if (!ids) {
     const page = await browser.newPage();
-    await page.goto(`${base}?${args.chapter ? `chapter=${args.chapter}` : ''}`);
-    await page.waitForSelector('ul a, [data-viz-error]', { timeout: 30_000 });
+    await page.goto(`${base}?fag=${fag}${args.chapter ? `&chapter=${args.chapter}` : ''}`);
+    await page.waitForSelector('ul a, [data-viz-error], [data-viz-empty]', { timeout: 30_000 });
     ids = await page.$$eval('ul a', (as) => as.map((a) => new URL(a.href).searchParams.get('id')));
     await page.close();
   }
@@ -49,7 +51,7 @@ try {
         const errors = [];
         page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
         page.on('pageerror', (e) => errors.push(String(e)));
-        await page.goto(`${base}?id=${id}&theme=${theme}`);
+        await page.goto(`${base}?fag=${fag}&id=${id}&theme=${theme}`);
         try {
           await page.waitForSelector('[data-viz-ready] .viz, [data-viz-error]', { timeout: 30_000 });
         } catch {

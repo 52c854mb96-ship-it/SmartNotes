@@ -1,22 +1,32 @@
 /**
  * Forhåndsvisning av én visualisering uten resten av appen (ingen innlogging, server eller database).
- * Kun for utvikling: http://localhost:5173/viz-preview.html?id=k2-friksjon&theme=dark&width=390
+ * Kun for utvikling: http://localhost:5173/viz-preview.html?fag=kjemi&id=k3-mol&theme=dark&width=390
  *
+ * `fag` er fysikk (standard), kjemi eller biologi, og gir også fagets fargetema.
  * Laster bare kapittelet som trengs, så en feil i et annet kapittel ikke stopper forhåndsvisningen.
- * Uten `id` vises en liste over visualiseringene i kapittelet `chapter` (eller alle kapitler).
+ * Uten `id` vises en liste over visualiseringene i kapittelet `chapter` (eller alle kapitler i faget).
  */
 import { StrictMode, Suspense, lazy, type ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../styles/base.css';
 import '../styles/components.css';
 import '../styles/pages.css';
+import '../styles/subjects.css';
 import '../styles/viz.css';
 import type { VizMeta } from './types';
 
-const chapters = import.meta.glob<{ default: VizMeta[] }>('./kap*/index.ts');
+// `<fag>/kapNN/index.ts`. Fysikk lå tidligere rett under viz/ (kapNN/index.ts), og begge deler støttes.
+const chapters = {
+  ...import.meta.glob<{ default: VizMeta[] }>('./kap*/index.ts'),
+  ...import.meta.glob<{ default: VizMeta[] }>('./*/kap*/index.ts'),
+};
+const SUBJECT_THEME: Record<string, string | null> = { fysikk: null, kjemi: 'chemistry', biologi: 'biology' };
 
 const params = new URLSearchParams(location.search);
 const id = params.get('id') ?? '';
+const fag = params.get('fag') ?? 'fysikk';
+const subjectTheme = SUBJECT_THEME[fag];
+if (subjectTheme) document.documentElement.setAttribute('data-subject', subjectTheme);
 const theme = params.get('theme');
 const width = Number(params.get('width')) || 0;
 if (theme === 'dark' || theme === 'light') document.documentElement.setAttribute('data-theme', theme);
@@ -27,10 +37,20 @@ root.style.padding = '24px 16px';
 root.style.margin = '0 auto';
 root.style.maxWidth = width ? `${width}px` : '980px';
 
+/** Kapittelmodulene i faget, sortert etter kapittelnummer. */
+function chapterKeys(): string[] {
+  const own = Object.keys(chapters).filter((k) => k.startsWith(`./${fag}/kap`));
+  const legacy = fag === 'fysikk' ? Object.keys(chapters).filter((k) => /^\.\/kap\d+\//.test(k)) : [];
+  return [...own, ...legacy.filter((k) => !own.includes(k.replace('./', `./${fag}/`)))].sort((a, b) =>
+    a.replace(/^.*kap/, '').localeCompare(b.replace(/^.*kap/, '')),
+  );
+}
+
 async function loadChapter(no: string): Promise<VizMeta[]> {
-  const key = `./kap${no.padStart(2, '0')}/index.ts`;
-  const mod = chapters[key];
-  if (!mod) throw new Error(`Fant ikke ${key}`);
+  const dir = `kap${no.padStart(2, '0')}`;
+  const key = chapterKeys().find((k) => k.endsWith(`/${dir}/index.ts`));
+  const mod = key ? chapters[key] : undefined;
+  if (!mod) throw new Error(`Fant ikke ${fag}/${dir}/index.ts`);
   return (await mod()).default;
 }
 
@@ -38,15 +58,19 @@ async function main() {
   const match = /^k(\d+)-(.+)$/.exec(id);
   if (!match) {
     const only = params.get('chapter');
-    const keys = Object.keys(chapters).sort();
+    const keys = chapterKeys();
     const lists = await Promise.all(
-      keys.filter((k) => !only || k.includes(`kap${only.padStart(2, '0')}`)).map(async (k) => (await chapters[k]!()).default),
+      keys.filter((k) => !only || k.endsWith(`/kap${only.padStart(2, '0')}/index.ts`)).map(async (k) => (await chapters[k]!()).default),
     );
+    if (lists.flat().length === 0) {
+      root!.innerHTML = `<p data-viz-empty>Ingen visualiseringer i ${fag}${only ? `, kapittel ${only}` : ''}.</p>`;
+      return;
+    }
     createRoot(root!).render(
       <ul>
         {lists.flat().map((m) => (
           <li key={`${m.chapter}-${m.id}`}>
-            <a href={`?id=k${m.chapter}-${m.id}${theme ? `&theme=${theme}` : ''}`}>
+            <a href={`?fag=${fag}&id=k${m.chapter}-${m.id}${theme ? `&theme=${theme}` : ''}`}>
               k{m.chapter}-{m.id}: {m.title}
             </a>
           </li>
