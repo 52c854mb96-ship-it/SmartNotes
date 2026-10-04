@@ -2,10 +2,12 @@
 
 For at notatene skal synkroniseres mellom enhetene dine, må serveren kjøre et sted som alltid er på. Du har to alternativer:
 
-- **A. Fly.io** (anbefalt): ingen maskin å passe på, og HTTPS følger med. Koster ca. 40–60 kr/mnd.
+- **A. Fly.io** (anbefalt): ingen maskin å passe på, og HTTPS følger med. Koster ca. 60–70 kr/mnd.
 - **B. Egen maskin med Docker**: en PC, NAS eller Raspberry Pi som står på hjemme.
 
 Begge bruker samme Docker-image, med Node.js, TeX Live og poppler.
+
+> **Enklest:** følg [OPPSETT.md](OPPSETT.md). Der gjøres Fly.io-oppsettet med to knapper i GitHub Actions, uten å installere noe. Denne siden beskriver det samme med terminalen, og hvordan du kjører serveren hjemme.
 
 ---
 
@@ -50,10 +52,10 @@ API-nøkkelen lager du på <https://console.anthropic.com> → *API Keys*. Den l
 ### 5. Deploy
 
 ```bash
-fly deploy
+fly deploy --ha=false
 ```
 
-Det første bygget tar noen minutter fordi TeX Live skal installeres. Når det er ferdig, åpner du `https://smartnotes-kari.fly.dev` og logger inn.
+`--ha=false` gir én maskin, som passer med ett lagringsvolum. Det første bygget tar noen minutter fordi TeX Live skal installeres. Når det er ferdig, åpner du `https://smartnotes-kari.fly.dev` og logger inn.
 
 ### 6. Installer som app
 
@@ -71,7 +73,7 @@ Logg inn én gang på hver enhet mens du er på nett. Etter det fungerer appen o
 
 ```bash
 git pull
-fly deploy
+fly deploy --ha=false
 ```
 
 ### Sikkerhetskopi
@@ -110,8 +112,11 @@ Hvis du absolutt må kjøre uten HTTPS på et lukket nett, sett `COOKIE_SECURE=f
 
 ---
 
-## Automatisk deploy fra GitHub (valgfritt)
+## Automatisk deploy fra GitHub
 
-1. Lag et token med `fly tokens create deploy`.
-2. Legg det inn som repository secret `FLY_API_TOKEN` på GitHub.
-3. Legg til en workflow som kjører `flyctl deploy --remote-only` ved push til `main`, f.eks. med `superfly/flyctl-actions/setup-flyctl@master`.
+Repoet har to workflows for dette (se [OPPSETT.md](OPPSETT.md), steg 4–6):
+
+- **Fly.io – første oppsett** (`.github/workflows/fly-setup.yml`): oppretter appen og volumet og lagrer hemmelighetene. Kjøres manuelt én gang.
+- **Deploy til Fly.io** (`.github/workflows/deploy.yml`): kjører når CI er grønn på `main`, eller manuelt.
+
+De trenger repository secrets `FLY_API_TOKEN` (organisasjonstoken), `APP_PASSWORD` og `ANTHROPIC_API_KEY`, og variabelen `FLY_APP`. Uten `FLY_APP` hoppes deploy over.

@@ -17,6 +17,7 @@ Foreløpig er appen laget for **fysikk**. Andre fag kommer senere, og arkitektur
 - **Kompetansemål.** Hvert delkapittel er koblet til kompetansemålene i Fysikk 1 (KM1–KM14), så du kan se og filtrere notatene etter mål før eksamen.
 - **Søk.** Ctrl/Cmd+K søker i titler og innholdet i alle notatene, også uten nett.
 - **Tre kolonner.** På iPad og PC ser du kapitler, notater og PDF side om side. Lys, mørk eller systemtema.
+- **Visualiseringer.** Interaktive forklaringer til hvert kapittel, der du styrer situasjonen selv med glidebrytere og knapper: friksjon, kraftpar, energibevaring, støt, bølger, Bohrs atommodell, halveringstid, koblinger og mye mer. Tallene, grafene og forklaringen oppdateres mens du drar. De ligger under **Visualiseringer** i sidepanelet og lenkes fra kapitlene og notatene.
 - **Samle-PDF.** Last ned et helt kapittel eller hele faget som én PDF med innholdsliste.
 - **Offline.**
   - Alle ferdige PDF-er lagres på enheten og kan leses uten nett.
@@ -72,7 +73,7 @@ SMARTNOTES_FAKE_CLAUDE=1 npm run dev
 
 ## Ta i bruk på ekte (synk mellom enheter)
 
-Se **[docs/DEPLOY.md](docs/DEPLOY.md)** for en steg-for-steg-guide til Fly.io (ca. 40–60 kr/mnd) eller egen maskin med Docker.
+Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du må ordne selv (API-nøkkel, Fly.io, GitHub og installering på enhetene). Fly.io koster ca. 60–70 kr/mnd. [docs/DEPLOY.md](docs/DEPLOY.md) beskriver det samme med terminalen, og hvordan du kjører serveren hjemme med Docker.
 
 **API-nøkkelen ligger bare på serveren** (`ANTHROPIC_API_KEY`). Den sendes aldri til nettleseren og skal aldri sjekkes inn i git.
 
