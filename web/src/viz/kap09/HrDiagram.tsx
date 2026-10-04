@@ -247,6 +247,7 @@ function Diagram({
   const massTicks = [0.5, 1, 2, 5, 10, 20];
   // Etiketten «Hovedserien» flyttes ned når hjelpelinjen fra den valgte stjernen ville gått gjennom den.
   const msLabelLogL = mode === 'masse' && Math.abs(Math.log10(msStar.L) - 1.2) < 0.4 ? 0.2 : 1.0;
+  const wdLabelLogL = mode === 'masse' && Math.abs(Math.log10(msStar.L) + 2.48) < 0.4 ? -3.4 : -2.7;
 
   return (
     <g>
@@ -326,7 +327,7 @@ function Diagram({
           <Tag x={sx(Math.log10(6300))} y={sy(5.95)} color={REGION.supergiant} anchor="middle" weight={650}>
             Superkjemper
           </Tag>
-          <Tag x={sx(Math.log10(26000))} y={sy(-2.7)} color={REGION.wd} anchor="start" weight={650}>
+          <Tag x={sx(Math.log10(26000))} y={sy(wdLabelLogL)} color={REGION.wd} anchor="start" weight={650}>
             Hvite dverger
           </Tag>
         </g>

@@ -279,7 +279,7 @@ function Graph({ R, lamp, U, I, H }: { R: number; lamp: boolean; U: number; I: n
             opacity={lamp ? 1 : 0.6}
           />
           {lamp && U > 0 && (
-            <path d={linePath([[0, 0], [I_MAX, (U / I) * I_MAX]], sx, sy)} className="viz-guide" />
+            <path d={linePath([[0, 0], [Math.min(I_MAX, U_MAX / (U / I)), Math.min(U_MAX, (U / I) * I_MAX)]], sx, sy)} className="viz-guide" />
           )}
           <SlopeTag R={R} lamp={lamp} U={U} I={I} sx={sx} sy={sy} />
           <Dot x={sx(I)} y={sy(U)} color={lamp ? LAMP_COLOR : RES_COLOR} />

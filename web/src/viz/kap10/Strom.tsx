@@ -71,11 +71,11 @@ export default function Strom() {
 
       <div ref={wrapRef}>
         <Figure
-          viewBox={`0 0 800 ${narrow ? 500 : 340}`}
+          viewBox={`0 0 800 ${narrow ? 520 : 356}`}
           label={`Frie elektroner i en kobberledning. Strømmen er ${fmt(I, 1)} A, og ${nCross} prikker har passert tverrsnittet etter ${fmt(t, 1)} s.`}
           maxHeight={400}
         >
-          <Wire t={t} h={h} carriers={carriers} shift={shift} showDir={showDir} I={I} nCross={nCross} Q={Q} H={narrow ? 500 : 340} />
+          <Wire t={t} h={h} carriers={carriers} shift={shift} showDir={showDir} I={I} nCross={nCross} Q={Q} H={narrow ? 520 : 356} />
         </Figure>
       </div>
 
@@ -87,9 +87,13 @@ export default function Strom() {
       </Readouts>
 
       <Formula label="Strøm og driftsfart">
-        <FormulaLine>
-          I = Q/t = {fmt(Q, 2)} C / {fmt(t, 1)} s = {fmt(Imeasured, 2)} A
-        </FormulaLine>
+        {t > 0 ? (
+          <FormulaLine>
+            I = Q/t = {fmt(Q, 2)} C / {fmt(t, 1)} s = {fmt(Imeasured, 2)} A
+          </FormulaLine>
+        ) : (
+          <FormulaLine>I = Q/t: trykk «Spill av» for å telle ladningen som passerer</FormulaLine>
+        )}
         <FormulaLine>
           v = I/(n·e·A) = {fmt(I, 1)} A / ({fmtSci(N_COPPER, 1)} m⁻³ · {fmtSci(E_CHARGE, 2)} C · {fmtSci(A * 1e-6, 2)} m²) ={' '}
           {fmtSci(v, 1)} m/s
@@ -125,7 +129,10 @@ function Wire({
   const f = useTextScale();
   const yBat = 46 * f;
   // Midtlinjen ligger fast, så bare tykkelsen endres når tverrsnittet endres (største tykkelse er 100 px).
-  const cy = yBat + 70 + 20 * f + 50;
+  // Avstandene vokser med tekstskalaen, så pilene og etikettene ikke havner oppå ledningen på mobil.
+  const cy = 120 + 74 * f;
+  const yI = cy - 50 - 14 - 16 * f;
+  const yE = cy + 50 + 14 + 16 * f;
   const top = cy - h / 2;
   const bottom = cy + h / 2;
   const xPlane = X0 + LEN / 2;
@@ -173,18 +180,18 @@ function Wire({
 
       {/* Tverrsnittet der vi teller */}
       <ellipse cx={xPlane} cy={cy} rx={9} ry={h / 2 + 10} fill="none" stroke={VIZ.ink} strokeWidth={2} strokeDasharray="5 4" />
-      <Tag x={xPlane} y={bottom + 34 * f + 30} anchor="middle" weight={650}>
+      <Tag x={xPlane} y={yE + 24 + 20 * f} anchor="middle" weight={650}>
         {nCross} prikker = {fmt(Q, 2)} C har passert
       </Tag>
 
       {showDir && I > 0 && (
         <g>
-          <Arrow x1={X0 + 20} y1={top - 22} x2={X0 + 150} y2={top - 22} color={EL.current} />
-          <Tag x={X0 + 162} y={top - 22 + 6 * f} anchor="start" color={EL.current} weight={650}>
+          <Arrow x1={X0 + 20} y1={yI} x2={X0 + 150} y2={yI} color={EL.current} />
+          <Tag x={X0 + 162} y={yI + 6 * f} anchor="start" color={EL.current} weight={650}>
             strømretning I: fra + til −
           </Tag>
-          <Arrow x1={X0 + LEN - 20} y1={bottom + 22} x2={X0 + LEN - 150} y2={bottom + 22} color={EL.electron} />
-          <Tag x={X0 + LEN - 162} y={bottom + 22 + 6 * f} anchor="end" color={EL.electron} weight={650}>
+          <Arrow x1={X0 + LEN - 20} y1={yE} x2={X0 + LEN - 150} y2={yE} color={EL.electron} />
+          <Tag x={X0 + LEN - 162} y={yE + 6 * f} anchor="end" color={EL.electron} weight={650}>
             elektronene: fra − mot +
           </Tag>
         </g>
@@ -224,8 +231,8 @@ function explanation(I: number, A: number, v: number, t: number, n: number): Rea
         {t > 0 && n > 0 && ` Etter ${fmt(t, 1)} s har ${n} prikker passert.`}
       </p>
       <p>
-        Likevel driver elektronene bare {fmt(v * 1000, 3)} mm/s, så animasjonen går i sanntid. En lampe lyser likevel med en gang du slår
-        på bryteren, fordi elektronene i hele kretsen begynner å bevege seg nesten samtidig.{' '}
+        Elektronene driver bare {fmt(v * 1000, 3)} mm/s. Animasjonen går i sanntid, så det du ser, er den virkelige driftsfarten. Likevel
+        lyser en lampe med en gang du slår på bryteren, fordi elektronene i hele kretsen begynner å bevege seg nesten samtidig.{' '}
         {A > 1.6 ? 'En tykkere ledning har flere frie elektroner per lengde, så de trenger å drive saktere for å gi samme strøm.' : 'Gjør ledningen tykkere: samme strøm gir da lavere driftsfart.'}
       </p>
     </>

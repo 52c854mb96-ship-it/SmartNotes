@@ -28,6 +28,10 @@ const KINDS: { value: Kind; label: string }[] = [
   { value: 'parallell', label: 'Parallellkobling' },
 ];
 
+/** Avstand mellom grenene i parallellkoblingen (figurenheter) på PC og mobil. */
+const PAR_GAP = 76;
+const PAR_GAP_NARROW = 92;
+
 const fU = (v: number) => fmt(v, v >= 100 ? 0 : v >= 10 ? 1 : 2);
 const fI = (v: number) => fmt(v, v >= 10 ? 1 : v >= 1 ? 2 : 3);
 const fR = (v: number) => fmt(v, v >= 100 ? 0 : v >= 10 ? 1 : 2);
@@ -44,7 +48,8 @@ export default function Koblinger() {
   const [wrapRef, narrow] = useNarrow<HTMLDivElement>();
   const W = narrow ? 560 : 800;
   const n = Rs.length;
-  const schemH = kind === 'serie' ? 250 : narrow ? 90 + n * 96 : 80 + n * 84;
+  // Parallell: én rad per gren og litt plass under til returledningen.
+  const schemH = kind === 'serie' ? 250 : narrow ? 150 + (n - 1) * PAR_GAP_NARROW : 126 + (n - 1) * PAR_GAP;
 
   const rSlider = (k: number, value: number, set: (v: number) => void) => (
     <Slider
@@ -135,6 +140,9 @@ function Battery({ x, y, U }: { x: number; y: number; U: number }) {
       <Tag x={x - 34} y={y - 4} anchor="end" weight={700}>
         +
       </Tag>
+      <Tag x={x - 34} y={y + 24} anchor="end" weight={700}>
+        −
+      </Tag>
       <Tag x={x + 24} y={y + 30 + 14 * f} anchor="start" color={EL.voltage} weight={700}>
         {fmt(U, 1)} V
       </Tag>
@@ -210,9 +218,9 @@ function ParallelDrawing({ Rs, c, U, W, H }: { Rs: number[]; c: Circuit; U: numb
   const railL = W * 0.3;
   const railR = W - 24;
   const top = 30 + 26 * f;
-  const gap = (H - top - 44 - 14 * f) / n;
+  const gap = W < 700 ? PAR_GAP_NARROW : PAR_GAP;
   const ys = Rs.map((_, k) => top + k * gap);
-  const yBot = H - 22;
+  const yBot = H - 20;
   const cx = railL + (railR - railL) * 0.27;
   const lastY = ys[n - 1]!;
   const labelW = textWidth(12.5, f);
@@ -253,7 +261,7 @@ function ParallelDrawing({ Rs, c, U, W, H }: { Rs: number[]; c: Circuit; U: numb
           </Tag>
         </g>
       )}
-      <Tag x={(railL + railR) / 2} y={yBot - 14} anchor="middle" muted>
+      <Tag x={railR - 10} y={yBot - 12} anchor="end" muted>
         samme spenning over alle
       </Tag>
     </g>
@@ -358,7 +366,7 @@ function formula(kind: Kind, Rs: number[], c: Circuit, U: number): ReactNode {
   return (
     <>
       <FormulaLine>
-        1/R = {idx.map((k, i) => <span key={k}>{i > 0 && ' + '}1/R<Sub>{k}</Sub></span>)} = {Rs.map((r) => `1/${r} Ω`).join(' + ')}, så R ={' '}
+        1/R = {idx.map((k, i) => <span key={k}>{i > 0 && ' + '}1/R<Sub>{k}</Sub></span>)} = {Rs.map((r) => `1/(${r} Ω)`).join(' + ')}, så R ={' '}
         {fR(c.Rtot)} Ω
       </FormulaLine>
       <FormulaLine>

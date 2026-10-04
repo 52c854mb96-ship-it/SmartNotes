@@ -122,7 +122,11 @@ export default function EffektOgEnergi() {
           P = R·I² gir R = P/I² = {fmt(P, P < 10 ? 1 : 0)} W / ({fmtI(I)} A)² = {fmtR(R)} Ω
         </FormulaLine>
         <FormulaLine>
-          W = P·t = {fmt(P / 1000, P < 100 ? 3 : 2)} kW · {fmt(hours, Number.isInteger(hours) ? 0 : 2)} h · {DAYS_PER_MONTH} = {fmtKWh(m.kWh)} kWh = {fmtSci(m.kWh * KWH, 2)} J
+          t = {fmt(hours, Number.isInteger(hours) ? 0 : 2)} h per døgn · {DAYS_PER_MONTH} døgn = {fmt(hours * DAYS_PER_MONTH, Number.isInteger(hours * DAYS_PER_MONTH) ? 0 : 1)} h
+        </FormulaLine>
+        <FormulaLine>
+          W = P·t = {fmt(P / 1000, P < 100 ? 3 : 2)} kW · {fmt(hours * DAYS_PER_MONTH, Number.isInteger(hours * DAYS_PER_MONTH) ? 0 : 1)} h ={' '}
+          {fmtKWh(m.kWh)} kWh = {fmtSci(m.kWh * KWH, 2)} J
         </FormulaLine>
         <FormulaLine>
           Kostnad = {fmtKWh(m.kWh)} kWh · {fmt(price, 2)} kr/kWh = {fmtKr(m.cost)} kr
@@ -243,16 +247,18 @@ function explanation(name: string, P: number, hours: number, perDay: number, per
     <>
       <p>
         <strong>Effekt er hvor fort energien brukes, energi er effekt ganger tid.</strong> {name} har P = {fmtW(P)} og står på{' '}
-        {fmtHours(hours)} per døgn, så den bruker W = P·t = {fmtKWh(perDay)} kWh per døgn og {fmtKWh(perMonth)} kWh per måned. Arealet
-        under grafen er energien. {compare}
+        {fmtHours(hours)} per døgn. Energibruken blir W = P·t = {fmtKWh(perDay)} kWh per døgn og {fmtKWh(perMonth)} kWh per måned.
+        Arealet under grafen er energien. {compare}
       </p>
       <p>
         Med U = {MAINS_U} V gir P = U·I en strøm på {fmtI(I)} A.{' '}
         {I > FUSE
           ? `Det er mer enn en vanlig kurs på ${FUSE} A tåler, så slike apparater må ha egen kurs.`
-          : Math.floor(FUSE / I) <= 10
-            ? `En vanlig kurs i en bolig er sikret med ${FUSE} A, så bare ${Math.floor(FUSE / I)} slike apparater kan stå på samtidig på samme kurs.`
-            : `Det er lite: en vanlig kurs i en bolig tåler ${FUSE} A.`}
+          : Math.floor(FUSE / I) === 1
+            ? `En vanlig kurs i en bolig er sikret med ${FUSE} A, så bare ett slikt apparat kan stå på om gangen på samme kurs.`
+            : Math.floor(FUSE / I) <= 10
+              ? `En vanlig kurs i en bolig er sikret med ${FUSE} A, så bare ${Math.floor(FUSE / I)} slike apparater kan stå på samtidig på samme kurs.`
+              : `Det er lite: en vanlig kurs i en bolig tåler ${FUSE} A.`}
       </p>
     </>
   );
