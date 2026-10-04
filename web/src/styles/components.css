@@ -913,7 +913,8 @@ dialog.lightbox::backdrop {
   text-align: left;
 }
 
-.segment[aria-selected='true'] {
+.segment[aria-selected='true'],
+.segment[aria-checked='true'] {
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);

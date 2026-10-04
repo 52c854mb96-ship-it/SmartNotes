@@ -363,6 +363,7 @@
 }
 
 .note-title .title-input {
+  display: block;
   width: 100%;
   min-height: 0;
   margin-left: -8px;
@@ -374,7 +375,9 @@
   font-size: inherit;
   letter-spacing: inherit;
   line-height: 1.25;
-  text-overflow: ellipsis;
+  resize: none;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .note-title .title-input:hover {
@@ -390,7 +393,7 @@
 .title-edit-icon {
   position: absolute;
   right: 4px;
-  top: 50%;
+  top: 0.62em;
   transform: translateY(-50%);
   color: var(--text-3);
   pointer-events: none;

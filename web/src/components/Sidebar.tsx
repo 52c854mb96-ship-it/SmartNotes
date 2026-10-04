@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
-import { Atom, ChevronRight, FolderOpen, Plus, Settings, Upload, X } from 'lucide-react';
+import { Atom, ChevronRight, FolderOpen, Plus, Search, Settings, Upload, X } from 'lucide-react';
 import type { Subject } from '@smartnotes/shared';
 import { chapterStats, useChapters, useSubjectNotes, useSubjects } from '../data';
 import { useActiveIds } from '../lib/useActive';
-import { drawerStore, newSubjectStore, openUpload } from '../lib/ui';
+import { drawerStore, newSubjectStore, openSearch, openUpload } from '../lib/ui';
 import { Logo } from './Logo';
 import { SyncStatus } from './SyncStatus';
+import { ThemeSwitch } from './ThemeSwitch';
+
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 export function Sidebar({ id }: { id: string }) {
   const subjects = useSubjects();
@@ -31,6 +34,21 @@ export function Sidebar({ id }: { id: string }) {
       </div>
 
       <div className="sidebar-actions">
+        <button
+          type="button"
+          className="search-trigger"
+          onClick={() => {
+            drawerStore.set(false);
+            openSearch();
+          }}
+          aria-keyshortcuts={IS_MAC ? 'Meta+K' : 'Control+K'}
+        >
+          <Search size={17} aria-hidden />
+          <span className="search-trigger-label">Søk</span>
+          <kbd className="search-trigger-kbd" aria-hidden>
+            {IS_MAC ? '⌘K' : 'Ctrl K'}
+          </kbd>
+        </button>
         <button
           type="button"
           className="btn btn-primary btn-block"
@@ -90,10 +108,13 @@ export function Sidebar({ id }: { id: string }) {
 
       <div className="sidebar-footer">
         <SyncStatus />
-        <NavLink to="/innstillinger" className="sidebar-link">
-          <Settings size={18} aria-hidden />
-          Innstillinger
-        </NavLink>
+        <div className="sidebar-footer-row">
+          <NavLink to="/innstillinger" className="sidebar-link">
+            <Settings size={18} aria-hidden />
+            Innstillinger
+          </NavLink>
+          <ThemeSwitch variant="compact" />
+        </div>
       </div>
     </aside>
   );

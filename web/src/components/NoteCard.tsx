@@ -2,9 +2,10 @@ import { Link } from 'react-router';
 import { ChevronRight, MessageSquareWarning } from 'lucide-react';
 import type { Note } from '@smartnotes/shared';
 import { dayParts, formatDay, noteDay, plural } from '../lib/format';
+import { SectionCode } from './AimChips';
 import { NoteStatusBadge } from './Status';
 
-export function NoteCard({ note }: { note: Note }) {
+export function NoteCard({ note, showSection = true }: { note: Note; showSection?: boolean }) {
   const day = noteDay(note);
   const parts = dayParts(day);
   return (
@@ -17,6 +18,7 @@ export function NoteCard({ note }: { note: Note }) {
         <span className="note-card-title">{note.title || 'Uten tittel'}</span>
         <span className="note-card-meta">
           <NoteStatusBadge note={note} />
+          {showSection && note.section && <SectionCode code={note.section} />}
           <span>{note.noteDate ? formatDay(note.noteDate) : `Lastet opp ${formatDay(day)}`}</span>
           {note.pageCount > 0 && <span>{plural(note.pageCount, 'side', 'sider')}</span>}
           {note.remarks.length > 0 && (

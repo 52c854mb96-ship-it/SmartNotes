@@ -4,6 +4,7 @@ import { CheckCircle2, CloudDownload, LogOut, RefreshCw, XCircle } from 'lucide-
 import type { HealthResponse } from '@smartnotes/shared';
 import { api, errorMessage } from '../api';
 import { Spinner } from '../components/Status';
+import { ThemeSwitch } from '../components/ThemeSwitch';
 import { db } from '../db';
 import { useOnline } from '../lib/connectivity';
 import { formatBytes, formatTimestamp, plural } from '../lib/format';
@@ -21,11 +22,26 @@ export function SettingsPage() {
           <h1 className="page-title">Innstillinger</h1>
         </div>
       </header>
+      <AppearanceCard />
       <ServerCard />
       <SyncCard />
       <StorageCard />
       <AccountCard />
     </div>
+  );
+}
+
+function AppearanceCard() {
+  return (
+    <section className="card" aria-labelledby="appearance-h">
+      <div className="card-head">
+        <h2 id="appearance-h" className="card-title">
+          Utseende
+        </h2>
+        <p className="card-text">Velg lyst eller mørkt tema, eller følg innstillingen på enheten. Valget gjelder bare denne enheten.</p>
+      </div>
+      <ThemeSwitch />
+    </section>
   );
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { Link, useParams } from 'react-router';
 import { BookOpen, FileStack, FolderOpen, ListPlus, Settings, Upload } from 'lucide-react';
 import type { Chapter } from '@smartnotes/shared';
+import { AimsBlock } from '../components/AimsBlock';
 import { EmptyState, PageSkeleton } from '../components/EmptyState';
 import { WorkInProgress } from '../components/WorkInProgress';
 import { chapterStats, useChapters, useOutbox, useSubject, useSubjectNotes, type ChapterStats } from '../data';
@@ -119,6 +120,8 @@ export function SubjectPage() {
           </ul>
         </section>
       )}
+
+      <AimsBlock subject={subject} chapters={chapters} notes={notes} />
     </div>
   );
 }

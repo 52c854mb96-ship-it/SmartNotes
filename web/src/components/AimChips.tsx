@@ -16,17 +16,18 @@ export function AimChips({
   if (!codes.length) return null;
   const sorted = [...new Set(codes)].sort(compareAimCodes);
   return (
-    <ul className={`aim-chips${size === 'sm' ? ' is-sm' : ''}`} aria-label={label} role="list">
+    // Spans (ikke ul/li) slik at brikkene også kan stå inne i lenker og knapper.
+    <span className={`aim-chips${size === 'sm' ? ' is-sm' : ''}`} aria-label={label} role="list">
       {sorted.map((code) => {
         const text = aims.get(code)?.text;
         return (
-          <li key={code} className="aim-chip" title={text ? `${code}: ${text}` : code}>
+          <span key={code} role="listitem" className="aim-chip" title={text ? `${code}: ${text}` : code}>
             {code}
-            {text && <span className="sr-only">: {text}</span>}
-          </li>
+            {text && size === 'md' && <span className="sr-only">: {text}</span>}
+          </span>
         );
       })}
-    </ul>
+    </span>
   );
 }
 

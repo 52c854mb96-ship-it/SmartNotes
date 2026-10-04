@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { ArrowDown, ArrowUp, ChevronLeft, Plus, Trash2 } from 'lucide-react';
-import type { Chapter, Subject } from '@smartnotes/shared';
+import type { Chapter, CompetenceAim, Subject } from '@smartnotes/shared';
 import {
   createChapter,
   deleteChapter,
@@ -11,9 +11,11 @@ import {
   updateSubject,
 } from '../actions';
 import { errorMessage } from '../api';
+import { AimChips } from '../components/AimChips';
 import { PageSkeleton } from '../components/EmptyState';
 import { chapterStats, useChapters, useSubject, useSubjectNotes } from '../data';
 import { useOnline } from '../lib/connectivity';
+import { aimMap, sectionsOf } from '../lib/curriculum';
 import { chapterHeading, plural } from '../lib/format';
 import { confirmDialog, toast } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
@@ -149,6 +151,7 @@ function ChapterEditor({
   const [number, setNumber] = useState('');
   const [title, setTitle] = useState('');
   const [adding, setAdding] = useState(false);
+  const aims = aimMap(subject);
 
   const move = async (index: number, delta: -1 | 1) => {
     const j = index + delta;
@@ -215,6 +218,7 @@ function ChapterEditor({
               first={i === 0}
               last={i === chapters.length - 1}
               noteCount={noteCounts.get(c.id)?.count ?? 0}
+              aims={aims}
               onMove={(d) => void move(i, d)}
               onRemove={() => void remove(c)}
             />
@@ -259,6 +263,7 @@ function ChapterRow({
   first,
   last,
   noteCount,
+  aims,
   onMove,
   onRemove,
 }: {
@@ -267,6 +272,7 @@ function ChapterRow({
   first: boolean;
   last: boolean;
   noteCount: number;
+  aims: Map<string, CompetenceAim>;
   onMove: (delta: -1 | 1) => void;
   onRemove: () => void;
 }) {
@@ -303,6 +309,7 @@ function ChapterRow({
   };
 
   const label = chapter.number ? `kapittel ${chapter.number}` : `«${chapter.title}»`;
+  const sections = sectionsOf(chapter);
   return (
     <li className="chapter-row">
       <input
@@ -360,6 +367,20 @@ function ChapterRow({
           <Trash2 size={17} aria-hidden />
         </button>
       </span>
+      {sections.length > 0 && (
+        <details className="chapter-sections">
+          <summary>{sections.length === 1 ? '1 delkapittel' : `${sections.length} delkapitler`}</summary>
+          <ol className="chapter-sections-list" role="list">
+            {sections.map((sec) => (
+              <li key={sec.code}>
+                <span className="group-code">{sec.code}</span>
+                <span className="chapter-sections-title">{sec.title}</span>
+                <AimChips codes={sec.aims ?? []} aims={aims} size="sm" />
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
     </li>
   );
 }

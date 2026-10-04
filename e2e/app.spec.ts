@@ -22,6 +22,8 @@ async function notePage(title: string): Promise<Buffer> {
 }
 
 const main = (page: Page) => page.locator('main');
+/** Notatlenker ligger i hovedinnholdet, eller i notatlisten (midtkolonnen) på brede skjermer. */
+const noteLinks = (page: Page) => main(page).or(page.getByRole('complementary', { name: 'Notatliste' }));
 
 async function login(page: Page): Promise<void> {
   await page.goto('/');
@@ -47,7 +49,7 @@ async function openConvertedNote(page: Page, title: string): Promise<void> {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Fysikk', level: 1 })).toBeVisible();
   await main(page).getByRole('link', { name: CHAPTER }).first().click(SLOW);
-  await main(page).getByRole('link', { name: new RegExp(title) }).first().click(SLOW);
+  await noteLinks(page).getByRole('link', { name: new RegExp(title) }).first().click(SLOW);
   await expect(page).toHaveURL(/\/notat\//);
   // Tittelen er et redigerbart felt i overskriften når vi er på nett, ren tekst offline.
   await expect(page.getByRole('heading', { name: title, level: 1 })).toBeVisible();

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import {
   AlertTriangle,
@@ -13,15 +13,17 @@ import {
   Sparkles,
   Trash2,
 } from 'lucide-react';
-import type { Chapter, Note } from '@smartnotes/shared';
+import type { Chapter, Note, Subject } from '@smartnotes/shared';
 import { deleteNote, retryNote, updateNote } from '../actions';
 import { errorMessage, urls } from '../api';
+import { AimChips } from '../components/AimChips';
 import { PageSkeleton } from '../components/EmptyState';
 import { Menu } from '../components/Menu';
 import { NoteStatusBadge, Spinner } from '../components/Status';
 import { useChapters, useNote, useSubject } from '../data';
 import { db } from '../db';
 import { useOnline } from '../lib/connectivity';
+import { aimMap, noteAimCodes, noteSectionCode, sectionLabel, sectionsOf } from '../lib/curriculum';
 import { downloadUrl, saveBlob } from '../lib/download';
 import { chapterHeading, chapterLabel, formatDay, plural, slugify, stageDescription, stageText } from '../lib/format';
 import { confirmDialog, toast } from '../lib/ui';
@@ -81,7 +83,7 @@ export function NotePage() {
         )}
       </nav>
 
-      <NoteHeader note={note} chapters={chapters ?? []} onRetry={() => setRetryOpen(true)} />
+      <NoteHeader note={note} subject={subject ?? null} chapters={chapters ?? []} onRetry={() => setRetryOpen(true)} />
 
       {(note.status === 'queued' || note.status === 'processing') && <ProgressCard note={note} />}
       {note.status === 'failed' && (
@@ -180,11 +182,27 @@ async function downloadPdf(note: Note) {
   }
 }
 
-function NoteHeader({ note, chapters, onRetry }: { note: Note; chapters: Chapter[]; onRetry: () => void }) {
+function NoteHeader({
+  note,
+  subject,
+  chapters,
+  onRetry,
+}: {
+  note: Note;
+  subject: Subject | null;
+  chapters: Chapter[];
+  onRetry: () => void;
+}) {
   const navigate = useNavigate();
   const { online } = useOnline();
   const busyOnServer = note.status === 'queued' || note.status === 'processing';
-  const refreshing = note.status === 'done' && note.stage !== null;
+  const refreshing = note.status === 'done' && note.stage != null;
+
+  const chapter = chapters.find((c) => c.id === note.chapterId) ?? null;
+  const sections = sectionsOf(chapter);
+  const sectionCode = noteSectionCode(note);
+  const aimCodes = noteAimCodes(note, chapter);
+  const aims = useMemo(() => aimMap(subject), [subject]);
 
   const patch = async (req: Parameters<typeof updateNote>[1], success?: string) => {
     try {
@@ -300,6 +318,46 @@ function NoteHeader({ note, chapters, onRetry }: { note: Note; chapters: Chapter
             <option value="">Uten kapittel</option>
           </select>
         </label>
+        <label className="meta-field">
+          <span className="meta-label">Delkapittel</span>
+          <select
+            className="inline-input inline-input-section"
+            value={sectionCode ?? ''}
+            disabled={!online || !chapter || (sections.length === 0 && !sectionCode)}
+            title={
+              !online
+                ? OFFLINE_HINT
+                : !chapter
+                  ? 'Velg kapittel først'
+                  : sections.length === 0
+                    ? 'Kapittelet har ingen delkapitler'
+                    : 'Velg delkapittel'
+            }
+            onChange={(e) => {
+              const code = e.target.value || null;
+              const target = sections.find((x) => x.code === code);
+              void patch({ section: code }, target ? `Flyttet til ${sectionLabel(target)}.` : 'Delkapittelet er fjernet.');
+            }}
+          >
+            <option value="">Ingen</option>
+            {sections.map((x) => (
+              <option key={x.code} value={x.code}>
+                {sectionLabel(x)}
+              </option>
+            ))}
+            {sectionCode && !sections.some((x) => x.code === sectionCode) && (
+              <option value={sectionCode}>{sectionCode}</option>
+            )}
+          </select>
+        </label>
+        {aimCodes.length > 0 && (
+          <div className="meta-field meta-status-field">
+            <span className="meta-label">Kompetansemål</span>
+            <span className="meta-status">
+              <AimChips codes={aimCodes} aims={aims} />
+            </span>
+          </div>
+        )}
         <div className="meta-field meta-status-field">
           <span className="meta-label">Status</span>
           <span className="meta-status">
@@ -320,7 +378,22 @@ function NoteHeader({ note, chapters, onRetry }: { note: Note; chapters: Chapter
 function TitleEditor({ note, online, onSave }: { note: Note; online: boolean; onSave: (title: string) => Promise<void> }) {
   const [value, setValue] = useState(note.title);
   const [saving, setSaving] = useState(false);
+  const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => setValue(note.title), [note.title]);
+
+  // Tekstfeltet vokser med tittelen, så lange titler brytes over flere linjer i stedet for å kuttes.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [value, online]);
 
   if (!online) {
     return (
@@ -343,16 +416,22 @@ function TitleEditor({ note, online, onSave }: { note: Note; online: boolean; on
 
   return (
     <h1 className="page-title note-title">
-      <input
+      <textarea
+        ref={ref}
         className="title-input"
+        rows={1}
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => setValue(e.target.value.replace(/\s*\n+\s*/g, ' '))}
         onBlur={() => void commit()}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') e.currentTarget.blur();
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
           if (e.key === 'Escape') {
             setValue(note.title);
-            requestAnimationFrame(() => (e.target as HTMLInputElement).blur());
+            const target = e.currentTarget;
+            requestAnimationFrame(() => target.blur());
           }
         }}
         aria-label="Tittel (trykk for å endre)"
@@ -360,6 +439,7 @@ function TitleEditor({ note, online, onSave }: { note: Note; online: boolean; on
         maxLength={200}
         disabled={saving}
         enterKeyHint="done"
+        spellCheck={false}
       />
       <Pencil size={16} aria-hidden className="title-edit-icon" />
     </h1>
