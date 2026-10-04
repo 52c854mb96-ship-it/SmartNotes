@@ -2,10 +2,11 @@ import fsp from 'node:fs/promises';
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
-import type { ChapterInput, SubjectProfile } from '@smartnotes/shared';
+import type { ChapterInput, CompetenceAim, SubjectProfile } from '@smartnotes/shared';
 import type { Config, Effort } from '../config.js';
 import { ConversionError } from '../errors.js';
 import type { Profile } from '../profiles/index.js';
+import { aimsForPrompt } from '../toc.js';
 import { extractLatex, parseConversion, type NoteMeta } from './parse.js';
 
 export interface ChapterRef {
@@ -59,8 +60,28 @@ export interface ClaudeService {
   readonly fake: boolean;
   convert(req: ConvertRequest): Promise<ConvertResult>;
   fix(req: FixRequest): Promise<{ body: string; usage: Usage }>;
-  extractToc(profile: Profile, images: { data: Buffer; mediaType: 'image/jpeg' | 'image/png' }[]): Promise<ChapterInput[]>;
+  /** Leser kapitler og delkapitler fra bilder av innholdsfortegnelsen, og kobler delkapitlene til `aims` (hvis noen). */
+  extractToc(profile: Profile, images: { data: Buffer; mediaType: 'image/jpeg' | 'image/png' }[], aims?: CompetenceAim[]): Promise<ChapterInput[]>;
+  /** Kobler delkapitlene (fra innlimt tekst) til kompetansemålene. Gir tilbake de samme kapitlene med `aims` fylt inn. */
+  mapSectionAims(profile: Profile, chapters: ChapterInput[], aims: CompetenceAim[]): Promise<ChapterInput[]>;
 }
+
+const TOC_AIMS_PROMPT = (aims: CompetenceAim[]) => `
+
+Fagets kompetansemål:
+${aimsForPrompt(aims)}
+
+For hvert delkapittel: sett "aims" til kodene for de 1–3 kompetansemålene delkapittelet dekker best, ut fra hva delkapittelet handler om. Bruk mål som går på tvers av kapitlene bare når delkapittelet handler om nettopp det (f.eks. forsøk eller modellering). Bruk bare kodene i listen.`;
+
+const tocSchema = z.object({
+  chapters: z.array(
+    z.object({
+      number: z.string().nullable(),
+      title: z.string(),
+      sections: z.array(z.object({ code: z.string(), title: z.string(), aims: z.array(z.string()) })),
+    }),
+  ),
+});
 
 // ---------- Bygging av forespørselen ----------
 
@@ -220,16 +241,17 @@ export class AnthropicClaude implements ClaudeService {
     return { body, usage: usageOf('fix', msg) };
   }
 
-  async extractToc(profile: Profile, images: { data: Buffer; mediaType: 'image/jpeg' | 'image/png' }[]): Promise<ChapterInput[]> {
+  async extractToc(
+    profile: Profile,
+    images: { data: Buffer; mediaType: 'image/jpeg' | 'image/png' }[],
+    aims: CompetenceAim[] = [],
+  ): Promise<ChapterInput[]> {
     const client = this.requireClient();
-    const schema = z.object({
-      chapters: z.array(z.object({ number: z.string().nullable(), title: z.string() })),
-    });
     try {
       const msg = await client.messages.parse({
         model: this.config.model,
-        max_tokens: 16_000,
-        output_config: { effort: 'low', format: zodOutputFormat(schema) },
+        max_tokens: 32_000,
+        output_config: { effort: 'low', format: zodOutputFormat(tocSchema) },
         messages: [
           {
             role: 'user',
@@ -238,7 +260,7 @@ export class AnthropicClaude implements ClaudeService {
                 type: 'image' as const,
                 source: { type: 'base64' as const, media_type: img.mediaType, data: img.data.toString('base64') },
               })),
-              { type: 'text' as const, text: profile.tocPrompt },
+              { type: 'text' as const, text: profile.tocPrompt + (aims.length ? TOC_AIMS_PROMPT(aims) : '') },
             ],
           },
         ],
@@ -246,9 +268,36 @@ export class AnthropicClaude implements ClaudeService {
       checkStop(msg.stop_reason);
       const parsed = msg.parsed_output;
       if (!parsed) throw new ConversionError('Klarte ikke å lese innholdsfortegnelsen.');
-      return parsed.chapters
-        .map((c) => ({ number: c.number?.trim() || null, title: c.title.trim() }))
-        .filter((c) => c.title.length > 0);
+      return parsed.chapters.map((c) => ({ number: c.number, title: c.title, sections: c.sections }));
+    } catch (err) {
+      throw mapApiError(err);
+    }
+  }
+
+  async mapSectionAims(profile: Profile, chapters: ChapterInput[], aims: CompetenceAim[]): Promise<ChapterInput[]> {
+    const client = this.requireClient();
+    const schema = z.object({ sections: z.array(z.object({ code: z.string(), aims: z.array(z.string()) })) });
+    const list = chapters
+      .flatMap((c) => [`${c.number ?? ''} ${c.title}`.trim(), ...(c.sections ?? []).map((s) => `  ${s.code} ${s.title}`)])
+      .join('\n');
+    try {
+      const msg = await client.messages.parse({
+        model: this.config.model,
+        max_tokens: 16_000,
+        output_config: { effort: 'low', format: zodOutputFormat(schema) },
+        messages: [
+          {
+            role: 'user',
+            content: `Dette er innholdsfortegnelsen (kapitler og delkapitler) i en lærebok i faget ${profile.label.toLowerCase()}:\n\n${list}${TOC_AIMS_PROMPT(aims)}\n\nSvar med én rad per delkapittel (koden slik den står over).`,
+          },
+        ],
+      });
+      checkStop(msg.stop_reason);
+      const byCode = new Map((msg.parsed_output?.sections ?? []).map((s) => [s.code.trim(), s.aims]));
+      return chapters.map((c) => ({
+        ...c,
+        sections: c.sections?.map((s) => ({ ...s, aims: byCode.get(s.code) ?? s.aims })),
+      }));
     } catch (err) {
       throw mapApiError(err);
     }
@@ -301,26 +350,34 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
     return { body, usage: this.usage('fix') };
   }
 
-  async extractToc(profile: Profile): Promise<ChapterInput[]> {
+  async extractToc(profile: Profile, _images: unknown, aims: CompetenceAim[] = []): Promise<ChapterInput[]> {
     await new Promise((r) => setTimeout(r, this.delayMs));
-    return FAKE_TOC[profile.id];
+    return this.mapSectionAims(profile, FAKE_TOC[profile.id], aims);
+  }
+
+  /** Kobler hvert delkapittel til det første målet som ikke går på tvers av kapitlene. */
+  async mapSectionAims(_profile: Profile, chapters: ChapterInput[], aims: CompetenceAim[]): Promise<ChapterInput[]> {
+    const first = aims.find((a) => !a.cross)?.code;
+    return chapters.map((c) => ({ ...c, sections: c.sections?.map((s) => ({ ...s, aims: first ? [first] : [] })) }));
   }
 }
 
+const sec = (code: string, title: string) => ({ code, title, aims: [] as string[] });
+
 const FAKE_TOC: Record<SubjectProfile, ChapterInput[]> = {
   physics: [
-    { number: '1', title: 'Fysikk og måling' },
-    { number: '2', title: 'Bevegelse' },
+    { number: '1', title: 'Fysikk og måling', sections: [sec('1A', 'Måling'), sec('1B', 'Usikkerhet')] },
+    { number: '2', title: 'Bevegelse', sections: [sec('2A', 'Fart'), sec('2B', 'Akselerasjon')] },
     { number: '3', title: 'Kraft og bevegelse' },
     { number: '4', title: 'Energi' },
   ],
   chemistry: [
-    { number: '1', title: 'Atomer og periodesystemet' },
-    { number: '2', title: 'Kjemiske bindinger' },
+    { number: '1', title: 'Atomer og periodesystemet', sections: [sec('1.1', 'Atomet'), sec('1.2', 'Periodesystemet')] },
+    { number: '2', title: 'Kjemiske bindinger', sections: [sec('2.1', 'Ionebinding'), sec('2.2', 'Kovalent binding')] },
     { number: '3', title: 'Mol og stoffmengde' },
   ],
   biology: [
-    { number: '1', title: 'Cellen' },
+    { number: '1', title: 'Cellen', sections: [sec('1.1', 'Cellens oppbygning'), sec('1.2', 'Transport gjennom membranen')] },
     { number: '2', title: 'Fotosyntese og celleånding' },
     { number: '3', title: 'Økologi' },
   ],

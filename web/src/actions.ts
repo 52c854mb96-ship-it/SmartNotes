@@ -2,7 +2,7 @@
  * Endringer som krever nett (alt unntatt opplasting). Hver handling kaller API-et,
  * legger svaret inn i Dexie med en gang og trigger en synk for å hente resten.
  */
-import type { Chapter, ChapterInput, Note, SubjectProfile, UpdateNoteRequest } from '@smartnotes/shared';
+import type { Chapter, ChapterInput, Note, Section, SubjectProfile, UpdateNoteRequest } from '@smartnotes/shared';
 import { api } from './api';
 import { db } from './db';
 import { applyServerRows, syncNow } from './sync';
@@ -53,7 +53,7 @@ export async function addChapters(subjectId: string, chapters: ChapterInput[]) {
   return res.chapters;
 }
 
-export async function updateChapter(id: string, req: { number?: string | null; title?: string }) {
+export async function updateChapter(id: string, req: { number?: string | null; title?: string; sections?: Section[] }) {
   const chapter = await api.updateChapter(id, req);
   await applyServerRows({ chapters: [chapter] });
   void syncNow();

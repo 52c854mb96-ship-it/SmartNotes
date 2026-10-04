@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { SERVER_ROOT } from '../config.js';
 import type { Profile } from './types.js';
+import { tocPrompt } from './toc-prompt.js';
 
 /**
  * Systeminstruksen er stabil (ingen datoer, id-er eller annet som varierer), slik at den kan
@@ -111,7 +112,7 @@ const FIX_INSTRUCTIONS = String.raw`The LaTeX body you wrote for this note did n
 
 Answer with the complete corrected body in a single <latex> ... </latex> block and nothing else.`;
 
-const TOC_PROMPT = `Bildet/bildene viser innholdsfortegnelsen i en lærebok i kjemi. Les av hovedkapitlene (det øverste nivået, f.eks. «1 …», «2 …») med kapittelnummer og tittel, i rekkefølge. Ta ikke med sidetall, delkapitler (f.eks. 1.1, 1.2), forord, register, fasit eller vedlegg. Hvis boka ikke har nummererte kapitler, bruk null som nummer. Skriv titlene nøyaktig slik de står (riktig store/små bokstaver).`;
+const TOC_PROMPT = tocPrompt('kjemi', { chapter: '3 Støkiometri', section: '3.2 Stoffmengde' });
 
 export const chemistryProfile: Profile = {
   id: 'chemistry',

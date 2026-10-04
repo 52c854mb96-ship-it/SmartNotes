@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Chapter, Note, Subject, SyncResponse } from '@smartnotes/shared';
+import type { Chapter, ChapterInput, Note, Subject, SyncResponse } from '@smartnotes/shared';
 import { buildApp, type AppContext } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { FakeClaude } from '../src/pipeline/claude.js';
@@ -136,5 +136,18 @@ describe('delkapitler og kompetansemål', () => {
     expect(res.body.sections).toHaveLength(1);
     const note = (await sync()).notes.find((n) => n.id === noteId)!;
     expect(note.section).toBeNull();
+  });
+
+  it('delkapitler fra innlimt innholdsfortegnelse kobles til fagets kompetansemål', async () => {
+    const res = await inject<{ chapters: ChapterInput[] }>('POST', `/api/subjects/${subject.id}/chapters/parse`, {
+      text: '11 Nytt kapittel\n11.1 Første del\n11.2 Andre del',
+    });
+    expect(res.status).toBe(200);
+    // Falsk Claude velger det første målet som ikke går på tvers av kapitlene.
+    const first = subject.aims.find((a) => !a.cross)!.code;
+    expect(res.body.chapters[0]!.sections).toEqual([
+      { code: '11.1', title: 'Første del', aims: [first] },
+      { code: '11.2', title: 'Andre del', aims: [first] },
+    ]);
   });
 });

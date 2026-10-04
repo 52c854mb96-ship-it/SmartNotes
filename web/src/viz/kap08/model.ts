@@ -439,11 +439,13 @@ export function conservation(dc: Decay): { A: [number, number]; Z: [number, numb
 
 /** Eksiterte kjerner som dannes i tabellens β-henfall: halveringstid og hvordan energien sendes ut. */
 export const EXCITED_INFO: Record<string, { halfLife: string; photons: number[] }> = {
-  // ⁶⁰Ni* faller ned i to trinn og sender ut to fotoner (1,17 MeV og 1,33 MeV). Hvert trinn tar noen pikosekunder.
-  '28-60': { halfLife: 'noen pikosekunder', photons: [1.173, 1.332] },
+  // ⁶⁰Ni* faller ned i to trinn og sender ut to fotoner (1,17 MeV og 1,33 MeV). Halveringstida til nivået på
+  // 2,505 MeV er 3,3 ps (1 ps = 10⁻¹² s).
+  '28-60': { halfLife: 'ca. 3 ps', photons: [1.173, 1.332] },
   // ¹³⁷Ba* er den metastabile tilstanden ¹³⁷ᵐBa
   '56-137': { halfLife: '2,55 min', photons: [0.662] },
-  '10-22': { halfLife: 'noen pikosekunder', photons: [1.275] },
+  // Nivået på 1,275 MeV i ²²Ne har halveringstid 3,6 ps
+  '10-22': { halfLife: 'ca. 4 ps', photons: [1.275] },
 };
 
 /** Fotonene (MeV) som en eksitert kjerne sender ut, hvis vi kjenner dem. */

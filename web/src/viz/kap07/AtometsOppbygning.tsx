@@ -25,7 +25,7 @@ interface State {
   e: number;
 }
 
-/** Radiene til elektronskallene i figuren. Kjernen er aldri større enn ca. 56 (A ≤ 50). */
+/** Radiene til elektronskallene i figuren. Kjernen har radius høyst ca. 63 (A ≤ 50), så den får plass innenfor det første skallet. */
 const SHELL_R = [84, 120, 156, 192];
 const ATOM = { cx: 228, cy: 214 };
 /** Mobil: atomet forstørres og står øverst, med symbolet under. */

@@ -363,7 +363,7 @@ function lineName(l: SpectralLine, absorption: boolean): string {
     const [a, b] = absorption ? [l.to, l.from] : [l.from, l.to];
     return `${l.name ?? ''} (${a} → ${b})`.trim();
   }
-  return `${fmt(l.nm, 1)} nm`;
+  return l.name ? `${l.name} (${fmt(l.nm, 1)} nm)` : `${fmt(l.nm, 1)} nm`;
 }
 
 function capitalize(s: string): string {
@@ -439,7 +439,7 @@ function explanation(
       sunText = (
         <>
           Helium gir ingen tydelige mørke linjer i sollyset: de synlige heliumlinjene starter i nivåer høyt over grunntilstanden, og selv
-          ved overflaten til sola er nesten ingen heliumatomer der. Men under en solformørkelse i 1868 så man en lys gul linje ved 588 nm i
+          ved overflaten til sola er nesten ingen heliumatomer i disse nivåene. Men under en solformørkelse i 1868 så man en lys gul linje ved 588 nm i
           lyset fra de ytterste gasslagene til sola. Den passet ikke med noe kjent grunnstoff, og slik ble helium oppdaget før det var
           funnet på jorda. Navnet kommer fra helios, det greske ordet for sol.
         </>
@@ -466,7 +466,8 @@ function absorptionNote(el: SpectrumElement): ReactNode {
     return (
       <>
         (Forenklet: de synlige linjene er sprang fra n = 2. I en kald hydrogengass er nesten alle atomene i n = 1, og da tas bare
-        ultrafiolett lys opp. I atmosfæren til sola er gassen så varm at mange atomer er i n = 2.)
+        ultrafiolett lys opp. I atmosfæren til sola er gassen så varm at en liten andel av atomene er i n = 2, og fordi det er så
+        mye hydrogen der, blir linjene likevel tydelige.)
       </>
     );
   if (el === 'natrium')
@@ -491,5 +492,11 @@ function hitText(hit: SpectralLine | null, absorption = false): ReactNode {
         Markøren står på {hit.name}, overgangen fra n = {hit.from} til n = {hit.to}.
       </>
     );
-  return <>Markøren står på linja ved {fmt(hit.nm, 1)} nm.</>;
+  return hit.name ? (
+    <>
+      Markøren står på {hit.name}-linja ved {fmt(hit.nm, 1)} nm.
+    </>
+  ) : (
+    <>Markøren står på linja ved {fmt(hit.nm, 1)} nm.</>
+  );
 }

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Chapter, Note, SaveLatexResponse, Subject, SyncResponse } from '@smartnotes/shared';
+import type { Chapter, ChapterInput, Note, SaveLatexResponse, Subject, SyncResponse } from '@smartnotes/shared';
 import { buildApp, type AppContext } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { FakeClaude } from '../src/pipeline/claude.js';
@@ -131,11 +131,46 @@ describe('fag, kapitler og notater', () => {
     expect(res.status).toBe(201);
     chapters = res.body.chapters;
     expect(chapters.map((c) => c.number)).toEqual(['1', '2', '3']);
-    const fromPhoto = await call<{ chapters: unknown[] }>('POST', `/api/subjects/${physics.id}/chapters/extract`, {
+    const fromPhoto = await call<{ chapters: ChapterInput[] }>('POST', `/api/subjects/${physics.id}/chapters/extract`, {
       form: uploadForm({}, [{ data: pngPage, name: 'toc.png', type: 'image/png' }]),
     });
     expect(fromPhoto.status).toBe(200);
     expect(fromPhoto.body.chapters.length).toBeGreaterThan(0);
+    // Delkapitlene fra bildet kobles til fagets kompetansemål (falsk Claude velger første mål som ikke er tverrgående).
+    const firstAim = physics.aims.find((a) => !a.cross)?.code;
+    const withSections = fromPhoto.body.chapters.find((c) => c.sections?.length);
+    expect(withSections?.sections?.[0]?.aims).toEqual(firstAim ? [firstAim] : []);
+  });
+
+  it('legger inn delkapitler fra innlimt tekst og oppdaterer et kapittel som finnes', async () => {
+    const parsed = await call<{ chapters: ChapterInput[] }>('POST', `/api/subjects/${physics.id}/chapters/parse`, {
+      json: { text: '20 Testkapittel\n20A Første del\n20B Andre del\n21 Neste' },
+    });
+    expect(parsed.status).toBe(200);
+    expect(parsed.body.chapters.map((c) => [c.number, c.sections?.map((x) => x.code) ?? []])).toEqual([
+      ['20', ['20A', '20B']],
+      ['21', []],
+    ]);
+    const firstAim = physics.aims.find((a) => !a.cross)?.code;
+    if (firstAim) expect(parsed.body.chapters[0]!.sections![0]!.aims).toEqual([firstAim]);
+
+    const res = await call<{ chapters: Chapter[] }>('POST', `/api/subjects/${physics.id}/chapters/bulk`, { json: { chapters: parsed.body.chapters } });
+    expect(res.status).toBe(201);
+    const [ch20] = res.body.chapters;
+    expect(ch20!.sections.map((x) => x.title)).toEqual(['Første del', 'Andre del']);
+
+    // To delkapitler med samme kode avvises
+    const dup = await call('POST', `/api/subjects/${physics.id}/chapters/bulk`, {
+      json: { chapters: [{ number: '22', title: 'X', sections: [{ code: '22A', title: 'a' }, { code: '22a', title: 'b' }] }] },
+    });
+    expect(dup.status).toBe(400);
+
+    const upd = await call<Chapter>('PATCH', `/api/chapters/${ch20!.id}`, {
+      json: { title: 'Testkapittel (ny)', sections: [{ code: '20A', title: 'Første del', aims: [] }] },
+    });
+    expect(upd.status).toBe(200);
+    expect(upd.body.sections).toHaveLength(1);
+    for (const c of res.body.chapters) expect((await call('DELETE', `/api/chapters/${c.id}`)).status).toBe(200);
   });
 
   it('laster opp et bilde, konverterer det og lager PDF', async () => {

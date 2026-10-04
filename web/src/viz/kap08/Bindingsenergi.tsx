@@ -139,7 +139,7 @@ export default function Bindingsenergi() {
           <Readout label="Massetap Δm" value={fmt(re.dm, 4)} unit="u" />
           <Readout label="Frigjort energi Q" value={fmt(re.Q, 1)} unit="MeV" tone={REACTION_COLOR} />
           <Readout label="Per nukleon i brenselet" value={fmt(re.perNucleon, 2)} unit="MeV" />
-          <Readout label="Per kilogram brensel" value={fmtSci(re.perKg, 1)} unit="J" />
+          <Readout label="Per kilogram brensel" value={fmtSci(re.perKg, 1)} unit="J/kg" />
         </Readouts>
       )}
 
@@ -277,7 +277,8 @@ function ReactionMarks({ r, sx, sy, f }: { r: Reaction; sx: (v: number) => numbe
     '1-2': { dx: 14, dy: 6, anchor: 'start' },
     '1-3': { dx: 14, dy: 6, anchor: 'start' },
     '2-4': { dx: -14, dy: -10, anchor: 'end' },
-    '1-1': { dx: 14, dy: -4, anchor: 'start', text: '4 · ¹H' },
+    // Over x-aksen, så teksten ikke står på akselinja
+    '1-1': { dx: 14, dy: -14 * f, anchor: 'start', text: '4 · ¹H' },
   };
   return (
     <g>
@@ -410,8 +411,8 @@ function explanation(mode: Mode, sel: Nuclide): ReactNode {
       <p>
         <strong>Fisjon.</strong> Et nøytron treffer ²³⁵U, som spaltes i ¹⁴¹Ba og ⁹²Kr og sender ut 3 nye nøytroner. Bruddstykkene ligger
         høyere på kurven (ca. 8,4 MeV per nukleon mot 7,6 for uran), så nukleonene blir sterkere bundet. Massen etter er {fmt(r.dm, 3)} u
-        mindre enn før, og den manglende massen er blitt {fmt(r.Q, 1)} MeV, mest som bevegelsesenergi til bruddstykkene. De nye nøytronene
-        kan spalte flere urankjerner: en kjedereaksjon.
+        mindre enn før, og energien som svarer til massetapet, {fmt(r.Q, 1)} MeV, blir frigjort, mest som bevegelsesenergi til
+        bruddstykkene. De nye nøytronene kan spalte flere urankjerner: en kjedereaksjon.
       </p>
     );
   if (mode === 'fusjon')
@@ -426,7 +427,7 @@ function explanation(mode: Mode, sel: Nuclide): ReactNode {
   return (
     <p>
       <strong>Fusjon i sola.</strong> I kjernen av sola blir fire hydrogenkjerner (protoner) til én heliumkjerne i flere trinn. Underveis
-      blir to protoner til nøytroner ved β⁺-henfall. Til sammen forsvinner {fmt((r.dm / r.mBefore) * 100, 1)} % av massen, og det gir{' '}
+      blir to av protonene til nøytroner, og det sendes ut to positroner og to nøytrinoer. Til sammen forsvinner {fmt((r.dm / r.mBefore) * 100, 1)} % av massen, og det gir{' '}
       {fmt(r.Q, 1)} MeV per heliumkjerne. Temperaturen i kjernen av sola er ca. 15 millioner K, og det enorme trykket holder reaksjonene i
       gang.
     </p>

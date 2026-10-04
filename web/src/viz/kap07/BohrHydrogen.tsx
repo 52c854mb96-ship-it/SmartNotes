@@ -97,7 +97,12 @@ export default function BohrHydrogen() {
       >
         <WavelengthAxis upper={upper} lower={lower} height={narrow ? 430 : 270} />
       </Figure>
-      <Legend items={[1, 2, 3, 4, 5].map((n) => ({ color: seriesColor(n), label: `${seriesName(n)} (ned til n = ${n})` }))} />
+      <Legend
+        items={[1, 2, 3, 4, 5].map((n) => ({
+          color: seriesColor(n),
+          label: `${seriesName(n)} (${mode === 'emisjon' ? 'ned til' : 'opp fra'} n = ${n})`,
+        }))}
+      />
 
       <Readouts>
         <Readout label="Fotonenergi" value={fmt(p.eV, sigDecimals(p.eV))} unit="eV" />

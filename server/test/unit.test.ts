@@ -14,7 +14,7 @@ import {
 } from '../src/pipeline/latex.js';
 import { parseConversion, parseMeta } from '../src/pipeline/parse.js';
 import { physicsProfile } from '../src/profiles/physics.js';
-import { parseTocText } from '../src/toc.js';
+import { cleanChapterInputs, parseTocText } from '../src/toc.js';
 
 describe('escapeLatex', () => {
   it('escaper spesialtegn', () => {
@@ -145,6 +145,77 @@ Kap. 4 – Energi    78
       { number: '2', title: 'Bevegelse' },
       { number: '3.2', title: 'Krefter' },
       { number: '4', title: 'Energi' },
+      { number: null, title: 'Register' },
+    ]);
+  });
+
+  it('legger delkapitler under kapittelet sitt (desimalkoder og bokstavkoder)', () => {
+    const decimal = `1 Kjemiske bindinger ....... 11
+1.1 Hva er kjemi? .... 12
+1.2 Atomer  16
+1.2.1 Elektronskall 18
+2 Egenskaper og reaksjoner
+2.1 Periodiske egenskaper
+2.1 Periodiske egenskaper
+Oppgaver`;
+    expect(parseTocText(decimal)).toEqual([
+      {
+        number: '1',
+        title: 'Kjemiske bindinger',
+        sections: [
+          { code: '1.1', title: 'Hva er kjemi?', aims: [] },
+          { code: '1.2', title: 'Atomer', aims: [] },
+        ],
+      },
+      { number: '2', title: 'Egenskaper og reaksjoner', sections: [{ code: '2.1', title: 'Periodiske egenskaper', aims: [] }] },
+      { number: null, title: 'Oppgaver' },
+    ]);
+
+    const letters = `Kapittel 1 Rettlinjet bevegelse
+1A Fysikk som målefag  9
+1B På rett vei 14
+2 Krefter
+2A Krefter
+3B Arbeid`;
+    expect(parseTocText(letters)).toEqual([
+      {
+        number: '1',
+        title: 'Rettlinjet bevegelse',
+        sections: [
+          { code: '1A', title: 'Fysikk som målefag', aims: [] },
+          { code: '1B', title: 'På rett vei', aims: [] },
+        ],
+      },
+      { number: '2', title: 'Krefter', sections: [{ code: '2A', title: 'Krefter', aims: [] }] },
+      // Uten kapittel 3 foran seg blir «3B …» et eget kapittel.
+      { number: '3B', title: 'Arbeid' },
+    ]);
+  });
+
+  it('rydder i kapitler fra Claude: unike koder og bare kjente kompetansemål', () => {
+    const aims = [
+      { code: 'KM1', text: 'a', cross: true },
+      { code: 'KM2', text: 'b', cross: false },
+    ];
+    expect(
+      cleanChapterInputs(
+        [
+          {
+            number: ' 1 ',
+            title: ' Atomer ',
+            sections: [
+              { code: '1.1', title: 'Atomet', aims: ['KM2', 'KM9', 'KM2'] },
+              { code: '1.1', title: 'Dobbel', aims: [] },
+              { code: '', title: 'Uten kode', aims: [] },
+            ],
+          },
+          { number: '', title: '  ', sections: [] },
+          { number: null, title: 'Register', sections: [] },
+        ],
+        aims,
+      ),
+    ).toEqual([
+      { number: '1', title: 'Atomer', sections: [{ code: '1.1', title: 'Atomet', aims: ['KM2'] }] },
       { number: null, title: 'Register' },
     ]);
   });

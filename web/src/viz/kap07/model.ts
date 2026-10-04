@@ -334,8 +334,9 @@ export const ELEMENT_LINES: Record<Exclude<SpectrumElement, 'hydrogen'>, Spectra
   natrium: [
     { nm: 498.3, I: 0.1 },
     { nm: 568.8, I: 0.15 },
-    { nm: 589.0, I: 1, name: 'D' },
-    { nm: 589.6, I: 0.9, name: 'D' },
+    // De gule D-linjene: D₂ (589,0 nm) og D₁ (589,6 nm)
+    { nm: 589.0, I: 1, name: 'D₂' },
+    { nm: 589.6, I: 0.9, name: 'D₁' },
     { nm: 616.1, I: 0.12 },
   ],
   kvikksolv: [

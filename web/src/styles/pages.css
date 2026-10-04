@@ -891,6 +891,11 @@ select.inline-input {
   grid-template-columns: 28px 76px minmax(0, 1fr) auto;
 }
 
+/* Delkapitlene i forhåndsvisningen står under tittelen, ikke under avkrysningsboksen. */
+.preview-row .chapter-sections {
+  padding-left: 36px;
+}
+
 .preview-row.is-excluded input:not([type='checkbox']) {
   opacity: 0.5;
   text-decoration: line-through;

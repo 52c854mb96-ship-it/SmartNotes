@@ -1,10 +1,12 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Camera, ClipboardPaste, Plus, Sparkles, X } from 'lucide-react';
-import type { Chapter, ChapterInput, Subject } from '@smartnotes/shared';
-import { addChapters } from '../../actions';
+import type { Chapter, ChapterInput, Section, Subject } from '@smartnotes/shared';
+import { addChapters, updateChapter } from '../../actions';
+import { AimChips } from '../../components/AimChips';
 import { api, errorMessage, isAbortError } from '../../api';
 import { DropZone, PickedList, usePickedFiles } from '../../components/FilePicker';
 import { Spinner } from '../../components/Status';
+import { aimMap, sectionsOf } from '../../lib/curriculum';
 import { plural } from '../../lib/format';
 import { prepareFile } from '../../lib/images';
 import { toast } from '../../lib/ui';
@@ -16,14 +18,32 @@ interface PreviewRow {
   include: boolean;
   number: string;
   title: string;
-  duplicate: boolean;
+  /** Delkapitlene fra innholdsfortegnelsen (kan være tom). */
+  sections: Section[];
 }
 
-const PLACEHOLDER = `1 Fysikk og måling
-2 Rettlinjet bevegelse
-3 Newtons lover
-4 Arbeid, energi og effekt
+const PLACEHOLDER = `1 Første kapittel
+1.1 Første delkapittel
+1.2 Andre delkapittel
+2 Andre kapittel
 …`;
+
+/** Kapittelet som finnes fra før med samme nummer (eller samme tittel når nummeret mangler). */
+function findMatch(existing: Chapter[], number: string, title: string): Chapter | null {
+  const n = number.trim();
+  if (n) return existing.find((c) => (c.number ?? '').trim() === n) ?? null;
+  const t = title.trim().toLowerCase();
+  return existing.find((c) => c.title.trim().toLowerCase() === t) ?? null;
+}
+
+function sameSections(a: Section[], b: Section[]): boolean {
+  return a.length === b.length && a.every((s, i) => s.code === b[i]!.code && s.title === b[i]!.title);
+}
+
+/** Alle de importerte delkapitlene finnes allerede (f.eks. bare en del av innholdsfortegnelsen er limt inn). */
+function isSubset(imported: Section[], stored: Section[]): boolean {
+  return imported.every((s) => stored.some((x) => x.code === s.code && x.title === s.title));
+}
 
 let rowSeq = 0;
 
@@ -36,15 +56,20 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
   const [rows, setRows] = useState<PreviewRow[] | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const toRows = (chapters: ChapterInput[]): PreviewRow[] => {
-    const numbers = new Set(existing.map((c) => (c.number ?? '').trim()).filter(Boolean));
-    const titles = new Set(existing.map((c) => c.title.trim().toLowerCase()));
-    return chapters.map((c) => {
-      const duplicate =
-        (!!c.number && numbers.has(c.number.trim())) || titles.has(c.title.trim().toLowerCase());
-      return { key: ++rowSeq, include: !duplicate, number: c.number ?? '', title: c.title, duplicate };
+  const aims = useMemo(() => aimMap(subject), [subject]);
+
+  /**
+   * Nye kapitler er valgt med en gang. Et kapittel som finnes fra før, er bare valgt når innholdsfortegnelsen har
+   * andre delkapitler enn det som er lagret, og da oppdateres delkapitlene (og tittelen) i stedet for å lage et nytt.
+   */
+  const toRows = (chapters: ChapterInput[]): PreviewRow[] =>
+    chapters.map((c) => {
+      const sections = c.sections ?? [];
+      const match = findMatch(existing, c.number ?? '', c.title);
+      const stored = sectionsOf(match);
+      const include = !match || (sections.length > 0 && !sameSections(stored, sections) && !isSubset(sections, stored));
+      return { key: ++rowSeq, include, number: c.number ?? '', title: c.title, sections };
     });
-  };
 
   const parse = async () => {
     if (!text.trim()) return;
@@ -83,20 +108,37 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
 
   const save = async () => {
     if (!rows) return;
-    const chosen = rows
-      .filter((r) => r.include && r.title.trim())
-      .map((r) => ({ number: r.number.trim() || null, title: r.title.trim() }));
-    if (!chosen.length) return;
+    const chosen = rows.filter((r) => r.include && r.title.trim());
+    const fresh = chosen.filter((r) => !findMatch(existing, r.number, r.title));
+    const updates = chosen.flatMap((r) => {
+      const match = findMatch(existing, r.number, r.title);
+      return match ? [{ row: r, match }] : [];
+    });
+    if (!fresh.length && !updates.length) return;
     setBusy('save');
     setError(null);
     try {
-      await addChapters(subject.id, chosen);
-      toast(`${plural(chosen.length, 'kapittel', 'kapitler')} er lagt til.`, { kind: 'success' });
+      if (fresh.length)
+        await addChapters(
+          subject.id,
+          fresh.map((r) => ({
+            number: r.number.trim() || null,
+            title: r.title.trim(),
+            ...(r.sections.length ? { sections: r.sections } : {}),
+          })),
+        );
+      for (const { row, match } of updates)
+        await updateChapter(match.id, { title: row.title.trim(), ...(row.sections.length ? { sections: row.sections } : {}) });
+      const parts = [
+        fresh.length ? `${plural(fresh.length, 'kapittel', 'kapitler')} er lagt til` : '',
+        updates.length ? `${plural(updates.length, 'kapittel', 'kapitler')} er oppdatert` : '',
+      ].filter(Boolean);
+      toast(`${parts.join(', og ')}.`.replace(/^./, (c) => c.toUpperCase()), { kind: 'success' });
       setRows(null);
       setText('');
       picked.clear();
     } catch (err) {
-      setError(errorMessage(err, 'Kunne ikke legge til kapitlene.'));
+      setError(errorMessage(err, 'Kunne ikke lagre kapitlene.'));
     } finally {
       setBusy(null);
     }
@@ -105,9 +147,24 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
   const update = (key: number, patch: Partial<PreviewRow>) =>
     setRows((rs) => rs?.map((r) => (r.key === key ? { ...r, ...patch } : r)) ?? null);
 
-  const includedCount = rows?.filter((r) => r.include && r.title.trim()).length ?? 0;
-  const duplicateCount = rows?.filter((r) => r.duplicate).length ?? 0;
+  const chosen = rows?.filter((r) => r.include && r.title.trim()) ?? [];
+  const updateCount = chosen.filter((r) => findMatch(existing, r.number, r.title)).length;
+  const newCount = chosen.length - updateCount;
+  const skippedCount = rows?.filter((r) => !r.include && findMatch(existing, r.number, r.title)).length ?? 0;
+  const sectionCount = rows?.reduce((n, r) => n + r.sections.length, 0) ?? 0;
   const disabled = !online || busy !== null;
+  /** Hvor mange lagrede delkapitler som byttes ut når raden lagres. */
+  const replaced = (r: PreviewRow) => {
+    const match = r.include ? findMatch(existing, r.number, r.title) : null;
+    return match ? sectionsOf(match).length : 0;
+  };
+  const saveLabel = !chosen.length
+    ? 'Ingen endringer'
+    : newCount && updateCount
+      ? `Legg til ${newCount} og oppdater ${updateCount}`
+      : updateCount
+        ? `Oppdater ${plural(updateCount, 'kapittel', 'kapitler')}`
+        : `Legg til ${plural(newCount, 'kapittel', 'kapitler')}`;
 
   return (
     <section className="card" aria-labelledby="import-h">
@@ -116,8 +173,8 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
           Importer innholdsfortegnelse
         </h2>
         <p className="card-text">
-          Lim inn innholdsfortegnelsen fra læreboka, eller ta bilde av den, så lager vi kapitlene for deg. Du ser over
-          listen før noe lagres.
+          Lim inn innholdsfortegnelsen fra læreboka, eller ta bilde av den, så lager vi kapitlene og delkapitlene for
+          deg{aims.size > 0 ? ' og kobler delkapitlene til kompetansemålene' : ''}. Du ser over listen før noe lagres.
         </p>
       </div>
 
@@ -215,9 +272,12 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
       {rows && (
         <div className="stack">
           <p className="muted">
-            Se over og rett opp før du lagrer. Kapitlene legges til etter de som finnes fra før.
-            {duplicateCount > 0 &&
-              ` ${plural(duplicateCount, 'kapittel', 'kapitler')} ser ut til å finnes allerede og er ikke valgt.`}
+            Se over og rett opp før du lagrer. Nye kapitler legges til etter de som finnes fra før
+            {sectionCount > 0 ? `, med ${plural(sectionCount, 'delkapittel', 'delkapitler')} i alt` : ''}.
+            {updateCount > 0 &&
+              ` ${plural(updateCount, 'kapittel', 'kapitler')} finnes allerede og får tittelen og delkapitlene herfra.`}
+            {skippedCount > 0 &&
+              ` ${plural(skippedCount, 'kapittel', 'kapitler')} finnes allerede og er ikke valgt. Velg ${skippedCount === 1 ? 'det' : 'dem'} hvis tittelen og delkapitlene skal byttes ut.`}
           </p>
           <ol className="chapter-rows preview-rows" role="list">
             <li className="chapter-row preview-row chapter-row-head" aria-hidden>
@@ -248,7 +308,12 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
                     aria-label={`Tittel, rad ${i + 1}`}
                     maxLength={200}
                   />
-                  {r.duplicate && <span className="badge badge-neutral">Finnes</span>}
+                  {findMatch(existing, r.number, r.title) &&
+                    (r.include ? (
+                      <span className="badge badge-accent">Oppdateres</span>
+                    ) : (
+                      <span className="badge badge-neutral">Finnes</span>
+                    ))}
                 </span>
                 <button
                   type="button"
@@ -258,6 +323,23 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
                 >
                   <X size={17} aria-hidden />
                 </button>
+                {r.sections.length > 0 && (
+                  <details className="chapter-sections">
+                    <summary>
+                      {plural(r.sections.length, 'delkapittel', 'delkapitler')}
+                      {replaced(r) > 0 && `, erstatter ${replaced(r)}`}
+                    </summary>
+                    <ol className="chapter-sections-list" role="list">
+                      {r.sections.map((sec) => (
+                        <li key={sec.code}>
+                          <span className="group-code">{sec.code}</span>
+                          <span className="chapter-sections-title">{sec.title}</span>
+                          <AimChips codes={sec.aims} aims={aims} size="sm" />
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
               </li>
             ))}
           </ol>
@@ -268,7 +350,7 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
               onClick={() =>
                 setRows((rs) => [
                   ...(rs ?? []),
-                  { key: ++rowSeq, include: true, number: '', title: '', duplicate: false },
+                  { key: ++rowSeq, include: true, number: '', title: '', sections: [] },
                 ])
               }
               disabled={busy !== null}
@@ -283,11 +365,11 @@ export function ChapterImport({ subject, existing, online }: { subject: Subject;
               type="button"
               className="btn btn-primary"
               onClick={() => void save()}
-              disabled={!online || busy !== null || includedCount === 0}
+              disabled={!online || busy !== null || chosen.length === 0}
               title={online ? undefined : 'Krever nett'}
             >
               {busy === 'save' && <Spinner size={14} />}
-              Legg til {plural(includedCount, 'kapittel', 'kapitler')}
+              {saveLabel}
             </button>
           </div>
         </div>

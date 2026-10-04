@@ -617,15 +617,18 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
   if (e && e.Q > 0 && exc > 0)
     energyText = (
       <>
-        {sums} produktene er {fmt(e.dm, 6)} u lettere, som tilsvarer {qText(e.Qmass)} MeV. Av dette blir {qText(e.Q)} MeV
-        bevegelsesenergi, mens {qText(exc)} MeV blir igjen i den eksiterte {daughter} og sendes ut som γ-stråling etterpå.
+        {sums} produktene er {fmt(e.dm, 6)} u lettere, som tilsvarer {fmt(e.Qmass, 3)} MeV. Av dette blir {fmt(e.Q, 3)} MeV
+        bevegelsesenergi, mens {fmt(exc, 3)} MeV blir igjen i den eksiterte {daughter} og sendes ut som γ-stråling etterpå.
       </>
     );
   else if (e && e.Q > 0)
     energyText = (
       <>
-        {sums} produktene er {fmt(e.dm, 6)} u lettere, og forskjellen er blitt {qText(e.Q)} MeV
-        {dc.type === 'gamma' ? (dc.emitted.length > 1 ? ' i fotonene' : ' i fotonet') : ' bevegelsesenergi'} (E = mc²).
+        {sums} produktene er {fmt(e.dm, 6)} u lettere. Energien som svarer til massetapet, {qText(e.Q)} MeV (E = mc²),{' '}
+        {dc.type === 'gamma'
+          ? `tas med av ${dc.emitted.length > 1 ? 'fotonene' : 'fotonet'}`
+          : 'blir bevegelsesenergi til partiklene som sendes ut og til datterkjernen'}
+        .
       </>
     );
   else if (e && e.Q <= 0)

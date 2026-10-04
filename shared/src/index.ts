@@ -135,6 +135,8 @@ export interface UpdateSubjectRequest {
 export interface ChapterInput {
   number: string | null;
   title: string;
+  /** Delkapitlene, hvis innholdsfortegnelsen har dem (f.eks. «2.1», «2.2» eller «2A», «2B»). */
+  sections?: Section[];
 }
 
 export interface CreateChapterRequest extends ChapterInput {}
@@ -149,7 +151,10 @@ export interface ParseChaptersRequest {
   text: string;
 }
 
-/** Svar fra /chapters/parse og /chapters/extract (bilde). Lagres ikke før /bulk. */
+/**
+ * Svar fra /chapters/parse og /chapters/extract (bilde). Lagres ikke før /bulk (nye kapitler) eller PATCH (kapitler som
+ * finnes fra før og får nye delkapitler). Har faget kompetansemål, kobler Claude hvert delkapittel til målene det dekker.
+ */
 export interface ChapterPreviewResponse {
   chapters: ChapterInput[];
 }
