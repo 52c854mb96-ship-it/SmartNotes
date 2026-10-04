@@ -40,11 +40,11 @@ COPY --from=build /app/server/package.json ./server/package.json
 COPY --from=build /app/server/dist ./server/dist
 COPY --from=build /app/server/latex ./server/latex
 COPY --from=build /app/web/dist ./web/dist
-COPY --chmod=755 scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 
 # Containeren starter som root bare for å gi lagringsvolumet til «node»; serveren kjører som «node».
-RUN mkdir -p /data && chown -R node:node /data
-VOLUME ["/data"]
+# Ingen VOLUME-instruks: Railway avviser den (volumet lages i Railway), og Compose/Fly.io monterer /data selv.
+RUN chmod 755 /usr/local/bin/docker-entrypoint.sh && mkdir -p /data && chown -R node:node /data
 EXPOSE 8080
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/docker-entrypoint.sh"]
 CMD ["node", "server/dist/index.js"]
