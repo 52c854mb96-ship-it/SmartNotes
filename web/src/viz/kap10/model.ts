@@ -201,3 +201,21 @@ export function monthly(P: number, hours: number, price: number): { kWh: number;
   const kWh = energyKWh(P, hours) * DAYS_PER_MONTH;
   return { kWh, cost: kWh * price };
 }
+
+/**
+ * Omtrentlig farge (sRGB 0–255) på et glødende legeme med temperaturen T (K), slik øyet ser den.
+ * Tilpasset kurve (Tanner Helland) som stemmer godt mellom 1000 K og 40 000 K.
+ */
+export function blackbodyRgb(T: number): [number, number, number] {
+  const t = Math.min(40000, Math.max(1000, T)) / 100;
+  const clamp = (v: number) => Math.round(Math.min(255, Math.max(0, v)));
+  const r = t <= 66 ? 255 : 329.698727446 * (t - 60) ** -0.1332047592;
+  const g = t <= 66 ? 99.4708025861 * Math.log(t) - 161.1195681661 : 288.1221695283 * (t - 60) ** -0.0755148492;
+  const b = t >= 66 ? 255 : t <= 19 ? 0 : 138.5177312231 * Math.log(t - 10) - 305.0447927307;
+  return [clamp(r), clamp(g), clamp(b)];
+}
+
+/** Hvor tydelig en glødetråd lyser (0–1): usynlig under ca. 800 °C, full styrke ved ca. 2 000 °C. */
+export function glowStrength(tempC: number): number {
+  return Math.min(1, Math.max(0, (tempC - 800) / 1200));
+}

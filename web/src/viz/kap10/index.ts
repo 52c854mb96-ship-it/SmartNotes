@@ -12,6 +12,16 @@ const viz: VizMeta[] = [
     keywords: ['I = Q/t', 'ladning', 'coulomb', 'ampere', 'elektroner', 'strømretning', 'driftsfart', 'elementærladning'],
     load: () => import('./Strom'),
   },
+  {
+    id: 'ohms-lov',
+    chapter: '10',
+    sections: ['10B'],
+    title: 'Ohms lov og resistans',
+    summary:
+      'Skru på spenningen over en motstand og en glødelampe og sammenlign U–I-grafene. Se også hvordan resistansen til en ledning avhenger av materiale, lengde og tverrsnitt.',
+    keywords: ['U = RI', 'spenning', 'resistans', 'ohm', 'ohmsk', 'glødelampe', 'resistivitet', 'R = ρL/A', 'amperemeter', 'voltmeter'],
+    load: () => import('./OhmsLov'),
+  },
 ];
 
 export default viz;
