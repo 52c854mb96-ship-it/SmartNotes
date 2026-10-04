@@ -99,7 +99,7 @@ export default function UniversetsSkala() {
         <Readout label="I astronomiske enheter" value={fmtSig(toAU(d))} unit="AE" />
         <Readout label="I lysår" value={fmtSig(toLightYears(d))} unit="lysår" />
         <Readout
-          label="Lyset er underveis i"
+          label="Lyset bruker"
           value={expanding ? '–' : travel.unit === 'år' ? fmtWords(travel.value) : fmtSig(travel.value)}
           unit={expanding ? undefined : travel.unit}
           tone={CURSOR}

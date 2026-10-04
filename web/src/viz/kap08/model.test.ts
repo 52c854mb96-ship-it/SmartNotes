@@ -11,6 +11,7 @@ import {
   decayConstant,
   decayEnergy,
   decayTimes,
+  EXCITED_INFO,
   findNuclide,
   gammaPhotons,
   HALF_LIFE_PRESETS,
@@ -277,6 +278,23 @@ describe('kjernereaksjoner og bevaringslover', () => {
     expect(decayEnergy(decay(2, 4, 'alfa'))).toBeNull();
     expect(decayEnergy(decay(92, 238, 'beta+'))).toBeNull();
     expect(decayEnergy(decay(92, 238, 'gamma'))).toBeNull();
+  });
+
+  it('eksiterte kjerner: fotonene har samme energi som eksitasjonen, og halveringstida er kort tekst', () => {
+    // ⁶⁰Ni* (fra ⁶⁰Co): 1,17 + 1,33 MeV, ²²Ne* (fra ²²Na): 1,275 MeV, ¹³⁷ᵐBa (fra ¹³⁷Cs): 0,662 MeV
+    for (const [mother, daughter] of [
+      [[27, 60], [28, 60]],
+      [[11, 22], [10, 22]],
+      [[55, 137], [56, 137]],
+    ] as const) {
+      const exc = findNuclide(mother[0], mother[1])!.daughterExcitation!;
+      expect(gammaPhotons(daughter[0], daughter[1])!.reduce((a, b) => a + b, 0)).toBeCloseTo(exc, 3);
+    }
+    // Pikosekunder for ⁶⁰Ni* og ²²Ne* (3,3 ps og 3,6 ps), minutter for ¹³⁷ᵐBa. Kort nok til å stå i en avlesning på mobil.
+    expect(EXCITED_INFO['28-60']!.halfLife).toBe('ca. 3 ps');
+    expect(EXCITED_INFO['10-22']!.halfLife).toBe('ca. 4 ps');
+    expect(EXCITED_INFO['56-137']!.halfLife).toBe('2,55 min');
+    for (const v of Object.values(EXCITED_INFO)) expect(v.halfLife.length).toBeLessThanOrEqual(10);
   });
 
   it('γ-stråling kommer bare fra eksiterte kjerner, ikke fra grunntilstanden', () => {

@@ -106,8 +106,10 @@ describe('stjerner og strålingslovene', () => {
       return radiusFromLT(s.L, s.T);
     };
     const earth = 6.37e6 / SUN_R;
-    expect(r('siriusb') / earth).toBeGreaterThan(1);
-    expect(r('siriusb') / earth).toBeLessThan(2);
+    // Sirius B: R ≈ 0,0084 R☉ fra målinger, altså omtrent jordas radius. L og T i tabellen må gi det samme.
+    expect(r('siriusb')).toBeCloseTo(0.0086, 3);
+    expect(r('siriusb') / earth).toBeGreaterThan(0.8);
+    expect(r('siriusb') / earth).toBeLessThan(1.2);
     expect(r('betelgeuse')).toBeGreaterThan(500);
     expect(r('sola')).toBeCloseTo(1, 9);
   });
@@ -217,9 +219,23 @@ describe('livsløpet til en stjerne', () => {
     expect(lifeStages(15).at(-1)!.years).toBe(Infinity);
   });
 
+  it('tunge stjerner: protostjernens vei ligger under superkjempens, så de ikke tegnes oppå hverandre', () => {
+    for (const M of [8, 12, 20, 31]) {
+      const [proto, , rsg] = lifeStages(M);
+      const protoMax = Math.max(...proto!.track.map(([, l]) => l));
+      const rsgMin = Math.min(...rsg!.track.slice(1).map(([, l]) => l));
+      expect(rsgMin - protoMax, `M = ${M}`).toBeGreaterThan(0.2);
+    }
+    // Sola trekker seg sammen ovenfra: protostjerna er lyssterkere enn sola blir på hovedserien.
+    expect(lifeStages(1)[0]!.track[0]![1]).toBeGreaterThan(0.5);
+  });
+
   it('massive stjerner fusjonerer helt til jern, sola stopper ved karbon og oksygen', () => {
     expect(lifeStages(15)[2]!.layers.at(-1)).toBe('Fe');
     expect(lifeStages(15)[2]!.fusion.at(-1)).toBe('Si → Fe');
+    // Helium gir karbon og oksygen, karbonbrenning gir neon og magnesium (ikke oksygen).
+    expect(lifeStages(15)[2]!.fusion).toContain('He → C og O');
+    expect(lifeStages(15)[2]!.fusion).toContain('C → Ne og Mg');
     expect(lifeStages(1)[2]!.layers.at(-1)).toBe('CO');
     expect(lifeStages(1).at(-1)!.fusion).toEqual([]);
   });

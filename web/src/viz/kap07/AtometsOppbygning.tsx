@@ -248,6 +248,9 @@ function explanation(a: AtomInfo): ReactNode {
       <>
         Med {a.electrons} elektroner og {a.Z} protoner er det et <strong>negativt ion</strong>, {ion}: atomet har tatt opp{' '}
         {plural(-a.charge, 'elektron', 'elektroner')}.
+        {NOBLE_GASES.includes(a.Z)
+          ? ` I virkeligheten holder ikke ${a.name} på ekstra elektroner, fordi det ytterste skallet allerede er fullt.`
+          : ''}
       </>
     );
   }
@@ -271,6 +274,9 @@ function explanation(a: AtomInfo): ReactNode {
     </>
   );
 }
+
+/** Edelgassene i figuren (helium, neon og argon) har fullt ytterste skall. */
+const NOBLE_GASES = [2, 10, 18];
 
 function plural(n: number, one: string, many: string): string {
   const word = n === 1 ? 'ett' : n === 2 ? 'to' : n === 3 ? 'tre' : String(n);

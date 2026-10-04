@@ -303,11 +303,15 @@ function SlopeTag({ R, lamp, U, I, sx, sy }: { R: number; lamp: boolean; U: numb
       </Tag>
     );
   }
-  // Etiketten for stigningstallet midt på linjen, litt til høyre for den.
-  const iMid = Math.min(I_MAX, 12 / R) * 0.5;
+  // Etiketten for stigningstallet står under til høyre for linjen. Linjen stiger mot høyre, så teksten krysser den
+  // ikke når venstre kant står ved linjen. Skyves mot venstre (og langs linjen) når den ellers går ut av figuren.
+  const iEnd = Math.min(I_MAX, U_MAX / R);
   const text = `stigningstall R = ${fmt(R, 0)} Ω`;
+  const w = textWidth(text.length, f);
+  const xStart = Math.min(sx(iEnd * 0.55) + 14, sx(I_MAX) - w);
+  const iAt = Math.max(0, (xStart - 14 - sx(0)) / (sx(1) - sx(0)));
   return (
-    <Tag x={sx(iMid) + 16} y={sy(R * iMid) + 8} anchor="start" color={RES_COLOR} weight={650}>
+    <Tag x={xStart} y={sy(R * iAt) + 14 + 16 * f} anchor="start" color={RES_COLOR} weight={650}>
       {text}
     </Tag>
   );
@@ -423,7 +427,8 @@ function Resistivity({
   );
 }
 
-const fmtR = (R: number) => (R < 0.1 ? fmt(R, 4) : R < 10 ? fmt(R, 3) : fmt(R, 1));
+/** Resistans med tre gjeldende sifre: 0,00213 · 0,113 · 3,27 · 88,0. */
+const fmtR = (R: number) => (R > 0 ? fmt(R, Math.min(6, Math.max(1, 2 - Math.floor(Math.log10(R))))) : fmt(R, 1));
 
 function WireDrawing({ L, A, R, name, W }: { L: number; A: number; R: number; name: string; W: number }) {
   const f = useTextScale();

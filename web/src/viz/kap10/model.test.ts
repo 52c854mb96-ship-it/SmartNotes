@@ -96,16 +96,26 @@ describe('Ohms lov og resistivitet', () => {
     expect(lampCurrent(0)).toBe(0);
   });
 
-  it('lampemodellen oppfyller U = R₀(1 + c·P)·I, og R øker med spenningen', () => {
+  it('lampemodellen oppfyller U = R₀(1 + a·P^b)·I, og R øker med spenningen', () => {
     let prev = 0;
     for (const U of [0.5, 1, 3, 6, 9, 12]) {
       const I = lampCurrent(U);
-      expect(U).toBeCloseTo(LAMP.R0 * (1 + LAMP.c * U * I) * I, 9);
+      expect(U).toBeCloseTo(LAMP.R0 * (1 + LAMP.a * (U * I) ** LAMP.b) * I, 9);
       expect(lampResistance(U)).toBeGreaterThan(prev);
       prev = lampResistance(U);
     }
     // Ikke ohmsk: dobbel spenning gir mindre enn dobbel strøm
     expect(lampCurrent(12)).toBeLessThan(2 * lampCurrent(6));
+  });
+
+  it('lampa følger målinger på ekte glødelamper, I ≈ 2,0 A · (U/12 V)^0,55, og strømmen flater ikke ut', () => {
+    for (const U of [1, 2, 3, 6, 9, 12]) {
+      const measured = 2 * (U / 12) ** 0.55;
+      expect(Math.abs(lampCurrent(U) / measured - 1), `U = ${U} V`).toBeLessThan(0.06);
+    }
+    // Halv spenning gir ca. 1,4 A (ikke nesten 2 A som om strømmen var begrenset).
+    expect(lampCurrent(6)).toBeGreaterThan(1.3);
+    expect(lampCurrent(6)).toBeLessThan(1.5);
   });
 
   it('glødetråden når ca. 2 000 °C ved full spenning og gløder ikke ved lav spenning', () => {

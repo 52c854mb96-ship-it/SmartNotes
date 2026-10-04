@@ -305,16 +305,19 @@ function ReactionScene({ dc, scale, stable, blocked }: { dc: Decay; scale: numbe
               Q &lt; 0
             </Txt>
           )}
-          <Nucleus cx={dx} cy={cy} Z={d.Z} N={d.A - d.Z} r={r} plus={r >= 6} />
-          {d.excited && <circle cx={dx} cy={cy} r={Rd + 8} fill="none" stroke={PARTICLE.photon} strokeWidth={2} strokeDasharray="5 5" />}
-          <Txt x={dx} y={L.lab1} weight={700}>
-            {nuclideLabel(d.Z, d.A, d.excited)}
-          </Txt>
-          <Txt x={dx} y={L.lab2} muted>
-            {nuclideWords(d.Z, d.A)}
-            {d.excited ? ', eksitert' : ''}
-          </Txt>
-          <EmittedParticles dc={dc} r={r} x={ex} cy={cy} startX={dx + Rd + 14} f={f} lab1={L.lab1} lab2={L.lab2} />
+          {/* Et henfall som ikke kan skje (Q < 0), tegnes blekt */}
+          <g opacity={blocked ? 0.4 : 1}>
+            <Nucleus cx={dx} cy={cy} Z={d.Z} N={d.A - d.Z} r={r} plus={r >= 6} />
+            {d.excited && <circle cx={dx} cy={cy} r={Rd + 8} fill="none" stroke={PARTICLE.photon} strokeWidth={2} strokeDasharray="5 5" />}
+            <Txt x={dx} y={L.lab1} weight={700}>
+              {nuclideLabel(d.Z, d.A, d.excited)}
+            </Txt>
+            <Txt x={dx} y={L.lab2} muted>
+              {nuclideWords(d.Z, d.A)}
+              {d.excited ? ', eksitert' : ''}
+            </Txt>
+            <EmittedParticles dc={dc} r={r} x={ex} cy={cy} startX={dx + Rd + 14} f={f} lab1={L.lab1} lab2={L.lab2} />
+          </g>
         </>
       ) : (
         <Txt x={520} y={cy + 6} muted>
@@ -357,22 +360,24 @@ function EmittedParticles({
   lab1: number;
   lab2: number;
 }) {
+  // Partiklene og pilene blir større på mobil, der figuren er smal (k = 1 på PC)
+  const k = Math.min(1.6, Math.max(1, f * 0.85));
   if (dc.type === 'gamma')
     return (
       <>
         {dc.emitted.map((_, i) => {
-          const dy = dc.emitted.length > 1 ? (i === 0 ? -34 : 26) : -20;
+          const dy = (dc.emitted.length > 1 ? (i === 0 ? -34 : 26) : -20) * Math.min(k, 1.3);
           return (
             <PhotonWave
               key={i}
               x1={startX}
               y1={cy + dy * 0.3}
-              x2={x + 80}
+              x2={x + 80 + 20 * (k - 1)}
               y2={cy + dy}
               color={PARTICLE.photon}
-              amplitude={9}
-              wavelength={20}
-              width={3}
+              amplitude={9 * k}
+              wavelength={20 * k}
+              width={3 * k}
             />
           );
         })}
@@ -387,8 +392,8 @@ function EmittedParticles({
   if (dc.type === 'alfa')
     return (
       <>
-        <Nucleus cx={x} cy={cy - 10} Z={2} N={2} r={Math.max(9, r)} />
-        <Arrow x1={x + 30} y1={cy - 10} x2={x + 90} y2={cy - 10} color={VIZ.velocity} width={2.5} />
+        <Nucleus cx={x} cy={cy - 10} Z={2} N={2} r={Math.max(9 * k, r)} />
+        <Arrow x1={x + 30 * k} y1={cy - 10} x2={x + 30 * k + 60} y2={cy - 10} color={VIZ.velocity} width={2.5 * k} head={12 * k} />
         <Txt x={x + 10} y={lab1} weight={700}>
           ⁴He
         </Txt>
@@ -398,14 +403,15 @@ function EmittedParticles({
       </>
     );
   const positron = dc.type === 'beta+';
-  const nuY = cy + 38;
+  const eY = cy - 26 * k;
+  const nuY = cy + 38 * k;
   return (
     <>
-      <Lepton x={x} y={cy - 26} r={11} positron={positron} />
-      <Arrow x1={x + 20} y1={cy - 26} x2={x + 86} y2={cy - 44} color={VIZ.velocity} width={2.5} />
-      <circle cx={x} cy={nuY} r={7} fill="none" stroke={VIZ.muted} strokeWidth={2} />
-      <Arrow x1={x + 16} y1={nuY} x2={x + 76} y2={nuY + 14} color={VIZ.muted} width={2} dashed />
-      <Txt x={x - 18} y={nuY + 6} anchor="end" muted>
+      <Lepton x={x} y={eY} r={11 * k} positron={positron} />
+      <Arrow x1={x + 20 * k} y1={eY} x2={x + 20 * k + 66} y2={eY - 18} color={VIZ.velocity} width={2.5 * k} head={12 * k} />
+      <circle cx={x} cy={nuY} r={7 * k} fill="none" stroke={VIZ.muted} strokeWidth={2 * k} />
+      <Arrow x1={x + 16 * k} y1={nuY} x2={x + 16 * k + 60} y2={nuY + 14} color={VIZ.muted} width={2 * k} head={11 * k} dashed />
+      <Txt x={x - 10 - 8 * k} y={nuY + 6 * k} anchor="end" muted>
         {positron ? 'ν' : 'ν̄'}
       </Txt>
       <Txt x={x + 10} y={lab1} weight={700} color={positron ? PARTICLE.positron : PARTICLE.electron}>
@@ -627,7 +633,7 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
         {sums} produktene er {fmt(e.dm, 6)} u lettere. Energien som svarer til massetapet, {qText(e.Q)} MeV (E = mc²),{' '}
         {dc.type === 'gamma'
           ? `tas med av ${dc.emitted.length > 1 ? 'fotonene' : 'fotonet'}`
-          : 'blir bevegelsesenergi til partiklene som sendes ut og til datterkjernen'}
+          : 'blir bevegelsesenergi, nesten alt til partiklene som sendes ut'}
         .
       </>
     );

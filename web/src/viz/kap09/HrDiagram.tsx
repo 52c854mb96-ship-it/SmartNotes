@@ -147,7 +147,7 @@ function StarReadouts({ star }: { star: Star }) {
   return (
     <>
       <Readouts>
-        <Readout label="Overflatetemperatur T" value={fmt(star.T, 0)} unit="K" />
+        <Readout label="Temperatur T" value={fmt(star.T, 0)} unit="K" />
         <Readout label="Luminositet L" value={fmtSig(star.L, 2)} unit="L☉" />
         <Readout label="Radius R" value={fmtSig(R, 2)} unit="R☉" />
         <Readout
@@ -180,7 +180,7 @@ function MassReadouts({ M }: { M: number }) {
     <>
       <Readouts>
         <Readout label="Luminositet L" value={fmtSig(L, 2)} unit="L☉" />
-        <Readout label="Overflatetemperatur T" value={fmt(Math.round(T / 10) * 10, 0)} unit="K" />
+        <Readout label="Temperatur T" value={fmt(Math.round(T / 10) * 10, 0)} unit="K" />
         <Readout label="Radius R" value={fmtSig(msRadius(M), 2)} unit="R☉" />
         <Readout label="Levetid på hovedserien" value={yearsParts(t).value} unit={yearsParts(t).unit} />
       </Readouts>
@@ -245,6 +245,8 @@ function Diagram({
   const msStar = { T: msTemperature(M), L: msLuminosity(M) };
   const [mx, my] = P(msStar.T, msStar.L);
   const massTicks = [0.5, 1, 2, 5, 10, 20];
+  // Etiketten «Hovedserien» flyttes ned når hjelpelinjen fra den valgte stjernen ville gått gjennom den.
+  const msLabelLogL = mode === 'masse' && Math.abs(Math.log10(msStar.L) - 1.2) < 0.4 ? 0.2 : 1.0;
 
   return (
     <g>
@@ -315,7 +317,7 @@ function Diagram({
 
       {!narrow && (
         <g>
-          <Tag x={sx(Math.log10(30000))} y={sy(1.0)} color={REGION.ms} anchor="middle" weight={650}>
+          <Tag x={sx(Math.log10(30000))} y={sy(msLabelLogL)} color={REGION.ms} anchor="middle" weight={650}>
             Hovedserien
           </Tag>
           <Tag x={sx(Math.log10(3500)) - 4} y={sy(0.55)} color={REGION.giant} anchor="end" weight={650}>
@@ -417,7 +419,8 @@ function Diagram({
               {fmtSig(M, 2)} M☉
             </Tag>
           ) : (
-            <Tag x={mx - 22} y={my - 14} anchor="end" weight={700}>
+            // Ingen plass til høyre: under til venstre, der massemerkene langs hovedserien ikke står.
+            <Tag x={mx - 16} y={my + 20 + 14 * f} anchor="end" weight={700}>
               {fmtSig(M, 2)} M☉
             </Tag>
           )}
@@ -477,17 +480,17 @@ function starExplanation(star: Star): ReactNode {
     case 'superkjempe':
       type = (
         <>
-          En stor og tung stjerne som har brukt opp hydrogenet i kjernen, ca. {fmtSig(R, 2)} ganger så stor som sola. Superkjemper
-          over ca. 8 M☉ ender som supernova og etterlater en nøytronstjerne eller et svart hull.
+          En stor og tung stjerne som har brukt opp hydrogenet i kjernen, med ca. {fmtSig(R, 2)} ganger så stor radius som sola.
+          Superkjemper over ca. 8 M☉ ender som supernova og etterlater en nøytronstjerne eller et svart hull.
         </>
       );
       break;
     case 'hvit-dverg':
       type = (
         <>
-          Den er den utbrente kjernen etter en stjerne som sola. Overflaten er {star.T > SUN_T ? 'varmere enn' : 'omtrent like varm som'}{' '}
-          solas, men radiusen er bare {fmtSig(R, 2)} R☉, omtrent som jorda, så den lyser svakt. Det er ingen fusjon der, så den
-          avkjøles langsomt.
+          Den er den utbrente kjernen etter en stjerne på under ca. 8 M☉. Overflaten er{' '}
+          {star.T > SUN_T ? 'varmere enn' : 'omtrent like varm som'} solas, men radiusen er bare {fmtSig(R, 2)} R☉, omtrent som jorda,
+          så den lyser svakt. Det er ingen fusjon der, så den avkjøles langsomt.
         </>
       );
       break;

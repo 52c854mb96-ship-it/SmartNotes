@@ -1,6 +1,8 @@
 import { Pause, Play, RotateCcw } from 'lucide-react';
 import type { SimClock } from '../kit';
 
+const prefersReducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
 /**
  * Som <PlayControls> i kit-et, men tida vises med egen tekst og enhet (f.eks. «t = 11 460 år»), fordi klokka her
  * teller halveringstider og ikke sekunder.
@@ -19,6 +21,7 @@ export function PlayBar({ clock, time }: { clock: SimClock; time: string }) {
       <span className="viz-play-time" aria-live="off">
         t = {time}
       </span>
+      {prefersReducedMotion() && <span className="viz-play-note">Animasjoner er redusert i systeminnstillingene.</span>}
     </div>
   );
 }

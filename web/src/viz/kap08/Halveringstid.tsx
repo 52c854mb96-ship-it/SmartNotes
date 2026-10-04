@@ -46,6 +46,8 @@ const T_MAX = 6;
 const MOTHER = VIZ.series[1]!;
 const DAUGHTER = VIZ.muted;
 const THEORY = VIZ.series[0]!;
+/** Markering av kjerner som nettopp har henfalt. */
+const FRESH = VIZ.series[4]!;
 
 const PRESETS = HALF_LIFE_PRESETS.map((p) => ({ value: p.id, label: capitalize(nuclideWords(p.Z, p.A)) }));
 
@@ -59,6 +61,7 @@ const DECIMALS: Record<string, number> = { c14: 0, i131: 2, rn222: 2, co60: 2, u
 /** Tid målt i halveringstider → tekst i stoffets egen enhet, f.eks. 2 → «11 460 år». */
 function timeText(k: number, p: HalfLifePreset): string {
   const v = k * p.T;
+  if (v === 0) return `0 ${p.id === 'u238' ? 'år' : p.unit}`;
   if (p.id === 'u238') return `${fmt(v, 2)} · 10⁹ år`;
   return `${fmt(v, DECIMALS[p.id] ?? 1)} ${p.unit}`;
 }
@@ -145,7 +148,7 @@ export default function Halveringstid() {
         items={[
           { color: MOTHER, label: `${iso}, ikke henfalt` },
           { color: DAUGHTER, label: `${p.daughter}, henfalt (${p.decay})` },
-          { color: VIZ.acceleration, label: 'Akkurat henfalt' },
+          { color: FRESH, label: 'Akkurat henfalt' },
         ]}
       />
 
@@ -180,7 +183,7 @@ export default function Halveringstid() {
           }
           value={fmt(nTheory, 1)}
         />
-        <Readout label={`Aktivitet til 1,00 g ${iso}`} value={fmtSig3(A1g)} unit="Bq" />
+        <Readout label={`Aktivitet, startet med 1,00\u00a0g ${iso}`} value={fmtSig3(A1g)} unit="Bq" />
       </Readouts>
 
       <Formula label="Desintegrasjonskonstant og aktivitet">
@@ -188,7 +191,7 @@ export default function Halveringstid() {
           λ = ln 2 / T<Sub>½</Sub> = 0,693 / ({halfLifeInSeconds(p)}) = {fmtSci(lambda, 2)} s⁻¹
         </FormulaLine>
         <FormulaLine>
-          1,00 g {iso}: N<Sub>0</Sub> = m / m<Sub>atom</Sub> = 1,00 · 10⁻³ kg / ({p.A} · 1,66 · 10⁻²⁷ kg) = {fmtSci(N1g, 2)}
+          1,00 g {iso} ved start: N<Sub>0</Sub> = m / m<Sub>atom</Sub> = 1,00 · 10⁻³ kg / ({p.A} · 1,66 · 10⁻²⁷ kg) = {fmtSci(N1g, 2)}
         </FormulaLine>
         <FormulaLine>
           A = λN = {fmtSci(lambda, 2)} s⁻¹ · {fmtSci(N1g, 2)} · (1/2)<Sup>{fmt(k, 2)}</Sup> = {fmtSig3(A1g)} Bq
@@ -217,7 +220,7 @@ function NucleusGrid({ times, t, narrow, height }: { times: number[]; t: number;
         return (
           <g key={i}>
             <circle cx={x} cy={y} r={r * 0.62} fill={VIZ.surface} stroke={DAUGHTER} strokeWidth={1.5} />
-            {fresh && <circle cx={x} cy={y} r={r * 1.05} fill="none" stroke={VIZ.acceleration} strokeWidth={2.5} />}
+            {fresh && <circle cx={x} cy={y} r={r * 1.05} fill="none" stroke={FRESH} strokeWidth={2.5} />}
           </g>
         );
       })}
@@ -285,8 +288,8 @@ function explanation(p: HalfLifePreset, k: number, nSim: number, nTheory: number
   if (k < 0.005)
     return (
       <p>
-        Alle {N0} kjernene av {iso} er urørte. Hver kjerne har like stor sannsynlighet for å henfalle i hvert tidsrom, uansett hvor lenge
-        den har eksistert. Halveringstida T<Sub>½</Sub> = {T} er tida det tar før halvparten har henfalt. Trykk «Spill av».
+        Ingen av de {N0} kjernene av {iso} har henfalt ennå. Hver kjerne har like stor sannsynlighet for å henfalle i hvert tidsrom,
+        uansett hvor lenge den har eksistert. Halveringstida T<Sub>½</Sub> = {T} er tida det tar før halvparten har henfalt. Trykk «Spill av».
       </p>
     );
   const later =

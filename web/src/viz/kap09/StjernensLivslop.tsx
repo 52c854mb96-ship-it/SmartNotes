@@ -68,6 +68,9 @@ const ELEMENT: Record<Element, { label: string; color: string }> = {
   n: { label: 'n', color: VIZ.series[4] },
 };
 
+/** Fargen på fusjonsteksten og supernovaen (samme oransje som jernkjernen). */
+const HOT = VIZ.series[1];
+
 /** Massebryteren går i log M: 10^−0,5 ≈ 0,3 til 10^1,5 ≈ 32 solmasser. */
 const LOGM_MIN = -0.5;
 const LOGM_MAX = 1.5;
@@ -149,6 +152,7 @@ export default function StjernensLivslop() {
         items={[
           { color: VIZ.series[0], label: 'Hovedserien' },
           { color: VIZ.series[3], label: 'Hvite dverger' },
+          { color: VIZ.muted, label: 'Veien så langt' },
           { color: VIZ.ink, label: 'Veien i HR-diagrammet nå' },
           { color: VIZ.muted, label: 'Veien videre', dashed: true },
         ]}
@@ -161,7 +165,7 @@ export default function StjernensLivslop() {
       <Readouts>
         <Readout label="Luminositet på hovedserien" value={fmtSig(msLuminosity(M), 2)} unit="L☉" />
         <Readout label="Tid på hovedserien" value={yearsParts(ms).value} unit={yearsParts(ms).unit} />
-        <Readout label="Denne fasen varer" value={dur.value} unit={dur.unit} />
+        <Readout label="Denne fasen varer" value={dur.value} unit={dur.unit || undefined} />
       </Readouts>
 
       <Explain>
@@ -174,13 +178,14 @@ export default function StjernensLivslop() {
 
 function durationParts(stage: Stage): { value: string; unit: string } {
   if (stage.id === 'supernova') return { value: 'noen', unit: 'måneder' };
-  if (!Number.isFinite(stage.years)) return { value: 'over 10', unit: 'milliarder år' };
+  // En hvit dverg kjøles ned i mye mer enn 10 milliarder år; nøytronstjerner og svarte hull blir værende.
+  if (!Number.isFinite(stage.years)) return stage.id === 'hvit-dverg' ? { value: 'over 10', unit: 'milliarder år' } : { value: 'svært lenge', unit: '' };
   return yearsParts(stage.years);
 }
 
 function durationText(stage: Stage): string {
   if (stage.id === 'supernova') return 'noen måneder';
-  if (!Number.isFinite(stage.years)) return stage.id === 'svart-hull' ? 'svært lenge' : 'milliarder av år';
+  if (!Number.isFinite(stage.years)) return stage.id === 'hvit-dverg' ? 'milliarder av år' : 'svært lenge';
   return fmtYears(stage.years);
 }
 
@@ -209,6 +214,14 @@ function MiniHr({ stages, i, pos, W, H }: { stages: Stage[]; i: number; pos: [nu
   const stage = stages[i]!;
   const last = [...stages.slice(0, i + 1)].reverse().find((s) => s.track.length > 0)?.track.at(-1);
   const sn = stage.id === 'supernova' && pos;
+  // Alle linjestykkene i figuren (SVG-koordinater), så etiketten kan plasseres der den ikke krysser veien.
+  const segments: Seg[] = stages.flatMap((s) =>
+    s.track.slice(1).map((b, k): Seg => {
+      const a = s.track[k]!;
+      return [sx(a[0]), sy(a[1]), sx(b[0]), sy(b[1])];
+    }),
+  );
+  const outsideW = textWidth(19, f);
 
   return (
     <g>
@@ -266,26 +279,76 @@ function MiniHr({ stages, i, pos, W, H }: { stages: Stage[]; i: number; pos: [nu
         <circle cx={sx(pos[0])} cy={sy(pos[1])} r={9} fill={starColor(10 ** pos[0])} stroke={VIZ.ink} strokeWidth={2.5} />
       )}
       {!pos && last && (
-        <Tag x={clamp(sx(last[0]), x0 + 60 * f, x1 - 60 * f)} y={Math.min(y0 - 10, sy(last[1]) + 40 * f)} anchor="middle" muted>
+        <Tag x={clamp(sx(last[0]), x0 + outsideW / 2 + 4, x1 - outsideW / 2 - 4)} y={Math.min(y0 - 10, sy(last[1]) + 40 * f)} anchor="middle" muted>
           utenfor diagrammet
         </Tag>
       )}
-      {(pos || sn) && <StageTag x={sx((pos ?? last)![0])} y={sy((pos ?? last)![1])} text={STAGE_NAME[stage.id]} x0={x0} x1={x1} y1={y1} burst={!!sn} />}
+      {(pos || sn) && (
+        <StageTag
+          x={sx((pos ?? last)![0])}
+          y={sy((pos ?? last)![1])}
+          text={STAGE_NAME[stage.id]}
+          box={[x0, y1, x1, y0]}
+          burst={!!sn}
+          segments={segments}
+        />
+      )}
     </g>
   );
 }
 
-function StageTag({ x, y, text, x0, x1, y1, burst }: { x: number; y: number; text: string; x0: number; x1: number; y1: number; burst: boolean }) {
+/** Linjestykke [x1, y1, x2, y2] i SVG-koordinater. */
+type Seg = [number, number, number, number];
+
+/** Hvor mange punkter langs linjestykkene som ligger inni rektangelet [venstre, topp, høyre, bunn]. */
+function hits(rect: [number, number, number, number], segments: Seg[]): number {
+  const [l, t, r, b] = rect;
+  let n = 0;
+  for (const [ax, ay, bx, by] of segments) {
+    const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 3));
+    for (let k = 0; k <= steps; k++) {
+      const px = ax + ((bx - ax) * k) / steps;
+      const py = ay + ((by - ay) * k) / steps;
+      if (px >= l && px <= r && py >= t && py <= b) n++;
+    }
+  }
+  return n;
+}
+
+/**
+ * Navnet på stadiet ved prikken. Prøver flere plasseringer rundt prikken og velger den første som er inni
+ * diagrammet og ikke krysser veien stjerna følger (eller den som krysser minst).
+ */
+function StageTag({ x, y, text, box, burst, segments }: { x: number; y: number; text: string; box: [number, number, number, number]; burst: boolean; segments: Seg[] }) {
   const f = useTextScale();
+  const [bx0, by1, bx1, by0] = box;
   const w = textWidth(text.length, f);
   const gap = burst ? 40 : 16;
-  const right = x + gap + w < x1;
-  const left = x - gap - w > x0;
-  const ty = Math.max(y1 + 16 * f, burst ? y + 6 : y - 12);
-  if (right) return <Tag x={x + gap} y={ty} anchor="start" weight={700}>{text}</Tag>;
-  if (left) return <Tag x={x - gap} y={ty} anchor="end" weight={700}>{text}</Tag>;
+  const up = burst ? 6 : -12;
+  const down = burst ? 30 * f : 12 + 14 * f;
+  const candidates: { x: number; y: number; anchor: 'start' | 'end' | 'middle' }[] = [
+    { x: x + gap, y: y + up, anchor: 'start' },
+    { x: x - gap, y: y + up, anchor: 'end' },
+    { x: x + gap, y: y + down, anchor: 'start' },
+    { x: x - gap, y: y + down, anchor: 'end' },
+    { x, y: y + (burst ? 44 : 26) + 14 * f, anchor: 'middle' },
+    { x, y: y - (burst ? 44 : 22), anchor: 'middle' },
+  ];
+  let best = candidates[0]!;
+  let bestScore = Infinity;
+  for (const c of candidates) {
+    const left = c.anchor === 'start' ? c.x : c.anchor === 'end' ? c.x - w : c.x - w / 2;
+    const rect: [number, number, number, number] = [left - 4, c.y - 14 * f, left + w + 4, c.y + 5 * f];
+    const inside = rect[0] >= bx0 && rect[2] <= bx1 + 8 && rect[1] >= by1 - 4 && rect[3] <= by0;
+    const score = (inside ? 0 : 1000) + hits(rect, segments);
+    if (score < bestScore) {
+      best = c;
+      bestScore = score;
+      if (score === 0) break;
+    }
+  }
   return (
-    <Tag x={clamp(x, x0 + w / 2, x1 - w / 2)} y={y + 34 * f} anchor="middle" weight={700}>
+    <Tag x={best.x} y={best.y} anchor={best.anchor} weight={700}>
       {text}
     </Tag>
   );
@@ -302,12 +365,12 @@ function Burst({ x, y, r }: { x: number; y: number; r: number }) {
           y1={y + Math.sin(a) * r * 0.3}
           x2={x + Math.cos(a) * r * (k % 2 ? 0.75 : 1)}
           y2={y + Math.sin(a) * r * (k % 2 ? 0.75 : 1)}
-          stroke={VIZ.gravity}
+          stroke={HOT}
           strokeWidth={3}
           strokeLinecap="round"
         />
       ))}
-      <circle cx={x} cy={y} r={r * 0.28} fill={VIZ.gravity} />
+      <circle cx={x} cy={y} r={r * 0.28} fill={HOT} />
     </g>
   );
 }
@@ -358,8 +421,7 @@ function Inside({ stage, pos, M, x, y, W, H }: { stage: Stage; pos: [number, num
     body = (
       <g>
         <circle cx={cx} cy={cy} r={R0 * 0.35} fill={VIZ.surface} stroke={VIZ.ink} strokeWidth={4} />
-        <circle cx={cx} cy={cy} r={R0 * 0.35 + 12} fill="none" stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="4 5" />
-        <Tag x={cx} y={cy + R0 * 0.35 + 34 * f} anchor="middle" muted>
+        <Tag x={cx} y={cy + R0 * 0.35 + 28 * f} anchor="middle" muted>
           hendelseshorisonten
         </Tag>
       </g>
@@ -402,7 +464,7 @@ function Inside({ stage, pos, M, x, y, W, H }: { stage: Stage; pos: [number, num
           })}
         {small && (
           <Tag x={cx} y={cy + R0 * scale + 30 * f} anchor="middle">
-            {stage.id === 'hvit-dverg' ? 'omtrent like stor som jorda' : 'kjernen blir igjen'}
+            {stage.id === 'hvit-dverg' ? 'omtrent like stor som jorda' : 'kjernen'}
           </Tag>
         )}
         {small && (
@@ -428,7 +490,7 @@ function Inside({ stage, pos, M, x, y, W, H }: { stage: Stage; pos: [number, num
       </Tag>
       {body}
       {lines.map((l, k) => (
-        <Tag key={k} x={cx} y={y + H - bottomText + 8 + k * 22 * f + 10 * f} anchor="middle" color={k < headLines.length ? VIZ.gravity : undefined} weight={k < headLines.length ? 650 : 560}>
+        <Tag key={k} x={cx} y={y + H - bottomText + 8 + k * 22 * f + 10 * f} anchor="middle" color={k < headLines.length ? HOT : undefined} weight={k < headLines.length ? 650 : 560}>
           {l}
         </Tag>
       ))}
@@ -588,7 +650,7 @@ function explanation(stage: Stage, M: number): ReactNode {
     case 'hvit-dverg':
       return stage.future ? (
         <p>
-          <strong>Rød dverg.</strong> En stjerne under ca. 0,5 M☉ blir aldri en rød kjempe. Den bruker opp nesten alt hydrogenet og ender
+          <strong>Hvit dverg av helium, i framtiden.</strong> En rød dverg, en stjerne under ca. 0,5 M☉, blir aldri en rød kjempe. Den bruker opp nesten alt hydrogenet og ender
           til slutt som en hvit dverg av helium. Det tar over {fmtYears(tMS)}, mye lenger enn universets alder på 13,8 milliarder år, så
           ingen røde dverger har kommet så langt ennå.
         </p>
@@ -602,8 +664,8 @@ function explanation(stage: Stage, M: number): ReactNode {
     case 'rod-superkjempe':
       return (
         <p>
-          <strong>Rød superkjempe.</strong> En så tung stjerne blir varm nok til å fusjonere stadig tyngre grunnstoffer i skall, som i en
-          løk: H → He → C → O → Si → Fe. Hvert trinn går raskere enn det forrige. Jern er sluttpunktet: jern har størst bindingsenergi per
+          <strong>Rød superkjempe.</strong> En så tung stjerne blir varm nok til å fusjonere stadig tyngre grunnstoffer. De ligger i skall
+          som i en løk, med H ytterst og så He, C, O, Si og Fe innerst. Hvert trinn går raskere enn det forrige. Jern er sluttpunktet: jern har størst bindingsenergi per
           nukleon, så fusjon av jern gir ingen energi.
         </p>
       );

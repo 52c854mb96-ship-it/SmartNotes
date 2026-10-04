@@ -81,14 +81,20 @@ export function crossings(u0s: number[], plane: number, length: number, shift: n
 export const ohmCurrent = (U: number, R: number): number => (R > 0 ? U / R : Number.NaN);
 
 /**
- * Enkel modell av en glødelampe (12 V, 24 W): R = R₀(1 + c·P). Temperaturen i glødetråden øker omtrent
- * proporsjonalt med effekten P = U·I, og resistansen øker med temperaturen.
+ * Enkel modell av en glødelampe (12 V, 24 W): R = R₀(1 + a·P^b), der P = U·I er effekten i glødetråden.
+ * Tråden avgir energien mest som stråling, så temperaturen øker omtrent som P^(1/4), og resistansen i wolfram
+ * øker litt raskere enn temperaturen. Med b = 0,35 gir modellen I ≈ 2,0 A · (U/12 V)^0,55, slik målinger på
+ * ekte glødelamper viser, og R = R₀ når tråden er kald.
  */
+const LAMP_R0 = 0.6;
+const LAMP_B = 0.35;
 export const LAMP = {
   /** Resistans når glødetråden er kald (Ω). */
-  R0: 0.6,
-  /** Hvor mye R øker per watt (1/W). Gir R = 6,0 Ω ved 12 V. */
-  c: 0.375,
+  R0: LAMP_R0,
+  /** Eksponenten i R = R₀(1 + a·P^b). */
+  b: LAMP_B,
+  /** Valgt slik at R = 6,0 Ω (2,0 A) ved 12 V og 24 W: a = (6,0 Ω/R₀ − 1)/24^b. */
+  a: (6 / LAMP_R0 - 1) / 24 ** LAMP_B,
   /** Temperaturkoeffisienten til wolfram (1/K). */
   alpha: 4.5e-3,
   /** Romtemperatur (°C). */
@@ -98,9 +104,19 @@ export const LAMP = {
   Pnom: 24,
 };
 
-/** Resistansen til lampa ved spenningen U: løsningen av U = I·R₀(1 + c·U·I) gir R = R₀/2 · (1 + √(1 + 4cU²/R₀)). */
+/** Resistansen til lampa ved spenningen U: løser U = I·R₀(1 + a·(U·I)^b) for I (halveringsmetoden) og gir R = U/I. */
 export function lampResistance(U: number, lamp = LAMP): number {
-  return (lamp.R0 / 2) * (1 + Math.sqrt(1 + (4 * lamp.c * U * U) / lamp.R0));
+  if (!(U > 0)) return lamp.R0;
+  // Strømmen ligger mellom 0 og U/R₀ (R er aldri mindre enn R₀), og spenningsfallet I·R(I) øker med I.
+  let lo = 0;
+  let hi = U / lamp.R0;
+  for (let k = 0; k < 60; k++) {
+    const I = (lo + hi) / 2;
+    const R = lamp.R0 * (1 + lamp.a * (U * I) ** lamp.b);
+    if (I * R < U) lo = I;
+    else hi = I;
+  }
+  return U / ((lo + hi) / 2);
 }
 
 export const lampCurrent = (U: number, lamp = LAMP): number => U / lampResistance(U, lamp);

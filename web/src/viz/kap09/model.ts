@@ -37,7 +37,7 @@ export interface SpaceObject {
   fact: string;
 }
 
-/** Objekter fra nærmest til fjernest. Planetene: middelavstand fra sola. */
+/** Objekter fra nærmest til fjernest. Planetene, Voyager 1 og Oorts sky: middelavstand fra sola (på denne skalaen nesten det samme som fra jorda). */
 export const SPACE_OBJECTS: SpaceObject[] = [
   {
     id: 'iss',
@@ -61,7 +61,7 @@ export const SPACE_OBJECTS: SpaceObject[] = [
     id: 'jupiter',
     label: 'Jupiter',
     d: 5.2 * AU,
-    fact: 'Jupiter, den største planeten, går i bane 5,2 AE fra sola.',
+    fact: 'Jupiter, den største planeten, går i bane 5,2 AE fra sola. Fra jorda er den mellom ca. 4,2 og 6,2 AE unna, alt etter hvor planetene står i banene sine.',
   },
   {
     id: 'neptun',
@@ -205,7 +205,7 @@ export const STARS: Star[] = [
   { id: 'regulus', name: 'Regulus', T: 12460, L: 290, cls: 'hovedserie', fact: 'Regulus er den klareste stjernen i stjernebildet Løven.' },
   { id: 'achernar', name: 'Achernar', T: 15000, L: 3150, cls: 'hovedserie', fact: 'Achernar er en blå stjerne på sørhimmelen som roterer nesten så raskt at den rives i stykker.' },
   { id: 'spica', name: 'Spica', T: 22400, L: 20500, cls: 'hovedserie', tag: 'right', fact: 'Spica er en varm, blå stjerne med ca. 11 solmasser. Den vil ende som supernova.' },
-  { id: 'siriusb', name: 'Sirius B', T: 25000, L: 0.056, cls: 'hvit-dverg', tag: 'right', fact: 'Sirius B går i bane rundt Sirius A. Den er varmere enn Sirius A, men har omtrent samme størrelse som jorda.' },
+  { id: 'siriusb', name: 'Sirius B', T: 25000, L: 0.026, cls: 'hvit-dverg', tag: 'right', fact: 'Sirius B går i bane rundt Sirius A. Den er varmere enn Sirius A, men lyser nesten tusen ganger svakere.' },
   { id: 'eri40b', name: '40 Eridani B', T: 16500, L: 0.013, cls: 'hvit-dverg', fact: '40 Eridani B var en av de første hvite dvergene som ble oppdaget.' },
   { id: 'procyonb', name: 'Procyon B', T: 7740, L: 0.00049, cls: 'hvit-dverg', fact: 'Procyon B er en hvit dverg som går i bane rundt Procyon A.' },
   { id: 'vanmaanen', name: 'Van Maanens stjerne', T: 6220, L: 0.00017, cls: 'hvit-dverg', fact: 'Van Maanens stjerne er en gammel hvit dverg som har kjølt seg ned i flere milliarder år.' },
@@ -364,8 +364,10 @@ export function lifeStages(M: number): Stage[] {
   const Lms = msLuminosity(M);
   const zams = pt(Tms * 1.03, Lms * 0.75);
   const tams = pt(Tms * 0.97, Lms * 1.3);
-  const protoStart = pt(Math.min(3500, Tms * 0.95), Lms * Math.max(1.2, 10 / M));
-  const knee = pt(Math.min(4025, Tms * 0.97), Lms * (M < 2 ? 0.8 : 1));
+  // Lette protostjerner kommer ovenfra (de er store og lyssterke før de krymper), tunge kommer nedenfra og
+  // blir lyssterkere på vei mot hovedserien. Da ligger ikke veien oppå den røde superkjempens vei senere.
+  const protoStart = pt(Math.min(3500, Tms * 0.95), Lms * (10 / M ** 1.5));
+  const knee = pt(Math.min(4025, Tms * 0.97), Lms * (M < 2 ? 0.8 : Math.min(0.8, Math.max(0.3, 0.8 - 0.5 * Math.log10(M / 2)))));
   // Sammentrekningen tar ca. 50 millioner år for sola, kortere for tunge og lengre for lette stjerner.
   const tProto = 5e7 * M ** (M < 1 ? -1.3 : -2.5);
   const proto: Stage = { id: 'protostjerne', years: tProto, track: [protoStart, knee, zams], layers: ['H'], fusion: [] };
@@ -419,7 +421,7 @@ export function lifeStages(M: number): Stage[] {
       years: 0.1 * tMS,
       track: [tams, pt(Tms * 0.5, Lrsg * 0.8), pt(6000, Lrsg * 0.9), rsg],
       layers: ['H', 'He', 'C', 'O', 'Si', 'Fe'],
-      fusion: ['H → He', 'He → C', 'C → O og Ne', 'O → Si', 'Si → Fe'],
+      fusion: ['H → He', 'He → C og O', 'C → Ne og Mg', 'O → Si', 'Si → Fe'],
     },
     { id: 'supernova', years: 0.3, track: [rsg], layers: ['Fe'], fusion: [] },
     f === 'noytronstjerne'

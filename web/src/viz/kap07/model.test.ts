@@ -242,6 +242,15 @@ describe('farger og spektre', () => {
     expect(sunLinesOf('kvikksolv')).toEqual([]);
   });
 
+  it('natriumets gule D-linjer heter D₂ (589,0 nm) og D₁ (589,6 nm)', () => {
+    const d = elementLines('natrium').filter((l) => l.name?.startsWith('D'));
+    expect(d.map((l) => [l.name, l.nm])).toEqual([
+      ['D₂', 589.0],
+      ['D₁', 589.6],
+    ]);
+    expect(colorName(589.3)).toBe('gul');
+  });
+
   it('finner nærmeste og sterkeste linje', () => {
     const na = elementLines('natrium');
     expect(nearestLine(na, 589.4)?.nm).toBe(589.6);
