@@ -107,6 +107,13 @@ npm run build         # bygger web-app og server
 npm run test:e2e      # ende-til-ende i Chromium (offline, kø, synk)
 ```
 
+Prøv konverteringen på ekte notater uten å gå via appen. Det er nyttig når du vil justere instruksene til Claude:
+
+```bash
+ANTHROPIC_API_KEY=... npm run convert --workspace server -- ~/Bilder/side1.jpg ~/Bilder/side2.jpg \
+  --out /tmp/test --chapters "1 Fysikk og måling;2 Bevegelse;3 Newtons lover"
+```
+
 ## Nye fag
 
 Hvert fag har en *profil* med LaTeX-mal og instrukser til Claude:

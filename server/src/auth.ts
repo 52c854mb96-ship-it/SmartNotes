@@ -45,6 +45,8 @@ const PUBLIC_PATHS = new Set(['/api/health', '/api/auth/login', '/api/auth/me', 
 
 export function registerAuth(app: FastifyInstance, repo: Repo, config: Config): void {
   const limiter = new LoginLimiter();
+  // I tillegg en samlet grense, i tilfelle IP-adressen kan forfalskes bak en proxy.
+  const globalLimiter = new LoginLimiter(50);
 
   const sessionValid = (req: FastifyRequest): boolean => {
     const token = req.cookies[SESSION_COOKIE];
@@ -65,10 +67,13 @@ export function registerAuth(app: FastifyInstance, repo: Repo, config: Config): 
 
   app.post<{ Body: LoginRequest }>('/api/auth/login', async (req, reply: FastifyReply) => {
     const ip = req.ip;
-    if (limiter.blocked(ip)) throw new HttpError(429, 'too_many_attempts', 'For mange feil forsøk. Vent et kvarter og prøv igjen.');
+    if (limiter.blocked(ip) || globalLimiter.blocked('*')) {
+      throw new HttpError(429, 'too_many_attempts', 'For mange feil forsøk. Vent et kvarter og prøv igjen.');
+    }
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
     if (!passwordMatches(password, config.appPassword)) {
       limiter.fail(ip);
+      globalLimiter.fail('*');
       throw new HttpError(401, 'wrong_password', 'Feil passord.');
     }
     limiter.reset(ip);

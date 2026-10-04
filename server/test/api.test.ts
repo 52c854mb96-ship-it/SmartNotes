@@ -188,6 +188,15 @@ describe('fag, kapitler og notater', () => {
     expect(res.body.message).toMatch(/støttes ikke/);
   });
 
+  it('avviser for store filer med norsk melding', async () => {
+    const big = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(31 * 1024 * 1024)]);
+    const res = await call<{ message: string }>('POST', '/api/notes', {
+      form: uploadForm({ subjectId: physics.id, clientId: 'klient-stor' }, [{ data: big, name: 'stor.jpg', type: 'image/jpeg' }]),
+    });
+    expect(res.status).toBe(413);
+    expect(res.body.message).toMatch(/for stor/);
+  });
+
   it('ny tittel gir ny PDF i bakgrunnen', async () => {
     const res = await call<Note>('PATCH', `/api/notes/${noteId}`, { json: { title: 'Newtons lover' } });
     expect(res.body.title).toBe('Newtons lover');

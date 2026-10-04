@@ -7,7 +7,8 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { NoteLatexResponse, NotePagesResponse, SaveLatexResponse } from '@smartnotes/shared';
 import type { NoteFileRow, Repo } from '../db.js';
-import { badRequest, conflict, notFound } from '../errors.js';
+import { HttpError, badRequest, conflict, notFound } from '../errors.js';
+import { MAX_FILE_BYTES } from '../limits.js';
 import { slug } from '../pipeline/bundle.js';
 import type { Converter } from '../pipeline/converter.js';
 import { MIME_BY_KIND, sniffKind, type FileKind, type PageImage } from '../pipeline/images.js';
@@ -57,6 +58,9 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
         }
         const tmpFile = path.join(tmp, String(files.length).padStart(3, '0'));
         await pipeline(part.file, fs.createWriteStream(tmpFile));
+        if (part.file.truncated) {
+          throw new HttpError(413, 'file_too_large', `«${part.filename}» er for stor (maks ${MAX_FILE_BYTES / 1024 / 1024} MB per fil).`);
+        }
         const head = Buffer.alloc(16);
         const fh = await fsp.open(tmpFile, 'r');
         const { bytesRead } = await fh.read(head, 0, 16, 0);

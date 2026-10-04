@@ -9,6 +9,7 @@ import { registerAuth } from './auth.js';
 import type { Config } from './config.js';
 import { Repo } from './db.js';
 import { HttpError } from './errors.js';
+import { MAX_FILE_BYTES, MAX_FILES } from './limits.js';
 import { Bundler } from './pipeline/bundle.js';
 import { createClaude, type ClaudeService } from './pipeline/claude.js';
 import { Converter } from './pipeline/converter.js';
@@ -28,8 +29,6 @@ export interface AppContext {
   bundler: Bundler;
 }
 
-export const MAX_FILE_BYTES = 30 * 1024 * 1024;
-export const MAX_FILES = 40;
 
 export async function buildApp(config: Config, opts: { claude?: ClaudeService; logger?: boolean } = {}): Promise<AppContext> {
   const app = Fastify({
