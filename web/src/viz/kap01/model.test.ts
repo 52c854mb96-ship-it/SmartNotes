@@ -85,6 +85,12 @@ describe('bevegelsesgrafer (konstant akselerasjon)', () => {
     expect(speedTrend({ s0: 0, v0: 3, a: 0 }, 1)).toBe('konstant');
     expect(speedTrend({ s0: 0, v0: 0, a: 0 }, 1)).toBe('ro');
   });
+
+  it('v = 0 i starten er ikke et vendepunkt', () => {
+    expect(speedTrend({ s0: 0, v0: 0, a: 2 }, 0)).toBe('starter');
+    expect(turnTime({ s0: 0, v0: 0, a: 2 })).toBeNull();
+    expect(speedTrend({ s0: 0, v0: 0, a: -2 }, 1)).toBe('øker');
+  });
 });
 
 describe('reaksjonslengde og bremselengde', () => {

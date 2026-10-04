@@ -1,12 +1,10 @@
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import {
-  Arrow,
   Controls,
   Explain,
   Figure,
   Formula,
   FormulaLine,
-  Label,
   Legend,
   PlayControls,
   Plot,
@@ -27,7 +25,7 @@ import {
 } from '../kit';
 import { displacement, niceRange, pathLength, position, positionExtent, speedTrend, turnTime, velocity, type Motion } from './model';
 import { useNarrow } from './useNarrow';
-import { ColorDot } from './marks';
+import { Arrow, ColorDot, Label } from './marks';
 
 /** Lengden på tidsaksen (s). */
 const T_END = 6;
@@ -117,7 +115,7 @@ export default function Bevegelsesgrafer() {
       <Legend
         items={[
           { color: VIZ.series[0], label: 'Posisjon s' },
-          { color: VIZ.velocity, label: 'Fart v og tangenten i s-t-grafen', dashed: false },
+          { color: VIZ.velocity, label: 'Fart v og tangenten i s-t-grafen' },
           { color: VIZ.acceleration, label: 'Akselerasjon a' },
         ]}
       />
@@ -158,7 +156,8 @@ function Track({ m, t, sRange, narrow }: { m: Motion; t: number; sRange: [number
   const f = useTextScale();
   const H = narrow ? 240 : 170;
   const trackY = H - 22 - 26 * f;
-  const xs = scaleLinear(sRange, [120, 680]);
+  // Plass til fartspilen (opptil 110) og etiketten på begge sider av banen
+  const xs = scaleLinear(sRange, [150, 650]);
   const ticks = niceTicks(sRange[0], sRange[1], narrow ? 4 : 6);
   // Større vogn og piler på mobil, der figuren skaleres ned
   const k = narrow ? 1.35 : 1;
@@ -176,7 +175,7 @@ function Track({ m, t, sRange, narrow }: { m: Motion; t: number; sRange: [number
 
   return (
     <g>
-      <line x1={100} x2={700} y1={trackY} y2={trackY} className="viz-ground" />
+      <line x1={110} x2={690} y1={trackY} y2={trackY} className="viz-ground" />
       {ticks.map((v) => (
         <g key={v}>
           <line x1={xs(v)} x2={xs(v)} y1={trackY} y2={trackY + 8} className="viz-axis" />
@@ -336,9 +335,9 @@ function Graphs({
                     <path d={p.d} fill={VIZ.velocity} opacity={p.positive ? 0.24 : 0.14} />
                     {!p.positive && <path d={p.d} fill="none" stroke={VIZ.velocity} strokeWidth={1.5} strokeDasharray="4 4" opacity={0.8} />}
                     {p.px > 2400 * f * f && (
-                      <text x={p.cx} y={p.cy + 7 * f} textAnchor="middle" className="viz-label" fill={VIZ.velocity}>
+                      <Label x={p.cx} y={p.cy + 7 * f} color={VIZ.velocity}>
                         {p.positive ? '+' : '−'}
-                      </text>
+                      </Label>
                     )}
                   </g>
                 ))}
@@ -419,6 +418,14 @@ function explanation(m: Motion, t: number, v: number, ds: number, dist: number):
         </>
       );
       break;
+    case 'starter':
+      state = (
+        <>
+          <strong>Vogna starter fra ro.</strong> Farten er null akkurat nå, så tangenten i s-t-grafen er vannrett. Men akselerasjonen er a ={' '}
+          {a}, så vogna begynner å kjøre i {m.a > 0 ? 'positiv' : 'negativ'} retning.
+        </>
+      );
+      break;
     case 'snur':
       state = (
         <>
@@ -431,12 +438,12 @@ function explanation(m: Motion, t: number, v: number, ds: number, dist: number):
       state =
         m.a < 0 ? (
           <>
-            <strong>Farten øker, selv om a er negativ.</strong> Både v og a er negative, så vogna går fortere og fortere i negativ retning.
-            Negativ akselerasjon betyr altså ikke alltid at vogna bremser.
+            <strong>Vogna går fortere, selv om a er negativ.</strong> Både v og a er negative, så vogna går fortere og fortere i negativ
+            retning. Negativ akselerasjon betyr altså ikke alltid at vogna bremser.
           </>
         ) : (
           <>
-            <strong>Farten øker</strong> fordi v og a har samme fortegn. s-t-grafen blir brattere og brattere.
+            <strong>Vogna går fortere</strong> fordi v og a har samme fortegn. s-t-grafen blir brattere og brattere.
           </>
         );
       break;
@@ -450,7 +457,7 @@ function explanation(m: Motion, t: number, v: number, ds: number, dist: number):
         ) : (
           <>
             <strong>Vogna bremser, selv om a er positiv.</strong> Vogna kjører i negativ retning (v &lt; 0), og akselerasjonen peker motsatt
-            vei. Det er fortegnet til v sammenlignet med a som avgjør om farten øker eller avtar.
+            vei. Det er fortegnet til v sammenlignet med a som avgjør om vogna går fortere eller saktere.
           </>
         );
       break;
@@ -462,7 +469,8 @@ function explanation(m: Motion, t: number, v: number, ds: number, dist: number):
       {turned && (
         <>
           {' '}
-          Areal under t-aksen teller negativt, så forflytningen er mindre enn strekningen vogna har kjørt, {fmt(dist, 1)} m.
+          Areal under t-aksen teller negativt, så forflytningen er mindre i tallverdi enn strekningen vogna faktisk har kjørt,{' '}
+          {fmt(dist, 1)} m.
         </>
       )}
     </p>

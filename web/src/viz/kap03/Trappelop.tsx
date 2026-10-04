@@ -1,13 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  Arrow,
   Controls,
   Explain,
   Figure,
   Formula,
   FormulaLine,
   G_EARTH,
-  Label,
   PlayControls,
   Readout,
   Readouts,
@@ -21,6 +19,7 @@ import {
   useSimClock,
 } from '../kit';
 import { POWER_REFS, pace, stairRun, timeForEnergy, type StairResult } from './model';
+import { Arrow, Label } from './marks';
 import { useNarrow } from './useNarrow';
 
 const KETTLE = 2000;
@@ -99,15 +98,16 @@ function Stairs({ h, m, u, narrow }: { h: number; m: number; u: number; narrow: 
   let d = `M${x0},${groundY}`;
   for (let i = 0; i < n; i++) d += ` L${x0 + i * run},${groundY - (i + 1) * rise} L${x0 + (i + 1) * run},${groundY - (i + 1) * rise}`;
   d += ` L760,${topY} L760,${groundY} Z`;
-  // Eleven står på trinnet under seg
-  const step = Math.min(n, Math.floor(u * n + 1e-9));
+  // Trinn i (0, 1, …) går fra x0 + i·run til x0 + (i + 1)·run og ligger i høyden i + 1. Eleven står på trinnet
+  // under føttene, så høyden og arbeidet så langt følger trinnene.
+  const level = Math.min(n, Math.max(0, Math.ceil(u * n - 1e-9)));
   const px = x0 + Math.min(u, 1) * (x1 - x0) + (u >= 1 ? 40 : 0);
-  const py = u >= 1 ? topY : groundY - step * rise;
+  const py = groundY - level * rise;
   const k = narrow ? 1.35 : 1;
-  const climbed = Math.min(u, 1) * h;
+  const climbed = (level / n) * h;
   const W = m * G_EARTH * climbed;
-  // Tyngden vokser med massen, men pilen holdes innenfor figuren
-  const gLen = (22 + (m / 120) * 40) * k;
+  // G er proporsjonal med massen (0,5 px per kg)
+  const gLen = m * 0.5 * k;
 
   return (
     <g>
@@ -178,9 +178,9 @@ function PowerBars({ P, narrow }: { P: number; narrow: boolean }) {
               {row.label}
             </Label>
             <rect x={xs(0)} y={yc - bar / 2} width={Math.max(2, xs(row.P) - xs(0))} height={bar} rx={3} fill={row.you ? C_YOU : VIZ.tension} opacity={row.you ? 0.9 : 0.55} />
-            <text x={800 - 12} y={yc + 6} textAnchor="end" className="viz-label" fill={row.you ? C_YOU : VIZ.ink}>
+            <Label x={800 - 12} y={yc + 6} anchor="end" color={row.you ? C_YOU : VIZ.ink}>
               {fmt(row.P, 0)} W
-            </text>
+            </Label>
           </g>
         );
       })}

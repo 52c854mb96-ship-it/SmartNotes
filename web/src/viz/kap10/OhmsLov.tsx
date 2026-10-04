@@ -93,11 +93,11 @@ function OhmView({
       </Controls>
 
       <Figure
-        viewBox={`0 0 800 ${narrow ? 300 : 250}`}
+        viewBox={narrow ? '0 0 560 330' : '0 0 800 270'}
         label={`Krets med batteri på ${fmt(U, 1)} V og ${lamp ? 'en glødelampe' : `en motstand på ${fmt(R, 0)} Ω`}. Amperemeteret viser ${fmt(I, 2)} A.`}
-        maxHeight={300}
+        maxHeight={320}
       >
-        <CircuitDrawing U={U} I={I} R={Rnow} lamp={lamp} temp={temp} H={narrow ? 300 : 250} />
+        <CircuitDrawing U={U} I={I} R={Rnow} lamp={lamp} temp={temp} W={narrow ? 560 : 800} H={narrow ? 330 : 270} />
       </Figure>
 
       <div ref={graphRef}>
@@ -149,26 +149,27 @@ function OhmView({
   );
 }
 
-function CircuitDrawing({ U, I, R, lamp, temp, H }: { U: number; I: number; R: number; lamp: boolean; temp: number; H: number }) {
+function CircuitDrawing({ U, I, R, lamp, temp, W, H }: { U: number; I: number; R: number; lamp: boolean; temp: number; W: number; H: number }) {
   const f = useTextScale();
-  const left = 120;
-  const right = 680;
-  const top = 34 + 22 * f;
-  const bottom = H - 30;
-  const mid = (top + bottom) / 2;
-  const cx = 400;
+  const left = W * 0.15;
+  const right = W * 0.85;
+  const cx = W / 2;
+  // Voltmeteret står over komponenten, så det er plass til avlesningene inni kretsen.
+  const vY = 34 + 8 * f;
+  const top = vY + 52;
+  const bottom = H - 26;
+  const mid = (top + bottom) / 2 + 10;
   const wire = { stroke: VIZ.ink, strokeWidth: 2.5 };
   const [gr, gg, gb] = blackbodyRgb(temp + 273);
   const glow = glowStrength(temp);
-  const vY = top + (bottom - top) * 0.55;
 
   return (
     <g>
       {/* Hovedkretsen */}
       <line x1={left} y1={top} x2={cx - 70} y2={top} {...wire} />
       <line x1={cx + 70} y1={top} x2={right} y2={top} {...wire} />
-      <line x1={right} y1={top} x2={right} y2={mid - 26} {...wire} />
-      <line x1={right} y1={mid + 26} x2={right} y2={bottom} {...wire} />
+      <line x1={right} y1={top} x2={right} y2={mid - 22} {...wire} />
+      <line x1={right} y1={mid + 22} x2={right} y2={bottom} {...wire} />
       <line x1={right} y1={bottom} x2={left} y2={bottom} {...wire} />
       <line x1={left} y1={bottom} x2={left} y2={mid + 12} {...wire} />
       <line x1={left} y1={mid - 12} x2={left} y2={top} {...wire} />
@@ -176,13 +177,13 @@ function CircuitDrawing({ U, I, R, lamp, temp, H }: { U: number; I: number; R: n
       {/* Batteri: lang strek er plusspolen */}
       <line x1={left - 30} y1={mid - 12} x2={left + 30} y2={mid - 12} stroke={VIZ.ink} strokeWidth={3} />
       <line x1={left - 15} y1={mid + 12} x2={left + 15} y2={mid + 12} stroke={VIZ.ink} strokeWidth={8} />
-      <Tag x={left - 38} y={mid - 8} anchor="end" weight={700}>
+      <Tag x={left - 36} y={mid - 6} anchor="end" weight={700}>
         +
       </Tag>
-      <Tag x={left - 38} y={mid + 22} anchor="end" weight={700}>
+      <Tag x={left - 36} y={mid + 26} anchor="end" weight={700}>
         −
       </Tag>
-      <Tag x={left + 42} y={mid + 6} anchor="start" color={EL.voltage} weight={700}>
+      <Tag x={left + 40} y={mid + 6 * f} anchor="start" color={EL.voltage} weight={700}>
         U = {fmt(U, 1)} V
       </Tag>
 
@@ -192,18 +193,26 @@ function CircuitDrawing({ U, I, R, lamp, temp, H }: { U: number; I: number; R: n
           <line x1={cx - 70} y1={top} x2={cx - 26} y2={top} {...wire} />
           <line x1={cx + 26} y1={top} x2={cx + 70} y2={top} {...wire} />
           {glow > 0 && <circle cx={cx} cy={top} r={26 + 16 * glow} fill={`rgb(${gr}, ${gg}, ${gb})`} opacity={0.35 * glow} />}
-          <circle cx={cx} cy={top} r={26} fill={glow > 0 ? `rgb(${gr}, ${gg}, ${gb})` : VIZ.surface} fillOpacity={glow > 0 ? 0.25 + 0.6 * glow : 1} stroke={VIZ.ink} strokeWidth={2.5} />
+          <circle
+            cx={cx}
+            cy={top}
+            r={26}
+            fill={glow > 0 ? `rgb(${gr}, ${gg}, ${gb})` : VIZ.surface}
+            fillOpacity={glow > 0 ? 0.25 + 0.6 * glow : 1}
+            stroke={VIZ.ink}
+            strokeWidth={2.5}
+          />
           <line x1={cx - 18} y1={top - 18} x2={cx + 18} y2={top + 18} stroke={VIZ.ink} strokeWidth={2} />
           <line x1={cx - 18} y1={top + 18} x2={cx + 18} y2={top - 18} stroke={VIZ.ink} strokeWidth={2} />
         </g>
       ) : (
         <g>
-          <line x1={cx - 70} y1={top} x2={cx - 55} y2={top} {...wire} />
-          <line x1={cx + 55} y1={top} x2={cx + 70} y2={top} {...wire} />
-          <rect x={cx - 55} y={top - 17} width={110} height={34} rx={4} fill={VIZ.body} stroke={VIZ.ink} strokeWidth={2.5} />
+          <line x1={cx - 70} y1={top} x2={cx - 50} y2={top} {...wire} />
+          <line x1={cx + 50} y1={top} x2={cx + 70} y2={top} {...wire} />
+          <rect x={cx - 50} y={top - 16} width={100} height={32} rx={4} fill={VIZ.body} stroke={VIZ.ink} strokeWidth={2.5} />
         </g>
       )}
-      <Tag x={cx + 80} y={top - 12} anchor="start" weight={700}>
+      <Tag x={cx} y={top + 26 + 28 * f} anchor="middle" weight={700}>
         {lamp ? `lampe, R = ${U > 0 ? fmt(R, 1) : fmt(LAMP.R0, 1)} Ω` : `R = ${fmt(R, 0)} Ω`}
       </Tag>
 
@@ -215,19 +224,19 @@ function CircuitDrawing({ U, I, R, lamp, temp, H }: { U: number; I: number; R: n
       <circle cx={cx - 70} cy={top} r={4} fill={VIZ.ink} />
       <circle cx={cx + 70} cy={top} r={4} fill={VIZ.ink} />
       <Meter x={cx} y={vY} letter="V" />
-      <Tag x={cx + 32} y={vY + 6 * f} anchor="start" color={EL.voltage} weight={700}>
+      <Tag x={cx + 82} y={vY + 6 * f} anchor="start" color={EL.voltage} weight={700}>
         {fmt(U, 1)} V
       </Tag>
 
       {/* Amperemeter i serie */}
       <Meter x={right} y={mid} letter="A" />
-      <Tag x={right - 34} y={mid + 6 * f} anchor="end" color={EL.current} weight={700}>
+      <Tag x={right - 32} y={mid + 6 * f} anchor="end" color={EL.current} weight={700}>
         {fmt(I, 2)} A
       </Tag>
 
-      {I > 0.005 && <Arrow x1={left + 40} y1={top - 14} x2={left + 110} y2={top - 14} color={EL.current} width={2.5} head={10} />}
+      {I > 0.005 && <Arrow x1={left + 30} y1={top - 14} x2={left + 90} y2={top - 14} color={EL.current} width={2.5} head={10} />}
       {I > 0.005 && (
-        <Tag x={left + 75} y={top - 24} anchor="middle" color={EL.current} weight={700}>
+        <Tag x={left + 60} y={top - 24} anchor="middle" color={EL.current} weight={700}>
           I
         </Tag>
       )}
@@ -362,7 +371,9 @@ function Resistivity({
 }) {
   const m = MATERIALS.find((x) => x.id === mat) ?? MATERIALS[0]!;
   const R = resistance(m.rho, L, A);
-  const barsH = narrow ? 70 + MATERIALS.length * 66 : 40 + MATERIALS.length * 40;
+  // På mobil får figurene en smalere viewBox, så teksten ikke blir for stor i forhold til figuren.
+  const W = narrow ? 480 : 800;
+  const barsH = 16 + MATERIALS.length * 40;
 
   return (
     <>
@@ -374,20 +385,25 @@ function Resistivity({
         <Slider label="Tverrsnitt A" value={A} onChange={setA} min={0.25} max={4} step={0.25} unit="mm²" decimals={2} />
       </Controls>
 
-      <Figure viewBox={`0 0 800 ${narrow ? 230 : 180}`} label={`Ledning av ${m.name.toLowerCase()}, ${fmt(L, 1)} m lang med tverrsnitt ${fmt(A, 2)} mm².`} maxHeight={240}>
-        <WireDrawing L={L} A={A} R={R} name={m.name} />
+      <Figure viewBox={`0 0 ${W} 170`} label={`Ledning av ${m.name.toLowerCase()}, ${fmt(L, 1)} m lang med tverrsnitt ${fmt(A, 2)} mm².`} maxHeight={240}>
+        <WireDrawing L={L} A={A} R={R} name={m.name} W={W} />
       </Figure>
 
       <div ref={graphRef}>
-        <Figure viewBox={`0 0 800 ${barsH}`} label="Resistansen for samme ledning laget av ulike materialer" maxHeight={480}>
-          <MaterialBars L={L} A={A} selected={m.id} narrow={narrow} />
+        <Figure
+          viewBox={`0 0 ${W} ${barsH}`}
+          label="Resistansen for samme ledning laget av ulike materialer"
+          caption={`Samme ledning (${fmt(L, 1)} m, ${fmt(A, 2)} mm²) laget av ulike materialer`}
+          maxHeight={420}
+        >
+          <MaterialBars L={L} A={A} selected={m.id} W={W} />
         </Figure>
       </div>
 
       <Readouts>
         <Readout label="Resistivitet ρ" value={fmtSci(m.rho, 1)} unit="Ω·m" />
         <Readout label="Resistans R" value={fmtR(R)} unit="Ω" tone={RES_COLOR} />
-        <Readout label="Strøm ved 1,5 V" value={fmtI(1.5 / R)} unit="A" tone={EL.current} />
+        <Readout label="Resistans per meter" value={fmtR(R / L)} unit="Ω/m" />
       </Readouts>
 
       <Formula label="Resistansen til ledningen">
@@ -408,61 +424,54 @@ function Resistivity({
 }
 
 const fmtR = (R: number) => (R < 0.1 ? fmt(R, 4) : R < 10 ? fmt(R, 3) : fmt(R, 1));
-const fmtI = (I: number) => (I >= 100 ? fmt(I, 0) : I >= 1 ? fmt(I, 1) : fmt(I, 3));
 
-function WireDrawing({ L, A, R, name }: { L: number; A: number; R: number; name: string }) {
+function WireDrawing({ L, A, R, name, W }: { L: number; A: number; R: number; name: string; W: number }) {
   const f = useTextScale();
-  const x0 = 60;
-  const len = 40 + (L / 20) * 640;
+  const x0 = 30;
+  const aW = textWidth(13, f);
+  const len = 30 + (L / 20) * (W - x0 - aW - 50);
   const d = 10 * Math.sqrt(A / 0.25);
-  const cy = 30 + 24 * f + 40;
+  const cy = 30 + 22 * f + 30;
   return (
     <g>
-      <rect x={x0} y={cy - d / 2} width={len} height={d} rx={d / 2} fill={VIZ.bodyStrong} className="viz-block" />
-      <ellipse cx={x0 + d * 0.3} cy={cy} rx={d * 0.3} ry={d / 2} fill={VIZ.body} className="viz-block" />
       <Tag x={x0} y={30 + 6 * f} anchor="start" weight={700}>
         {name}, R = {fmtR(R)} Ω
       </Tag>
-      {/* Målestrek for lengden */}
-      <line x1={x0} y1={cy + 40} x2={x0 + len} y2={cy + 40} stroke={VIZ.muted} strokeWidth={1.5} />
-      <line x1={x0} y1={cy + 32} x2={x0} y2={cy + 48} stroke={VIZ.muted} strokeWidth={1.5} />
-      <line x1={x0 + len} y1={cy + 32} x2={x0 + len} y2={cy + 48} stroke={VIZ.muted} strokeWidth={1.5} />
-      <Tag x={x0 + len / 2} y={cy + 40 + 24 * f} anchor="middle" muted>
-        L = {fmt(L, 1)} m
-      </Tag>
-      <Tag x={Math.min(x0 + len + 14, 790)} y={cy + 6 * f} anchor={x0 + len + 14 + textWidth(12, f) > 800 ? 'end' : 'start'} muted>
+      <rect x={x0} y={cy - d / 2} width={len} height={d} rx={d / 2} fill={VIZ.bodyStrong} className="viz-block" />
+      <ellipse cx={x0 + d * 0.3} cy={cy} rx={d * 0.3} ry={d / 2} fill={VIZ.body} className="viz-block" />
+      <Tag x={x0 + len + 14} y={cy + 6 * f} anchor="start" muted>
         A = {fmt(A, 2)} mm²
+      </Tag>
+      {/* Målestrek for lengden */}
+      <line x1={x0} y1={cy + 36} x2={x0 + len} y2={cy + 36} stroke={VIZ.muted} strokeWidth={1.5} />
+      <line x1={x0} y1={cy + 28} x2={x0} y2={cy + 44} stroke={VIZ.muted} strokeWidth={1.5} />
+      <line x1={x0 + len} y1={cy + 28} x2={x0 + len} y2={cy + 44} stroke={VIZ.muted} strokeWidth={1.5} />
+      <Tag x={x0} y={cy + 36 + 24 * f} anchor="start" muted>
+        L = {fmt(L, 1)} m
       </Tag>
     </g>
   );
 }
 
-function MaterialBars({ L, A, selected, narrow }: { L: number; A: number; selected: string; narrow: boolean }) {
+function MaterialBars({ L, A, selected, W }: { L: number; A: number; selected: string; W: number }) {
   const f = useTextScale();
   const values = MATERIALS.map((m) => resistance(m.rho, L, A));
   const max = Math.max(...values);
-  const labelW = narrow ? 0 : textWidth(11, f) + 20;
-  const x0 = 20 + labelW;
-  const valueW = textWidth(9, f);
-  const x1 = 800 - 20 - valueW;
-  const rowH = narrow ? 66 : 40;
+  const x0 = 16 + textWidth(10, f) + 12;
+  const x1 = W - 12 - textWidth(8, f);
   return (
     <g>
-      <Tag x={20} y={22 * f} anchor="start" muted>
-        Samme ledning ({fmt(L, 1)} m, {fmt(A, 2)} mm²) av ulike materialer
-      </Tag>
       {MATERIALS.map((m, k) => {
-        const y = (narrow ? 60 : 40) + k * rowH;
+        const y = 12 + k * 40;
         const w = Math.max(2, ((values[k] ?? 0) / max) * (x1 - x0));
         const on = m.id === selected;
-        const barY = narrow ? y + 14 : y;
         return (
           <g key={m.id}>
-            <Tag x={narrow ? 20 : x0 - 12} y={narrow ? y + 6 : y + 16} anchor={narrow ? 'start' : 'end'} weight={on ? 750 : 560} muted={!on}>
+            <Tag x={x0 - 12} y={y + 11 + 6 * f} anchor="end" weight={on ? 750 : 560} muted={!on}>
               {m.name}
             </Tag>
-            <rect x={x0} y={barY} width={w} height={22} rx={4} fill={RES_COLOR} fillOpacity={on ? 0.85 : 0.3} />
-            <Tag x={x0 + w + 10} y={barY + 17} anchor="start" weight={on ? 750 : 560} muted={!on}>
+            <rect x={x0} y={y} width={w} height={22} rx={4} fill={RES_COLOR} fillOpacity={on ? 0.85 : 0.3} />
+            <Tag x={x0 + w + 10} y={y + 11 + 6 * f} anchor="start" weight={on ? 750 : 560} muted={!on}>
               {fmtR(values[k] ?? 0)} Ω
             </Tag>
           </g>

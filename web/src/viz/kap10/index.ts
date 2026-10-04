@@ -22,6 +22,26 @@ const viz: VizMeta[] = [
     keywords: ['U = RI', 'spenning', 'resistans', 'ohm', 'ohmsk', 'glødelampe', 'resistivitet', 'R = ρL/A', 'amperemeter', 'voltmeter'],
     load: () => import('./OhmsLov'),
   },
+  {
+    id: 'koblinger',
+    chapter: '10',
+    sections: ['10C'],
+    title: 'Serie- og parallellkobling',
+    summary:
+      'Koble to eller tre motstander i serie eller parallell og se hvordan strømmen og spenningen fordeler seg, hva den totale resistansen blir, og at Kirchhoffs lover alltid stemmer.',
+    keywords: ['seriekobling', 'parallellkobling', 'total resistans', 'erstatningsresistans', 'Kirchhoffs lover', 'strømloven', 'spenningsloven', 'forgreining'],
+    load: () => import('./Koblinger'),
+  },
+  {
+    id: 'effekt-og-energi',
+    chapter: '10',
+    sections: ['10D'],
+    title: 'Effekt, energi og strømregning',
+    summary:
+      'Velg et apparat, hvor lenge det står på og strømprisen, og se forskjellen på effekt og energi: hvor mange kWh det bruker og hva det koster per måned.',
+    keywords: ['effekt', 'energi', 'kWh', 'kilowattime', 'P = UI', 'P = RI²', 'W = Pt', 'strømpris', 'sikring', 'watt'],
+    load: () => import('./EffektOgEnergi'),
+  },
 ];
 
 export default viz;

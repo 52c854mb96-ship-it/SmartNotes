@@ -75,7 +75,7 @@ export function sledWork({ F, alphaDeg, s, mu, m = SLED_MASS }: SledInput, g = G
   return { Fpar, Fperp, G, N, R, WF, WR, WG: 0, WN: 0, W: WF + WR };
 }
 
-/* ---------- 3C–3F Energibevaring: skater på en bane ---------- */
+/* ---------- 3C–3F Energibevaring: kule på en bane ---------- */
 
 export type TrackKind = 'rampe' | 'bakke';
 
@@ -85,7 +85,7 @@ export interface Track {
   xMax: number;
   /** Høyeste punkt på banen (m). */
   top: number;
-  /** Laveste punkt (der skateren starter fra venstre side ned mot). */
+  /** Laveste punkt (der kula starter fra venstre side ned mot). */
   xBottom: number;
   /** Toppen i midten (bare for «bakke»). */
   hump: { x: number; h: number } | null;
@@ -179,7 +179,7 @@ export interface TrackSim {
   samples: TrackSample[];
   /** Tid mellom lagrede punkter (s). */
   every: number;
-  /** Når skateren blir stående (bare med friksjon), ellers null. */
+  /** Når kula blir liggende i ro (bare med friksjon), ellers null. */
   stopTime: number | null;
   /** Mekanisk energi ved start, m·g·h₀. */
   E0: number;
@@ -201,10 +201,10 @@ export interface TrackSimInput {
 }
 
 /**
- * Bevegelse langs banen y = h(x) for et punktlegeme (skater uten rotasjon). Langs banen er
+ * Bevegelse langs banen y = h(x) for et punktlegeme (kula regnes uten rotasjon og følger banen som en vogn på skinner). Langs banen er
  *   dv/dt = −g·sin θ − (R/m)·fortegn(v),   dx/dt = v·cos θ,   tan θ = h′(x),
  * løst med Runge–Kutta (RK4). Friksjonen er forenklet til R = μmg, så varmen blir R · (strekning langs banen).
- * Skateren blir stående i et vendepunkt hvis tyngdekomponenten langs banen ikke klarer å overvinne friksjonen.
+ * Kula blir liggende i et vendepunkt hvis tyngdekomponenten langs banen ikke klarer å overvinne friksjonen.
  */
 export function simulateTrack({ track, h0, m, mu, tMax, dt = 0.002, every = 0.02 }: TrackSimInput, g = G_EARTH): TrackSim {
   const R = mu * m * g;
@@ -302,10 +302,13 @@ export const POWER_REFS: { label: string; P: number }[] = [
 
 export type Pace = 'rolig' | 'gange' | 'løping' | 'sprint' | 'urealistisk';
 
-/** Hvor krevende trappeløpet er, ut fra hvor mange meter du løfter deg per sekund. */
+/**
+ * Hvor krevende trappeløpet er, ut fra hvor mange meter du løfter deg per sekund. Vanlig gange i trapp er
+ * omtrent 0,3 m/s (et trinn på 17 cm nesten to ganger i sekundet).
+ */
 export function pace(vertical: number): Pace {
-  if (vertical < 0.25) return 'rolig';
-  if (vertical < 0.6) return 'gange';
+  if (vertical < 0.2) return 'rolig';
+  if (vertical < 0.45) return 'gange';
   if (vertical < 1.2) return 'løping';
   if (vertical < 1.8) return 'sprint';
   return 'urealistisk';

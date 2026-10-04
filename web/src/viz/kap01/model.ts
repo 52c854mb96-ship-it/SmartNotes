@@ -81,16 +81,17 @@ export function positionExtent(m: Motion, T: number): [number, number] {
   return [Math.min(...vals), Math.max(...vals)];
 }
 
-export type SpeedTrend = 'ro' | 'konstant' | 'snur' | 'øker' | 'avtar';
+export type SpeedTrend = 'ro' | 'konstant' | 'starter' | 'snur' | 'øker' | 'avtar';
 
 /**
- * Om farten (størrelsen av v) øker eller avtar: øker når v og a har samme fortegn, avtar når de har motsatt.
+ * Om banefarten (størrelsen av v) øker eller avtar: øker når v og a har samme fortegn, avtar når de har motsatt.
+ * Med v = 0 og a ≠ 0 starter vogna fra ro (v₀ = 0) eller snur (v skifter fortegn).
  * `eps` er grensen for når vi sier at v er null.
  */
 export function speedTrend({ v0, a }: Motion, t: number, eps = 0.05): SpeedTrend {
   const v = v0 + a * t;
   if (a === 0) return Math.abs(v) < eps ? 'ro' : 'konstant';
-  if (Math.abs(v) < eps) return 'snur';
+  if (Math.abs(v) < eps) return Math.abs(v0) < eps ? 'starter' : 'snur';
   return Math.sign(v) === Math.sign(a) ? 'øker' : 'avtar';
 }
 

@@ -5,7 +5,6 @@ import {
   Figure,
   Formula,
   FormulaLine,
-  Label,
   Legend,
   PlayControls,
   Plot,
@@ -27,7 +26,7 @@ import {
 } from '../kit';
 import { BRAKE_PRESETS, kmhToMs, niceRange, stopPosition, stopVelocity, stopping, type StopInput, type StopResult } from './model';
 import { useNarrow } from './useNarrow';
-import { ColorDot } from './marks';
+import { ColorDot, Label } from './marks';
 
 type Surface = 'torr' | 'vat' | 'is' | 'egen';
 
@@ -39,6 +38,9 @@ const SURFACES: { value: Surface; label: string }[] = [
 
 const C_REACT = VIZ.series[0];
 const C_BRAKE = VIZ.series[1];
+
+/** Halv fart som tekst, med desimal når farten er et oddetall (25 km/h → «12,5 km/h»). */
+const halfText = (kmh: number): string => `${fmt(kmh / 2, kmh % 2 === 0 ? 0 : 1)} km/h`;
 
 function surfaceOf(a: number): Surface {
   if (a === BRAKE_PRESETS.torr) return 'torr';
@@ -91,7 +93,7 @@ export default function Bremselengde() {
             if (s !== 'egen') setA(BRAKE_PRESETS[s]);
           }}
         />
-        <Toggle label={`Sammenlign med halv fart (${fmt(kmh / 2, 0)} km/h)`} checked={compare} onChange={setCompare} />
+        <Toggle label={`Sammenlign med halv fart (${halfText(kmh)})`} checked={compare} onChange={setCompare} />
       </Toolbar>
       <Toolbar>
         <PlayControls clock={clock} />
@@ -118,7 +120,7 @@ export default function Bremselengde() {
         items={[
           { color: C_REACT, label: 'Reaksjonslengde (konstant fart)' },
           { color: C_BRAKE, label: 'Bremselengde (farten avtar)' },
-          ...(compare ? [{ color: VIZ.velocity, label: `Halv fart, ${fmt(kmh / 2, 0)} km/h`, dashed: true }] : []),
+          ...(compare ? [{ color: VIZ.velocity, label: `Halv fart, ${halfText(kmh)}`, dashed: true }] : []),
         ]}
       />
 
@@ -164,7 +166,10 @@ export default function Bremselengde() {
           s<Sub>r</Sub> = v<Sub>0</Sub> · t<Sub>r</Sub> = {fmt(main.v0, 1)} m/s · {fmt(tr, 1)} s = {fmt(r.sr, 1)} m
         </FormulaLine>
         <FormulaLine>
-          s<Sub>b</Sub> = v<Sub>0</Sub>² / (2a) = ({fmt(main.v0, 1)} m/s)² / (2 · {fmt(a, 1)} m/s²) = {fmt(r.sb, 1)} m
+          Bremsing: v² − v<Sub>0</Sub>² = 2 · (−a) · s<Sub>b</Sub> med v = 0 gir s<Sub>b</Sub> = v<Sub>0</Sub>² / (2a)
+        </FormulaLine>
+        <FormulaLine>
+          s<Sub>b</Sub> = ({fmt(main.v0, 1)} m/s)² / (2 · {fmt(a, 1)} m/s²) = {fmt(r.sb, 1)} m
         </FormulaLine>
       </Formula>
 
@@ -207,7 +212,7 @@ function Road({
   const k = narrow ? 1.5 : 1;
   const laneH = 34 + 40 * k + 42 * f;
   const lanes = [{ input: main, res: r, label: `${fmt(kmh, 0)} km/h`, strong: true }];
-  if (half) lanes.push({ input: half, res: rh, label: `${fmt(kmh / 2, 0)} km/h`, strong: false });
+  if (half) lanes.push({ input: half, res: rh, label: halfText(kmh), strong: false });
 
   return (
     <g>
@@ -240,12 +245,12 @@ function Road({
             <rect x={xr} y={yRoad + 6} width={Math.max(0, xe - xr)} height={12 * k} fill={C_BRAKE} opacity={lane.strong ? 0.85 : 0.55} />
             <line x1={xe} x2={xe} y1={yRoad - 34 * k} y2={yRoad + 6 + 12 * k} stroke={VIZ.ink} strokeWidth={2} strokeDasharray="4 4" />
             {xr - xs(0) > srText.length * charW && (
-              <text x={(xs(0) + xr) / 2} y={yRoad + 10 + 12 * k + 14 * f} textAnchor="middle" className="viz-tick" fill={C_REACT}>
+              <text x={(xs(0) + xr) / 2} y={yRoad + 10 + 12 * k + 14 * f} textAnchor="middle" className="viz-tick" style={{ fill: C_REACT }}>
                 {srText}
               </text>
             )}
             {xe - xr > sbText.length * charW && (
-              <text x={(xr + xe) / 2} y={yRoad + 10 + 12 * k + 14 * f} textAnchor="middle" className="viz-tick" fill={C_BRAKE}>
+              <text x={(xr + xe) / 2} y={yRoad + 10 + 12 * k + 14 * f} textAnchor="middle" className="viz-tick" style={{ fill: C_BRAKE }}>
                 {sbText}
               </text>
             )}
@@ -308,6 +313,15 @@ function SpeedGraph({
         const rectW = sx(main.tr) - sx(0);
         const rectH = sy(0) - sy(main.v0);
         const triW = sx(r.tStop) - sx(main.tr);
+        // Med sammenligningen på går den stiplede grafen under v₀/2, så etiketten for s_b legges over v₀/2,
+        // til venstre for den skrå linja.
+        let brake = { x: sx(main.tr) + triW * 0.26, y: sy(main.v0 * 0.42) + 6, w: triW * 0.5, h: rectH / 3 };
+        if (half) {
+          const y = sy(main.v0 * 0.5) - 10;
+          const vTop = main.v0 * Math.min(1, (sy(0) - (y - 14 * f)) / rectH);
+          const xDiag = sx(main.tr) + triW * (1 - vTop / main.v0);
+          brake = { x: (sx(main.tr) + xDiag) / 2, y, w: xDiag - sx(main.tr) - 16, h: rectH / 2 - 10 };
+        }
         return (
           <g>
             <rect x={sx(0)} y={sy(main.v0)} width={rectW} height={rectH} fill={C_REACT} opacity={0.26} />
@@ -321,7 +335,7 @@ function SpeedGraph({
             />
             {/* Etikettene ligger der den stiplede grafen for halv fart ikke går */}
             <AreaLabel x={sx(0) + rectW / 2} y={sy(main.v0 * 0.75) + 6} w={rectW} h={rectH / 2} color={C_REACT} sub="r" value={r.sr} f={f} />
-            <AreaLabel x={sx(main.tr) + triW * 0.26} y={sy(main.v0 * 0.42) + 6} w={triW * 0.5} h={rectH / 3} color={C_BRAKE} sub="b" value={r.sb} f={f} />
+            <AreaLabel {...brake} color={C_BRAKE} sub="b" value={r.sb} f={f} />
             {half && (
               <polyline
                 points={`${sx(0)},${sy(half.v0)} ${sx(half.tr)},${sy(half.v0)} ${sx(rh.tStop)},${sy(0)}`}
@@ -368,8 +382,8 @@ function explanation(kmh: number, tr: number, a: number, r: StopResult, rh: Stop
   return (
     <>
       <p>
-        <strong>Reaksjonslengden er proporsjonal med farten, men bremselengden er proporsjonal med farten i andre:</strong> dobbel fart gir
-        fire ganger så lang bremselengde. Ved halv fart ({fmt(kmh / 2, 0)} km/h) blir reaksjonslengden halvparten ({fmt(rh.sr, 1)} m), men
+        <strong>Reaksjonslengden er proporsjonal med farten, men bremselengden er proporsjonal med kvadratet av farten:</strong> dobbel fart gir
+        fire ganger så lang bremselengde. Ved halv fart ({halfText(kmh)}) blir reaksjonslengden halvparten ({fmt(rh.sr, 1)} m), men
         bremselengden bare en fjerdedel ({fmt(rh.sb, 1)} m).{' '}
         {compare
           ? 'I v-t-grafen ser du hvorfor: trekanten blir både halvparten så høy og halvparten så bred, så arealet blir en fjerdedel.'

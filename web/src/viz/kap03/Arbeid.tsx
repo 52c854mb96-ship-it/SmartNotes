@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react';
 import {
-  Arrow,
   Block,
   Controls,
   Explain,
@@ -8,7 +7,6 @@ import {
   Formula,
   FormulaLine,
   Ground,
-  Label,
   Legend,
   Readout,
   Readouts,
@@ -24,10 +22,11 @@ import {
   useTextScale,
 } from '../kit';
 import { SLED_MASS, niceCeil, sledWork, type SledResult } from './model';
+import { Arrow, Label } from './marks';
 import { useNarrow } from './useNarrow';
 
-/** Piksler per newton for F, komponentene og R. */
-const K = 1.4;
+/** Piksler per newton for F, komponentene og R (F = 200 N rett opp gir 250 px). */
+const K = 1.25;
 /** Piksler per newton for G og N (lengre krefter, mindre skala). */
 const KV = 0.32;
 
@@ -54,7 +53,7 @@ export default function Arbeid() {
 
       <div ref={ref}>
         <Figure
-          viewBox={`0 0 800 ${sceneHeight(narrow)}`}
+          viewBox={sceneViewBox(narrow)}
           label={`Kjelke som dras ${fmt(s, 0)} m mot høyre med kraften ${fmt(F, 0)} N i vinkelen ${fmt(alpha, 0)} grader med bevegelsesretningen.`}
           maxHeight={narrow ? 540 : 470}
         >
@@ -74,8 +73,8 @@ export default function Arbeid() {
         ]}
       />
 
-      <Figure viewBox={`0 0 800 ${narrow ? 430 : 290}`} label="Søylediagram over arbeidet hver kraft gjør, med fortegn." maxHeight={narrow ? 470 : 320}>
-        <WorkBars r={r} />
+      <Figure viewBox={`0 0 800 ${barsHeight(narrow)}`} label="Søylediagram over arbeidet hver kraft gjør, med fortegn." maxHeight={narrow ? 470 : 320}>
+        <WorkBars r={r} height={barsHeight(narrow)} />
       </Figure>
 
       <Readouts>
@@ -131,14 +130,24 @@ export default function Arbeid() {
 
 /* ---------- Scenen ---------- */
 
-function sceneHeight(narrow: boolean): number {
-  return narrow ? 500 : 450;
+/**
+ * Plassen i scenen. Høyden gir akkurat plass til F = 200 N rett opp. På mobil beskjæres sidene (ingenting tegnes
+ * utenfor x = 60–740), så kjelken og pilene blir større.
+ */
+function sceneLayout(narrow: boolean) {
+  return narrow ? { left: 60, right: 740, H: 445, groundY: 336 } : { left: 0, right: 800, H: 410, groundY: 330 };
 }
+
+function sceneViewBox(narrow: boolean): string {
+  const { left, right, H } = sceneLayout(narrow);
+  return `${left} 0 ${right - left} ${H}`;
+}
+
+const barsHeight = (narrow: boolean): number => (narrow ? 430 : 290);
 
 function Scene({ F, alpha, s, r, vertical, narrow }: { F: number; alpha: number; s: number; r: SledResult; vertical: boolean; narrow: boolean }) {
   const f = useTextScale();
-  const H = sceneHeight(narrow);
-  const groundY = narrow ? 380 : 360;
+  const { left, right, H, groundY } = sceneLayout(narrow);
   const cx = 400;
   const boxW = 190;
   const boxH = 54;
@@ -156,7 +165,7 @@ function Scene({ F, alpha, s, r, vertical, narrow }: { F: number; alpha: number;
 
   return (
     <g>
-      <Ground x1={20} x2={780} y={groundY} />
+      <Ground x1={left + 16} x2={right - 16} y={groundY} />
       {/* Meier og last */}
       <path
         d={`M${cx - boxW / 2 - 14},${groundY - 3} L${cx + boxW / 2},${groundY - 3} Q${cx + boxW / 2 + 30},${groundY - 3} ${cx + boxW / 2 + 26},${groundY - 30}`}
@@ -246,11 +255,11 @@ function Scene({ F, alpha, s, r, vertical, narrow }: { F: number; alpha: number;
       />
 
       {/* Forflytningen, til høyre under bakken */}
-      <Arrow x1={560} y1={sY} x2={770} y2={sY} color={VIZ.ink} width={2.5} head={12} />
-      <Label x={665} y={sY - 12} anchor="middle">
+      <Arrow x1={right - 230} y1={sY} x2={right - 24} y2={sY} color={VIZ.ink} width={2.5} head={12} />
+      <Label x={right - 127} y={sY - 12} anchor="middle">
         s = {fmt(s, 0)} m
       </Label>
-      <Label x={24} y={H - 14} anchor="start" muted>
+      <Label x={left + 24} y={H - 14} anchor="start" muted>
         Kjelke med last, {SLED_MASS} kg
       </Label>
     </g>
@@ -259,9 +268,9 @@ function Scene({ F, alpha, s, r, vertical, narrow }: { F: number; alpha: number;
 
 /* ---------- Søyler for arbeidet ---------- */
 
-function WorkBars({ r }: { r: SledResult }) {
+function WorkBars({ r, height: H }: { r: SledResult; height: number }) {
   const f = useTextScale();
-  const rows: { label: ReactNode; value: number; color: string; perpendicular?: boolean }[] = [
+  const rows: { label: ReactNode; value: number; color: string; note?: string }[] = [
     {
       label: (
         <>
@@ -288,7 +297,7 @@ function WorkBars({ r }: { r: SledResult }) {
       ),
       value: r.WG,
       color: VIZ.gravity,
-      perpendicular: true,
+      note: 'G står vinkelrett på bevegelsen',
     },
     {
       label: (
@@ -298,7 +307,7 @@ function WorkBars({ r }: { r: SledResult }) {
       ),
       value: r.WN,
       color: VIZ.normal,
-      perpendicular: true,
+      note: 'N står vinkelrett på bevegelsen',
     },
     { label: 'Totalt', value: r.W, color: VIZ.ink },
   ];
@@ -308,7 +317,6 @@ function WorkBars({ r }: { r: SledResult }) {
   let hi2 = hi > 0 ? niceCeil(hi, 4) : 0;
   if (hi2 - lo2 < 1) hi2 = 100;
   const top = 34 * f;
-  const H = f > 1.3 ? 430 : 290;
   const rowH = (H - top - 12) / rows.length;
   const labelW = 80 * f;
   const valueW = 112 * f;
@@ -332,14 +340,14 @@ function WorkBars({ r }: { r: SledResult }) {
               {row.label}
             </Label>
             {!zero && <rect x={Math.min(x0, xv)} y={yc - bar / 2} width={Math.abs(xv - x0)} height={bar} rx={3} fill={row.color} opacity={i === rows.length - 1 ? 0.85 : 0.75} />}
-            {zero && row.perpendicular && (
+            {zero && row.note && (
               <text x={x0 > 400 ? x0 - 10 : x0 + 10} y={yc + 5} textAnchor={x0 > 400 ? 'end' : 'start'} className="viz-tick">
-                står vinkelrett på bevegelsen
+                {row.note}
               </text>
             )}
-            <text x={800 - 16} y={yc + 6} textAnchor="end" className="viz-label" fill={row.color}>
+            <Label x={800 - 16} y={yc + 6} anchor="end" color={row.color}>
               {fmt(row.value, 0)} J
-            </text>
+            </Label>
           </g>
         );
       })}
@@ -360,19 +368,26 @@ function explanation(F: number, alpha: number, mu: number, r: SledResult): React
           : 'Uten friksjon glir kjelken videre med konstant fart hvis den har fart fra før.'}
       </>
     );
+  else if (alpha === 0)
+    first = (
+      <>
+        <strong>Positivt arbeid.</strong> Kraften peker langs bevegelsen. Da er cos 0° = 1, så hele kraften gjør arbeid: W<Sub>F</Sub> = F · s ={' '}
+        {fmt(r.WF, 0)} J.
+      </>
+    );
   else if (alpha < 90)
     first = (
       <>
         <strong>Positivt arbeid.</strong> Bare komponenten langs bevegelsen, F<Sub>∥</Sub> = F cos α = {fmt(r.Fpar, 1)} N, gjør arbeid. F
-        <Sub>⊥</Sub> står vinkelrett på bevegelsen og gjør ikke arbeid, men den løfter litt i kjelken, så normalkraften og friksjonen blir
-        mindre.
+        <Sub>⊥</Sub> står vinkelrett på bevegelsen og gjør ikke arbeid
+        {mu > 0 ? ', men den løfter litt i kjelken, så normalkraften og friksjonen blir mindre.' : '.'}
       </>
     );
   else if (alpha === 90)
     first = (
       <>
         <strong>Null arbeid.</strong> Kraften står vinkelrett på bevegelsen. Siden cos 90° = 0, gjør F ikke arbeid, selv om kraften er{' '}
-        {fmt(F, 0)} N. Den løfter bare litt i kjelken.
+        {fmt(F, 0)} N. Den løfter bare litt i kjelken{mu > 0 ? ', så friksjonen blir mindre' : ''}.
       </>
     );
   else
@@ -382,7 +397,14 @@ function explanation(F: number, alpha: number, mu: number, r: SledResult): React
         bremser kraften kjelken og tar energi fra den: W<Sub>F</Sub> = {fmt(r.WF, 0)} J.
       </>
     );
-  const dEk = Math.abs(r.W) < 0.5 ? 'farten er den samme' : r.W > 0 ? 'kjelken får mer fart' : 'kjelken mister fart';
+  const dEk =
+    Math.abs(r.W) < 0.5
+      ? 'farten er den samme'
+      : r.W > 0
+        ? 'kjelken får mer fart'
+        : F > 0
+          ? 'kjelken mister fart. Det går bare hvis den hadde nok fart fra før til å komme hele strekningen'
+          : 'kjelken mister fart';
   return (
     <>
       <p>{first}</p>

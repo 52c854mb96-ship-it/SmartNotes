@@ -1,13 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
-  Arrow,
   Controls,
   Explain,
   Figure,
   Formula,
   FormulaLine,
   G_EARTH,
-  Label,
   Legend,
   PlayControls,
   Plot,
@@ -27,14 +25,19 @@ import {
 } from '../kit';
 import { flightTime, impactSpeed, maxHeight, niceRange, throwHeight, throwVelocity, topTime, type Throw } from './model';
 import { useNarrow } from './useNarrow';
-import { ColorDot } from './marks';
+import { Arrow, ColorDot, Label } from './marks';
 
 /** Bredden på scenen til venstre for s-t-grafen (figurens enheter). */
 const SCENE_W = 230;
 const BALL_X = 96;
+/** Startfarten ved oppstart (m/s). Figuren åpner i toppunktet, t = v₀/g. */
+const V0_START = 12;
+
+/** Desimaler på akseverdiene: 0 når alle verdiene er hele tall («1», ikke «1,0»). */
+const tickDecimals = (lo: number, hi: number, count?: number): number => (niceTicks(lo, hi, count).every(Number.isInteger) ? 0 : 1);
 
 export default function LoddrettKast() {
-  const [v0, setV0] = useState(12);
+  const [v0, setV0] = useState(V0_START);
   const [h0, setH0] = useState(0);
   const th: Throw = { v0, h0 };
   const T = flightTime(th);
@@ -42,7 +45,7 @@ export default function LoddrettKast() {
   const clock = useSimClock({ tMax: T });
   const { setT, pause } = clock;
   // Start i toppunktet: der er v = 0, men a = −g.
-  useEffect(() => setT(12 / G_EARTH), [setT]);
+  useEffect(() => setT(V0_START / G_EARTH), [setT]);
   const { ref, narrow } = useNarrow();
 
   const t = Math.min(Math.max(clock.t, 0), T);
@@ -135,7 +138,13 @@ export default function LoddrettKast() {
         <Readout label="Høyde s" value={fmt(s, 1)} unit="m" tone={VIZ.series[0]} />
         <Readout label="Fart v" value={fmt(v, 1)} unit="m/s" tone={VIZ.velocity} />
         <Readout label="Akselerasjon a" value={T > 0 ? fmt(-G_EARTH, 2) : '0,00'} unit="m/s²" tone={VIZ.acceleration} />
-        <Readout label={tTop !== null ? 'Toppunkt' : 'Treffer bakken med'} value={tTop !== null ? fmt(sMax, 1) : fmt(vImp, 1)} unit={tTop !== null ? 'm' : 'm/s'} />
+        {tTop !== null ? (
+          <Readout label="Høyde i toppunktet" value={fmt(sMax, 1)} unit="m" />
+        ) : T > 0 ? (
+          <Readout label="Fart når ballen treffer bakken" value={fmt(-vImp, 1)} unit="m/s" />
+        ) : (
+          <Readout label="Tid i lufta" value={fmt(T, 2)} unit="s" />
+        )}
       </Readouts>
 
       {T > 0 && (
@@ -184,13 +193,19 @@ function SceneAndPosition({ th, t, T, height, narrow }: { th: Throw; t: number; 
   const k = narrow ? 1.4 : 1;
   const vLen = (v / vAbsMax) * 100 * k;
   const aLen = T > 0 ? 56 * k : 0;
+  const ballY = (sy: (h: number) => number) => sy(s) - 10 * k;
+  /** Midtpunktet til en loddrett pil ved ballen, løftet så pilen ikke går ned i bakken. */
+  const arrowMid = (sy: (h: number) => number, len: number) => {
+    const y = ballY(sy);
+    return y - Math.max(0, y + Math.abs(len) / 2 - (sy(0) - 2));
+  };
   const width = 800 - SCENE_W;
 
   return (
     <g transform={`translate(${SCENE_W} 0)`}>
       <Plot
-        x={{ min: 0, max: tMax, label: 'Tid t (s)', decimals: tMax < 3 ? 1 : 0 }}
-        y={{ min: 0, max: yMax, label: 'Høyde s (m)', decimals: yMax < 4 ? 1 : 0 }}
+        x={{ min: 0, max: tMax, label: 'Tid t (s)', decimals: tickDecimals(0, tMax) }}
+        y={{ min: 0, max: yMax, label: 'Høyde s (m)', decimals: tickDecimals(0, yMax) }}
         width={width}
         height={height}
         margin={{ top: 48 * f, right: 20 * f, bottom: 56 * f, left: 72 * f }}
@@ -208,7 +223,9 @@ function SceneAndPosition({ th, t, T, height, narrow }: { th: Throw; t: number; 
             )}
             {tTop !== null && <line x1={x0} x2={sx(tTop)} y1={sy(sMax)} y2={sy(sMax)} className="viz-guide" />}
             {/* Hjelpelinje fra ballen til punktet i grafen */}
-            <line x1={BALL_X - SCENE_W + 16} x2={sx(t)} y1={sy(s)} y2={sy(s)} stroke={VIZ.series[0]} strokeWidth={1.5} strokeDasharray="3 5" opacity={0.7} />
+            {sy(0) - sy(s) > 3 && (
+              <line x1={BALL_X - SCENE_W + 16} x2={sx(t)} y1={sy(s)} y2={sy(s)} stroke={VIZ.series[0]} strokeWidth={1.5} strokeDasharray="3 5" opacity={0.7} />
+            )}
             <ColorDot x={sx(t)} y={sy(s)} color={VIZ.series[0]} />
 
             {/* Scenen til venstre, i samme høydeskala */}
@@ -222,15 +239,15 @@ function SceneAndPosition({ th, t, T, height, narrow }: { th: Throw; t: number; 
               <circle cx={BALL_X} cy={sy(s) - 10 * k} r={10 * k} fill={VIZ.bodyStrong} className="viz-block" />
               <Arrow
                 x1={BALL_X + 34 * k}
-                y1={sy(s) - 10 * k + vLen / 2}
+                y1={arrowMid(sy, vLen) + vLen / 2}
                 x2={BALL_X + 34 * k}
-                y2={sy(s) - 10 * k - vLen / 2}
+                y2={arrowMid(sy, vLen) - vLen / 2}
                 color={VIZ.velocity}
                 width={3 * k}
                 head={11 * k}
                 label="v"
                 labelX={BALL_X + 34 * k + 10}
-                labelY={sy(s) - 10 * k - vLen / 2 + (vLen >= 0 ? 12 : 4)}
+                labelY={arrowMid(sy, vLen) - vLen / 2 + (vLen >= 0 ? 12 : 4)}
                 labelAnchor="start"
                 minLength={4}
               />
@@ -241,15 +258,15 @@ function SceneAndPosition({ th, t, T, height, narrow }: { th: Throw; t: number; 
               )}
               <Arrow
                 x1={BALL_X + 72 * k}
-                y1={sy(s) - 10 * k - aLen / 2}
+                y1={arrowMid(sy, aLen) - aLen / 2}
                 x2={BALL_X + 72 * k}
-                y2={sy(s) - 10 * k + aLen / 2}
+                y2={arrowMid(sy, aLen) + aLen / 2}
                 color={VIZ.acceleration}
                 width={2.5 * k}
                 head={11 * k}
                 label="a"
                 labelX={BALL_X + 72 * k + 10}
-                labelY={sy(s) - 10 * k + aLen / 2}
+                labelY={arrowMid(sy, aLen) + aLen / 2}
                 labelAnchor="start"
               />
             </g>
@@ -274,7 +291,7 @@ function VelocityGraph({ th, t, T, height }: { th: Throw; t: number; T: number; 
   const showTriangle = T >= 1.6;
   return (
     <Plot
-      x={{ min: 0, max: tMax, label: 'Tid t (s)', decimals: tMax < 3 ? 1 : 0 }}
+      x={{ min: 0, max: tMax, label: 'Tid t (s)', decimals: tickDecimals(0, tMax) }}
       y={{ min: vLo, max: vHi, label: 'v (m/s)', ticks: niceTicks(vLo, vHi, 4) }}
       width={800}
       height={height}
@@ -282,8 +299,8 @@ function VelocityGraph({ th, t, T, height }: { th: Throw; t: number; T: number; 
     >
       {({ sx, sy, x0, y0, y1 }) => (
         <g>
-          <Label x={x0} y={y1 - 12} anchor="start" color={VIZ.acceleration}>
-            Stigningstall = a = −9,81 m/s²
+          <Label x={x0} y={y1 - 12} anchor="start" color={T > 0 ? VIZ.acceleration : VIZ.muted}>
+            {T > 0 ? 'Stigningstall = a = −9,81 m/s²' : 'Ballen ligger i ro: v = 0 og a = 0'}
           </Label>
           {T > 0 && (
             <>
@@ -356,13 +373,15 @@ function explanation(th: Throw, t: number, T: number, v: number, vImp: number): 
   if (v > 0)
     return (
       <p>
-        <strong>På vei opp</strong> er v positiv og a negativ, så farten avtar med 9,81 m/s for hvert sekund. Ballen når toppunktet etter t =
+        <strong>På vei opp</strong> er v positiv og a negativ, så v blir 9,81 m/s mindre for hvert sekund, og ballen går saktere. Den når
+        toppunktet etter t =
         v<Sub>0</Sub>/g = {fmt(tTop ?? 0, 2)} s.
       </p>
     );
   return (
     <p>
-      <strong>På vei ned</strong> er både v og a negative, så farten øker med 9,81 m/s for hvert sekund.{' '}
+      <strong>På vei ned</strong> er både v og a negative. v blir fortsatt 9,81 m/s mindre (mer negativ) for hvert sekund, så nå går ballen
+      fortere.{' '}
       {tTop !== null
         ? 'Akselerasjonen er nøyaktig den samme som på vei opp og i toppunktet.'
         : 'Akselerasjonen er −9,81 m/s² hele veien, enten ballen slippes eller kastes nedover.'}

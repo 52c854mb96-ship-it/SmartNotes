@@ -6,7 +6,6 @@ import {
   Formula,
   FormulaLine,
   G_EARTH,
-  Label,
   Legend,
   Plot,
   Readout,
@@ -25,13 +24,17 @@ import {
 } from '../kit';
 import { eulerFall, exactVelocity, maxVelocityError, niceRange, terminalVelocity, type DragFall, type EulerRow } from './model';
 import { useNarrow } from './useNarrow';
-import { ColorDot } from './marks';
+import { ColorDot, Label } from './marks';
 
 const C_EXACT = VIZ.velocity;
-const C_EULER = VIZ.series[1];
+// Ikke oransje: den fargen er tyngden (fritt fall-linja).
+const C_EULER = VIZ.series[0];
 const TABLE_ROWS = 6;
 const DT_MIN = 0.1;
 const DT_MAX = 2.5;
+
+/** Desimaler på strekningen s (små tidssteg gir små tall i de første stegene). */
+const sDecimals = (dt: number): number => (dt < 0.5 ? 3 : 1);
 
 /** Hvor lenge vi simulerer: omtrent til farten har nådd terminalfarten, avrundet til hele 5 s. */
 function simTime(vT: number): number {
@@ -58,7 +61,7 @@ export default function Simulering() {
   }, [m, k, tEnd]);
   const step = rows[1];
   const next = rows[2];
-  const sDec = dt < 0.5 ? 3 : 2;
+  const sDec = sDecimals(dt);
 
   return (
     <VizLayout>
@@ -151,7 +154,8 @@ function VelocityPlot({ p, rows, tEnd, vT, free, height }: { p: DragFall; rows: 
             <rect x={x0} y={y1 - 8} width={x1 - x0 + 8} height={y0 - y1 + 16} />
           </clipPath>
           <line x1={x0} x2={x1} y1={sy(vT)} y2={sy(vT)} stroke={VIZ.muted} strokeWidth={2} strokeDasharray="8 6" />
-          <Label x={x1 - 6} y={sy(vT) + (sy(vT) - y1 > 34 * f ? -10 : 24 * f)} anchor="end" muted>
+          {/* Til venstre under linja: der er farten ennå langt under v_T, så punktene ikke dekker teksten */}
+          <Label x={x0 + 10} y={sy(vT) + 24 * f} anchor="start" muted>
             v<TSub>T</TSub> = {fmt(vT, 1)} m/s
           </Label>
           <g clipPath={`url(#${clip})`}>
@@ -222,7 +226,7 @@ function StepTable({ rows, p, dt }: { rows: EulerRow[]; p: DragFall; dt: number 
               <td style={cell}>{fmt(r.v, 2)}</td>
               <td style={{ ...cell, color: 'var(--text-2)' }}>{fmt(exactVelocity(p, r.t), 2)}</td>
               <td style={cell}>{fmt(r.a, 2)}</td>
-              <td style={cell}>{fmt(r.s, 1)}</td>
+              <td style={cell}>{fmt(r.s, sDecimals(dt))}</td>
             </tr>
           ))}
         </tbody>
@@ -264,8 +268,8 @@ function explanation(dt: number, err: number, vT: number, overshoot: boolean): R
         først blir v = v + a·Δt, så blir s = s + v·Δt. {accuracy}
       </p>
       <p>
-        Etter hvert blir luftmotstanden L = kv² like stor som tyngden G. Da er a = 0, og farten nærmer seg terminalfarten v<Sub>T</Sub> = √(mg/k)
-        = {fmt(vT, 1)} m/s.
+        Tenk deg en fallskjermhopper før skjermen er utløst. Etter hvert som farten øker, nærmer luftmotstanden L = kv² seg tyngden G, så
+        akselerasjonen går mot null og farten mot terminalfarten v<Sub>T</Sub> = √(mg/k) = {fmt(vT, 1)} m/s, der L = G.
       </p>
     </>
   );
