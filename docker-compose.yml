@@ -1,0 +1,14 @@
+# Kjør SmartNotes på egen maskin (PC, NAS, Raspberry Pi 4/5 med 64-bit OS).
+#   cp .env.example .env   # fyll inn passord og API-nøkkel
+#   docker compose up -d --build
+# Merk: For at appen skal kunne installeres og virke offline må den nås over HTTPS
+# (eller via http://localhost). Se docs/DEPLOY.md.
+services:
+  smartnotes:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file: .env
+    volumes:
+      - ./data:/data

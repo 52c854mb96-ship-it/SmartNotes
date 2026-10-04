@@ -24,7 +24,7 @@ async function call<T = unknown>(
   const headers: Record<string, string> = {};
   if (opts.auth !== false && cookie) headers.cookie = cookie;
   if (opts.csrf !== false && method !== 'GET') headers['x-smartnotes'] = '1';
-  let body: BodyInit | undefined;
+  let body: string | FormData | undefined;
   if (opts.json !== undefined) {
     headers['content-type'] = 'application/json';
     body = JSON.stringify(opts.json);
