@@ -227,6 +227,7 @@ describe('farger og spektre', () => {
     const lines = hydrogenVisibleLines();
     expect(lines.length).toBeGreaterThanOrEqual(4);
     expect(lines[0]!.name).toBe('Hα');
+    expect(lines.every((l) => l.name && l.name.startsWith('H'))).toBe(true);
     for (const l of lines) {
       expect(l.nm).toBeGreaterThanOrEqual(380);
       expect(l.nm).toBeLessThanOrEqual(750);

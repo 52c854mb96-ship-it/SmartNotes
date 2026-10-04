@@ -378,8 +378,14 @@ function explanation(mode: Mode, sel: Nuclide): ReactNode {
       );
     return (
       <p>
-        <strong>Bindingsenergien</strong> er energien som trengs for å dele kjernen opp i frie protoner og nøytroner. Kjernen veier
-        mindre enn nukleonene hver for seg, og massedefekten Δm svarer til bindingsenergien: E<Sub>b</Sub> = Δm · c². {where}
+        <strong>Bindingsenergien</strong> er energien som trengs for å dele kjernen opp i frie protoner og nøytroner.
+        {sel.A > 1 ? (
+          <>
+            {' '}
+            Kjernen veier mindre enn nukleonene hver for seg, og massedefekten Δm svarer til bindingsenergien: E<Sub>b</Sub> = Δm · c².
+          </>
+        ) : null}{' '}
+        {where}
       </p>
     );
   }

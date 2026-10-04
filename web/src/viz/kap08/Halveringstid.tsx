@@ -147,9 +147,9 @@ export default function Halveringstid() {
           {
             color: THEORY,
             label: (
-              <>
+              <span>
                 Teori: N = N<Sub>0</Sub> · (1/2)<Sup>t/T½</Sup>
-              </>
+              </span>
             ),
           },
           { color: MOTHER, label: 'Simulering med 400 kjerner' },
@@ -279,8 +279,8 @@ function explanation(p: HalfLifePreset, k: number, nSim: number, nTheory: number
     <p>
       Etter {timeText(k, p)}, altså {fmt(k, 2)} halveringstider, er <strong>{nSim}</strong> av {N0} kjerner igjen. Teorien gir N ={' '}
       {N0} · (1/2)<Sup>{fmt(k, 2)}</Sup> = {fmt(nTheory, 1)}. Vi kan ikke vite hvilken kjerne som henfaller neste gang, bare hvor mange som
-      gjør det i gjennomsnitt, så simuleringen blir litt forskjellig hver gang.{later} Aktiviteten A = λN avtar i samme takt som
-      antall kjerner.
+      gjør det i gjennomsnitt, så simuleringen blir litt forskjellig hver gang.
+      {later ?? ' Aktiviteten A = λN avtar i samme takt som antall kjerner.'}
     </p>
   );
 }

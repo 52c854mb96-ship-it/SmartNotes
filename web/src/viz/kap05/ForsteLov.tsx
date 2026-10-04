@@ -111,7 +111,8 @@ export default function ForsteLov() {
           ΔU = W + Q = ({signed(W)} J) + ({signed(Q)} J) = {signed(dU)} J
         </FormulaLine>
         <FormulaLine>
-          ΔT = ΔU / C = {signed(dU)} J / {fmt(AIR_HEAT_CAPACITY, 1)} J/K = {signed(T1 - T0, 1)} K, &nbsp;så T = {fmt(T1, 0)} K
+          ΔT = ΔU / C = {signed(dU)} J / {fmt(AIR_HEAT_CAPACITY, 1)} J/K = {signed(T1 - T0, 1)} K, &nbsp;så T = {fmt(T1, 0)} K &nbsp;(C for
+          1,0 mol luft)
         </FormulaLine>
       </Formula>
 
@@ -165,6 +166,10 @@ function Cylinder({ cx, thermoX, t, p, W, Q, T }: { cx: number; thermoX: number;
       {sim.particles.map((pt, i) => (
         <circle key={i} cx={gasLeft + r + pt.u * (gasW - 2 * r)} cy={gasTop + r + pt.w * (gasH - 2 * r)} r={r} fill={COLOR_U} />
       ))}
+
+      <Tag x={cx - 16} y={top - 18} anchor="end" muted>
+        1,0 mol luft
+      </Tag>
 
       {/* Sylinder med åpen topp */}
       <path

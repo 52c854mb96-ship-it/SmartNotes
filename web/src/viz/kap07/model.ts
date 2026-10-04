@@ -302,10 +302,11 @@ export function hydrogenVisibleLines(): SpectralLine[] {
   const NAMES = ['Hα', 'Hβ', 'Hγ', 'Hδ', 'Hε', 'Hζ', 'Hη'];
   const I = [1, 0.75, 0.55, 0.42, 0.3, 0.22, 0.16];
   const lines: SpectralLine[] = [];
-  for (let n = 3; n <= 12; n++) {
+  // Opp til n = 9 (Hη). Linjene over det ligger så tett inntil 380 nm at de ikke kan skilles i figuren.
+  for (let n = 3; n <= 9; n++) {
     const nm = transitionPhoton(n, 2).lambda * 1e9;
     if (nm < VISIBLE_MIN) break;
-    lines.push({ nm, I: I[n - 3] ?? 0.12, name: NAMES[n - 3], from: n, to: 2 });
+    lines.push({ nm, I: I[n - 3] ?? 0.12, name: NAMES[n - 3] ?? 'H', from: n, to: 2 });
   }
   return lines;
 }
