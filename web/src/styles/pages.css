@@ -927,7 +927,12 @@ select.inline-input {
   .preview-row .icon-btn {
     grid-column: auto;
   }
-  .preview-row .badge {
-    display: none;
+  /* Merket («Oppdateres», «Finnes») står under tittelen, så tittelfeltet får hele bredden. */
+  .preview-row .chapter-title-cell {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .preview-row .chapter-title-cell > input {
+    flex-basis: 100%;
   }
 }
