@@ -1,21 +1,23 @@
 # Visualiseringer
 
-Interaktive forklaringer til hvert kapittel i ERGO Fysikk 1. De vises på `/fag/:fag/visualiseringer` (oversikt) og `/fag/:fag/visualiseringer/k2-friksjon` (én visualisering), og lenkes fra kapittelsiden og notatsiden (etter delkapittel).
+Interaktive forklaringer til hvert kapittel i lærebøkene (ERGO Fysikk 1, Kjemi 1 og Bi 1). De vises på `/fag/:fag/visualiseringer` (oversikt) og `/fag/:fag/visualiseringer/k2-friksjon` (én visualisering), og lenkes fra kapittelsiden og notatsiden (etter delkapittel).
 
-**Mønster å følge:** `kap02/` (friksjon, kraftpar og koblede klosser). Les dem før du lager nye.
+**Mønster å følge:** `fysikk/kap02/` (friksjon, kraftpar og koblede klosser), og for kjemi `kjemi/kap01/` og `kjemi/kap03/`. Les dem før du lager nye.
 
 ## Struktur
 
 ```
 viz/
-  kit/            felles byggeklosser – importer alt fra '../kit'
-  kapNN/
-    index.ts      liste med VizMeta for kapittelet (rekkefølgen = rekkefølgen på siden)
-    model.ts      ren fysikk uten React (testes)
-    model.test.ts vitest-tester av modellen
-    Navn.tsx      én komponent per visualisering, `export default`
-  registry.ts     samler alle kapitlene (endres ikke når du legger til visualiseringer)
-  preview.tsx     forhåndsvisning uten resten av appen (kun utvikling)
+  kit/              felles byggeklosser – importer alt fra '../../kit'
+  fysikk/           Fysikk 1 (ERGO Fysikk 1); kjemi/ og biologi/ er bygd opp på samme måte
+    index.ts        samler kapitlene i faget (legg til nye kapitler her)
+    kapNN/
+      index.ts      liste med VizMeta for kapittelet (rekkefølgen = rekkefølgen på siden)
+      model.ts      ren fysikk/kjemi/biologi uten React (testes)
+      model.test.ts vitest-tester av modellen
+      Navn.tsx      én komponent per visualisering, `export default`
+  registry.ts       fagtype → visualiseringer (endres ikke når du legger til visualiseringer)
+  preview.tsx       forhåndsvisning uten resten av appen (kun utvikling)
 ```
 
 `index.ts`:
@@ -24,7 +26,7 @@ viz/
 {
   id: 'friksjon',               // små bokstaver og bindestrek; URL-nøkkel blir k2-friksjon
   chapter: '2',
-  sections: ['2C'],             // delkapitlene i ERGO (se server/src/textbooks.ts)
+  sections: ['2C'],             // delkapitlene i læreboka (se server/src/textbooks.ts); kan være tom i kjemi/biologi
   title: 'Statisk friksjon og glidefriksjon',   // stor forbokstav bare i første ord
   summary: 'Én til to setninger om hva du kan utforske.',
   keywords: ['friksjonstall'],
@@ -92,14 +94,14 @@ Bruk alltid `VIZ.*`, aldri egne fargekoder. Samme størrelse har samme farge i a
 - **Avhengigheter:** ingen nye npm-pakker. Ingen nettverkskall, ingen `localStorage`.
 - **Animasjon:** bare med `useSimClock` (starter på pause). Figuren må gi mening også uten å spille av.
 - **Typer:** `noUncheckedIndexedAccess` er på – `arr[i]` kan være `undefined`.
-- **Egne filer:** endre bare filer i ditt eget `kapNN/`. Trenger du en ny felles byggekloss, lag den lokalt i kapittelmappen.
+- **Egne filer:** endre bare filer i ditt eget `<fag>/kapNN/`. Trenger du en ny felles byggekloss, lag den lokalt i kapittelmappen.
 
 ## Utvikling og kontroll
 
 ```bash
 cd web
-npx vite --port 5173                       # http://localhost:5173/viz-preview.html?id=k2-friksjon&theme=dark
-npx vitest run src/viz/kap02               # modelltester
+npx vite --port 5173                       # http://localhost:5173/viz-preview.html?id=k2-friksjon&theme=dark  (kjemi: &fag=kjemi)
+npx vitest run src/viz/fysikk/kap02        # modelltester
 npx tsc -p tsconfig.json --noEmit          # typer
 node scripts/viz-shot.mjs --port 5173 --chapter 2 --out /tmp/shots   # skjermbilder (lyst/mørkt, 1000/390 px)
 node scripts/viz-shot.mjs --port 5173 --chapter 2 --out /tmp/shots --extremes --themes light   # også min/maks

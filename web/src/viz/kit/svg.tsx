@@ -101,7 +101,7 @@ export function Arrow({
       <line x1={x1} y1={y1} x2={bx} y2={by} stroke={color} strokeWidth={width} strokeDasharray={dashed ? '6 5' : undefined} />
       <polygon points={points} fill={color} />
       {label !== undefined && (
-        <text x={lx} y={ly} textAnchor={labelAnchor} className="viz-label" fill={color}>
+        <text x={lx} y={ly} textAnchor={labelAnchor} className="viz-label" style={{ fill: color }}>
           {label}
         </text>
       )}
@@ -135,8 +135,8 @@ export function Label({
       y={y}
       textAnchor={anchor}
       className={`viz-label${muted ? ' is-muted' : ''}`}
-      style={{ fontSize: size, fontWeight: weight }}
-      fill={color}
+      // fill som stil, ikke attributt, så den vinner over .viz-label i viz.css
+      style={{ fontSize: size, fontWeight: weight, fill: color }}
     >
       {children}
     </text>

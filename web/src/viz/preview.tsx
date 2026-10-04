@@ -15,11 +15,8 @@ import '../styles/subjects.css';
 import '../styles/viz.css';
 import type { VizMeta } from './types';
 
-// `<fag>/kapNN/index.ts`. Fysikk lå tidligere rett under viz/ (kapNN/index.ts), og begge deler støttes.
-const chapters = {
-  ...import.meta.glob<{ default: VizMeta[] }>('./kap*/index.ts'),
-  ...import.meta.glob<{ default: VizMeta[] }>('./*/kap*/index.ts'),
-};
+// `<fag>/kapNN/index.ts`
+const chapters = import.meta.glob<{ default: VizMeta[] }>('./*/kap*/index.ts');
 const SUBJECT_THEME: Record<string, string | null> = { fysikk: null, kjemi: 'chemistry', biologi: 'biology' };
 
 const params = new URLSearchParams(location.search);
@@ -37,13 +34,11 @@ root.style.padding = '24px 16px';
 root.style.margin = '0 auto';
 root.style.maxWidth = width ? `${width}px` : '980px';
 
-/** Kapittelmodulene i faget, sortert etter kapittelnummer. */
+/** Kapittelmodulene i faget, sortert etter kapittelnummer (mappene heter kap01, kap02 …). */
 function chapterKeys(): string[] {
-  const own = Object.keys(chapters).filter((k) => k.startsWith(`./${fag}/kap`));
-  const legacy = fag === 'fysikk' ? Object.keys(chapters).filter((k) => /^\.\/kap\d+\//.test(k)) : [];
-  return [...own, ...legacy.filter((k) => !own.includes(k.replace('./', `./${fag}/`)))].sort((a, b) =>
-    a.replace(/^.*kap/, '').localeCompare(b.replace(/^.*kap/, '')),
-  );
+  return Object.keys(chapters)
+    .filter((k) => k.startsWith(`./${fag}/kap`))
+    .sort();
 }
 
 async function loadChapter(no: string): Promise<VizMeta[]> {

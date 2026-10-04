@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { Children, createContext, useContext, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { fmt } from './format';
 
 /** Ramme rundt én visualisering: kontroller øverst, figur i midten, avlesninger og forklaring under. */
@@ -203,7 +203,13 @@ export function Formula({ children, label }: { children: ReactNode; label?: stri
 }
 
 export function FormulaLine({ children }: { children: ReactNode }) {
-  return <div className="viz-formula-line">{children}</div>;
+  return <div className="viz-formula-line">{Children.map(children, wrapRoot)}</div>;
+}
+
+/** Matematikkfontene tegner √ lavt (laget for rottegn med strek over), så √ settes med vanlig skrift. */
+function wrapRoot(child: ReactNode): ReactNode {
+  if (typeof child !== 'string' || !child.includes('√')) return child;
+  return child.split('√').flatMap((part, i) => (i === 0 ? [part] : [<span key={i} className="viz-root">√</span>, part]));
 }
 
 /** Indeks i formler: <Sub>A</Sub> → m_A. */

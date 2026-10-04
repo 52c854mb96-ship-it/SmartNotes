@@ -529,6 +529,20 @@
   font-variant-numeric: tabular-nums;
 }
 
+.viz-root {
+  font-family: var(--font);
+  font-size: 0.95em;
+}
+
+/* På mobil brytes lange formler i stedet for å rulle sidelengs; fortsettelsen rykkes inn. */
+@media (max-width: 600px) {
+  .viz-formula-line {
+    white-space: normal;
+    padding-left: 1.2em;
+    text-indent: -1.2em;
+  }
+}
+
 .viz-formula sub,
 .viz-formula sup {
   font-size: 0.7em;
