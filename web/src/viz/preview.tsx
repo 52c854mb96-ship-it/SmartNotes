@@ -83,7 +83,8 @@ async function main() {
       <header className="page-header">
         <div className="page-heading">
           <p className="eyebrow">
-            Kapittel {meta.chapter} · {meta.sections.join(', ')}
+            Kapittel {meta.chapter}
+            {meta.sections.length > 0 && ` · ${meta.sections.join(', ')}`}
           </p>
           <h1 className="page-title">{meta.title}</h1>
           <p className="page-subtitle">{meta.summary}</p>

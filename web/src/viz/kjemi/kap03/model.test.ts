@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formula } from '../kit/formel';
-import { LADDERS, LANDMARKS, N_A, SUBSTANCES, amounts, concentration, countingYears, dissolve, fmtSig, ladder, nearestIndex, particleWord } from './model';
+import { LADDERS, LANDMARKS, N_A, SUBSTANCES, amounts, concentration, countingYears, dissolve, ladder, nearestIndex, particleWord } from './model';
 
 describe('mol-brua', () => {
   it('lærebokeksempel: 100 g vann', () => {
@@ -72,19 +72,6 @@ describe('glidebrytere og tall', () => {
     expect(LADDERS.n[nearestIndex(LADDERS.n, 0.555)]).toBe(0.6);
     expect(nearestIndex(LADDERS.m, 0)).toBe(0);
     expect(nearestIndex(LADDERS.m, 1e9)).toBe(LADDERS.m.length - 1);
-  });
-
-  it('gjeldende siffer', () => {
-    expect(fmtSig(0.555)).toBe('0,555');
-    expect(fmtSig(100)).toBe('100');
-    expect(fmtSig(18.016)).toBe('18,0');
-    expect(fmtSig(5.5506)).toBe('5,55');
-    expect(fmtSig(3.343e24)).toBe('3,34 · 10²⁴');
-    expect(fmtSig(0.0001661)).toBe('1,66 · 10⁻⁴');
-    expect(fmtSig(0)).toBe('0');
-    expect(fmtSig(99.99)).toBe('100');
-    expect(fmtSig(0.0009999)).toBe('0,00100');
-    expect(fmtSig(Number.NaN)).toBe('–');
   });
 
   it('sammenligningene er sortert, og telletiden for 1 mol er mye lenger enn universets alder', () => {

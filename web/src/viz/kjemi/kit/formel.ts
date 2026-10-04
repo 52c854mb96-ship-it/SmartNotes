@@ -251,10 +251,24 @@ export function formula(input: string): ParsedFormula {
 
 const asFormula = (f: string | ParsedFormula): ParsedFormula => (typeof f === 'string' ? formula(f) : f);
 
+/**
+ * Usynlig ordskjøt (U+2060) mellom «Na» og et symbol som starter på N (NaNO₃), så teksten aldri inneholder «NaN».
+ * viz-shot.mjs leter etter «NaN» i teksten for å finne regnefeil.
+ */
+export const NAN_GUARD = '\u2060';
+
+/** Teksten til tegnene i en formel, med NAN_GUARD mellom «Na» og et påfølgende N-symbol. */
+export function guardedTokens(tokens: readonly FormulaToken[]): FormulaToken[] {
+  return tokens.map((t, i) => {
+    const next = tokens[i + 1];
+    return t.kind === 'text' && t.text.endsWith('Na') && next?.kind === 'text' && next.text.startsWith('N') ? { ...t, text: t.text + NAN_GUARD } : t;
+  });
+}
+
 /** Unicode-tekst: Ca(OH)₂, CuSO₄·5H₂O, SO₄²⁻. Med `withState` også (aq), (s) osv. Fin til aria-label og vanlig tekst. */
 export function formulaText(f: string | ParsedFormula, withState = false): string {
   const p = asFormula(f);
-  const body = p.tokens
+  const body = guardedTokens(p.tokens)
     .map((t) =>
       t.kind === 'sub'
         ? [...t.text].map((d) => SUB_DIGITS[Number(d)]).join('')

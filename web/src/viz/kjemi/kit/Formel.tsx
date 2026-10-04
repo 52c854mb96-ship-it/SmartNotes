@@ -11,7 +11,7 @@
  */
 import { Fragment, type ReactNode } from 'react';
 import { Sub, Sup, TSub, TSup } from '../../kit';
-import { coefText, parseFormula, parseReaction, type ParsedFormula, type Reaction, type State, type Term } from './formel';
+import { coefText, guardedTokens, parseFormula, parseReaction, type ParsedFormula, type Reaction, type State, type Term } from './formel';
 
 export interface FormelProps {
   /** Formelen som tekst («H2O», «SO4^2-», «Cu^2+(aq)») eller allerede tolket. */
@@ -43,7 +43,7 @@ export function Formel({ f, state = true, coef }: FormelProps) {
   return (
     <span className="kj-formel">
       {c && `${c} `}
-      {p.tokens.map((t, i) =>
+      {guardedTokens(p.tokens).map((t, i) =>
         t.kind === 'sub' ? <Sub key={i}>{t.text}</Sub> : t.kind === 'sup' ? <Sup key={i}>{t.text}</Sup> : <Fragment key={i}>{t.text}</Fragment>,
       )}
       {st && <span className="kj-state">({st})</span>}
@@ -60,7 +60,7 @@ export function TFormel({ f, state = true, coef }: FormelProps) {
   return (
     <>
       {c && `${c} `}
-      {p.tokens.map((t, i) =>
+      {guardedTokens(p.tokens).map((t, i) =>
         t.kind === 'sub' ? <TSub key={i}>{t.text}</TSub> : t.kind === 'sup' ? <TSup key={i}>{t.text}</TSup> : <Fragment key={i}>{t.text}</Fragment>,
       )}
       {st && <tspan fontSize="0.85em">({st})</tspan>}

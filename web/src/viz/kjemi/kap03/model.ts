@@ -1,5 +1,4 @@
 /** Ren kjemi for kapittel 3 Støkiometri (ingen React), så den kan testes for seg. */
-import { fmt, fmtSci } from '../../kit/format';
 import { atomCount, molarMass, type ParsedFormula } from '../kit/formel';
 import { getElement, isMetal } from '../kit/grunnstoffer';
 
@@ -124,20 +123,6 @@ export const LADDERS: Record<Known, number[]> = {
   n: ladder(-3, 2),
   N: ladder(20, 26),
 };
-
-/* ---------- Tallformat ---------- */
-
-/** Tall med `sig` gjeldende siffer, på standardform når det er veldig stort eller lite: 0,555; 18,0; 3,34 · 10²³. */
-export function fmtSig(v: number, sig = 3): string {
-  if (!Number.isFinite(v)) return '–';
-  if (v === 0) return '0';
-  // Rund av først, så 99,99 blir «100» og ikke «100,0»
-  const r = Number(v.toPrecision(sig));
-  const exp = Math.floor(Math.log10(Math.abs(r)));
-  v = r;
-  if (exp < -3 || exp >= 6) return fmtSci(v, sig - 1);
-  return fmt(v, Math.max(0, sig - 1 - exp));
-}
 
 /* ---------- Hvor stort er N_A? ---------- */
 

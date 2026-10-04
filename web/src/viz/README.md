@@ -108,3 +108,85 @@ node scripts/viz-shot.mjs --port 5173 --chapter 2 --out /tmp/shots --extremes --
 ```
 
 Forhåndsvisningen trenger ikke server eller innlogging, og laster bare kapittelet som vises.
+
+## Kjemi
+
+Kjemi 1 (Aschehoug, LK20 KJE01-02). Samme oppbygning og regler som fysikk, med egne byggeklosser i `kjemi/kit/`.
+**Mønster å følge:** `kjemi/kap01/Bindingstype.tsx` (velg grunnstoffer, ΔEN-skala, atomer og ioner) og `kjemi/kap03/Stoffmengde.tsx` (mol-brua, formelfelt, begerglass med partikler, logaritmisk skala).
+
+```
+viz/kjemi/
+  index.ts          samler kapitlene i kapittelrekkefølge (legg til `...kapNN` her)
+  kit/              kjemiens byggeklosser – og hele det felles kit-et: importer ALT fra '../kit'
+  kapNN/            index.ts, model.ts, model.test.ts, Navn.tsx (som i fysikk)
+```
+
+`import { Slider, Figure, Formel, Atom, KJEMI, fmtSig } from '../kit';` – `kjemi/kit/index.ts` eksporterer også `viz/kit`, så du trenger bare én import. Delkapitler: kapittel 1 har 1.1–1.5 (`sections: ['1.4']`); for kapittel 2–8 er de ikke bekreftet ennå, så bruk `sections: []` (vises da under kapittelet).
+
+### Byggeklosser (`kjemi/kit/`)
+
+| Del | Bruk |
+|---|---|
+| **Data** `grunnstoffer.ts` | `getElement('Na' \| 11)` (eller `undefined`), `element('O')` (kaster), `ELEMENTS`, `elementsInPeriod(p)`, `elementsInGroup(g)`, `mainGroupInPeriod(p)`, `isMetal(e)`, `isNonmetal(e)`, `ionSymbol('Mg', 2)` → «Mg²⁺», `chargeText(-2)` → «2−», `chargeSuperscript`, `ionShells(e, q)`, `capitalize`, `ALL_SYMBOLS`. |
+| `Element` | `Z`, `symbol`, `name` (bokmål), `molarMass`, `unstable?`, `group` (1–18, null for U), `period`, `block`, `category`, `phase` (s/l/g ved 25 °C), `electronegativity` (null for He, Ne, Ar), `covalentRadius` (pm), `ionicRadius` ({ ladning: pm }), `ionizationEnergy` (kJ/mol), `subshells`, `configuration` («1s² 2s² 2p⁴»), `configurationShort` («[He] 2s² 2p⁴»), `shells` (etter n), `bohrShells` (Z ≤ 20, ellers null), `valenceElectrons` (hovedgruppene), `ions` (vanligste først). |
+| **Formler** `formel.ts` | `parseFormula(s)` → `{ ok, formula }` eller `{ ok: false, error }` (norsk feilmelding), `formula(s)` (kaster), `formulaText(f)` → «Ca(OH)₂», `molarMass(f)`, `molarMassTerms(f)` (M = Σ antall · M, med andeler), `atomCount(f)`. Forstår `H2O`, `Ca(OH)2`, `CuSO4·5H2O` (også `.` og `*`), `[Cu(NH3)4]^2+`, `SO4^2-`, `Fe3+`, `NH4+`, `SO42-`, Unicode (`SO₄²⁻`), tilstand `(aq)`, `(s)`, `(l)`, `(g)` og elektron `e-`. |
+| **Likninger** `formel.ts` | `parseReaction('2 H2 + O2 → 2 H2O')` (pil `→`/`->`, likevekt `⇌`/`<=>`; `+` mellom stoffer må ha mellomrom), `reaction(s)`, `reactionText(r)`, `checkBalance(r)` (atomer og ladning per side), `balanceCoefficients(['C3H8', 'O2'], ['CO2', 'H2O'])` → `[1, 5, 3, 4]`, `coefText(0.5)` → «½». Strukturert form: `{ reactants: [{ coef, formula, state? }], products, equilibrium? }`. |
+| **Visning** `Formel.tsx` | `<Formel f="Cu^2+" state="aq" coef={2} />` i HTML (Readout-etiketter, Explain, Formula), `<TFormel f="SO4^2-" />` inne i SVG-tekst, `<Reaksjon r="…" states />` og `<TReaksjon r="…" />`. Ugyldige formler vises som rå tekst. |
+| **Tall** `format.ts` | `fmtSig(v, sig = 3)` – gjeldende siffer: 0,555 · 18,0 · 3,34 · 10²³. |
+| **Tekst** `txt.tsx` | `<Txt x y size={0.85} color={KJEMI.minus} weight anchor muted halo>` – SVG-tekst der `size` er relativ (1 = vanlig etikett) og vokser på mobil; `px` gir fast størrelse. |
+| **Kontroller** `controls.tsx` | `<Select label value options onChange>` (tekstene må være ren tekst: bruk `formulaText`), `<FormulaField label value onChange result?>` (viser formelen pent eller feilmeldingen), `<ElementPicker label elements selected badges onPick detail showGroups>` (lite periodesystem), `useContainerTextScale()` → `[ref, f]` (tekstskaleringen figuren vil få, for å velge viewBox-høyde før figuren tegnes). |
+| **Molekyler** `molekyl.tsx` | `useAtomScale()` (k = 1 på PC, ca. 1,5 på mobil), `<Atom x y el charge? partial="plus"\|"minus" partialAngle label r ring dim>`, `<Bond a b order={1\|2\|3} stereo="wedge"\|"hash" dashed>` (stopper ved kanten av kulene), `<LonePair at angle>`, `<DipoleArrow from to>` (fra δ+ til δ−), `<AngleArc x y from to r label>`, `<VseprMolecule x y geometry center ligands orders showAngle partials>`, `<ElectronShells x y el shells? charge layout="even"\|"pairs" gained emptyShell>` (Bohr-modell, valensskallet fremhevet), `shellRadius`, `<WaterMolecule x y angle size>`. |
+| **Geometri** `geometri.ts` | `polar(x, y, L, grader)`, `angleOf`, `atomRadius(el, { charge, scale })`, `trimSegment`, `vsepr(geometri, { x, y, bond, rotate, angle })`, `vseprGeometry(bindinger, frie par)`, `GEOMETRIES` (navn, vinkel 180°, 120°, 109,5°, 107°, 104,5°). Vinkler i grader mot klokka med y opp. |
+| **Lab** `beger.tsx` | `<Begerglass x y w h level liquid marks label>{(box) => …}</Begerglass>`, `<Erlenmeyerkolbe …>` (samme props; `level` er andel av den koniske delen), `<Byrette x y h reading capacity={50} showReading dripping>`, `byretteTipLength(k)`, `<Partikler box groups={[{ n, r, fill, label, render? }]} seed t?>` (spredt uten overlapp, fast frø; med `t` fra `useSimClock` beveger de seg litt). |
+| **Tilfeldig** `random.ts` | `seededRandom(frø)`, `placeParticles(box, grupper, frø)`, `jiggle(p, t, amplitude)`. Aldri `Math.random`. |
+| **Farger** `colors.ts` | `KJEMI.*`, `atomColors('O')` → `{ fill, line, ink }`, `mixColor(a, b, t)` (CSS `color-mix`), `phColor(pH)` (universalindikator), `btbColor(pH)`, `phenolphthaleinColor(pH)`. |
+
+### Farger (`KJEMI`, `--kj-*` i `styles/viz.css`)
+
+| Farge | Bruk |
+|---|---|
+| `atomColors(symbol)` | CPK-inspirert: H hvit, C grå, N blå, O rød, F lysegrønn, Cl grønn, Br rødbrun, I fiolett, S gul, P oransje, alkalimetaller fiolett, jordalkalimetaller blågrønn, andre metaller stålgrå, halvmetaller beige, edelgasser cyan, resten rosa. Bruk alltid `ink` til tekst inne i kula (H har mørk tekst også i mørkt tema). |
+| `KJEMI.plus` / `KJEMI.minus` | positiv / negativ ladning: δ+ og δ−, kationer og anioner, H₃O⁺ og OH⁻ |
+| `KJEMI.electron`, `KJEMI.valence`, `KJEMI.shell`, `KJEMI.cloud` | elektroner, valenselektroner, skallringer, elektronsky |
+| `KJEMI.bond`, `KJEMI.hbond` | kovalente bindinger, hydrogenbindinger og andre svake bindinger (stiplet) |
+| `KJEMI.bondType.upolar/polar/ionisk/metallisk` | bindingstyper |
+| `KJEMI.molecule` | nøytrale molekyler i partikkelbilder |
+| `KJEMI.glass`, `glassFill`, `glassShine`, `liquid`, `liquidLine` | glassutstyr og vann/fargeløs løsning |
+| `KJEMI.indicator.*`, `KJEMI.ph[0..6]` | bromtymolblått (gult/grønt/blått), fenolftalein (fargeløs/rosa), universalindikator ved pH 1, 3 … 13 |
+| `KJEMI.exo` / `KJEMI.endo` | eksoterm (ΔH < 0) / endoterm (ΔH > 0) |
+| `KJEMI.oxidation` / `KJEMI.reduction` | oksidasjon / reduksjon |
+
+### Data og kilder
+
+- **Molar masse:** IUPAC, forkortet til 4–5 gjeldende siffer som i lærebøkene (H 1,008, C 12,01, O 16,00, Na 22,99, Cl 35,45). Med disse verdiene blir M(Ca(OH)₂) = 74,10 g/mol (bøker som bruker O = 15,999 skriver 74,09).
+- **Elektronegativitet:** Pauling (reviderte verdier, som i CRC). **Atomradius:** kovalent radius (Cordero mfl. 2008) – ett datasett; edelgassenes verdier er ikke sammenlignbare med resten av perioden. **Ioneradius:** Shannon (1976). **Ioniseringsenergi:** NIST, omregnet til kJ/mol.
+- **Elektronkonfigurasjon:** sortert etter skall som hos NIST (Fe = [Ar] 3d⁶ 4s²), med de kjente unntakene (Cr, Cu, Mo, Ag, Au …). `bohrShells` er lærebokas skallmodell (2, 8, 8, 2) for Z ≤ 20.
+
+### Kjemikonvensjoner
+
+- Begreper og symboler som i Kjemi 1: stoffmengde n (mol), molar masse M (g/mol), masse m (g), konsentrasjon c (mol/L), volum V (L), antall partikler N, Avogadros tall N<sub>A</sub> = 6,022 · 10²³ /mol, reaksjonsentalpi ΔH i kJ (negativ = eksoterm), K<sub>w</sub> = 1,0 · 10⁻¹⁴ ved 25 °C, pH = −lg[H₃O⁺], elektronegativitet EN og ΔEN.
+- Tilstandssymboler (aq), (s), (l), (g); reaksjonspil → og likevektspil ⇌; ladning hevet etter formelen (SO₄²⁻, Fe³⁺); ekte minustegn (−).
+- Stoffnavn etter IUPAC på norsk: natriumklorid, karbondioksid, svoveldioksid, hydrogenklorid, kalsiumkarbonat, ammoniakk, glukose.
+- Tall med riktig antall gjeldende siffer (`fmtSig`), molare masser med to desimaler (18,02 g/mol).
+- Partikler: molekyler (molekylære stoffer), formelenheter (ioniske stoffer), atomer, ioner.
+
+### Fallgruver
+
+- **Mobil:** atomer, bindinger og elektroner vokser med `k = useAtomScale()` (ca. 1,5 på telefon). Gang dine egne avstander med `k` (bindingslengder, plass mellom molekyler), ellers overlapper de på mobil. Trenger du viewBox-høyden før figuren tegnes, bruk `useContainerTextScale()` og regn `k = max(1, 0,85 · f)`.
+- **«NaN» i teksten:** `viz-shot.mjs` feiler hvis teksten i visualiseringen inneholder «NaN». `Formel`, `TFormel` og `formulaText` setter inn et usynlig tegn mellom Na og N (NaNO₃), men skriver du symbolene selv (f.eks. «Na» rett etterfulgt av «N» i to `<Txt>`), kan sjekken slå til.
+- **Navnekollisjoner:** det felles kit-et har allerede `Formula` (formelboksen) og `Block` (kloss). Kjemiens typer heter derfor `ParsedFormula` og `ElementBlock`.
+- **Flertydige ioner:** `Fe3+` tolkes som Fe³⁺, `NH4+` som NH₄⁺ og `SO42-` som SO₄²⁻. Skriv `^` (`SO4^2-`) i faste formler i koden, så er det entydig.
+- **Farger:** bruk `KJEMI`/`atomColors`, aldri hex-koder. Overganger (indikator som skifter farge) lages med `mixColor`, som gir CSS `color-mix` og virker i begge temaer.
+- **Partikler:** plasseringen regnes ut på nytt bare når boksen, gruppene eller frøet endres. Tettheten av prikker bør bety noe (i kap03 er utsnittet like stort for alle volum, så tettheten viser konsentrasjonen).
+
+### Forhåndsvisning og skjermbilder
+
+```bash
+cd web
+npx vite --port 5173                                     # http://localhost:5173/viz-preview.html?fag=kjemi&id=k1-bindingstype&theme=dark
+npx vitest run src/viz/kjemi                             # data, formler, geometri og modeller
+node scripts/viz-shot.mjs --port 5173 --fag kjemi --chapter 3 --out /tmp/shots
+node scripts/viz-shot.mjs --port 5173 --fag kjemi --chapter 3 --out /tmp/shots --extremes --themes light
+```
+
+`?fag=kjemi` gir også kjemitemaet «Tavle» (`data-subject="chemistry"`, mørkegrønn flate i mørkt tema), så sjekk at fargene dine synes der.
