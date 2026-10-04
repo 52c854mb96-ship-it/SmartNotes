@@ -48,6 +48,16 @@ const ELEMENTS: { value: SpectrumElement; label: string }[] = [
   { value: 'kvikksolv', label: 'Kvikksølv' },
 ];
 
+/** Navn på grunnstoffene bak linjene i sollys. */
+const SUN_ELEMENT_NAMES: Record<string, string> = {
+  H: 'hydrogen',
+  Na: 'natrium',
+  Ca: 'kalsium',
+  Fe: 'jern',
+  Mg: 'magnesium',
+  'O₂': 'oksygen i jordatmosfæren',
+};
+
 const ELEMENT_NAME: Record<SpectrumElement, string> = { hydrogen: 'hydrogen', helium: 'helium', natrium: 'natrium', kvikksolv: 'kvikksølv' };
 
 /** Fysisk mørke (ingen lys) i spekterfigurene. Fargene i spektrene er lysets egne farger, ikke temafarger. */
@@ -87,7 +97,7 @@ export default function Spektre() {
 
       <div ref={figRef}>
       <Figure
-        viewBox={`0 0 800 ${figureHeight(f, sun)}`}
+        viewBox={`0 0 800 ${figureHeight(f, sun, mode !== 'kontinuerlig')}`}
         label={`${mode === 'kontinuerlig' ? 'Kontinuerlig spekter' : `${mode === 'emisjon' ? 'Emisjonsspekter' : 'Absorpsjonsspekter'} for ${ELEMENT_NAME[el]}`} fra 380 til 750 nm${sun ? ', sammenlignet med sollys' : ''}. Markøren står på ${cursor} nm.`}
         maxHeight={560}
       >
@@ -126,11 +136,12 @@ interface Layout {
   height: number;
 }
 
-function layout(f: number, sun: boolean): Layout {
+function layout(f: number, sun: boolean, labels: boolean): Layout {
   const title = 26 * f;
+  // To rader med bølgelengder over linjene (ikke i det kontinuerlige spekteret)
   const row1 = title + 30 * f;
   const row0 = row1 + 24 * f;
-  const barTop = row0 + 20;
+  const barTop = labels ? row0 + 20 : title + 30;
   const barH = 70 + 30 * f;
   const tickY = barTop + barH + 34 + 18 * f;
   const axisTitle = tickY + 26 * f;
@@ -142,8 +153,8 @@ function layout(f: number, sun: boolean): Layout {
   return { title, row1, row0, barTop, barH, tickY, axisTitle, sunTitle, sunTop, sunH, sunLabels, height };
 }
 
-function figureHeight(f: number, sun: boolean): number {
-  return Math.round(layout(f, sun).height);
+function figureHeight(f: number, sun: boolean, labels: boolean): number {
+  return Math.round(layout(f, sun, labels).height);
 }
 
 function SpectrumScene({
@@ -163,7 +174,7 @@ function SpectrumScene({
   scale: number;
 }) {
   const fReal = useTextScale();
-  const L = layout(scale, sun);
+  const L = layout(scale, sun, mode !== 'kontinuerlig');
   const gradId = `spekter-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const stops: ReactNode[] = [];
   for (let nm = VISIBLE_MIN; nm <= VISIBLE_MAX; nm += 5) {
@@ -215,6 +226,8 @@ function SpectrumScene({
             </g>
           );
         })}
+      {/* Forenkling som i læreboka: absorpsjonslinjene tegnes på de samme stedene som emisjonslinjene. (I virkeligheten
+          absorberer en gass bare fra nivåer som er besatt, så noen linjer er mye svakere i absorpsjon.) */}
       {mode === 'absorpsjon' &&
         lines.map((l) => (
           <rect key={l.nm} x={sx(l.nm) - 1.5 - l.I} y={L.barTop} width={3 + 2 * l.I} height={L.barH} fill={DARK} opacity={0.5 + 0.5 * l.I} />
@@ -347,7 +360,7 @@ function explanation(
   } else {
     main = (
       <>
-        <strong>Absorpsjonsspekter.</strong> Når hvitt lys går gjennom en kaldere gass av {name}, tar atomene bare opp fotoner med
+        <strong>Absorpsjonsspekter.</strong> Når hvitt lys går gjennom en gass av {name} som er kaldere enn lyskilden, tar atomene bare opp fotoner med
         nøyaktig den energien som passer til et sprang mellom to nivåer. De bølgelengdene mangler i lyset som slipper gjennom, og vi
         ser mørke linjer på nøyaktig samme plass som de lyse linjene i emisjonsspekteret. {hitText(hit)}
       </>
@@ -360,7 +373,7 @@ function explanation(
       sunText = (
         <>
           Sollyset ser nesten kontinuerlig ut, men har mørke linjer: gassen i atmosfæren til sola absorberer bestemte bølgelengder.
-          {sunHit?.element ? ` Markøren står på en linje fra ${sunHit.element}.` : ''}
+          {sunHit?.element ? ` Markøren står på en linje fra ${SUN_ELEMENT_NAMES[sunHit.element] ?? sunHit.element}.` : ''}
         </>
       );
     else if (el === 'hydrogen')

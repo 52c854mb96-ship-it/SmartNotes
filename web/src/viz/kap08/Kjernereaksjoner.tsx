@@ -446,6 +446,10 @@ function decayExcitation(dc: Decay): number {
   return n?.daughterExcitation ?? 0;
 }
 
+function capitalize(s: string): string {
+  return s.charAt(0).toLocaleUpperCase('nb') + s.slice(1);
+}
+
 function signed(n: number): string {
   return n > 0 ? `+${n}` : n < 0 ? `−${-n}` : '0';
 }
@@ -516,7 +520,7 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
         <>
           Ved <strong>β⁺-henfall</strong> blir et proton i kjernen til et nøytron, og det sendes ut et positron (et antielektron) og et
           nøytrino. A er uendret, men Z synker med 1, så {parent} blir til {daughter}
-          {newElement}. Med atommasser må vi trekke fra to elektronmasser, 2m(e), for å få riktig Q.
+          {newElement}.
         </>
       );
       break;
@@ -538,11 +542,7 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
         ikke skje. Velg en annen henfallstype.
       </p>
     );
-  const sums = (
-    <>
-      Summen av nukleontall og summen av ladning er den samme før og etter. Massen er derimot ikke bevart:
-    </>
-  );
+  const sums = <>Nukleontall og ladning er bevart, men massen er ikke:</>;
   let energyText: ReactNode;
   const exc = dc.type !== 'gamma' && dc.daughter.excited ? decayExcitation(dc) : 0;
   if (e && e.Q > 0 && exc > 0)
@@ -555,7 +555,7 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
   else if (e && e.Q > 0)
     energyText = (
       <>
-        {sums} produktene er {fmt(e.dm, 6)} u lettere, og den forskjellen er blitt {qText(e.Q)} MeV{dc.type === 'gamma' ? (dc.emitted.length > 1 ? ' i fotonene' : ' i fotonet') : ' bevegelsesenergi'} (E = mc²).
+        {sums} produktene er {fmt(e.dm, 6)} u lettere, og forskjellen er blitt {qText(e.Q)} MeV{dc.type === 'gamma' ? (dc.emitted.length > 1 ? ' i fotonene' : ' i fotonet') : ' bevegelsesenergi'} (E = mc²).
       </>
     );
   else if (e && e.Q <= 0)
@@ -568,13 +568,14 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
   else
     energyText = (
       <>
-        Summen av nukleontall og summen av ladning er den samme før og etter.{' '}
+        Nukleontall og ladning er bevart.{' '}
         {dc.type === 'gamma'
           ? 'Energien til fotonet er ikke kjent for denne kjernen her.'
           : `Atommassen til ${nuclideLabel(dc.daughter.Z, dc.daughter.A)} er ikke med i tabellen her, så Q kan ikke regnes ut.`}
       </>
     );
 
+  const note = cur.excited ? undefined : findNuclide(cur.Z, cur.A)?.note;
   let reality: ReactNode = null;
   if (!natural && isStable(cur.Z, cur.A) === undefined)
     reality = <> {parent} er ikke med i tabellen her, så vi vet ikke om den faktisk henfaller på denne måten.</>;
@@ -582,11 +583,13 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
     reality = (
       <>
         {' '}
-        I virkeligheten henfaller {parent} ved {TYPE_TEXT[natural]}-henfall.
+        I virkeligheten henfaller {parent} ved {TYPE_TEXT[natural]}-henfall{note ? ` (${note})` : ''}.
       </>
     );
+  else if (natural === dc.type && note) reality = <> {capitalize(note)}.</>;
   else if (natural === dc.type && steps === 0 && !cur.excited)
     reality = <> Trykk «Fortsett» for å følge datterkjernen videre.</>;
+  if (dc.type === 'beta+' && e) reality = <>{reality} Med atommasser må vi trekke fra to elektronmasser, 2m(e), i Δm.</>;
   return (
     <p>
       {what} {energyText}
