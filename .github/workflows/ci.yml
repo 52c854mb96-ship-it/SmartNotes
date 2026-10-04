@@ -49,10 +49,11 @@ jobs:
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - name: Røyktest av imaget
+      - name: Røyktest av imaget (ekte LaTeX-kompilering, falsk Claude)
         run: |
-          docker run -d --name sn -p 8080:8080 -e APP_PASSWORD=test -e SMARTNOTES_FAKE_CLAUDE=1 smartnotes:ci
+          docker run -d --name sn -p 8080:8080 -e APP_PASSWORD=test -e SMARTNOTES_FAKE_CLAUDE=1 -e COOKIE_SECURE=false smartnotes:ci
           for i in $(seq 1 30); do curl -sf http://localhost:8080/api/health && break; sleep 2; done
-          curl -sf http://localhost:8080/api/health | grep '"latex":true'
-          curl -sf http://localhost:8080/ | grep -i '<html'
-          docker logs sn
+          BASE=http://localhost:8080 PASSWORD=test scripts/smoke-test.sh
+      - name: Serverlogg
+        if: always()
+        run: docker logs sn || true
