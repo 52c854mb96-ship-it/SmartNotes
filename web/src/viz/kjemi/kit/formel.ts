@@ -22,7 +22,7 @@ export interface FormulaToken {
   text: string;
 }
 
-export interface Formula {
+export interface ParsedFormula {
   /** Teksten formelen ble tolket fra. */
   source: string;
   /** Antall atomer av hvert grunnstoff, i rekkefølgen de først står i formelen: Ca(OH)2 → { Ca: 1, O: 2, H: 2 }. */
@@ -37,7 +37,7 @@ export interface Formula {
   tokens: readonly FormulaToken[];
 }
 
-export type FormulaResult = { ok: true; formula: Formula } | { ok: false; error: string };
+export type FormulaResult = { ok: true; formula: ParsedFormula } | { ok: false; error: string };
 
 const SUB_DIGITS = '₀₁₂₃₄₅₆₇₈₉';
 const SUP_DIGITS = '⁰¹²³⁴⁵⁶⁷⁸⁹';
@@ -243,16 +243,16 @@ function unknownSymbol(sym: string, s: string, i: number): string {
 }
 
 /** Som `parseFormula`, men kaster en feil. Bruk for faste formler i koden: `formula('H2O')`. */
-export function formula(input: string): Formula {
+export function formula(input: string): ParsedFormula {
   const r = parseFormula(input);
   if (!r.ok) throw new Error(`${input}: ${r.error}`);
   return r.formula;
 }
 
-const asFormula = (f: string | Formula): Formula => (typeof f === 'string' ? formula(f) : f);
+const asFormula = (f: string | ParsedFormula): ParsedFormula => (typeof f === 'string' ? formula(f) : f);
 
 /** Unicode-tekst: Ca(OH)₂, CuSO₄·5H₂O, SO₄²⁻. Med `withState` også (aq), (s) osv. Fin til aria-label og vanlig tekst. */
-export function formulaText(f: string | Formula, withState = false): string {
+export function formulaText(f: string | ParsedFormula, withState = false): string {
   const p = asFormula(f);
   const body = p.tokens
     .map((t) =>
@@ -279,7 +279,7 @@ export interface MolarMassTerm {
 }
 
 /** Bidraget fra hvert grunnstoff til den molare massen, i formelens rekkefølge: M = Σ antall · M(grunnstoff). */
-export function molarMassTerms(f: string | Formula): MolarMassTerm[] {
+export function molarMassTerms(f: string | ParsedFormula): MolarMassTerm[] {
   const p = asFormula(f);
   const terms = Object.entries(p.atoms).map(([symbol, count]) => {
     const M = getElement(symbol)!.molarMass;
@@ -291,12 +291,12 @@ export function molarMassTerms(f: string | Formula): MolarMassTerm[] {
 }
 
 /** Molar masse i g/mol (elektronenes masse regnes ikke med, som i lærebøkene). Kaster feil for ugyldige formler. */
-export function molarMass(f: string | Formula): number {
+export function molarMass(f: string | ParsedFormula): number {
   return molarMassTerms(f).reduce((s, t) => s + t.mass, 0);
 }
 
 /** Antall atomer totalt i én formelenhet: H2O → 3, CuSO4·5H2O → 21. */
-export function atomCount(f: string | Formula): number {
+export function atomCount(f: string | ParsedFormula): number {
   return Object.values(asFormula(f).atoms).reduce((s, n) => s + n, 0);
 }
 

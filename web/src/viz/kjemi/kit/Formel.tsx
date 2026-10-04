@@ -11,24 +11,24 @@
  */
 import { Fragment, type ReactNode } from 'react';
 import { Sub, Sup, TSub, TSup } from '../../kit';
-import { coefText, parseFormula, parseReaction, type Formula, type Reaction, type State, type Term } from './formel';
+import { coefText, parseFormula, parseReaction, type ParsedFormula, type Reaction, type State, type Term } from './formel';
 
 export interface FormelProps {
   /** Formelen som tekst («H2O», «SO4^2-», «Cu^2+(aq)») eller allerede tolket. */
-  f: string | Formula;
+  f: string | ParsedFormula;
   /** true (standard): vis tilstanden hvis den står i formelen. false: aldri. «aq», «s» …: vis denne. */
   state?: boolean | State;
   /** Koeffisient foran formelen (1 vises ikke). */
   coef?: number;
 }
 
-function resolve(f: string | Formula): Formula | null {
+function resolve(f: string | ParsedFormula): ParsedFormula | null {
   if (typeof f !== 'string') return f;
   const r = parseFormula(f);
   return r.ok ? r.formula : null;
 }
 
-function stateOf(p: Formula, state: boolean | State | undefined): State | null {
+function stateOf(p: ParsedFormula, state: boolean | State | undefined): State | null {
   if (state === false) return null;
   if (typeof state === 'string') return state;
   return p.state;

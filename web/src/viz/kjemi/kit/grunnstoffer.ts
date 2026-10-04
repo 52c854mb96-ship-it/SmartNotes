@@ -30,7 +30,7 @@ export type Category =
   | 'lantanoid'
   | 'aktinoid';
 
-export type Block = 's' | 'p' | 'd' | 'f';
+export type ElementBlock = 's' | 'p' | 'd' | 'f';
 
 /** Tilstand ved 25 °C og 1 atm. */
 export type Phase = 's' | 'l' | 'g';
@@ -57,7 +57,7 @@ export interface Element {
   /** Gruppe 1–18 (null for lantanoider og aktinoider). */
   group: number | null;
   period: number;
-  block: Block;
+  block: ElementBlock;
   category: Category;
   /** Tilstand ved romtemperatur (25 °C). */
   phase: Phase;
@@ -302,7 +302,7 @@ function shellsOf(subs: readonly Subshell[]): number[] {
   return Array.from(shells, (v) => v ?? 0);
 }
 
-function blockOf(group: number | null, Z: number): Block {
+function blockOf(group: number | null, Z: number): ElementBlock {
   if (group === null) return 'f';
   if (group <= 2 || Z === 2) return 's';
   if (group <= 12) return 'd';
