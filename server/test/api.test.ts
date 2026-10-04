@@ -59,7 +59,7 @@ function uploadForm(fields: Record<string, string>, files: { data: Buffer; name:
 
 beforeAll(async () => {
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-test-'));
-  const config = loadConfig({ ...process.env, NODE_ENV: 'test', DATA_DIR: dataDir, APP_PASSWORD: 'hemmelig', WEB_DIST: '' });
+  const config = loadConfig({ ...process.env, NODE_ENV: 'test', DATA_DIR: dataDir, APP_PASSWORD: 'hemmelig', WEB_DIST: '', SEED_TEXTBOOK: 'none' });
   ctx = await buildApp({ ...config, webDist: null }, { claude: new FakeClaude(5), logger: false });
   ctx.worker.start();
   await ctx.app.listen({ port: 0, host: '127.0.0.1' });

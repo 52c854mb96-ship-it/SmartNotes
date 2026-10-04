@@ -82,6 +82,7 @@ Se **[docs/DEPLOY.md](docs/DEPLOY.md)** for en steg-for-steg-guide til Fly.io (c
 | `CLAUDE_MODEL` | `claude-opus-5-5` | Modellen som leser notatene |
 | `CLAUDE_EFFORT` | `high` | Hvor grundig Claude jobber: `low` / `medium` / `high` / `xhigh` / `max` |
 | `CLAUDE_FALLBACKS` | `true` | Hvis Claudes sikkerhetsfiltre ved en feil avslår et notat, prøves en anbefalt reservemodell automatisk |
+| `SEED_TEXTBOOK` | `ergo-fysikk-1` | Lærebok som fag og kapitler lages fra ved første oppstart (`none` = tomt fag «Fysikk»). Se `server/src/textbooks.ts` |
 | `DATA_DIR` | `./data` | Database, originaler og PDF-er |
 | `PORT` | `8787` (`8080` i Docker) | |
 | `MAX_PAGES_PER_NOTE` | `30` | Maks sider per opplasting |

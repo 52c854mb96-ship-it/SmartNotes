@@ -18,6 +18,8 @@ export interface Config {
   useFallbacks: boolean;
   /** Bruk en falsk Claude (for utvikling og tester uten API-nøkkel). */
   fakeClaude: boolean;
+  /** Lærebok (id i TEXTBOOKS) som faget og kapitlene lages fra ved første oppstart, eller null for et tomt «Fysikk». */
+  seedTextbook: string | null;
   /** Mappe med ferdigbygd web-app som serveres statisk, eller null. */
   webDist: string | null;
   latexTimeoutMs: number;
@@ -85,6 +87,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     effort,
     useFallbacks: bool(env.CLAUDE_FALLBACKS, true),
     fakeClaude,
+    seedTextbook: env.SEED_TEXTBOOK === undefined ? 'ergo-fysikk-1' : env.SEED_TEXTBOOK.trim() && env.SEED_TEXTBOOK !== 'none' ? env.SEED_TEXTBOOK.trim() : null,
     webDist,
     latexTimeoutMs: int(env.LATEX_TIMEOUT_MS, 120_000),
     bundleTimeoutMs: int(env.BUNDLE_TIMEOUT_MS, 300_000),

@@ -642,11 +642,15 @@ export class Repo {
     this.db.prepare(`DELETE FROM sessions WHERE expires_at <= ?`).run(now());
   }
 
-  /** Første oppstart: opprett faget Fysikk. */
-  seed(): void {
+  /** Første oppstart: opprett faget (med kapitlene fra læreboka hvis en er valgt). */
+  seed(preset: { subjectName: string; textbook: string; profile: SubjectProfile; chapters: ChapterInput[] } | null): void {
     const count = (this.db.prepare(`SELECT COUNT(*) AS n FROM subjects`).get() as { n: number }).n;
-    if (count === 0) {
+    if (count > 0) return;
+    if (!preset) {
       this.createSubject({ name: 'Fysikk', profile: 'physics', textbook: null });
+      return;
     }
+    const subject = this.createSubject({ name: preset.subjectName, profile: preset.profile, textbook: preset.textbook });
+    this.createChapters(subject.id, preset.chapters);
   }
 }

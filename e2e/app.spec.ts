@@ -4,11 +4,11 @@ import sharp from 'sharp';
 /**
  * Hele flyten i en ekte nettleser mot den ferdigbygde appen og serveren (med falsk Claude og ekte LaTeX):
  * innlogging → opplasting → konvertering → PDF, deretter offline-lesing og opplastingskø uten nett.
- * Falsk Claude legger notater i kapittelet «Fysikk og måling» (opprettes automatisk første gang).
  */
 
 const PASSWORD = 'e2e-passord';
-const CHAPTER = /Fysikk og måling/;
+/** Serveren legger inn ERGO Fysikk 1 ved første oppstart; falsk Claude velger første kapittel. */
+const CHAPTER = /Bevegelse(?!smengde)/;
 /** Konvertering + synk kan ta litt tid på en treg CI-maskin. */
 const SLOW = { timeout: 90_000 };
 

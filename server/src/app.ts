@@ -18,6 +18,7 @@ import { Worker } from './pipeline/worker.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerNoteRoutes } from './routes/notes.js';
 import { Storage } from './storage.js';
+import { TEXTBOOKS } from './textbooks.js';
 
 export interface AppContext {
   app: FastifyInstance;
@@ -39,7 +40,10 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
 
   const storage = new Storage(config.dataDir);
   const repo = new Repo(storage.dbFile);
-  repo.seed();
+  if (config.seedTextbook && !TEXTBOOKS[config.seedTextbook]) {
+    app.log.warn({ seedTextbook: config.seedTextbook }, 'ukjent SEED_TEXTBOOK – lager et tomt fag');
+  }
+  repo.seed(config.seedTextbook ? (TEXTBOOKS[config.seedTextbook] ?? null) : null);
   const claude = opts.claude ?? createClaude(config);
   const converter = new Converter(repo, storage, claude, config, app.log);
   const worker = new Worker(repo, converter, config.workerConcurrency, app.log);
