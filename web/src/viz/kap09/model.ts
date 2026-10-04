@@ -212,7 +212,7 @@ export const STARS: Star[] = [
   { id: 'pollux', name: 'Pollux', T: 4590, L: 43, cls: 'kjempe', fact: 'Pollux er en oransje kjempe i Tvillingene, og den nærmeste kjempestjernen til sola.' },
   { id: 'capella', name: 'Capella', T: 4970, L: 79, cls: 'kjempe', fact: 'Capella er egentlig to gule kjemper som går i bane rundt hverandre.' },
   { id: 'arcturus', name: 'Arcturus', T: 4290, L: 170, cls: 'kjempe', fact: 'Arcturus er en rød kjempe med omtrent samme masse som sola. Slik vil sola se ut om ca. 5 milliarder år.' },
-  { id: 'aldebaran', name: 'Aldebaran', T: 3900, L: 440, cls: 'kjempe', tag: 'below', fact: 'Aldebaran er det røde «øyet» i stjernebildet Tyren.' },
+  { id: 'aldebaran', name: 'Aldebaran', T: 3900, L: 440, cls: 'kjempe', fact: 'Aldebaran er det røde «øyet» i stjernebildet Tyren.' },
   { id: 'polaris', name: 'Polaris', T: 6000, L: 1260, cls: 'superkjempe', fact: 'Polaris (Nordstjerna) står nesten rett over nordpolen, så den ser ut til å stå i ro mens himmelen dreier.' },
   { id: 'canopus', name: 'Canopus', T: 7350, L: 10700, cls: 'superkjempe', fact: 'Canopus er den nest klareste stjernen på himmelen, men kan ikke ses fra Norge.' },
   { id: 'rigel', name: 'Rigel', T: 12100, L: 120000, cls: 'superkjempe', tag: 'right', fact: 'Rigel er den blå superkjempen i foten til Orion.' },
