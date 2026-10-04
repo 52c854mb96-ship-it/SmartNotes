@@ -13,7 +13,10 @@ Foreløpig er appen laget for **fysikk**. Andre fag kommer senere, og arkitektur
   - Enkle tegninger tegnes på nytt i TikZ, som kraftdiagrammer, grafer og kretser. Kompliserte tegninger klippes ut fra originalbildet.
   - Definisjoner, viktige formler, eksempler og oppgaver får hver sin fargede boks.
   - Ord som er vanskelige å lese, markeres med ?.
-- **Kapittelsortering.** Legg inn lærebokas innholdsfortegnelse (lim inn tekst eller ta bilde av den). Da plasserer Claude hvert notat i riktig kapittel, og du kan flytte det selv.
+- **Kapitler og delkapitler.** ERGO Fysikk 1 er lagt inn med alle kapitler og delkapitler (1A–10D). Claude plasserer hvert notat på riktig delkapittel, og du kan flytte det selv. Andre lærebøker kan legges inn ved å lime inn innholdsfortegnelsen eller ta bilde av den.
+- **Kompetansemål.** Hvert delkapittel er koblet til kompetansemålene i Fysikk 1 (KM1–KM14), så du kan se og filtrere notatene etter mål før eksamen.
+- **Søk.** Ctrl/Cmd+K søker i titler og innholdet i alle notatene, også uten nett.
+- **Tre kolonner.** På iPad og PC ser du kapitler, notater og PDF side om side. Lys, mørk eller systemtema.
 - **Samle-PDF.** Last ned et helt kapittel eller hele faget som én PDF med innholdsliste.
 - **Offline.**
   - Alle ferdige PDF-er lagres på enheten og kan leses uten nett.
