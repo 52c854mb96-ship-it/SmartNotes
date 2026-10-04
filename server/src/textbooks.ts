@@ -12,8 +12,7 @@ export interface TextbookPreset {
 export const TEXTBOOKS: Record<string, TextbookPreset> = {
   /**
    * ERGO Fysikk 1 (Aschehoug, fagfornyelsen/LK20, 2021).
-   * Kapittelnavnene er hentet fra løsningsforslag og kortsett på nett, ikke fra forlaget direkte –
-   * sjekk mot boka og rett i appen (Fag → Innstillinger) om noe avviker.
+   * Kapittelnavnene er hentet fra innholdsfortegnelsen (via Momentum: context/pensum-temaer.md).
    */
   'ergo-fysikk-1': {
     id: 'ergo-fysikk-1',
@@ -21,11 +20,11 @@ export const TEXTBOOKS: Record<string, TextbookPreset> = {
     textbook: 'ERGO Fysikk 1',
     profile: 'physics',
     chapters: [
-      { number: '1', title: 'Bevegelse' },
+      { number: '1', title: 'Rettlinjet bevegelse' },
       { number: '2', title: 'Krefter' },
       { number: '3', title: 'Mekanisk energi' },
-      { number: '4', title: 'Bevegelsesmengde' },
-      { number: '5', title: 'Termisk energi og trykk' },
+      { number: '4', title: 'Kollisjoner og eksplosjoner' },
+      { number: '5', title: 'Termisk energi' },
       { number: '6', title: 'Bølger og stråling' },
       { number: '7', title: 'Atomfysikk' },
       { number: '8', title: 'Kjernefysikk' },

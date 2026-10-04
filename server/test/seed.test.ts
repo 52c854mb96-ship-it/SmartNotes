@@ -16,11 +16,11 @@ describe('startoppsett', () => {
     expect(subjects[0]).toMatchObject({ name: 'Fysikk 1', textbook: 'ERGO Fysikk 1', profile: 'physics' });
     const chapters = repo.listChapters(subjects[0]!.id);
     expect(chapters.map((c) => `${c.number} ${c.title}`)).toEqual([
-      '1 Bevegelse',
+      '1 Rettlinjet bevegelse',
       '2 Krefter',
       '3 Mekanisk energi',
-      '4 Bevegelsesmengde',
-      '5 Termisk energi og trykk',
+      '4 Kollisjoner og eksplosjoner',
+      '5 Termisk energi',
       '6 Bølger og stråling',
       '7 Atomfysikk',
       '8 Kjernefysikk',
