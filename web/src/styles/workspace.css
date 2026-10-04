@@ -704,7 +704,7 @@ input.search-input:focus {
 }
 
 .search-body {
-  flex: 1;
+  flex: 1 1 auto; /* ikke «flex: 1»: Safari klemmer da treffene til 0 px (se .modal-inner) */
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;

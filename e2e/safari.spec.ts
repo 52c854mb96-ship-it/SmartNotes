@@ -55,6 +55,17 @@ async function diagnose(page: Page, selector: string): Promise<Record<string, un
   }, selector);
 }
 
+/** Elementet er synlig og ligger helt innenfor rammen (ikke klippet bort av en for lav forelder). */
+async function expectInside(locator: ReturnType<Page['locator']>, outer: { x: number; y: number; width: number; height: number } | null): Promise<void> {
+  await expect(locator).toBeVisible();
+  const b = await locator.boundingBox();
+  expect(b && outer).toBeTruthy();
+  if (!b || !outer) return;
+  expect(b.height).toBeGreaterThan(10);
+  expect(b.y).toBeGreaterThanOrEqual(outer.y - 1);
+  expect(b.y + b.height).toBeLessThanOrEqual(outer.y + outer.height + 1);
+}
+
 async function notePage(title: string): Promise<Buffer> {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600">
     <rect width="100%" height="100%" fill="#fbf8ef"/>
@@ -74,8 +85,10 @@ test('opplastingsdialogen vises og kan brukes', async ({ page }, info) => {
   const box = await dialog.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThan(200);
   expect(box?.width ?? 0).toBeGreaterThan(280);
-  // Det som ligger øverst midt i dialogen, skal være selve dialogen (ikke noe som dekker den).
-  expect(String(diag.atCenter)).not.toMatch(/^div\.toaster/);
+  // Det som ligger øverst midt i dialogen, skal være innholdet i den (ikke dialogen selv eller noe som dekker den).
+  expect(String(diag.atCenter)).not.toMatch(/^(div\.toaster|dialog)/);
+  // Filvelgeren og knappene skal ligge innenfor dialogen, ikke klippes bort.
+  await expectInside(dialog.getByRole('button', { name: /^Last opp$/ }), box);
 
   // Hele opplastingen i Safari
   const title = `Safari ${info.project.name}`;
@@ -98,7 +111,14 @@ test('søk og visualiseringer i Safari', async ({ page }, info) => {
   await expect(palette).toBeVisible();
   console.log(`DIAG search [${info.project.name}]`, JSON.stringify(await diagnose(page, 'dialog.search-palette')));
   await palette.getByRole('combobox', { name: 'Søk' }).fill('friksjon');
-  await palette.getByRole('option', { name: /Statisk friksjon og glidefriksjon/ }).click();
+  const option = palette.getByRole('option', { name: /Statisk friksjon og glidefriksjon/ });
+  await expect(option).toBeVisible();
+  await page.waitForTimeout(300);
+  console.log(`DIAG search-results [${info.project.name}]`, JSON.stringify(await diagnose(page, 'dialog.search-palette')));
+  // Treffene skal få plass i søkevinduet (Safari klemte dem tidligere til 0 px).
+  expect((await palette.locator('.search-body').boundingBox())?.height ?? 0).toBeGreaterThan(60);
+  await expectInside(option, await palette.boundingBox());
+  await option.click();
 
   await expect(page.getByRole('heading', { name: 'Statisk friksjon og glidefriksjon', level: 1 })).toBeVisible();
   const figure = page.locator('.viz-figure svg').first();

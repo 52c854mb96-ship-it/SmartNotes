@@ -38,7 +38,9 @@ dialog::backdrop {
 }
 
 .modal-inner {
-  flex: 1;
+  /* «1 1 auto», ikke «flex: 1»: Safari regner grunnhøyden 0 % som null når dialogen ikke har fast høyde,
+     og da blir hele dialogen 0 px høy. Med auto vokser den med innholdet og krymper ned til max-height. */
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -66,7 +68,7 @@ dialog::backdrop {
 }
 
 .modal-body {
-  flex: 1;
+  flex: 1 1 auto; /* se .modal-inner */
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
