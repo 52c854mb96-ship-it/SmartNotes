@@ -521,9 +521,9 @@ export interface ShapeInfo {
  */
 export const SHAPES: Record<ShapeId, ShapeInfo> = {
   linear: { id: 'linear', name: 'lineær', electronGeometry: 'lineær', bonds: 2, lonePairs: 0, angle: 180, angleText: '180°', example: 'CO2' },
-  'bent-120': { id: 'bent-120', name: 'vinklet', electronGeometry: 'plan trekantet', bonds: 2, lonePairs: 1, angle: 119, angleText: 'ca. 119°', example: 'SO2' },
+  'bent-120': { id: 'bent-120', name: 'vinklet', electronGeometry: 'trigonal plan', bonds: 2, lonePairs: 1, angle: 119, angleText: 'ca. 119°', example: 'SO2' },
   bent: { id: 'bent', name: 'vinklet', electronGeometry: 'tetraedrisk', bonds: 2, lonePairs: 2, angle: 104.5, angleText: 'ca. 104,5°', example: 'H2O' },
-  'trigonal-planar': { id: 'trigonal-planar', name: 'plan trekantet', electronGeometry: 'plan trekantet', bonds: 3, lonePairs: 0, angle: 120, angleText: '120°', example: 'BF3' },
+  'trigonal-planar': { id: 'trigonal-planar', name: 'trigonal plan', electronGeometry: 'trigonal plan', bonds: 3, lonePairs: 0, angle: 120, angleText: '120°', example: 'BF3' },
   'trigonal-pyramidal': { id: 'trigonal-pyramidal', name: 'trigonal pyramide', electronGeometry: 'tetraedrisk', bonds: 3, lonePairs: 1, angle: 107, angleText: 'ca. 107°', example: 'NH3' },
   't-shaped': { id: 't-shaped', name: 'T-formet', electronGeometry: 'trigonal bipyramide', bonds: 3, lonePairs: 2, angle: 87.5, angleText: 'ca. 87,5°', example: 'ClF3' },
   tetrahedral: { id: 'tetrahedral', name: 'tetraedrisk', electronGeometry: 'tetraedrisk', bonds: 4, lonePairs: 0, angle: 109.5, angleText: '109,5°', example: 'CH4' },

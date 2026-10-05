@@ -39,7 +39,7 @@ const viz: VizMeta[] = [
     id: 'titrering',
     chapter: '7',
     sections: [],
-    title: 'Syre–base-titrering',
+    title: 'Syre-base-titrering',
     summary:
       'Titrer saltsyre eller eddiksyre med NaOH fra byretten og følg pH-meteret og titrerkurven. Finn ekvivalenspunktet og halvtitrerpunktet, velg indikator, og regn ut den ukjente konsentrasjonen.',
     keywords: ['titrering', 'titrerkurve', 'ekvivalenspunkt', 'halvtitrerpunkt', 'endepunkt', 'pKa', 'indikator', 'byrette', 'titreranalyse', 'buffer', 'KM10', 'KM15'],

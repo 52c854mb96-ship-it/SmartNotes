@@ -1029,6 +1029,8 @@
   font-size: 14px;
   font-weight: 560;
   color: var(--text-2);
+  max-width: 100%;
+  min-width: 0;
 }
 
 .kj-select select {
@@ -1037,6 +1039,16 @@
   min-height: 38px;
   padding-top: 6px;
   padding-bottom: 6px;
+}
+
+/* På mobil får nedtrekkslista hele bredden under etiketten, så lange valg ikke stikker ut av kortet. */
+@media (max-width: 600px) {
+  .kj-select {
+    width: 100%;
+  }
+  .kj-select select {
+    flex: 1 1 100%;
+  }
 }
 
 .kj-field input {

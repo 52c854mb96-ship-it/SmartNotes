@@ -64,7 +64,7 @@ export interface Everyday {
 
 /**
  * Typiske pH-verdier for kjente stoffer (lærebøker og Store norske leksikon, «pH»). Verdiene varierer med merke og
- * konsentrasjon, så de er avrundet. Natron er en løsning av natriumhydrogenkarbonat, salmiakk en ammoniakkløsning og
+ * konsentrasjon, så de er avrundet. Natron er en løsning av natriumhydrogenkarbonat, salmiakkspiritus en ammoniakkløsning og
  * lut en natriumhydroksidløsning (avløpsåpner).
  */
 export const EVERYDAY: Everyday[] = [
@@ -77,7 +77,7 @@ export const EVERYDAY: Everyday[] = [
   { id: 'sjovann', name: 'sjøvann', pH: 8.1, range: [7.9, 8.3] },
   { id: 'natron', name: 'natron', pH: 8.3, range: [8.2, 8.4] },
   { id: 'sape', name: 'såpe', pH: 10, range: [9, 10.5] },
-  { id: 'salmiakk', name: 'salmiakk', pH: 11.5, range: [11, 12] },
+  { id: 'salmiakk', name: 'salmiakkspiritus', pH: 11.5, range: [11, 12] },
   { id: 'lut', name: 'lut', pH: 13.5, range: [13, 14] },
 ];
 

@@ -88,7 +88,7 @@ export interface GeometryInfo {
 
 export const GEOMETRIES: Record<Geometry, GeometryInfo> = {
   linear: { name: 'lineær', angle: 180, bonds: 2, lonePairs: 0, example: 'CO2' },
-  'trigonal-planar': { name: 'plan trigonal', angle: 120, bonds: 3, lonePairs: 0, example: 'BF3' },
+  'trigonal-planar': { name: 'trigonal plan', angle: 120, bonds: 3, lonePairs: 0, example: 'BF3' },
   tetrahedral: { name: 'tetraedrisk', angle: 109.5, bonds: 4, lonePairs: 0, example: 'CH4' },
   'trigonal-pyramidal': { name: 'trigonal pyramide', angle: 107, bonds: 3, lonePairs: 1, example: 'NH3' },
   bent: { name: 'vinklet', angle: 104.5, bonds: 2, lonePairs: 2, example: 'H2O' },

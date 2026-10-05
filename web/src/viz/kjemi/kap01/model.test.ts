@@ -248,7 +248,7 @@ describe('molekylform og polaritet (1.4)', () => {
     expect(shapeFor(4, 0)).toBe('tetrahedral');
     expect(shapeFor(3, 0)).toBe('trigonal-planar');
     expect(shapeFor(9, -3)).toBe('tetrahedral');
-    expect(SHAPES['trigonal-planar'].name).toBe('plan trekantet');
+    expect(SHAPES['trigonal-planar'].name).toBe('trigonal plan');
     expect(axeNotation(2, 2)).toBe('AX₂E₂');
     expect(axeNotation(4, 0)).toBe('AX₄');
     expect(axeNotation(3, 1)).toBe('AX₃E');

@@ -30,6 +30,7 @@ import {
   useTextScale,
 } from '../kit';
 import { NTU_PER_MM, concurrentLimit, gillProfile, type Flow, type GillProfile } from './model';
+import { GjelleFilament } from './felles';
 
 const FLOWS: { value: Flow; label: string }[] = [
   { value: 'motstrom', label: 'Motstrøm' },
@@ -151,18 +152,21 @@ function LamellaScene({ p, flow, f, t, length }: { p: GillProfile; flow: Flow; f
   const narrow = f > 1.3;
   const k = Math.max(1, f * 0.85);
   const gradId = useSvgId('lamell');
-  const x0 = narrow ? 30 : 60;
-  const x1 = 800 - x0;
+  // Til venstre (PC) eller øverst (mobil): gjellefilamentet med lamellene, så eleven ser hvor lamellen sitter
+  const ctx = narrow ? { x: 20, y: 6, w: 760, h: 330 } : { x: 14, y: 14, w: 250, h: 250 };
+  const x0 = narrow ? 30 : 300;
+  const x1 = narrow ? 770 : 780;
   const W = x1 - x0;
-  const head = 30 * f;
-  const wh = Math.round(84 + 46 * (f - 1));
-  const bh = Math.round(64 + 40 * (f - 1));
+  const top = narrow ? ctx.y + ctx.h + 24 : 0;
+  const head = top + 30 * f;
+  const wh = Math.round(84 + 70 * (f - 1));
+  const bh = Math.round(64 + 60 * (f - 1));
   const wall = 10;
   const wTop = head + 18 * f;
   const bTop = wTop + wh + wall;
   const bBot = bTop + bh;
-  const H = Math.round(bBot + 40 * f + 18);
-  const xs = narrow ? [0.12, 0.37, 0.63, 0.88] : [0.08, 0.27, 0.5, 0.73, 0.92];
+  const H = Math.round(Math.max(bBot + 40 * f + 18, narrow ? 0 : ctx.y + ctx.h + 10));
+  const xs = narrow ? [0.14, 0.5, 0.86] : [0.1, 0.37, 0.63, 0.9];
   const blood = (u: number) => p.blood(u);
   const water = (u: number) => p.water(u);
   const bloodRight = flow === 'medstrom';
@@ -171,13 +175,21 @@ function LamellaScene({ p, flow, f, t, length }: { p: GillProfile; flow: Flow; f
   const stops = Array.from({ length: 11 }, (_, i) => i / 10);
   const bloodInX = bloodRight ? x0 : x1;
   const bloodOutX = bloodRight ? x1 : x0;
+  const bloodInValue = blood(bloodRight ? 0 : 1);
   const label = `Gjellelamell med ${FLOW_NAME[flow]}. Vannet går inn med 100 % O₂ og ut med ${fmt(p.waterOut, 0)} %. Blodet går inn med ${fmt(
-    blood(bloodRight ? 0 : 1),
+    bloodInValue,
     0,
   )} % og ut med ${fmt(p.bloodOut, 0)} %.`;
 
   return (
-    <Figure viewBox={`0 0 800 ${H}`} maxHeight={narrow ? 900 : H} label={label} caption={`Lamellen er ${fmt(length, 2)} mm lang. Tallene viser O₂-metningen i vannet og i blodet.`}>
+    <Figure
+      viewBox={`0 0 800 ${H}`}
+      maxHeight={narrow ? 1100 : H}
+      label={label}
+      caption={`${narrow ? 'Øverst' : 'Til venstre'}: et gjellefilament med lameller; vannet strømmer mellom lamellene. ${
+        narrow ? 'Under' : 'Til høyre'
+      }: den markerte lamellen forstørret (${fmt(length, 2)} mm lang). Tallene viser O₂-metningen i vannet og i blodet.`}
+    >
       <defs>
         <linearGradient id={`${gradId}-b`} x1="0" x2="1" y1="0" y2="0">
           {stops.map((u) => (
@@ -186,14 +198,17 @@ function LamellaScene({ p, flow, f, t, length }: { p: GillProfile; flow: Flow; f
         </linearGradient>
       </defs>
 
+      <GjelleFilament box={ctx} flow={flow} highlight />
+      {!narrow && <line x1={284} x2={284} y1={20} y2={H - 20} stroke={VIZ.grid} strokeWidth={1.5} />}
+
       {/* Overskrifter: vann inn til venstre, vann ut til høyre */}
       <Txt x={x0} y={head} anchor="start" weight={700} color={C_WATER}>
-        Vann inn
+        Vann inn 100 %
       </Txt>
       <Txt x={x1} y={head} anchor="end" weight={700} color={C_WATER}>
-        Vann ut
+        Vann ut {fmt(p.waterOut, 0)} %
       </Txt>
-      <Arrow x1={400 - 70} y1={head - 6 * f} x2={400 + 70} y2={head - 6 * f} color={C_WATER} width={3} head={11} />
+      {!narrow && <Arrow x1={(x0 + x1) / 2 - 50} y1={head - 6 * f} x2={(x0 + x1) / 2 + 50} y2={head - 6 * f} color={C_WATER} width={3} head={11} />}
 
       {/* Vannet */}
       <rect x={x0} y={wTop} width={W} height={wh} rx={10} fill={BIO.vannFyll} />
@@ -242,20 +257,22 @@ function LamellaScene({ p, flow, f, t, length }: { p: GillProfile; flow: Flow; f
       })}
 
       {/* Blodets retning og inn/ut */}
-      <Arrow
-        x1={400 - (bloodRight ? 70 : -70)}
-        y1={bBot + 22 * f}
-        x2={400 + (bloodRight ? 70 : -70)}
-        y2={bBot + 22 * f}
-        color={bloodColor(70)}
-        width={3}
-        head={11}
-      />
+      {!narrow && (
+        <Arrow
+          x1={(x0 + x1) / 2 - (bloodRight ? 50 : -50)}
+          y1={bBot + 22 * f}
+          x2={(x0 + x1) / 2 + (bloodRight ? 50 : -50)}
+          y2={bBot + 22 * f}
+          color={bloodColor(70)}
+          width={3}
+          head={11}
+        />
+      )}
       <Txt x={bloodInX} y={bBot + 28 * f} anchor={bloodRight ? 'start' : 'end'} weight={700}>
-        Blod inn
+        Blod inn {fmt(bloodInValue, 0)} %
       </Txt>
-      <Txt x={bloodOutX} y={bBot + 28 * f} anchor={bloodRight ? 'end' : 'start'} weight={700}>
-        Blod ut
+      <Txt x={bloodOutX} y={bBot + 28 * f} anchor={bloodRight ? 'end' : 'start'} weight={700} color={bloodColor(p.bloodOut)}>
+        Blod ut {fmt(p.bloodOut, 0)} %
       </Txt>
     </Figure>
   );
@@ -322,7 +339,7 @@ function ProfileLines({ p, q, flow, sx, sy }: { p: GillProfile; q: GillProfile; 
       <circle cx={sx(outX)} cy={sy(p.bloodOut)} r={7} fill={C_BLOOD} stroke={VIZ.surface} strokeWidth={2.5} />
       <Txt
         x={sx(outX) + (bloodRight ? -12 : 12)}
-        y={sy(p.bloodOut) + (p.bloodOut > 85 ? 26 * f : -12)}
+        y={sy(p.bloodOut) + (bloodRight ? -14 : 30 * f)}
         anchor={bloodRight ? 'end' : 'start'}
         weight={700}
         color={C_BLOOD}

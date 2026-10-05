@@ -588,7 +588,7 @@ function explanation(s: Shown, pol: number[], isPolar: boolean): ReactNode {
   } else if (m.id === 'CH2O') {
     polarity = (
       <p>
-        CH₂O er plan trekantet som BF₃, men bindingene er ikke like: C=O er polar (ΔEN = {fmt(maxDen, 2)}), mens C–H er nesten upolare. Dipolene
+        CH₂O har samme form som BF₃ (trigonal plan), men bindingene er ikke like: C=O er polar (ΔEN = {fmt(maxDen, 2)}), mens C–H er nesten upolare. Dipolene
         opphever ikke hverandre, og molekylet er <strong>polart</strong> med den negative enden mot oksygen. Dobbeltbindingen har flere
         elektroner og frastøter C–H-bindingene mer, så vinkelen H–C–H blir litt mindre enn 120°.
       </p>

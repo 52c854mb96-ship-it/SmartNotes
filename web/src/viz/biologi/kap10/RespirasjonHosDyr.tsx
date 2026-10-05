@@ -48,6 +48,7 @@ import {
   type GasId,
   type GasStrategy,
 } from './model';
+import { GjelleFilament } from './felles';
 
 /** O₂-nivå (0–1) i vevet som farge: grått uten O₂, rødt med mye O₂. */
 const o2Color = (level: number) => mixColor(BIO.dod, BIO.oksygenrikt, Math.min(1, Math.max(0, level)));
@@ -435,41 +436,15 @@ function OrganTrakeer({ box }: { box: Box }) {
 }
 
 function OrganGjeller({ box }: { box: Box }) {
-  const { X, Y } = at(box);
-  const filY = [0.3, 0.68];
-  const lam = Array.from({ length: 9 }, (_, i) => 0.3 + i * 0.075);
+  const f = useTextScale();
+  // Gjellefilamentet fyller boksen; teksten om motstrøm står nederst
+  const inner: Box = { x: box.x + 10, y: box.y + 8, w: box.w - 20, h: box.h - 30 * f - 8 };
   return (
     <g>
-      {/* Gjellebuen */}
-      <path
-        d={`M${X(0.12)},${Y(0.08)} Q${X(0.04)},${Y(0.5)} ${X(0.12)},${Y(0.92)}`}
-        fill="none"
-        stroke={BIO.fisk.line}
-        strokeWidth={14}
-        strokeLinecap="round"
-        opacity={0.6}
-      />
-      {filY.map((v) => (
-        <g key={v}>
-          {/* Gjellefilament med lameller over og under */}
-          <rect x={X(0.12)} y={Y(v) - 7} width={box.w * 0.8} height={14} rx={7} fill={BIO.rodtBlodlegeme.fill} stroke={BIO.rodtBlodlegeme.line} strokeWidth={1.4} />
-          {lam.map((u) => (
-            <g key={u}>
-              <rect x={X(u) - 4} y={Y(v) - 7 - box.h * 0.1} width={8} height={box.h * 0.1} rx={3} fill={BIO.rodtBlodlegeme.fill} stroke={BIO.rodtBlodlegeme.line} strokeWidth={1.1} />
-              <rect x={X(u) - 4} y={Y(v) + 7} width={8} height={box.h * 0.1} rx={3} fill={BIO.rodtBlodlegeme.fill} stroke={BIO.rodtBlodlegeme.line} strokeWidth={1.1} />
-            </g>
-          ))}
-        </g>
-      ))}
-      {/* Vannet strømmer mellom lamellene, blodet motsatt vei inne i dem */}
-      <Arrow x1={X(0.93)} y1={Y(0.49)} x2={X(0.33)} y2={Y(0.49)} color={BIO.vann} width={4} head={13} label="vann" labelX={X(0.62)} labelY={Y(0.49) - 10} />
-      <Arrow x1={X(0.32)} y1={Y(0.86)} x2={X(0.86)} y2={Y(0.86)} color={BIO.oksygenrikt} width={3} head={11} label="blod (motstrøm)" labelX={X(0.6)} labelY={Y(0.97)} />
-      <Etikett x={X(0.08)} y={Y(0.5)} lx={X(0.06)} ly={Y(0.05) + 6} anchor="start" size={0.78}>
-        gjellebue
-      </Etikett>
-      <Etikett x={X(0.76)} y={Y(0.3) - 7 - box.h * 0.1} lx={X(0.97)} ly={Y(0.1)} anchor="end" size={0.78}>
-        lameller
-      </Etikett>
+      <GjelleFilament box={inner} />
+      <Txt x={box.x + box.w / 2} y={box.y + box.h - 12} size={0.75} muted>
+        blodet går motsatt vei av vannet (motstrøm)
+      </Txt>
     </g>
   );
 }

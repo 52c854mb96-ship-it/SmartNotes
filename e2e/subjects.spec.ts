@@ -68,6 +68,13 @@ test('kjemi og biologi: fargetema, forslag om delkapitler og import av innholdsf
     )
     .toEqual([`Nytt navn fra boka: ${ch}.1/KM6, ${ch}.2/KM6`]);
 
+  // Kjemi har egne visualiseringer, ordnet etter kapitlene i Kjemi 1.
+  await page.goto(`/fag/${kjemi}/visualiseringer`);
+  await expect(page.getByRole('heading', { name: 'Visualiseringer', level: 1 })).toBeVisible();
+  await page.locator('main').getByRole('link', { name: /Syre-base-titrering/ }).click();
+  await expect(page.getByRole('heading', { name: 'Syre-base-titrering', level: 1 })).toBeVisible();
+  await expect(page.locator('main .viz-figure svg').first()).toBeVisible();
+
   const bio = await subjectId(page, 'Biologi 1');
   await page.goto(`/fag/${bio}`);
   await expect(page.getByRole('heading', { name: 'Biologi 1', level: 1 })).toBeVisible();
