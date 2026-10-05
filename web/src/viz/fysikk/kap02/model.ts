@@ -252,3 +252,63 @@ export function eulerFall(m: number, k: number, dt: number, tEnd: number): [numb
   }
   return pts;
 }
+
+/* ---------- Eksempeloppgave (2C, 2E): kasse som sklir ned en rampe ---------- */
+
+/** Tallene i oppgaven: en kasse sklir ned en rampe fra lasteplanet på en flyttebil. */
+export interface RampTask {
+  /** Masse (kg). */
+  m: number;
+  /** Vinkelen mellom rampa og bakken (grader). */
+  alphaDeg: number;
+  /** Glidefriksjonstall. */
+  muK: number;
+  /** Statisk friksjonstall (til deloppgave d). */
+  muS: number;
+  /** Lengden på rampa (m). */
+  L: number;
+}
+
+/** Tallsettene i oppgaven. Det første er standard. Alle har tan α > μs, så kassen begynner å gli av seg selv. */
+export const RAMP_TASKS: RampTask[] = [
+  { m: 25, alphaDeg: 25, muK: 0.3, muS: 0.45, L: 3.0 },
+  { m: 40, alphaDeg: 30, muK: 0.35, muS: 0.5, L: 2.5 },
+  { m: 15, alphaDeg: 28, muK: 0.25, muS: 0.4, L: 3.5 },
+];
+
+export interface RampSolution {
+  G: number;
+  /** Komponenten av G langs rampa (nedover). */
+  Gpar: number;
+  /** Komponenten av G vinkelrett inn mot rampa. */
+  Gperp: number;
+  /** Normalkraften (= G⊥, ingen akselerasjon vinkelrett på rampa). */
+  N: number;
+  /** Glidefriksjonen μk·N (oppover langs rampa). */
+  R: number;
+  /** Kraftsummen langs rampa. */
+  sumF: number;
+  /** Akselerasjonen nedover rampa (m/s²). */
+  a: number;
+  /** Farten nederst (m/s), fra v² = 2as. */
+  v: number;
+  /** Tiden ned rampa (s). */
+  t: number;
+  /** Den minste vinkelen der kassen begynner å gli av seg selv (grader), tan α = μs. */
+  critDeg: number;
+}
+
+/** Hele løsningen med uavrundede tall. Visningen runder av; utregningene bruker alltid disse verdiene. */
+export function solveRampTask({ m, alphaDeg, muK, muS, L }: RampTask, g = G_EARTH): RampSolution {
+  const al = alphaDeg * RAD;
+  const G = m * g;
+  const Gpar = G * Math.sin(al);
+  const Gperp = G * Math.cos(al);
+  const N = Gperp;
+  const R = muK * N;
+  const sumF = Gpar - R;
+  const a = sumF / m;
+  const v = a > 0 ? Math.sqrt(2 * a * L) : 0;
+  const t = a > 0 ? v / a : Infinity;
+  return { G, Gpar, Gperp, N, R, sumF, a, v, t, critDeg: criticalAngleDeg(muS) };
+}

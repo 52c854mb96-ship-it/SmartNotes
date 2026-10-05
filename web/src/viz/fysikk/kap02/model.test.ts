@@ -9,6 +9,8 @@ import {
   incline,
   liftPhases,
   liftState,
+  RAMP_TASKS,
+  solveRampTask,
   scaleForce,
   terminalVelocity,
 } from './model';
@@ -236,5 +238,40 @@ describe('fall med luftmotstand', () => {
     expect(Math.abs(coarse - exact)).toBeGreaterThan(Math.abs(fine - exact));
     // Første steg: v = g·Δt
     expect(eulerFall(80, 0.25, 1, 2)[1]).toEqual([1, 9.81]);
+  });
+});
+
+describe('eksempeloppgave: kasse ned en rampe', () => {
+  it('standardtallene gir lærebokverdiene', () => {
+    const s = solveRampTask(RAMP_TASKS[0]!);
+    expect(s.G).toBeCloseTo(245.25, 2);
+    expect(s.Gpar).toBeCloseTo(103.65, 1);
+    expect(s.N).toBeCloseTo(222.27, 1);
+    expect(s.R).toBeCloseTo(66.68, 1);
+    expect(s.a).toBeCloseTo(1.479, 2);
+    expect(s.v).toBeCloseTo(2.98, 2);
+    expect(s.t).toBeCloseTo(2.01, 2);
+    expect(s.critDeg).toBeCloseTo(24.2, 1);
+  });
+
+  it('a = g(sin α − μk cos α), og massen forkortes', () => {
+    for (const task of RAMP_TASKS) {
+      const s = solveRampTask(task);
+      const al = (task.alphaDeg * Math.PI) / 180;
+      expect(s.a).toBeCloseTo(9.81 * (Math.sin(al) - task.muK * Math.cos(al)), 10);
+      expect(solveRampTask({ ...task, m: task.m * 3 }).a).toBeCloseTo(s.a, 10);
+      // Bevegelseslikningene henger sammen: s = ½at² og v = at
+      expect(0.5 * s.a * s.t * s.t).toBeCloseTo(task.L, 10);
+      expect(s.a * s.t).toBeCloseTo(s.v, 10);
+    }
+  });
+
+  it('i alle tallsettene glir kassen av seg selv (tan α > μs) og akselererer', () => {
+    for (const task of RAMP_TASKS) {
+      const s = solveRampTask(task);
+      expect(task.alphaDeg).toBeGreaterThan(s.critDeg);
+      expect(task.muK).toBeLessThan(task.muS);
+      expect(s.a).toBeGreaterThan(0.5);
+    }
   });
 });

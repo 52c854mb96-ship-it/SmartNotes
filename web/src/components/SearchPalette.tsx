@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BookOpen, FileText, Hash, Search, Shapes, X } from 'lucide-react';
+import { BookOpen, FileText, Hash, ListChecks, Search, Shapes, X } from 'lucide-react';
 import type { Subject, SubjectProfile } from '@smartnotes/shared';
 import { db } from '../db';
 import { noteSearchText, sectionAnchor } from '../lib/curriculum';
@@ -17,7 +17,7 @@ import {
   type Segment,
 } from '../lib/search';
 import { searchStore } from '../lib/ui';
-import { matchesViz, vizEntries } from '../viz/registry';
+import { isExample, matchesViz, vizEntries } from '../viz/registry';
 import type { VizEntry } from '../viz/types';
 
 const DEBOUNCE_MS = 80;
@@ -320,7 +320,11 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
                   return option(
                     item,
                     <>
-                      <Shapes size={17} aria-hidden className="search-option-icon" />
+                      {isExample(viz) ? (
+                        <ListChecks size={17} aria-hidden className="search-option-icon" />
+                      ) : (
+                        <Shapes size={17} aria-hidden className="search-option-icon" />
+                      )}
                       <span className="search-option-body">
                         <span className="search-option-title">
                           <Marked segments={highlightSegments(viz.title, terms)} />
@@ -332,6 +336,7 @@ function PaletteDialog({ onClose }: { onClose: () => void }) {
                             </span>
                           ))}
                           <span>
+                            {isExample(viz) ? 'Eksempeloppgave · ' : ''}
                             {item.subjectName ? `${item.subjectName} · ` : ''}Kapittel {viz.chapter}
                           </span>
                         </span>

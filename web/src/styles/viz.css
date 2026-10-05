@@ -656,6 +656,22 @@
   line-height: 1.5;
 }
 
+.viz-card-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--accent-text);
+}
+
+.viz-subhead {
+  margin: 18px 0 10px;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--text-2);
+}
+
 .viz-card-meta {
   display: flex;
   flex-wrap: wrap;
@@ -1487,5 +1503,310 @@
 @media (prefers-reduced-motion: reduce) {
   .bio-anim {
     transition: none;
+  }
+}
+
+/* ---------- Eksempeloppgaver (kit/eksempel.tsx) ---------- */
+.viz-task {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
+
+.viz-task-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.viz-task-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.viz-task-intro {
+  font-size: 15.5px;
+  line-height: 1.6;
+}
+
+.viz-task-intro p {
+  margin: 0 0 6px;
+}
+
+.viz-task-intro p:last-child {
+  margin-bottom: 0;
+}
+
+.viz-task-given {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.viz-task-given li {
+  padding: 3px 11px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-family: 'Cambria Math', 'STIX Two Math', 'Latin Modern Math', Cambria, Georgia, serif;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.viz-task-given sub,
+.viz-task-given sup {
+  font-size: 0.7em;
+}
+
+.viz-task-parts {
+  display: grid;
+  gap: 4px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.viz-task-parts li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 15.5px;
+  line-height: 1.5;
+}
+
+.viz-task-parts li.is-current {
+  background: var(--accent-soft);
+}
+
+.viz-task-part-id {
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+.viz-task-parts li.is-done .viz-task-part-id {
+  color: var(--success);
+}
+
+.viz-task-jump {
+  align-self: center;
+  white-space: nowrap;
+}
+
+.viz-steps-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.viz-steps-spacer {
+  flex: 1;
+}
+
+.viz-steps-count {
+  margin-left: 4px;
+  color: var(--text-2);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.viz-steps-dots {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: -6px;
+}
+
+.viz-steps-dot-part {
+  margin-left: 6px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-3);
+}
+
+.viz-steps-dot-part:first-child {
+  margin-left: 0;
+}
+
+.viz-steps-dot {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  background: transparent;
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.viz-steps-dot.is-seen {
+  background: var(--accent-soft-2);
+  border-color: var(--accent);
+}
+
+.viz-steps-dot.is-current {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.viz-steps-dot:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.viz-step-panel {
+  border-radius: var(--radius);
+}
+
+.viz-step-panel:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.viz-step {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.viz-step.is-intro {
+  background: var(--surface-2);
+  border-style: dashed;
+  color: var(--text-2);
+  font-size: 15.5px;
+  line-height: 1.6;
+}
+
+.viz-step.is-intro p {
+  margin: 0;
+}
+
+.viz-step.is-intro strong {
+  color: var(--text);
+}
+
+.viz-step-title {
+  margin: 0;
+  font-size: 16.5px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.viz-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 15.5px;
+  line-height: 1.6;
+}
+
+.viz-step-body p {
+  margin: 0;
+}
+
+.viz-step-body strong {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.viz-answer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  padding: 10px 14px;
+  background: var(--success-soft);
+  border-radius: var(--radius-sm);
+}
+
+.viz-answer-label {
+  font-weight: 700;
+  color: var(--success);
+}
+
+.viz-answer-text {
+  font-size: 16.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.viz-tip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 10px 14px;
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.viz-tip-label {
+  font-weight: 700;
+  color: var(--accent-text);
+  white-space: nowrap;
+}
+
+.viz-tip.is-pitfall {
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
+}
+
+.viz-tip.is-pitfall .viz-tip-label {
+  color: var(--warning);
+}
+
+.viz-steps-all {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.viz-steps-part {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.viz-steps-part-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .viz-task {
+    padding: 14px;
+  }
+
+  .viz-task-parts li {
+    grid-template-columns: auto 1fr;
+  }
+
+  .viz-task-jump {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .viz-step {
+    padding: 14px;
   }
 }

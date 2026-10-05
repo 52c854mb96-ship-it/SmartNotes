@@ -21,6 +21,8 @@ describe('registeret for visualiseringer', () => {
       for (const code of e.sections) expect(code).toMatch(/^\d+([A-Z]|\.\d+)$/);
       if (e.sections.length) expect(e.sections.some((code) => code.replace(/([A-Z]|\.\d+)$/, '') === e.chapter)).toBe(true);
       expect(e.title).not.toMatch(/^[A-ZÆØÅ ]{4,}$/);
+      // Eksempeloppgaver har id som starter med «eks-», og bare de.
+      expect(e.id.startsWith('eks-')).toBe(e.kind === 'eksempel');
       expect(getViz(profile, e.key)).toBe(e);
     }
   });

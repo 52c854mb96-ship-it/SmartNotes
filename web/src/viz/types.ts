@@ -18,8 +18,15 @@ export interface VizMeta {
   summary: string;
   /** Ekstra søkeord (valgfritt). */
   keywords?: string[];
+  /**
+   * «eksempel» for eksempeloppgaver (en oppgave i eksamensstil med løsning steg for steg, se kit/eksempel.tsx).
+   * Id-en starter da med «eks-». Standard er en vanlig visualisering.
+   */
+  kind?: VizKind;
   load: () => Promise<{ default: ComponentType }>;
 }
+
+export type VizKind = 'visualisering' | 'eksempel';
 
 export interface VizEntry extends VizMeta {
   /** Fagtypen visualiseringen hører til. */

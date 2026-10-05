@@ -32,7 +32,7 @@
 
 Merk av her når en del er ferdig, og commit + push. Grenen er `claude/blissful-lamport-eh0x58`.
 
-- [ ] 0. Plan, påminnelse og TeX Live
+- [x] 0. Plan, påminnelse og TeX Live
 - [ ] 1. Grunnmur
   - [ ] `viz/kit/scene/`: materialer, skygger, bakgrunner, underlag og gjenstander, lyst og mørkt tema
   - [ ] Eksempeloppgaver: `viz/kit/eksempel.tsx`, `kind: 'eksempel'` i `VizMeta`, egen gruppe på sidene
@@ -64,9 +64,33 @@ Nøkkel = `k{kapittel}-{id}`. Eksempeloppgaver har id som starter med `eks-`.
 
 ## Kjemi og biologi (forslag)
 
-- **Kjemi:**
-  - én ny per kapittel, gjerne en eksempeloppgave der kapittelet er regnetungt: støkiometri, termokjemi, likevekt, syre-base og titrering
-  - finpuss av alle 31 i illustrert stil (laboratorieutstyr, fargede løsninger, utstyr som ser ekte ut)
-- **Biologi:**
-  - én ny praktisk visualisering per kapittel
-  - finpuss av alle 42 (tydeligere illustrasjoner, lys og skygge der det passer)
+Hvert kapittel får finpuss av de eksisterende visualiseringene i illustrert stil (laboratorieutstyr, løsninger og celler med lys og skygge) og én ny.
+
+| Kjemi | Ny |
+|---|---|
+| 1 Kjemiske bindinger | `sape` såpe og fett: like løser like |
+| 2 Egenskaper og reaksjoner | `offeranode` rust og offeranode på en båt (redoks og spenningsrekka) |
+| 3 Støkiometri | `eks-stokiometri` eksempeloppgave: propanbrenner på hytta (mol, begrensende reaktant, utbytte) |
+| 4 Termokjemi | `varme-og-kuldepose` eksoterm og endoterm i praksis |
+| 5 Organisk kjemi | `destillasjon` raffineri: fraksjonert destillasjon av råolje |
+| 6 Likevekter | `eks-likevekt` eksempeloppgave: ammoniakksyntesen (K og Le Chatelier) |
+| 7 Syrer og baser | `eks-titrering` eksempeloppgave: titrering av eddik |
+| 8 Miljøanalyse | `forsuring` sur nedbør og kalking av innsjøer |
+
+| Biologi | Ny |
+|---|---|
+| 1 Liv | `mikroskop` mikroskopet: forstørrelse og hva du kan se |
+| 2 Systematikk | `bestemmelsesnokkel` artsbestemmelse med nøkkel |
+| 3 Biologisk mangfold | `fremmed-art` en fremmed art sprer seg |
+| 4 Forvaltning | `lakselus` lakselus, oppdrett og villaks |
+| 5 Cellestrukturer | `proteinets-vei` fra DNA til ferdig protein ut av cella |
+| 6 Transport i celler | `salting` hvorfor salt og sukker konserverer mat |
+| 7 Celledeling | `eks-mitosefaser` eksempeloppgave: hvor lang tid tar hver fase (telle celler) |
+| 8 Kommunikasjon | `refleks` refleksbuen: hånda på en varm kokeplate |
+| 9 Transport i mennesket | `trening-og-puls` puls og oksygenopptak under trening |
+| 10 Transport i dyr | `oksygen-i-vann` oksygen i vann og fisk (temperatur) |
+| 11 Planter | `potometer` potometerforsøket: mål vannopptaket |
+| 12 Planter, signaler | `etylen` banan og etylen: frukt som modner |
+| 13 Formering | `vegetativ-formering` jordbær og potet: ukjønnet formering i praksis |
+| 14 Sykdommer | `handvask` håndvask og bakterier |
+| 15 Bekjempelse | `antigendrift` hvorfor det trengs ny influensavaksine hvert år |

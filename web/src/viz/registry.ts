@@ -55,11 +55,17 @@ export function vizForSection(profile: Profile, section: string | null | undefin
   return vizEntries(profile).filter((e) => e.sections.includes(section));
 }
 
-/** Enkelt søk i tittel, sammendrag, delkapittel og søkeord. */
+/** Om oppføringen er en eksempeloppgave (oppgave med løsning steg for steg) og ikke en vanlig visualisering. */
+export function isExample(e: Pick<VizMeta, 'kind'>): boolean {
+  return e.kind === 'eksempel';
+}
+
+/** Enkelt søk i tittel, sammendrag, delkapittel og søkeord. «oppgave» og «eksempel» finner eksempeloppgavene. */
 export function matchesViz(e: VizEntry, query: string): boolean {
   const q = query.trim().toLocaleLowerCase('nb');
   if (!q) return true;
-  const hay = [e.title, e.summary, ...e.sections, ...(e.keywords ?? [])].join(' ').toLocaleLowerCase('nb');
+  const kindWords = isExample(e) ? ['eksempeloppgave', 'oppgave', 'eksempel', 'eksamen', 'løsning'] : ['visualisering'];
+  const hay = [e.title, e.summary, ...e.sections, ...(e.keywords ?? []), ...kindWords].join(' ').toLocaleLowerCase('nb');
   return q.split(/\s+/).every((w) => hay.includes(w));
 }
 
