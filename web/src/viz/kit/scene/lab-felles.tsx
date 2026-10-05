@@ -193,15 +193,16 @@ export function Damp({
   if (m <= 0.02) return null;
   const animated = tid !== undefined && Number.isFinite(tid);
   const t = animated ? tid : 0;
-  const n = 3;
+  const n = 4;
   const grow = 0.55 + 0.45 * m;
   const dens = 0.45 + 0.55 * m;
   const blobs: { cx: number; cy: number; rx: number; ry: number; rot: number; op: number }[] = [];
   for (let i = 0; i < n; i++) {
-    const p = animated ? (((t * 0.4 + i / n) % 1) + 1) % 1 : (i + 0.5) / n;
-    // Smal og avlang nederst, bred og flat høyere opp. Kjernen holder seg tett til p ≈ 0,72 og tones så raskt ut.
-    const rx = bredde * (0.15 + 0.4 * p) * grow;
-    const ry = rx * (1.5 - 0.75 * p);
+    const p = animated ? (((t * 0.4 + i / n) % 1) + 1) % 1 : (i + 0.4) / n;
+    // Smal og avlang nederst, bred og flat høyere opp (dottene overlapper til en sammenhengende søyle). Kjernen holder
+    // seg tett til p ≈ 0,72 og tones så raskt ut.
+    const rx = bredde * (0.2 + 0.42 * p) * grow;
+    const ry = rx * (1.45 - 0.65 * p);
     const sway = Math.sin(p * 5.2 + i * 2.1) * bredde * 0.14;
     const cx = x + drift * p + sway;
     const cy = y - p * hoyde - ry * 0.35;
@@ -211,7 +212,7 @@ export function Damp({
     const rot = Math.sin(p * 4 + i) * 14 + (drift < 0 ? -8 : drift > 0 ? 8 : 0) * p;
     const side = i % 2 ? 1 : -1;
     blobs.push({ cx, cy, rx, ry, rot, op });
-    blobs.push({ cx: cx + side * rx * 0.58, cy: cy + ry * 0.28, rx: rx * 0.66, ry: ry * 0.62, rot: -rot, op: op * 0.9 });
+    blobs.push({ cx: cx + side * rx * 0.62, cy: cy + ry * 0.3, rx: rx * 0.7, ry: ry * 0.66, rot: -rot, op: op * 0.9 });
   }
   // Damptråden: en bølgete stripe fra kilden og opp til der dottene tar over.
   const wispH = hoyde * 0.42;
@@ -221,17 +222,40 @@ export function Damp({
     const wx = x + drift * u * 0.42 + Math.sin(u * Math.PI * 2.2 - t * 4.2) * bredde * 0.12 * (0.35 + u);
     wisp += `${j ? 'L' : 'M'}${r2(wx)},${r2(y - u * wispH)}`;
   }
+  // To lag: først en myk blågrå kant rundt alle dottene, så de hvite kjernene oppå, så kanten ikke tegner ringer
+  // inne i dampen der dottene overlapper.
+  const pass = (grad: string) =>
+    blobs.map((b, i) => (
+      <ellipse
+        key={`${grad}${i}`}
+        cx={r2(b.cx)}
+        cy={r2(b.cy)}
+        rx={r2(b.rx)}
+        ry={r2(b.ry)}
+        transform={`rotate(${r2(b.rot)} ${r2(b.cx)} ${r2(b.cy)})`}
+        fill={`url(#${id}-${grad})`}
+        opacity={r2(b.op)}
+      />
+    ));
   return (
     <g aria-hidden>
       <RadialGradient
-        id={id}
+        id={`${id}-e`}
+        stops={[
+          [0, LAB.steamEdge, 0.55],
+          [0.72, LAB.steamEdge, 0.42],
+          [1, LAB.steamEdge, 0],
+        ]}
+      />
+      <RadialGradient
+        id={`${id}-c`}
         fx={0.42}
         fy={0.38}
         stops={[
           [0, LAB.steam, 0.95],
-          [0.45, LAB.steam, 0.82],
-          [0.75, LAB.steamEdge, 0.42],
-          [1, LAB.steamEdge, 0],
+          [0.45, LAB.steam, 0.88],
+          [0.78, LAB.steam, 0.3],
+          [1, LAB.steam, 0],
         ]}
       />
       <LinearGradient
@@ -248,18 +272,8 @@ export function Damp({
         ]}
       />
       <path d={wisp} fill="none" stroke={`url(#${id}-t)`} strokeWidth={r2(Math.max(sw(1.4), bredde * 0.09 * grow))} strokeLinecap="round" strokeLinejoin="round" />
-      {blobs.map((b, i) => (
-        <ellipse
-          key={i}
-          cx={r2(b.cx)}
-          cy={r2(b.cy)}
-          rx={r2(b.rx)}
-          ry={r2(b.ry)}
-          transform={`rotate(${r2(b.rot)} ${r2(b.cx)} ${r2(b.cy)})`}
-          fill={`url(#${id})`}
-          opacity={r2(b.op)}
-        />
-      ))}
+      {pass('e')}
+      {pass('c')}
     </g>
   );
 }

@@ -75,12 +75,26 @@ describe('figurer: gange og løp', () => {
     expect(locked).toBeGreaterThan(n * (pose === 'gaa' ? 0.3 : 0.08));
   });
 
-  it.each(['gaa', 'loepe'] as const)('ingen del av foten går gjennom bakken (%s)', (pose) => {
+  it.each([
+    ['gaa', 0],
+    ['loepe', 0],
+    ['gaa', 15],
+    ['gaa', -15],
+    ['loepe', 10],
+  ] as const)('ingen del av foten går gjennom bakken, og en fot står alltid på den når man går (%s, skraaning %i)', (pose, skraaning) => {
     for (let i = 0; i < 200; i++) {
-      const sk = solve(pose, 100, undefined, { fase: i / 200 });
+      const sk = solve(pose, 100, undefined, { fase: i / 200, skraaning });
+      const ground = dot(sk.anchor, sk.slopeN);
+      let lowest = -Infinity;
       for (const leg of [sk.legs.venstre, sk.legs.hoyre]) {
-        for (const q of [HEEL, BALL, TOE]) expect(leg.foot(q.x, q.y).y - sk.anchor.y).toBeLessThan(0.05);
+        for (const q of [HEEL, BALL, TOE]) {
+          const d = dot(leg.foot(q.x, q.y), sk.slopeN) - ground;
+          expect(d).toBeLessThan(0.05);
+          lowest = Math.max(lowest, d);
+        }
       }
+      if (pose === 'gaa') expect(lowest).toBeGreaterThan(-0.05);
+      for (const v of Object.values(sk.j)) expect(Number.isFinite(v)).toBe(true);
     }
   });
 });

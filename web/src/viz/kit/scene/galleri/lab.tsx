@@ -216,12 +216,12 @@ export default function Galleri() {
 
       <GalleryItem title="Lab-pære (E10) uten og med fatning, svak og full, og E27 i fatning" viewBox="0 0 400 200">
         <Lab h={200} bench={176} />
-        <Lyspaere x={48} y={180} size={70} lysstyrke={0.5} />
+        <Lyspaere x={48} y={180} size={70} modell="liten" lysstyrke={0.5} />
         <Lyspaere x={130} y={182} size={80} fatning />
         <Lyspaere x={220} y={182} size={80} fatning lysstyrke={0.35} />
         <Lyspaere x={310} y={182} size={80} fatning lysstyrke={1} />
         <Lyspaere x={372} y={182} size={58} fatning modell="e27" lysstyrke={0.6} />
-        {[lyspaerePoler({ x: 48, y: 180, size: 70 }), lyspaerePoler({ x: 130, y: 182, size: 80, fatning: true })].flatMap((p) => [p.a, p.b]).map((p, i) => (
+        {[lyspaerePoler({ x: 48, y: 180, size: 70, modell: 'liten' }), lyspaerePoler({ x: 130, y: 182, size: 80, fatning: true })].flatMap((p) => [p.a, p.b]).map((p, i) => (
           <Pin key={i} p={p} />
         ))}
       </GalleryItem>

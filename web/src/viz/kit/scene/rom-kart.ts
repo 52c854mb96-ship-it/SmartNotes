@@ -308,74 +308,80 @@ export const EARTH_ICE: readonly Ring[] = [
   polarCap(80, 2.5, 4),
 ];
 
-/** Skyfelt: [lon, lat, halvakse øst–vest, halvakse nord–sør, dreining] i grader. */
+/**
+ * Skyfelt: [lon, lat, halvakse øst–vest, halvakse nord–sør, dreining] i grader. Få og store felt med ujevn kant
+ * (lavtrykk på middels breddegrader, det tropiske beltet og Sørhavet), så de ser ut som skyer og ikke som rader.
+ */
 const CLOUD_FIELDS: readonly (readonly [number, number, number, number, number])[] = [
-  // Nord-Atlanteren og Europa (lavtrykksbanen)
-  [-48, 50, 10, 3.5, -18],
-  [-30, 56, 9, 3, -12],
-  [-12, 60, 8, 2.8, -8],
-  [6, 63, 9, 2.6, -5],
-  [-40, 42, 6, 2.2, -25],
-  [28, 58, 7, 2.4, 0],
-  // Det indre tropiske konvergensbeltet
-  [-28, 6, 5, 2, 0],
-  [-8, 4, 4, 1.6, 0],
-  [14, 3, 5, 2.4, 0],
-  [26, -1, 4, 2.2, 0],
-  [98, 4, 6, 2, 0],
-  [125, 6, 5, 2, 0],
-  [160, 7, 6, 1.8, 0],
-  [-150, 8, 6, 1.8, 0],
-  [-110, 7, 5, 1.6, 0],
-  [-65, -3, 5, 2.2, 0],
-  // Sørhavet
-  [-35, -46, 11, 3, 14],
-  [-5, -50, 10, 3, 10],
-  [25, -47, 11, 3.2, 12],
-  [55, -52, 10, 3, 8],
-  [90, -48, 12, 3, 14],
-  [130, -53, 10, 2.8, 10],
-  [170, -47, 11, 3, 12],
-  [-140, -50, 10, 3, 10],
-  [-95, -46, 11, 3, 14],
-  [-62, -55, 9, 2.6, 8],
+  // Lavtrykksbanen over Nord-Atlanteren og Europa
+  [-42, 47, 15, 6, -22],
+  [-16, 57, 13, 5, -12],
+  [12, 64, 11, 4.5, -4],
+  [38, 56, 9, 4, 6],
   // Nord-Stillehavet og Asia
-  [160, 46, 10, 3, -14],
-  [-170, 52, 9, 3, -10],
-  [-140, 46, 9, 2.8, -16],
-  [120, 42, 7, 2.4, -14],
-  [80, 55, 8, 2.4, -6],
+  [166, 46, 17, 6, -16],
+  [-150, 52, 13, 5, -8],
+  [105, 52, 12, 5, 4],
+  // Det tropiske beltet (regnskog og konvergenssonen)
+  [-28, 6, 13, 3.5, 4],
+  [18, 1, 9, 4.5, 0],
+  [102, 3, 12, 4, 6],
+  [150, 6, 12, 3.5, -4],
+  [-130, 8, 15, 3, 3],
+  [-64, -4, 9, 5, 0],
+  // Sørhavet
+  [-32, -47, 18, 5.5, 14],
+  [18, -51, 17, 5, 8],
+  [70, -48, 16, 5.5, 14],
+  [120, -52, 17, 5, 8],
+  [172, -48, 15, 5.5, 12],
+  [-128, -50, 17, 5, 10],
+  [-80, -53, 13, 4.5, 6],
   // Passatskyer over havet
-  [-30, 20, 4, 1.6, 20],
-  [-120, -18, 4.5, 1.6, -20],
-  [70, -16, 4, 1.5, -20],
+  [-34, 20, 7, 3, 22],
+  [-118, -17, 8, 3, -20],
+  [76, -16, 7, 3, -18],
 ];
 
-/** Skyfeltene som myke flater (ytre, svak del) og den tettere kjernen. */
-export const EARTH_CLOUDS_SOFT: readonly Ring[] = CLOUD_FIELDS.map(([lon, lat, a, b, rot], i) => sphereEllipse(lon, lat, a, b, 14, rot, 0.2, i + 1));
+/** Skyfeltene som myke flater (bred, svak del) og en mindre, litt tettere kjerne. */
+export const EARTH_CLOUDS_SOFT: readonly Ring[] = CLOUD_FIELDS.map(([lon, lat, a, b, rot], i) => sphereEllipse(lon, lat, a, b, 18, rot, 0.35, i + 1));
 export const EARTH_CLOUDS_CORE: readonly Ring[] = CLOUD_FIELDS.map(([lon, lat, a, b, rot], i) =>
-  sphereEllipse(lon + a * 0.12, lat, a * 0.55, b * 0.5, 12, rot, 0.25, i + 9),
+  sphereEllipse(lon + a * 0.15, lat + b * 0.1, a * 0.5, b * 0.5, 14, rot, 0.4, i + 9),
 );
 
 /* ---------- Mars ---------- */
 
-/** Mørke områder på Mars (Syrtis Major, Meridiani, Mare Erythraeum, Acidalium og det sørlige mørke beltet). */
-export const MARS_DARK: readonly Ring[] = [
-  [58, -2, 76, -2, 74, 10, 69, 22, 63, 14],
-  [-12, -3, 8, -1, 22, -7, 44, -4, 52, -12, 30, -19, 6, -14, -8, -10],
-  [-62, -14, -36, -17, -18, -24, -16, -36, -40, -42, -66, -34],
-  [-54, 38, -24, 40, -12, 52, -32, 61, -56, 52],
-  [84, -6, 110, -12, 140, -16, 172, -20, 176, -30, 140, -30, 108, -26, 86, -16],
-  [-178, -20, -150, -24, -130, -28, -140, -36, -170, -32],
-  sphereEllipse(-92, -26, 7, 4, 10, 15, 0.15, 3),
+/**
+ * Mørke områder på Mars: [lon, lat, halvakse øst–vest, halvakse nord–sør, dreining] i grader. Syrtis Major, Sinus
+ * Sabaeus og Meridiani, Mare Erythraeum, Acidalium, Utopia, det sørlige mørke beltet (Tyrrhenum, Cimmerium,
+ * Sirenum) og Solis Lacus.
+ */
+const MARS_DARK_FIELDS: readonly (readonly [number, number, number, number, number])[] = [
+  [69, 9, 7, 13, -18], // Syrtis Major
+  [62, -4, 9, 6, 0],
+  [28, -7, 20, 5, 6], // Sinus Sabaeus
+  [0, -4, 9, 4.5, -4], // Sinus Meridiani
+  [-22, -12, 9, 7, 0], // Margaritifer Sinus
+  [-38, -23, 18, 9, 12], // Mare Erythraeum
+  [-28, 46, 14, 9, -22], // Mare Acidalium
+  [112, 44, 16, 7, 6], // Utopia
+  [108, -18, 18, 7, -6], // Mare Tyrrhenum
+  [145, -24, 18, 6, 4], // Mare Cimmerium
+  [-158, -30, 18, 6, 6], // Mare Sirenum
+  [-88, -26, 7, 4, 15], // Solis Lacus
 ];
 
-/** Lyse områder på Mars: Hellas-bassenget og vulkanene på Tharsis. */
+/** De mørke områdene som en bred, myk del og en mindre kjerne (to lag, som skyene på jorda). */
+export const MARS_DARK_SOFT: readonly Ring[] = MARS_DARK_FIELDS.map(([lon, lat, a, b, rot], i) => sphereEllipse(lon, lat, a * 1.3, b * 1.35, 16, rot, 0.28, i + 2));
+export const MARS_DARK_CORE: readonly Ring[] = MARS_DARK_FIELDS.map(([lon, lat, a, b, rot], i) => sphereEllipse(lon, lat, a * 0.75, b * 0.7, 14, rot, 0.3, i + 21));
+
+/** Lyse områder på Mars: Hellas- og Argyre-bassenget og vulkanene på Tharsis. */
 export const MARS_LIGHT: readonly Ring[] = [
-  sphereEllipse(70, -42, 14, 9, 14, 0, 0.12, 2),
+  sphereEllipse(70, -42, 14, 9, 16, 0, 0.18, 2),
+  sphereEllipse(-43, -50, 8, 6, 14, 0, 0.18, 5),
   sphereEllipse(-134, 18, 4, 4, 10),
   sphereEllipse(-113, -1, 2.5, 2.5, 8),
-  sphereEllipse(-120, 9, 2.5, 2.5, 8),
+  sphereEllipse(-121, -9, 2.5, 2.5, 8),
   sphereEllipse(-104, 12, 2.5, 2.5, 8),
 ];
 
@@ -387,27 +393,45 @@ export const MARS_CANYON: readonly Ring[] = [[-95, -7, -80, -9, -66, -11, -52, -
 
 /* ---------- Månen ---------- */
 
-/** Månens hav (maria) på forsiden. */
-export const MOON_MARIA: readonly Ring[] = [
-  sphereEllipse(-57, 18, 18, 24, 18, 10, 0.12, 1), // Oceanus Procellarum
-  sphereEllipse(-16, 33, 13, 10, 16, 0, 0.08, 2), // Imbrium
-  sphereEllipse(17, 28, 8, 8, 14, 0, 0.06, 3), // Serenitatis
-  sphereEllipse(31, 8, 11, 8, 14, 20, 0.12, 4), // Tranquillitatis
-  sphereEllipse(59, 17, 6, 5, 12, 0, 0.05, 5), // Crisium
-  sphereEllipse(-17, -21, 9, 7, 12, 0, 0.1, 6), // Nubium
-  sphereEllipse(51, -8, 7, 8, 12, 0, 0.1, 7), // Fecunditatis
-  sphereEllipse(35, -15, 4.5, 4.5, 10, 0, 0.05, 8), // Nectaris
-  sphereEllipse(-39, -24, 4.5, 4.5, 10, 0, 0.05, 9), // Humorum
-  sphereEllipse(2, 56, 32, 3.5, 18, 0, 0.1, 10), // Frigoris
-  sphereEllipse(-1, 0, 6, 4, 10, 0, 0.05, 11), // Sinus Medii
+/**
+ * Månens hav (maria) på forsiden: [lon, lat, halvakse øst–vest, halvakse nord–sør, dreining, ujevnhet]. Havene
+ * overlapper til de kjente kjedene: Imbrium–Serenitatis–Tranquillitatis–Fecunditatis og
+ * Procellarum–Insularum–Nubium–Humorum. Crisium ligger for seg selv.
+ */
+const MARIA: readonly (readonly [number, number, number, number, number, number])[] = [
+  [-58, 15, 18, 26, 12, 0.18], // Oceanus Procellarum
+  [-30, 3, 10, 9, 0, 0.2], // Mare Insularum
+  [-22, -10, 7, 6, 0, 0.2], // Mare Cognitum
+  [-16, -21, 12, 9, 0, 0.18], // Mare Nubium
+  [-38, -24, 7, 6.5, 0, 0.12], // Mare Humorum
+  [-17, 34, 18, 14, 0, 0.12], // Mare Imbrium
+  [4, 14, 6, 5, 0, 0.2], // Mare Vaporum
+  [2, 2, 5, 3.5, 0, 0.15], // Sinus Medii
+  [18, 28, 11, 10, 0, 0.1], // Mare Serenitatis
+  [30, 9, 14, 10, 20, 0.18], // Mare Tranquillitatis
+  [27, -5, 4.5, 4.5, 0, 0.2], // Sinus Asperitatis
+  [35, -15, 6, 6, 0, 0.1], // Mare Nectaris
+  [52, -6, 9, 13, 10, 0.18], // Mare Fecunditatis
+  [59, 17, 8, 7, 0, 0.08], // Mare Crisium
 ];
 
-/** Kratere på Månen: [lon, lat, radius i grader]. */
+/** Havene (tett kjerne) og en litt større, myk kant rundt, så kanten ikke blir skarp. */
+export const MOON_MARIA: readonly Ring[] = MARIA.map(([lon, lat, a, b, rot, w], i) => sphereEllipse(lon, lat, a, b, 18, rot, w, i + 1));
+export const MOON_MARIA_SOFT: readonly Ring[] = MARIA.map(([lon, lat, a, b, rot, w], i) => sphereEllipse(lon, lat, a * 1.12 + 1, b * 1.12 + 1, 18, rot, w + 0.05, i + 1));
+
+/** Mare Frigoris: et smalt, litt buet bånd nord for Imbrium (Plato ligger mellom), med Sinus Roris mot Procellarum. */
+export const MOON_FRIGORIS: readonly Ring[] = [
+  sphereEllipse(-20, 58.5, 17, 6, 18, -6, 0.25, 12),
+  sphereEllipse(14, 58, 16, 5.5, 18, 7, 0.25, 13),
+  sphereEllipse(-44, 51, 8, 5.5, 14, -28, 0.25, 14),
+];
+
+/** Kratere på Månen: [lon, lat, radius i grader]. De tre første (Tycho, Copernicus, Plato) vises også på små måner. */
 export const MOON_CRATERS: readonly (readonly [number, number, number])[] = [
   [-11, -43, 3.5], // Tycho
   [-20, 10, 3.2], // Copernicus
-  [-38, 8, 2], // Kepler
   [-9, 51.5, 2.6], // Plato
+  [-38, 8, 2], // Kepler
   [-47, 24, 1.8], // Aristarchus
   [26, -26, 2.2], // Theophilus
   [6, -36, 2.4],

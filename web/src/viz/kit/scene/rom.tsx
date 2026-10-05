@@ -21,7 +21,7 @@ import { useMemo, type ReactNode } from 'react';
 import { VIZ } from '../colors';
 import { useTextScale } from '../controls';
 import { Txt } from '../txt';
-import { LinearGradient, RadialGradient, SCENE_DIM, mix, sceneRandom, shade, tint, useStrokeScale, useSvgId, type GradientStop } from './core';
+import { LinearGradient, RadialGradient, SCENE_DIM, mix, sceneRandom, shade, tint, useSceneScale, useStrokeScale, useSvgId, type GradientStop } from './core';
 import { SCENE } from './palette';
 import {
   EARTH_CLOUDS_CORE,
@@ -33,10 +33,13 @@ import {
   JUPITER_BELTS,
   MARS_CANYON,
   MARS_CAPS,
-  MARS_DARK,
+  MARS_DARK_CORE,
+  MARS_DARK_SOFT,
   MARS_LIGHT,
   MOON_CRATERS,
+  MOON_FRIGORIS,
   MOON_MARIA,
+  MOON_MARIA_SOFT,
   MOON_RAYS,
   NEPTUNE_BANDS,
   bandRing,
@@ -47,6 +50,7 @@ import {
   sphereEllipse,
   type Ring,
 } from './rom-kart';
+import { packNucleus } from './rom-kjerne';
 
 /** Fargene i rom.css. */
 const ROM = {
@@ -126,36 +130,66 @@ function blackbody(temperatur: number): Rgb {
   return [c255(329.698727446 * Math.pow(t - 60, -0.1332047592)), c255(288.1221695283 * Math.pow(t - 60, -0.0755148492)), 255];
 }
 
-/** Lys med bølgelengde nm (Dan Bruton, som fysikk kapittel 7). `floor` = minste lysstyrke mot kantene (0,3 = som øyet). */
+/**
+ * Lys med bølgelengde nm (Dan Bruton, som fysikk kapittel 7). `floor` = minste lysstyrke mot kantene (0,3 = som øyet).
+ * Under 400 nm holdes fargetonen fiolett (ultrafiolett blir fiolett, ikke magenta, som ikke er en spektralfarge), og
+ * fra 700 nm blir rødt mørkere: infrarødt har høyst 0,55 lysstyrke, så det skiller seg fra synlig rødt også med høy
+ * `floor`.
+ */
 function wavelengthRgb(nm: number, floor: number): Rgb {
-  const l = clamp(nm, 380, 750);
+  const l = clamp(Number.isFinite(nm) ? nm : 550, 380, 750);
+  const h = Math.max(400, l);
   let r = 0;
   let g = 0;
   let b = 0;
-  if (l < 440) {
-    r = (440 - l) / 60;
+  if (h < 440) {
+    r = (440 - h) / 60;
     b = 1;
-  } else if (l < 490) {
-    g = (l - 440) / 50;
+  } else if (h < 490) {
+    g = (h - 440) / 50;
     b = 1;
-  } else if (l < 510) {
+  } else if (h < 510) {
     g = 1;
-    b = (510 - l) / 20;
-  } else if (l < 580) {
-    r = (l - 510) / 70;
+    b = (510 - h) / 20;
+  } else if (h < 580) {
+    r = (h - 510) / 70;
     g = 1;
-  } else if (l < 645) {
+  } else if (h < 645) {
     r = 1;
-    g = (645 - l) / 65;
+    g = (645 - h) / 65;
   } else r = 1;
-  const fade = Math.max(floor, l < 420 ? 0.3 + (0.7 * (l - 380)) / 40 : l > 700 ? 0.3 + (0.7 * (750 - l)) / 50 : 1);
+  const eye = l < 420 ? 0.3 + (0.7 * (l - 380)) / 40 : l > 700 ? 0.3 + (0.7 * (750 - l)) / 50 : 1;
+  const ir = l > 700 ? 1 - (0.45 * (l - 700)) / 50 : 1;
+  const fade = Math.min(ir, Math.max(floor, eye));
   const c = (v: number) => (v <= 0 ? 0 : 255 * (v * fade) ** 0.8);
   return [c(r), c(g), c(b)];
 }
 
-/** Firtakket glimt (stjerne som «blinker») rundt (x, y) med armlengde L. */
-function sparkle(x: number, y: number, L: number, k: number): string {
-  return `M${r2(x)} ${r2(y - L)}Q${r2(x + k)} ${r2(y - k)} ${r2(x + L)} ${r2(y)}Q${r2(x + k)} ${r2(y + k)} ${r2(x)} ${r2(y + L)}Q${r2(x - k)} ${r2(y + k)} ${r2(x - L)} ${r2(y)}Q${r2(x - k)} ${r2(y - k)} ${r2(x)} ${r2(y - L)}Z`;
+/** Relativ lyshet 0–1 (sRGB, omtrentlig) for en farge fra wavelengthRgb eller blackbody. */
+function lightness([r, g, b]: Rgb): number {
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
+/**
+ * Glimt rundt en stjerne: to smale, kryssende ellipser (vannrett og loddrett) med en toning som blir svakere ut mot
+ * spissene. `L` = armlengden, `w` = halve bredden midt på. Toningen (`fill`) må være en RadialGradient (objektets
+ * koordinater), så den følger hver ellipse.
+ */
+function glint(key: string, x: number, y: number, L: number, w: number, fill: string, opacity: number): ReactNode[] {
+  return [
+    <ellipse key={`${key}h`} cx={r2(x)} cy={r2(y)} rx={r2(L)} ry={r2(w)} fill={fill} opacity={opacity} aria-hidden />,
+    <ellipse key={`${key}v`} cx={r2(x)} cy={r2(y)} rx={r2(w)} ry={r2(L)} fill={fill} opacity={opacity} aria-hidden />,
+  ];
+}
+
+/** Toning for glimtet: sterkt i midten og ut langs armene, svakt ved spissene. */
+function glintStops(c: string): GradientStop[] {
+  return [
+    [0, c, 1],
+    [0.22, c, 0.6],
+    [0.6, c, 0.18],
+    [1, c, 0],
+  ];
 }
 
 /** Sirkel som del av en sti (mange små prikker i én <path>). */
@@ -194,13 +228,14 @@ export function stjerneFarge(temperatur: number, metning = 1): string {
 
 /**
  * Fargen til lys med bølgelengde `nm` (nanometer) som rgb-tekst (samme i begge temaer), etter samme tilnærming som
- * spektrene i fysikk kapittel 7. Synlig lys er 380–750 nm; ultrafiolett gir den fiolette grensefargen og infrarødt den
- * mørkerøde. Fargen blir svakere mot kantene, der øyet er lite følsomt. Med `svekk = false` holder den seg nesten full
- * styrke helt ut (til piler og stråler som må synes).
+ * spektrene i fysikk kapittel 7. Synlig lys er 380–750 nm. Ultrafiolett (under 380 nm) får den fiolette grensefargen
+ * og infrarødt (over 750 nm) en mørkerød, tydelig mørkere enn synlig rødt. Fargen blir svakere mot kantene, der øyet er
+ * lite følsomt. Med `svekk = false` holder den seg nesten full styrke helt ut (til piler og stråler som må synes),
+ * men infrarødt er fortsatt mørkerødt.
  *   bolgelengdeFarge(656)         // rød (Hα)
  *   bolgelengdeFarge(486)         // blågrønn (Hβ)
- *   bolgelengdeFarge(1200)        // infrarødt: mørkerød grense
- *   bolgelengdeFarge(400, false)  // fiolett med nesten full styrke (til en pil)
+ *   bolgelengdeFarge(300, false)  // ultrafiolett: fiolett, rgb(154 0 213)
+ *   bolgelengdeFarge(900, false)  // infrarødt: mørkerødt, rgb(158 0 0) (656 nm gir rgb(255 0 0))
  */
 export function bolgelengdeFarge(nm: number, svekk = true): string {
   return rgbText(wavelengthRgb(nm, svekk ? 0.3 : 0.8));
@@ -295,6 +330,7 @@ export function Stjernehimmel({ x, y, w, h, antall, seed = 1, melkevei = 0.8, t,
   const core = useSvgId('rom-melkevei-kjerne');
   const dust = useSvgId('rom-stov');
   const glow = [useSvgId('rom-glod-a'), useSvgId('rom-glod-b'), useSvgId('rom-glod-c'), useSvgId('rom-glod-d')];
+  const spike = [useSvgId('rom-glimt-a'), useSvgId('rom-glimt-b'), useSvgId('rom-glimt-c'), useSvgId('rom-glimt-d')];
   const W = Math.max(1, w);
   const H = Math.max(1, h);
   const n = Math.round(clamp(antall ?? (W * H) / 1300, 0, 600));
@@ -369,16 +405,18 @@ export function Stjernehimmel({ x, y, w, h, antall, seed = 1, melkevei = 0.8, t,
         )}
         {STAR_TONES.map((c, i) =>
           sky.bright.some((b) => b.tone === i) ? (
-            <RadialGradient
-              key={i}
-              id={glow[i]!}
-              stops={[
-                [0, c, 0.6],
-                [0.16, c, 0.34],
-                [0.42, c, 0.08],
-                [1, c, 0],
-              ]}
-            />
+            <g key={i}>
+              <RadialGradient
+                id={glow[i]!}
+                stops={[
+                  [0, c, 0.6],
+                  [0.16, c, 0.34],
+                  [0.42, c, 0.08],
+                  [1, c, 0],
+                ]}
+              />
+              <RadialGradient id={spike[i]!} stops={glintStops(c)} />
+            </g>
           ) : null,
         )}
         {sky.bright.map((s, i) => {
@@ -387,7 +425,7 @@ export function Stjernehimmel({ x, y, w, h, antall, seed = 1, melkevei = 0.8, t,
           const tw = t === undefined ? 1 : 0.82 + 0.18 * Math.sin(t * (1.7 + (i % 3) * 0.6) + i * 2.1);
           return [
             <circle key={`g${i}`} cx={s.x} cy={s.y} r={r * 5.5} fill={`url(#${glow[s.tone]})`} opacity={tw} aria-hidden />,
-            <path key={`s${i}`} d={sparkle(s.x, s.y, r * 4.2, r * 0.42)} fill={c} opacity={0.5 * tw} aria-hidden />,
+            ...glint(`s${i}`, s.x, s.y, r * 4.6, Math.max(0.42 * ss, r * 0.2), `url(#${spike[s.tone]})`, 0.5 * tw),
             <circle key={`c${i}`} cx={s.x} cy={s.y} r={r} fill={tint(c, 0.55)} aria-hidden />,
           ];
         })}
@@ -427,6 +465,7 @@ export function Stjerne({ x, y, r, temperatur, glod = 0.6, metning = 1.15, glimt
   const ss = useStrokeScale();
   const gid = useSvgId('rom-stjerne-glod');
   const cid = useSvgId('rom-stjerne');
+  const sid = useSvgId('rom-stjerne-glimt');
   const rr = Math.max(0.5, Number.isFinite(r) ? r : 0.5);
   const g = clamp(glod, 0, 1);
   const c = stjerneFarge(temperatur, metning);
@@ -451,27 +490,25 @@ export function Stjerne({ x, y, r, temperatur, glod = 0.6, metning = 1.15, glimt
           <circle cx={x} cy={y} r={R} fill={`url(#${gid})`} aria-hidden />
         </>
       )}
-      {glimt && <path d={sparkle(x, y, rr * (2 + 2.2 * g), rr * 0.3)} fill={cg} opacity={0.6} aria-hidden />}
+      {glimt && (
+        <>
+          <RadialGradient id={sid} stops={glintStops(tint(cg, 0.25))} />
+          {glint('g', x, y, rr * (2.8 + 2.6 * g), Math.max(0.5 * ss, rr * 0.14), `url(#${sid})`, 0.5)}
+        </>
+      )}
       <RadialGradient
         id={cid}
         fx={0.42}
         fy={0.4}
         stops={[
-          [0, tint(c, 0.7)],
-          [0.6, tint(c, 0.22)],
-          [0.9, c],
-          [1, shade(c, 0.12)],
+          [0, tint(c, 0.75)],
+          [0.55, tint(c, 0.3)],
+          [0.88, c],
+          [1, mix(c, cg, 0.5)],
         ]}
       />
-      <circle
-        cx={x}
-        cy={y}
-        r={rr}
-        fill={`url(#${cid})`}
-        stroke={rr >= 4 ? SCENE.outline : undefined}
-        strokeWidth={0.8 * ss}
-        strokeOpacity={0.45}
-      />
+      {/* Ingen mørk kontur: stjerna lyser selv, og kanten går over i gløden. */}
+      <circle cx={x} cy={y} r={rr} fill={`url(#${cid})`} />
     </g>
   );
 }

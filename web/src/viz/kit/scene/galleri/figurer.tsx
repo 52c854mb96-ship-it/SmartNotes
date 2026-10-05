@@ -238,6 +238,10 @@ export default function Galleri() {
         <Incline />
       </GalleryItem>
 
+      <GalleryItem title="Gå opp og løpe ned en bakke (skraaning og fase)">
+        <Hill />
+      </GalleryItem>
+
       <GalleryItem title="Som i et kapittel: tautrekking (viewBox 800 × 360)" viewBox="0 0 800 360">
         <TugOfWar />
       </GalleryItem>
@@ -320,6 +324,29 @@ function TugOfWar() {
       <ForceArrow x1={left.venstreFot.x} y1={ground} x2={left.venstreFot.x - 90} y2={ground} color={VIZ.friction} label="R" />
       <ForceArrow x1={right.venstreFot.x} y1={ground} x2={right.venstreFot.x + 90} y2={ground} color={VIZ.friction} label="R" />
       <ForceArrow x1={left.tyngdepunkt.x} y1={left.tyngdepunkt.y} x2={left.tyngdepunkt.x} y2={left.tyngdepunkt.y + 70} color={VIZ.gravity} label="G" origin />
+    </>
+  );
+}
+
+function Hill() {
+  // Bakken stiger 14° fram til toppen i x = 200 og faller like mye etterpå.
+  const top = { x: 200, y: 140 };
+  const tan = Math.tan((14 * Math.PI) / 180);
+  const yAt = (x: number) => top.y + Math.abs(x - top.x) * tan;
+  const walkers = [
+    { x: 60, pose: 'gaa' as const, fase: 0.02, skraaning: 14, jakke: 'gronn' },
+    { x: 140, pose: 'gaa' as const, fase: 0.55, skraaning: 14, jakke: 'blaa' },
+    { x: 300, pose: 'loepe' as const, fase: 0.8, skraaning: -14, jakke: 'rod' },
+  ];
+  const v = personPunkter('loepe', 100, undefined, { x: 300, y: yAt(300), fase: 0.8, skraaning: -14 }).hode;
+  return (
+    <>
+      <Backdrop ground={240} />
+      <polygon points={`0,${yAt(0)} ${top.x},${top.y} 400,${yAt(400)} 400,240 0,240`} fill={SCENE.grass} stroke={SCENE.grassDark} />
+      {walkers.map((w) => (
+        <Person key={w.x} x={w.x} y={yAt(w.x)} size={100} pose={w.pose} fase={w.fase} skraaning={w.skraaning} jakke={w.jakke} />
+      ))}
+      <ForceArrow x1={v.x - 20} y1={v.y - 22} x2={v.x - 20 + 60 * Math.cos(0.244)} y2={v.y - 22 + 60 * Math.sin(0.244)} color={VIZ.velocity} label="v" />
     </>
   );
 }

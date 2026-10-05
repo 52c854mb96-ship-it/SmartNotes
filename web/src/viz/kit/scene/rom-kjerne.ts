@@ -111,7 +111,7 @@ export function relaxedPacking(A: number, d: number, rnd: () => number): Vec3[] 
     dist[i] = Math.hypot(xs[i]!, ys[i]!, zs[i]!);
   }
   const sorted = Array.from(dist).sort((a, b) => a - b);
-  const limit = sorted[Math.floor((A - 1) * 0.9)]! + d * 0.12;
+  const limit = sorted[Math.floor((A - 1) * 0.9)]! + d * 0.05;
   for (let i = 0; i < A; i++) {
     const m = dist[i]!;
     if (m > limit) {
@@ -159,31 +159,28 @@ function smallNucleus(A: number, d: number): { pts: Vec3[]; protonOrder: number[
 }
 
 /**
- * Hvilke nukleoner som er protoner: posisjonene ordnes langs en slangelinje over kjernen sett forfra (vannrette bånd
- * på én nukleonbredde, annenhver vei), med litt tilfeldig uro fra frøet. Så deles protonene ut systematisk langs
- * linja (hvert A/Z-te), så alle områder får omtrent Z/A protoner og det blir nøyaktig Z til sammen.
+ * Deler ut `count` protoner blant nukleonene `group`: de ordnes langs en slangelinje over kjernen sett forfra
+ * (vannrette bånd på én nukleonbredde, annenhver vei) med litt uro fra frøet, og så får hvert (A/Z)-te et proton.
+ * Da får alle områder omtrent like stor andel protoner, uten klynger og uten et rutete mønster.
  */
-function assignProtons(pts: readonly Vec3[], Z: number, d: number, rnd: () => number): boolean[] {
-  const A = pts.length;
-  const kinds = new Array<boolean>(A).fill(false);
-  if (Z <= 0) return kinds;
-  if (Z >= A) return kinds.fill(true);
-  const band = d * 1.05;
-  const keys = pts.map((q, i) => {
-    const row = Math.floor(q[1] / band + 100);
-    const along = row % 2 === 0 ? q[0] : -q[0];
-    // Uro på ca. en halv plass langs linja (frøet), så mønsteret ikke blir rutete.
-    return { i, key: row * 1000 + along / d + (rnd() - 0.5) * 1.1 };
+function spreadProtons(group: readonly PackedNucleon[], count: number, rnd: () => number): void {
+  const n = group.length;
+  if (n === 0) return;
+  const k = Math.max(0, Math.min(n, count));
+  const band = NUCLEON_SPACING * 1.05;
+  const keys = group.map((q) => {
+    const row = Math.floor(q.y / band + 100);
+    const along = row % 2 === 0 ? q.x : -q.x;
+    return { q, key: row * 1000 + along / NUCLEON_SPACING + (rnd() - 0.5) * 1.1 };
   });
   keys.sort((a, b) => a.key - b.key);
-  const step = Z / A;
-  let acc = rnd();
-  for (const { i } of keys) {
+  const step = k / n;
+  let acc = rnd() * Math.min(1, step || 1);
+  for (const { q } of keys) {
     const next = acc + step;
-    if (Math.floor(next) > Math.floor(acc)) kinds[i] = true;
+    q.proton = Math.floor(next + 1e-9) > Math.floor(acc + 1e-9);
     acc = next;
   }
-  return kinds;
 }
 
 /** Retningen lyset kommer fra (øvre venstre, litt forfra), normalisert. */
@@ -204,18 +201,15 @@ export function packNucleus(Z: number, N: number, seed: number): PackedNucleus {
   const rnd = sceneRandom(seed * 1013 + A * 31 + Z * 7);
   const d = NUCLEON_SPACING;
   let rot: Vec3[];
-  let kinds: boolean[];
+  let small: number[] | null = null;
   if (A <= 4) {
     const s = smallNucleus(A, d);
-    const [al, be, ga] = [0.18, 0.32, 0.1];
-    rot = s.pts.map((p) => rotate(p, al, be, ga));
-    kinds = new Array<boolean>(A).fill(false);
-    for (let k = 0; k < Math.min(Z, A); k++) kinds[s.protonOrder[k]!] = true;
+    rot = s.pts.map((p) => rotate(p, 0.18, 0.32, 0.1));
+    small = s.protonOrder;
   } else {
     const pts = relaxedPacking(A, d, rnd);
     const [al, be, ga] = [rnd() * Math.PI * 2, Math.acos(2 * rnd() - 1), rnd() * Math.PI * 2];
     rot = pts.map((p) => rotate(p, al, be, ga));
-    kinds = assignProtons(rot, Z, d, rnd);
   }
   // Midtstill (dreiningen flytter ikke midtpunktet, men de små formene er ikke midtstilt).
   let mx = 0;
@@ -236,16 +230,15 @@ export function packNucleus(Z: number, N: number, seed: number): PackedNucleus {
     q[2] -= mz;
     core = Math.max(core, Math.hypot(q[0], q[1], q[2]));
   }
-  const list: PackedNucleon[] = [];
-  rot.forEach((q, i) => {
+  const all: PackedNucleon[] = rot.map((q) => {
     const m = Math.hypot(q[0], q[1], q[2]);
-    // Bare de som kan synes: ytterste lag og litt til (de inne i kjernen dekkes helt av laget foran).
-    const zf = Math.sqrt(Math.max(0, core * core - q[0] * q[0] - q[1] * q[1]));
-    if (A > 30 && q[2] < zf - 3.4) return;
     const dotL = m < 0.3 ? 1 : (q[0] * LIGHT[0] + q[1] * LIGHT[1] + q[2] * LIGHT[2]) / m;
     const light = m > core * 0.55 ? (dotL > 0.3 ? 0 : dotL > -0.25 ? 1 : 2) : dotL > -0.1 ? 0 : 1;
-    list.push({ x: q[0], y: q[1], z: q[2], proton: kinds[i]!, light, front: true });
+    return { x: q[0], y: q[1], z: q[2], proton: false, light, front: true };
   });
+  // Bare de som kan synes: ytterste lag og litt til (de inne i kjernen dekkes helt av laget foran). Dybden måles fra
+  // kuleflaten foran (`core` er robust, for avvikerne er trukket inn).
+  const list = all.filter((q) => A <= CULL_FROM || q.z >= Math.sqrt(Math.max(0, core * core - q.x * q.x - q.y * q.y)) - CULL_DEPTH);
   list.sort((u, v) => u.z - v.z);
   // Tegnet (+) bare der ingen nukleon foran dekker midten av kula (sentrum nærmere enn 1 + tegnets halve lengde).
   for (let i = 0; i < list.length; i++) {
@@ -258,8 +251,38 @@ export function packNucleus(Z: number, N: number, seed: number): PackedNucleus {
       }
     }
   }
+  if (small) {
+    for (let k = 0; k < Math.min(Z, A); k++) all[small[k]!]!.proton = true;
+  } else {
+    // Protonene fordeles lagvis: like stor andel blant de fremste (der tegnet synes), blant resten av dem som tegnes,
+    // og blant dem inne i kjernen. Til sammen nøyaktig Z.
+    const share = Z / A;
+    const front = list.filter((q) => q.front);
+    const behind = list.filter((q) => !q.front);
+    const hidden = all.filter((q) => !list.includes(q));
+    let qF = Math.round(front.length * share);
+    let qB = Math.round(behind.length * share);
+    let qH = Z - qF - qB;
+    if (qH > hidden.length) {
+      qB = Math.min(behind.length, qB + qH - hidden.length);
+      qH = hidden.length;
+      qF = Math.min(front.length, Z - qB - qH);
+    } else if (qH < 0) {
+      qB = Math.max(0, qB + qH);
+      qH = 0;
+      qF = Math.max(0, Z - qB);
+    }
+    spreadProtons(front, qF, rnd);
+    spreadProtons(behind, qB, rnd);
+    spreadProtons(hidden, qH, rnd);
+  }
   return { list, core, radius: core + 1, A };
 }
+
+/** Kjerner med flere nukleoner enn dette tegnes bare med de ytterste lagene. */
+const CULL_FROM = 60;
+/** Hvor dypt under kuleflaten foran (i nukleonradier) nukleonene fortsatt tegnes. */
+const CULL_DEPTH = 2.9;
 
 function rotate([px, py, pz]: Vec3, al: number, be: number, ga: number): Vec3 {
   const [ca, sa, cb, sb, cg, sg] = [Math.cos(al), Math.sin(al), Math.cos(be), Math.sin(be), Math.cos(ga), Math.sin(ga)];

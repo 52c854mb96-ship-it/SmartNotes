@@ -150,9 +150,9 @@ export function Sikring({ x, y, size = 90, gaatt = false, merking, rotate, dim, 
 /* ------------------------------------------------------------------ Sikringsskap */
 
 /** Omtrentlig bredde på et tegn i halvfet skrift, som andel av skriftstørrelsen (målt: 0,57 SF, 0,66 DejaVu). */
-const CHAR_W = 0.62;
-/** Minste skriftstørrelse for navnene (figurens enheter, vokser ikke på mobil): 0,65 av vanlig etikettstørrelse. */
-const NAME_FLOOR = 17 * 0.72 * 0.65;
+const CHAR_W = 0.66;
+/** Minste skriftstørrelse for navnene (figurens enheter, vokser ikke på mobil): 0,6 av vanlig etikettstørrelse. */
+const NAME_FLOOR = 17 * 0.72 * 0.6;
 
 /** Mulige linjeskift i et navn: ved mellomrom, bindestrek eller myk bindestrek (U+00AD). Det beste skiftet først. */
 function splitName(navn: string): [string, string] | null {
@@ -426,7 +426,7 @@ export function Solcellepanel({ x, y, w = 200, vinkel = 35, montering = 'stolpe'
   // Dybden (bakover i bildet) dreier med panelet: rett opp når det ligger flatt, mot venstre når det står loddrett.
   // Da har flaten synlig areal og celler fra 0° til 90°, mens nærmeste kant følger vinkelen nøyaktig.
   const dd = Wp * 0.2;
-  const dx = -dd * 0.6 * s;
+  const dx = -dd * 0.75 * s;
   const dy = -dd * (0.2 + 0.8 * c);
   const thick = Math.max(2.6 * ss, Wp * 0.03);
   const tx = s * thick;

@@ -25,7 +25,7 @@
   --sc-lab-solar-line: #c9d6e6;
   /* Damp: hvit kjerne, lys blågrå myk kant (lys også i skumring, så den ikke ser ut som røyk) */
   --sc-lab-steam: #ffffff;
-  --sc-lab-steam-edge: #c6d4e2;
+  --sc-lab-steam-edge: #b2c3d5;
 }
 
 @media (prefers-color-scheme: dark) {

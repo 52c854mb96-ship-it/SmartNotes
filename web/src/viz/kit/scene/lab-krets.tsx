@@ -388,9 +388,9 @@ export function Lyspaere({ x, y, size = 90, lysstyrke = 0, fatning = false, mode
           <LinearGradient id={`${id}-s`} x2={1} y2={0} stops={cylinderStops(black, 1.4)} />
           {small ? (
             <>
-              <path d="M-22,-12V-52Q-22,-55 -19,-55H19Q22,-55 22,-52V-12Z" fill={`url(#${id}-s)`} stroke={SCENE.outline} strokeWidth={sw(0.9)} />
-              <path d="M-22,-49.5H22" stroke={shade(black, 0.35)} strokeWidth={sw(0.9)} />
-              <path d="M-20,-53.6H20" stroke={SCENE.highlight} strokeWidth={1} strokeLinecap="round" />
+              <path d="M-21,-12V-48H21V-12Z" fill={`url(#${id}-s)`} stroke={SCENE.outline} strokeWidth={sw(0.9)} />
+              <rect x={-22.5} y={-56} width={45} height={8.5} rx={2} fill={`url(#${id}-m)`} stroke={SCENE.outline} strokeWidth={sw(0.9)} />
+              <path d="M-20,-54.2H20" stroke={SCENE.highlight} strokeWidth={1} strokeLinecap="round" />
             </>
           ) : (
             <>
