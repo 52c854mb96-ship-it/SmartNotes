@@ -11,9 +11,11 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { VIZ } from '../../kit';
 import { kromosomFarge, BIO, type Opphav } from './colors';
-import { DIM_OPACITY, useLineScale } from './felles';
+import { DIM_OPACITY, useLineScale, useSvgId } from './felles';
 import { cellOutlinePath, layoutPhase, type LayoutOptions, type Segment } from './kromosomer';
 import { Cellemembran } from './celle';
+import { BoksToning, LYS, lysRetning, lysere, morkere, volumStops } from './lys';
+import { mix } from '../../kit/scene/core';
 
 export interface KromatideProps {
   /** Sentromeret. */
@@ -69,6 +71,7 @@ export function Kromatide({
   dim,
 }: KromatideProps) {
   const lw = useLineScale();
+  const uid = useSvgId('bio-kromatide');
   const W = bredde ?? chromatidWidth(lengde);
   const color = kromosomFarge(par, opphav);
   // Utstrakt kromatin (interfasen) er lengre og tynnere enn et kondensert kromosom
@@ -117,19 +120,34 @@ export function Kromatide({
         </g>
       );
     }
+    // Kromatiden er et rør: lys stripe på siden mot lyset (øvre venstre i figuren) og skygge på motsatt side. Glans og
+    // skygge er gjennomsiktige, så de går uavbrutt over stykker med den andre forelderens farge.
+    const toLight = lysRetning(rot + armRot).x >= 0 ? 1 : -1;
+    const tip = dir * len;
+    const gid = `${uid}${dir < 0 ? 'u' : 'l'}`;
     return (
       <g className="bio-anim" style={rotOnly(armRot)}>
-        <line x1={0} y1={0} x2={0} y2={dir * len} stroke={VIZ.surface} strokeWidth={W + 3} strokeLinecap="round" />
+        <line x1={0} y1={0} x2={0} y2={tip} stroke={VIZ.surface} strokeWidth={W + 3} strokeLinecap="round" />
         {highlight && (
-          <line x1={0} y1={0} x2={0} y2={dir * len} stroke={color} strokeOpacity={0.3} strokeWidth={W + 10 * lw} strokeLinecap="round" />
+          <line x1={0} y1={0} x2={0} y2={tip} stroke={color} strokeOpacity={0.3} strokeWidth={W + 10 * lw} strokeLinecap="round" />
         )}
-        <line x1={0} y1={0} x2={0} y2={dir * len} stroke={color} strokeWidth={W} strokeLinecap="round" />
+        <line x1={0} y1={0} x2={0} y2={tip} stroke={color} strokeWidth={W} strokeLinecap="round" />
         {segs.map((s, i) => (
           <g key={i}>
             <line x1={0} y1={dir * s.d0} x2={0} y2={dir * s.d1} stroke={s.c} strokeWidth={W} strokeLinecap="butt" />
             {s.end && <circle cx={0} cy={dir * s.d1} r={W / 2} fill={s.c} />}
           </g>
         ))}
+        <defs>
+          <linearGradient id={gid} gradientUnits="userSpaceOnUse" x1={(toLight * W) / 2} y1={0} x2={(-toLight * W) / 2} y2={0}>
+            <stop offset={0} style={{ stopColor: LYS.glans, stopOpacity: 0.3 }} />
+            <stop offset={0.27} style={{ stopColor: LYS.glans, stopOpacity: 0.85 }} />
+            <stop offset={0.52} style={{ stopColor: LYS.glans, stopOpacity: 0 }} />
+            <stop offset={0.6} style={{ stopColor: LYS.mork, stopOpacity: 0 }} />
+            <stop offset={1} style={{ stopColor: LYS.mork, stopOpacity: 1 }} />
+          </linearGradient>
+        </defs>
+        <line x1={0} y1={0} x2={0} y2={tip} stroke={`url(#${gid})`} strokeWidth={W} strokeLinecap="round" />
       </g>
     );
   };
@@ -207,7 +225,7 @@ function Sentromer({
   return (
     <g className="bio-anim" style={tf(x, y, rot)} opacity={dim ? DIM_OPACITY : undefined}>
       <ellipse rx={W + 0.9} ry={W * 0.42} fill={kromosomFarge(par, opphav)} />
-      <ellipse rx={W * 0.55} ry={W * 0.3} fill={VIZ.ink} opacity={0.45} />
+      <ellipse rx={W * 0.55} ry={W * 0.3} fill={morkere(kromosomFarge(par, opphav), 0.55)} opacity={0.85} />
     </g>
   );
 }
@@ -234,10 +252,21 @@ export function Delingsfigur({ spole = true, children, ...opts }: DelingsfigurPr
     ...lay.celler.flatMap((c, i) => (paired.has(i) ? [] : [cellOutlinePath(c)])),
   ];
   const sorted = [...lay.kromatider].sort((a, b) => (a.key < b.key ? -1 : 1));
+  const id = useSvgId('bio-deling');
   return (
     <g>
+      <BoksToning
+        id={`${id}c`}
+        stops={[
+          [0, lysere(BIO.cytoplasma, 0.5, BIO.lipidHode)],
+          [0.42, lysere(BIO.cytoplasma, 0.12, BIO.lipidHode)],
+          [0.8, BIO.cytoplasma],
+          [1, mix(BIO.cytoplasma, BIO.membran, 0.14)],
+        ]}
+      />
+      <BoksToning id={`${id}k`} stops={volumStops(BIO.kjerne.fill, 0.8, 1, undefined, BIO.kjerne.line)} />
       {outlines.map((d, i) => (
-        <path key={`c${i}`} d={d} fill={BIO.cytoplasma} />
+        <path key={`c${i}`} d={d} fill={`url(#${id}c)`} />
       ))}
       {lay.kjerner.map((k, i) => (
         <ellipse
@@ -246,7 +275,7 @@ export function Delingsfigur({ spole = true, children, ...opts }: DelingsfigurPr
           cy={k.cy}
           rx={k.rx}
           ry={k.ry}
-          fill={BIO.kjerne.fill}
+          fill={`url(#${id}k)`}
           fillOpacity={k.opploses ? 0.45 : 1}
           stroke={BIO.kjerne.line}
           strokeWidth={1.6 * lw}
@@ -274,9 +303,11 @@ export function Delingsfigur({ spole = true, children, ...opts }: DelingsfigurPr
             ))}
             {s.poler.map((p, j) => (
               <g key={`p${j}`}>
+                {/* Sentrosom: to sentrioler (små sylindre på tvers av hverandre) i en lys sky */}
                 <circle cx={p.x} cy={p.y} r={7} fill={BIO.cytoskjelett} opacity={0.35} />
-                <rect x={p.x - 2.5} y={p.y - 6} width={5} height={12} rx={2} fill={VIZ.muted} />
-                <rect x={p.x - 6} y={p.y - 2.5} width={12} height={5} rx={2} fill={VIZ.muted} />
+                <rect x={p.x - 2.5} y={p.y - 6} width={5} height={12} rx={2} fill={VIZ.muted} stroke={CENTRIOLE_EDGE} strokeWidth={0.6 * lw} />
+                <rect x={p.x - 6} y={p.y - 2.5} width={12} height={5} rx={2} fill={VIZ.muted} stroke={CENTRIOLE_EDGE} strokeWidth={0.6 * lw} />
+                <line x1={p.x - 4.4} y1={p.y - 1.1} x2={p.x + 4.4} y2={p.y - 1.1} stroke={LYS.glans} strokeWidth={1.1} strokeLinecap="round" />
               </g>
             ))}
           </g>
@@ -310,3 +341,5 @@ export function Delingsfigur({ spole = true, children, ...opts }: DelingsfigurPr
     </g>
   );
 }
+
+const CENTRIOLE_EDGE = morkere(VIZ.muted, 0.35);

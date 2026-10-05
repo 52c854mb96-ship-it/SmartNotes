@@ -231,7 +231,7 @@ export function Erlenmeyerkolbe({ x, y, w, h, level, liquid = KJEMI.liquid, chil
       </g>
       <GlassWall d={outline} clip={`${id}-out`} t={t} ss={ss} />
       <g clipPath={`url(#${id}-out)`} aria-hidden>
-        <rect x={L + t + neckW * 0.1} y={y + rimH + 4} width={Math.max(2, neckW * 0.12)} height={Math.max(0, neckH - rimH - 2)} rx={neckW * 0.06} fill={`url(#${id}-r)`} />
+        <rect x={L + t + neckW * 0.1} y={y + rimH + 4} width={Math.max(2, neckW * 0.08)} height={Math.max(0, neckH - rimH - 2)} rx={neckW * 0.06} fill={`url(#${id}-r)`} />
         <path d={leftGlint} fill={`url(#${id}-r)`} />
         <path d={rightGlint} fill={`url(#${id}-r)`} opacity={0.45} />
       </g>

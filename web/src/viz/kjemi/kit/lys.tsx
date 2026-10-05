@@ -74,7 +74,7 @@ export function LiquidDepthGradient({ id, liquid, band = 0.14 }: { id: string; l
       stops={[
         [0, tint(liquid, 0.24)],
         [b, liquid],
-        [1, shade(liquid, 0.12)],
+        [1, shade(liquid, 0.09)],
       ]}
     />
   );
@@ -91,12 +91,12 @@ export function LiquidVolumeGradient({ id }: { id: string }) {
       x2={1}
       y2={0}
       stops={[
-        [0, 'black', 0.13],
+        [0, 'black', 0.11],
         [0.1, 'black', 0],
-        [0.2, 'white', 0.2],
-        [0.34, 'white', 0],
+        [0.2, KJEMI.glassGlint, 0.22],
+        [0.34, KJEMI.glassGlint, 0],
         [0.82, 'black', 0],
-        [1, 'black', 0.14],
+        [1, 'black', 0.12],
       ]}
     />
   );
@@ -131,10 +131,10 @@ export function LiquidRoundGradient({ id }: { id: string }) {
       fx={0.36}
       fy={0.3}
       stops={[
-        [0, 'white', 0.2],
-        [0.4, 'white', 0],
+        [0, KJEMI.glassGlint, 0.2],
+        [0.4, KJEMI.glassGlint, 0],
         [0.75, 'black', 0],
-        [1, 'black', 0.12],
+        [1, 'black', 0.1],
       ]}
     />
   );
