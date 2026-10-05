@@ -88,7 +88,7 @@ export default function Nerveimpuls() {
 function ActionPotential() {
   const [S, setS] = useState(20);
   const [two, setTwo] = useState(false);
-  const [interval, setInterval] = useState(4);
+  const [interval, setStimGap] = useState(4);
   const run = useMemo(
     () =>
       simulateNeuron(
@@ -118,7 +118,7 @@ function ActionPotential() {
           <Slider
             label="Tid mellom stimuliene"
             value={interval}
-            onChange={setInterval}
+            onChange={setStimGap}
             min={1}
             max={10}
             step={0.5}
@@ -190,7 +190,7 @@ function ActionPotential() {
       <Formula label="Når terskelen">
         <FormulaLine>
           Stimulus 1: {fmt(V_REST, 0)} mV + {fmt(S, 0)} mV = {fmt(V_REST + S, 0)} mV {V_REST + S >= V_THRESHOLD ? '≥' : '<'} terskelen{' '}
-          {fmt(V_THRESHOLD, 0)} mV → {s1.fired ? 'aksjonspotensial' : 'bare lokal depolarisering'}
+          {fmt(V_THRESHOLD, 0)} mV → {s1.fired ? 'aksjonspotensial' : S === 0 ? 'ingen depolarisering' : 'bare lokal depolarisering'}
         </FormulaLine>
         {s2 && (
           <FormulaLine>

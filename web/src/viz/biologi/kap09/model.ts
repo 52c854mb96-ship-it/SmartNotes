@@ -7,7 +7,8 @@
  *    (vanlige lærebokverdier). Ved høy puls blir særlig diastolen kortere.
  * 2. Gassutveksling: partialtrykk i alveolene og blodet, hemoglobinets metningskurve (Hill-modell med P50 = 3,5 kPa
  *    og n = 2,7) og Bohr-effekten (lav pH og høy temperatur flytter kurven mot høyre: Δlog P50 = −0,48 · ΔpH +
- *    0,024 · ΔT, Severinghaus 1979). Partialtrykk i kPa (1 kPa = 7,5 mmHg).
+ *    0,024 · ΔT, Severinghaus 1979). Partialtrykk i kPa (1 kPa = 7,5 mmHg). I høyden: lavere lufttrykk, mer pusting
+ *    (lavere CO₂ og basisk blod, delvis kompensert av nyrene) og samme O₂-forbruk i vevet (Fick-prinsippet).
  * 3. Fordøyelse og enzymer: hvor næringsstoffene brytes ned og tas opp, og enzymaktivitet som funksjon av pH og
  *    temperatur (optimumskurver: amylase pH 7, pepsin pH 2, trypsin og lipase pH 8; denaturering over ca. 45 °C).
  */
@@ -252,6 +253,8 @@ export const TISSUE_PRESETS: Record<'hvile' | 'arbeid', TissueCondition & { name
 export interface GasExchange {
   /** pH i arterieblodet (7,4 ved havet, høyere i høyden). */
   pHa: number;
+  /** pH i blodet i vevet: vevets pH ved havet pluss den samme økningen som i arterieblodet i høyden. */
+  pHt: number;
   /** O₂ og CO₂ i alveolene (kPa). */
   PAO2: number;
   PACO2: number;
@@ -288,6 +291,9 @@ function venousContent(P: number, p50: number): number {
 /**
  * Gassutvekslingen i lungene (høyde h over havet) og i vevet.
  *
+ * `tissue` beskriver vevet ved havet. I høyden blir alt blodet like mye mer basisk som arterieblodet (pH i vevet =
+ * tissue.pH + pHa − 7,4), og CO₂-trykket faller i samme forhold som i alveolene.
+ *
  * `tissue.PO2` er O₂-trykket i blodet som forlater vevet ved havet. Det bestemmer hvor mye oksygen vevet bruker
  * (behovet, mL per liter blod). I høyden inneholder arterieblodet mindre oksygen, så O₂-trykket i vevet må falle for at
  * vevet skal få det samme (Fick-prinsippet med samme blodstrøm): her finner vi det trykket. Kan ikke behovet dekkes
@@ -301,11 +307,12 @@ export function gasExchange(h: number, tissue: TissueCondition): GasExchange {
   const p50Lung = p50At(pHa, 37);
   const SaO2 = saturation(PaO2, p50Lung);
   const CaO2 = o2Content(SaO2, PaO2);
-  const p50Tissue = p50At(tissue.pH, tissue.T);
+  const pHt = tissue.pH + (pHa - 7.4);
+  const p50Tissue = p50At(pHt, tissue.T);
   // Behovet: det vevet tar ut av blodet ved havet med dette O₂-trykket
   const PaSea = alveolarPO2(0) - A_A_GRADIENT;
   const CaSea = o2Content(saturation(PaSea, p50At(7.4, 37)), PaSea);
-  const demand = Math.max(0, CaSea - venousContent(Math.min(tissue.PO2, PaSea), p50Tissue));
+  const demand = Math.max(0, CaSea - venousContent(Math.min(tissue.PO2, PaSea), p50At(tissue.pH, tissue.T)));
   // O₂-trykket i blodet ut fra vevet: likt vevets trykk ved havet, lavere i høyden (aldri høyere enn i arterieblodet)
   const pMax = Math.min(tissue.PO2, PaO2);
   const target = CaO2 - demand;
@@ -331,13 +338,14 @@ export function gasExchange(h: number, tissue: TissueCondition): GasExchange {
   const noBohr = o2Content(saturation(PvO2, p50Lung), PvO2);
   return {
     pHa,
+    pHt,
     PAO2,
     PACO2,
     PaO2,
     SaO2,
     PvO2,
     SvO2,
-    PvCO2: pco2FromPh(tissue.pH),
+    PvCO2: pco2FromPh(tissue.pH) * (PACO2 / alveolarPCO2(0)),
     p50Lung,
     p50Tissue,
     CaO2,
@@ -541,7 +549,9 @@ export const NUTRIENTS: Record<Nutrient, { name: string; product: string; to: st
  */
 export function fragments(units: number, d: number): number[] {
   const n = Math.max(1, Math.round(units));
-  const free = Math.round(Math.min(1, Math.max(0, d)) * n);
+  const raw = Math.min(1, Math.max(0, d)) * n;
+  // Enzymene klipper først av biter på to enheter (maltose, dipeptider), så det frigjorte er et partall til slutt
+  const free = d >= 0.95 ? Math.round(raw) : 2 * Math.ceil(raw / 2 - 1e-9);
   if (free >= n) return Array.from({ length: n }, () => 1);
   // Den gjenværende kjeden og de frigjorte bitene (to og to, som maltose og dipeptider, til slutt enkle)
   const rest = n - free;

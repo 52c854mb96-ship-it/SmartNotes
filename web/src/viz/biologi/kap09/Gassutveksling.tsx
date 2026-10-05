@@ -135,7 +135,7 @@ export default function Gassutveksling() {
       <Legend
         items={[
           { color: RED, label: `Metningskurve i lungene (pH ${fmt(g.pHa, 2)}, 37 °C)` },
-          { color: TISSUE_C, label: `Metningskurve i vevet (pH ${fmt(pH, 2)}, ${fmt(T, 1)} °C)`, dashed: true },
+          { color: TISSUE_C, label: `Metningskurve i vevet (pH ${fmt(g.pHt, 2)}, ${fmt(T, 1)} °C)`, dashed: true },
         ]}
       />
 
@@ -158,13 +158,13 @@ export default function Gassutveksling() {
         </FormulaLine>
         {g.PvO2 < PO2 - 0.05 && (
           <FormulaLine>
-            Vevet trenger {fmt(g.demand, 0)} mL O<Sub>2</Sub> per liter blod: O<Sub>2</Sub>-trykket i vevet faller fra {fmt(PO2, 1)} til{' '}
-            {fmt(g.PvO2, 1)} kPa{g.limited ? ', og det er likevel ikke nok' : ''}
+            I høyden: O<Sub>2</Sub>-trykket i vevet {fmt(PO2, 1)} → {fmt(g.PvO2, 1)} kPa, behov {fmt(g.demand, 0)} mL per liter blod
+            {g.limited ? ' (ikke nok)' : ''}
           </FormulaLine>
         )}
       </Formula>
 
-      <Explain>{explanation(g, h, PO2, pH, T)}</Explain>
+      <Explain>{explanation(g, h, PO2, T)}</Explain>
     </VizLayout>
   );
 }
@@ -492,7 +492,7 @@ function CurveFigure({ g }: { g: GasExchange }) {
 /* Forklaring                                                               */
 /* ====================================================================== */
 
-function explanation(g: GasExchange, h: number, PO2: number, pH: number, T: number): ReactNode {
+function explanation(g: GasExchange, h: number, PO2: number, T: number): ReactNode {
   const shifted = g.p50Tissue > g.p50Lung + 0.15;
   const gain = g.released - g.releasedNoBohr;
   const diffusion = (
@@ -503,12 +503,12 @@ function explanation(g: GasExchange, h: number, PO2: number, pH: number, T: numb
       alveolene ({fmt(g.PACO2, 1)} kPa). I vevet snur forskjellene: cellene bruker O<Sub>2</Sub> i celleåndingen og lager CO<Sub>2</Sub>.
     </p>
   );
-  const causes = [pH < 7.36 ? 'lav pH (mer CO₂, som gir karbonsyre, og melkesyre)' : null, T > 37.4 ? 'høy temperatur' : null].filter(
+  const causes = [g.pHt < 7.36 ? 'lav pH (mer CO₂, som gir karbonsyre, og melkesyre)' : null, T > 37.4 ? 'høy temperatur' : null].filter(
     (c): c is string => c !== null,
   );
   const bohr = shifted ? (
     <p>
-      <strong>Bohr-effekten.</strong> I vevet er pH {fmt(pH, 2)} og temperaturen {fmt(T, 1)} °C
+      <strong>Bohr-effekten.</strong> I vevet er pH {fmt(g.pHt, 2)} og temperaturen {fmt(T, 1)} °C
       {g.pHa > 7.42 ? `, mens blodet i lungene har pH ${fmt(g.pHa, 2)}` : ''}.{' '}
       {causes.length ? `${capitalize(causes.join(' og '))} gjør` : 'Forskjellen i pH mellom lungene og vevet gjør'} at hemoglobinet slipper
       oksygenet lettere i vevet: kurven der ligger mer mot høyre (P50 = {fmt(g.p50Tissue, 2)} kPa i stedet for {fmt(g.p50Lung, 1)} kPa i
@@ -533,7 +533,7 @@ function explanation(g: GasExchange, h: number, PO2: number, pH: number, T: numb
       <p>
         <strong>I høyden ({fmt(h, 0)} moh.)</strong> er lufttrykket lavere, så O<Sub>2</Sub>-trykket i alveolene er bare {fmt(g.PAO2, 1)}{' '}
         kPa. Vi puster mer, CO<Sub>2</Sub> faller og blodet blir litt basisk (pH {fmt(g.pHa, 2)}), så kurven i lungene flyttes litt mot
-        venstre og hemoglobinet binder O<Sub>2</Sub> lettere.{' '}
+        venstre og hemoglobinet binder O<Sub>2</Sub> lettere. Blodet i vevet blir like mye mer basisk (pH {fmt(g.pHt, 2)}).{' '}
         {g.SaO2 > 0.9
           ? `Fordi kurven er flat øverst, er blodet likevel ${fmtPct(g.SaO2)} mettet. Den S-formede kurven beskytter oss.`
           : `Nå er vi på den bratte delen av kurven, og blodet er bare ${fmtPct(g.SaO2)} mettet.`}{' '}

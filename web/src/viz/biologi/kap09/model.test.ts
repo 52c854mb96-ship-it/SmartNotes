@@ -247,5 +247,7 @@ describe('fordøyelseskanalen', () => {
     expect(fragments(12, 0)).toEqual([12]);
     expect(fragments(12, 1)).toEqual(Array(12).fill(1));
     expect(fragments(10, 0.2)).toEqual([8, 2]);
+    // Spyttamylasen klipper av maltose (to glukoseenheter), ikke enkeltglukose
+    expect(fragments(12, 0.08)).toEqual([10, 2]);
   });
 });

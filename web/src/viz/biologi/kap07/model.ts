@@ -278,24 +278,6 @@ export function allCombinations(n: number): GameteChromatid[][] {
   );
 }
 
-/** Sammenligning av mitose og meiose (lærebokas tabell). */
-export const COMPARISON = {
-  mitose: {
-    divisions: 1,
-    cells: 2,
-    ploidy: '2n (diploide)',
-    identical: 'Genetisk like morcella',
-    purpose: 'Vekst, reparasjon og ukjønnet formering',
-  },
-  meiose: {
-    divisions: 2,
-    cells: 4,
-    ploidy: 'n (haploide)',
-    identical: 'Genetisk ulike',
-    purpose: 'Kjønnsceller (egg og sædceller)',
-  },
-} as const;
-
 /* ====================================================================== */
 /* 3. Regulering av celledelingen                                           */
 /* ====================================================================== */

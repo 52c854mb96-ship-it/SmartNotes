@@ -486,7 +486,7 @@ function explanation(run: SynapseRun, n: number, inhibitor: boolean, blocker: bo
   else
     effect = (
       <p>
-        {n === 1 ? 'Én nerveimpuls' : `${n} nerveimpulser`} med {IMPULSE_INTERVAL} ms mellomrom gir{' '}
+        {n === 1 ? 'Én nerveimpuls' : `${n} nerveimpulser med ${IMPULSE_INTERVAL} ms mellomrom`} gir{' '}
         {fired ? (
           <>
             nok signalstoff til at nervecelle 2 når terskelen og fyrer {fired === 1 ? 'et aksjonspotensial' : `${fired} aksjonspotensialer`}

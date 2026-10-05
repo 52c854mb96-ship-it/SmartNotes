@@ -151,12 +151,13 @@ function TractFigure({ nutrient, station, f }: { nutrient: Nutrient; station: St
       viewBox={`0 0 800 ${Math.round(H)}`}
       maxHeight={narrow ? 1500 : Math.round(H * 1.15)}
       label={`Fordøyelseskanalen med maten i ${st.name.toLowerCase()}. ${NUTRIENTS[nutrient].name}: ${fmtPct(st.digested[nutrient])} brutt ned.`}
+      caption="Sett forfra: kroppens høyre side (med leveren) er til venstre i figuren."
     >
-      <g transform={narrow ? 'translate(110 0) scale(1.3)' : 'translate(4 0)'}>
+      <g transform={narrow ? 'translate(110 0) scale(1.3)' : 'translate(2 0)'}>
         <TractDrawing station={station} nutrient={nutrient} narrow={narrow} />
       </g>
-      <g transform={narrow ? `translate(0 ${tractH * 1.3 + 20})` : 'translate(440 0)'}>
-        <MoleculePanel nutrient={nutrient} station={station} w={narrow ? 800 : 358} h={molH} />
+      <g transform={narrow ? `translate(0 ${tractH * 1.3 + 20})` : 'translate(456 0)'}>
+        <MoleculePanel nutrient={nutrient} station={station} w={narrow ? 800 : 342} h={molH} />
       </g>
     </Figure>
   );
@@ -265,9 +266,9 @@ function TractDrawing({ station, nutrient, narrow }: { station: StationId; nutri
       {label(70, 156, 'Leveren', 'start', bile)}
       {label(100, 214, 'Galleblæren', 'end', bile)}
       {label(300, 160, 'Magesekken', 'start', on('magesekk'))}
-      {label(320, 250, 'Bukspyttkjertelen', 'start', pancreas)}
-      {label(320, 380, 'Tykktarmen', 'start', on('tykktarm'))}
-      {label(320, 300, 'Tynntarmen', 'start', on('tynntarm'), { x: 252, y: 312 })}
+      {label(318, 250, 'Bukspyttkjertelen', 'start', pancreas)}
+      {label(318, 380, 'Tykktarmen', 'start', on('tykktarm'))}
+      {label(318, 300, 'Tynntarmen', 'start', on('tynntarm'), { x: 252, y: 312 })}
       {label(222, 452, 'Endetarmen', 'start')}
       {label(190, 100, 'Spiserøret', 'start')}
     </g>

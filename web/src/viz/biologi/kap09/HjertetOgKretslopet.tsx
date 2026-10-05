@@ -443,7 +443,7 @@ function VolumePlot({ HR, SV, t }: { HR: number; SV: number; t: number }) {
               ))}
               <line x1={x0} x2={x1} y1={sy(edv)} y2={sy(edv)} stroke={VIZ.muted} strokeWidth={1.2} strokeDasharray="4 5" />
               <line x1={x0} x2={x1} y1={sy(esv)} y2={sy(esv)} stroke={VIZ.muted} strokeWidth={1.2} strokeDasharray="4 5" />
-              <Txt x={x1 - 6} y={sy(edv) - 8} anchor="end" size={0.8} weight={650}>
+              <Txt x={x1 - 6} y={sy(edv) - 11} anchor="end" size={0.8} weight={650}>
                 {`slagvolum = ${fmt(edv, 0)} − ${fmt(esv, 0)} = ${fmt(SV, 0)} mL`}
               </Txt>
               <path d={linePath(pts, sx, sy)} fill="none" stroke={BIO.dna} strokeWidth={3.2} />

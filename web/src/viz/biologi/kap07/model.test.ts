@@ -205,6 +205,10 @@ describe('regulering av celledelingen', () => {
     // Startverdiene: like mange celler totalt med og uten mutasjon
     expect(tissueAt(both, 0).total).toBeCloseTo(0.5, 9);
     expect(tissueAt(both, 0).mutant).toBeCloseTo(CLONE_START, 9);
+    // Største antall celler: aldri over fullt vev med bare onkogen, over 300 % for en svulst
+    expect(maxTotal(onko)).toBeLessThanOrEqual(1 + 1e-9);
+    expect(maxTotal(tsg)).toBeLessThan(1.2);
+    expect(maxTotal(both)).toBeGreaterThan(3);
   });
 
   it('kontrollpunktene', () => {

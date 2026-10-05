@@ -261,7 +261,15 @@ function Passiv() {
       </Toolbar>
 
       <div ref={ref}>
-        <PassiveScene tracks={tracks} t={t} f={f} color={color} label={subLabel(sub)} blocked={info.rel === 0} hex={sub === 'glukose'} />
+        <PassiveScene
+          tracks={tracks}
+          t={t}
+          f={f}
+          color={color}
+          label={subLabel(sub)}
+          blocked={info.rel === 0 ? (sub === 'glukose' ? 'Kommer nesten ikke gjennom lipidlaget' : 'Kommer ikke gjennom lipidlaget') : null}
+          hex={sub === 'glukose'}
+        />
       </div>
       <Legend
         items={[
@@ -335,7 +343,8 @@ function PassiveScene({
   f: number;
   color: string;
   label: string;
-  blocked: boolean;
+  /** Tekst over membranen når stoffet ikke kommer gjennom (null når det diffunderer). */
+  blocked: string | null;
   hex?: boolean;
 }) {
   const g = sceneGeom(f, 120);
@@ -345,7 +354,7 @@ function PassiveScene({
     <Figure
       viewBox={`0 0 800 ${g.H}`}
       maxHeight={g.H}
-      label={`Membran med ${counts} partikler av ${label}. ${blocked ? 'De kommer ikke gjennom lipidlaget.' : 'De diffunderer gjennom lipidlaget.'}`}
+      label={`Membran med ${counts} partikler av ${label}. ${blocked ?? 'De diffunderer gjennom lipidlaget.'}`}
       caption="Hver prikk er mange molekyler. Tidsskalaen er forenklet."
     >
       <Rooms g={g} />
@@ -359,7 +368,7 @@ function PassiveScene({
       />
       {blocked && (
         <Txt x={400} y={g.memY - g.T / 2 - 12} size={0.8} weight={700} color={color}>
-          Kommer ikke gjennom lipidlaget
+          {blocked}
         </Txt>
       )}
     </Figure>
@@ -375,7 +384,10 @@ function passiveText(sub: Substance, cOut: number, cIn: number, t: number, inn: 
     return (
       <>
         <p>
-          <strong>{name} kommer ikke gjennom lipidlaget</strong>, selv om det er {cOut > cIn ? 'mer ute enn inne' : cOut < cIn ? 'mer inne enn ute' : 'like mye på begge sider'}.{' '}
+          <strong>
+            {name} kommer {sub === 'glukose' ? 'nesten ikke' : 'ikke'} gjennom lipidlaget
+          </strong>
+          , selv om det er {cOut > cIn ? 'mer ute enn inne' : cOut < cIn ? 'mer inne enn ute' : 'like mye på begge sider'}.{' '}
           {sub === 'Na'
             ? 'Ioner har ladning og er omgitt av vannmolekyler, så de stenges ute av den fettløselige (hydrofobe) midten av membranen.'
             : 'Glukose er et stort, polart molekyl som ikke løser seg i den fettløselige (hydrofobe) midten av membranen.'}
