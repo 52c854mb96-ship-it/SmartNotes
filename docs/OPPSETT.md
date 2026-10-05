@@ -11,30 +11,22 @@ Alt som kan gjøres i koden, er gjort. Det som gjenstår, er kontoer, betaling o
 
 | Steg | Hvor | Hva | Når |
 |---|---|---|---|
-| 1 | GitHub | Flett koden inn i `main` | når Claude sier at koden er klar |
+| 1 | GitHub | Koden ligger på `main` | ferdig |
 | 2 | Anthropic | Konto, kreditt, forbruksgrense og API-nøkkel | nå |
 | 3 | Passordbehandler | Velg passord til appen | nå |
 | 4 | Railway | Importer repoet, region og lagringsvolum | nå |
 | 5 | Railway | Variabler og adresse | nå |
-| 6 | Railway | Første deploy fra `main` | etter steg 1 |
+| 6 | Railway | Første deploy fra `main` | etter steg 5 |
 | 7 | Appen | Logg inn og test et ekte notat | etter steg 6 |
 | 8 | Enhetene | Installer appen på iPad, mobil og PC | etter steg 7 |
 
 ---
 
-## Steg 1: Flett koden inn i main
+## Steg 1: Koden ligger på main
 
-Railway henter koden fra grenen `main`. Gjør dette når Claude har sagt at alt er ferdig og testet.
+Railway henter koden fra grenen `main`, og der ligger den allerede. Nye endringer fletter Claude inn selv når testene på GitHub (**CI**) er grønne, og Railway deployer dem automatisk. Du trenger ikke gjøre noe her.
 
-1. Gå til <https://github.com/52c854mb96-ship-it/SmartNotes>.
-2. Trykk **Pull requests → New pull request**.
-3. Velg **base: `main`** og **compare: `claude/smartnotes-offline-app-j25mqo`**, og trykk **Create pull request**.
-4. Vent til sjekken **CI** er grønn (ca. 10 minutter).
-5. Trykk **Merge pull request → Confirm merge**.
-
-Du kan også be Claude om å lage pull requesten. Da gjenstår bare punkt 4 og 5.
-
-- [ ] Koden ligger på `main`
+- [x] Koden ligger på `main`
 
 ## Steg 2: Anthropic (Claude API-nøkkel)
 
@@ -61,7 +53,7 @@ Railway kjører serveren som synkroniserer enhetene og gjør om notatene til PDF
 
 1. Logg inn på <https://railway.com> med kontoen der du har abonnementet.
 2. Trykk **New Project → Deploy from GitHub repo** og velg `52c854mb96-ship-it/SmartNotes`. Første gang må du gi Railway tilgang til repoet på GitHub (**Configure GitHub App**).
-3. Railway starter et bygg med en gang. Før steg 1 er gjort, finnes bare en tom start på `main`, så dette første bygget **feiler. Det er helt greit**, og du kan se bort fra det.
+3. Railway starter et bygg med en gang. Det første forsøket kan **feile før variablene i steg 5 er lagt inn. Det er helt greit**, og du kan se bort fra det.
 4. Gi prosjektet navnet `SmartNotes` (prosjektets **Settings**) og tjenesten navnet `smartnotes` (tjenestens **Settings**), hvis Railway har valgt andre navn.
 5. **Region:** åpne tjenesten, gå til **Settings → Deploy → Region** og velg **EU West (Amsterdam)**, som er nærmest Norge. Gjør dette før du lager volumet.
 6. **Lagringsvolum:** høyreklikk tjenesten i prosjektet (eller trykk **Create → Volume**) og koble et volum til tjenesten med **Mount path `/data`**. Her ligger databasen, originalbildene og PDF-ene.
@@ -83,6 +75,8 @@ Railway kjører serveren som synkroniserer enhetene og gjør om notatene til PDF
    | `ANTHROPIC_API_KEY` | API-nøkkelen fra steg 2 |
    | `PORT` | `8080` |
 
+   Har du bare Fysikk 1, legger du også inn `SEED_TEXTBOOKS` med verdien `ergo-fysikk-1`. Da legges bare det faget inn.
+
    For API-nøkkelen kan du velge **Seal** i menyen på variabelen. Da kan ingen lese den i Railway etterpå, men den kan byttes ut.
 2. Gå til **Settings → Networking** og trykk **Generate Domain**. Velg port **8080** hvis du blir spurt. Du får en adresse som `https://smartnotes-production-xxxx.up.railway.app`. Lagre den, for dette er adressen til appen.
 3. Hvis Railway viser en knapp for å ta i bruk endringene (**Deploy** eller **Apply changes**), trykker du på den.
@@ -90,22 +84,22 @@ Railway kjører serveren som synkroniserer enhetene og gjør om notatene til PDF
 - [ ] Tre variabler lagt inn
 - [ ] Adresse laget og lagret
 
-## Steg 6: Første deploy (etter steg 1)
+## Steg 6: Første deploy
 
 1. Sjekk under **Settings → Source** at tjenesten følger grenen **`main`**.
-2. Når koden er flettet inn i `main` (steg 1) og CI er grønn, starter Railway byggingen selv. Første gang tar det 5–10 minutter, fordi LaTeX skal installeres. Starter den ikke, trykker du **Deploy** (eller **Redeploy** på siste deploy) under **Deployments**.
+2. Når variablene fra steg 5 er lagt inn, starter Railway byggingen selv. Første gang tar det 5–10 minutter, fordi LaTeX skal installeres. Starter den ikke, trykker du **Deploy** (eller **Redeploy** på siste deploy) under **Deployments**.
 3. Følg med under **Deployments**. Når deployen er grønn (**Active**), er appen klar på adressen fra steg 5.
 
 Senere skjer alt automatisk: hver gang noe flettes inn i `main` og CI er grønn, bygger Railway en ny versjon og bytter over. Notatene ligger trygt på volumet imens.
-
-> **Vil du prøve serveren før steg 1?** Velg grenen `claude/smartnotes-offline-app-j25mqo` under **Settings → Source** i stedet for `main`. Da bygges den nyeste versjonen med en gang, og du kan sjekke at oppsettet virker mens Claude fortsatt jobber. Bytt tilbake til `main` etter steg 1.
 
 - [ ] Første deploy er grønn
 
 ## Steg 7: Logg inn og test
 
 1. Åpne adressen fra steg 5 på PC-en og logg inn med passordet.
-2. Fagene **Fysikk 1**, **Kjemi 1** og **Biologi 1** ligger klare med kapitlene og kompetansemålene fra lærebøkene. I Kjemi 1 og Biologi 1 mangler de fleste delkapitlene, fordi de ikke kunne bekreftes på nett. Åpne faget, trykk **Importer innholdsfortegnelsen** og ta bilde av innholdsfortegnelsen i boka. Bruk ett bilde per side. Da legges delkapitlene inn og kobles til kompetansemålene.
+2. Fagene **Fysikk 1**, **Kjemi 1** og **Biologi 1** ligger klare med kapitlene og kompetansemålene fra lærebøkene.
+   - **Har du bare Fysikk 1** og ser de andre fagene likevel (variabelen `SEED_TEXTBOOKS` fra steg 5 manglet), sletter du dem i appen: tannhjulet på fagsiden → **Slett faget**. Et slettet fag kommer ikke tilbake.
+   - **Har du boka i Kjemi 1 eller Biologi 1:** der mangler de fleste delkapitlene, fordi de ikke kunne bekreftes på nett. Åpne faget, trykk **Importer innholdsfortegnelsen** og ta bilde av innholdsfortegnelsen i boka, ett bilde per side. Da legges delkapitlene inn og kobles til kompetansemålene.
 3. Trykk **Last opp notater** og last opp et ekte notat på 2–3 sider (bilder eller PDF).
 4. Etter 1–3 minutter er PDF-en klar. Sjekk at:
    - notatet havnet i riktig kapittel og delkapittel,
@@ -167,7 +161,7 @@ I skyøktene med Claude Code finnes det ingen API-nøkkel, så Claude har bare t
 
 | Hva skjer | Hva du gjør |
 |---|---|
-| Bygget feiler | Det aller første bygget før steg 1 skal feile (se steg 4). Ellers: se **Build Logs** under **Deployments**. Sjekk at **Root Directory** under **Settings → Source** er tomt, slik at Railway finner `Dockerfile` og `railway.json`. |
+| Bygget feiler | Det første forsøket før variablene er lagt inn, kan feile (se steg 4). Ellers: se **Build Logs** under **Deployments**. Sjekk at **Root Directory** under **Settings → Source** er tomt, slik at Railway finner `Dockerfile` og `railway.json`. |
 | Deployen henger på *healthcheck* | Sjekk at variabelen `PORT` er `8080`, og at adressen under **Networking** peker til port 8080. Se **Deploy Logs**. |
 | Notatene er borte etter en oppdatering | Volumet mangler eller er montert feil. Det må være montert på `/data` (steg 4). |
 | Innloggingen avvises | Passordet er feil. Bytt passord (se over). |
