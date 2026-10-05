@@ -121,9 +121,9 @@ export default function KretslopHosDyr() {
 
       <Readouts>
         <Readout
-          label="Hjerterom"
-          value={insect ? 'Rør' : String(animal.atria + animal.ventricles)}
-          unit={insect ? '(ryggkaret)' : `(${chamberText(animal)})`}
+          label={insect ? 'Hjerte' : 'Forkamre + hjertekamre'}
+          value={insect ? 'Rørformet' : `${animal.atria} + ${animal.ventricles}`}
+          unit={insect ? undefined : `= ${animal.atria + animal.ventricles} rom`}
         />
         <Readout
           label="O₂-metning i blodet ut til kroppen"
@@ -226,7 +226,7 @@ function circuitGeometry(animal: Animal, f: number, sat: Saturations): CircuitGe
   const titleH = Math.round(26 * f);
   const gasY = titleH + 4;
   const gasMid = gasY + bh / 2;
-  const cw = narrow ? 178 : 122;
+  const cw = narrow ? 200 : 122;
   const gap = 10;
   const ah = Math.round(76 * s + 8 * (f - 1));
   const vh = Math.round(96 * s + 8 * (f - 1));
@@ -501,7 +501,7 @@ function CircuitScene({ animal, segs, sat, f, laps, color }: SceneProps) {
       {/* Hjertet */}
       {g.chambers.map((c) => {
         const fill = Array.isArray(c.sat) ? `url(#${gradId}-${c.id})` : color(c.sat);
-        const ts = narrow ? 0.66 : 0.72;
+        const ts = narrow ? 0.8 : 0.72;
         const lh = 19 * f * ts;
         return (
           <g key={c.id}>
@@ -774,7 +774,7 @@ function PressureFigure({
   color: (v: number) => string;
 }) {
   const [ref, f] = useContainerTextScale<HTMLDivElement>();
-  const H = Math.round(300 + 250 * (f - 1));
+  const H = Math.round(320 + 260 * (f - 1));
   const pts = pressureProfile(segs);
   const spans = segmentSpans(segs);
   // Blodcellen vi følger: samme andel av kretsløpet som i scenen, men delene har andre lengder i grafen

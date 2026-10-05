@@ -31,6 +31,9 @@ import {
   pressureProfile,
   saturations,
   segmentSpans,
+  surfacePerVolume,
+  HUMAN_LUNG_AREA,
+  HUMAN_SKIN_AREA,
 } from './model';
 
 describe('geometri', () => {
@@ -275,6 +278,15 @@ describe('gassutveksling og kroppsstørrelse', () => {
   it('diffusjonstid: dobbel avstand gir fire ganger så lang tid', () => {
     expect(diffusionTime(2e-3) / diffusionTime(1e-3)).toBeCloseTo(4, 9);
     expect(diffusionTime(1e-3)).toBeCloseTo(250, 6); // 1 mm: ca. 4 min
+  });
+
+  it('overflate per volum: 6/d, og ti ganger tykkere gir ti ganger mindre', () => {
+    expect(surfacePerVolume(1e-3)).toBeCloseTo(6, 9); // 1 mm: 6 mm² per mm³
+    expect(surfacePerVolume(3e-3)).toBeCloseTo(2, 9);
+    expect(surfacePerVolume(1e-3) / surfacePerVolume(1e-2)).toBeCloseTo(10, 9);
+    expect(surfacePerVolume(0)).toBe(Infinity);
+    // Lungene gir mennesket rundt 40 ganger så stor flate som huden
+    expect(HUMAN_LUNG_AREA / HUMAN_SKIN_AREA).toBeGreaterThan(30);
   });
 
   it('formater lengder og tider', () => {

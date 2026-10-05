@@ -26,6 +26,7 @@ import {
   sample,
   useContainerTextScale,
   useSimClock,
+  useTextScale,
 } from '../kit';
 import {
   EXPERIMENTS,
@@ -206,9 +207,12 @@ function LysFraSiden() {
   const [light, setLight] = useState(90);
   const [intensity, setIntensity] = useState(80);
   const clock = useSimClock({ tMax: T_MAX, speed: 30 });
-  const { reset } = clock;
-  // Ny lysretning: start på nytt med et rett skudd
-  useEffect(() => reset(), [light, intensity, reset]);
+  const { setT, pause } = clock;
+  // Vis resultatet etter tre timer når siden åpnes og når du endrer lyset (trykk «Spill av» for å se forløpet)
+  useEffect(() => {
+    pause();
+    setT(T_MAX);
+  }, [light, intensity, pause, setT]);
   const t = clock.t;
   const tip = bendAngle(light, intensity, t);
   const share = shadedShare(light, tip, intensity);
@@ -227,6 +231,19 @@ function LysFraSiden() {
           format={(v) => (v === 0 ? 'rett ovenfra' : v < 0 ? `venstre, ${fmt(-v, 0)}°` : `høyre, ${fmt(v, 0)}°`)}
         />
         <Slider label="Lysstyrke" value={intensity} onChange={setIntensity} min={0} max={100} step={5} unit="%" />
+        <Slider
+          label="Tid"
+          ariaLabel="Tid i minutter"
+          value={Math.round(t)}
+          onChange={(v) => {
+            pause();
+            setT(v);
+          }}
+          min={0}
+          max={T_MAX}
+          step={5}
+          unit="min"
+        />
       </Controls>
       <Toolbar>
         <PlayBar clock={clock} time={`${fmt(t, 0)} min`} />
@@ -244,8 +261,12 @@ function LysFraSiden() {
       <BendPlot light={light} intensity={intensity} t={t} />
       <Readouts>
         <Readout label="Auksin på skyggesiden" value={fmtPct(share)} tone={C_AUXIN} />
-        <Readout label="Cellene på skyggesiden er" value={fmt(elongationRatio(share), 2)} unit="ganger så lange" />
-        <Readout label="Bøyning etter tida" value={fmt(Math.abs(tip), 0)} unit={`° ${Math.abs(tip) < 0.5 ? '' : tip > 0 ? 'mot høyre' : 'mot venstre'}`} />
+        <Readout label="Skyggesiden vokser" value={fmt(elongationRatio(share), 2)} unit="ganger så fort" />
+        <Readout
+          label="Bøyning"
+          value={`${fmt(Math.abs(tip), 0)}°`}
+          unit={Math.abs(tip) < 0.5 ? undefined : tip > 0 ? 'mot høyre' : 'mot venstre'}
+        />
       </Readouts>
       <Formula label="Bøyningen">
         <FormulaLine>
@@ -277,42 +298,140 @@ function LightScene({
 }) {
   const narrow = f > 1.3;
   const k = Math.max(1, f * 0.85);
-  const H = narrow ? 560 : 430;
-  const groundY = H - 50;
+  const sceneH = narrow ? 560 : 430;
+  const groundY = sceneH - 50;
   const L = narrow ? 300 : 230;
   const W = narrow ? 64 : 46;
-  const cx = 400;
+  // PC: koleoptilen til venstre og cellene forstørret til høyre. Mobil: cellene under.
+  const cx = narrow ? 400 : 280;
+  const zoom: ZoomBox = narrow ? { x: 20, y: sceneH + 10, w: 760, h: 420 } : { x: 548, y: 16, w: 232, h: groundY - 4 };
+  const H = narrow ? zoom.y + zoom.h + 8 : sceneH;
   // Lampa går i en sirkel rundt midten av koleoptilen, så den alltid er inne i figuren
   const pivotY = groundY - L * 0.5;
-  const lampR = Math.min(pivotY - 30, narrow ? 340 : 300);
+  const lampR = Math.min(pivotY - 30, narrow ? 340 : 250);
   const leftShare = shadedLeft ? share : 1 - share;
+  const lit = intensity > 0 && Math.abs(light) > 4;
+  // Celleforlengelsen i vekstsonen så langt: like mye på begge sider i snitt, forskjellen gir bøyningen
+  const tau = t / T_MAX;
+  const delta = (0.3 * Math.abs(tip)) / 90;
+  const bendsRight = tip > 0.5;
+  const bendsLeft = tip < -0.5;
+  const growLeft = 1 + 0.45 * tau + (bendsRight ? delta : bendsLeft ? -delta : 0);
+  const growRight = 1 + 0.45 * tau + (bendsLeft ? delta : bendsRight ? -delta : 0);
   return (
     <Figure
       viewBox={`0 0 800 ${H}`}
-      maxHeight={narrow ? 900 : H}
+      maxHeight={narrow ? 1100 : H}
       label={`Havrekoleoptil med lys fra ${light === 0 ? 'rett ovenfra' : light < 0 ? 'venstre' : 'høyre'}. Den har bøyd seg ${fmt(Math.abs(tip), 0)} grader. ${fmtPct(share)} av auksinet er på skyggesiden.`}
     >
       <Lamp cx={cx} cy={pivotY} R={lampR} angle={light} intensity={intensity} k={k} />
-      <Soil x={20} y={groundY} w={760} h={H - groundY - 6} />
+      <Soil x={20} y={groundY} w={narrow ? 760 : 510} h={sceneH - groundY - 6} />
       <ellipse cx={cx} cy={groundY + 16} rx={34} ry={14} style={{ fill: mixColor(VIZ.surface, BIO.ved, 0.5) }} stroke={BIO.ved} strokeWidth={1.5} />
       <Shoot x={cx} y={groundY + 4} L={L} W={W} base={0} tip={tip} leftShare={leftShare} auxin={1} t={t} k={k} />
-      <Txt x={40} y={30 * f} anchor="start" weight={700} size={0.85}>
+      <Txt x={36} y={30 * f} anchor="start" weight={700} size={0.85}>
         Havrekoleoptil (<tspan fontStyle="italic">Avena sativa</tspan>)
       </Txt>
-      {Math.abs(light) > 4 && intensity > 0 && (
+      {lit && (
         <g>
-          <Txt x={shadedLeft ? cx - W - 40 : cx + W + 40} y={groundY - L * 0.45} anchor={shadedLeft ? 'end' : 'start'} size={0.78} weight={700} color={C_AUXIN}>
+          <Txt x={shadedLeft ? cx - W - 28 : cx + W + 28} y={groundY - L * 0.32} anchor={shadedLeft ? 'end' : 'start'} size={0.78} weight={700} color={C_AUXIN}>
             skyggesiden
           </Txt>
-          <Txt x={shadedLeft ? cx - W - 40 : cx + W + 40} y={groundY - L * 0.45 + 20 * f * 0.78} anchor={shadedLeft ? 'end' : 'start'} size={0.72} muted>
-            mer auksin, lengre celler
+          <Txt x={shadedLeft ? cx - W - 28 : cx + W + 28} y={groundY - L * 0.32 + 20 * f * 0.78} anchor={shadedLeft ? 'end' : 'start'} size={0.72} muted>
+            mer auksin
           </Txt>
         </g>
       )}
-      <Txt x={760} y={groundY - 12} anchor="end" size={0.75} muted>
+      <Txt x={narrow ? 760 : 520} y={groundY - 12} anchor="end" size={0.75} muted>
         {fmt(t, 0)} min
       </Txt>
+      <CellZoom box={zoom} growLeft={growLeft} growRight={growRight} leftShare={leftShare} lit={lit} shadedLeft={shadedLeft} />
     </Figure>
+  );
+}
+
+interface ZoomBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Cellene i vekstsonen forstørret: én cellerad på hver side av koleoptilen. Begge sider vokser, men siden med mest
+ * auksin får lengst celler, og koleoptilen bøyer seg mot den andre siden.
+ */
+function CellZoom({
+  box,
+  growLeft,
+  growRight,
+  leftShare,
+  lit,
+  shadedLeft,
+}: {
+  box: ZoomBox;
+  growLeft: number;
+  growRight: number;
+  leftShare: number;
+  lit: boolean;
+  shadedLeft: boolean;
+}) {
+  const f = useTextScale();
+  const k = Math.max(1, f * 0.85);
+  const titleH = 30 * f;
+  const footH = 2 * 20 * f + 8;
+  const n = 4;
+  const maxGrow = 1.8;
+  const baseY = box.y + box.h - footH;
+  const cellH = (baseY - box.y - titleH - 12 * f - 8) / (n * maxGrow);
+  const colW = Math.min(box.w > 400 ? 120 : 76, box.w * 0.26);
+  const gap = Math.min(box.w > 400 ? 70 : 40, box.w * 0.12);
+  const cols = [
+    { side: 'venstre', x: box.x + box.w / 2 - gap / 2 - colW, grow: growLeft, share: leftShare, shaded: shadedLeft },
+    { side: 'høyre', x: box.x + box.w / 2 + gap / 2, grow: growRight, share: 1 - leftShare, shaded: !shadedLeft },
+  ];
+  return (
+    <g>
+      <rect x={box.x} y={box.y} width={box.w} height={box.h} rx={14} fill="none" stroke={VIZ.grid} strokeWidth={1.5} />
+      <Txt x={box.x + box.w / 2} y={box.y + 22 * f} size={0.8} weight={700}>
+        Cellene i vekstsonen
+      </Txt>
+      {cols.map((c) => {
+        const h = cellH * c.grow;
+        const dots = Math.max(1, Math.round(c.share * 8));
+        return (
+          <g key={c.side}>
+            {Array.from({ length: n }, (_, i) => {
+              const y = baseY - (i + 1) * h;
+              return (
+                <g key={i}>
+                  <rect x={c.x} y={y} width={colW} height={h} rx={6} fill={BIO.plante.fill} stroke={BIO.plante.line} strokeWidth={1.5} />
+                  {Array.from({ length: dots }, (_, j) => (
+                    <circle
+                      key={j}
+                      cx={c.x + colW * (0.25 + 0.5 * ((j % 2) as number))}
+                      cy={y + (h * (Math.floor(j / 2) + 0.7)) / (Math.ceil(dots / 2) + 0.4)}
+                      r={3 * k}
+                      fill={C_AUXIN}
+                    />
+                  ))}
+                </g>
+              );
+            })}
+            <Txt x={c.x + colW / 2} y={baseY - n * h - 8} size={0.75} weight={700}>
+              ×{fmt(c.grow, 2)}
+            </Txt>
+            <Txt x={c.x + colW / 2} y={baseY + 20 * f} size={0.72} muted>
+              {c.side}
+            </Txt>
+            {lit && (
+              <Txt x={c.x + colW / 2} y={baseY + 40 * f} size={0.72} weight={700} color={c.shaded ? C_AUXIN : C_LIGHT}>
+                {c.shaded ? 'skygge' : 'lys'}
+              </Txt>
+            )}
+          </g>
+        );
+      })}
+    </g>
   );
 }
 

@@ -551,6 +551,22 @@ export function diffusionTime(x: number, D = D_TISSUE): number {
   return (x * x) / (2 * D);
 }
 
+/**
+ * Overflate per volum (per mm) for en kuleformet kropp med diameter d (m): A/V = 4πr² / (4/3 πr³) = 3/r = 6/d.
+ * Ti ganger tykkere kropp gir ti ganger mindre overflate per volum: overflaten vokser med d², volumet (og O₂-behovet)
+ * med d³.
+ */
+export function surfacePerVolume(d: number): number {
+  return d > 0 ? 6 / (d * 1000) : Infinity;
+}
+
+/**
+ * Overflaten der gassene utveksles hos et voksent menneske, sammenlignet med hudens (m²): lungene ca. 70 m²
+ * (300–500 millioner lungeblærer; Weibel), huden ca. 1,8 m².
+ */
+export const HUMAN_LUNG_AREA = 70;
+export const HUMAN_SKIN_AREA = 1.8;
+
 /** Kroppsstørrelse på glidebryteren: 10^v meter, v fra −4 (0,1 mm) til 0 (1 m). */
 export const SIZE_MIN_EXP = -4;
 export const SIZE_MAX_EXP = 0;

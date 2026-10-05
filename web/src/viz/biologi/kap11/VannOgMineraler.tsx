@@ -111,7 +111,7 @@ function Opptak() {
       <Readouts>
         <Readout label="Aktivt ioneopptak" value={fmtPct(r.uptake)} unit="av maks" tone={C_ION} />
         <Readout label="ATP fra celleånding i rota" value={fmtPct(r.atp)} tone={BIO.atp} />
-        <Readout label="Oppløste stoffer ute / inne" value={`${fmt(r.osmOut, 2)} / ${fmt(r.osmIn, 2)}`} unit="osmol/L" />
+        <Readout label="Oppløste stoffer i rota" value={fmt(r.osmIn, 2)} unit={`osmol/L (jordvann ${fmt(r.osmOut, 2)})`} />
         <Readout label="Vannet går" value={waterDir === 'inn' ? 'Inn i rota' : waterDir === 'ut' ? 'Ut av rota' : 'Ingen vei'} tone={C_WATER} />
       </Readouts>
       <Formula label="Osmose">
@@ -139,7 +139,7 @@ function RootScene({ r, p, f, t }: { r: RootResult; p: RootParams; f: number; t:
   const bandH = narrow ? 300 : 230;
   const y0 = top;
   const y1 = y0 + bandH;
-  const H = Math.round(y1 + 50 * f);
+  const H = Math.round(y1 + 50 * f + (narrow ? 30 * f : 0));
   // Sonene fra venstre: jord, rothårcelle, bark, endodermis, xylem
   const z = { soil: [20, 230], hair: [230, 330], cortex: [330, 560], endo: [560, 620], xyl: [620, 780] } as const;
   const midY = (y0 + y1) / 2;
@@ -304,13 +304,20 @@ function RootScene({ r, p, f, t }: { r: RootResult; p: RootParams; f: number; t:
           head={14}
         />
       )}
-      <Etikett x={z.endo[0] + 10} y={y0 + bandH / 4} lx={narrow ? 470 : 500} ly={y1 + 34 * f} anchor="end" size={0.75}>
+      <Etikett
+        x={(z.endo[0] + z.endo[1]) / 2}
+        y={y0 + (3 * bandH) / 4}
+        lx={(z.endo[0] + z.endo[1]) / 2}
+        ly={y1 + 30 * f + (narrow ? 30 * f : 0)}
+        anchor="middle"
+        size={0.75}
+      >
         Casparys bånd
       </Etikett>
       <Txt x={z.soil[0] + 4} y={y1 + 30 * f} anchor="start" size={0.75} weight={650}>
         jordvann {fmt(r.osmOut, 2)} osmol/L
       </Txt>
-      <Txt x={z.xyl[1]} y={y1 + 30 * f} anchor="end" size={0.75} weight={650}>
+      <Txt x={(z.hair[0] + z.cortex[1]) / 2} y={y1 + 30 * f} size={0.75} weight={650}>
         i rota {fmt(r.osmIn, 2)} osmol/L
       </Txt>
     </Figure>

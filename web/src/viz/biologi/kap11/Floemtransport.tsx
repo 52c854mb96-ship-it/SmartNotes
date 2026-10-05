@@ -53,6 +53,15 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: 'av', label: 'ingen' },
 ];
 
+/** Blomster er ikke kilder (de har nesten ikke fotosyntese), så de kan bare være sluk eller ingen ting. */
+const optionsFor = (id: OrganId) => (id === 'blomster' ? ROLE_OPTIONS.filter((o) => o.value !== 'kilde') : ROLE_OPTIONS);
+/** «Skuddspiss, blomster og knoller» til avlesningene (stor forbokstav bare først). */
+const labelList = (ids: OrganId[]) => {
+  if (ids.length === 0) return 'Ingen';
+  const words = ids.map((i, j) => (j === 0 ? LABEL[i] : LABEL[i].toLowerCase()));
+  return words.length === 1 ? words[0]! : `${words.slice(0, -1).join(', ')} og ${words[words.length - 1]!}`;
+};
+
 const list = (ids: OrganId[]) =>
   ids.length === 0 ? 'ingen' : ids.length === 1 ? NAME[ids[0]!] : `${ids.slice(0, -1).map((i) => NAME[i]).join(', ')} og ${NAME[ids[ids.length - 1]!]}`;
 
@@ -85,7 +94,7 @@ export default function Floemtransport() {
             key={o.id}
             label={LABEL[o.id]}
             value={roles[o.id]}
-            options={ROLE_OPTIONS}
+            options={optionsFor(o.id)}
             onChange={(v) => setRoles((old) => ({ ...old, [o.id]: v }))}
           />
         ))}
@@ -111,8 +120,8 @@ export default function Floemtransport() {
       />
 
       <Readouts>
-        <Readout label="Kilder" value={sources.length ? sources.map((i) => LABEL[i]).join(', ') : 'Ingen'} tone={BIO.plante.line} />
-        <Readout label="Sluk" value={sinks.length ? sinks.map((i) => LABEL[i]).join(', ') : 'Ingen'} />
+        <Readout label="Kilder" value={labelList(ORGANS.filter((o) => roles[o.id] === 'kilde').map((o) => o.id))} tone={BIO.plante.line} />
+        <Readout label="Sluk" value={labelList(ORGANS.filter((o) => roles[o.id] === 'sluk').map((o) => o.id))} />
         <Readout
           label="Sukkeret i stengelen går"
           value={girdled ? 'Stopper ved ringen' : dir === 'ned' ? 'Nedover' : dir === 'opp' ? 'Oppover' : 'Står stille'}
@@ -125,12 +134,13 @@ export default function Floemtransport() {
         {r.total > 1e-6 ? (
           <>
             <FormulaLine>
+              Sukker inn (+) og ut (−):{' '}
               {ORGANS.filter((o) => Math.abs(r.net[o.id]) > 1e-6)
-                .map((o) => `${LABEL[o.id]} ${r.net[o.id] > 0 ? '+' : '−'}${fmt(Math.abs(r.net[o.id]), 2)}`)
+                .map((o) => `${LABEL[o.id].toLowerCase()} ${r.net[o.id] > 0 ? '+' : '−'}${fmt(Math.abs(r.net[o.id]), 2)}`)
                 .join(' · ')}
             </FormulaLine>
             <FormulaLine>
-              Relative enheter: + lastes inn, − tas ut. Summen er 0: det kildene laster inn, tar slukene ut
+              Relative enheter. Summen er 0: det kildene laster inn, tar slukene ut
               {girdled && r.surplus > 1e-6 ? ' (unntatt det som hoper seg opp over ringen)' : ''}.
             </FormulaLine>
           </>
@@ -263,7 +273,7 @@ function PlantPanel({ box, roles, r, t, girdled }: { box: Box; roles: Roles; r: 
   const role = (id: OrganId) => roles[id];
   const roleColor = (id: OrganId) => (r.net[id] > 1e-6 ? BIO.plante.line : r.net[id] < -1e-6 ? VIZ.ink : VIZ.muted);
   const roleText = (id: OrganId) =>
-    role(id) === 'av' ? 'ingen rolle' : r.net[id] > 1e-6 ? 'kilde' : r.net[id] < -1e-6 ? 'sluk' : role(id) === 'kilde' ? 'kilde (fullt)' : 'sluk (sulter)';
+    role(id) === 'av' ? 'ingen' : r.net[id] > 1e-6 ? 'kilde' : r.net[id] < -1e-6 ? 'sluk' : role(id) === 'kilde' ? 'kilde (fullt)' : 'sluk (sulter)';
   // Bladene: to sammensatte blader fra bladnoden
   const leafBase = pos.blader;
   const leaves = leafSide.map((side) => {
@@ -300,7 +310,7 @@ function PlantPanel({ box, roles, r, t, girdled }: { box: Box; roles: Roles; r: 
   ];
   const labelPos: Record<OrganId, { x: number; y: number; anchor: 'start' | 'end' }> = {
     skudd: { x: sx + 16, y: Y(0.05) + 6 * f, anchor: 'start' },
-    blomster: { x: flowerEnd[0] + 22, y: flowerEnd[1] + 6 * f, anchor: 'start' },
+    blomster: { x: sx - 18, y: pos.blomster[1] + 6 * f, anchor: 'end' },
     blader: { x: X(0.02), y: Y(0.4) + 16 * f, anchor: 'start' },
     knoll: { x: X(0.98), y: Y(0.97), anchor: 'end' },
     rot: { x: X(0.02), y: Y(0.97), anchor: 'start' },

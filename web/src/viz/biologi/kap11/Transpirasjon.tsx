@@ -174,8 +174,11 @@ function Scene({ w, s, f, t }: { w: Weather; s: PlantState; f: number; t: number
 
 /* ---------- Planten ---------- */
 
-function PlantPanel({ box, w, s, t }: { box: Box; w: Weather; s: PlantState; t: number }) {
+function PlantPanel({ box: outer, w, s, t }: { box: Box; w: Weather; s: PlantState; t: number }) {
   const f = useTextScale();
+  // Venstre kolonne: vannpotensialet langs veien. Resten: planten.
+  const colW = Math.round(outer.w * 0.3);
+  const box: Box = { x: outer.x + colW, y: outer.y, w: outer.w - colW, h: outer.h };
   const k = Math.max(1, f * 0.85);
   const X = (u: number) => box.x + u * box.w;
   const Y = (v: number) => box.y + v * box.h;
@@ -207,7 +210,7 @@ function PlantPanel({ box, w, s, t }: { box: Box; w: Weather; s: PlantState; t: 
     const y = (1 - v) ** 2 * a[1]! + 2 * (1 - v) * v * c[1]! + v * v * b[1]!;
     return [x, y] as const;
   };
-  const leafLen = box.w * 0.34;
+  const leafLen = box.w * 0.4;
   const leafShapes = leaves.map(([u, side, len]) => {
     const [lx, ly] = stemAt(u);
     // Opp og ut når bladet er spent, hengende ned når planten visner
@@ -240,15 +243,16 @@ function PlantPanel({ box, w, s, t }: { box: Box; w: Weather; s: PlantState; t: 
   const sunX = X(0.12);
   const sunY = Y(0.1);
   const light = w.light / 100;
-  // Vannpotensialet langs veien som en «stige» til venstre
+  // Vannpotensialet langs veien, i samme høyde som delen av planten det gjelder
   const ladder = [
-    { y: Y(0.04), label: 'luft', v: s.psi.air, px: X(0.36), py: Y(0.06), d: 0 },
-    { y: Y(0.2), label: 'blad', v: s.psi.leaf, px: leafShapes[2]!.lx - 30, py: leafShapes[2]!.ly + 8, d: 2 },
-    { y: Y(0.44), label: 'stengel', v: s.psi.stem, px: sx - 5, py: Y(0.5), d: 2 },
-    { y: Y(0.72), label: 'rot', v: s.psi.root, px: sx - box.w * 0.05, py: Y(0.78), d: 2 },
-    { y: Y(0.92), label: 'jord', v: s.psi.soil, px: sx - box.w * 0.22, py: Y(0.9), d: 2 },
+    { y: Y(0.07), label: 'luft', v: s.psi.air, d: 0 },
+    { y: Math.min(Y(0.3), leafShapes[3]!.ly), label: 'blad', v: s.psi.leaf, d: 2 },
+    { y: Y(0.5), label: 'stengel', v: s.psi.stem, d: 2 },
+    { y: Y(0.76), label: 'rot', v: s.psi.root, d: 2 },
+    { y: Y(0.92), label: 'jord', v: s.psi.soil, d: 2 },
   ];
-
+  const lh = 19 * f * 0.78;
+  const arrowX = outer.x + colW - 14;
   return (
     <g>
       {/* Himmel: lyset */}
@@ -345,11 +349,20 @@ function PlantPanel({ box, w, s, t }: { box: Box; w: Weather; s: PlantState; t: 
           />
         );
       })}
-      {/* Vannpotensialet langs veien */}
+      {/* Vannpotensialet langs veien: vannet går fra høyt (jorda) til lavt (lufta) */}
+      <Txt x={outer.x + 4} y={outer.y + 14 * f} anchor="start" size={0.78} weight={700}>
+        Vannpotensial
+      </Txt>
+      <Arrow x1={arrowX} y1={ladder[4]!.y + lh * 0.6} x2={arrowX} y2={ladder[0]!.y - lh * 0.2 + 10} color={C_WATER} width={3} head={11} />
       {ladder.map((l) => (
-        <Etikett key={l.label} x={l.px} y={l.py} lx={box.x + 8} ly={l.y + 6} anchor="start" size={0.72}>
-          {l.label} {fmt(l.v, l.d)} MPa
-        </Etikett>
+        <g key={l.label}>
+          <Txt x={outer.x + 4} y={l.y + lh * 0.5 + 6 * f} anchor="start" size={0.72} muted>
+            {l.label}
+          </Txt>
+          <Txt x={outer.x + 4} y={l.y + lh * 1.5 + 6 * f} anchor="start" size={0.8} weight={700} color={C_WATER}>
+            {fmt(l.v, l.d)} MPa
+          </Txt>
+        </g>
       ))}
       <Txt x={box.x + box.w - 8} y={box.y + box.h - 10} anchor="end" size={0.75} weight={650}>
         {fmt(w.T, 0)} °C · {fmt(w.rh, 0)} % RF
@@ -535,9 +548,11 @@ function LeafSection({ box, s, t, narrow }: { box: Box; s: PlantState; t: number
       <Txt x={X(0.04)} y={Y(0.97)} anchor="start" size={0.72} weight={650} color={C_WATER}>
         vanndamp ut
       </Txt>
-      <Txt x={X(0.96)} y={Y(0.97)} anchor="end" size={0.72} weight={650} color={C_CO2}>
-        CO₂ inn
-      </Txt>
+      {s.A > 0 && (
+        <Txt x={X(0.96)} y={Y(0.97)} anchor="end" size={0.72} weight={650} color={C_CO2}>
+          CO₂ inn
+        </Txt>
+      )}
     </g>
   );
 }

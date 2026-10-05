@@ -83,7 +83,7 @@ export default function GjellerMotstrom() {
       <Legend
         items={[
           { color: C_WATER, label: 'Vann (strømmer alltid mot høyre)' },
-          { color: C_BLOOD, label: 'O₂ i vannet (prikker) og oksygenrikt blod' },
+          { color: C_BLOOD, label: 'O₂-molekyler (prikker) og oksygenrikt blod' },
           { color: BIO.oksygenfattig, label: 'Oksygenfattig blod' },
         ]}
       />
@@ -386,7 +386,8 @@ function explanation(flow: Flow, p: GillProfile, q: GillProfile, bloodIn: number
       <p>
         <strong>Medstrøm: blodet og vannet strømmer samme vei.</strong> Ved inngangen er forskjellen stor, og O₂ diffunderer raskt inn i blodet.
         Men vannet tømmes og blodet fylles samtidig, så forskjellen forsvinner. Når vann og blod har like mye O₂, stopper diffusjonen: blodet kan
-        aldri bli mer mettet enn snittet av vannet og blodet som kom inn, her {fmtPct(concurrentLimit(100, bloodIn) / 100)}.
+        aldri bli mer mettet enn snittet av vannet og blodet som kom inn, her {fmtPct(concurrentLimit(100, bloodIn) / 100)}
+        {bloodIn > 0 ? ' (med helt oksygenfattig blod inn ville grensen vært 50 %)' : ''}.
       </p>
       <p>
         Blodet går ut med {fmtPct(p.bloodOut / 100)}, og bare {fmtPct(p.utilization)} av O₂-et i vannet blir tatt opp. Med motstrøm ville den

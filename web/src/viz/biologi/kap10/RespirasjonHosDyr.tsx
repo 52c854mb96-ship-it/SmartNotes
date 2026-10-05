@@ -42,6 +42,9 @@ import {
   formatDuration,
   formatMeters,
   getStrategy,
+  surfacePerVolume,
+  HUMAN_LUNG_AREA,
+  HUMAN_SKIN_AREA,
   maxDiameter,
   o2At,
   o2Coverage,
@@ -117,7 +120,7 @@ export default function RespirasjonHosDyr() {
 
       <Readouts>
         <Readout label="Andel av kroppen med nok O₂" value={fmtPct(cov)} tone={cov < 0.999 ? VIZ.muted : BIO.oksygenrikt} />
-        <Readout label="Bare diffusjon i vev: tid inn til midten" value={formatDuration(tCentre)} />
+        <Readout label="Overflate per volum" value={fmt(surfacePerVolume(d), surfacePerVolume(d) < 1 ? 2 : 1)} unit="mm² per mm³" />
         <Readout
           label="Diffusjonsavstand der O₂ tas opp"
           value={strategy.barrier === null ? formatMeters(R) : strategy.id === 'trakeer' ? '< 1 µm' : `ca. ${formatMeters(strategy.barrier * 1e-6)}`}
@@ -136,10 +139,11 @@ export default function RespirasjonHosDyr() {
           {formatDuration(tCentre)}
         </FormulaLine>
         <FormulaLine>
-          Dobbelt så tykk kropp gir fire ganger så lang tid.
+          Overflate per volum (kule): A/V = 6/d = 6/({fmt(d * 1000, d < 1e-3 ? 2 : 1)} mm) = {fmt(surfacePerVolume(d), surfacePerVolume(d) < 1 ? 3 : 1)} mm²
+          per mm³
         </FormulaLine>
-        <FormulaLine>Ficks lov: raskere diffusjon med stor overflate, stor forskjell og kort avstand.
-        </FormulaLine>
+        <FormulaLine>Dobbelt så tykk kropp: fire ganger så lang diffusjonstid og halvparten så mye overflate per volum.</FormulaLine>
+        <FormulaLine>Ficks lov: raskere diffusjon med stor overflate, stor forskjell og kort avstand.</FormulaLine>
       </Formula>
 
       <Explain>{explanation(strategy, d, cov)}</Explain>
@@ -342,7 +346,7 @@ function OrganHud({ box, d }: { box: Box; d: number }) {
           key={i}
           cx={X(0.06 + (i % 7) * 0.145)}
           cy={Y(0.2 + Math.floor(i / 7) * 0.08 + (i % 2) * 0.025)}
-          r={3.6}
+          r={3.6 * Math.max(1, f * 0.85)}
           fill={BIO.oksygenrikt}
           opacity={0.85}
         />
@@ -694,7 +698,8 @@ function explanation(s: GasStrategy, d: number, cov: number): ReactNode {
           </p>
           <p>
             Diffusjon går raskt over korte avstander, men tida øker med kvadratet av avstanden: med vanlig stoffskifte holder det bare for en
-            kropp som er opptil ca. {formatMeters(2 * RC_SKIN)} tykk. Dyr som bare puster gjennom huden, er derfor små (hjuldyr), flate
+            kropp som er opptil ca. {formatMeters(2 * RC_SKIN)} tykk. Samtidig vokser overflaten med kvadratet av størrelsen, mens volumet (og
+            O₂-behovet) vokser med kubikken: ti ganger tykkere kropp har ti ganger mindre overflate per volum. Dyr som bare puster gjennom huden, er derfor små (hjuldyr), flate
             (flatormer, og bendelormen kan bli flere meter lang) eller har lite levende vev (maneter). Meitemarken puster også gjennom huden,
             men den har blodkretsløp som frakter O₂ videre innover.
           </p>
@@ -742,8 +747,9 @@ function explanation(s: GasStrategy, d: number, cov: number): ReactNode {
         <>
           <p>
             <strong>Lunger og blod.</strong> Lungene ligger inne i kroppen, så den tynne overflaten holdes fuktig uten å tørke ut. Hos
-            mennesket gir 300–500 millioner lungeblærer (alveoler) en samlet overflate på ca. 70 m², omtrent som en badmintonbane, og luften
-            er bare ca. 0,6 µm fra blodet. Blodkretsløpet frakter O₂ videre til alle cellene, så kroppen kan bli stor: diffusjon alene ville
+            mennesket gir 300–500 millioner lungeblærer (alveoler) en samlet overflate på ca. {fmt(HUMAN_LUNG_AREA, 0)} m², omtrent{' '}
+            {fmt(HUMAN_LUNG_AREA / HUMAN_SKIN_AREA, 0)} ganger så mye som huden (ca. {fmt(HUMAN_SKIN_AREA, 1)} m²), og luften er bare ca. 0,6 µm
+            fra blodet. Blodkretsløpet frakter O₂ videre til alle cellene, så kroppen kan bli stor: diffusjon alene ville
             brukt ca. {t} inn til midten av en kropp som er {size} tykk.
           </p>
           <p>
