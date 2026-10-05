@@ -610,7 +610,7 @@ function explanation(s: LcSystem, kind: Kind, d: Disturbance, r: LcResult): Reac
       main = (
         <p>
           <strong>En katalysator forskyver ikke likevekten.</strong> Den senker aktiveringsenergien for reaksjonen begge veier, så farten mot høyre og mot
-          venstre øker like mye. Likevekten nås raskere, men den ligger på samme sted, og K er uendret.
+          venstre øker like mange ganger. Likevekten nås raskere, men den ligger på samme sted, og K er uendret.
           {s.id === 'haber' ? ' I Haber–Bosch-prosessen brukes jern som katalysator for at likevekten skal innstilles raskt nok.' : ''}
         </p>
       );

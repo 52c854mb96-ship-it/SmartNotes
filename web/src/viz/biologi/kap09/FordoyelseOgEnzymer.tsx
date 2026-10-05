@@ -49,7 +49,7 @@ type Mode = 'kanal' | 'enzym';
 
 const ENZYME_COLOR: Record<EnzymeId, string> = {
   amylase: BIO.sukker,
-  pepsin: BIO.serie[1],
+  pepsin: BIO.signal,
   trypsin: BIO.serie[0],
   lipase: BIO.serie[2],
 };
@@ -656,10 +656,12 @@ function Enzymes() {
 function EnzymeShape({ state, a, color }: { state: EnzymeState; a: number; color: string }) {
   const [ref, f] = useContainerTextScale<HTMLDivElement>();
   const lw = useLineScale();
-  const H = Math.round(190 + 80 * (f - 1));
-  const cx = 300;
-  const cy = H / 2 + 6;
-  const R = 70;
+  const narrow = f > 1.3;
+  const k = Math.min(1.5, Math.max(1, f * 0.85));
+  const H = Math.round(200 + 190 * (f - 1));
+  const cx = narrow ? 400 : 300;
+  const R = 70 * k;
+  const cy = narrow ? 40 + R + 8 : H / 2 + 6;
   const fits = state === 'aktivt' || state === 'kaldt';
   const denat = state === 'denaturert' || state === 'varmet';
   const distorted = state === 'feil-ph';

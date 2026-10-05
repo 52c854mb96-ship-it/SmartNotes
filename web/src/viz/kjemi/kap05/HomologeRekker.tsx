@@ -244,10 +244,10 @@ function BoilingPlot({ sid, n, height, f }: { sid: SeriesId; n: number; height: 
   const pts = (x: Series) => x.members.map((m) => [m.n, m.bp] as [number, number]);
   const m = seriesMember(sid, n);
   // Ved n = 1 er det ikke plass til venstre for punktet: tallet står til høyre, på samme høyde når kurven stiger bratt
-  // (alkanene), ellers under kurven
+  // (alkanene), ellers litt over kurven
   const next = s.members.find((x) => x.n === n + 1);
   const labelY = (sy: (v: number) => number) =>
-    n >= 2 ? sy(m.bp) - 18 * f : next && next.bp - m.bp > 40 ? sy(m.bp) + 6 * f : sy(m.bp) + 26 * f;
+    n >= 2 ? sy(m.bp) - 18 * f : next && next.bp - m.bp > 40 ? sy(m.bp) + 6 * f : sy(m.bp) - 14 * f;
   return (
     <Plot
       x={{ min: 1, max: 8, label: 'Antall karbonatomer n', ticks: [1, 2, 3, 4, 5, 6, 7, 8] }}
@@ -258,7 +258,7 @@ function BoilingPlot({ sid, n, height, f }: { sid: SeriesId; n: number; height: 
       {({ sx, sy, x0, x1 }) => (
         <g>
           <line x1={x0} x2={x1} y1={sy(25)} y2={sy(25)} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="6 5" />
-          <Txt x={x0 + 8} y={sy(25) - 8} anchor="start" size={0.75} muted>
+          <Txt x={x1 - 8} y={sy(25) - 8} anchor="end" size={0.75} muted>
             25 °C
           </Txt>
           {sid !== 'alkaner' && (
