@@ -99,14 +99,30 @@ export function peakAt(x: number, w: number, p: Peak): number {
   return peakShape(d, p);
 }
 
-/** Profil fra x = 0 til w med høyden `height(x)` over grunnlinja `base` (y opp er negativ). */
-export function profile(w: number, n: number, height: (x: number) => number, base = 0): Pt[] {
+/**
+ * Profil fra x = −margin til w + margin med høyden `height(x)` over grunnlinja `base` (y opp er negativ).
+ * Margen gir overlapp mellom kopiene når et periodisk landskap ruller, så det ikke blir hårfine glipper.
+ */
+export function profile(w: number, n: number, height: (x: number) => number, base = 0, margin = 0): Pt[] {
   const pts: Pt[] = [];
   const m = Math.max(2, Math.round(n));
   for (let i = 0; i <= m; i++) {
-    const x = (i / m) * w;
+    const x = -margin + (i / m) * (w + 2 * margin);
     pts.push([x, base - Math.max(0, height(x))]);
   }
+  return pts;
+}
+
+/**
+ * Periodisk sagtann: n verdier jevnt fordelt på [0, w), gjentatt én ekstra på hver side, så kanten (snøgrense,
+ * skogkant) passer sammen når landskapet ruller. `value(i)` kalles én gang per verdi.
+ */
+export function periodicSteps(w: number, n: number, value: (i: number) => number): Pt[] {
+  const m = Math.max(2, Math.round(n));
+  const vals: number[] = [];
+  for (let i = 0; i < m; i++) vals.push(value(i));
+  const pts: Pt[] = [];
+  for (let i = -1; i <= m + 1; i++) pts.push([(i / m) * w, vals[mod(i, m)]!]);
   return pts;
 }
 
@@ -125,12 +141,35 @@ export function topOf(pts: readonly Pt[]): number {
   return Number.isFinite(m) ? m : 0;
 }
 
+/** Sti med første punkt absolutt og resten relativt (kortere tekst for mange små trær). */
+function relPath(pts: readonly Pt[]): string {
+  const first = pts[0];
+  if (!first) return '';
+  let d = `M${r1(first[0])},${r1(first[1])}`;
+  let [px, py] = [r1(first[0]), r1(first[1])];
+  for (let i = 1; i < pts.length; i++) {
+    const [x, y] = [r1(pts[i]![0]), r1(pts[i]![1])];
+    d += `l${r1(x - px)},${r1(y - py)}`;
+    px = x;
+    py = y;
+  }
+  return `${d}z`;
+}
+
 /**
- * Silhuett av en gran i landskapet (tre etasjer), med foten midt på (cx, baseY), høyden th og halve bredden hw.
- * Med klokka, så mange trær og en bakke kan stå i samme sti uten hull.
+ * Silhuett av en gran i landskapet (tre etasjer, eller en enkel spiss når den er liten), med foten midt på
+ * (cx, baseY), høyden th og halve bredden hw. Med klokka, så mange trær og en bakke kan stå i samme sti uten hull.
  */
 export function spruceSilhouette(cx: number, baseY: number, th: number, hw: number): string {
-  const p: Pt[] = [
+  if (th < 12)
+    return relPath([
+      [cx - hw, baseY],
+      [cx - hw * 0.3, baseY - th * 0.55],
+      [cx, baseY - th],
+      [cx + hw * 0.3, baseY - th * 0.55],
+      [cx + hw, baseY],
+    ]);
+  return relPath([
     [cx - hw, baseY],
     [cx - hw * 0.42, baseY - th * 0.34],
     [cx - hw * 0.66, baseY - th * 0.33],
@@ -142,13 +181,19 @@ export function spruceSilhouette(cx: number, baseY: number, th: number, hw: numb
     [cx + hw * 0.66, baseY - th * 0.33],
     [cx + hw * 0.42, baseY - th * 0.34],
     [cx + hw, baseY],
-  ];
-  return polygon(p);
+  ]);
 }
 
 /** Høyre halvdel av samme gran (skyggesiden når lyset kommer fra venstre). */
 export function spruceShadeSide(cx: number, baseY: number, th: number, hw: number): string {
-  const p: Pt[] = [
+  if (th < 12)
+    return relPath([
+      [cx, baseY - th],
+      [cx + hw * 0.3, baseY - th * 0.55],
+      [cx + hw, baseY],
+      [cx + hw * 0.08, baseY],
+    ]);
+  return relPath([
     [cx, baseY - th],
     [cx + hw * 0.42, baseY - th * 0.63],
     [cx + hw * 0.24, baseY - th * 0.64],
@@ -156,8 +201,7 @@ export function spruceShadeSide(cx: number, baseY: number, th: number, hw: numbe
     [cx + hw * 0.42, baseY - th * 0.34],
     [cx + hw, baseY],
     [cx + hw * 0.08, baseY],
-  ];
-  return polygon(p);
+  ]);
 }
 
 /** Et punkt på en overflate med retningen (enhetsvektor) langs overflaten. */
@@ -221,4 +265,32 @@ export function wavePoints(x0: number, w: number, y0: number, amplitude: number,
     pts.push([x, y0 - A * Math.sin((2 * Math.PI * (x - x0)) / lam - ph)]);
   }
   return pts;
+}
+
+/** Tall i [0, 1) fra et heltall og et frø (samme svar hver gang), til mønstre som ruller med forskyvningen. */
+export function hash01(i: number, seed: number): number {
+  let h = Math.imul((Math.floor(i) | 0) ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(Math.floor(seed) | 0, 0xc2b2ae35);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0x27d4eb2f);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+/** Myk støy i [0, 1) langs x (cosinus-interpolert mellom faste verdier hver `spacing`), til myke kanter i snø. */
+export function edgeNoise(x: number, spacing: number, seed: number): number {
+  const s = spacing > 0 ? spacing : 1;
+  const i = Math.floor(x / s);
+  const f = x / s - i;
+  const a = hash01(i, seed);
+  const b = hash01(i + 1, seed);
+  const t = (1 - Math.cos(Math.PI * f)) / 2;
+  return a + (b - a) * t;
+}
+
+/**
+ * Flytter en sti fra bakgrunnsgeneratorene vannrett: alle absolutte M- og L-punkter får + dx (buer og andre relative
+ * kommandoer er uendret). Brukes til å legge to perioder av et rullende landskap i samme sti, så det ikke blir søm.
+ */
+export function shiftPath(d: string, dx: number): string {
+  return d.replace(/([ML])(-?\d+(?:\.\d+)?)(?=,)/g, (_m, c: string, x: string) => `${c}${r2(Number(x) + dx)}`);
 }

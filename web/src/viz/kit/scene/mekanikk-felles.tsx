@@ -1,10 +1,9 @@
 /**
  * Interne hjelpere for familien «mekanikk» (mekanikk.tsx og mekanikk-*.tsx). Eksporteres ikke fra scene-kit-et.
  */
-import './mekanikk.css';
 import { useTextScale } from '../controls';
 
-/** Farger som bare familien «mekanikk» bruker (mekanikk.css). */
+/** Farger som bare familien «mekanikk» bruker (mekanikk.css, importert fra mekanikk.tsx). */
 export const MEK = {
   papp: 'var(--sc-mekanikk-papp)',
   pappDark: 'var(--sc-mekanikk-papp-dark)',
@@ -23,6 +22,8 @@ export const MEK = {
   inkStein: 'var(--sc-mekanikk-ink-stein)',
   inkGummi: 'var(--sc-mekanikk-ink-gummi)',
   inkIs: 'var(--sc-mekanikk-ink-is)',
+  /** Baksiden av vindingene i en fjær (lys nok til å synes mot mørk bakgrunn). */
+  coilBack: 'var(--sc-mekanikk-coil-back)',
 } as const;
 
 /** Tallet, eller `fallback` når det mangler eller ikke er endelig. */
@@ -48,7 +49,7 @@ export function pt(x: number, y: number): string {
 
 /**
  * Skalasteg: stort steg (med tall) som gir omtrent `labels` tall over `range`, og et lite steg (streker) som ikke
- * kommer tettere enn `minGap` figurenheter når `unitsPerStep` er figurenheter per enhet på skalaen.
+ * kommer tettere enn `minGap` figurenheter når `unitsPerValue` er figurenheter per enhet på skalaen.
  */
 export function scaleSteps(range: number, labels: number, unitsPerValue: number, minGap: number): { major: number; minor: number } {
   const span = Math.abs(range) > 0 ? Math.abs(range) : 1;
@@ -124,4 +125,55 @@ export function ObjectText({
     </text>
   );
   return mirror ? <g transform={`translate(${r2(2 * x)} 0) scale(-1 1)`}>{node}</g> : node;
+}
+
+/**
+ * Skruefjær sett fra siden mellom (x1, y1) og (x2, y2): to path-strenger, forsiden og baksiden av vindingene.
+ * Vindingene er litt skrå (som sett litt fra enden), så for- og bakside skilles. `lead` er rett tråd i hver ende.
+ * `minPitch` er den minste avstanden mellom vindingene (tråden): presses fjæra kortere enn det, blir de rette endene
+ * kortere først, og til slutt tegnes den som blokklengde (vindingene ligger inntil hverandre) fra (x1, y1).
+ */
+export function coilPaths(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  radius: number,
+  turns: number,
+  lead: number,
+  tilt = 0.12,
+  minPitch = 0,
+): { front: string; back: string } {
+  const L = Math.hypot(x2 - x1, y2 - y1);
+  if (!(L > 0.5)) return { front: '', back: '' };
+  const ux = (x2 - x1) / L;
+  const uy = (y2 - y1) / L;
+  const nx = -uy;
+  const ny = ux;
+  const block = turns * Math.max(0, minPitch);
+  const ld = clamp((L - block) / 2, 0, Math.min(lead, L * 0.2));
+  const a0 = ld;
+  const pitch = Math.max(minPitch, (L - 2 * ld) / turns);
+  // Blokklengde: enden følger vindingene, ikke (x2, y2)
+  const endX = block > L ? x1 + ux * block : x2;
+  const endY = block > L ? y1 + uy * block : y2;
+  const map = (s: number, lat: number) => pt(x1 + ux * s + nx * lat, y1 + uy * s + ny * lat);
+  const at = (phi: number) => map(a0 + (pitch * phi) / (2 * Math.PI) + tilt * radius * (Math.cos(phi) - 1), radius * Math.sin(phi));
+  const end = 2 * Math.PI * turns;
+  const front: string[] = [];
+  const back: string[] = [];
+  const SAMPLES = 7;
+  for (let k = 0; k <= 2 * turns; k++) {
+    const p0 = Math.max(0, -Math.PI / 2 + k * Math.PI);
+    const p1 = Math.min(end, Math.PI / 2 + k * Math.PI);
+    if (p1 <= p0) continue;
+    const pts: string[] = [];
+    for (let i = 0; i <= SAMPLES; i++) pts.push(at(p0 + ((p1 - p0) * i) / SAMPLES));
+    const isFront = k % 2 === 0;
+    let d = `M${pts.join(' L')}`;
+    if (isFront && k === 0) d = `M${pt(x1, y1)} L${pts.join(' L')}`;
+    if (isFront && k === 2 * turns) d += ` L${pt(endX, endY)}`;
+    (isFront ? front : back).push(d);
+  }
+  return { front: front.join(' '), back: back.join(' ') };
 }

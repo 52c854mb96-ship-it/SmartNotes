@@ -24,6 +24,7 @@
   --sc-mekanikk-ink-stein: #262624;
   --sc-mekanikk-ink-gummi: #e4e6e9;
   --sc-mekanikk-ink-is: #1f4a66;
+  --sc-mekanikk-coil-back: #6f7983;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -45,6 +46,7 @@
     --sc-mekanikk-ink-stein: #eeeeea;
     --sc-mekanikk-ink-gummi: #d2d5d9;
     --sc-mekanikk-ink-is: #eef8fd;
+    --sc-mekanikk-coil-back: #7f8994;
   }
 }
 
@@ -66,4 +68,5 @@
   --sc-mekanikk-ink-stein: #eeeeea;
   --sc-mekanikk-ink-gummi: #d2d5d9;
   --sc-mekanikk-ink-is: #eef8fd;
+  --sc-mekanikk-coil-back: #7f8994;
 }

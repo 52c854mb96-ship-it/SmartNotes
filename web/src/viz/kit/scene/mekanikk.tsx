@@ -64,8 +64,13 @@ export interface KasseProps extends Omit<SceneObjectProps, 'size'> {
   h: number;
   /** Trekasse med planker og skråstag, eller pappeske med teip. Standard «tre». */
   materiale?: 'tre' | 'papp';
-  /** Kort tekst på en lapp midt på siden, f.eks. «20 kg» eller «m». */
+  /** Kort tekst på en lapp på siden, f.eks. «20 kg» eller «m». */
   label?: string;
+  /**
+   * Hvor lappen sitter: «midt» (standard) eller «oppe-venstre», som holder midtlinjene fri, så kraftpiler som starter
+   * midt i kassen ikke dekker teksten.
+   */
+  labelPlass?: 'midt' | 'oppe-venstre';
   /** Myk skygge under kassen (standard på). Slå av når kassen henger eller flyr. */
   skygge?: boolean;
 }
@@ -76,7 +81,7 @@ export interface KasseProps extends Omit<SceneObjectProps, 'size'> {
  *   <Kasse x={300} y={260} w={110} h={80} label="20 kg" />
  *   <Kasse {...rampePunkt(rampe, 180)} w={70} h={56} materiale="papp" />
  */
-export function Kasse({ x, y, w, h, materiale = 'tre', label, rotate, flip, dim, title, skygge = true }: KasseProps) {
+export function Kasse({ x, y, w, h, materiale = 'tre', label, labelPlass = 'midt', rotate, flip, dim, title, skygge = true }: KasseProps) {
   const id = useSvgId('sc-kasse');
   const ss = useStrokeScale();
   const f = useTextScale();
@@ -97,7 +102,7 @@ export function Kasse({ x, y, w, h, materiale = 'tre', label, rotate, flip, dim,
       <>
         <LinearGradient id={`${id}a`} stops={materialStops(MEK.papp, 0.8)} />
         <rect x={L} y={T} width={W} height={H} rx={rx} fill={`url(#${id}a)`} />
-        {/* Brettekanter og en svak bølgepapp-stripe langs toppen */}
+        {/* Brettekanter ved hjørnene */}
         <path
           d={`M${pt(L + W * 0.025, T + 1.5)} V${r2(-1.5)} M${pt(-L - W * 0.025, T + 1.5)} V${r2(-1.5)}`}
           stroke={MEK.pappDark}
@@ -108,12 +113,14 @@ export function Kasse({ x, y, w, h, materiale = 'tre', label, rotate, flip, dim,
         <path
           d={`M${pt(-tw / 2, T)} H${r2(tw / 2)} V${r2(T + top)} L${pt(tw / 2 - tooth / 2, T + top - jag)} L${pt(tw / 2 - tooth, T + top)} L${pt(-tw / 2 + tooth, T + top - jag)} L${pt(-tw / 2 + tooth / 2, T + top)} L${pt(-tw / 2, T + top - jag)} Z`}
           fill={MEK.teip}
-          opacity={0.9}
+          stroke={shade(MEK.teip, 0.25)}
+          strokeWidth={0.6 * ss}
         />
         <path
           d={`M${pt(-tw / 2, 0)} H${r2(tw / 2)} V${r2(-bot)} L${pt(0, -bot + jag)} L${pt(-tw / 2, -bot)} Z`}
           fill={MEK.teip}
-          opacity={0.9}
+          stroke={shade(MEK.teip, 0.25)}
+          strokeWidth={0.6 * ss}
         />
         <path
           d={`M${pt(-tw * 0.28, T + 1)} V${r2(T + top - jag * 1.5)} M${pt(-tw * 0.28, -1)} V${r2(-bot + jag * 1.5)}`}
@@ -174,16 +181,20 @@ export function Kasse({ x, y, w, h, materiale = 'tre', label, rotate, flip, dim,
     );
   }
 
-  // Lapp med tekst midt på siden
+  // Lapp med tekst: midt på siden, eller i øvre venstre kvadrant (fri for kraftpiler fra midten)
   let tag = null;
   if (label) {
+    const corner = labelPlass === 'oppe-venstre';
     const px = 14 * f;
-    const ph = Math.min(H * 0.42, px * 1.45);
-    const pw = Math.min(W * 0.8, label.length * px * 0.6 + px * 0.9);
+    const maxW = corner ? W * 0.42 : W * 0.8;
+    const ph = Math.min(H * (corner ? 0.3 : 0.42), px * 1.45);
+    const pw = Math.min(maxW, label.length * px * 0.6 + px * 0.9);
+    const cx = corner ? -W * 0.06 - pw / 2 : 0;
+    const cy = corner ? -H + Math.max(H * 0.1, Math.min(W, H) * 0.13 + 1) + ph / 2 : -H / 2;
     tag = (
       <g>
-        <rect x={-pw / 2} y={-H / 2 - ph / 2} width={pw} height={ph} rx={Math.min(2, ph * 0.15)} fill={MEK.paper} stroke={shade(MEK.paper, 0.35)} strokeWidth={0.7 * ss} />
-        <ObjectText x={0} y={-H / 2} w={pw * 0.88} h={ph * 0.82} text={label} color={MEK.print} mirror={flip} />
+        <rect x={cx - pw / 2} y={cy - ph / 2} width={pw} height={ph} rx={Math.min(2, ph * 0.15)} fill={MEK.paper} stroke={shade(MEK.paper, 0.35)} strokeWidth={0.7 * ss} />
+        <ObjectText x={cx} y={cy} w={pw * 0.88} h={ph * 0.82} text={label} color={MEK.print} mirror={flip} />
       </g>
     );
   }
@@ -210,8 +221,10 @@ export interface KlossProps extends Omit<SceneObjectProps, 'size'> {
   /** Høyde i figurens enheter. */
   h: number;
   materiale: KlossMateriale;
-  /** Kort tekst midt på klossen, f.eks. «A», «m» eller «2,0 kg». */
+  /** Kort tekst på klossen, f.eks. «A», «m» eller «2,0 kg». */
   label?: string;
+  /** Hvor teksten står: «midt» (standard) eller «oppe-venstre», som holder midtlinjene fri for kraftpiler. */
+  labelPlass?: 'midt' | 'oppe-venstre';
   /** Fargen på en plastkloss (navn fra PAINTS eller en CSS-farge). Standard «gul». */
   farge?: PaintName | string;
   /**
@@ -229,7 +242,7 @@ export interface KlossProps extends Omit<SceneObjectProps, 'size'> {
  *   <Kloss x={240} y={300} w={80} h={50} materiale="tre" label="A" krok="hoyre" />
  *   <Kloss {...rampePunkt(rampe, 150)} w={60} h={40} materiale="is" />
  */
-export function Kloss({ x, y, w, h, materiale, label, farge, krok, rotate, flip, dim, title, skygge = true }: KlossProps) {
+export function Kloss({ x, y, w, h, materiale, label, labelPlass = 'midt', farge, krok, rotate, flip, dim, title, skygge = true }: KlossProps) {
   const id = useSvgId('sc-kloss');
   const ss = useStrokeScale();
   const W = Math.max(3, num(w, 60));
@@ -378,7 +391,12 @@ export function Kloss({ x, y, w, h, materiale, label, farge, krok, rotate, flip,
         strokeWidth={1 * ss}
       />
       <line x1={L + Math.max(1.5, rx * 0.7)} y1={T + 0.9 * ss} x2={-L - Math.max(1.5, rx * 0.7)} y2={T + 0.9 * ss} stroke={SCENE.highlight} strokeWidth={1.2 * ss} strokeLinecap="round" />
-      {label && <ObjectText x={0} y={-H / 2} w={W * 0.84} h={H * 0.62} text={label} color={ink} mirror={flip} max={16} />}
+      {label &&
+        (labelPlass === 'oppe-venstre' ? (
+          <ObjectText x={-W / 4} y={-H * 0.74} w={W * 0.42} h={H * 0.4} text={label} color={ink} mirror={flip} max={16} />
+        ) : (
+          <ObjectText x={0} y={-H / 2} w={W * 0.84} h={H * 0.62} text={label} color={ink} mirror={flip} max={16} />
+        ))}
     </Place>
   );
 }
@@ -403,6 +421,9 @@ export interface BallProps {
   dim?: boolean;
   title?: string;
 }
+
+/** Hvor blankt høylyset er: filt og lær er matt, gummi og stål blankt. */
+const GLOSS: Record<BallType, number> = { fotball: 0.8, tennis: 0.3, staal: 0.9, gummi: 0.85, basket: 0.45, golf: 0.7 };
 
 const pentagon = (size: number, start: number) =>
   Array.from({ length: 5 }, (_, i) => {
@@ -437,31 +458,47 @@ export function Ball({ x, y, r, type, spinn = 0, farge, bakke, dim, title }: Bal
   let pattern = null;
   switch (type) {
     case 'fotball': {
+      // Avkortet ikosaeder sett rett forfra: én femkant midt på, fem forkortede femkanter mot kanten og sømmene
+      // mellom sekskantene.
       const p = R * 0.36;
+      const op = p * 0.95;
+      const dist = R * 0.93;
+      const squash = 0.42;
+      const outer = (k: number, i: number): [number, number] => {
+        const a = (-90 + k * 72) * DEG;
+        const b = (180 + i * 72) * DEG;
+        const lx = dist + Math.cos(b) * op * squash;
+        const ly = Math.sin(b) * op;
+        return [lx * Math.cos(a) - ly * Math.sin(a), lx * Math.sin(a) + ly * Math.cos(a)];
+      };
       const seams: string[] = [];
       for (let k = 0; k < 5; k++) {
         const a = (-90 + k * 72) * DEG;
-        const m = (-54 + k * 72) * DEG;
-        seams.push(`M${pt(Math.cos(a) * p, Math.sin(a) * p)} L${pt(Math.cos(a) * R * 0.72, Math.sin(a) * R * 0.72)}`);
-        seams.push(`M${pt(Math.cos(m) * R * 0.66, Math.sin(m) * R * 0.66)} L${pt(Math.cos(m) * R * 1.05, Math.sin(m) * R * 1.05)}`);
-        seams.push(`M${pt(Math.cos(a) * R * 0.72, Math.sin(a) * R * 0.72)} L${pt(Math.cos(m) * R * 0.66, Math.sin(m) * R * 0.66)}`);
-        seams.push(`M${pt(Math.cos(a + 72 * DEG) * R * 0.72, Math.sin(a + 72 * DEG) * R * 0.72)} L${pt(Math.cos(m) * R * 0.66, Math.sin(m) * R * 0.66)}`);
+        const [ix, iy] = outer(k, 0);
+        const [sx, sy] = outer(k, 4);
+        const [nx, ny] = outer(k + 1, 1);
+        seams.push(`M${pt(Math.cos(a) * p, Math.sin(a) * p)} L${pt(ix, iy)}`);
+        seams.push(`M${pt(sx, sy)} L${pt(nx, ny)}`);
+        for (const [vx, vy] of [
+          [sx, sy],
+          [nx, ny],
+        ] as const) {
+          const l = Math.hypot(vx, vy) || 1;
+          seams.push(`M${pt(vx, vy)} L${pt((vx / l) * R * 1.05, (vy / l) * R * 1.05)}`);
+        }
       }
       pattern = (
         <g>
-          <path d={seams.join(' ')} stroke={shade(PAINTS.hvit, 0.4)} strokeWidth={sw(0.025)} fill="none" />
-          <polygon points={pentagon(p, -90)} fill={PAINTS.svart} />
-          {[0, 1, 2, 3, 4].map((k) => {
-            const a = -90 + k * 72;
-            return (
-              <polygon
-                key={k}
-                points={pentagon(p * 0.95, 180)}
-                transform={`rotate(${a}) translate(${r2(R * 0.93)} 0) scale(0.42 1)`}
-                fill={PAINTS.svart}
-              />
-            );
-          })}
+          <path d={seams.join(' ')} stroke={shade(PAINTS.hvit, 0.42)} strokeWidth={sw(0.028)} fill="none" strokeLinecap="round" />
+          <polygon points={pentagon(p, -90)} fill={PAINTS.svart} stroke={PAINTS.svart} strokeWidth={sw(0.02)} strokeLinejoin="round" />
+          {[0, 1, 2, 3, 4].map((k) => (
+            <polygon
+              key={k}
+              points={pentagon(op, 180)}
+              transform={`rotate(${-90 + k * 72}) translate(${r2(dist)} 0) scale(${squash} 1)`}
+              fill={PAINTS.svart}
+            />
+          ))}
         </g>
       );
       break;
@@ -572,7 +609,7 @@ export function Ball({ x, y, r, type, spinn = 0, farge, bakke, dim, title }: Bal
           ry={R * (metal ? 0.12 : 0.15)}
           transform={`rotate(-35 ${r2(-R * 0.36)} ${r2(-R * 0.4)})`}
           fill={metal ? tint(SCENE.metalLight, 0.7) : SCENE.highlight}
-          opacity={metal ? 0.9 : 0.85}
+          opacity={GLOSS[type]}
         />
         <circle r={R} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} />
       </g>
@@ -582,14 +619,13 @@ export function Ball({ x, y, r, type, spinn = 0, farge, bakke, dim, title }: Bal
 
 /* ---------------------------------------------------------------- Curlingstein */
 
-export interface CurlingsteinProps extends Omit<SceneObjectProps, 'size' | 'rotate'> {
+export interface CurlingsteinProps extends Omit<SceneObjectProps, 'size'> {
   /** Diameteren i figurens enheter (ekte stein: 29 cm bred og 11 cm høy, med håndtak ca. 16 cm totalt). */
   size?: number;
   /** Fargen på håndtaket og lokket (navn fra PAINTS eller CSS-farge). Standard «rod». */
   lakk?: PaintName | string;
   /** Myk skygge under steinen (standard på). */
   skygge?: boolean;
-  rotate?: number;
 }
 
 /**
@@ -716,7 +752,8 @@ export function Bord({ x, y, w, h, type = 'lab', dim, title }: BordProps) {
           strokeWidth={0.8 * ss}
         />
       )}
-      <path d={`${leg(-1)} ${leg(1)}`} fill={`url(#${id}l)`} stroke={SCENE.outline} strokeWidth={0.9 * ss} />
+      <path d={leg(-1)} fill={`url(#${id}l)`} stroke={SCENE.outline} strokeWidth={0.9 * ss} />
+      <path d={leg(1)} fill={`url(#${id}l)`} stroke={SCENE.outline} strokeWidth={0.9 * ss} />
       {lab && (
         <g fill={SCENE.rubber}>
           <rect x={-legX - legW * 0.65} y={Hh - legW * 0.45} width={legW * 1.3} height={legW * 0.45} rx={legW * 0.15} />
@@ -794,7 +831,6 @@ export function Rampe({ x, y, lengde, vinkel, retning = 'opp-hoyre', materiale =
   const plank = flat
     ? `M0,0 H${r2(L)} V${r2(t)} H0 Z`
     : `M0,0 L${pt(tx, ty)} L${pt(tx, ty + lowBack)} L${pt(lowToe, 0)} Z`;
-  const plankY = flat ? 0 : 0;
 
   let under = null;
   if (!flat) {
@@ -810,13 +846,14 @@ export function Rampe({ x, y, lengde, vinkel, retning = 'opp-hoyre', materiale =
           <LinearGradient id={`${id}a`} stops={materialStops(SCENE.wood, 0.8)} />
           <path d={`M0,0 L${pt(tx, ty)} V0 Z`} fill={`url(#${id}a)`} />
           {grain && <path d={grain} stroke={shade(SCENE.wood, 0.35)} strokeWidth={0.7 * ss} opacity={0.5} />}
-          <path d={`M${pt(tx, ty)} V0`} stroke={shade(SCENE.wood, 0.3)} strokeWidth={Math.max(2, t * 0.6)} opacity={0.5} />
+          <path d={`M${pt(tx - Math.max(2, t * 0.6) / 2, ty + Math.max(2, t * 0.6))} V0`} stroke={shade(SCENE.wood, 0.3)} strokeWidth={Math.max(2, t * 0.6)} opacity={0.5} />
         </>
       );
     } else {
       const pw = clamp(L * 0.025, 3, 8);
-      const midX = tx * 0.45;
-      const midY = ty * 0.45;
+      // Punkt på undersiden av platen midt på (normalen inn i rampa er (sin, cos))
+      const midX = tx * 0.42 + s * t;
+      const midY = ty * 0.42 + c * t;
       under = (
         <g stroke={SCENE.outline} strokeWidth={0.8 * ss}>
           <rect x={0} y={-pw * 0.6} width={tx} height={pw * 0.6} fill={SCENE.metalDark} />
@@ -825,7 +862,7 @@ export function Rampe({ x, y, lengde, vinkel, retning = 'opp-hoyre', materiale =
             fill={SCENE.metal}
           />
           <path
-            d={`M${pt(midX + lowBack * 0.3, midY + lowBack * 0.6)} L${pt(tx - pw * 0.9, -pw * 0.6)}`}
+            d={`M${pt(midX, midY)} L${pt(tx - pw * 0.9, -pw * 0.6)}`}
             stroke={SCENE.metalDark}
             strokeWidth={pw * 0.55}
             strokeLinecap="round"
@@ -839,7 +876,7 @@ export function Rampe({ x, y, lengde, vinkel, retning = 'opp-hoyre', materiale =
   return (
     <Place x={x} y={y} flip={retning === 'opp-venstre'} opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
-      <ContactShadow cx={(flat ? L : tx) * 0.55} cy={0} rx={(flat ? L : tx) * 0.55} ry={Math.max(3, Math.min(8, tx * 0.03))} opacity={0.7} />
+      <ContactShadow cx={(flat ? L : tx) * 0.5} cy={0} rx={(flat ? L : tx) * 0.56} ry={Math.max(3, Math.min(8, tx * 0.03))} opacity={0.7} />
       {under}
       <LinearGradient
         id={`${id}p`}
@@ -853,7 +890,7 @@ export function Rampe({ x, y, lengde, vinkel, retning = 'opp-hoyre', materiale =
               ]
         }
       />
-      <path d={plank} fill={`url(#${id}p)`} transform={plankY ? `translate(0 ${plankY})` : undefined} />
+      <path d={plank} fill={`url(#${id}p)`} />
       {wood && !flat && <path d={`M${pt(0, 0)} L${pt(tx, ty)} V0 Z`} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} strokeLinejoin="round" />}
       <path d={plank} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} strokeLinejoin="round" />
       <line
@@ -907,7 +944,8 @@ export interface LoddProps extends Omit<SceneObjectProps, 'size' | 'flip'> {
 
 /**
  * Lodd med krok fra fysikklaben: sylinder i messing med hals og krok. Ankerpunkt: (x, y) er toppen av kroken; bunnen
- * er i y + 2 · size.
+ * er i y + 2 · size, og tyngdepunktet (midt i sylinderen) i y + 1,36 · size. Teksten står øverst på sylinderen, så en
+ * G-pil fra tyngdepunktet ikke dekker den.
  *   <Lodd x={400} y={kraftmaalerBunn} size={34} label="500 g" />
  */
 export function Lodd({ x, y, size = 30, label, materiale = 'messing', rotate, dim, title }: LoddProps) {
@@ -919,14 +957,13 @@ export function Lodd({ x, y, size = 30, label, materiale = 'messing', rotate, di
   const rho = D * 0.17;
   const hc = rho - wire / 2;
   const neck0 = D * 0.5;
-  const neck1 = D * 0.72;
   const e = D * 0.09;
-  const bTop = neck1;
+  const bTop = D * 0.72;
   const bBot = D * 2;
   const hook = `M0,${r2(neck0)} C${pt(0, hc + rho * 1.6)} ${pt(-rho, hc + rho * 1.4)} ${pt(-rho, hc)} A${r2(rho)},${r2(rho)} 0 0 1 ${pt(rho, hc)} L${pt(rho, hc + rho * 0.5)}`;
   const body = `M${pt(-D / 2, bTop + e)} V${r2(bBot - e)} A${r2(D / 2)},${r2(e)} 0 0 0 ${pt(D / 2, bBot - e)} V${r2(bTop + e)} Z`;
   const nw = D * 0.34;
-  const neck = `M${pt(-nw / 2, neck0)} V${r2(neck1)} A${r2(nw / 2)},${r2(e * 0.4)} 0 0 0 ${pt(nw / 2, neck1)} V${r2(neck0)} Z`;
+  const neck = `M${pt(-nw / 2, neck0)} V${r2(bTop + e)} A${r2(nw / 2)},${r2(e * 0.4)} 0 0 0 ${pt(nw / 2, bTop + e)} V${r2(neck0)} Z`;
   return (
     <Place x={x} y={y} rotate={rotate} opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
@@ -943,16 +980,16 @@ export function Lodd({ x, y, size = 30, label, materiale = 'messing', rotate, di
       />
       <path d={hook} fill="none" stroke={SCENE.outline} strokeWidth={wire + 1.4 * ss} strokeLinecap="round" />
       <path d={hook} fill="none" stroke={SCENE.metal} strokeWidth={wire} strokeLinecap="round" />
-      <path d={neck} fill={`url(#${id}a)`} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
-      <ellipse cx={0} cy={neck0} rx={nw / 2} ry={e * 0.4} fill={tint(base, 0.35)} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
       <path d={body} fill={`url(#${id}a)`} />
       <ellipse cx={0} cy={bTop + e} rx={D / 2} ry={e} fill={tint(base, 0.3)} />
-      <ellipse cx={0} cy={bTop + e} rx={nw / 2} ry={e * 0.4} fill={shade(base, 0.2)} opacity={0.6} />
       <path d={body} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} />
       <path d={`M${pt(-D / 2, bTop + e)} A${r2(D / 2)},${r2(e)} 0 0 1 ${pt(D / 2, bTop + e)}`} fill="none" stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+      <ellipse cx={0} cy={bTop + e} rx={nw * 0.62} ry={e * 0.5} fill={shade(base, 0.3)} opacity={0.55} />
+      <path d={neck} fill={`url(#${id}a)`} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+      <ellipse cx={0} cy={neck0} rx={nw / 2} ry={e * 0.4} fill={tint(base, 0.35)} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
       <line x1={-D * 0.3} y1={bTop + e * 2.2} x2={-D * 0.3} y2={bBot - e * 1.8} stroke={SCENE.highlight} strokeWidth={Math.max(1, D * 0.05)} strokeLinecap="round" />
       {label && (
-        <ObjectText x={D * 0.04} y={(bTop + bBot) / 2 + e * 0.5} w={D * 0.86} h={D * 0.4} text={label} color={shade(base, 0.6)} weight={760} max={14} />
+        <ObjectText x={D * 0.04} y={bTop + e * 2 + D * 0.16} w={D * 0.86} h={D * 0.34} text={label} color={shade(base, 0.6)} weight={760} max={14} />
       )}
     </Place>
   );

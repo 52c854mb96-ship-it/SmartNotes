@@ -1,5 +1,5 @@
 /*
- * Ekstra farger for kjøretøyene i scene-kit-et (kjoretoy.tsx): bilglass, lykter, lyskjegle og tau.
+ * Ekstra farger for kjøretøyene i scene-kit-et (kjoretoy.tsx): bilglass, lykter, lyskjegle, tau og seter.
  * Samme mønster som scene.css: lyst tema, mørkt tema ved systemvalg uten data-theme, og data-theme="dark".
  * Verdiene i de to mørke blokkene må være like.
  */
@@ -17,6 +17,8 @@
   --sc-kjoretoy-trim: #33373c;
   /* Tau på akebrett og kjelke */
   --sc-kjoretoy-rope: #c9b27a;
+  /* Polstrede seter i berg-og-dal-vogna (dempet skiferblå) */
+  --sc-kjoretoy-seat: #50607a;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -29,6 +31,7 @@
     --sc-kjoretoy-beam: #ffe7a3;
     --sc-kjoretoy-trim: #15171a;
     --sc-kjoretoy-rope: #8c7c55;
+    --sc-kjoretoy-seat: #5b6b84;
   }
 }
 
@@ -41,4 +44,5 @@
   --sc-kjoretoy-beam: #ffe7a3;
   --sc-kjoretoy-trim: #15171a;
   --sc-kjoretoy-rope: #8c7c55;
+  --sc-kjoretoy-seat: #5b6b84;
 }

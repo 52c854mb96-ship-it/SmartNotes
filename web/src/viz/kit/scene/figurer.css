@@ -1,0 +1,45 @@
+/*
+ * Farger for familien «figurer» i scene-kit-et (personer og fallskjerm): hudtoner, hårfarger, øyne og liner.
+ * Samme mønster som scene.css: lyst tema, mørkt tema ved systemvalg og mørkt tema ved data-theme="dark"
+ * (de to mørke blokkene må være like). Mørkt tema er skumring: samme farger, mindre lys.
+ */
+:root {
+  --sc-figurer-hud-lys: #f2cdb0;
+  --sc-figurer-hud-middels: #cf9a72;
+  --sc-figurer-hud-mork: #8c5b3d;
+  --sc-figurer-har-blond: #d6b46c;
+  --sc-figurer-har-brun: #6e4b31;
+  --sc-figurer-har-svart: #2b2623;
+  --sc-figurer-har-rod: #b05a38;
+  --sc-figurer-har-graa: #b3b0aa;
+  --sc-figurer-oye: #2e2622;
+  --sc-figurer-line: #59636e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --sc-figurer-hud-lys: #c9a189;
+    --sc-figurer-hud-middels: #a67a5b;
+    --sc-figurer-hud-mork: #6d4733;
+    --sc-figurer-har-blond: #a88d55;
+    --sc-figurer-har-brun: #4d3524;
+    --sc-figurer-har-svart: #1d1917;
+    --sc-figurer-har-rod: #87452c;
+    --sc-figurer-har-graa: #8a8782;
+    --sc-figurer-oye: #1b1613;
+    --sc-figurer-line: #a3aebb;
+  }
+}
+
+:root[data-theme='dark'] {
+  --sc-figurer-hud-lys: #c9a189;
+  --sc-figurer-hud-middels: #a67a5b;
+  --sc-figurer-hud-mork: #6d4733;
+  --sc-figurer-har-blond: #a88d55;
+  --sc-figurer-har-brun: #4d3524;
+  --sc-figurer-har-svart: #1d1917;
+  --sc-figurer-har-rod: #87452c;
+  --sc-figurer-har-graa: #8a8782;
+  --sc-figurer-oye: #1b1613;
+  --sc-figurer-line: #a3aebb;
+}
