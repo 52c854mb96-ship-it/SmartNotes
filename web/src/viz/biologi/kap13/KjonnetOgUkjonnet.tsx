@@ -153,13 +153,24 @@ export default function KjonnetOgUkjonnet() {
       <Formula label="Avkom per individ">
         <FormulaLine>Avkom per individ som blir voksne: λ = avkom · gjennomsnittlig overlevelse (λ &lt; 1: bestanden minker)</FormulaLine>
         <FormulaLine>
-          Ukjønnet: λ = {OFFSPRING_ASEX} · {a.N > 0 ? fmt(a.wbar, 2) : '–'} = {a.N > 0 ? fmt(a.lambda, 2) : '–'}
-          {a.N > 0 ? (a.lambda < 1 ? ' (minker)' : '') : ' (utdødd)'}
+          {a.N > 0 ? (
+            <>
+              Ukjønnet: λ = {OFFSPRING_ASEX} · {fmt(a.wbar, 2)} = {fmt(a.lambda, 2)}
+              {a.lambda < 1 ? ' (minker)' : ''}
+            </>
+          ) : (
+            'Ukjønnet: utdødd'
+          )}
         </FormulaLine>
         <FormulaLine>
-          Kjønnet: λ = {OFFSPRING_SEX} · {s.N > 0 ? fmt(s.wbar, 2) : '–'} = {s.N > 0 ? fmt(s.lambda, 2) : '–'}
-          {s.N > 0 ? (s.lambda < 1 ? ' (minker)' : '') : ' (utdødd)'} · bare hunnene føder, derfor {OFFSPRING_SEX} og ikke{' '}
-          {OFFSPRING_ASEX}
+          {s.N > 0 ? (
+            <>
+              Kjønnet: λ = {OFFSPRING_SEX} · {fmt(s.wbar, 2)} = {fmt(s.lambda, 2)}
+              {s.lambda < 1 ? ' (minker)' : ''} · bare hunnene føder, derfor {OFFSPRING_SEX} og ikke {OFFSPRING_ASEX}
+            </>
+          ) : (
+            'Kjønnet: utdødd'
+          )}
         </FormulaLine>
       </Formula>
 

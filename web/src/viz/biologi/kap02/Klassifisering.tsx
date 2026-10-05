@@ -455,6 +455,15 @@ function explanation(A: Organism, B: Organism, s: number): ReactNode {
         fotosyntese, og celleveggen er av kitin (som skallet til insekter), ikke cellulose. Sopp er et eget rike.
       </p>,
     );
+  const fungus = [A, B].some((o) => o.lineage.rike.sci === 'Fungi');
+  const animal = [A, B].some((o) => o.lineage.rike.sci === 'Animalia');
+  if (fungus && animal)
+    extra.push(
+      <p key="soppdyr">
+        Sopp og dyr står i hvert sitt rike, men DNA viser at sopper er nærmere i slekt med dyr enn med planter. Både sopp og dyr lever av
+        organisk stoff som andre har laget, og lagrer karbohydrat som glykogen. Se slektskapstreet.
+      </p>,
+    );
   if (has('kongeorn') && (has('krokodille') || has('firfisle')))
     extra.push(
       <p key="fugl">

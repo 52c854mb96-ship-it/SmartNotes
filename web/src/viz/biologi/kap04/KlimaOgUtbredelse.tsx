@@ -261,7 +261,7 @@ function Mountain({
     }
   }
   const size = 30 * k;
-  const glyphs =
+  const candidates =
     fu && fu.to - fu.from > 40
       ? [
           { alt: fu.from + (fu.to - fu.from) * 0.35, side: -1 as const },
@@ -269,6 +269,12 @@ function Mountain({
           { alt: fu.from + (fu.to - fu.from) * 0.25, side: 1 as const },
         ]
       : [];
+  // Nær toppen er skråningene nær hverandre: dropp symboler som ville ligget oppå et annet
+  const glyphs: { x: number; y: number }[] = [];
+  for (const g of candidates) {
+    const p = { x: xAtAlt(g.alt, g.side) + g.side * -size * 0.9, y: yOf(g.alt) - size * 0.1 };
+    if (glyphs.every((q) => Math.hypot(q.x - p.x, q.y - p.y) > size * 1.05)) glyphs.push(p);
+  }
   const Glyph = kind === 'pattedyr' ? Pattedyr : kind === 'tre' ? Tre : Plante;
   const label = `Fjell med topp på ${fmt(peak, 0)} m. ${name} har passende klima ${td ? `fra ${fmt(td.from, 0)} til ${fmt(td.to, 0)} m i dag` : 'ingen steder i dag'}, og ${fu ? `fra ${fmt(fu.from, 0)} til ${fmt(fu.to, 0)} m` : 'ingen steder'} med ${fmt(dT, 1)} °C oppvarming.`;
   return (
@@ -306,10 +312,9 @@ function Mountain({
             <line key={i} x1={xAtAlt(a, -1) - 14} x2={xAtAlt(a, 1) + 14} y1={yOf(a)} y2={yOf(a)} stroke={VIZ.ink} strokeWidth={2} strokeDasharray="7 5" />
           ) : null,
         )}
-      {glyphs.map((g, i) => {
-        const x = xAtAlt(g.alt, g.side) + g.side * -size * 0.9;
-        return <Glyph key={i} x={x} y={yOf(g.alt) - size * 0.1} size={size} paint={glyphPaint} />;
-      })}
+      {glyphs.map((g, i) => (
+        <Glyph key={i} x={g.x} y={g.y} size={size} paint={glyphPaint} />
+      ))}
       {/* Temperaturgrensene med oppvarming, til høyre */}
       {fu &&
         [

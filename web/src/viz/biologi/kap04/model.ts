@@ -211,7 +211,7 @@ export function lincolnPetersen(M: number, C: number, R: number): number | null 
   return R > 0 ? (M * C) / R : null;
 }
 
-/** Chapmans korrigerte estimat (N + 1)…: (M + 1)(C + 1)/(R + 1) − 1. Nesten forventningsrett, og virker også når R = 0. */
+/** Chapmans korrigerte estimat: (M + 1)(C + 1)/(R + 1) − 1. Nesten forventningsrett, og virker også når R = 0. */
 export function chapman(M: number, C: number, R: number): number {
   return ((M + 1) * (C + 1)) / (R + 1) - 1;
 }

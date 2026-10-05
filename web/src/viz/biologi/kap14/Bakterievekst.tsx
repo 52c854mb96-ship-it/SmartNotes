@@ -29,6 +29,7 @@ import {
   linePath,
   mixColor,
   sample,
+  superscript,
   useBioScale,
   useContainerTextScale,
   useSimClock,
@@ -84,8 +85,21 @@ function durationText(h: number): string {
 
 /** Antall per gram som tekst: vanlige tall under en million, ellers standardform. */
 function countText(n: number): string {
-  return n < 1e6 ? fmtCount(n) : fmtSci(n, 1);
+  return n < 1e6 ? fmtCount(n) : sciText(n);
 }
+
+/** Standardform med én desimal der avrundingen flyttes over i eksponenten: 9,99 · 10⁹ → «1,0 · 10¹⁰». */
+function sciText(n: number): string {
+  if (!(n > 0) || !Number.isFinite(n)) return '0';
+  let exp = Math.floor(Math.log10(n));
+  let m = Math.round((n / 10 ** exp) * 10) / 10;
+  if (m >= 10) {
+    m /= 10;
+    exp += 1;
+  }
+  return `${fmt(m, 1)} · 10${superscript(exp)}`;
+}
+
 
 export default function Bakterievekst() {
   const [T, setT] = useState(20);
@@ -170,7 +184,7 @@ export default function Bakterievekst() {
       <Readouts>
         <Readout label="Generasjonstid" value={grows(T) ? durationText(g) : 'ingen vekst'} />
         <Readout label="Bakterier nå" value={countText(N)} unit="per gram" tone={N >= DANGER ? DANGER_COLOR : CURVE} />
-        <Readout label="Fase" value={phase === 'ingen' ? 'Ingen deling' : capitalize(GROWTH_PHASE_NAMES[phase])} />
+        <Readout label="Fase" value={phase === 'ingen' ? 'Ingen deling' : capitalize(GROWTH_PHASE_NAMES[phase]).replace('Eksponentiell', 'Eksponen\u00adtiell')} />
         <Readout
           label="Over en million per gram etter"
           value={tDanger === null ? 'aldri' : durationText(tDanger)}

@@ -1,5 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { DISEASES, I0, NICE_DAYS, POPULATION, countsAt, epidemic, expectedFinalSize, people, personStates } from './model';
+import {
+  COURSE_PERIOD,
+  IMMUNE_DAYS,
+  PRIMARY_RESPONSE,
+  RES_F0,
+  RES_K,
+  SECONDARY_RESPONSE,
+  antibodiesAt,
+  defenseStage,
+  immuneRun,
+  onAntibiotic,
+  resistanceAt,
+  responseAt,
+  sampleCounts,
+  samplePositions,
+  simulateResistance,
+} from './model';
 
 describe('sykdommene', () => {
   it('flokkimmunitetsgrensen for influensa, covid-19 og meslinger', () => {
@@ -89,5 +106,114 @@ describe('individene i rutenettet', () => {
     const end = countsAt(ep.series, ep.tMax);
     expect(prev.filter((s) => s === 'R' || s === 'I').length).toBe(end.ever);
     expect(end.ever / POPULATION).toBeCloseTo(ep.totalInfected, 2);
+  });
+});
+
+describe('immunforsvaret: primær og sekundær respons', () => {
+  it('primærresponsen: antistoffer etter ca. en uke, topp etter ca. to uker', () => {
+    expect(responseAt(PRIMARY_RESPONSE, 3)).toBe(0);
+    expect(responseAt(PRIMARY_RESPONSE, 14)).toBeCloseTo(1, 9);
+    expect(responseAt(PRIMARY_RESPONSE, 60)).toBeLessThan(0.3);
+    expect(responseAt(PRIMARY_RESPONSE, 1000)).toBeCloseTo(PRIMARY_RESPONSE.plateau, 6);
+  });
+
+  it('sekundærresponsen kommer raskere, blir sterkere og varer lenger', () => {
+    const run = immuneRun({ first: 'sykdom', second: 60, memory: true });
+    const [p1, p2] = run.peaks;
+    expect(p2.day).toBeLessThan(p1.day);
+    expect(p2.level / p1.level).toBeGreaterThan(5);
+    expect(SECONDARY_RESPONSE.halfLife).toBeGreaterThan(PRIMARY_RESPONSE.halfLife);
+    // Syk første gang, ikke andre gang
+    expect(run.sickDays[0]).toBeGreaterThan(3);
+    expect(run.sickDays[1]).toBe(0);
+  });
+
+  it('vaksine: ingen sykdom, men hukommelse som beskytter ved smitte', () => {
+    const run = immuneRun({ first: 'vaksine', second: 60, memory: true });
+    expect(run.sickDays).toEqual([0, 0]);
+    expect(run.peaks[1].level).toBeGreaterThan(5);
+  });
+
+  it('uten hukommelsesceller blir du syk igjen', () => {
+    for (const first of ['sykdom', 'vaksine'] as const) {
+      const run = immuneRun({ first, second: 60, memory: false });
+      expect(run.sickDays[1]).toBeGreaterThan(2);
+      expect(run.peaks[1].level).toBeCloseTo(run.peaks[0].level / (first === 'vaksine' ? 0.7 : 1), 0);
+    }
+  });
+
+  it('nivåene er endelige og ikke negative', () => {
+    const run = immuneRun({ first: 'sykdom', second: 140, memory: true });
+    expect(run.t[run.t.length - 1]).toBeCloseTo(IMMUNE_DAYS, 6);
+    for (const v of [...run.antibodies, ...run.pathogen]) {
+      expect(Number.isFinite(v)).toBe(true);
+      expect(v).toBeGreaterThanOrEqual(0);
+    }
+    expect(antibodiesAt({ first: 'sykdom', second: 60, memory: true }, 0)).toBe(0);
+  });
+
+  it('forsvaret i riktig rekkefølge', () => {
+    const s = { first: 'sykdom' as const, second: 60, memory: true };
+    expect(defenseStage(s, 1)).toBe('uspesifikt');
+    expect(defenseStage(s, 3.5)).toBe('aktivering');
+    expect(defenseStage(s, 10)).toBe('effekt');
+    expect(defenseStage(s, 40)).toBe('hukommelse');
+    expect(defenseStage(s, 60.3)).toBe('uspesifikt');
+    expect(defenseStage(s, 63)).toBe('effekt');
+  });
+});
+
+describe('antibiotikaresistens', () => {
+  it('hele kuren: infeksjonen blir borte hver gang, andelen resistente bygger seg ikke opp', () => {
+    const run = simulateResistance('hele', 3);
+    expect(run.clearedAfter).toEqual([true, true, true]);
+    for (const f of run.shareAtStart) expect(f).toBeCloseTo(RES_F0, 9);
+  });
+
+  it('avbrutt kur: infeksjonen kommer tilbake, og andelen resistente øker for hver kur', () => {
+    const run = simulateResistance('avbrutt', 4);
+    expect(run.clearedAfter.every((c) => !c)).toBe(true);
+    const f = run.shareAtStart;
+    expect(f[1]!).toBeGreaterThan(100 * f[0]!);
+    expect(f[2]!).toBeGreaterThan(f[1]!);
+    expect(f[3]!).toBeGreaterThan(0.95);
+  });
+
+  it('unødvendig bruk: normalfloraen blir mer og mer resistent', () => {
+    const run = simulateResistance('unodvendig', 3);
+    const f = run.shareAtStart;
+    expect(f[1]!).toBeGreaterThan(100 * f[0]!);
+    expect(f[2]!).toBeGreaterThan(f[1]!);
+    // Floraen er ikke borte, den blir bare annerledes
+    expect(resistanceAt(run, 3 * COURSE_PERIOD).S + resistanceAt(run, 3 * COURSE_PERIOD).R).toBeGreaterThan(1e9);
+  });
+
+  it('antallene er aldri negative eller over bæreevnen', () => {
+    for (const kind of ['hele', 'avbrutt', 'unodvendig'] as const) {
+      const run = simulateResistance(kind, 4);
+      run.S.forEach((S, i) => {
+        const R = run.R[i]!;
+        expect(S).toBeGreaterThanOrEqual(0);
+        expect(R).toBeGreaterThanOrEqual(0);
+        expect(S + R).toBeLessThanOrEqual(RES_K * 1.0001);
+      });
+      expect(simulateResistance(kind, 4)).toEqual(run);
+    }
+  });
+
+  it('antibiotikadagene', () => {
+    expect(onAntibiotic('hele', 6.9, 2)).toBe(true);
+    expect(onAntibiotic('hele', 7.1, 2)).toBe(false);
+    expect(onAntibiotic('avbrutt', 3.1, 2)).toBe(false);
+    expect(onAntibiotic('hele', COURSE_PERIOD + 1, 2)).toBe(true);
+    expect(onAntibiotic('hele', 2 * COURSE_PERIOD + 1, 2)).toBe(false);
+  });
+
+  it('utvalget i figuren: log-skala og minst én resistent', () => {
+    expect(sampleCounts(0, 0, 100)).toEqual({ shown: 0, resistant: 0 });
+    expect(sampleCounts(RES_K, 0, 100)).toEqual({ shown: 100, resistant: 0 });
+    expect(sampleCounts(1e9, 1e4, 100)).toEqual({ shown: 90, resistant: 1 });
+    expect(sampleCounts(5e9, 5e9, 100)).toEqual({ shown: 100, resistant: 50 });
+    expect(samplePositions(10)).toEqual(samplePositions(10));
   });
 });

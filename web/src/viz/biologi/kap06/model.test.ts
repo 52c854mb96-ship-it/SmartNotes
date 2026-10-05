@@ -30,6 +30,7 @@ import {
   VESICLE_PHASES,
   amplification,
   carrierFlux,
+  carrierNetMax,
   carrierOccupancy,
   carrierVmax,
   cascadeAt,
@@ -182,6 +183,14 @@ describe('membrantransport: fasilitert diffusjon', () => {
     expect(carrierFlux(10, 0, 1)).toBeLessThan(2 * carrierFlux(5, 0, 1));
     // Flere bæreproteiner: proporsjonalt
     expect(carrierFlux(5, 1, 4)).toBeCloseTo(4 * carrierFlux(5, 1, 1), 9);
+  });
+
+  it('med glukose inne flater nettoen ut under n · kcat (noen bæreproteiner frakter glukose ut igjen)', () => {
+    expect(carrierNetMax(0, 3)).toBe(carrierVmax(3));
+    // 0,5 mmol/L inne: 20 % av bæreproteinene er opptatt fra innsiden, så nettoen går mot 80 % av 3000
+    expect(carrierNetMax(0.5, 3)).toBeCloseTo(2400, 9);
+    expect(carrierFlux(1e9, 0.5, 3)).toBeCloseTo(carrierNetMax(0.5, 3), 3);
+    for (const c of [1, 5, 20]) expect(carrierFlux(c, 0.5, 3)).toBeLessThan(carrierNetMax(0.5, 3));
   });
 
   it('fasilitert diffusjon er passiv: ingen netto transport ved like konsentrasjoner, og den kan gå begge veier', () => {

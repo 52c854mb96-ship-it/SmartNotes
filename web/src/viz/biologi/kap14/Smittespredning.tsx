@@ -142,7 +142,7 @@ export default function Smittespredning() {
           value={fmt(R0, 1)}
           tone={R0 > 1 ? C.I : C.R}
         />
-        <Readout label="R med tiltak" value={fmt(R, 2)} tone={R > 1 ? C.I : C.R} />
+        <Readout label="R med tiltak" value={fmt(R, R < 10 ? 2 : 1)} tone={R > 1 ? C.I : C.R} />
         <Readout label="Flest smittet samtidig" value={fmtCount(ob.peak)} unit={ob.peak >= 2 ? `dag ${fmt(ob.peakDay, 0)}` : undefined} tone={ob.peak > CARE_CAPACITY ? C.I : undefined} />
         <Readout label="Smittet til sammen" value={fmtPct(ob.total / TOWN)} unit={`av ${fmtCount(TOWN)}`} />
       </Readouts>
@@ -291,7 +291,7 @@ function EpidemicPlot({ base, ob, t, measures, height, R }: { base: Outbreak; ob
               </g>
             )}
             {R <= 1 && (
-              <Txt x={(x0 + x1) / 2} y={sy(nice * 0.5)} size={0.9} color={C.R} weight={650}>
+              <Txt x={(x0 + x1) / 2} y={sy(nice * 0.78)} size={0.9} color={C.R} weight={650}>
                 {f > 1.3 ? 'R ≤ 1: smitten dør ut' : 'R ≤ 1: hver syk smitter færre enn én, så smitten dør ut'}
               </Txt>
             )}
@@ -305,6 +305,13 @@ function EpidemicPlot({ base, ob, t, measures, height, R }: { base: Outbreak; ob
 }
 
 /* ---------- Forklaring ---------- */
+
+/** Små tall i forklaringen: 0,8 · 0,05 · < 0,01. */
+function small(v: number): string {
+  if (v >= 0.1) return fmt(v, 1);
+  if (v >= 0.01) return fmt(v, 2);
+  return '< 0,01';
+}
 
 function explanation({
   R0,
@@ -336,7 +343,7 @@ function explanation({
       <>
         <p>
           <strong>R = {fmt(R, 2)} ≤ 1: utbruddet dør ut.</strong> Hver smittet smitter i snitt færre enn én ny, så hver «smittegenerasjon»
-          blir mindre enn den forrige: 1, {fmt(R, 1)}, {fmt(R * R, 1)} … Det er dette som er målet med smittevern.
+          blir mindre enn den forrige: 1, {small(R)}, {small(R * R)} … Det er dette som er målet med smittevern.
           {anyMeasure && R0 > 1 ? ` Uten tiltakene ville R₀ vært ${fmt(R0, 1)}, og ${fmtPct(base.total / TOWN)} av byen ville blitt smittet.` : ''}
         </p>
         {model}
@@ -344,6 +351,13 @@ function explanation({
     );
   const Rt = currentR(R, S);
   const flattened = anyMeasure && base.peak > ob.peak;
+  const extreme =
+    R0 > 18 ? (
+      <p>
+        Så høy R<Sub>0</Sub> ({fmt(R0, 0)}) finnes nesten ikke i virkeligheten. Meslinger, en av de mest smittsomme sykdommene vi kjenner, har
+        R<Sub>0</Sub> på 12–18, og covid-19 hadde ca. 3 i starten.
+      </p>
+    ) : null;
   return (
     <>
       <p>
@@ -370,6 +384,7 @@ function explanation({
           Slå på tiltak: håndvask og munnbind gjør hver kontakt mindre smittsom, og isolasjon fjerner kontakter etter at symptomene kommer.
         </p>
       )}
+      {extreme}
       {model}
     </>
   );

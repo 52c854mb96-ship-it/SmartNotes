@@ -313,7 +313,7 @@ function PhageScene({ index, u }: { index: number; u: number }) {
   const cell = { x: 0, y: 36, w: 470, h: 170 };
   const wallTop = cell.y - cell.h / 2;
   const attachedY = wallTop - (18 / 40) * PHAGE_SIZE - 2;
-  const phageY = index === 0 ? lerp(-150, attachedY, ease(u)) : attachedY;
+  const phageY = index === 0 ? lerp(-118, attachedY, ease(u)) : attachedY;
   const emptied = index === 1 ? ease(u) : index > 1 ? 1 : 0;
   const lysed = index === 4;
   const copies = index === 2 ? 1 + Math.floor(u * 9) : index === 3 ? Math.round(10 * (1 - u)) + 2 : index === 4 ? 0 : 0;

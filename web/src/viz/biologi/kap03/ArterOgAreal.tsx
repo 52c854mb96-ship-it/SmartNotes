@@ -290,7 +290,7 @@ function LogLogContent({
   // ville kollidert med akseverdiene, flyttes trekanten opp langs linja; den viser jo stigningstallet, som er likt overalt.
   const lgS = (e: number) => lg(c) + z * e;
   // Plass til to tekstlinjer mellom trekanten og x-aksen
-  const minLgS = (46 * f) / ((y0 - y1) / 3);
+  const minLgS = (50 * f) / ((y0 - y1) / 3);
   let e1 = lg(A) <= 3 ? lg(A) : lg(A) - 1;
   if (lgS(e1) < minLgS) e1 = Math.max(e1, (minLgS - lg(c)) / z);
   const showTriangle = e1 <= 3 && lgS(e1) + z <= 3;
@@ -298,8 +298,12 @@ function LogLogContent({
   const qy = sy(lgS(e1));
   const cx = sx(e1 + 1);
   const ry = sy(lgS(e1) + z);
+  // Tekst under trekanten når det er plass til høyre, ellers nede i høyre hjørne (der er det alltid tomt under linja)
   const labelW = 17 * 0.75 * f * 0.58 * 16;
-  const labelX = qx + 4 + labelW <= x1 + 6 ? qx + 4 : x1 + 6 - labelW;
+  const nextTo = qx + 10 + labelW <= x1 + 6;
+  const lab = nextTo
+    ? { x: qx + 10, y1: qy + 22 * f, y2: qy + 42 * f, anchor: 'start' as const }
+    : { x: x1 - 6, y1: y0 - 14 - 20 * f, y2: y0 - 14, anchor: 'end' as const };
   return (
     <g>
       {[-2, -1, 0, 1, 2, 3, 4].map((e) => (
@@ -323,10 +327,10 @@ function LogLogContent({
       {showTriangle && (
         <g>
           <path d={`M${qx},${qy} H${cx} V${ry}`} fill="none" stroke={VIZ.ink} strokeWidth={1.8} strokeDasharray="4 4" />
-          <Txt x={labelX} y={qy + 20 * f} anchor="start" size={0.75} muted>
+          <Txt x={lab.x} y={lab.y1} anchor={lab.anchor} size={0.75} muted>
             × 10 areal
           </Txt>
-          <Txt x={labelX} y={qy + 40 * f} anchor="start" size={0.75} muted>
+          <Txt x={lab.x} y={lab.y2} anchor={lab.anchor} size={0.75} muted>
             gir × {fmt(factorPerTenfold(z), 2)} arter
           </Txt>
         </g>

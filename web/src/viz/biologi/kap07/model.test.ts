@@ -17,6 +17,7 @@ import {
   dnaAmount,
   gameteKey,
   healedTime,
+  maxTotal,
   meiosisGametes,
   mitosisShare,
   randomGametes,

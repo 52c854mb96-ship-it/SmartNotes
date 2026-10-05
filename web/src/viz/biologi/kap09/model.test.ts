@@ -11,6 +11,7 @@ import {
   activityT,
   airPressure,
   alveolarPO2,
+  arterialPH,
   capillaryPO2,
   cardiacOutput,
   circulationTime,
@@ -148,6 +149,33 @@ describe('gassutveksling', () => {
     expect(everest.PvO2).toBeLessThanOrEqual(everest.PaO2);
     expect(everest.released).toBeGreaterThanOrEqual(0);
   });
+
+  it('i høyden: basisk blod i lungene, og O₂-trykket i vevet faller så vevet får like mye oksygen', () => {
+    expect(arterialPH(0)).toBeCloseTo(7.4, 9);
+    expect(arterialPH(8849)).toBeGreaterThan(7.6);
+    expect(arterialPH(8849)).toBeLessThan(7.75);
+    const sea = gasExchange(0, TISSUE_PRESETS.hvile);
+    // Ved havet er O₂-trykket i vevet det som er valgt, og behovet er det som avgis
+    expect(sea.PvO2).toBeCloseTo(TISSUE_PRESETS.hvile.PO2, 9);
+    expect(sea.released).toBeCloseTo(sea.demand, 6);
+    for (const h of [2469, 5000, 8849]) {
+      const g = gasExchange(h, TISSUE_PRESETS.hvile);
+      expect(g.limited).toBe(false);
+      // Hvilende vev får fortsatt like mye O₂ (Fick-prinsippet), og det trengs en trykkforskjell inn i vevet
+      expect(g.released).toBeCloseTo(sea.demand, 1);
+      expect(g.PvO2).toBeLessThan(TISSUE_PRESETS.hvile.PO2);
+      expect(g.PaO2 - g.PvO2).toBeGreaterThan(0.1);
+    }
+    // Mount Everest: metningen i arterieblodet ca. 55–75 % (målt ca. 55–70 %) takket være den basiske pH-en
+    const everest = gasExchange(8849, TISSUE_PRESETS.hvile);
+    expect(everest.SaO2).toBeGreaterThan(0.55);
+    expect(everest.SaO2).toBeLessThan(0.75);
+    // En muskel som arbeider hardt, kan ikke få nok oksygen på toppen
+    const work = gasExchange(8849, TISSUE_PRESETS.arbeid);
+    expect(work.limited).toBe(true);
+    expect(work.released).toBeLessThan(work.demand);
+    expect(work.released).toBeCloseTo(work.CaO2 - work.CvO2, 9);
+  });
 });
 
 describe('enzymer', () => {
@@ -197,6 +225,16 @@ describe('fordøyelseskanalen', () => {
     expect(STATIONS.find((s) => s.id === 'munn')!.digested.protein).toBe(0);
     expect(STATIONS.find((s) => s.id === 'magesekk')!.pH).toBe(2);
     expect(STATIONS.filter((s) => s.absorbs).map((s) => s.id)).toEqual(['tynntarm']);
+  });
+
+  it('det brytes bare ned noe der et enzym virker på næringsstoffet', () => {
+    for (const n of ['stivelse', 'protein', 'fett'] as const) {
+      let prev = 0;
+      for (const s of STATIONS) {
+        if (s.digested[n] > prev) expect(s.enzymes[n].length, `${s.id}: ${n}`).toBeGreaterThan(0);
+        prev = s.digested[n];
+      }
+    }
   });
 
   it('kjedene deles i biter uten at noe forsvinner', () => {

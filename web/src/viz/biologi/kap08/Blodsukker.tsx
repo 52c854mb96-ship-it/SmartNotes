@@ -236,6 +236,9 @@ function BodyFigure({ run, t }: { run: GlucoseRun; t: number }) {
   const nDots = Math.min(unit.length, Math.round(G * 3.2));
   const r = 4.8 * k;
   const drift = (t * 120) % 1000;
+  const bloodText = narrow ? `Blod: ${fmt(G, 1)} mmol/L` : `Blod: ${fmt(G, 1)} mmol/L glukose`;
+  // Omtrentlig tekstbredde (17 · 0,9 · f per tegn, ca. 0,6 em per tegn) pluss luft
+  const plateW = bloodText.length * 17 * 0.9 * f * 0.6 + 28 * f;
   const organ = (x: number, y: number, title: string, sub: string, paint: { fill: string; line: string }, active = false) => (
     <g>
       <path d={roundedRectPath(x - bw / 2, y, bw, boxH, 14)} fill={paint.fill} stroke={paint.line} strokeWidth={(active ? 3 : 1.6) * lw} />
@@ -280,8 +283,18 @@ function BodyFigure({ run, t }: { run: GlucoseRun; t: number }) {
           const y = vTop + 10 + ((vesselH - 20) * p.y) / 200;
           return <circle key={i} cx={x} cy={y} r={r} fill={GLUCOSE} stroke={VIZ.surface} strokeWidth={1 * lw} />;
         })}
+        {/* Rolig felt bak teksten, så glukoseprikkene ikke går over den */}
+        <rect
+          x={400 - plateW / 2}
+          y={vTop + vesselH / 2 - 16 * f}
+          width={plateW}
+          height={28 * f}
+          rx={14 * f}
+          fill={VIZ.surface}
+          opacity={0.85}
+        />
         <Txt x={400} y={vTop + vesselH / 2 + 6} weight={700} size={0.9}>
-          {narrow ? `Blod: ${fmt(G, 1)} mmol/L` : `Blod: ${fmt(G, 1)} mmol/L glukose`}
+          {bloodText}
         </Txt>
 
         {/* Øverst: tarm, bukspyttkjertel, lever */}
@@ -411,8 +424,15 @@ function GlucosePlot({
     return { g, h, i, a };
   }, [run, healthy]);
   const gMax = Math.max(...series.g.map(([, v]) => v));
-  const yMax = gMax > 20 ? 35 : gMax > 14 ? 20 : 14;
-  const yTicks = yMax === 35 ? [0, 5, 10, 15, 20, 25, 30, 35] : yMax === 20 ? [0, 4, 8, 12, 16, 20] : [0, 2, 4, 6, 8, 10, 12, 14];
+  const yMax = gMax > 34 ? 45 : gMax > 20 ? 35 : gMax > 14 ? 20 : 14;
+  const yTicks =
+    yMax === 45
+      ? [0, 10, 20, 30, 40]
+      : yMax === 35
+        ? [0, 5, 10, 15, 20, 25, 30, 35]
+        : yMax === 20
+          ? [0, 4, 8, 12, 16, 20]
+          : [0, 2, 4, 6, 8, 10, 12, 14];
   const iMax = Math.max(4, Math.ceil(Math.max(...series.i.map(([, v]) => v), ...series.a.map(([, v]) => v))));
   const x = { min: 0, max: 24, label: 'Klokkeslett (timer)', ticks: [0, 4, 8, 12, 16, 20, 24] };
   const head = 22 * f;
@@ -630,8 +650,11 @@ function explanation(
   else
     who = (
       <p>
-        <strong>{person === 'frisk' ? 'Frisk person.' : 'Normal regulering.'}</strong> Blodsukkeret holder seg mellom {fmt(stats.min, 1)} og{' '}
-        {fmt(stats.max, 1)} mmol/L gjennom døgnet{plan === 'faste' ? ', selv uten mat: glukagon og leveren holder det oppe' : ''}.{' '}
+        <strong>{person === 'frisk' ? 'Frisk person.' : 'Normal regulering.'}</strong>{' '}
+        {stats.max - stats.min < 0.15
+          ? `Blodsukkeret holder seg på ca. ${fmt(stats.fasting, 1)} mmol/L hele døgnet`
+          : `Blodsukkeret holder seg mellom ${fmt(stats.min, 1)} og ${fmt(stats.max, 1)} mmol/L gjennom døgnet`}
+        {plan === 'faste' ? ', selv uten mat: glukagon får leveren til å sende ut glukose fra glykogenlageret' : ''}.{' '}
         {plan === 'glukosebelastning'
           ? `I en glukosebelastning drikker man 75 g glukose og måler blodsukkeret to timer etter (${fmt(run.G(10), 1)} mmol/L her). Over 11,1 mmol/L tyder det på diabetes.`
           : p.exercise

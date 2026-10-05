@@ -81,6 +81,11 @@ const FEEDBACK_TEXT: Record<Feedback, string> = {
   pille: 'Negativ',
 };
 
+/** Myk bindestrek i lange ord, så de kan deles i de smale avlesningsboksene på mobil. */
+function hyphenate(s: string): string {
+  return s.replace('Gulelegemefase', 'Gulelegeme\u00adfase').replace('Follikkelfase', 'Follikkel\u00adfase').replace('Menstruasjon', 'Menstrua\u00adsjon');
+}
+
 export default function Menstruasjonssyklusen() {
   const [scenario, setScenario] = useState<CycleScenario>('vanlig');
   const last = lastDay(scenario);
@@ -142,8 +147,8 @@ export default function Menstruasjonssyklusen() {
       </div>
 
       <Readouts>
-        <Readout label="Dag" value={String(day)} unit={scenario === 'graviditet' && day > CYCLE_DAYS ? `(uke ${Math.ceil(day / 7)})` : `av ${CYCLE_DAYS}`} />
-        <Readout label="Fase" value={PHASE_NAMES[phase]} />
+        <Readout label="Dag" value={String(day)} unit={scenario === 'graviditet' && day > CYCLE_DAYS ? `uke ${Math.ceil(day / 7)} av svangerskapet` : `av ${CYCLE_DAYS}`} />
+        <Readout label="Fase" value={hyphenate(PHASE_NAMES[phase])} />
         <Readout label="Livmorslimhinnen" value={fmt(lining, 0)} unit={bleeding(day, scenario) ? 'mm, blør' : 'mm tykk'} tone={BLOOD} />
         <Readout
           label="Tilbakekobling på hypofysen"
@@ -282,7 +287,7 @@ function CycleFigure({ scenario, day, f }: { scenario: CycleScenario; day: numbe
       ))}
       {scenario !== 'p-piller' && (
         <Txt x={sx(13.4) + 12} y={hy(1.0) + 6 * f} anchor="start" size={0.78} color={COL.lh} weight={650}>
-          {f > 1.3 || scenario === 'graviditet' ? 'LH-topp' : 'LH-topp utløser eggløsning'}
+          {f > 1.3 || scenario === 'graviditet' ? 'LH-topp' : 'LH-topp → eggløsning'}
         </Txt>
       )}
       {scenario === 'graviditet' && (
@@ -563,7 +568,7 @@ function FeedbackFigure({
           Dag {day}: hvem styrer hvem?
         </Txt>
       )}
-      {box(pit, 'Hypofysen', 'styres av hypothalamus', <PituitaryIcon x={P.x} y={P.y + 4} k={narrow ? k : 1} />)}
+      {box(pit, 'Hypofysen', 'styres av hypothalamus', <PituitaryIcon x={P.x} y={narrow ? P.y + 24 : P.y + 4} k={narrow ? 0.95 * k : 1} />)}
       {box(
         ovary,
         'Eggstokken',
@@ -625,7 +630,7 @@ function FeedbackFigure({
           ) : (
             <polygon points={`${ovary.x + ovary.w + 2},${O.y} ${ovary.x + ovary.w + 18},${O.y - 10} ${ovary.x + ovary.w + 18},${O.y + 10}`} fill={COL.hcg} />
           )}
-          <Txt x={!narrow ? (U.x + O.x) / 2 + 20 : uterus.x + uterus.w + 60} y={!narrow ? ovary.y - 34 : (U.y + O.y) / 2} size={0.8} color={COL.hcg} weight={700} anchor={narrow ? 'end' : 'middle'}>
+          <Txt x={!narrow ? (U.x + O.x) / 2 + 20 : uterus.x + uterus.w + 74} y={!narrow ? ovary.y - 34 : U.y - 6} size={0.8} color={COL.hcg} weight={700} anchor={narrow ? 'end' : 'middle'}>
             hCG
           </Txt>
         </g>

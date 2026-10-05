@@ -33,6 +33,7 @@ import {
 import {
   CHECKPOINTS,
   CYCLE_HOURS,
+  DAMAGE_SLOWDOWN,
   ONCOGENE_DRIVE,
   R0,
   TISSUE_DAYS,
@@ -43,6 +44,7 @@ import {
   solveTissue,
   space,
   stepStart,
+  maxTotal,
   tissueAt,
   tissueState,
   type CheckpointResult,
@@ -56,7 +58,6 @@ const MUTANT = BIO.sir.I;
 const NORMAL = BIO.serie[0];
 const PASS = BIO.sir.R;
 const STOP = BIO.sir.I;
-const Y_MAX = 3;
 
 export default function ReguleringAvCelledeling() {
   const [onkogen, setOnkogen] = useState(false);
@@ -127,7 +128,15 @@ export default function ReguleringAvCelledeling() {
         ]}
       />
 
-      <TissueFigure normal={now.normal} mutant={now.mutant} wound={wound} state={state} t={t} hasClone={hasClone} />
+      <TissueFigure
+        normal={now.normal}
+        mutant={now.mutant}
+        wound={wound}
+        state={state}
+        t={t}
+        hasClone={hasClone}
+        peak={maxTotal(result)}
+      />
       <Legend
         items={[
           { color: NORMAL, label: 'Normale celler' },
@@ -162,7 +171,7 @@ export default function ReguleringAvCelledeling() {
         <FormulaLine>
           = {fmt(R0, 2)} · {fmt(followed.onkogen ? ONCOGENE_DRIVE : growthSignal(now.total), 2)} ·{' '}
           {fmt(followed.tsg ? 1 : space(now.total), 2)}
-          {damage && !followed.tsg ? ' · 0,60' : ''} = {fmt(rate, 2)} ({hasClone ? 'cellene med mutasjonen' : 'normale celler'}, vevet er{' '}
+          {damage && !followed.tsg ? ` · ${fmt(DAMAGE_SLOWDOWN, 2)}` : ''} = {fmt(rate, 2)} ({hasClone ? 'cellene med mutasjonen' : 'normale celler'}, vevet er{' '}
           {fmtPct(now.total)} fullt)
         </FormulaLine>
       </Formula>
@@ -369,6 +378,7 @@ function TissueFigure({
   state,
   t,
   hasClone,
+  peak,
 }: {
   normal: number;
   mutant: number;
@@ -376,6 +386,8 @@ function TissueFigure({
   state: TissueState;
   t: number;
   hasClone: boolean;
+  /** Største antall celler i løpet av modelltida (andel av fullt vev): bestemmer plassen til haugen over laget. */
+  peak: number;
 }) {
   const [ref, f] = useContainerTextScale<HTMLDivElement>();
   const narrow = f > 1.3;
@@ -387,8 +399,9 @@ function TissueFigure({
   const ch = narrow ? 110 : 66;
   const widths = useMemo(() => (narrow ? [6, 5, 4, 3, 2] : [11, 9, 7, 5, 3]), [narrow]);
   const maxMound = widths.reduce((x, y) => x + y, 0);
-  // Plass til en haug med celler over laget bare når noen celler har mutasjon
-  const moundRows = hasClone ? widths.length : 0;
+  // Plass til en haug med celler over laget bare så høy som haugen blir i løpet av modelltida (samme høyde hele tida)
+  const peakExtra = Math.min(maxMound, Math.max(0, Math.round((peak - 1) * SLOTS)));
+  const moundRows = hasClone ? moundLayout(peakExtra, widths).reduce((s, c) => Math.max(s, c.row + 1), 0) : 0;
   const top = 34 * f;
   const yLayerTop = top + moundRows * ch * 0.62 + 10;
   const yBase = yLayerTop + ch;
@@ -563,6 +576,10 @@ function GrowthPlot({
   const [ref, f] = useContainerTextScale<HTMLDivElement>();
   const clipId = useSvgId('reg-clip');
   const H = Math.round(320 + 260 * (f - 1));
+  // Aksen tilpasses: 0–125 % når vevet bare gror, opptil 300 % for en svulst (som vokser videre ut av grafen)
+  const peak = maxTotal(result);
+  const Y_MAX = peak < 1.2 ? 1.25 : peak < 1.9 ? 2 : 3;
+  const yTicks = Y_MAX === 1.25 ? [0, 25, 50, 75, 100, 125] : Y_MAX === 2 ? [0, 50, 100, 150, 200] : [0, 50, 100, 150, 200, 250, 300];
   const series = (r: TissueResult, which: 'total' | 'mutant') =>
     r.sol.t
       .filter((_, i) => i % 5 === 0)
@@ -585,7 +602,7 @@ function GrowthPlot({
       >
         <Plot
           x={{ min: 0, max: TISSUE_DAYS, label: 'Tid (døgn)', ticks: [0, 5, 10, 15, 20, 25, 30] }}
-          y={{ min: 0, max: Y_MAX * 100, label: 'Celler (% av normalt vev)', ticks: [0, 50, 100, 150, 200, 250, 300] }}
+          y={{ min: 0, max: Y_MAX * 100, label: 'Celler (% av normalt vev)', ticks: yTicks }}
           width={800}
           height={H}
         >
@@ -651,7 +668,7 @@ function explanation(
       mutasjoner i flere gener, ofte over mange år, før en celle blir en kreftcelle.
     </p>
   );
-  const heal = healed === null ? 'ikke innen 30 døgn' : `etter ca. ${fmt(healed, 0)} døgn`;
+  const heal = healed === null ? `Laget er ikke grodd innen ${TISSUE_DAYS} døgn.` : `Laget er grodd etter ca. ${fmt(healed, 0)} døgn.`;
   let main: ReactNode;
   if (!p.onkogen && !p.tsg) {
     main =
@@ -664,7 +681,7 @@ function explanation(
         <p>
           <strong>Såret gror ved mitose.</strong> Cellene i kanten av såret får vekstsignaler og plass, går forbi G1-kontrollpunktet og
           deler seg. Når laget er fullt, stopper delingene av seg selv: cellene møter naboer på alle kanter (<strong>kontakthemming</strong>
-          ) og går over i G0. Laget er grodd {heal}.
+          ) og går over i G0. {heal}
           {p.damage
             ? ' Med DNA-skade stopper kontrollpunktene cellene til skaden er reparert, og celler med for mye skade dør (apoptose). Derfor tar det lengre tid, men mutasjonene føres ikke videre.'
             : ''}

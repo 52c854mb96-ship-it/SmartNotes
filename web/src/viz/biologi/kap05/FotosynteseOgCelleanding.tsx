@@ -32,6 +32,7 @@ import {
   PS,
   compensationLight,
   grossPhotosynthesis,
+  leafExchange,
   limitingFactor,
   respiration,
   saturationLight,
@@ -169,10 +170,12 @@ const widthOf = (rate: number) => 1.5 + 11 * Math.sqrt(Math.max(0, rate) / 100);
 function LeafCell({ I, P, R, f }: { I: number; P: number; R: number; f: number }) {
   const narrow = f > 1.3;
   const top = 26 * f + 30;
-  const shared = Math.min(P, R);
-  const net = P - R;
-  const surplus = Math.max(0, net);
-  const deficit = Math.max(0, -net);
+  // Stoffbalansen: mitokondrien og kloroplasten bytter min(P, R); bare nettoen går inn og ut av cellen
+  const ex = leafExchange(P, R);
+  const shared = ex.internal;
+  const net = ex.o2Out;
+  const surplus = Math.max(0, ex.starch);
+  const deficit = Math.max(0, -ex.starch);
   const labelSize = narrow ? 0.72 : 0.78;
   // To oppsett: side om side på PC, kloroplasten over mitokondrien på mobil
   const L = narrow
@@ -214,7 +217,7 @@ function LeafCell({ I, P, R, f }: { I: number; P: number; R: number; f: number }
         {Array.from({ length: rays }, (_, i) => {
           const a = (i / rays) * Math.PI * 2;
           const r0 = 26;
-          const r1 = r0 + 6 + 16 * (I / 100);
+          const r1 = r0 + 5 + 11 * (I / 100);
           return (
             <line
               key={i}
@@ -256,8 +259,8 @@ function LeafCell({ I, P, R, f }: { I: number; P: number; R: number; f: number }
         <Arrow
           x1={sun.x + 24}
           y1={sun.y + 10}
-          x2={K.x - K.w * (narrow ? 0.18 : 0.28)}
-          y2={K.y - K.h / 2 - 2}
+          x2={narrow ? K.x - K.w * 0.47 : K.x - K.w * 0.28}
+          y2={narrow ? K.y - K.h * 0.3 : K.y - K.h / 2 - 2}
           color={C_ENERGY}
           width={w(I)}
           head={10 + w(I)}
@@ -297,8 +300,20 @@ function LeafCell({ I, P, R, f }: { I: number; P: number; R: number; f: number }
         ))}
 
       {/* Ut og inn av cellen: CO₂ og H₂O til venstre, O₂ til høyre */}
-      <Exchange x0={10} x1={inner.x + 6} y={K.y - 26} rate={P > R ? net : deficit} dir={P > R ? 'in' : 'out'} color={C_CO2} label={P > R ? 'CO₂ inn' : 'CO₂ ut'} side="left" />
-      {P > 0.05 && <Exchange x0={10} x1={K.x - K.w / 2 - 4} y={K.y + 30} rate={P} dir="in" color={BIO.vann} label="H₂O" side="left" />}
+      <Exchange
+        x0={10}
+        x1={inner.x + 6}
+        y={K.y - 26}
+        rate={Math.abs(ex.co2In)}
+        dir={ex.co2In > 0 ? 'in' : 'out'}
+        color={C_CO2}
+        label={ex.co2In > 0 ? 'CO₂ inn' : 'CO₂ ut'}
+        side="left"
+      />
+      {/* Vann: som CO₂ kommer resten fra celleåndingen i mitokondrien, så bare nettoen tas inn utenfra */}
+      {ex.h2oIn > 0.05 && (
+        <Exchange x0={10} x1={K.x - K.w / 2 - 4} y={K.y + 30} rate={ex.h2oIn} dir="in" color={BIO.vann} label="H₂O inn" side="left" />
+      )}
       <Exchange
         x0={inner.x + inner.w - 6}
         x1={790}
@@ -312,7 +327,15 @@ function LeafCell({ I, P, R, f }: { I: number; P: number; R: number; f: number }
       {/* ATP til cellens arbeid */}
       {R > 0.05 && (
         <g>
-          <Arrow x1={M.x + M.w * 0.25} y1={M.y + M.h / 2 + 4} x2={M.x + M.w * 0.5} y2={box.y + box.h + 22} color={C_ENERGY} width={w(R)} head={10 + w(R)} />
+          <Arrow
+            x1={narrow ? M.x + M.w * 0.45 : M.x + M.w * 0.25}
+            y1={narrow ? M.y + M.h * 0.3 : M.y + M.h / 2 + 4}
+            x2={narrow ? M.x + M.w * 0.75 : M.x + M.w * 0.5}
+            y2={box.y + box.h + 22}
+            color={C_ENERGY}
+            width={w(R)}
+            head={10 + w(R)}
+          />
           <Txt x={narrow ? 790 : M.x + M.w * 0.5 + 10} y={box.y + box.h + 22 + 20 * f} anchor={narrow ? 'end' : 'start'} size={labelSize} color={C_ENERGY} weight={650}>
             ATP til cellens arbeid
           </Txt>
@@ -332,8 +355,8 @@ function LeafCell({ I, P, R, f }: { I: number; P: number; R: number; f: number }
       )}
       {deficit > 0.05 && (
         <Arrow
-          x1={starch.x + 22}
-          y1={starch.y + (narrow ? 14 : 0)}
+          x1={starch.x + (narrow ? 22 : 16)}
+          y1={starch.y + (narrow ? 14 : -16)}
           x2={M.x - M.w / 2 - 4}
           y2={M.y + (narrow ? 0 : M.h / 3)}
           color={C_SUGAR}
@@ -342,10 +365,24 @@ function LeafCell({ I, P, R, f }: { I: number; P: number; R: number; f: number }
           dashed
         />
       )}
-      <Txt x={K.x} y={narrow ? K.y - K.h / 2 - 16 : box.y + 22 * f + 4} size={labelSize} weight={700} color={C_PS}>
+      <Txt
+        x={narrow ? K.x + 35 : K.x}
+        y={narrow ? K.y - K.h / 2 - 16 : box.y + 22 * f + 4}
+        anchor="middle"
+        size={labelSize}
+        weight={700}
+        color={C_PS}
+      >
         Kloroplast: fotosyntese
       </Txt>
-      <Txt x={M.x} y={narrow ? M.y + M.h / 2 + 30 * f : box.y + 22 * f + 4} size={labelSize} weight={700} color={C_R}>
+      <Txt
+        x={narrow ? M.x + 40 : M.x}
+        y={narrow ? M.y + M.h / 2 + 30 * f : box.y + 22 * f + 4}
+        anchor={narrow ? 'end' : 'middle'}
+        size={labelSize}
+        weight={700}
+        color={C_R}
+      >
         Mitokondrie: celleånding
       </Txt>
     </Figure>
@@ -397,7 +434,7 @@ function RatePlot({ axis, I, C, T, height }: { axis: Axis; I: number; C: number;
       : axis === 'co2'
         ? { min: 0, max: 1500, label: 'CO₂ i lufta (ppm)', x: C, fn: (x: number) => [grossPhotosynthesis(I, x, T), respiration(T)] as const }
         : { min: 0, max: 45, label: 'Temperatur (°C)', x: T, fn: (x: number) => [grossPhotosynthesis(I, C, x), respiration(x)] as const };
-  const yMin = axis === 'temp' ? -40 : -Math.max(10, Math.ceil(respiration(T) / 10) * 10);
+  const yMin = axis === 'temp' ? -48 : -Math.max(10, Math.ceil((respiration(T) + 4) / 10) * 10);
   const ticks = axis === 'temp' ? [-40, -20, 0, 20, 40, 60, 80, 100] : yMin === -10 ? [-10, 0, 20, 40, 60, 80, 100] : [yMin, 0, 20, 40, 60, 80, 100];
   const P = sample((x) => spec.fn(x)[0], spec.min, spec.max, 240);
   const Rs = sample((x) => spec.fn(x)[1], spec.min, spec.max, 240);
@@ -479,7 +516,7 @@ function explain(I: number, C: number, T: number, P: number, R: number, limit: L
     return (
       <>
         <p>
-          <strong>For varmt.</strong> Ved {fmt(T, 0)} °C {P < 0.05 ? 'er enzymene i fotosyntesen denaturert, så fotosyntesen har stoppet helt selv i fullt lys' : 'begynner enzymene i fotosyntesen å denatureres, så fotosyntesen faller'}{' '}
+          <strong>For varmt.</strong> Ved {fmt(T, 0)} °C {P < 0.05 ? 'er enzymene i fotosyntesen denaturert, så fotosyntesen har stoppet helt, uansett hvor mye lys det er' : 'begynner enzymene i fotosyntesen å denatureres, så fotosyntesen faller'}{' '}
           ({fmt(P, 1)}), mens celleåndingen øker med temperaturen ({fmt(R, 1)}).{' '}
           {P < R ? 'Nå bruker bladet mer enn det lager, og planten tærer på lagrene sine.' : 'Nettoen blir mye mindre enn ved lavere temperatur.'}
         </p>
@@ -505,13 +542,20 @@ function explain(I: number, C: number, T: number, P: number, R: number, limit: L
         fotosyntese. Mer CO₂ eller en litt annen temperatur hjelper lite så lenge det er så lite lys.
       </p>
     ),
-    co2: (
-      <p>
-        <strong>CO₂ er den begrensende faktoren.</strong> Kurven mot lys har flatet ut (lysmetning): kloroplastene får mer lysenergi enn
-        Calvin-syklusen rekker å bruke. Enzymet som binder CO₂ (rubisco), trenger mer CO₂. Derfor tilsetter gartnere CO₂ i drivhus (ca.
-        1000 ppm).
-      </p>
-    ),
+    co2:
+      C < 900 ? (
+        <p>
+          <strong>CO₂ er den begrensende faktoren.</strong> Kurven mot lys har flatet ut (lysmetning): kloroplastene får mer lysenergi enn
+          Calvin-syklusen rekker å bruke. Enzymet som binder CO₂ (rubisco), trenger mer CO₂. Derfor tilsetter gartnere CO₂ i drivhus (ca.
+          1000 ppm).
+        </p>
+      ) : (
+        <p>
+          <strong>CO₂ er fortsatt den begrensende faktoren, men den begrenser mindre.</strong> Med {fmt(C, 0)} ppm CO₂ (mer enn dobbelt så
+          mye som i lufta) går fotosyntesen mye raskere enn ute, men enzymet som binder CO₂ (rubisco), nærmer seg metning. Enda mer CO₂ gir
+          bare litt mer fotosyntese, så gartnere går sjelden over ca. 1000 ppm.
+        </p>
+      ),
     temperatur: (
       <p>
         <strong>Temperaturen er den begrensende faktoren.</strong>{' '}

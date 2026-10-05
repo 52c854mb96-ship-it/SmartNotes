@@ -386,6 +386,13 @@ export function tissueAt(r: TissueResult, t: number): { normal: number; mutant: 
   return { normal: n, mutant: m, total: n + m };
 }
 
+/** Største antall celler i vevet i løpet av modelltida (andel av fullt vev). */
+export function maxTotal(r: TissueResult): number {
+  let max = 0;
+  for (const row of r.sol.y) max = Math.max(max, (row[0] ?? 0) + (row[1] ?? 0));
+  return max;
+}
+
 /** Første tidspunkt der vevet er (nesten) helt igjen (≥ 98 %), eller null om det ikke skjer innen modelltida. */
 export function healedTime(r: TissueResult, level = 0.98): number | null {
   const { t, y } = r.sol;

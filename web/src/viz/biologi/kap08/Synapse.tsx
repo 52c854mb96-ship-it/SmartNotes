@@ -112,7 +112,7 @@ export default function Synapse() {
         items={[
           { color: BIO.dna, label: 'Membranpotensial' },
           { color: NT, label: 'Signalstoff i spalten' },
-          { color: BIO.serie[0], label: 'Reseptorer aktivert', dashed: true },
+          { color: BIO.serie[0], label: 'Reseptorer aktivert (høyre akse, %)', dashed: true },
           { color: VIZ.muted, label: 'Terskel −55 mV', dashed: true },
         ]}
       />
@@ -356,6 +356,8 @@ function SynapsePlots({ run, t }: { run: SynapseRun; t: number }) {
   const ntMax = 2;
   const x = { min: 0, max: SYNAPSE_T_MAX, label: 'Tid (ms)', ticks: [0, 6, 12, 18, 24, 30, 36] };
   const head = 22 * f;
+  // Plass til høyre for prosentaksen til reseptorene (samme marg i alle tre grafene, så tidsaksene står over hverandre)
+  const margin = { top: 20 * f, right: 62 * f, bottom: 56 * f, left: 72 * f };
   return (
     <div ref={ref}>
       <Figure
@@ -367,7 +369,7 @@ function SynapsePlots({ run, t }: { run: SynapseRun; t: number }) {
           Nervecelle 1 (endeknappen)
         </Txt>
         <g transform={`translate(0 ${head})`}>
-          <Plot x={x} y={{ min: -90, max: 40, label: 'mV', ticks: [-80, -40, 0, 40] }} width={800} height={H1}>
+          <Plot x={x} y={{ min: -90, max: 40, label: 'mV', ticks: [-80, -40, 0, 40] }} width={800} height={H1} margin={margin}>
             {({ sx, sy, y0, y1 }) => (
               <g>
                 <path d={linePath(data.pre, sx, sy)} fill="none" stroke={BIO.dna} strokeWidth={2.4} />
@@ -380,9 +382,15 @@ function SynapsePlots({ run, t }: { run: SynapseRun; t: number }) {
           Signalstoff i synapsespalten
         </Txt>
         <g transform={`translate(0 ${H1 + 2 * head})`}>
-          <Plot x={x} y={{ min: 0, max: ntMax, label: 'Mengde', ticks: [0, 1, 2] }} width={800} height={H2}>
-            {({ sx, sy, y0, y1 }) => (
+          <Plot x={x} y={{ min: 0, max: ntMax, label: 'Mengde', ticks: [0, 1, 2] }} width={800} height={H2} margin={margin}>
+            {({ sx, sy, x1, y0, y1 }) => (
               <g>
+                {/* Høyre akse: andel reseptorer som er aktivert (2 på venstre akse = 100 %) */}
+                {[0, 50, 100].map((p) => (
+                  <Txt key={p} x={x1 + 8} y={sy((p / 100) * ntMax) + 5 * f} anchor="start" size={0.72} color={BIO.serie[0]}>
+                    {`${p} %`}
+                  </Txt>
+                ))}
                 <path d={linePath(data.rec, sx, sy)} fill="none" stroke={BIO.serie[0]} strokeWidth={2.2} strokeDasharray="7 5" />
                 <path
                   d={linePath(
@@ -404,7 +412,13 @@ function SynapsePlots({ run, t }: { run: SynapseRun; t: number }) {
           Nervecelle 2
         </Txt>
         <g transform={`translate(0 ${H1 + H2 + 3 * head})`}>
-          <Plot x={x} y={{ min: -80, max: 40, label: 'mV', ticks: [-80, -60, -40, -20, 0, 20, 40] }} width={800} height={H3}>
+          <Plot
+            x={x}
+            y={{ min: -80, max: 40, label: 'mV', ticks: [-80, -60, -40, -20, 0, 20, 40] }}
+            width={800}
+            height={H3}
+            margin={margin}
+          >
             {({ sx, sy, x0, x1, y0, y1 }) => (
               <g>
                 <line

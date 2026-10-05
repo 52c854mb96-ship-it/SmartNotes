@@ -37,6 +37,7 @@ import {
   jiggle,
   linePath,
   mixColor,
+  niceTicks,
   placeParticles,
   planCrossings,
   proteinSlot,
@@ -58,11 +59,14 @@ import {
   SUBSTANCES,
   VESICLE_PHASES,
   carrierFlux,
+  carrierNetMax,
   carrierOccupancy,
   carrierVmax,
   channelFlux,
   endocytosisShape,
+  pumpPerCycle,
   pumpSteadyState,
+  vesicleArea,
   vesiclePhase,
   type Substance,
   type VesicleKind,
@@ -71,10 +75,10 @@ import {
 type Mode = 'passiv' | 'fasilitert' | 'aktiv' | 'vesikler';
 
 const MODES: { value: Mode; label: string }[] = [
-  { value: 'passiv', label: 'Gjennom lipidlaget' },
+  { value: 'passiv', label: 'Lipidlaget' },
   { value: 'fasilitert', label: 'Fasilitert diffusjon' },
   { value: 'aktiv', label: 'Aktiv transport' },
-  { value: 'vesikler', label: 'Endo- og eksocytose' },
+  { value: 'vesikler', label: 'Vesikler' },
 ];
 
 export default function Membrantransport() {
@@ -268,7 +272,7 @@ function Passiv() {
 
       <Figure viewBox={`0 0 800 ${plotH}`} label={`Netto transport inn i cellen mot konsentrasjonsforskjellen for ${info.navn.toLowerCase()} og andre stoffer.`}>
         <Plot
-          x={{ min: -20, max: 20, label: 'Konsentrasjonsforskjell ute − inne (mmol/L)' }}
+          x={{ min: -20, max: 20, label: 'Forskjell ute − inne (mmol/L)' }}
           y={{ min: -20, max: 20, label: 'Netto inn (relativ fart)' }}
           width={800}
           height={plotH}
@@ -365,6 +369,8 @@ function PassiveScene({
 function passiveText(sub: Substance, cOut: number, cIn: number, t: number, inn: number, ut: number): ReactNode {
   const info = SUBSTANCES[sub];
   const name = subLabel(sub);
+  /** Navnet inne i en setning: «kortisol», «glukose», men O₂ og Na⁺ som før. */
+  const inline = sub === 'glukose' || sub === 'steroid' ? name.toLowerCase() : name;
   if (info.rel === 0)
     return (
       <>
@@ -384,8 +390,8 @@ function passiveText(sub: Substance, cOut: number, cIn: number, t: number, inn: 
   if (cOut + cIn === 0)
     return (
       <p>
-        Det er ingen {name}-molekyler på noen av sidene. Flytt glidebryterne for å legge til {name} ute eller inne. {name} er et {info.slag}{' '}
-        og går {info.passasje} gjennom lipidlaget.
+        Det er ingen {inline}-molekyler på noen av sidene. Flytt glidebryterne for å legge til {inline} ute eller inne. {name} er et{' '}
+        {info.slag} og går {info.passasje} gjennom lipidlaget.
       </p>
     );
   return (
@@ -498,12 +504,16 @@ function Baerer() {
   const clock = useSimClock({ tMax: CARRIER_T_MAX, speed: 1 });
   const [ref, f] = useContainerTextScale<HTMLDivElement>();
   const J = carrierFlux(cOut, cIn, n);
-  const Vmax = carrierVmax(n);
+  // Nettoen flater ut under n · kcat når det er glukose inne (noen bæreproteiner frakter glukose ut igjen)
+  const netMax = carrierNetMax(cIn, n);
   const occ = carrierOccupancy(cOut);
   const t = clock.t;
   const [inn, ut] = carrierCounts(n, t, carrierOccupancy(cOut), carrierOccupancy(cIn));
   const plotH = Math.round(300 + 240 * (f - 1));
   const yMax = 5000;
+  // Mye glukose inne gir netto transport ut (negativ): aksen må gå langt nok ned
+  const yMin = -1000 * Math.max(1, Math.ceil((-carrierFlux(0, cIn, n) * 1.05) / 1000));
+  const yTicks = yMin < -2000 ? niceTicks(yMin, yMax, 6) : [-1000, 0, 1000, 2000, 3000, 4000, 5000];
   // Tangenten der kurven krysser null (c_ute = c_inne): slik ville farten økt uten metning
   const slope = (n * GLUT.kcat * GLUT.Km) / (cIn + GLUT.Km) ** 2;
   const xEnd = Math.min(20, cIn + (yMax - 200) / slope);
@@ -532,7 +542,7 @@ function Baerer() {
       <Figure viewBox={`0 0 800 ${plotH}`} label={`Netto glukose inn per sekund mot glukose ute, med ${n} bæreproteiner. Nå ${fmtCount(J)} per sekund.`}>
         <Plot
           x={{ min: 0, max: 20, label: 'Glukose ute (mmol/L)' }}
-          y={{ min: -1000, max: yMax, label: 'Netto inn (molekyler per s)', ticks: [-1000, 0, 1000, 2000, 3000, 4000, 5000] }}
+          y={{ min: yMin, max: yMax, label: 'Netto inn (molekyler per s)', ticks: yTicks }}
           width={800}
           height={plotH}
           margin={{ top: 20 * f, right: 24 * f, bottom: 56 * f, left: 92 * f }}
@@ -543,13 +553,13 @@ function Baerer() {
               <Txt x={(sx(4) + sx(6)) / 2} y={y0 - 8} size={0.72} muted>
                 Normalt blodsukker
               </Txt>
-              <line x1={x0} x2={x1} y1={sy(Vmax)} y2={sy(Vmax)} stroke={BIO.protein.line} strokeWidth={1.6} strokeDasharray="6 5" />
-              <Txt x={x1 - 6} y={sy(Vmax) - 8} anchor="end" size={0.75} color={BIO.protein.line} weight={650}>
+              <line x1={x0} x2={x1} y1={sy(netMax)} y2={sy(netMax)} stroke={BIO.protein.line} strokeWidth={1.6} strokeDasharray="6 5" />
+              <Txt x={x1 - 6} y={sy(netMax) - 8} anchor="end" size={0.75} color={BIO.protein.line} weight={650}>
                 Metning: alle bæreproteinene er opptatt
               </Txt>
               <path
                 d={linePath(
-                  sample((x) => slope * (x - cIn), Math.max(0, cIn - 1000 / slope), xEnd, 2),
+                  sample((x) => slope * (x - cIn), Math.max(0, cIn + yMin / slope), xEnd, 2),
                   sx,
                   sy,
                 )}
@@ -575,20 +585,23 @@ function Baerer() {
       <Readouts>
         <Readout label="Netto glukose inn" value={fmtCount(J)} unit="per s" tone={BIO.sukker} />
         <Readout label="Bæreproteinene opptatt" value={fmtPct(occ)} />
-        <Readout label="Største fart (metning)" value={fmtCount(Vmax)} unit="per s" />
+        <Readout label="Største netto fart (metning)" value={fmtCount(netMax)} unit="per s" />
         <Readout label="Fraktet inn / ut i figuren" value={`${inn} / ${ut}`} />
       </Readouts>
 
       <Formula label="Fart gjennom bæreproteiner">
         <FormulaLine>
-          Opptatt fra utsiden: c/(c + K<Sub>m</Sub>) = {fmt(cOut, 1)}/({fmt(cOut, 1)} + {GLUT.Km}) = {fmtPct(occ)} · fra innsiden: {fmtPct(carrierOccupancy(cIn))}
+          Opptatt fra utsiden: c/(c + K<Sub>m</Sub>) = {fmt(cOut, 1)}/({fmt(cOut, 1)} + {GLUT.Km}) = {fmtPct(occ)}
+        </FormulaLine>
+        <FormulaLine>
+          Opptatt fra innsiden: {fmt(cIn, 1)}/({fmt(cIn, 1)} + {GLUT.Km}) = {fmtPct(carrierOccupancy(cIn))}
         </FormulaLine>
         <FormulaLine>
           Netto inn = {n} · {fmtCount(GLUT.kcat)} per s · ({fmtPct(occ)} − {fmtPct(carrierOccupancy(cIn))}) = {fmtCount(J)} molekyler per s
         </FormulaLine>
       </Formula>
 
-      <Explain>{carrierText(cOut, cIn, n, J, occ)}</Explain>
+      <Explain>{carrierText(cOut, cIn, n, J, occ, netMax)}</Explain>
     </>
   );
 }
@@ -678,7 +691,7 @@ function Glukose({ x, y, r, opacity = 1 }: { x: number; y: number; r: number; op
   return <polygon points={pts} fill={BIO.sukker} stroke={VIZ.surface} strokeWidth={1.2} opacity={opacity} />;
 }
 
-function carrierText(cOut: number, cIn: number, n: number, J: number, occ: number): ReactNode {
+function carrierText(cOut: number, cIn: number, n: number, J: number, occ: number, netMax: number): ReactNode {
   const passive = (
     <p>
       Fasilitert diffusjon er passiv transport: bæreproteinene bruker ingen energi og frakter glukose begge veier. Det er
@@ -713,8 +726,9 @@ function carrierText(cOut: number, cIn: number, n: number, J: number, occ: numbe
         {sat ? (
           <>
             <strong>Nesten mettet.</strong> {fmtPct(occ)} av bæreproteinene har bundet glukose fra utsiden, så mer glukose ute gir bare litt
-            raskere transport. Kurven flater ut mot {fmtCount(carrierVmax(n))} molekyler per s: alle bæreproteinene er opptatt (metning).
-            Bare flere bæreproteiner kan øke farten.
+            raskere transport. Kurven flater ut mot {fmtCount(netMax)} molekyler per s: alle bæreproteinene er opptatt (metning)
+            {cIn > 0 ? `, og noen av dem frakter glukose ut igjen, så nettoen blir litt mindre enn ${fmtCount(carrierVmax(n))}` : ''}. Bare
+            flere bæreproteiner kan øke farten.
           </>
         ) : (
           <>
@@ -842,7 +856,8 @@ function Kanal() {
         )}
         <p>
           I en vanlig celle er det ca. {ION.kIn} mmol/L K⁺ inne og {ION.kOut} mmol/L ute. Det er natrium-kalium-pumpa (aktiv transport) som
-          holder denne forskjellen ved like. Spenningen over membranen, som også påvirker ionene, er ikke tatt med her.
+          holder denne forskjellen ved like. Modellen tar bare med konsentrasjonsforskjellen. I en levende celle er innsiden negativ, og den
+          negative ladningen holder igjen på de positive K⁺-ionene, så det strømmer mye færre K⁺ ut enn tallene her viser.
         </p>
       </Explain>
     </>
@@ -951,7 +966,8 @@ function Aktiv() {
       <Formula label="Natrium-kalium-pumpa">
         <FormulaLine>Én runde: 3 Na⁺ ut + 2 K⁺ inn, og 1 ATP → ADP + P</FormulaLine>
         <FormulaLine>
-          {fmt(s.atpPerS, 0)} runder per s: {fmt(3 * s.atpPerS, 0)} Na⁺ ut og {fmt(2 * s.atpPerS, 0)} K⁺ inn per s for hver pumpe
+          {fmt(s.atpPerS, 0)} runder per s: {fmt(pumpPerCycle(s.atpPerS).naOut, 0)} Na⁺ ut og {fmt(pumpPerCycle(s.atpPerS).kIn, 0)} K⁺ inn per s
+          for hver pumpe
         </FormulaLine>
       </Formula>
 
@@ -1152,6 +1168,10 @@ function Vesikler() {
   const p = Math.min(1, clock.t / VES_T);
   const phase = vesiclePhase(kind, p);
   const phases = VESICLE_PHASES[kind];
+  // Endocytose: membranen blir mindre når vesikkelen snøres av. Eksocytose: større når vesikkelen har smeltet sammen med den.
+  const detached = endocytosisShape(kind === 'endo' ? p : 1 - p).detached;
+  const changed = kind === 'endo' ? detached : !detached;
+  const dA = fmt(vesicleArea(100), 2);
 
   return (
     <>
@@ -1197,7 +1217,11 @@ function Vesikler() {
       <Readouts>
         <Readout label="Fase" value={`${phase + 1} av ${phases.length}`} />
         <Readout label="Energi" value="ATP" tone={BIO.atp} />
-        <Readout label="Cellemembranen" value={kind === 'endo' ? 'Mindre' : 'Større'} unit="(en vesikkel)" />
+        <Readout
+          label="Cellemembranen"
+          value={!changed ? 'Like stor' : kind === 'endo' ? 'Mindre' : 'Større'}
+          unit={!changed ? undefined : `(${kind === 'endo' ? '−' : '+'}${dA} µm²)`}
+        />
       </Readouts>
 
       <Explain>
@@ -1251,6 +1275,8 @@ function VesicleScene({ kind, p, f }: { kind: VesicleKind; p: number; f: number 
   // Innholdet: følger midten av vesikkelen; ved eksocytose sprer det seg ut når vesikkelen har åpnet seg
   const rnd = seededRandom(kind === 'endo' ? 5 : 8);
   const n = 9;
+  // Innholdet ligger helt inntil membranen før lomma blir dyp (ikke svevende over den)
+  const contentY = shape.detached ? cy : Math.max(cy, memY - Rv * 0.62);
   const offs = Array.from({ length: n }, () => {
     const a = rnd() * Math.PI * 2;
     const s = Math.sqrt(rnd()) * Rv * 0.55;
@@ -1312,7 +1338,7 @@ function VesicleScene({ kind, p, f }: { kind: VesicleKind; p: number; f: number 
       {offs.map((o, i) => {
         // Ved eksocytose sprer innholdet seg sidelengs ut i vevsvæsken (holdes inne i rommet over membranen)
         const x = xc + o.x * (1 + spread * 4);
-        const y = cy + o.y * (1 - spread * 0.3) - spread * Rv * 0.2;
+        const y = contentY + o.y * (1 - spread * 0.3) - spread * Rv * 0.2;
         const yy = shape.detached || shape.depth > 0 ? y : Math.min(memY - T / 2 - 6 * k, Math.max(top + 8 * k, y));
         return <circle key={i} cx={x} cy={yy} r={6 * k} fill={color} stroke={VIZ.surface} strokeWidth={1.2} />;
       })}

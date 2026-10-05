@@ -224,6 +224,18 @@ export function alveolarPO2(h: number): number {
 /** Forskjellen mellom alveolene og blodet som forlater lungene hos friske (kPa). */
 export const A_A_GRADIENT = 0.7;
 
+/**
+ * pH i arterieblodet i høyden h. Vi puster mer i høyden, CO₂ faller og blodet blir basisk (respiratorisk alkalose).
+ * Nyrene skiller ut bikarbonat og tar igjen omtrent halvparten av endringen: pH = 7,4 + 0,5 · lg(P_ACO₂(0) / P_ACO₂(h)).
+ * Gir ca. 7,47 på Galdhøpiggen og ca. 7,66 på toppen av Mount Everest (målt ca. 7,7).
+ */
+export function arterialPH(h: number): number {
+  return 7.4 + 0.5 * Math.log10(alveolarPCO2(0) / alveolarPCO2(h));
+}
+
+/** Laveste O₂-trykk i blodet ut fra vevet (kPa): lavere enn dette får ikke mitokondriene nok oksygen. */
+export const PV_MIN = 1;
+
 export interface TissueCondition {
   /** O₂-trykket i blodet når det forlater vevet (kPa). */
   PO2: number;
@@ -238,6 +250,8 @@ export const TISSUE_PRESETS: Record<'hvile' | 'arbeid', TissueCondition & { name
 };
 
 export interface GasExchange {
+  /** pH i arterieblodet (7,4 ved havet, høyere i høyden). */
+  pHa: number;
   /** O₂ og CO₂ i alveolene (kPa). */
   PAO2: number;
   PACO2: number;
@@ -260,23 +274,63 @@ export interface GasExchange {
   extraction: number;
   /** Hvor mye som ville vært avgitt uten Bohr-effekten (samme kurve som i lungene). */
   releasedNoBohr: number;
+  /** Oksygenet vevet trenger (mL per liter blod), regnet ut fra vevets O₂-trykk ved havet. */
+  demand: number;
+  /** Blodet har for lite oksygen til å dekke behovet, selv om O₂-trykket i vevet er så lavt som mulig. */
+  limited: boolean;
 }
 
-/** Gassutvekslingen i lungene (høyde h over havet) og i vevet. */
+/** Oksygeninnholdet (mL/L) i blod som forlater vevet med O₂-trykket P og vevets P50. */
+function venousContent(P: number, p50: number): number {
+  return o2Content(saturation(P, p50), P);
+}
+
+/**
+ * Gassutvekslingen i lungene (høyde h over havet) og i vevet.
+ *
+ * `tissue.PO2` er O₂-trykket i blodet som forlater vevet ved havet. Det bestemmer hvor mye oksygen vevet bruker
+ * (behovet, mL per liter blod). I høyden inneholder arterieblodet mindre oksygen, så O₂-trykket i vevet må falle for at
+ * vevet skal få det samme (Fick-prinsippet med samme blodstrøm): her finner vi det trykket. Kan ikke behovet dekkes
+ * selv ved det laveste trykket (PV_MIN), er vevet begrenset av oksygentilførselen (`limited`).
+ */
 export function gasExchange(h: number, tissue: TissueCondition): GasExchange {
   const PAO2 = alveolarPO2(h);
   const PACO2 = alveolarPCO2(h);
   const PaO2 = Math.max(0.3, PAO2 - A_A_GRADIENT);
-  const p50Lung = p50At(7.4, 37);
+  const pHa = arterialPH(h);
+  const p50Lung = p50At(pHa, 37);
   const SaO2 = saturation(PaO2, p50Lung);
-  // Vevet kan ikke ha høyere O₂-trykk enn blodet som kommer inn
-  const PvO2 = Math.min(tissue.PO2, PaO2);
-  const p50Tissue = p50At(tissue.pH, tissue.T);
-  const SvO2 = saturation(PvO2, p50Tissue);
   const CaO2 = o2Content(SaO2, PaO2);
+  const p50Tissue = p50At(tissue.pH, tissue.T);
+  // Behovet: det vevet tar ut av blodet ved havet med dette O₂-trykket
+  const PaSea = alveolarPO2(0) - A_A_GRADIENT;
+  const CaSea = o2Content(saturation(PaSea, p50At(7.4, 37)), PaSea);
+  const demand = Math.max(0, CaSea - venousContent(Math.min(tissue.PO2, PaSea), p50Tissue));
+  // O₂-trykket i blodet ut fra vevet: likt vevets trykk ved havet, lavere i høyden (aldri høyere enn i arterieblodet)
+  const pMax = Math.min(tissue.PO2, PaO2);
+  const target = CaO2 - demand;
+  let PvO2: number;
+  let limited = false;
+  if (h <= 0 || venousContent(pMax, p50Tissue) <= target) PvO2 = pMax;
+  else if (venousContent(Math.min(PV_MIN, pMax), p50Tissue) >= target) {
+    PvO2 = Math.min(PV_MIN, pMax);
+    limited = true;
+  } else {
+    // Halveringsmetoden: innholdet øker med trykket
+    let lo = Math.min(PV_MIN, pMax);
+    let hi = pMax;
+    for (let i = 0; i < 60; i++) {
+      const mid = (lo + hi) / 2;
+      if (venousContent(mid, p50Tissue) > target) hi = mid;
+      else lo = mid;
+    }
+    PvO2 = (lo + hi) / 2;
+  }
+  const SvO2 = saturation(PvO2, p50Tissue);
   const CvO2 = o2Content(SvO2, PvO2);
   const noBohr = o2Content(saturation(PvO2, p50Lung), PvO2);
   return {
+    pHa,
     PAO2,
     PACO2,
     PaO2,
@@ -291,6 +345,8 @@ export function gasExchange(h: number, tissue: TissueCondition): GasExchange {
     released: Math.max(0, CaO2 - CvO2),
     extraction: CaO2 > 0 ? Math.max(0, CaO2 - CvO2) / CaO2 : 0,
     releasedNoBohr: Math.max(0, CaO2 - noBohr),
+    demand,
+    limited,
   };
 }
 
@@ -447,7 +503,8 @@ export const STATIONS: readonly Station[] = [
     name: 'Magesekken',
     pH: 2,
     digested: { stivelse: 0.3, protein: 0.2, fett: 0.1 },
-    enzymes: { stivelse: [], protein: ['pepsin'], fett: [] },
+    // Spyttamylasen virker en stund inne i matklumpen til magesyren trenger inn; magesaften har litt lipase
+    enzymes: { stivelse: ['amylase (fra spyttet, til maten blir sur)'], protein: ['pepsin'], fett: ['magelipase'] },
     absorbs: false,
   },
   {

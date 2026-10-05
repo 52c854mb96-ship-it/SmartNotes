@@ -222,19 +222,21 @@ function EnCelle() {
       <Formula label="Overflate, volum og diffusjonstid">
         {shape === 'kube' ? (
           <FormulaLine>
-            A = 6d<Sup>2</Sup> = 6 · {fmtLen(d)}<Sup>2</Sup> = {formatArea(A)} · V = d<Sup>3</Sup> = {formatVolume(V)} · A/V = 6/d ={' '}
-            {fmtRatio(ratio)} per µm
+            A = 6d<Sup>2</Sup> = 6 · ({fmtLen(d)} µm)<Sup>2</Sup> = {formatArea(A)} og V = d<Sup>3</Sup> = {formatVolume(V)}
           </FormulaLine>
         ) : (
           <FormulaLine>
-            A = πd<Sup>2</Sup> = {formatArea(A)} · V = πd<Sup>3</Sup>/6 = {formatVolume(V)} · A/V = 6/d = {fmtRatio(ratio)} per µm
+            A = πd<Sup>2</Sup> = {formatArea(A)} og V = πd<Sup>3</Sup>/6 = {formatVolume(V)}
           </FormulaLine>
         )}
+        <FormulaLine>
+          A/V = 6/d = 6/({fmtLen(d)} µm) = {fmtRatio(ratio)} per µm
+        </FormulaLine>
         <FormulaLine>
           Til midten: x = d/2 = {fmtLen(d / 2)} µm, t ≈ x<Sup>2</Sup>/(2D) = ({fmtLen(d / 2)} µm)<Sup>2</Sup> / (2 · {fmt(D_O2, 0)} µm
           <Sup>2</Sup>/s) = {formatDuration(tC)}
         </FormulaLine>
-        <FormulaLine>Dobbel d: A · 4, V · 8, A/V · ½ og diffusjonstida · 4</FormulaLine>
+        <FormulaLine>Dobbel d gir 4 ganger så stor A, 8 ganger så stort V, halvparten så stor A/V og 4 ganger så lang diffusjonstid</FormulaLine>
       </Formula>
 
       <Explain>{cellText(d, ratio, tC, prof, dMax)}</Explain>
@@ -335,7 +337,7 @@ function CellScene({ shape, d, A, V, prof, f }: { shape: Shape; d: number; A: nu
         </g>
       )}
       <Txt x={cx} y={panels[0]!.y + titleH + PH + 26 * f} size={0.85} color={C_AREA} weight={650}>
-        A = {formatArea(A)} · V = {formatVolume(V)}
+        A = {formatArea(A)}, V = {formatVolume(V)}
       </Txt>
       <Txt x={cx} y={panels[0]!.y + titleH + PH + 52 * f} size={0.8} muted>
         {Math.abs(Math.log(nearest.d / d)) < 0.3 ? `Omtrent som: ${nearest.navn}` : neighbours(d)}
@@ -357,24 +359,41 @@ function CellScene({ shape, d, A, V, prof, f }: { shape: Shape; d: number; A: nu
       ) : (
         <path d={roundedRectPath(sx - SR, sy - SR, 2 * SR, 2 * SR, SR * 0.12)} fill="none" stroke={C_AREA} strokeWidth={2.5} />
       )}
+      {/* O₂ inn gjennom overflaten: mot sidene på kuben, skrått inn på kula */}
       {[0, 90, 180, 270].map((deg) => {
-        const a = ((deg + 45) * Math.PI) / 180;
-        const r0 = (shape === 'kule' ? SR : SR * 1.2) + 6;
+        const a = ((deg + (shape === 'kule' ? 45 : 0)) * Math.PI) / 180;
+        const r0 = SR + 6;
         const x2 = sx + Math.cos(a) * r0;
         const y2 = sy + Math.sin(a) * r0;
         return (
-          <Arrow key={deg} x1={x2 + Math.cos(a) * arrowL} y1={y2 + Math.sin(a) * arrowL} x2={x2} y2={y2} color={C_O2} width={2.5} head={9} />
+          <Arrow
+            key={deg}
+            x1={x2 + Math.cos(a) * arrowL}
+            y1={y2 + Math.sin(a) * arrowL}
+            x2={x2}
+            y2={y2}
+            color={C_O2}
+            width={2.5 * k}
+            head={9 * k}
+          />
         );
       })}
-      {(() => {
-        const a = (225 * Math.PI) / 180;
-        const r0 = (shape === 'kule' ? SR : SR * 1.2) + 6 + arrowL;
-        return (
-          <Txt x={sx + Math.cos(a) * r0 - 4} y={sy + Math.sin(a) * r0 - 4} anchor="end" color={C_O2} weight={700} size={0.85}>
-            O₂ inn
-          </Txt>
-        );
-      })()}
+      {shape === 'kule' ? (
+        <Txt
+          x={sx + Math.cos((225 * Math.PI) / 180) * (SR + 6 + arrowL) - 4}
+          y={sy + Math.sin((225 * Math.PI) / 180) * (SR + 6 + arrowL) - 4}
+          anchor="end"
+          color={C_O2}
+          weight={700}
+          size={0.85}
+        >
+          O₂ inn
+        </Txt>
+      ) : (
+        <Txt x={sx - SR - 12 - arrowL} y={sy + 5 * f} anchor="end" color={C_O2} weight={700} size={0.85}>
+          O₂ inn
+        </Txt>
+      )}
       <Txt x={sx} y={sy + 6 * f} weight={700} size={0.9}>
         {prof.centre > 0 ? `${fmtPct(prof.centre)} O₂` : 'Ingen O₂'}
       </Txt>
@@ -658,14 +677,14 @@ function DelOpp() {
             <strong>
               Delt i {fmtCount(s.count)} celler blir overflaten {n} ganger så stor
             </strong>{' '}
-            ({formatArea(s.area)}), mens volumet er det samme. Hver gang en kant deles i to, får hver celle sin egen overflate mot omgivelsene,
-            og A/V øker fra {fmtRatio(one.ratio)} til {fmtRatio(s.ratio)} per µm.
+            ({formatArea(s.area)}), mens volumet er det samme. Hvert snitt lager to nye flater, så hver liten celle får sin egen overflate mot
+            omgivelsene, og A/V øker fra {fmtRatio(one.ratio)} til {fmtRatio(s.ratio)} per µm.
           </p>
         )}
         <p>
-          Derfor deler cellene seg i stedet for å vokse seg store, og derfor er store organismer bygd av mange små celler. I kroppen ligger
-          cellene tett, men hver celle er omgitt av vevsvæske, og blodet i kapillærene bringer O₂ og næring fram til noen få cellelag fra hver
-          celle.
+          Derfor er store organismer bygd av mange små celler i stedet for noen få store, og celler deler seg når de har vokst seg store nok.
+          I kroppen ligger cellene tett, men hver celle er omgitt av vevsvæske, og ingen celle ligger mer enn noen få cellelag fra et
+          kapillær som bringer O₂ og næring.
         </p>
       </Explain>
     </>
@@ -789,7 +808,7 @@ function StoreOverflater() {
             min={0}
             max={LUNG_STEPS.length - 1}
             step={1}
-            format={(i) => `${fmt(LUNG_STEPS[i] ?? 0.25, (LUNG_STEPS[i] ?? 0.25) < 1 ? 2 : 0)} mm`}
+            format={(i) => `${fmtMm(LUNG_STEPS[i] ?? LUNG.alveolus)} mm`}
           />
         )}
       </Controls>
@@ -804,7 +823,7 @@ function StoreOverflater() {
         {organ === 'lunge' ? (
           <>
             <Readout label="Antall lungeblærer" value={fmtMillions(alveoliCount(dAlv))} />
-            <Readout label="Samlet overflate" value={fmt(total, total < 10 ? 1 : 0)} unit="m²" tone={C_AREA} />
+            <Readout label="Samlet overflate" value={fmtM2(total)} unit="m²" tone={C_AREA} />
             <Readout label="Mot to store sekker" value={fmt(factor, factor < 10 ? 1 : 0)} unit="ganger så stor" />
           </>
         ) : (
@@ -812,12 +831,12 @@ function StoreOverflater() {
             <Readout label={organ === 'tarm' ? 'Tarmtottene gjør flaten' : 'Rothårene gjør flaten'} value={fmt(factor, 1)} unit="ganger så stor" tone={C_AREA} />
             <Readout
               label={organ === 'tarm' ? 'Hele tynntarmen' : 'Én rugplante'}
-              value={fmt(total, total < 10 ? 1 : 0)}
+              value={fmtM2(total)}
               unit="m²"
             />
             <Readout
               label={organ === 'tarm' ? 'Uten tarmtotter' : 'Uten rothår'}
-              value={fmt(total / factor, total / factor < 10 ? 1 : 0)}
+              value={fmtM2(total / factor)}
               unit="m²"
             />
           </>
@@ -833,7 +852,7 @@ function StoreOverflater() {
             </FormulaLine>
             <FormulaLine>
               Tynntarmen: {fmt(Math.PI * GUT.diameter * GUT.length, 2)} m² (glatt rør) · {fmt(GUT.folds, 1)} (folder) · {fmt(factor, 1)} (tarmtotter) ·{' '}
-              {GUT.microvilli} (mikrovilli) = {fmt(total, 0)} m²
+              {GUT.microvilli} (mikrovilli) = {fmtM2(total)} m²
             </FormulaLine>
           </>
         )}
@@ -851,20 +870,36 @@ function StoreOverflater() {
         {organ === 'lunge' && (
           <>
             <FormulaLine>
-              Lungeblærene fyller halve lungevolumet (V = {LUNG.volume} L): A = 6 · 0,5 · V / d = 6 · 0,5 · {LUNG.volume} L / {fmt(dAlv, 2)} mm ={' '}
-              {fmt(total, total < 10 ? 1 : 0)} m²
+              Lungeblærene fyller halve lungevolumet (V = {LUNG.volume} L): A = 6 · 0,5 · V / d = 6 · 0,5 · {LUNG.volume} L / {fmtMm(dAlv)} mm ={' '}
+              {fmtM2(total)} m²
             </FormulaLine>
             <FormulaLine>To sekker på 3 L hver ville hatt ca. {fmt(lungAreaTwoSacs(), 1)} m² overflate.</FormulaLine>
           </>
         )}
         <FormulaLine>
-          {fmt(total, total < 10 ? 1 : 0)} m² ≈ {fmt(cmp.ratio, cmp.ratio < 10 ? 1 : 0)} · {cmp.navn} ({fmt(cmp.ratio > 0 ? total / cmp.ratio : 0, cmp.navn === 'et A4-ark' ? 3 : 0)} m²)
+          {fmtM2(total)} m² ≈{' '}
+          {Math.abs(cmp.ratio - 1) < 0.05 ? cmp.navn : `${fmt(cmp.ratio, cmp.ratio < 10 ? 1 : 0)} ${cmp.flere}`} ({cmp.ratio >= 0.95 && Math.abs(cmp.ratio - 1) >= 0.05 ? `${fmtRef(cmp.m2)} m² hver` : `${fmtRef(cmp.m2)} m²`})
         </FormulaLine>
       </Formula>
 
       <Explain>{organText(organ, factor, total, dAlv)}</Explain>
     </>
   );
+}
+
+/** Areal i m²: én desimal under 10 m². */
+function fmtM2(m2: number): string {
+  return m2 < 1 ? fmt(m2, m2 < 0.1 ? 3 : 2) : fmt(m2, m2 < 10 && m2 % 1 ? 1 : 0);
+}
+
+/** Kjente flater: 0,062 · 12,5 · 261 m². */
+function fmtRef(m2: number): string {
+  return m2 < 1 ? fmt(m2, 3) : fmt(m2, m2 % 1 ? 1 : 0);
+}
+
+/** Diameter i mm: 0,25 · 1,5 · 20. */
+function fmtMm(d: number): string {
+  return fmt(d, d < 1 ? 2 : d % 1 ? 1 : 0);
 }
 
 function fmtMillions(n: number): string {
@@ -884,11 +919,16 @@ function organText(organ: Organ, factor: number, total: number, dAlv: number): R
     return (
       <>
         <p>
-          <strong>Tarmtottene gjør tarmveggen {fmt(factor, 1)} ganger så stor.</strong> Inne i hver tarmtott ligger kapillærer som tar
-          opp næringsstoffene. Hver celle i tarmtotten har i tillegg mikrovilli, små utposninger av cellemembranen som gjør flaten ca.{' '}
-          {GUT.microvilli} ganger større. Til sammen blir tynntarmen ca. {fmt(total, 0)} m² på innsiden.
+          {factor < 1.01 ? (
+            <strong>Uten tarmtotter er tynntarmen bare ca. {fmtM2(total)} m² på innsiden.</strong>
+          ) : (
+            <strong>Tarmtottene gjør flaten {fmt(factor, 1)} ganger så stor.</strong>
+          )}{' '}
+          Inne i hver tarmtott ligger kapillærer som tar opp næringsstoffene. Hver celle i tarmveggen har i tillegg mikrovilli, små
+          utposninger av cellemembranen som gjør flaten ca. {GUT.microvilli} ganger større.{' '}
+          {factor >= 1.01 && `Til sammen blir tynntarmen ca. ${fmtM2(total)} m² på innsiden.`}
         </p>
-        {factor < 1.5 && <p>Uten tarmtotter ville tarmen måtte være mange ganger lengre for å ta opp like mye næring.</p>}
+        {factor < 1.5 && <p>Uten tarmtotter måtte tarmen vært mange ganger lengre for å ta opp like mye næring.</p>}
         {principle}
       </>
     );
@@ -896,9 +936,13 @@ function organText(organ: Organ, factor: number, total: number, dAlv: number): R
     return (
       <>
         <p>
-          <strong>Rothårene gjør roten {fmt(factor, 1)} ganger så stor.</strong> Hvert rothår er en utvekst av én enkelt celle i rotas
-          overhud, bare ca. 0,01 mm tykt, og tar opp vann og mineraler fra jorda. En rugplante som Dittmer målte i 1937, hadde ca. 14
-          milliarder rothår.
+          {factor < 1.01 ? (
+            <strong>Uten rothår er overflaten bare røttene selv, ca. {fmtM2(total)} m².</strong>
+          ) : (
+            <strong>Rothårene gjør overflaten av roten {fmt(factor, 1)} ganger så stor.</strong>
+          )}{' '}
+          Hvert rothår er en utvekst av én enkelt celle i rotas overhud, bare ca. 0,01 mm tykt, og tar opp vann og mineraler fra jorda. En
+          rugplante som Dittmer målte i 1937, hadde ca. 14 milliarder rothår.
         </p>
         {principle}
       </>
@@ -907,13 +951,18 @@ function organText(organ: Organ, factor: number, total: number, dAlv: number): R
     <>
       <p>
         <strong>
-          {alveoliCount(dAlv) > 1e6 ? `${fmtMillions(alveoliCount(dAlv))} lungeblærer` : 'Lungeblærene'} gir {fmt(total, total < 10 ? 1 : 0)} m²
+          {alveoliCount(dAlv) > 1e6 ? `${fmtMillions(alveoliCount(dAlv))} lungeblærer` : 'Lungeblærene'} gir {fmtM2(total)} m²
         </strong>
-        , {fmt(factor, 0)} ganger så mye som to store sekker med samme volum. Jo mindre blærene er, jo flere får plass og jo større blir
+        , {fmt(factor, factor < 10 ? 1 : 0)} ganger så mye som to store sekker med samme volum. Jo mindre blærene er, jo flere får plass og jo større blir
         overflaten (A = 6φV/d, samme 6/d som for én celle). Veggen mellom luft og blod er bare ca. 0,5 µm tykk, så O₂ diffunderer over på
         under ett sekund.
       </p>
-      {dAlv > 1 && <p>Med så store blærer ville du ikke fått nok O₂, selv i hvile. Frosker har enklere lunger med færre, større blærer, men de tar også opp O₂ gjennom huden.</p>}
+      {dAlv > 1 && (
+        <p>
+          Med så store blærer ville overflaten vært for liten til å ta opp nok O₂{dAlv >= 5 ? ', selv i hvile' : ' når du anstrenger deg'}.
+          Frosker har enklere lunger med færre, større blærer, men de tar også opp O₂ gjennom huden.
+        </p>
+      )}
       {principle}
     </>
   );
@@ -1076,11 +1125,11 @@ function LungScene({ d, f }: { d: number; f: number }) {
     <Figure
       viewBox={`0 0 800 ${H}`}
       maxHeight={H}
-      label={`Luftveier som ender i lungeblærer på ${fmt(d, 2)} mm. ${fmtMillions(alveoliCount(d))} blærer gir ${fmt(lungArea(d), 0)} m².`}
+      label={`Luftveier som ender i lungeblærer på ${fmtMm(d)} mm. ${fmtMillions(alveoliCount(d))} blærer gir ${fmtM2(lungArea(d))} m².`}
       caption="De minste luftveiene ender i klaser av lungeblærer. Ikke i målestokk: blærene er tegnet større jo større d er."
     >
       <Txt x={24} y={24 * f} anchor="start" size={0.85} weight={650}>
-        Lungeblærer på {fmt(d, d < 1 ? 2 : 0)} mm
+        Lungeblærer på {fmtMm(d)} mm
       </Txt>
       <Txt x={776} y={24 * f} anchor="end" size={0.85} muted>
         {fmtMillions(alveoliCount(d))} i lungene

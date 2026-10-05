@@ -207,7 +207,9 @@ function Pond({ trial, step, scenario, f, M, C }: { trial: McTrial; step: Step; 
           ? 'Fisken som ikke ble fanget i gjenfangsten, er tonet ned.'
           : step === 'merking'
             ? 'Fisken i garnet får en farget lapp (merke) før den slippes ut igjen.'
-            : 'De merkede er satt tilbake i dammen og svømmer fritt.'
+            : scenario === 'ikkeBlandet'
+              ? 'De merkede er satt tilbake, men har ikke spredt seg i dammen ennå.'
+              : 'De merkede er satt tilbake i dammen og svømmer fritt.'
       }
     >
       <Txt x={24} y={22 * f} anchor="start" weight={700}>
@@ -412,10 +414,12 @@ function explanation({
   );
   const spread = (
     <p>
-      Resultatet avhenger av tilfeldighetene i hvilke fisk som havner i garnet. Med disse tallene gir 95 % av forsøkene et estimat mellom{' '}
-      {fmt(summary.low, 0)} og {fmt(summary.high, 0)}
-      {summary.pNone >= 0.01 ? `, og ${fmtPct(summary.pNone)} av forsøkene gir R = 0 (ikke noe estimat)` : ''}. Merk og fang flere fisk for
-      å få et sikrere estimat, og trykk «Nytt forsøk» for å se spredningen
+      Resultatet avhenger av tilfeldighetene i hvilke fisk som havner i garnet. Med disse tallene{' '}
+      {summary.pNone >= 0.01
+        ? `gir ${fmtPct(summary.pNone)} av forsøkene R = 0 (ikke noe estimat), og 95 % av de andre gir`
+        : 'gir 95 % av forsøkene'}{' '}
+      et estimat mellom {fmt(summary.low, 0)} og {fmt(summary.high, 0)}. Merk og fang flere fisk for å få et sikrere estimat, og trykk
+      «Nytt forsøk» for å se spredningen
       {history.length > 1 ? ` (du har gjort ${history.length} forsøk)` : ''}.
     </p>
   );
@@ -451,16 +455,16 @@ function explanation({
     ),
     merkeTap: (
       <p>
-        <strong>Noen merker har falt av</strong> (stiplet ring). Fisken er fortsatt merket, men det kan vi ikke se, så vi teller for få
-        merkede. R blir for liten, og estimatet blir <strong>for høyt</strong>. Derfor bruker forskere merker som sitter godt, og noen ganger
+        <strong>Noen merker har falt av</strong> (stiplet ring). Fisken ble merket i første fangst, men nå kan vi ikke se det, så vi teller for
+        få merkede. R blir for liten, og estimatet blir <strong>for høyt</strong>. Derfor bruker forskere merker som sitter godt, og noen ganger
         to merker på samme fisk for å finne ut hvor mange som faller av.
       </p>
     ),
     fellelyst: (
       <p>
-        <strong>Merkede fisk går lettere i fella</strong>, for eksempel fordi de lærte at det var mat der. Da blir det for mange merkede i
-        gjenfangsten, R blir for stor, og estimatet blir <strong>for lavt</strong>. Det motsatte (fisk som har lært å unngå fella) gir for høye
-        estimater. Derfor bruker man gjerne en annen fangstmetode i gjenfangsten.
+        <strong>Merkede fisk fanges lettere</strong>, for eksempel fordi de lærte at det var mat (agn) der de ble fanget første gang. Da blir
+        det for mange merkede i gjenfangsten, R blir for stor, og estimatet blir <strong>for lavt</strong>. Det motsatte (fisk som har lært å
+        unngå redskapet) gir for høye estimater. Derfor bruker man gjerne en annen fangstmetode i gjenfangsten.
       </p>
     ),
   };
