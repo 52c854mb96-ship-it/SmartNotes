@@ -111,6 +111,8 @@ Bildene av notatene sendes til Anthropics API for å bli lest. Originalene, LaTe
 
 ## Utvikling og tester
 
+Hva som er gjort, valgene som er tatt og forslag til neste steg står i **[docs/STATUS.md](docs/STATUS.md)**.
+
 ```bash
 npm run typecheck     # TypeScript for alle pakker
 npm test              # servertester (enhet + API med ekte LaTeX og falsk Claude)
