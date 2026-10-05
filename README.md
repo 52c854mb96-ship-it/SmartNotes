@@ -18,10 +18,12 @@ Appen er laget for **Fysikk 1**, **Kjemi 1** og **Biologi 1** (VG2, LK20). Hvert
 - **Søk.** Ctrl/Cmd+K søker i titler og innholdet i alle notatene, også uten nett.
 - **Tre kolonner.** På iPad og PC ser du kapitler, notater og PDF side om side. Lys, mørk eller systemtema, og hvert fag har sine egne farger (fysikk «Blekk», kjemi «Tavle», biologi «Salvie») og sin egen PDF-mal (Klassisk, Moderne og Lærebok).
 - **Visualiseringer.** Interaktive forklaringer til hvert kapittel, der du styrer situasjonen selv med glidebrytere og knapper. I fysikk: friksjon, kraftpar, energibevaring, støt, bølger, Bohrs atommodell, halveringstid og koblinger. I kjemi: elektronkonfigurasjon, molekylform, redoks, balansering, entalpi, organisk navnsetting, likevekt, titrering og spektrofotometri. I biologi: klassifisering og slektskapstrær, diffusjon og osmose, mitose og meiose, nerveimpulsen, blodsukkerregulering, gassutveksling, transpirasjon, smittespredning, flokkimmunitet og antibiotikaresistens. Tallene, grafene og forklaringen oppdateres mens du drar. De ligger under **Visualiseringer** i sidepanelet og lenkes fra kapitlene og notatene.
+- **Flashcards.** Marker notatene du vil øve på (hele kapitler eller delkapitler med ett trykk) og velg vanskelighetsgrad: lett (begreper og fakta, korte svar), middels (forklare sammenhenger), vanskelig (drøfte og regne, utfyllende svar) eller blandet. Claude lager spørsmål og svar, med formler der det trengs. Du snur kortet, vurderer svaret fra 1 (feil) til 4 (perfekt) og går rett videre til neste kort. Kort du ikke kunne, kommer igjen etter noen få andre, og et kort er mestret når du har svart riktig på det flere ganger. Etter runden velger du om du vil repetere bare de du ikke kunne, også de du var usikker på, eller alle. Kortstokkene og fremgangen synkes mellom enhetene, og enkeltkort kan redigeres eller slettes. Flashcards ligger i sidepanelet under hvert fag.
 - **Samle-PDF.** Last ned et helt kapittel eller hele faget som én PDF med innholdsliste.
 - **Offline.**
   - Alle ferdige PDF-er lagres på enheten og kan leses uten nett.
   - Notater du laster opp uten nett, legges i kø og sendes automatisk når du er på nett igjen.
+  - Flashcards kan øves uten nett. Fremgangen sendes når du er på nett igjen.
   - Konverteringen skjer på serveren, så du kan lukke appen så snart opplastingen er sendt.
 - **Rediger LaTeX.** Du kan se og redigere LaTeX-koden og lage PDF-en på nytt.
 
@@ -46,6 +48,8 @@ Appen er laget for **Fysikk 1**, **Kjemi 1** og **Biologi 1** (VG2, LK20). Hvert
 | `server/src/profiles/<fag>.ts` | Instruksene Claude får for notater i faget |
 | `server/src/textbooks.ts` | Lærebøkene: kapitler, delkapitler og kompetansemål |
 | `web/src/viz/` | Visualiseringene, én mappe per fag og kapittel |
+| `server/src/flashcards/` | Instruksene til Claude og bakgrunnsjobben som lager flashcards |
+| `web/src/flashcards/` | Øvingen med flashcards (reglene i `model.ts`) og visning av formler med KaTeX |
 | `shared/` | Felles TypeScript-typer for API-et |
 
 ## Kom i gang lokalt
@@ -99,7 +103,7 @@ Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du m�
 
 ## Hva koster det?
 
-Hver side sendes som et bilde i høy oppløsning (ca. 4 600 tokens). Med Claude Opus 5.5 ($4 per million input-tokens og $20 per million output-tokens, der tenkning regnes som output) koster et notat på 5 sider omtrent **3–6 kroner**, avhengig av hvor mye som står på sidene. Instruksene caches mellom notater, og det gjør det litt billigere. `CLAUDE_EFFORT=medium` reduserer kostnaden ytterligere. Hvor mange tokens hvert notat brukte, lagres i `meta.json` i notatets mappe på serveren.
+Hver side sendes som et bilde i høy oppløsning (ca. 4 600 tokens). Med Claude Opus 5.5 ($4 per million input-tokens og $20 per million output-tokens, der tenkning regnes som output) koster et notat på 5 sider omtrent **3–6 kroner**, avhengig av hvor mye som står på sidene. Instruksene caches mellom notater, og det gjør det litt billigere. `CLAUDE_EFFORT=medium` reduserer kostnaden ytterligere. Hvor mange tokens hvert notat brukte, lagres i `meta.json` i notatets mappe på serveren. En kortstokk med flashcards koster omtrent 1–4 kroner, avhengig av hvor mange notater og kort den har.
 
 ## Personvern
 

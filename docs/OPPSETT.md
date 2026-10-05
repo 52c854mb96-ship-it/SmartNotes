@@ -112,6 +112,7 @@ Senere skjer alt automatisk: hver gang noe flettes inn i `main` og CI er grønn,
    - formlene og enhetene er riktige,
    - eventuelle merknader fra Claude gir mening.
 5. Åpne **Visualiseringer** i sidepanelet og prøv et par av dem.
+6. Åpne **Flashcards** i sidepanelet, lag en kortstokk av notatet og øv på noen kort. Kortene er klare etter et halvt til ett par minutter.
 
 Hvis noe feiler, se [Feilsøking](#feilsøking) nedenfor.
 
@@ -145,6 +146,7 @@ I skyøktene med Claude Code finnes det ingen API-nøkkel, så Claude har bare t
 |---|---|
 | Railway: serveren (et par hundre MB minne når den står stille) og lagring | noen få dollar i måneden i forbruk, som helt eller delvis dekkes av det som er inkludert i abonnementet ditt |
 | Claude: et notat på 5 sider | 3–6 kr |
+| Claude: en kortstokk med flashcards | 1–4 kr |
 
 - Forbruket hos Railway ser du under **Usage** i workspace-innstillingene. Der kan du også sette en øvre grense (**Usage limits**).
 - Forbruket hos Claude ser du under **Usage** i Anthropic Console.
