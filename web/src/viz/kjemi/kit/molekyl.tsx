@@ -68,7 +68,8 @@ export function Atom({ x, y, el, r, charge, label, showCharge, partial, partialA
   const R = radiusOf({ x, y, el, r, charge }, k);
   const c = atomColors(el);
   const text = label ?? el;
-  const long = typeof text === 'string' && text.length > 1;
+  // Lange symboler (Cl) og egne etiketter (Mg med hevet ladning) får mindre skrift, så de holder seg inne i kula.
+  const long = typeof text !== 'string' || text.length > 1;
   const fs = R * (long ? 0.8 : 0.95);
   const q = charge ?? 0;
   const p = partial ? polar(x, y, R + 9 + 9 * f, partialAngle) : null;
@@ -273,10 +274,45 @@ export function VseprMolecule({ x, y, geometry, center, ligands, orders, bond, r
         const l = lig[i]!;
         return <Atom key={`a${i}`} x={l.x} y={l.y} el={l.el} partial={partials?.ligands} partialAngle={l.angle} />;
       })}
-      <Atom x={x} y={y} el={center} partial={partials?.center} partialAngle={lay.lonePairs.length ? lay.lonePairs[0]! + 180 : 90} />
+      <Atom x={x} y={y} el={center} partial={partials?.center} partialAngle={freeDirection(lig.map((l) => l.angle), lonePairs ? lay.lonePairs : [], showAngle && a0 && a1 ? arcMid(a0.angle, a1.angle) : null)} />
       {lonePairs && lay.lonePairs.map((deg) => <LonePair key={`lp${deg}`} at={c} angle={deg} />)}
     </g>
   );
+}
+
+const norm = (deg: number) => ((deg % 360) + 360) % 360;
+
+/** Midtretningen til den minste buen mellom to retninger (som AngleArc tegner). */
+function arcMid(from: number, to: number): number {
+  let span = norm(to - from);
+  let start = from;
+  if (span > 180 + 1e-9) {
+    start = to;
+    span = 360 - span;
+  }
+  return norm(start + span / 2);
+}
+
+/**
+ * Retningen midt i den største ledige vinkelen rundt sentralatomet (mellom bindinger og frie par), for δ-etiketten.
+ * Hopper over vinkelen der bindingsvinkelen står (`avoid`).
+ */
+function freeDirection(bonds: number[], lonePairs: number[], avoid: number | null): number {
+  const dirs = [...bonds, ...lonePairs].map(norm).sort((p, q) => p - q);
+  if (dirs.length === 0) return 90;
+  let best = 90;
+  let bestGap = -1;
+  dirs.forEach((a, i) => {
+    const b = i + 1 < dirs.length ? dirs[i + 1]! : dirs[0]! + 360;
+    const gap = b - a;
+    const mid = norm(a + gap / 2);
+    const inside = avoid !== null && norm(avoid - a) < gap;
+    if (!inside && gap > bestGap) {
+      bestGap = gap;
+      best = mid;
+    }
+  });
+  return best;
 }
 
 export interface ElectronShellsProps {

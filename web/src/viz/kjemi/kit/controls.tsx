@@ -2,7 +2,7 @@
  * Kontroller som kjemien trenger i tillegg til kit-ets Slider/Segmented/Toggle: nedtrekksliste, formelfelt og et lite
  * periodesystem for å velge grunnstoff. Plasser dem i <Toolbar> (eller rett i <VizLayout>).
  */
-import { useId, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { atomColors } from './colors';
 import { parseFormula, type FormulaResult } from './formel';
 import { Formel } from './Formel';
@@ -162,4 +162,32 @@ export function ElementPicker({
       {cells}
     </div>
   );
+}
+
+/**
+ * Tekstskaleringen en <Figure> med denne viewBox-bredden vil få når den fyller elementet `ref` peker på (samme regel
+ * som Figure bruker: 1 på PC, ca. 1,8 på mobil). Bruk den til å velge viewBox-høyden før figuren tegnes, så teksten
+ * får plass på mobil:
+ *
+ *   const [ref, f] = useContainerTextScale<HTMLDivElement>();
+ *   <div ref={ref}><Figure viewBox={`0 0 800 ${200 + 120 * f}`} …>…</Figure></div>
+ */
+export function useContainerTextScale<T extends HTMLElement>(vbWidth = 800) {
+  const ref = useRef<T>(null);
+  const [f, setF] = useState(1);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const update = () => {
+      // Figurens ramme og innerkant (viz.css: 8 px på PC, 4 px på mobil) + kantlinje
+      const w = el.getBoundingClientRect().width - (window.innerWidth <= 600 ? 10 : 18);
+      if (w <= 0) return;
+      setF(Math.round(Math.max(1, 12.5 / 17 / (w / vbWidth)) * 20) / 20);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [vbWidth]);
+  return [ref, f] as const;
 }

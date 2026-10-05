@@ -32,7 +32,7 @@ export interface GlassProps {
   liquid?: string;
   /** Innhold i væsken (klippes til væsken). Som funksjon får du boksen partiklene kan ligge i. */
   children?: Inside;
-  /** Merker på glasset, f.eks. [{ level: 0.25, label: '50 mL' }, …]. */
+  /** Merker på glasset, f.eks. [{ level: 0.25, label: '50 mL' }, …]. Etikettene står til høyre for glasset. */
   marks?: { level: number; label?: string }[];
   /** Etikett under glasset. */
   label?: ReactNode;
@@ -67,9 +67,9 @@ export function Begerglass({ x, y, w, h, level, liquid = KJEMI.liquid, children,
         const my = y + h - clamp01(m.level) * (h - 6);
         return (
           <g key={m.level}>
-            <line x1={x + w - 4} y1={my} x2={x + w - 4 - Math.min(26, w * 0.16)} y2={my} stroke={KJEMI.glass} strokeWidth={1.5} />
+            <line x1={x + w - 2} y1={my} x2={x + w - 2 - Math.min(26, w * 0.16)} y2={my} stroke={KJEMI.glass} strokeWidth={1.5} />
             {m.label && (
-              <Txt x={x + w - 8 - Math.min(26, w * 0.16)} y={my + 5} anchor="end" size={0.7} muted>
+              <Txt x={x + w + 8} y={my + 5} anchor="start" size={0.7} muted>
                 {m.label}
               </Txt>
             )}
