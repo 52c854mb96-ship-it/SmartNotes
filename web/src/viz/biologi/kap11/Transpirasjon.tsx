@@ -598,7 +598,7 @@ function TradeOff({ w, s }: { w: Weather; s: PlantState }) {
               {Emax > 0 && <circle cx={sx(s.opening * 100)} cy={sy(eNow)} r={7} fill={C_WATER} stroke={VIZ.surface} strokeWidth={2.5} />}
               {!dark && <circle cx={sx(s.opening * 100)} cy={sy(aNow)} r={7} fill={C_CO2} stroke={VIZ.surface} strokeWidth={2.5} />}
               {dark && (
-                <Txt x={sx(50)} y={sy(80)} size={0.85} weight={650} color={C_CO2}>
+                <Txt x={sx(64)} y={sy(18)} size={0.85} weight={650} color={C_CO2}>
                   ingen fotosyntese i mørket
                 </Txt>
               )}

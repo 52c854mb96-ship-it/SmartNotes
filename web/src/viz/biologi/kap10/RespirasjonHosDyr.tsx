@@ -21,6 +21,7 @@ import {
   VizLayout,
   fmt,
   fmtPct,
+  fmtSig,
   linePath,
   mixColor,
   useContainerTextScale,
@@ -52,6 +53,9 @@ import {
   type GasStrategy,
 } from './model';
 import { GjelleFilament } from './felles';
+
+/** Desimaler for en lengde i mm: 0,05 mm, 1,5 mm, 30 mm, 500 mm. */
+const mmDecimals = (mm: number) => (mm < 1 ? 2 : mm < 10 ? 1 : 0);
 
 /** O₂-nivå (0–1) i vevet som farge: grått uten O₂, rødt med mye O₂. */
 const o2Color = (level: number) => mixColor(BIO.dod, BIO.oksygenrikt, Math.min(1, Math.max(0, level)));
@@ -120,7 +124,7 @@ export default function RespirasjonHosDyr() {
 
       <Readouts>
         <Readout label="Andel av kroppen med nok O₂" value={fmtPct(cov)} tone={cov < 0.999 ? VIZ.muted : BIO.oksygenrikt} />
-        <Readout label="Overflate per volum" value={fmt(surfacePerVolume(d), surfacePerVolume(d) < 1 ? 2 : 1)} unit="mm² per mm³" />
+        <Readout label="Overflate per volum" value={fmtSig(surfacePerVolume(d), 2)} unit="mm² per mm³" />
         <Readout
           label="Diffusjonsavstand der O₂ tas opp"
           value={strategy.barrier === null ? formatMeters(R) : strategy.id === 'trakeer' ? '< 1 µm' : `ca. ${formatMeters(strategy.barrier * 1e-6)}`}
@@ -135,11 +139,11 @@ export default function RespirasjonHosDyr() {
 
       <Formula label="Diffusjon tar tid">
         <FormulaLine>
-          Tid til midten: t ≈ x² / (2D) = ({fmt(R * 1000, R < 1e-3 ? 2 : 1)} mm)² / (2 · {fmt(D_TISSUE * 1e6, 3)} mm²/s) ={' '}
+          Tid til midten: t ≈ x² / (2D) = ({fmt(R * 1000, mmDecimals(R * 1000))} mm)² / (2 · {fmt(D_TISSUE * 1e6, 3)} mm²/s) ={' '}
           {formatDuration(tCentre)}
         </FormulaLine>
         <FormulaLine>
-          Overflate per volum (kule): A/V = 6/d = 6/({fmt(d * 1000, d < 1e-3 ? 2 : 1)} mm) = {fmt(surfacePerVolume(d), surfacePerVolume(d) < 1 ? 3 : 1)} mm²
+          Overflate per volum (kule): A/V = 6/d = 6/({fmt(d * 1000, mmDecimals(d * 1000))} mm) = {fmtSig(surfacePerVolume(d), 2)} mm²
           per mm³
         </FormulaLine>
         <FormulaLine>Dobbelt så tykk kropp: fire ganger så lang diffusjonstid og halvparten så mye overflate per volum.</FormulaLine>

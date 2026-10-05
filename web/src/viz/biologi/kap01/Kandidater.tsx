@@ -59,8 +59,8 @@ function Fro(g: GProps) {
   );
 }
 
-/** Tardigrad (bjørnedyr) i tørkedvale: inntørket tønneform med bena trukket inn. */
-function Tardigrad(g: GProps) {
+/** Bjørnedyr (tardigrad) i tørkedvale: inntørket tønneform med bena trukket inn. */
+function Bjornedyr(g: GProps) {
   const p = BIO.insekt;
   return (
     <G {...g}>
@@ -171,8 +171,8 @@ export function CandidateGlyph({ id, x, y, size = 40, title }: { id: CandidateId
       return <Gjaer {...g} />;
     case 'fro':
       return <Fro {...g} />;
-    case 'tardigrad':
-      return <Tardigrad {...g} />;
+    case 'bjornedyr':
+      return <Bjornedyr {...g} />;
     case 'virus':
       return <Virus {...g} type="bakteriofag" />;
     case 'prion':

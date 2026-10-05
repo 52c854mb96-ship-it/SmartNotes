@@ -257,7 +257,7 @@ function circuitGeometry(animal: Animal, f: number, sat: Saturations): CircuitGe
       body,
       chambers: [
         { id: 'kammer', box: { x: hx - cw / 2, y: vTop, w: cw, h: vh }, lines: ['hjerte-', 'kammer'], tx, ty: vTop + vh / 2, sat: sat.venous },
-        { id: 'forkammer', box: { x: hx - cw / 2, y: aTop, w: cw, h: ah }, lines: narrow ? ['forkam-', 'mer'] : ['forkammer'], tx, ty: aTop + ah / 2, sat: sat.venous },
+        { id: 'forkammer', box: { x: hx - cw / 2, y: aTop, w: cw, h: ah }, lines: ['forkammer'], tx, ty: aTop + ah / 2, sat: sat.venous },
       ],
       paths: [
         [
@@ -442,7 +442,17 @@ function CircuitScene({ animal, segs, sat, f, laps, color }: SceneProps) {
   }. Blodet ut til kroppen er ${fmtPct(sat.arterial)} mettet med O₂.`;
 
   return (
-    <Figure viewBox={`0 0 800 ${g.H}`} maxHeight={narrow ? 1100 : g.H} label={label}>
+    <Figure
+      viewBox={`0 0 800 ${g.H}`}
+      maxHeight={narrow ? 1100 : g.H}
+      label={label}
+      caption={
+        <>
+          Eksempel: {animal.example} (<em>{animal.latin}</em>){animal.id === 'pattedyr' ? '; fugler har samme oppbygning' : ''}.
+          {animal.system === 'dobbelt' ? ' Hjertet er sett forfra, så dyrets høyre side er til venstre i figuren.' : ''}
+        </>
+      }
+    >
       <defs>
         {/* Kapillærnettene: fargen går fra blodet inn til blodet ut (gjellene/lungene venstre → høyre, kroppen høyre → venstre) */}
         <linearGradient id={`${gradId}-gas`} x1="0" x2="1" y1="0" y2="0">
@@ -681,7 +691,11 @@ function InsectScene({ segs, f, laps, color }: SceneProps) {
       viewBox={narrow ? `100 0 692 ${H}` : `0 0 800 ${H}`}
       maxHeight={narrow ? 900 : H}
       label="Insekt sett fra siden: ryggkaret pumper hemolymfe fram mot hodet og ut i kroppshulen, der den strømmer fritt bakover og tilbake inn i ryggkaret gjennom ostier. Trakeer frakter luft til cellene."
-      caption="Skjematisk tegning av en gresshoppe. Trakeene er bare tegnet på bakkroppen."
+      caption={
+        <>
+          Skjematisk tegning av en vandregresshoppe (<em>Locusta migratoria</em>). Trakeene er bare tegnet på bakkroppen.
+        </>
+      }
     >
       {/* Bein */}
       {[262, 300, 338].map((x, i) => (
@@ -943,8 +957,8 @@ function explanation(a: Animal, s: Saturations, activity: number): ReactNode {
       return (
         <>
           <p>
-            <strong>Delvis skillevegg i hjertekammeret.</strong> Hos øgler, slanger og skilpadder deler en ufullstendig skillevegg
-            hjertekammeret, så det blir mindre blanding enn hos amfibier (her ca. {fmtPct(a.mixing)}). Blodet til kroppen er {fmtPct(s.arterial)}{' '}
+            <strong>Delvis skillevegg i hjertekammeret.</strong> Hos øgler, slanger og skilpadder er hjertekammeret delvis delt av en
+            skillevegg, så det blir mindre blanding enn hos amfibier (her ca. {fmtPct(a.mixing)}). Blodet til kroppen er {fmtPct(s.arterial)}{' '}
             mettet, og trykket ut til kroppen ({fmt(a.pBody, 0)} mmHg) kan bli høyere enn trykket til lungene ({fmt(a.pGas, 0)} mmHg).
           </p>
           <p>

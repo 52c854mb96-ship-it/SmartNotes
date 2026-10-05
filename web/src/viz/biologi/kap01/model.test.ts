@@ -16,7 +16,6 @@ import {
   matchingDefinition,
   ordersOfMagnitude,
   plain,
-  ratioToPrevious,
   scalePos,
   verdict,
   wrapText,
@@ -69,13 +68,16 @@ describe('organisasjonsnivåene', () => {
     expect(LEVELS.filter((l) => l.ecological).map((l) => l.id)).toEqual(['populasjon', 'samfunn', 'okosystem', 'biosfaere']);
   });
 
-  it('levelAt begrenser indeksen og ratioToPrevious gir forholdet mellom nabonivåer', () => {
+  it('levelAt begrenser indeksen til gyldige nivåer', () => {
     expect(levelAt(-3).id).toBe('molekyl');
     expect(levelAt(99).id).toBe('biosfaere');
     expect(levelAt(2.4).id).toBe('celle');
-    expect(ratioToPrevious(0, 'human')).toBeNull();
-    expect(ratioToPrevious(2, 'human')).toBeCloseTo(50, 9); // 0,1 mm / 2 µm
-    expect(ratioToPrevious(8, 'forest')).toBe(1);
+  });
+
+  it('fra DNA til jorda er det omtrent 16 tierpotenser (12 742 km / 2 nm ≈ 6,4 · 10¹⁵)', () => {
+    const r = level('biosfaere').human.size / level('molekyl').human.size;
+    expect(r).toBeCloseTo(6.371e15, -12);
+    expect(Math.round(ordersOfMagnitude(level('molekyl').human.size, level('biosfaere').human.size))).toBe(16);
   });
 });
 
@@ -117,13 +119,13 @@ describe('kjennetegn på liv', () => {
       }
   });
 
-  it('med alle sju kjennetegnene: bakterie og gjær er levende, frø og tardigrad grensetilfeller, resten ikke levende', () => {
+  it('med alle sju kjennetegnene: bakterie og gjær er levende, frø og bjørnedyr levende i hvile, resten ikke levende', () => {
     const v = (id: CandidateId) => verdict(candidate(id), ALL_CRITERIA);
     const expected: Record<CandidateId, Verdict> = {
       bakterie: 'levende',
       gjaer: 'levende',
-      fro: 'grense',
-      tardigrad: 'grense',
+      fro: 'hvile',
+      bjornedyr: 'hvile',
       virus: 'ikke',
       prion: 'ikke',
       ild: 'ikke',
@@ -139,6 +141,25 @@ describe('kjennetegn på liv', () => {
     expect(verdict(candidate('ild'), def)).toBe('grense');
     expect(verdict(candidate('krystall'), def)).toBe('grense');
     expect(verdict(candidate('bakterie'), def)).toBe('levende');
+  });
+
+  it('latent liv (hvile) er levende i hvile, men delvis oppfylte krav gjør det til et grensetilfelle', () => {
+    // Frø og bjørnedyr i dvale: alt som mangler, er bare satt på pause
+    expect(verdict(candidate('fro'), ['stoffskifte', 'arv'])).toBe('hvile');
+    expect(verdict(candidate('bjornedyr'), ['vekst', 'formering'])).toBe('hvile');
+    expect(verdict(candidate('fro'), ['celler', 'arv'])).toBe('levende');
+    // Ild: bare tilsynelatende (delvis), aldri i hvile
+    expect(verdict(candidate('ild'), ['stoffskifte', 'vekst'])).toBe('grense');
+    for (const c of CANDIDATES)
+      if (verdict(c, ALL_CRITERIA) === 'hvile') expect(failing(c, ALL_CRITERIA, 'delvis')).toEqual([]);
+  });
+
+  it('kandidatene har bestemt form og riktig pronomen (intetkjønn for frø, bjørnedyr, virus og prion)', () => {
+    const neuter = CANDIDATES.filter((c) => c.pron === 'det').map((c) => c.id);
+    expect(neuter.sort()).toEqual(['bjornedyr', 'fro', 'prion', 'virus']);
+    for (const c of CANDIDATES) expect(c.the.toLowerCase().startsWith(c.name.split(' ')[0]!.toLowerCase().slice(0, 3))).toBe(true);
+    // Bare arter har vitenskapelig navn (rekker som Tardigrada skal ikke stå i kursiv som et artsnavn)
+    for (const c of CANDIDATES) if (c.sci) expect(c.sci).toMatch(/^[A-Z][a-z]+ [a-z]+$/);
   });
 
   it('virus: grensetilfelle uten krav om celler, ikke levende med krav om stoffskifte', () => {

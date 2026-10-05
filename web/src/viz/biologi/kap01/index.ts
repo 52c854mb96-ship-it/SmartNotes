@@ -36,7 +36,7 @@ const viz: VizMeta[] = [
     sections: [],
     title: 'Hva er liv?',
     summary:
-      'Velg hvilke kjennetegn på liv som skal gjelde, og se hvorfor bakterier er levende, men virus, frø, ild og krystaller er grensetilfeller eller ikke levende.',
+      'Velg hvilke kjennetegn på liv som skal gjelde, og se hvorfor bakterier er levende, frø er levende i hvile, og virus, ild og krystaller er grensetilfeller eller ikke levende.',
     keywords: [
       'kjennetegn på liv',
       'livsprosesser',

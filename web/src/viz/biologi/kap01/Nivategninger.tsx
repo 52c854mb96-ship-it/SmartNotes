@@ -451,24 +451,28 @@ function muscleTissue(): Drawing {
   };
 }
 
+/**
+ * Hjertet sett forfra (personens venstre side er til høyre i bildet): spissen peker ned mot høyre, øvre hulvene (blå)
+ * kommer inn på høyre side av hjertet (til venstre i bildet), aortabuen (rød) bøyer seg over mot venstre side (til høyre
+ * i bildet), og lungepulsåren (blå, oksygenfattig blod) går opp foran og under aortabuen.
+ */
 function heart(): Drawing {
-  const body =
-    'M118,84 C92,112 104,170 170,210 C232,188 270,140 258,98 C250,70 210,62 186,76 C162,62 134,66 118,84 Z';
+  const body = 'M118,88 C96,118 122,178 206,212 C248,180 270,138 258,98 C250,70 214,62 190,76 C164,62 134,66 118,88 Z';
   return {
     art: (
       <g strokeLinecap="round" fill="none">
-        {/* Øvre hulvene (blå) og lungepulsåre (blå), aorta (rød) */}
-        <path d="M124,90 L120,22" stroke={BIO.oksygenfattig} strokeWidth={15} />
-        <path d="M186,84 C186,30 150,22 140,40 M176,40 L172,14 M160,30 L154,10" stroke={BIO.oksygenrikt} strokeWidth={14} />
-        <path d="M212,86 Q222,50 254,40" stroke={BIO.oksygenfattig} strokeWidth={13} />
+        <path d="M126,94 L122,22" stroke={BIO.oksygenfattig} strokeWidth={15} />
+        <path d="M192,28 L186,8 M210,23 L210,4 M228,27 L236,9" stroke={BIO.oksygenrikt} strokeWidth={7} />
+        <path d="M182,88 C178,40 192,21 214,22 C238,23 250,40 250,84" stroke={BIO.oksygenrikt} strokeWidth={14} />
+        <path d="M204,92 Q204,60 230,54 Q246,50 264,54" stroke={BIO.oksygenfattig} strokeWidth={13} />
         <path d={body} fill={BIO.rodtBlodlegeme.fill} stroke={BIO.rodtBlodlegeme.line} strokeWidth={2.2} strokeLinejoin="round" />
-        {/* Skillet mellom hjertekamrene og kransarterie */}
-        <path d="M206,80 Q196,150 172,206" stroke={BIO.rodtBlodlegeme.line} strokeWidth={1.4} strokeDasharray="5 4" />
-        <path d="M128,106 Q170,128 240,118" stroke={BIO.oksygenrikt} strokeWidth={2.4} />
+        {/* Skillet mellom hjertekamrene og en kransarterie */}
+        <path d="M214,82 Q220,150 206,208" stroke={BIO.rodtBlodlegeme.line} strokeWidth={1.4} strokeDasharray="5 4" />
+        <path d="M130,108 Q172,130 244,116" stroke={BIO.oksygenrikt} strokeWidth={2.4} />
       </g>
     ),
-    bracket: { x1: 300, y1: 14, x2: 300, y2: 210, side: 'right' },
-    unit: { x: 236, y: 160, r: 20, label: 'muskelvev', side: 'right' },
+    bracket: { x1: 300, y1: 64, x2: 300, y2: 212, side: 'right' },
+    unit: { x: 146, y: 150, r: 20, label: 'muskelvev', side: 'left' },
   };
 }
 
@@ -476,7 +480,9 @@ function Body({ cx, top, paint, vessels }: { cx: number; top: number; paint: Bio
   const { body, head } = bodyOutline(cx, top);
   const v = (dx: number, side: 1 | -1) => {
     const x = (d: number) => cx + side * (d + dx);
-    return `M${cx - 4 + dx},${top + 78} L${x(4)},${top + 52} L${x(38)},${top + 64} L${x(41)},${top + 122} M${x(4)},${top + 52} L${cx + dx},${top + 18} M${cx - 4 + dx},${top + 78} L${x(10)},${top + 126} L${x(16)},${top + 196}`;
+    // Fra hjertet (litt til venstre i kroppen, altså til høyre i bildet) ut til armene, hodet og beina
+    const h = cx + 5 + dx;
+    return `M${h},${top + 78} L${x(4)},${top + 52} L${x(38)},${top + 64} L${x(41)},${top + 122} M${x(4)},${top + 52} L${cx + dx},${top + 18} M${h},${top + 78} L${x(10)},${top + 126} L${x(16)},${top + 196}`;
   };
   return (
     <g>
@@ -487,7 +493,7 @@ function Body({ cx, top, paint, vessels }: { cx: number; top: number; paint: Bio
           <path d={`${v(-2, 1)} ${v(-2, -1)}`} stroke={BIO.oksygenfattig} strokeWidth={2.4} />
           <path d={`${v(2, 1)} ${v(2, -1)}`} stroke={BIO.oksygenrikt} strokeWidth={2.4} />
           <path
-            d={`M${cx - 10},${top + 72} Q${cx - 14},${top + 86} ${cx - 4},${top + 94} Q${cx + 6},${top + 86} ${cx + 4},${top + 72} Q${cx - 3},${top + 64} ${cx - 10},${top + 72} Z`}
+            d={`M${cx - 2},${top + 72} Q${cx - 4},${top + 86} ${cx + 8},${top + 94} Q${cx + 16},${top + 84} ${cx + 12},${top + 71} Q${cx + 5},${top + 64} ${cx - 2},${top + 72} Z`}
             fill={BIO.rodtBlodlegeme.fill}
             stroke={BIO.oksygenrikt}
             strokeWidth={2}
@@ -502,10 +508,10 @@ function circulatory(): Drawing {
   return {
     art: <Body cx={180} top={12} paint={{ fill: VIZ.surface, line: VIZ.muted }} vessels />,
     bracket: { x1: 250, y1: 12, x2: 250, y2: 212, side: 'right' },
-    unit: { x: 177, y: 95, r: 17, label: 'hjertet', side: 'left' },
+    unit: { x: 185, y: 95, r: 17, label: 'hjertet', side: 'left' },
     labels: [
       { at: [222, 76], x: 300, y: 70, text: 'arterier', anchor: 'start' },
-      { at: [139, 100], x: 70, y: 112, text: 'vener', anchor: 'end' },
+      { at: [169, 172], x: 120, y: 186, text: 'vener', anchor: 'end' },
     ],
   };
 }
@@ -542,7 +548,11 @@ function gut(level: 'populasjon' | 'samfunn' | 'okosystem'): Drawing {
   }
   const pick = list.find((b) => b.x > 120 && b.x < 240 && b.y < 110) ?? list[0]!;
   const unit = level === 'populasjon' ? { x: pick.x, y: pick.y, r: 16, label: 'ett individ', side: 'above' as const } : undefined;
-  const of = (kind: number) => list.find((b) => b.kind === kind) ?? list[0]!;
+  // Mikroben av hver art som ligger nærmest etiketten, så strekene ikke krysser hverandre
+  const of = (kind: number, lx: number) =>
+    list
+      .filter((b) => b.kind === kind)
+      .sort((a, b) => Math.abs(a.x - lx) + 0.4 * a.y - (Math.abs(b.x - lx) + 0.4 * b.y))[0] ?? list[0]!;
   return {
     art: (
       <ColonSegment mucus={level === 'okosystem'}>
@@ -563,9 +573,9 @@ function gut(level: 'populasjon' | 'samfunn' | 'okosystem'): Drawing {
           ]
         : level === 'samfunn'
           ? [
-              { at: [of(0).x, of(0).y], x: 60, y: -4, text: 'stavbakterier', anchor: 'middle' },
-              { at: [of(1).x, of(1).y], x: 180, y: -4, text: 'kokker', anchor: 'middle' },
-              { at: [of(2).x, of(2).y], x: 300, y: -4, text: 'spiriller', anchor: 'middle' },
+              { at: [of(0, 60).x, of(0, 60).y], x: 60, y: -4, text: 'stavbakterier', anchor: 'middle' },
+              { at: [of(1, 180).x, of(1, 180).y], x: 180, y: -4, text: 'kokker', anchor: 'middle' },
+              { at: [of(2, 300).x, of(2, 300).y], x: 300, y: -4, text: 'spiriller', anchor: 'middle' },
             ]
           : undefined,
   };
@@ -761,7 +771,7 @@ function forestScene(level: 'populasjon' | 'samfunn' | 'okosystem'): Drawing {
   return {
     art: (
       <g>
-        {level === 'okosystem' && <rect x={4} y={ground} width={352} height={40} rx={6} fill={BIO.ved} opacity={0.22} />}
+        {level === 'okosystem' && <rect x={4} y={ground} width={352} height={30} rx={6} fill={BIO.ved} opacity={0.22} />}
         {level === 'okosystem' && <Sun x={330} y={30} r={14} />}
         {level === 'okosystem' && <RainCloud x={60} y={26} />}
         <line x1={4} x2={356} y1={ground} y2={ground} stroke={BIO.ved} strokeWidth={2} />
@@ -778,7 +788,7 @@ function forestScene(level: 'populasjon' | 'samfunn' | 'okosystem'): Drawing {
         ? [
             { at: [318, 42], x: 270, y: 30, text: 'lys', anchor: 'end' },
             { at: [72, 50], x: 112, y: 28, text: 'nedbør', anchor: 'start' },
-            { at: [40, ground + 20], x: 30, y: ground + 34, text: 'jord og næringsstoffer', anchor: 'start' },
+            { x: 14, y: ground + 21, text: 'jord og næringsstoffer', anchor: 'start' },
           ]
         : level === 'samfunn'
           ? [

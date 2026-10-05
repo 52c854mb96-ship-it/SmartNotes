@@ -205,7 +205,22 @@ function Fluesopp(g: GProps) {
 const ULV: BioPaint = BIO.menneske;
 
 /** Symbolet til en organisme etter id. `size` ≈ bredden. */
-export function OrganismGlyph({ id, x, y, size = 40, dim }: { id: OrganismId; x: number; y: number; size?: number; dim?: boolean }) {
+export function OrganismGlyph({
+  id,
+  x,
+  y,
+  size = 40,
+  dim,
+  flagell = true,
+}: {
+  id: OrganismId;
+  x: number;
+  y: number;
+  size?: number;
+  dim?: boolean;
+  /** Tegn flagellen på E. coli (den stikker ut av boksen; slå av der navnet står rett ved siden av). */
+  flagell?: boolean;
+}) {
   const o = organism(id);
   const common = { x, y, size, dim, title: o.name };
   const kind: GlyphKind = o.glyph;
@@ -239,7 +254,7 @@ export function OrganismGlyph({ id, x, y, size = 40, dim }: { id: OrganismId; x:
     case 'gjaer':
       return <Gjaer {...common} />;
     case 'bakterie':
-      return <Bakterie {...common} form="stav" flagell />;
+      return <Bakterie {...common} form="stav" flagell={flagell} />;
     case 'arke':
       return <Bakterie {...common} form="stav" paint={BIO.lysosom} />;
   }

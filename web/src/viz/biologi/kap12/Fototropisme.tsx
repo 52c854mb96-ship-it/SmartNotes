@@ -83,6 +83,11 @@ interface ShootProps {
   tip: number;
   /** Andel auksin på venstre side (sett i vekstretningen) i vekstsonen. */
   leftShare: number;
+  /**
+   * Andel av veksten på venstre side (standard: samme som auksinet, som i stengelen). I rota hemmer mye auksin veksten,
+   * så der vokser siden med minst auksin mest.
+   */
+  growthShare?: number;
   /** Hvor mye auksin som strømmer (0 = ingen). */
   auxin: number;
   t: number;
@@ -111,7 +116,7 @@ function centerline(x: number, y: number, L: number, base: number, tip: number, 
   return out;
 }
 
-function Shoot({ x, y, L, W, base, tip, leftShare, auxin, t, paint = BIO.plante, flat, k }: ShootProps) {
+function Shoot({ x, y, L, W, base, tip, leftShare, growthShare, auxin, t, paint = BIO.plante, flat, k }: ShootProps) {
   const line = centerline(x, y, L, base, tip);
   const side = (q: { p: Pt; a: number }, s: 1 | -1, w = W / 2): Pt => {
     const r = (q.a * Math.PI) / 180;
@@ -131,8 +136,9 @@ function Shoot({ x, y, L, W, base, tip, leftShare, auxin, t, paint = BIO.plante,
   // Celleveggene: lengre celler på siden med mest auksin (i vekstsonen)
   const n = line.length - 1;
   const walls: ReactNode[] = [];
+  const growLeft = growthShare ?? leftShare;
   for (const s of [1, -1] as const) {
-    const share = s === 1 ? leftShare : 1 - leftShare;
+    const share = s === 1 ? growLeft : 1 - growLeft;
     let pos = 0.04;
     let i = 0;
     while (pos < 0.94 && i < 40) {
@@ -437,7 +443,7 @@ function CellZoom({
 
 function BendPlot({ light, intensity, t }: { light: number; intensity: number; t: number }) {
   const [ref, f] = useContainerTextScale<HTMLDivElement>();
-  const H = Math.round(300 + 250 * (f - 1));
+  const H = Math.round(320 + 260 * (f - 1));
   const sign = light < 0 ? -1 : 1;
   return (
     <div ref={ref}>
@@ -580,9 +586,10 @@ function GraviScene({ tilt, angle, f, t }: { tilt: number; angle: number; f: num
   const W = narrow ? 46 : 38;
   const shoot = gravitropism('stengel', angle);
   const root = gravitropism('rot', angle);
-  // Undersiden er venstre side for skuddet (sett i vekstretningen) når det peker mot høyre
-  const shootLeft = 0.5 + ((shoot.lower - shoot.upper) / (4 * GRAVI_SHIFT)) * 0.3;
-  const rootRight = 0.5 + ((root.lower - root.upper) / (4 * GRAVI_SHIFT)) * 0.3;
+  // Andelen auksin på undersiden (samme omfordeling i skudd og rot). Skuddet peker mot høyre, så undersiden er høyre side
+  // sett i vekstretningen; rota peker mot venstre, så der er undersiden venstre side.
+  const shootLower = 0.5 + ((shoot.lower - shoot.upper) / (4 * GRAVI_SHIFT)) * 0.3;
+  const rootLower = 0.5 + ((root.lower - root.upper) / (4 * GRAVI_SHIFT)) * 0.3;
   // Statolittene i rotspissen synker mot undersiden
   const rootTipDir = 180 + angle;
   const rootLine = centerline(cx, cy, L * 0.9, 180 + tilt, rootTipDir);
@@ -602,7 +609,9 @@ function GraviScene({ tilt, angle, f, t }: { tilt: number; angle: number; f: num
       <Txt x={84} y={100} anchor="start" size={0.75} muted>
         tyngdekraft
       </Txt>
-      <Shoot x={cx} y={cy} L={L} W={W} base={tilt} tip={angle} leftShare={tilt > 0 ? shootLeft : 0.5} auxin={1} t={t} k={k} />
+      {/* Skuddet: mest auksin og mest vekst på undersiden (høyre side) */}
+      <Shoot x={cx} y={cy} L={L} W={W} base={tilt} tip={angle} leftShare={tilt > 0 ? 1 - shootLower : 0.5} auxin={1} t={t} k={k} />
+      {/* Rota: mest auksin på undersiden (venstre side), men der hemmes veksten, så oversiden vokser mest */}
       <Shoot
         x={cx}
         y={cy}
@@ -610,7 +619,8 @@ function GraviScene({ tilt, angle, f, t }: { tilt: number; angle: number; f: num
         W={W * 0.75}
         base={180 + tilt}
         tip={rootTipDir}
-        leftShare={tilt > 0 ? 1 - rootRight : 0.5}
+        leftShare={tilt > 0 ? rootLower : 0.5}
+        growthShare={tilt > 0 ? 1 - rootLower : 0.5}
         auxin={1}
         t={t}
         k={k}
@@ -819,7 +829,7 @@ function ExperimentScene({
 }) {
   const narrow = f > 1.3;
   const k = Math.max(1, f * 0.85);
-  const H = narrow ? 540 : 390;
+  const H = narrow ? 480 : 340;
   const groundY = H - 50;
   const W = narrow ? 64 : 48;
   const L0 = narrow ? 250 : 190;

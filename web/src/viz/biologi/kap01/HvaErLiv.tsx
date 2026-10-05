@@ -38,11 +38,11 @@ import {
 } from './model';
 
 const MARK_COLOR: Record<Mark, string> = { ja: VIZ.series[2]!, delvis: BIO.sukker, hvile: BIO.vann, nei: VIZ.muted };
-const VERDICT_COLOR: Record<Verdict, string> = { levende: VIZ.series[2]!, grense: BIO.sukker, ikke: VIZ.muted, ingen: VIZ.muted };
+const VERDICT_COLOR: Record<Verdict, string> = { levende: VIZ.series[2]!, hvile: BIO.vann, grense: BIO.sukker, ikke: VIZ.muted, ingen: VIZ.muted };
 
-const lower = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const list = (items: string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} og ${items.at(-1)}`);
-const shortName = (id: CriterionId) => CRITERIA.find((c) => c.id === id)!.short;
+const nounOf = (id: CriterionId) => CRITERIA.find((c) => c.id === id)!.noun;
 
 export default function HvaErLiv() {
   const [required, setRequired] = useState<CriterionId[]>([...ALL_CRITERIA]);
@@ -50,7 +50,7 @@ export default function HvaErLiv() {
   const toggle = (id: CriterionId, on: boolean) =>
     setRequired((r) => ALL_CRITERIA.filter((c) => (c === id ? on : r.includes(c))));
   const C = candidate(sel);
-  const counts = { levende: 0, grense: 0, ikke: 0 };
+  const counts = { levende: 0, hvile: 0, grense: 0, ikke: 0 };
   for (const c of CANDIDATES) {
     const v = verdict(c, required);
     if (v !== 'ingen') counts[v]++;
@@ -84,7 +84,7 @@ export default function HvaErLiv() {
         items={[
           { color: MARK_COLOR.ja, label: 'Ja' },
           { color: MARK_COLOR.delvis, label: 'Delvis eller bare tilsynelatende' },
-          { color: MARK_COLOR.hvile, label: 'Ikke nå, men igjen når den våkner (hvile)' },
+          { color: MARK_COLOR.hvile, label: 'Ikke nå, men igjen når den våkner eller spirer (hvile)' },
           { color: MARK_COLOR.nei, label: 'Nei' },
         ]}
       />
@@ -94,10 +94,15 @@ export default function HvaErLiv() {
       </div>
 
       <Readouts>
-        <Readout label="Levende" value={String(counts.levende)} unit="av 8" tone={VERDICT_COLOR.levende} />
+        <Readout
+          label={counts.hvile ? `Levende (${counts.hvile} i hvile)` : 'Levende'}
+          value={String(counts.levende + counts.hvile)}
+          unit="av 8"
+          tone={VERDICT_COLOR.levende}
+        />
         <Readout label="Grensetilfeller" value={String(counts.grense)} unit="av 8" tone={VERDICT_COLOR.grense} />
         <Readout label="Ikke levende" value={String(counts.ikke)} unit="av 8" />
-        <Readout label={`${C.name} oppfyller helt`} value={String(fullCount(C))} unit="av 7 kjennetegn" tone={VERDICT_COLOR[verdict(C, ALL_CRITERIA)]} />
+        <Readout label={`${C.the} oppfyller helt`} value={String(fullCount(C))} unit="av 7 kjennetegn" tone={VERDICT_COLOR[verdict(C, ALL_CRITERIA)]} />
       </Readouts>
 
       <Explain>{explanation(C, required, counts)}</Explain>
@@ -172,7 +177,7 @@ function Matrix({
   const verdictW = narrow ? 0 : 150;
   const gridX0 = nameX + nameW;
   // Kolonneoverskriftene står på skrå (40°, brattere på mobil). Den siste må ikke gå ut av figuren til høyre.
-  const angle = narrow ? 58 : 40;
+  const angle = narrow ? 72 : 40;
   const rad = (angle * Math.PI) / 180;
   const longest = Math.max(...CRITERIA.map((c) => c.short.length)) * 0.58 * 17 * 0.82 * f;
   const lastLen = CRITERIA.at(-1)!.short.length * 0.58 * 17 * 0.82 * f;
@@ -187,7 +192,7 @@ function Matrix({
   const rowH = narrow ? 34 * f + 30 : 46;
   const top = headH + 6;
   const H = Math.round(top + CANDIDATES.length * rowH + 8);
-  const r = Math.min(colW * 0.32, 13 * k);
+  const r = Math.min(colW * 0.34, 13 * k);
   return (
     <Figure
       viewBox={`0 0 800 ${H}`}
@@ -355,7 +360,11 @@ function Detail({ c, required, f }: { c: Candidate; required: CriterionId[]; f: 
 
 /* ---------- Forklaring ---------- */
 
-function explanation(c: Candidate, required: CriterionId[], counts: { levende: number; grense: number; ikke: number }): ReactNode {
+function explanation(
+  c: Candidate,
+  required: CriterionId[],
+  counts: { levende: number; hvile: number; grense: number; ikke: number },
+): ReactNode {
   const v = verdict(c, required);
   if (v === 'ingen')
     return (
@@ -364,29 +373,39 @@ function explanation(c: Candidate, required: CriterionId[], counts: { levende: n
         liv.
       </p>
     );
-  const no = failing(c, required, 'nei').map((id) => lower(shortName(id)));
-  const partly = failing(c, required, 'delvis').map((id) => lower(shortName(id)));
-  const resting = failing(c, required, 'hvile').map((id) => lower(shortName(id)));
+  const no = failing(c, required, 'nei').map(nounOf);
+  const partly = failing(c, required, 'delvis').map(nounOf);
+  const resting = failing(c, required, 'hvile').map(nounOf);
+  const Pron = cap(c.pron);
+  const partlyText = partly.length ? `oppfyller kravet om ${list(partly)} bare delvis` : '';
+  const restingText = resting.length
+    ? `${cap(list(resting))} er satt på pause (latent liv), men kommer i gang igjen når forholdene blir gode.`
+    : '';
   let main: ReactNode;
   if (v === 'levende')
     main = (
       <>
-        <strong>{c.name} er levende etter din definisjon:</strong> den oppfyller alle de {required.length} kjennetegnene du har valgt.
+        <strong>{c.the} er levende etter din definisjon:</strong> {c.pron} oppfyller{' '}
+        {required.length === 1 ? 'det ene kjennetegnet' : `alle de ${required.length} kjennetegnene`} du har valgt.
+      </>
+    );
+  else if (v === 'hvile')
+    main = (
+      <>
+        <strong>{c.the} er levende, men i hvile.</strong> {restingText}
       </>
     );
   else if (v === 'ikke')
     main = (
       <>
-        <strong>{c.name} er ikke levende etter din definisjon.</strong> Den mangler {list(no)}
-        {partly.length ? <>, og oppfyller {list(partly)} bare delvis</> : null}.
+        <strong>{c.the} er ikke levende etter din definisjon.</strong> {Pron} mangler {list(no)}
+        {partlyText ? `, og ${partlyText}` : ''}.
       </>
     );
   else
     main = (
       <>
-        <strong>{c.name} er et grensetilfelle.</strong>{' '}
-        {partly.length ? <>Den oppfyller {list(partly)} bare delvis. </> : null}
-        {resting.length ? <>Den har {list(resting)} bare når den ikke er i hvile (latent liv). </> : null}
+        <strong>{c.the} er et grensetilfelle.</strong> {partlyText ? `${Pron} ${partlyText}.` : ''} {restingText}
       </>
     );
   const all = required.length === ALL_CRITERIA.length;
@@ -398,15 +417,15 @@ function explanation(c: Candidate, required: CriterionId[], counts: { levende: n
       <p>
         {all ? (
           <>
-            Med alle sju kjennetegnene er bare bakterien og gjærcellen helt levende, og frø og tardigrad er levende i hvile. Ingen enkelt
-            egenskap er nok: ild vokser og sprer seg, og krystaller vokser, men det er <strong>kombinasjonen</strong> av kjennetegn som
-            skiller liv fra ikke-liv. Velg definisjonen «Formering og arv» og se hva som skjer med viruset.
+            Med alle sju kjennetegnene er bare bakterien og gjærcellen helt levende, mens frøet og bjørnedyret er levende i hvile. Ingen
+            enkelt egenskap er nok: ild vokser og sprer seg, og krystaller vokser, men det er <strong>kombinasjonen</strong> av kjennetegn
+            som skiller liv fra ikke-liv. Velg definisjonen «Formering og arv» og se hva som skjer med viruset.
           </>
         ) : (
           <>
-            Med {required.length} kjennetegn regnes {counts.levende} av 8 kandidater som
-            levende og {counts.grense} som grensetilfeller. Jo færre kjennetegn definisjonen har, jo flere ting slipper inn. Derfor er
-            virus omdiskutert: de mangler celler og eget stoffskifte, men har arvestoff og utvikler seg.
+            Med {required.length} kjennetegn regnes {counts.levende + counts.hvile} av 8
+            kandidater som levende og {counts.grense} som grensetilfeller. Jo færre kjennetegn definisjonen har, jo flere ting slipper inn.
+            Derfor er virus omdiskutert: de mangler celler og eget stoffskifte, men har arvestoff og utvikler seg.
           </>
         )}
       </p>

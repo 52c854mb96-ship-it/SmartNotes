@@ -282,13 +282,24 @@ function LogLogContent({
   const narrow = f > 1.3;
   const lg = Math.log10;
   const line = (cc: number) => sample((e) => lg(Math.max(1e-9, speciesArea(cc, 10 ** e, z))), -2, 4, 60).filter(([, v]) => v >= 0 && v <= 3);
+  const xTicks = narrow ? [-2, 0, 2, 4] : [-2, -1, 0, 1, 2, 3, 4];
   const px = sx(lg(A));
   const py = sy(lg(Math.max(1, S)));
-  // Trekant som viser 10 × areal → 10^z × arter
-  const right = lg(A) + 1 <= 4;
-  const ax = sx(lg(A) + (right ? 1 : -1));
-  const ay = sy(lg(Math.max(1, S)) + (right ? z : -z));
-  const xTicks = narrow ? [-2, 0, 2, 4] : [-2, -1, 0, 1, 2, 3, 4];
+  // Trekant som viser 10 × areal → 10^z × arter. Den ligger under linja (fra det valgte punktet og ett tiersteg mot
+  // høyre, eller ett steg mot venstre helt til høyre i grafen). Er artsantallet så lite at etikettene under trekanten
+  // ville kollidert med akseverdiene, flyttes trekanten opp langs linja; den viser jo stigningstallet, som er likt overalt.
+  const lgS = (e: number) => lg(c) + z * e;
+  // Plass til to tekstlinjer mellom trekanten og x-aksen
+  const minLgS = (46 * f) / ((y0 - y1) / 3);
+  let e1 = lg(A) <= 3 ? lg(A) : lg(A) - 1;
+  if (lgS(e1) < minLgS) e1 = Math.max(e1, (minLgS - lg(c)) / z);
+  const showTriangle = e1 <= 3 && lgS(e1) + z <= 3;
+  const qx = sx(e1);
+  const qy = sy(lgS(e1));
+  const cx = sx(e1 + 1);
+  const ry = sy(lgS(e1) + z);
+  const labelW = 17 * 0.75 * f * 0.58 * 16;
+  const labelX = qx + 4 + labelW <= x1 + 6 ? qx + 4 : x1 + 6 - labelW;
   return (
     <g>
       {[-2, -1, 0, 1, 2, 3, 4].map((e) => (
@@ -309,24 +320,18 @@ function LogLogContent({
       ))}
       <path d={linePath(line(ISLAND_C0), sx, sy)} fill="none" stroke={REF} strokeWidth={2} strokeDasharray="7 6" />
       <path d={linePath(line(c), sx, sy)} fill="none" stroke={COL} strokeWidth={3.5} />
-      {S >= 1 && (
+      {showTriangle && (
         <g>
-          <path d={`M${px},${py} H${ax} V${ay}`} fill="none" stroke={VIZ.ink} strokeWidth={1.8} strokeDasharray="4 4" />
-          <Txt x={(px + ax) / 2} y={py + (right ? 22 * f : -10)} size={0.75} muted>
+          <path d={`M${qx},${qy} H${cx} V${ry}`} fill="none" stroke={VIZ.ink} strokeWidth={1.8} strokeDasharray="4 4" />
+          <Txt x={labelX} y={qy + 20 * f} anchor="start" size={0.75} muted>
             × 10 areal
           </Txt>
-          {(() => {
-            // Til høyre for den loddrette streken når det er plass, ellers til venstre
-            const roomRight = right && ax + 8 + 110 * f < x1;
-            return (
-              <Txt x={ax + (roomRight ? 8 : -8)} y={(py + ay) / 2 + 5} anchor={roomRight ? 'start' : 'end'} size={0.75} muted>
-                × {fmt(factorPerTenfold(z), 2)} arter
-              </Txt>
-            );
-          })()}
-          <circle cx={px} cy={py} r={8} fill={COL} stroke={VIZ.surface} strokeWidth={3} />
+          <Txt x={labelX} y={qy + 40 * f} anchor="start" size={0.75} muted>
+            gir × {fmt(factorPerTenfold(z), 2)} arter
+          </Txt>
         </g>
       )}
+      {S >= 1 && <circle cx={px} cy={py} r={8} fill={COL} stroke={VIZ.surface} strokeWidth={3} />}
     </g>
   );
 }
@@ -577,7 +582,8 @@ function fragmentText(r: Fragmentation, n: number, loss: number, edge: boolean, 
       )}
       <p>
         Artene forsvinner ikke med en gang. Bestander kan leve en stund i for små områder før de dør ut (utdøingsgjeld). Modellen er
-        forenklet: den antar at alle bitene har de samme artene, og bruker S = c · A<Sup>z</Sup> fra den hele skogen. Endret arealbruk er
+        forenklet: den antar at alle bitene har de samme artene, og bruker S = c · A<Sup>z</Sup> fra den hele skogen. I virkeligheten kan
+        bitene ha litt ulike arter, så tapet på grunn av oppdelingen er et øvre anslag. Endret arealbruk er
         den viktigste trusselen mot det biologiske mangfoldet i Norge, og tiltak er å verne store, sammenhengende områder og lage korridorer
         mellom dem.
       </p>

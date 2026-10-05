@@ -17,6 +17,8 @@ import {
   Select,
   Slider,
   Sopp,
+  Sub,
+  Sup,
   Toolbar,
   Tre,
   Txt,
@@ -63,6 +65,8 @@ const LEVEL_COLOR = [BIO.plante.line, BIO.serie[0], BIO.serie[1], BIO.serie[3]];
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const join = (items: string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} og ${items.at(-1)}`);
+/** Hele setningsledd («gaupe øker», «blåbær og lauvtrær minker») skilles med komma, og det siste med «, og». */
+const clauses = (items: string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')}, og ${items.at(-1)}`);
 const names = (ids: WebId[]) => join(ids.map((id) => webSpecies(id).short));
 
 const OPTIONS = [
@@ -107,6 +111,7 @@ export default function Naeringsnett() {
           { color: KIND_COLOR.usikker, label: '? usikkert (både mer og mindre)' },
           { color: KIND_COLOR['dor-ut'], label: '× dør ut' },
           { color: VIZ.ink, label: 'Stiplet ring: indirekte virkning', dashed: true },
+          { color: BIO.ved, label: 'Næringsstoffer fra nedbryterne tilbake til plantene', dashed: true },
         ]}
       />
 
@@ -138,8 +143,8 @@ export default function Naeringsnett() {
           Produsentene: ca. {fmt(PRIMARY_ENERGY, 0)} kJ per m² per år (netto primærproduksjon i barskog)
         </FormulaLine>
         <FormulaLine>
-          Hvert nivå: E<sub>n+1</sub> = {fmt(eff, 2)} · E<sub>n</sub>, så nivå 4 får {fmt(eff, 2)}
-          <sup>3</sup> = {fmt(eff ** 3, 4)} = {fmtPct(eff ** 3, eff ** 3 < 0.001 ? 2 : 1)} av energien til produsentene
+          Hvert nivå: E<Sub>n+1</Sub> = {fmt(eff, 2)} · E<Sub>n</Sub>, så nivå 4 får {fmt(eff, 2)}
+          <Sup>3</Sup> = {fmt(eff ** 3, 4)} = {fmtPct(eff ** 3, eff ** 3 < 0.001 ? 2 : 1)} av energien til produsentene
         </FormulaLine>
       </Formula>
       <Explain>{energyText(E, eff)}</Explain>
@@ -557,14 +562,14 @@ function webText(removed: WebId | null, sum: EffectSummary): ReactNode {
         <strong>Uten {s.short}:</strong>{' '}
         {direct.length ? (
           <>
-            {cap(join(direct))} (direkte virkninger, fordi {why}).
+            {cap(clauses(direct))} (direkte virkninger, fordi {why}).
           </>
         ) : (
           <>Ingen andre arter merker det direkte.</>
         )}{' '}
         {indirect.length ? (
           <>
-            Indirekte, ett ledd lenger unna: {join(indirect)}. En art kan altså påvirke arter den aldri spiser eller blir spist av.
+            Indirekte, ett ledd lenger unna: {clauses(indirect)}. En art kan altså påvirke arter den aldri spiser eller blir spist av.
           </>
         ) : null}
       </p>

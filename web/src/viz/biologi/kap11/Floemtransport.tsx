@@ -108,7 +108,7 @@ export default function Floemtransport() {
       </Toolbar>
 
       <div ref={ref}>
-        <Scene roles={roles} r={r} f={f} t={clock.t} girdled={girdled} sources={sources} sinks={sinks} />
+        <Scene roles={roles} r={r} f={f} t={clock.t} girdled={girdled} sources={sources} sinks={sinks} dark={light === 0} />
       </div>
       <Legend
         items={[
@@ -173,6 +173,7 @@ function Scene({
   girdled,
   sources,
   sinks,
+  dark,
 }: {
   roles: Roles;
   r: PhloemResult;
@@ -181,6 +182,8 @@ function Scene({
   girdled: boolean;
   sources: OrganId[];
   sinks: OrganId[];
+  /** Ingen lys på bladene (de kan ikke være kilder). */
+  dark: boolean;
 }) {
   const narrow = f > 1.3;
   const titleH = 26 * f;
@@ -196,7 +199,7 @@ function Scene({
       <Txt x={P.x + 4} y={P.y - 10} anchor="start" weight={700}>
         Potetplante (<tspan fontStyle="italic">Solanum tuberosum</tspan>)
       </Txt>
-      <PlantPanel box={P} roles={roles} r={r} t={t} girdled={girdled} />
+      <PlantPanel box={P} roles={roles} r={r} t={t} girdled={girdled} dark={dark} />
       <Txt x={M.x + 4} y={M.y - 10} anchor="start" weight={700}>
         Trykkstrømmodellen
       </Txt>
@@ -232,7 +235,7 @@ function pointOn(pts: readonly Pt[], u: number): Pt {
 
 const pathD = (pts: readonly Pt[]) => `M${pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' L')}`;
 
-function PlantPanel({ box, roles, r, t, girdled }: { box: Box; roles: Roles; r: PhloemResult; t: number; girdled: boolean }) {
+function PlantPanel({ box, roles, r, t, girdled, dark }: { box: Box; roles: Roles; r: PhloemResult; t: number; girdled: boolean; dark: boolean }) {
   const f = useTextScale();
   const k = Math.max(1, f * 0.85);
   const X = (u: number) => box.x + u * box.w;
@@ -273,7 +276,17 @@ function PlantPanel({ box, roles, r, t, girdled }: { box: Box; roles: Roles; r: 
   const role = (id: OrganId) => roles[id];
   const roleColor = (id: OrganId) => (r.net[id] > 1e-6 ? BIO.plante.line : r.net[id] < -1e-6 ? VIZ.ink : VIZ.muted);
   const roleText = (id: OrganId) =>
-    role(id) === 'av' ? 'ingen' : r.net[id] > 1e-6 ? 'kilde' : r.net[id] < -1e-6 ? 'sluk' : role(id) === 'kilde' ? 'kilde (fullt)' : 'sluk (sulter)';
+    role(id) === 'av'
+      ? 'ingen'
+      : r.net[id] > 1e-6
+        ? 'kilde'
+        : r.net[id] < -1e-6
+          ? 'sluk'
+          : role(id) === 'kilde'
+            ? id === 'blader' && dark
+              ? 'kilde (mørkt)'
+              : 'kilde (fullt)'
+            : 'sluk (sulter)';
   // Bladene: to sammensatte blader fra bladnoden
   const leafBase = pos.blader;
   const leaves = leafSide.map((side) => {
@@ -576,21 +589,25 @@ function MunchPanel({
           <Arrow x1={mid1[0]} y1={mid1[1]} x2={mid2[0]} y2={mid2[1]} color={VIZ.ink} width={3.5} head={12} />
         </g>
       )}
-      {/* Trykket i silrøret og navnene på rørene */}
+      {/* Trykket i silrøret (bare når sukkeret strømmer) og navnene på rørene */}
       {vertical ? (
         <>
-          <Txt x={pHigh[0]} y={pHigh[1] - 2} size={0.7} weight={700}>
-            høyt
-          </Txt>
-          <Txt x={pHigh[0]} y={pHigh[1] - 2 + lh} size={0.7} weight={700}>
-            trykk
-          </Txt>
-          <Txt x={pLow[0]} y={pLow[1] - 2} size={0.7} weight={700}>
-            lavt
-          </Txt>
-          <Txt x={pLow[0]} y={pLow[1] - 2 + lh} size={0.7} weight={700}>
-            trykk
-          </Txt>
+          {active && (
+            <>
+              <Txt x={pHigh[0]} y={pHigh[1] - 2} size={0.7} weight={700}>
+                høyt
+              </Txt>
+              <Txt x={pHigh[0]} y={pHigh[1] - 2 + lh} size={0.7} weight={700}>
+                trykk
+              </Txt>
+              <Txt x={pLow[0]} y={pLow[1] - 2} size={0.7} weight={700}>
+                lavt
+              </Txt>
+              <Txt x={pLow[0]} y={pLow[1] - 2 + lh} size={0.7} weight={700}>
+                trykk
+              </Txt>
+            </>
+          )}
           <Txt x={sieve.x + sieve.w / 2} y={sieve.y - 10} size={0.7} weight={650} color={C_SUGAR}>
             floem
           </Txt>
@@ -600,12 +617,16 @@ function MunchPanel({
         </>
       ) : (
         <>
-          <Txt x={pHigh[0]} y={pHigh[1] + 6 * f} size={0.72} weight={700}>
-            høyt trykk
-          </Txt>
-          <Txt x={pLow[0]} y={pLow[1] + 6 * f} size={0.72} weight={700}>
-            lavt trykk
-          </Txt>
+          {active && (
+            <>
+              <Txt x={pHigh[0]} y={pHigh[1] + 6 * f} size={0.72} weight={700}>
+                høyt trykk
+              </Txt>
+              <Txt x={pLow[0]} y={pLow[1] + 6 * f} size={0.72} weight={700}>
+                lavt trykk
+              </Txt>
+            </>
+          )}
           <Txt x={xylem.x + xylem.w / 2} y={xylem.y + xylem.h / 2 + 6 * f} size={0.72} weight={650} color={C_WATER}>
             xylem (vann)
           </Txt>

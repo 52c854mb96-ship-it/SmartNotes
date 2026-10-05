@@ -106,7 +106,7 @@ export const ANIMALS: readonly Animal[] = [
   {
     id: 'insekt',
     name: 'Insekt',
-    example: 'gresshoppe',
+    example: 'vandregresshoppe',
     latin: 'Locusta migratoria',
     system: 'åpent',
     atria: 0,

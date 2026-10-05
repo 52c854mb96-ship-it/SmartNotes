@@ -383,9 +383,9 @@ export function hormonesAt(day: number, s: CycleScenario): Hormones {
   const free = smooth((t - (PILL_DAYS + 1)) / 6);
   const onPill = t < PILL_DAYS + 1;
   return {
-    fsh: 0.14 + 0.1 * free,
-    lh: 0.1 + 0.05 * free,
-    ostrogen: 0.15 + 0.08 * free,
+    fsh: 0.12 + 0.1 * free,
+    lh: 0.07 + 0.06 * free,
+    ostrogen: 0.22 + 0.08 * free,
     progesteron: 0.04,
     hcg: 0,
     pille: onPill ? 0.7 : 0,

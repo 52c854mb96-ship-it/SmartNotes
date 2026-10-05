@@ -27,6 +27,7 @@ import {
   fmtLength,
   italicSegments,
   levelAt,
+  ordersOfMagnitude,
   plain,
   scalePos,
   wrapText,
@@ -122,7 +123,7 @@ export default function Organisasjonsnivaer() {
         <Readout label="Nivå" value={L.name} unit={`${shown + 1} av ${LEVEL_COUNT}`} />
         <Readout label={<>{rich(L.human.name)} ({L.human.measure})</>} value={fmtLength(L.human.size)} tone={COL.human} />
         <Readout label={<>{rich(L.forest.name)} ({L.forest.measure})</>} value={fmtLength(L.forest.size)} tone={COL.forest} />
-        <Readout label="Levende i seg selv" value={L.living ? 'Ja' : 'Nei'} tone={L.living ? COL.forest : VIZ.muted} />
+        <Readout label="Liv på dette nivået" value={L.living ? 'Ja' : 'Nei'} tone={L.living ? COL.forest : VIZ.muted} />
       </Readouts>
 
       <Explain>{explanation(L)}</Explain>
@@ -210,7 +211,7 @@ function Ruler({ current, f }: { current: number; f: number }) {
       <line x1={RX0} x2={RX1} y1={axisY} y2={axisY} stroke={VIZ.ink} strokeWidth={1.8} />
       {ticks}
       {Object.entries(DECADE_LABELS).map(([e, text]) => (
-        <Txt key={e} x={rx(10 ** Number(e))} y={labelY} size={0.72} muted>
+        <Txt key={e} x={rx(10 ** Number(e))} y={labelY} size={0.78} muted>
           {text}
         </Txt>
       ))}
@@ -393,8 +394,8 @@ function explanation(L: Level): ReactNode {
     case 'biosfaere':
       extra = (
         <>
-          Fra DNA-molekylet til jorda er det omtrent 16 tierpotenser: jorda er ca. {fmtSci(LEVELS[LEVELS.length - 1]!.human.size / LEVELS[0]!.human.size, 1)}{' '}
-          ganger bredere enn et DNA-molekyl. Likevel påvirker nivåene hverandre begge veier, for eksempel når en mutasjon i DNA endrer en
+          Fra DNA-molekylet til jorda er det omtrent {Math.round(ordersOfMagnitude(LEVELS[0]!.human.size, L.human.size))} tierpotenser:
+          jorda er ca. {fmtSci(L.human.size / LEVELS[0]!.human.size, 1)} ganger bredere enn et DNA-molekyl. Likevel påvirker nivåene hverandre begge veier, for eksempel når en mutasjon i DNA endrer en
           hel populasjon.
         </>
       );

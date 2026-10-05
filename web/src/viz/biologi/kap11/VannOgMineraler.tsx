@@ -262,10 +262,14 @@ function RootScene({ r, p, f, t }: { r: RootResult; p: RootParams; f: number; t:
       {Array.from({ length: 8 }, (_, i) => (
         <line key={`r${i}`} x1={z.xyl[0] + 14} x2={z.xyl[1] - 4} y1={y0 + (i + 0.5) * (bandH / 8)} y2={y0 + (i + 0.5) * (bandH / 8)} stroke={C_WATER} strokeWidth={1} opacity={0.35} />
       ))}
-      <Arrow x1={z.xyl[1] - 40} y1={y1 - 20} x2={z.xyl[1] - 40} y2={y0 + 24} color={C_WATER} width={4} head={12} />
-      <Txt x={z.xyl[1] - 48} y={midY + 6} anchor="end" size={0.7} weight={650} color={C_WATER}>
-        opp
-      </Txt>
+      {r.water > 0.03 && (
+        <g>
+          <Arrow x1={z.xyl[1] - 40} y1={y1 - 20} x2={z.xyl[1] - 40} y2={y0 + 24} color={C_WATER} width={4} head={12} />
+          <Txt x={z.xyl[1] - 48} y={midY + 6} anchor="end" size={0.7} weight={650} color={C_WATER}>
+            opp
+          </Txt>
+        </g>
+      )}
 
       {/* Vann (blå) og ioner (fiolette) som beveger seg */}
       {lanes.flatMap((y, li) =>
@@ -317,7 +321,13 @@ function RootScene({ r, p, f, t }: { r: RootResult; p: RootParams; f: number; t:
       <Txt x={z.soil[0] + 4} y={y1 + 30 * f} anchor="start" size={0.75} weight={650}>
         jordvann {fmt(r.osmOut, 2)} osmol/L
       </Txt>
-      <Txt x={(z.hair[0] + z.cortex[1]) / 2} y={y1 + 30 * f} size={0.75} weight={650}>
+      <Txt
+        x={narrow ? z.soil[0] + 4 : (z.hair[0] + z.cortex[1]) / 2}
+        y={y1 + 30 * f + (narrow ? 30 * f : 0)}
+        anchor={narrow ? 'start' : 'middle'}
+        size={0.75}
+        weight={650}
+      >
         i rota {fmt(r.osmIn, 2)} osmol/L
       </Txt>
     </Figure>
@@ -352,8 +362,12 @@ function rootText(p: RootParams, r: RootResult, dir: 'inn' | 'ut' | 'ingen'): Re
       </p>
     ) : (
       <p>
-        <strong>Vann ved osmose.</strong> Fordi ionene pumpes inn, er det flere oppløste stoffer i rota ({fmt(r.osmIn, 2)} osmol/L) enn i
-        jordvannet ({fmt(r.osmOut, 2)} osmol/L). Vannet går derfor inn i rota ved osmose, uten at planten bruker energi på selve vannet.
+        <strong>Vann ved osmose.</strong>{' '}
+        {r.uptake > 0.05
+          ? 'Fordi ionene pumpes inn, er det flere oppløste stoffer i rota'
+          : 'Ionepumpene står nesten stille, men rotcellene har likevel flere oppløste stoffer'}{' '}
+        ({fmt(r.osmIn, 2)} osmol/L) enn jordvannet ({fmt(r.osmOut, 2)} osmol/L). Vannet går derfor inn i rota ved osmose, uten at planten bruker
+        energi på selve vannet.
         {p.salt > 0 ? ` Saltet i jorda gjør forskjellen mindre, så det går mindre vann inn.` : ''}
       </p>
     );
@@ -602,7 +616,8 @@ const MANGEL_PRESETS: { id: string; label: string; v: NutrientLevels }[] = [
 ];
 
 function Mangel() {
-  const [v, setV] = useState<NutrientLevels>({ ...FULL, N: 30 });
+  // Start med nitrogenmangel (forhåndsvalget «Lite N»), så symptomene synes med en gang
+  const [v, setV] = useState<NutrientLevels>(MANGEL_PRESETS[1]!.v);
   const [ref, f] = useContainerTextScale<HTMLDivElement>();
   const gr = growth(v);
   const preset = MANGEL_PRESETS.find((p) => (Object.keys(FULL) as NutrientId[]).every((k) => p.v[k] === v[k]))?.id ?? null;

@@ -27,7 +27,6 @@ import {
   useContainerTextScale,
   useSimClock,
   useSvgId,
-  useTextScale,
 } from '../kit';
 import { NTU_PER_MM, concurrentLimit, gillProfile, type Flow, type GillProfile } from './model';
 import { GjelleFilament } from './felles';
@@ -305,7 +304,6 @@ function ProfilePlot({ p, q, flow }: { p: GillProfile; q: GillProfile; flow: Flo
 }
 
 function ProfileLines({ p, q, flow, sx, sy }: { p: GillProfile; q: GillProfile; flow: Flow; sx: (v: number) => number; sy: (v: number) => number }) {
-  const f = useTextScale();
   const wPts = sample(p.water, 0, 1, 80);
   const bPts = sample(p.blood, 0, 1, 80);
   const area = `${linePath(wPts, sx, sy)} L${[...bPts]
@@ -337,16 +335,6 @@ function ProfileLines({ p, q, flow, sx, sy }: { p: GillProfile; q: GillProfile; 
       {tri(p.water, 1, C_WATER)}
       {tri(p.blood, bloodRight ? 1 : -1, C_BLOOD)}
       <circle cx={sx(outX)} cy={sy(p.bloodOut)} r={7} fill={C_BLOOD} stroke={VIZ.surface} strokeWidth={2.5} />
-      <Txt
-        x={sx(outX) + (bloodRight ? -12 : 12)}
-        y={sy(p.bloodOut) + (bloodRight ? -14 : 30 * f)}
-        anchor={bloodRight ? 'end' : 'start'}
-        weight={700}
-        color={C_BLOOD}
-        size={0.9}
-      >
-        blodet ut: {fmt(p.bloodOut, 0)} %
-      </Txt>
     </g>
   );
 }
@@ -371,12 +359,14 @@ function explanation(flow: Flow, p: GillProfile, q: GillProfile, bloodIn: number
           <strong>Motstrøm: blodet og vannet strømmer hver sin vei.</strong> Blodet som nettopp har kommet inn ({fmt(bloodIn, 0)} %), møter
           vann som allerede har gitt fra seg mye O₂, men som likevel har mer O₂ enn blodet. Lenger fram møter blodet stadig friskere vann. Derfor
           er det en forskjell som driver diffusjonen <strong>langs hele lamellen</strong>, og blodet går ut med {fmtPct(p.bloodOut / 100)}{' '}
-          O₂-metning, nær de 100 % i vannet som kommer inn.
+          O₂-metning
+          {p.bloodOut >= 80
+            ? ', nær de 100 % i vannet som kommer inn.'
+            : '. Lamellen er så kort at blodet ikke rekker å bli mettet, men det får likevel mer O₂ enn med medstrøm.'}
         </p>
         <p>
           Med medstrøm ville den samme lamellen bare gitt {fmtPct(q.bloodOut / 100)}. Fisken tar på denne måten opp {fmtPct(p.utilization)} av
           O₂-et i vannet{p.utilization > 0.6 ? ', langt mer enn vi klarer med lungene (ca. 25 % av O₂-et i lufta)' : ''}.
-          {length < 0.3 ? ' Lamellen er svært kort nå, så det er lite tid og overflate til diffusjon uansett retning.' : ''}
         </p>
         {general}
       </>
