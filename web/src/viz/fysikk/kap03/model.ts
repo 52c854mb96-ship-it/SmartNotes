@@ -75,6 +75,14 @@ export function sledWork({ F, alphaDeg, s, mu, m = SLED_MASS }: SledInput, g = G
   return { Fpar, Fperp, G, N, R, WF, WR, WG: 0, WN: 0, W: WF + WR };
 }
 
+/**
+ * Vinkelen (grader) som gir mest totalt arbeid for en gitt kraft når kjelken ikke letter:
+ * W = s(F cos α − μ(G − F sin α)) har dW/dα = sF(μ cos α − sin α) = 0, altså tan α = μ.
+ */
+export function bestPullAngle(mu: number): number {
+  return Math.atan(Math.max(0, mu)) / DEG;
+}
+
 /* ---------- 3C–3F Energibevaring: kule på en bane ---------- */
 
 export type TrackKind = 'rampe' | 'bakke';

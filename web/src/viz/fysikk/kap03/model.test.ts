@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   POWER_REFS,
+  bestPullAngle,
   liftsOffAtHump,
   makeTrack,
   niceCeil,
@@ -57,6 +58,32 @@ describe('arbeid på kjelke', () => {
 
   it('normalkraften blir aldri negativ', () => {
     expect(sledWork({ F: 400, alphaDeg: 90, s: 1, mu: 0.3 }).N).toBe(0);
+  });
+
+  it('mest totalt arbeid for samme kraft når tan α = μ', () => {
+    expect(bestPullAngle(0)).toBe(0);
+    expect(bestPullAngle(0.1)).toBeCloseTo(5.71, 2);
+    expect(bestPullAngle(1)).toBeCloseTo(45, 9);
+    for (const mu of [0.05, 0.1, 0.3, 0.5]) {
+      const best = bestPullAngle(mu);
+      const W = (a: number) => sledWork({ F: 150, alphaDeg: a, s: 10, mu }).W;
+      expect(W(best)).toBeGreaterThan(W(best - 2));
+      expect(W(best)).toBeGreaterThan(W(best + 2));
+      expect(W(best)).toBeGreaterThan(W(0));
+    }
+  });
+
+  it('alle kombinasjoner av glidebryterne gir endelige tall, og W = W_F + W_R', () => {
+    for (const F of [0, 5, 150, 200])
+      for (const alphaDeg of [0, 5, 45, 90, 135, 180])
+        for (const s of [1, 20])
+          for (const mu of [0, 0.5]) {
+            const r = sledWork({ F, alphaDeg, s, mu });
+            for (const v of Object.values(r)) expect(Number.isFinite(v)).toBe(true);
+            expect(r.N).toBeGreaterThan(0);
+            expect(r.WR).toBeLessThanOrEqual(0);
+            expect(r.W).toBeCloseTo(r.WF + r.WR, 9);
+          }
   });
 });
 

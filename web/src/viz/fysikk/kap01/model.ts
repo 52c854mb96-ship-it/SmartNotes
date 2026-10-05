@@ -112,6 +112,88 @@ export function speedTrend({ v0, a }: Motion, t: number, eps = 0.05): SpeedTrend
   return Math.sign(v) === Math.sign(a) ? 'øker' : 'avtar';
 }
 
+/* ---------- 1C Scenen til bevegelsesgrafene: bil på en vei med målebånd ---------- */
+
+/**
+ * Retningen fronten på bilen peker (+1 = positiv retning): fartsretningen i starten, eller retningen til
+ * akselerasjonen når bilen starter fra ro. En bil snur ikke på en rett vei, så etter et vendepunkt rygger den.
+ */
+export function facingDirection({ v0, a }: Motion): 1 | -1 {
+  if (v0 !== 0) return v0 > 0 ? 1 : -1;
+  if (a !== 0) return a > 0 ? 1 : -1;
+  return 1;
+}
+
+/** Om bilen rygger ved tiden t: farten peker motsatt vei av fronten (og er større enn `eps`). */
+export function isReversing(m: Motion, t: number, eps = 0.05): boolean {
+  return velocity(m, t) * facingDirection(m) < -eps;
+}
+
+/** Posisjonen hvert hele sekund fra 0 til og med t (merkene på veien og punktene i s-t-grafen). */
+export function secondMarks(m: Motion, t: number): { t: number; s: number }[] {
+  const out: { t: number; s: number }[] = [];
+  if (!(t >= 0)) return out;
+  for (let n = 0; n <= Math.floor(t + 1e-9); n++) out.push({ t: n, s: position(m, n) });
+  return out;
+}
+
+export interface SceneCamera {
+  /** Skala i scenen (figurens enheter per meter), lik for veien, bilen og målebåndet. */
+  pxPerM: number;
+  /** Posisjonen (m) midt i bildet. */
+  center: number;
+  /** Om kameraet følger bilen (strekningen får ikke plass med minste skala). */
+  follows: boolean;
+}
+
+/**
+ * Kameraet i scenen. Bilens midtpunkt skal kunne stå `inner` figurenheter bredt rundt midten av bildet.
+ * Hele strekningen [min, max] vises når den får plass med minst `pMin` per meter (skalaen blir da høyst `pMax`,
+ * så en kort strekning ikke gir en kjempestor bil). Ellers brukes `pMin`, og kameraet følger bilen (s), men
+ * stopper ved endene av strekningen, så bilen aldri kommer nærmere kanten enn ved full visning.
+ */
+export function sceneCamera(min: number, max: number, s: number, inner: number, pMin: number, pMax: number): SceneCamera {
+  const span = Math.max(1e-9, max - min);
+  const pxPerM = Math.min(pMax, Math.max(pMin, inner / span));
+  const half = inner / 2 / pxPerM;
+  if (span <= 2 * half + 1e-9) return { pxPerM, center: (min + max) / 2, follows: false };
+  return { pxPerM, center: Math.min(max - half, Math.max(min + half, s)), follows: true };
+}
+
+export interface MarkGroup {
+  /** Midten av gruppen (figurens enheter), der etiketten står. */
+  x: number;
+  /** Tidspunktene i gruppen, stigende. */
+  times: number[];
+}
+
+/**
+ * Slår sammen merker (tidspunkt og x i figuren) som ligger så tett at etikettene ville overlappe, f.eks. 2 s og 4 s
+ * på samme sted rundt et vendepunkt. `width(times)` er bredden på etiketten til en gruppe, `gap` minste luft.
+ */
+export function groupMarks(marks: { t: number; x: number }[], width: (times: number[]) => number, gap = 4): MarkGroup[] {
+  type G = { lo: number; hi: number; times: number[] };
+  let groups: G[] = [...marks]
+    .filter((m) => Number.isFinite(m.x))
+    .sort((p, q) => p.x - q.x || p.t - q.t)
+    .map((m) => ({ lo: m.x, hi: m.x, times: [m.t] }));
+  const mid = (g: G) => (g.lo + g.hi) / 2;
+  let merged = true;
+  while (merged && groups.length > 1) {
+    merged = false;
+    const next: G[] = [];
+    for (const g of groups) {
+      const prev = next[next.length - 1];
+      if (prev && mid(g) - width(g.times) / 2 - (mid(prev) + width(prev.times) / 2) < gap) {
+        next[next.length - 1] = { lo: prev.lo, hi: g.hi, times: [...prev.times, ...g.times].sort((p, q) => p - q) };
+        merged = true;
+      } else next.push(g);
+    }
+    groups = next;
+  }
+  return groups.map((g) => ({ x: mid(g), times: g.times }));
+}
+
 /* ---------- 1D Reaksjonslengde og bremselengde ---------- */
 
 export const kmhToMs = (kmh: number): number => kmh / 3.6;

@@ -3,12 +3,51 @@ import type { VizMeta } from '../../types';
 /** Kapittel 1 Rettlinjet bevegelse. */
 const viz: VizMeta[] = [
   {
+    id: 'fartskontroll',
+    chapter: '1',
+    sections: ['1B', '1C'],
+    title: 'Streknings-ATK: snittfart og momentanfart',
+    summary:
+      'Styr farten til en bil gjennom en strekning med fartskamera i hver ende og se om sjåføren får bot. Snittfarten er stigningstallet til sekanten i s-t-grafen, momentanfarten stigningstallet til tangenten.',
+    keywords: [
+      'streknings-ATK',
+      'fartskontroll',
+      'snittfart',
+      'gjennomsnittsfart',
+      'momentanfart',
+      'speedometer',
+      'sekant',
+      'tangent',
+      'stigningstall',
+      's-t-graf',
+      'v-t-graf',
+      'trafikk',
+      'KM4',
+    ],
+    load: () => import('./Fartskontroll'),
+  },
+  {
     id: 'bevegelsesgrafer',
     chapter: '1',
     sections: ['1C'],
     title: 'Bevegelsesgrafer: s-t, v-t og a-t',
-    summary: 'Styr startposisjon, startfart og akselerasjon og se de tre grafene henge sammen: stigningstall er fart, og areal under v-t-grafen er forflytning.',
-    keywords: ['posisjon', 'fart', 'akselerasjon', 'stigningstall', 'tangent', 'areal', 'forflytning', 'grafisk framstilling'],
+    summary:
+      'En bil kjører langs en vei med målebånd. Styr startposisjon, startfart og akselerasjon og se bilen og de tre grafene henge sammen: stigningstall er fart, og areal under v-t-grafen er forflytning.',
+    keywords: [
+      'posisjon',
+      'fart',
+      'akselerasjon',
+      'stigningstall',
+      'tangent',
+      'areal',
+      'forflytning',
+      'strekning',
+      'grafisk framstilling',
+      'bil',
+      'målebånd',
+      'rygge',
+      'vendepunkt',
+    ],
     load: () => import('./Bevegelsesgrafer'),
   },
   {

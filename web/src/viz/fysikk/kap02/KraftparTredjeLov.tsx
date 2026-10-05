@@ -1,193 +1,420 @@
 import { useState, type ReactNode } from 'react';
 import {
-  Arrow,
-  Block,
   Controls,
   Explain,
   Figure,
-  Label,
+  Formula,
+  FormulaLine,
   Legend,
   Readout,
   Readouts,
   Segmented,
   Slider,
+  Toggle,
   Toolbar,
+  Txt,
   VIZ,
   VizLayout,
   fmt,
   fmtSci,
+  useTextScale,
 } from '../../kit';
-import { bookOnTable } from './model';
+import { Bord, ForceArrow, Rom, Stikkontakt, ValueTag } from '../../kit/scene';
+import { Bok, Grunnsnitt, Hand } from './kraftpar-deler';
+import { EARTH_MASS, TEXTBOOK, bookOnTable, bookThickness, type BookResult } from './model';
+import { useNarrow } from './useNarrow';
 
-type Mode = 'alle' | 'gravitasjon' | 'normal' | 'frilegeme';
+type Mode = 'alle' | 'gravitasjon' | 'normal' | 'dytt' | 'frilegeme';
 
 const MODES: { value: Mode; label: string }[] = [
-  { value: 'alle', label: 'Alle fire kreftene' },
+  { value: 'alle', label: 'Alle kraftparene' },
   { value: 'gravitasjon', label: 'Gravitasjonsparet' },
   { value: 'normal', label: 'Normalkraftparet' },
+  { value: 'dytt', label: 'Dyttparet' },
   { value: 'frilegeme', label: 'Frilegemediagram for boka' },
 ];
 
-/** Piksler per newton. */
-const K = 3.2;
-const FADED = 0.12;
+/** Kreftene i figuren: G og N på boka, G′ på jorda, N′ på bordet, F på boka og F′ på hånda. */
+type ForceId = 'G' | 'G2' | 'N' | 'N2' | 'F' | 'F2';
 
-// Geometri (viewBox 800 × 480)
-const BOOK = { x: 340, y: 100, w: 120, h: 50 };
-const BOOK_CY = BOOK.y + BOOK.h / 2;
-const BOOK_BOTTOM = BOOK.y + BOOK.h;
-const TABLE_TOP = 230;
-const X_GRAV = 375;
-const X_NORM = 425;
-const X_HAND = 352;
+/** Nedtonede krefter når ett kraftpar vises. */
+const FADED = 0.13;
 
-/** Jordoverflaten er en kvadratisk Bézier fra (80, 480) via (400, 320) til (720, 480). */
-function earthSurfaceY(x: number): number {
-  const t = (x - 80) / 640;
-  return 480 - 320 * t * (1 - t);
-}
+/* ---------- Scenen: én fast skala for lengder og én for krefter ---------- */
+
+const W = 800;
+const H = 520;
+/** Piksler per meter: boka er 26 cm lang, salongbordet 90 cm bredt og 45 cm høyt, hånda ca. 19 cm. */
+const PX_PER_M = 480;
+/** Piksler per newton for alle kreftene (N er høyst 2,5 kg · 9,81 m/s² + 10 N = 34,5 N, altså 124 px). */
+const PX_PER_N = 3.6;
+/** Overflaten av bordplata, der boka ligger. */
+const TABLE_TOP = 176;
+const TABLE_W = 0.9 * PX_PER_M;
+const TABLE_H = 0.45 * PX_PER_M;
+/** Der veggen møter gulvet, og forkanten av gulvet (snittet av grunnen begynner der). */
+const WALL_FOOT = 345;
+const GROUND = 420;
+const BOOK_X = 400;
+const BOOK_W = TEXTBOOK.length * PX_PER_M;
+/** Hvor kreftene angriper (x): N og N′ til venstre på boka, G og G′ midt på, F og F′ under håndflata. */
+const X_N = 351;
+const X_G = 400;
+const X_F = 418;
+const X_F2 = 447;
+/** Hælen på håndflata. */
+const HAND_X = 452;
+/** Avstanden mellom de to tekstlinjene i en kraftetikett (ganges med tekstskaleringen). */
+const LINE = 16;
+
+/** Utsnittet på mobil: bordet, boka, hånda og kreftene, så de blir store nok. */
+const NARROW_VIEW = { x: 172, y: 8, w: 456, h: H - 8 };
 
 export default function KraftparTredjeLov() {
   const [mode, setMode] = useState<Mode>('alle');
   const [m, setM] = useState(1.5);
   const [push, setPush] = useState(0);
+  const [showForces, setShowForces] = useState(true);
   const r = bookOnTable(m, push);
 
-  const show = (kind: 'grav' | 'norm' | 'hand' | 'grav2' | 'norm2'): number => {
-    if (mode === 'alle') return 1;
-    if (mode === 'gravitasjon') return kind === 'grav' || kind === 'grav2' ? 1 : FADED;
-    if (mode === 'normal') return kind === 'norm' || kind === 'norm2' ? 1 : FADED;
-    return kind === 'grav2' || kind === 'norm2' ? 0 : 1;
+  // Dyttparet finnes bare når hånda dytter: velger du det uten dytt, presser hånda med 5 N.
+  const chooseMode = (next: Mode) => {
+    if (next === 'dytt' && push === 0) setPush(5);
+    setMode(next);
   };
-  const otherBodies = mode === 'frilegeme' ? 0.25 : 1;
-  const earthY = earthSurfaceY(X_GRAV);
-  const gLen = r.G * K;
-  const nLen = r.N * K;
-  const hLen = push * K;
 
   return (
     <VizLayout>
       <Toolbar>
-        <Segmented label="Velg hvilke krefter som vises" options={MODES} value={mode} onChange={setMode} />
+        <Segmented label="Velg hvilke krefter som vises" options={MODES} value={mode} onChange={chooseMode} />
+        <Toggle label="Vis krefter" checked={showForces} onChange={setShowForces} />
       </Toolbar>
       <Controls>
         <Slider label="Masse til boka" value={m} onChange={setM} min={0.5} max={2.5} step={0.1} unit="kg" decimals={1} />
         <Slider label="Dytt fra hånda" value={push} onChange={setPush} min={0} max={10} step={0.5} unit="N" decimals={1} />
       </Controls>
 
-      <Figure viewBox="0 0 800 480" label="Bok som ligger på et bord som står på jorda, med kreftene mellom dem" maxHeight={480}>
-        {/* Jorda og bordet */}
-        <g opacity={otherBodies}>
-          <path d="M 80 480 Q 400 320 720 480 Z" fill={VIZ.body} className="viz-block" />
-          <Label x={560} y={462} muted>
-            jorda
-          </Label>
-          <rect x={230} y={TABLE_TOP} width={340} height={30} rx={4} fill={VIZ.bodyStrong} className="viz-block" />
-          <rect x={250} y={TABLE_TOP + 30} width={16} height={74} fill={VIZ.bodyStrong} className="viz-block" />
-          <rect x={534} y={TABLE_TOP + 30} width={16} height={74} fill={VIZ.bodyStrong} className="viz-block" />
-          <Label x={300} y={TABLE_TOP + 21}>
-            bordet
-          </Label>
-        </g>
-        <Block x={BOOK.x} y={BOOK.y} w={BOOK.w} h={BOOK.h} />
-        <Label x={BOOK.x + BOOK.w / 2} y={BOOK_CY + 6}>
-          boka
-        </Label>
-
-        {/* Gravitasjonsparet */}
-        <g opacity={show('grav')}>
-          <Arrow x1={X_GRAV} y1={BOOK_CY} x2={X_GRAV} y2={BOOK_CY + gLen} color={VIZ.gravity} />
-          <ForceLabel x={X_GRAV - 12} y={BOOK_CY + gLen - 2} anchor="end" name="G" what="jorda på boka" color={VIZ.gravity} />
-        </g>
-        <g opacity={show('grav2')}>
-          <Arrow x1={X_GRAV} y1={earthY} x2={X_GRAV} y2={earthY - gLen} color={VIZ.gravity} />
-          <ForceLabel x={X_GRAV - 12} y={earthY - gLen + 14} anchor="end" name="G′" what="boka på jorda" color={VIZ.gravity} />
-        </g>
-
-        {/* Normalkraftparet */}
-        <g opacity={show('norm')}>
-          <Arrow x1={X_NORM} y1={BOOK_BOTTOM} x2={X_NORM} y2={BOOK_BOTTOM - nLen} color={VIZ.normal} />
-          <ForceLabel x={X_NORM + 12} y={Math.min(BOOK_BOTTOM - nLen + 14, BOOK.y - 8)} anchor="start" name="N" what="bordet på boka" color={VIZ.normal} />
-        </g>
-        <g opacity={show('norm2')}>
-          <Arrow x1={X_NORM} y1={TABLE_TOP} x2={X_NORM} y2={TABLE_TOP + nLen} color={VIZ.normal} />
-          <ForceLabel x={X_NORM + 12} y={TABLE_TOP + nLen} anchor="start" name="N′" what="boka på bordet" color={VIZ.normal} />
-        </g>
-
-        {/* Dytt fra hånda (paret virker på hånda, som ikke er tegnet) */}
-        {push > 0 && (
-          <g opacity={show('hand')}>
-            <Arrow x1={X_HAND} y1={BOOK.y - hLen} x2={X_HAND} y2={BOOK.y} color={VIZ.applied} />
-            <ForceLabel x={X_HAND - 12} y={BOOK.y - hLen / 2 + 6} anchor="end" name="F" what="hånda på boka" color={VIZ.applied} />
-          </g>
-        )}
-      </Figure>
+      <BookScene mode={mode} m={m} r={r} showForces={showForces} />
       <Legend
         items={[
-          { color: VIZ.gravity, label: 'Gravitasjon' },
-          { color: VIZ.normal, label: 'Normalkraft' },
-          ...(push > 0 ? [{ color: VIZ.applied, label: 'Dytt fra hånda' }] : []),
+          { color: VIZ.gravity, label: 'Gravitasjon: G og G′' },
+          { color: VIZ.normal, label: 'Normalkraft: N og N′' },
+          ...(push > 0 ? [{ color: VIZ.applied, label: 'Dytt fra hånda: F og F′' }] : []),
         ]}
       />
 
       <Readouts>
         <Readout label="G = G′" value={fmt(r.G, 1)} unit="N" tone={VIZ.gravity} />
         <Readout label="N = N′" value={fmt(r.N, 1)} unit="N" tone={VIZ.normal} />
+        {push > 0 && mode !== 'gravitasjon' && <Readout label="F = F′" value={fmt(r.F, 1)} unit="N" tone={VIZ.applied} />}
         {mode === 'gravitasjon' ? (
-          <Readout label="Akselerasjonen jorda får" value={fmtSci(r.earthAccel, 1)} unit="m/s²" />
+          <Readout label="Akselerasjonen G′ gir jorda" value={fmtSci(r.earthAccel, 1)} unit="m/s²" />
         ) : (
-          <Readout label="Kraftsum på boka" value={fmt(r.N - r.G - push, 1)} unit="N" />
+          <Readout label="Kraftsum på boka" value={fmt(Math.abs(r.net) < 0.05 ? 0 : r.net, 1)} unit="N" />
         )}
       </Readouts>
 
-      <Explain>{explanation(mode, r.G, r.N, push, r.earthAccel)}</Explain>
+      <Formula label="Utregning">
+        <FormulaLine>
+          G = mg = {fmt(m, 1)} kg · 9,81 m/s² = {fmt(r.G, 1)} N
+        </FormulaLine>
+        {mode === 'gravitasjon' ? (
+          <FormulaLine>
+            a = G′/M = {fmt(r.G, 1)} N / ({fmtSci(EARTH_MASS, 2)} kg) = {fmtSci(r.earthAccel, 1)} m/s²
+          </FormulaLine>
+        ) : (
+          <FormulaLine>
+            ΣF = N − G − F = 0 gir N = G + F = {fmt(r.G, 1)} N + {fmt(r.F, 1)} N = {fmt(r.N, 1)} N
+          </FormulaLine>
+        )}
+        <FormulaLine>Newtons 3. lov: G′ = G, N′ = N{push > 0 ? ' og F′ = F' : ''}</FormulaLine>
+      </Formula>
+
+      <Explain>{explanation(mode, r)}</Explain>
     </VizLayout>
   );
 }
 
-function ForceLabel({ x, y, anchor, name, what, color }: { x: number; y: number; anchor: 'start' | 'end'; name: string; what: string; color: string }) {
+/* ---------- Scenen ---------- */
+
+interface SceneProps {
+  mode: Mode;
+  m: number;
+  r: BookResult;
+  showForces: boolean;
+}
+
+function BookScene(props: SceneProps) {
+  const { m, r } = props;
+  const [ref, narrow] = useNarrow<HTMLDivElement>();
+  const view = narrow ? NARROW_VIEW : { x: 0, y: 0, w: W, h: H };
   return (
-    <Label x={x} y={y} anchor={anchor} color={color}>
-      {name}
-      <tspan className="is-muted" dx={6}>
-        ({what})
-      </tspan>
-    </Label>
+    <div ref={ref}>
+      <Figure
+        viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
+        label={`En lærebok på ${fmt(m, 1)} kg ligger på et salongbord i stua${r.F > 0 ? `, og en hånd presser den ned med ${fmt(r.F, 1)} N` : ''}. Under gulvet er jorda. Kraftparene etter Newtons 3. lov er tegnet som piler.`}
+        maxHeight={520}
+      >
+        <SceneContent {...props} view={view} />
+      </Figure>
+    </div>
   );
 }
 
-function explanation(mode: Mode, G: number, N: number, push: number, earthAccel: number): ReactNode {
+/** Hvilke krefter som vises, og hvor sterkt, i hver visning (1 = tydelig, FADED = nedtonet, 0 = skjult). */
+function forceOpacity(mode: Mode, id: ForceId): number {
+  switch (mode) {
+    case 'alle':
+      return 1;
+    case 'gravitasjon':
+      return id === 'G' || id === 'G2' ? 1 : FADED;
+    case 'normal':
+      return id === 'N' || id === 'N2' ? 1 : FADED;
+    case 'dytt':
+      return id === 'F' || id === 'F2' ? 1 : FADED;
+    case 'frilegeme':
+      return id === 'G' || id === 'N' || id === 'F' ? 1 : 0;
+  }
+}
+
+/** Hvilke gjenstander som er med i det som vises (de andre tones ned). */
+function involved(mode: Mode): { book: boolean; table: boolean; earth: boolean; hand: boolean; room: boolean } {
+  switch (mode) {
+    case 'alle':
+      return { book: true, table: true, earth: true, hand: true, room: true };
+    case 'gravitasjon':
+      return { book: true, table: false, earth: true, hand: false, room: true };
+    case 'normal':
+      return { book: true, table: true, earth: false, hand: false, room: true };
+    case 'dytt':
+      return { book: true, table: false, earth: false, hand: true, room: true };
+    case 'frilegeme':
+      return { book: true, table: false, earth: false, hand: false, room: false };
+  }
+}
+
+function SceneContent({ mode, m, r, showForces, view }: SceneProps & { view: { x: number; y: number; w: number; h: number } }) {
+  const f = useTextScale();
+  const k = PX_PER_N;
+  const t = bookThickness(m) * PX_PER_M;
+  const bookTop = TABLE_TOP - t;
+  const bookMid = TABLE_TOP - t / 2;
+  const on = involved(mode);
+  const op = (id: ForceId) => forceOpacity(mode, id);
+  const pushing = r.F > 0;
+  // Hånda vises når den dytter, og i dyttparet også uten dytt (da holdes den like over boka).
+  const showHand = pushing || mode === 'dytt';
+
+  // Spissene og halene til pilene
+  const nTip = TABLE_TOP - r.N * k;
+  const n2Tip = TABLE_TOP + r.N * k;
+  const gTip = bookMid + r.G * k;
+  const g2Tail = H - 10;
+  const g2Tip = g2Tail - r.G * k;
+  const fTail = bookTop - r.F * k;
+  const f2Tip = bookTop - r.F * k;
+
+  // Tekstplassering: etikettene skal ikke havne oppå bordplata, boka eller snittkanten.
+  const tableBottom = TABLE_TOP + 24;
+  const nLabelY = Math.min(nTip + 12 * f, bookTop - 6 - LINE * f);
+  const n2LabelY = Math.max(n2Tip - LINE * f, tableBottom + 14 * f);
+  const gLabelY = Math.max(gTip - LINE * f, tableBottom + 14 * f);
+  const g2LabelY = Math.min(g2Tip + 12 * f, H - 8 - LINE * f);
+  const fLabelY = fTail - 14 - LINE * f;
+  const f2LabelY = f2Tip + 12 * f;
+
+  const tag = modeTag(mode, r);
+
+  return (
+    <g>
+      {/* Stua: vegg, tregulv og en stikkontakt, med snitt av grunnen under huset */}
+      <g opacity={on.room ? 1 : 0.55}>
+        <Rom x={0} y={0} w={W} h={GROUND} gulvY={WALL_FOOT} gulv="tre" />
+        <Stikkontakt x={110} y={WALL_FOOT - 0.3 * PX_PER_M * 0.94} size={0.08 * PX_PER_M} />
+      </g>
+      <g opacity={on.earth ? 1 : 0.5}>
+        <Grunnsnitt x={0} y={GROUND} w={W} h={H - GROUND} />
+        <Txt x={view.x + 16} y={GROUND + 36 + 6 * f} anchor="start" weight={720} size={1.05}>
+          jorda
+        </Txt>
+        <Txt x={view.x + 16} y={GROUND + 36 + 6 * f + 17 * f} anchor="start" size={0.74} muted>
+          6 370 km ned til sentrum
+        </Txt>
+      </g>
+      <Bord x={BOOK_X} y={TABLE_TOP} w={TABLE_W} h={TABLE_H} type="tre" dim={!on.table} />
+      <Bok x={BOOK_X} y={TABLE_TOP} w={BOOK_W} t={t} perm="rod" dim={!on.book} />
+      {showHand && <Hand x={HAND_X} y={bookTop} k={PX_PER_M} top={view.y} loft={pushing ? 0 : 0.035 * PX_PER_M} genser="gul" dim={!on.hand} />}
+
+      {/* Frilegemediagram: systemgrensen rundt boka */}
+      {mode === 'frilegeme' && (
+        <rect
+          x={BOOK_X - BOOK_W / 2 - 9}
+          y={bookTop - 9}
+          width={BOOK_W + 18}
+          height={t + 15}
+          rx={8}
+          fill="none"
+          stroke={VIZ.ink}
+          strokeWidth={1.4}
+          strokeDasharray="6 5"
+          opacity={0.7}
+        />
+      )}
+
+      {showForces && (
+        <g>
+          {/* Gravitasjonsparet: jorda på boka (G) og boka på jorda (G′) */}
+          <g opacity={op('G')}>
+            <ForceArrow x1={X_G} y1={bookMid} x2={X_G} y2={gTip} color={VIZ.gravity} origin />
+            <ForceText x={X_G + 12} y={gLabelY} anchor="start" color={VIZ.gravity} name="G" value={r.G} what="jorda på boka" />
+          </g>
+          {op('G2') > 0 && (
+            <g opacity={op('G2')}>
+              <ForceArrow x1={X_G} y1={g2Tail} x2={X_G} y2={g2Tip} color={VIZ.gravity} origin />
+              <ForceText x={X_G + 12} y={g2LabelY} anchor="start" color={VIZ.gravity} name="G′" value={r.G} what="boka på jorda" />
+            </g>
+          )}
+
+          {/* Normalkraftparet: bordet på boka (N) og boka på bordet (N′), begge i kontaktflaten */}
+          <g opacity={op('N')}>
+            <ForceArrow x1={X_N} y1={TABLE_TOP} x2={X_N} y2={nTip} color={VIZ.normal} />
+            <ForceText x={X_N - 12} y={nLabelY} anchor="end" color={VIZ.normal} name="N" value={r.N} what="bordet på boka" />
+          </g>
+          {op('N2') > 0 && (
+            <g opacity={op('N2')}>
+              <ForceArrow x1={X_N} y1={TABLE_TOP} x2={X_N} y2={n2Tip} color={VIZ.normal} />
+              <ForceText x={X_N - 12} y={n2LabelY} anchor="end" color={VIZ.normal} name="N′" value={r.N} what="boka på bordet" />
+            </g>
+          )}
+
+          {/* Dyttparet: hånda på boka (F) og boka på hånda (F′) */}
+          {pushing && (
+            <g opacity={op('F')}>
+              <ForceArrow x1={X_F} y1={fTail} x2={X_F} y2={bookTop} color={VIZ.applied} />
+              <ForceText x={X_F} y={fLabelY} anchor="middle" color={VIZ.applied} name="F" value={r.F} what="hånda på boka" />
+            </g>
+          )}
+          {pushing && op('F2') > 0 && (
+            <g opacity={op('F2')}>
+              <ForceArrow x1={X_F2} y1={bookTop} x2={X_F2} y2={f2Tip} color={VIZ.applied} />
+              <ForceText x={X_F2 + 12} y={f2LabelY} anchor="start" color={VIZ.applied} name="F′" value={r.F} what="boka på hånda" />
+            </g>
+          )}
+        </g>
+      )}
+
+      <ValueTag x={view.x + 16} y={view.y + 24 * Math.max(1, f * 0.9)} anchor="start" text={tag.text} color={tag.color} />
+    </g>
+  );
+}
+
+/** Etikett ved en kraftpil: symbol og verdi på første linje, og hvem som virker på hvem under. */
+function ForceText({
+  x,
+  y,
+  anchor,
+  color,
+  name,
+  value,
+  what,
+}: {
+  x: number;
+  /** Grunnlinjen til første linje. */
+  y: number;
+  anchor: 'start' | 'middle' | 'end';
+  color: string;
+  name: string;
+  value: number;
+  what: string;
+}) {
+  const f = useTextScale();
+  return (
+    <g>
+      <Txt x={x} y={y} anchor={anchor} color={color} weight={740} size={1}>
+        {name} = {fmt(value, 1)} N
+      </Txt>
+      <Txt x={x} y={y + LINE * f} anchor={anchor} color={color} weight={560} size={0.8}>
+        {what}
+      </Txt>
+    </g>
+  );
+}
+
+function modeTag(mode: Mode, r: BookResult): { text: string; color?: string } {
+  switch (mode) {
+    case 'alle':
+      return { text: r.F > 0 ? 'Tre kraftpar, seks krefter' : 'To kraftpar, fire krefter' };
+    case 'gravitasjon':
+      return { text: `G = G′ = ${fmt(r.G, 1)} N`, color: VIZ.gravity };
+    case 'normal':
+      return { text: `N = N′ = ${fmt(r.N, 1)} N`, color: VIZ.normal };
+    case 'dytt':
+      return r.F > 0 ? { text: `F = F′ = ${fmt(r.F, 1)} N`, color: VIZ.applied } : { text: 'Ingen kontakt, ingen krefter' };
+    case 'frilegeme':
+      return { text: 'Kraftsum på boka: 0 N' };
+  }
+}
+
+/* ---------- Forklaringen ---------- */
+
+function explanation(mode: Mode, r: BookResult): ReactNode {
+  const { G, N, F, earthAccel } = r;
   switch (mode) {
     case 'alle':
       return (
-        <p>
-          <strong>Fire krefter, to par.</strong> Oransje er gravitasjon, blått er normalkraft. Kreftene i et par er like store,
-          motsatt rettet og virker på <em>hver sin</em> gjenstand. Derfor kan de aldri oppheve hverandre. Velg et av parene for å se
-          det alene.
-        </p>
+        <>
+          <p>
+            <strong>{F > 0 ? 'Tre kraftpar, seks krefter.' : 'To kraftpar, fire krefter.'}</strong> Jorda trekker boka ned (G), og boka
+            trekker jorda opp (G′). Bordet presser boka opp (N), og boka presser bordet ned (N′).
+            {F > 0 && <> Hånda presser boka ned (F), og boka presser hånda opp (F′).</>} Kreftene i et par er like store, motsatt rettet og
+            virker på <em>hver sin</em> gjenstand. Derfor kan de aldri oppheve hverandre.
+          </p>
+          <p>
+            Velg et av parene for å se det alene. {F > 0 ? 'Det er derfor du kjenner boka mot hånda: kraften du kjenner, er F′ fra boka, og den er like stor som dyttet ditt.' : 'Dytt på boka med hånda, så kommer et tredje kraftpar til.'}
+          </p>
+        </>
       );
     case 'gravitasjon':
       return (
         <p>
-          Jorda trekker boka nedover med G = {fmt(G, 1)} N. Samtidig trekker boka jorda oppover med like stor kraft, G′ ={' '}
-          {fmt(G, 1)} N. Vi merker ikke at jorda trekkes mot boka fordi massen til jorda er enorm: a = G′/M ≈{' '}
-          {fmtSci(earthAccel, 1)} m/s².
+          Jorda trekker boka nedover med G = {fmt(G, 1)} N. Samtidig trekker boka jorda oppover med like stor kraft, G′ = {fmt(G, 1)} N.
+          Paret finnes enten boka ligger på bordet eller faller. Det er derfor vi aldri merker at jorda trekkes mot boka: massen til jorda er
+          enorm, så G′ alene ville gitt jorda akselerasjonen a = G′/M ≈ {fmtSci(earthAccel, 1)} m/s². Slipper du boka, er det boka som faller.
         </p>
       );
     case 'normal':
       return (
         <p>
-          Boka og bordet presses mot hverandre. Bordet dytter boka opp med N = {fmt(N, 1)} N, og boka dytter bordet ned med like
-          stor kraft N′. {push > 0 ? 'Når hånda dytter på boka, presses flatene hardere sammen, og begge kreftene i paret blir større.' : 'Prøv å dytte på boka med hånda: begge kreftene i paret blir større.'}
+          Boka og bordplata presser mot hverandre der de er i kontakt. Bordet dytter boka opp med N = {fmt(N, 1)} N, og boka dytter bordet ned
+          med like stor kraft N′.{' '}
+          {F > 0
+            ? 'Når hånda dytter på boka, presses flatene hardere sammen, og begge kreftene i paret blir større.'
+            : 'Dytt på boka med hånda, så presses flatene hardere sammen, og begge kreftene i paret blir større.'}{' '}
+          Det er derfor et skjørt bord kan knekke under en stabel tunge bøker: N′ virker på bordet, og den vokser med tyngden av bøkene og med
+          dyttet ditt.
+        </p>
+      );
+    case 'dytt':
+      return F > 0 ? (
+        <p>
+          Hånda presser boka ned med F = {fmt(F, 1)} N, og boka presser hånda opp med F′ = {fmt(F, 1)} N. Det er F′ du kjenner i
+          håndflata. Kreftene er like store hele tiden, uansett hvor hardt du presser. Det er derfor det gjør vondt å slå hånda i bordet: jo
+          hardere du slår, jo hardere slår bordet tilbake.
+        </p>
+      ) : (
+        <p>
+          Nå holder du hånda like over boka uten å røre den. Da virker ingen krefter mellom hånda og boka, og det finnes ikke noe kraftpar her.
+          Krefter oppstår alltid i par når to gjenstander virker på hverandre. Dra i «Dytt fra hånda» for å presse boka ned.
         </p>
       );
     case 'frilegeme':
       return (
         <p>
           Her er bare kreftene som virker <em>på</em> boka. Boka ligger i ro, så kraftsummen er null (Newtons 1. lov):{' '}
-          {push > 0 ? `N = G + F = ${fmt(G, 1)} N + ${fmt(push, 1)} N = ${fmt(N, 1)} N.` : `N = G = ${fmt(G, 1)} N.`} G og N er likevel{' '}
-          <strong>ikke</strong> et kraftpar etter Newtons 3. lov: begge virker på boka, og de har ulik opprinnelse.{' '}
-          {push > 0 ? 'Kraftparet til dyttet virker på hånda.' : 'Dytt på boka med hånda, så ser du at N kan bli større enn G.'}
+          {F > 0 ? `N = G + F = ${fmt(G, 1)} N + ${fmt(F, 1)} N = ${fmt(N, 1)} N.` : `N = G = ${fmt(G, 1)} N.`} G og N er likevel{' '}
+          <strong>ikke</strong> et kraftpar etter Newtons 3. lov: begge virker på boka, og de kommer fra hver sin gjenstand (jorda og bordet).
+          Paret til G er G′ på jorda, og paret til N er N′ på bordet.{' '}
+          {F > 0 ? 'Når hånda dytter, blir N større enn G, så de er ikke engang like store.' : 'Dytt på boka med hånda, så ser du at N kan bli større enn G.'}
         </p>
       );
   }

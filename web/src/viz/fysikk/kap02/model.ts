@@ -40,23 +40,133 @@ export function friction({ F, m, muS, muK, wasMoving = false }: FrictionInput): 
   return { N, Rmax, Rk, moving, R, a };
 }
 
+export type FrictionFloor = 'tregulv' | 'betong' | 'is';
+
+/**
+ * Typiske friksjonstall for en trekasse på tre gulv, avrundet til nærmeste 0,05. Tabellverdiene varierer mye med
+ * overflaten (tørr, våt, slitt), så dette er omtrentlige verdier.
+ */
+export const FRICTION_FLOORS: Record<FrictionFloor, { muS: number; muK: number }> = {
+  tregulv: { muS: 0.5, muK: 0.3 },
+  betong: { muS: 0.6, muK: 0.45 },
+  is: { muS: 0.1, muK: 0.05 },
+};
+
+/** Et dytt som øker jevnt fra null: F = rate · t opp til Fend, og er konstant etter det. */
+export interface PushRamp {
+  /** Hvor fort dyttet øker (N/s). */
+  rate: number;
+  /** Største dytt (N). */
+  Fend: number;
+}
+
+/**
+ * Rampen i visualiseringen: dyttet når μs·N etter `tBreak` sekunder og øker videre til 1,5 · μs·N, men aldri over
+ * `Fmax`. Er μs·N større enn Fmax, øker dyttet til Fmax på samme tid, og kassen står i ro.
+ */
+export function pushRampFor({ m, muS }: { m: number; muS: number }, Fmax: number, tBreak = 3): PushRamp {
+  const Rmax = muS * m * G_EARTH;
+  const target = Rmax > 0 ? Math.min(Rmax, Fmax) : Fmax;
+  return { rate: target / tBreak, Fend: Math.min(Fmax, 1.5 * Rmax) };
+}
+
+export interface PushState {
+  /** Dyttet ved tiden t (N). */
+  F: number;
+  moving: boolean;
+  /** Friksjonen (N): R = F så lenge kassen står i ro, R = μk·N når den glir. */
+  R: number;
+  /** Akselerasjon (m/s²). */
+  a: number;
+  /** Fart (m/s). */
+  v: number;
+  /** Hvor langt kassen har glidd (m). */
+  s: number;
+  /** Når kassen begynner å gli (s), eller Infinity hvis dyttet aldri blir større enn μs·N. */
+  tBreak: number;
+}
+
+/**
+ * Kassen dyttes med et dytt som øker jevnt fra null (se PushRamp). Den står i ro til F > μs·N, det vil si fram til
+ * tb = μs·N / rate. Etter det er friksjonen μk·N og a = (F − μk·N)/m. Fordi F øker lineært, er farten og strekningen
+ * eksakte polynomer i t (ingen numerisk integrasjon):
+ *   m·v = rate·(t² − tb²)/2 − μk·N·(t − tb)
+ *   m·s = rate·((t³ − tb³)/6 − tb²·(t − tb)/2) − μk·N·(t − tb)²/2
+ * Når dyttet har nådd Fend, er akselerasjonen konstant.
+ */
+export function pushRamp({ m, muS, muK }: { m: number; muS: number; muK: number }, { rate, Fend }: PushRamp, t: number): PushState {
+  const N = m * G_EARTH;
+  const Rmax = muS * N;
+  const Rk = Math.min(muK, muS) * N;
+  const tt = Math.max(0, Number.isFinite(t) ? t : 0);
+  const F = rate > 0 ? Math.min(Fend, rate * tt) : 0;
+  const tb = rate > 0 && Fend > Rmax ? Rmax / rate : Infinity;
+  if (!(tt > tb)) return { F, moving: false, R: F, a: 0, v: 0, s: 0, tBreak: tb };
+  const te = Fend / rate;
+  const t1 = Math.min(tt, te);
+  const d1 = t1 - tb;
+  let v = ((rate * (t1 * t1 - tb * tb)) / 2 - Rk * d1) / m;
+  let s = (rate * ((t1 ** 3 - tb ** 3) / 6 - (tb * tb * d1) / 2) - (Rk * d1 * d1) / 2) / m;
+  if (tt > te) {
+    const aEnd = (Fend - Rk) / m;
+    const d2 = tt - te;
+    s += v * d2 + 0.5 * aEnd * d2 * d2;
+    v += aEnd * d2;
+  }
+  return { F, moving: true, R: Rk, a: (F - Rk) / m, v, s, tBreak: tb };
+}
+
+/**
+ * Når avspillingen skal stoppe: når kassen har glidd `sMax` meter (så den ikke går ut av figuren), ellers ved `tMax`.
+ * Strekningen øker hele tiden etter at kassen har begynt å gli, så tiden finnes med halvering.
+ */
+export function pushRampEnd(input: { m: number; muS: number; muK: number }, ramp: PushRamp, sMax: number, tMax: number): number {
+  if (!(pushRamp(input, ramp, tMax).s > sMax)) return tMax;
+  let lo = 0;
+  let hi = tMax;
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (pushRamp(input, ramp, mid).s < sMax) lo = mid;
+    else hi = mid;
+  }
+  return hi;
+}
+
 /* ---------- 2D Newtons tredje lov: bok på bord ---------- */
 
 export const EARTH_MASS = 5.97e24;
 
 export interface BookResult {
-  /** Tyngden til boka (jorda på boka) = kraften fra boka på jorda. */
+  /** Tyngden til boka (jorda på boka) = kraften fra boka på jorda, G′. */
   G: number;
-  /** Normalkraften fra bordet på boka = kraften fra boka på bordet. */
+  /** Normalkraften fra bordet på boka = kraften fra boka på bordet, N′. */
   N: number;
-  /** Akselerasjonen jorda får av G′ (m/s²). */
+  /** Dyttet fra hånda på boka = kraften fra boka på hånda, F′. */
+  F: number;
+  /** Kraftsummen på boka med positiv retning opp: N − G − F (null, for boka ligger i ro). */
+  net: number;
+  /** Akselerasjonen G′ alene ville gitt jorda (m/s²): a = G′/M. */
   earthAccel: number;
 }
 
-/** Boka ligger i ro. Hånda dytter eventuelt nedover med `push` (N), så N = G + push. */
+/** Boka ligger i ro. Hånda dytter eventuelt nedover med `push` (N), så N = G + push (Newtons 1. lov). */
 export function bookOnTable(m: number, push = 0): BookResult {
   const G = m * G_EARTH;
-  return { G, N: G + push, earthAccel: G / EARTH_MASS };
+  const F = Math.max(0, push);
+  const N = G + F;
+  return { G, N, F, net: N - G - F, earthAccel: G / EARTH_MASS };
+}
+
+/**
+ * En lærebok i figuren: sidene er 26 cm × 19 cm, og papiret har tettheten 850 kg/m³ (bestrøket papir og perm), så
+ * en bok på 1,5 kg blir ca. 3,6 cm tykk.
+ */
+export const TEXTBOOK = { length: 0.26, width: 0.19, density: 850 };
+
+/** Tykkelsen (m) til en lærebok med massen m (kg): t = m / (ρ · A), der A er arealet av en side. */
+export function bookThickness(m: number): number {
+  if (!(m > 0)) return 0;
+  return m / (TEXTBOOK.density * TEXTBOOK.length * TEXTBOOK.width);
 }
 
 /* ---------- 2E Koblede klosser på glatt underlag ---------- */

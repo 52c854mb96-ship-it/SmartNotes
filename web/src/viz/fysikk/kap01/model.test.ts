@@ -5,7 +5,10 @@ import {
   eulerFall,
   exactPosition,
   exactVelocity,
+  facingDirection,
   flightTime,
+  groupMarks,
+  isReversing,
   impactSpeed,
   kmhToMs,
   maxHeight,
@@ -15,6 +18,8 @@ import {
   pathLength,
   position,
   positionExtent,
+  sceneCamera,
+  secondMarks,
   speedTrend,
   stopPosition,
   stopVelocity,
@@ -107,6 +112,104 @@ describe('bevegelsesgrafer (konstant akselerasjon)', () => {
     expect(speedTrend({ s0: 0, v0: 0, a: 2 }, 0)).toBe('starter');
     expect(turnTime({ s0: 0, v0: 0, a: 2 })).toBeNull();
     expect(speedTrend({ s0: 0, v0: 0, a: -2 }, 1)).toBe('øker');
+  });
+});
+
+describe('scenen til bevegelsesgrafene (bil på vei)', () => {
+  const m = { s0: -5, v0: 6, a: -2 };
+
+  it('fronten peker i startretningen, og bilen rygger etter vendepunktet', () => {
+    expect(facingDirection(m)).toBe(1);
+    expect(facingDirection({ s0: 0, v0: -3, a: 2 })).toBe(-1);
+    expect(facingDirection({ s0: 0, v0: 0, a: -1 })).toBe(-1);
+    expect(facingDirection({ s0: 0, v0: 0, a: 0 })).toBe(1);
+    expect(isReversing(m, 2)).toBe(false);
+    expect(isReversing(m, 3)).toBe(false); // står akkurat stille i vendepunktet
+    expect(isReversing(m, 5)).toBe(true);
+    // Starter fra ro: kjører alltid forover, aldri rygging
+    for (const t of [0, 1, 6]) expect(isReversing({ s0: 0, v0: 0, a: -3 }, t)).toBe(false);
+    // Konstant fart rygger aldri
+    expect(isReversing({ s0: 0, v0: -4, a: 0 }, 6)).toBe(false);
+  });
+
+  it('merkene hvert hele sekund ligger på s-t-grafen, også rundt vendepunktet', () => {
+    const marks = secondMarks(m, 4.5);
+    expect(marks.map((p) => p.t)).toEqual([0, 1, 2, 3, 4]);
+    expect(marks.map((p) => p.s)).toEqual([-5, 0, 3, 4, 3]);
+    expect(secondMarks(m, 0)).toEqual([{ t: 0, s: -5 }]);
+    expect(secondMarks(m, 6).length).toBe(7);
+    expect(secondMarks(m, 1.99).length).toBe(2);
+    // Avrundingsfeil fra glidebryteren (0,05 · 40) skal ikke miste merket ved 2 s
+    expect(secondMarks(m, 1.9999999999).length).toBe(3);
+    expect(secondMarks(m, -1)).toEqual([]);
+  });
+
+  it('kameraet viser hele strekningen når den får plass, ellers følger det bilen', () => {
+    // 10 m på 520 enheter: 52 per meter er over taket på 40, så hele strekningen vises med 40 per meter
+    const fit = sceneCamera(-5, 5, 2, 520, 16, 40);
+    expect(fit).toEqual({ pxPerM: 40, center: 0, follows: false });
+    // 26 m: skalaen tilpasses (20 per meter)
+    expect(sceneCamera(-6, 20, 3, 520, 16, 40)).toEqual({ pxPerM: 20, center: 7, follows: false });
+    // 200 m: minste skala, og kameraet følger bilen, men stopper ved endene
+    const far = (s: number) => sceneCamera(-50, 150, s, 520, 16, 40);
+    expect(far(40)).toEqual({ pxPerM: 16, center: 40, follows: true });
+    expect(far(-50).center).toBeCloseTo(-50 + 260 / 16, 12);
+    expect(far(150).center).toBeCloseTo(150 - 260 / 16, 12);
+  });
+
+  it('bilen holder seg innenfor det indre feltet uansett tallsett og tidspunkt', () => {
+    const inner = 520;
+    for (const s0 of [-20, -5, 0, 20])
+      for (const v0 of [-10, -2.5, 0, 6, 10])
+        for (const a of [-4, -1, 0, 2.5, 4]) {
+          const mm = { s0, v0, a };
+          const [lo, hi] = positionExtent(mm, 6);
+          for (const t of [0, 0.7, 2, 3.3, 6]) {
+            const s = position(mm, t);
+            const cam = sceneCamera(Math.min(0, lo), Math.max(0, hi), s, inner, 16, 40);
+            expect(cam.pxPerM).toBeGreaterThanOrEqual(16);
+            expect(cam.pxPerM).toBeLessThanOrEqual(40);
+            expect(Math.abs((s - cam.center) * cam.pxPerM)).toBeLessThanOrEqual(inner / 2 + 1e-6);
+          }
+        }
+  });
+
+  it('kameraet flytter seg jevnt (ingen hopp) når bilen kjører', () => {
+    let prev = sceneCamera(0, 150, 0, 520, 16, 40).center;
+    for (let s = 0.5; s <= 150; s += 0.5) {
+      const c = sceneCamera(0, 150, s, 520, 16, 40).center;
+      expect(Math.abs(c - prev)).toBeLessThanOrEqual(0.5 + 1e-9);
+      prev = c;
+    }
+  });
+
+  it('etikettene til merker som ligger tett, slås sammen', () => {
+    const w = (times: number[]) => 10 + 8 * times.length;
+    // 2 s og 4 s på samme sted (vendepunkt), 3 s like ved: alle havner i én gruppe
+    const g = groupMarks(
+      [
+        { t: 0, x: 0 },
+        { t: 1, x: 200 },
+        { t: 2, x: 320 },
+        { t: 3, x: 340 },
+        { t: 4, x: 320 },
+      ],
+      w,
+    );
+    expect(g.map((p) => p.times)).toEqual([[0], [1], [2, 3, 4]]);
+    expect(g[2]!.x).toBeCloseTo(330, 12);
+    // Langt fra hverandre: ingen sammenslåing, sortert etter x
+    expect(groupMarks([{ t: 1, x: 100 }, { t: 0, x: 0 }], w).map((p) => p.times)).toEqual([[0], [1]]);
+    expect(groupMarks([], w)).toEqual([]);
+    // Etter sammenslåing overlapper ingen etiketter
+    const many = Array.from({ length: 7 }, (_, i) => ({ t: i, x: i * 12 }));
+    const res = groupMarks(many, w);
+    for (let i = 1; i < res.length; i++) {
+      const a = res[i - 1]!;
+      const b = res[i]!;
+      expect(b.x - w(b.times) / 2 - (a.x + w(a.times) / 2)).toBeGreaterThanOrEqual(4);
+    }
+    expect(res.flatMap((p) => p.times).sort()).toEqual([0, 1, 2, 3, 4, 5, 6]);
   });
 });
 

@@ -12,19 +12,33 @@ import {
   Readouts,
   Slider,
   Sub,
+  Toggle,
   Toolbar,
   VIZ,
   VizLayout,
   fmt,
   linePath,
   sample,
-  scaleLinear,
   useSimClock,
   useTextScale,
 } from '../../kit';
-import { displacement, niceAxis, pathLength, position, positionExtent, speedTrend, turnTime, velocity, type Motion } from './model';
+import {
+  displacement,
+  facingDirection,
+  isReversing,
+  niceAxis,
+  pathLength,
+  position,
+  positionExtent,
+  secondMarks,
+  speedTrend,
+  turnTime,
+  velocity,
+  type Motion,
+} from './model';
 import { useNarrow } from './useNarrow';
-import { Arrow, ColorDot, Label } from './marks';
+import { ColorDot, Label } from './marks';
+import { VeiScene } from './bevegelsesgrafer-scene';
 
 /** Lengden på tidsaksen (s). */
 const T_END = 6;
@@ -35,6 +49,7 @@ export default function Bevegelsesgrafer() {
   const [s0, setS0] = useState(-5);
   const [v0, setV0] = useState(6);
   const [a, setA] = useState(-2);
+  const [showArrows, setShowArrows] = useState(true);
   const clock = useSimClock({ tMax: T_END });
   const { setT } = clock;
   // Start midt i bevegelsen, så tangenten og arealet synes før du trykker på «Spill av».
@@ -92,28 +107,23 @@ export default function Bevegelsesgrafer() {
       </Controls>
       <Toolbar>
         <PlayControls clock={clock} />
+        <Toggle label="Vis piler for v og a" checked={showArrows} onChange={setShowArrows} />
       </Toolbar>
+
+      <VeiScene m={m} t={t} tEnd={T_END} sAxis={sAxis} showArrows={showArrows} />
 
       <div ref={ref}>
         <Figure
-          viewBox={`0 0 800 ${narrow ? 240 : 170}`}
-          label={`Vogn på en rett bane. Ved t = ${fmt(t, 2)} s er posisjonen ${fmt(s, 1)} m og farten ${fmt(v, 1)} m/s.`}
-          maxHeight={narrow ? 320 : 220}
+          viewBox={`0 0 800 ${total}`}
+          label="Tre grafer over hverandre med samme tidsakse: posisjon, fart og akselerasjon som funksjon av tiden."
+          maxHeight={narrow ? 1400 : 760}
         >
-          <Track m={m} t={t} sAxis={sAxis} narrow={narrow} />
+          <Graphs m={m} t={t} sAxis={sAxis} vAxis={vAxis} heights={heights} />
         </Figure>
       </div>
-
-      <Figure
-        viewBox={`0 0 800 ${total}`}
-        label="Tre grafer over hverandre med samme tidsakse: posisjon, fart og akselerasjon som funksjon av tiden."
-        maxHeight={narrow ? 1400 : 760}
-      >
-        <Graphs m={m} t={t} sAxis={sAxis} vAxis={vAxis} heights={heights} />
-      </Figure>
       <Legend
         items={[
-          { color: VIZ.series[0], label: 'Posisjon s' },
+          { color: VIZ.series[0], label: 'Posisjon s, med merker hvert hele sekund' },
           { color: VIZ.velocity, label: 'Fart v og tangenten i s-t-grafen' },
           { color: VIZ.acceleration, label: 'Akselerasjon a' },
         ]}
@@ -149,93 +159,7 @@ function q(value: number, decimals: number, unit: string): string {
   return value < 0 && fmt(value, decimals) !== fmt(0, decimals) ? `(${text})` : text;
 }
 
-/* ---------- Vogna på banen ---------- */
-
 type Axis = ReturnType<typeof niceAxis>;
-
-function Track({ m, t, sAxis, narrow }: { m: Motion; t: number; sAxis: Axis; narrow: boolean }) {
-  const f = useTextScale();
-  const H = narrow ? 240 : 170;
-  const trackY = H - 22 - 26 * f;
-  // Plass til fartspilen (opptil 110) og etiketten på begge sider av banen
-  const xs = scaleLinear([sAxis.min, sAxis.max], [150, 650]);
-  // På mobil er teksten større: annenhver akseverdi, men alltid med 0
-  const zeroIndex = sAxis.ticks.indexOf(0);
-  const ticks = narrow && sAxis.ticks.length > 4 ? sAxis.ticks.filter((_, i) => (i - zeroIndex) % 2 === 0) : sAxis.ticks;
-  // Større vogn og piler på mobil, der figuren skaleres ned
-  const k = narrow ? 1.35 : 1;
-  const s = position(m, t);
-  const v = velocity(m, t);
-  const cx = xs(s);
-  // Fartspilen skaleres etter den største farten i bevegelsen, så den alltid får plass.
-  const vMax = Math.max(1, Math.abs(m.v0), Math.abs(velocity(m, T_END)));
-  const vLen = (v / vMax) * 110;
-  const aLen = m.a * 20;
-  const yV = trackY - 16 - 40 * k;
-  const yA = yV - 26 * f;
-  const strobe: number[] = [];
-  for (let n = 0; n <= Math.floor(t + 1e-9); n++) strobe.push(n);
-
-  return (
-    <g>
-      <line x1={110} x2={690} y1={trackY} y2={trackY} className="viz-ground" />
-      {ticks.map((v) => (
-        <g key={v}>
-          <line x1={xs(v)} x2={xs(v)} y1={trackY} y2={trackY + 8} className="viz-axis" />
-          <text x={xs(v)} y={trackY + 22 + 12 * f} textAnchor="middle" className="viz-tick" style={v === 0 ? { fontWeight: 700 } : undefined}>
-            {fmt(v, 0)} m
-          </text>
-        </g>
-      ))}
-      {/* Posisjonen hvert hele sekund (som en tickertape) */}
-      {strobe.map((n) => (
-        <circle key={n} cx={xs(position(m, n))} cy={trackY + 12} r={4.5 * f} fill={VIZ.series[0]} opacity={0.75} />
-      ))}
-      {/* Vogna */}
-      <rect x={cx - 32 * k} y={trackY - 14 * k - 26 * k} width={64 * k} height={26 * k} rx={6} fill={VIZ.body} className="viz-block" />
-      <circle cx={cx - 18 * k} cy={trackY - 8 * k} r={7 * k} fill={VIZ.bodyStrong} className="viz-block" />
-      <circle cx={cx + 18 * k} cy={trackY - 8 * k} r={7 * k} fill={VIZ.bodyStrong} className="viz-block" />
-      <Arrow
-        x1={cx}
-        y1={yV}
-        x2={cx + vLen}
-        y2={yV}
-        color={VIZ.velocity}
-        width={3 * k}
-        head={11 * k}
-        label="v"
-        labelX={cx + vLen + (vLen >= 0 ? 12 : -12)}
-        labelY={yV + 6}
-        labelAnchor={vLen >= 0 ? 'start' : 'end'}
-        minLength={3}
-      />
-      {Math.abs(v) < 0.05 && (
-        <Label x={cx} y={yV + 6} color={VIZ.velocity}>
-          v = 0
-        </Label>
-      )}
-      <Arrow
-        x1={cx}
-        y1={yA}
-        x2={cx + aLen}
-        y2={yA}
-        color={VIZ.acceleration}
-        width={2.5 * k}
-        head={11 * k}
-        label="a"
-        labelX={cx + aLen + (aLen >= 0 ? 12 : -12)}
-        labelY={yA + 6}
-        labelAnchor={aLen >= 0 ? 'start' : 'end'}
-        minLength={3}
-      />
-      {m.a === 0 && (
-        <Label x={cx} y={yA + 6} color={VIZ.acceleration}>
-          a = 0
-        </Label>
-      )}
-    </g>
-  );
-}
 
 /* ---------- Tre grafer med felles tidsakse ---------- */
 
@@ -261,6 +185,8 @@ function Graphs({
   const dv = m.a * t;
   const tt = turnTime(m);
   const [h0, h1, h2] = heights;
+  // Punktene vokser litt på mobil, der grafen skaleres ned
+  const dotK = Math.min(1.5, f);
 
   return (
     <>
@@ -285,6 +211,8 @@ function Graphs({
                 Stigningstall = v = {fmt(v, 1)} m/s
               </Title>
               <line x1={sx(t)} x2={sx(t)} y1={y1} y2={y0} className="viz-guide" />
+              {/* Avlesning av posisjonen på s-aksen, som pekeren på målebåndet i scenen */}
+              <line x1={x0} x2={sx(t)} y1={sy(s)} y2={sy(s)} stroke={VIZ.series[0]} strokeWidth={1.5} strokeDasharray="3 5" opacity={0.7} />
               <path d={linePath(sample((x) => position(m, x), 0, T_END, 120), sx, sy)} fill="none" stroke={VIZ.series[0]} strokeWidth={2} opacity={0.35} />
               <path d={linePath(sample((x) => position(m, x), 0, t, 80), sx, sy)} fill="none" stroke={VIZ.series[0]} strokeWidth={3.5} />
               <g clipPath={`url(#${clipBase}-s)`}>
@@ -298,7 +226,11 @@ function Graphs({
                   strokeDasharray="8 6"
                 />
               </g>
-              <ColorDot x={sx(t)} y={sy(s)} color={VIZ.series[0]} />
+              {/* Samme merker som på veien: posisjonen hvert hele sekund */}
+              {secondMarks(m, t).map((p) => (
+                <circle key={p.t} cx={sx(p.t)} cy={sy(p.s)} r={4.2 * dotK} fill={VIZ.surface} stroke={VIZ.series[0]} strokeWidth={2.4 * dotK} />
+              ))}
+              <ColorDot x={sx(t)} y={sy(s)} r={7 * dotK} color={VIZ.series[0]} />
             </g>
           );
         }}
@@ -347,8 +279,8 @@ function Graphs({
                 <line x1={sx(t)} x2={sx(t)} y1={y1} y2={y0} className="viz-guide" />
                 <path d={linePath(sample((x) => velocity(m, x), 0, T_END, 2), sx, sy)} fill="none" stroke={VIZ.velocity} strokeWidth={2} opacity={0.35} />
                 <path d={linePath(sample((x) => velocity(m, x), 0, t, 2), sx, sy)} fill="none" stroke={VIZ.velocity} strokeWidth={3.5} />
-                {tt !== null && tt <= T_END && <circle cx={sx(tt)} cy={sy(0)} r={5} fill={VIZ.surface} stroke={VIZ.velocity} strokeWidth={2} />}
-                <ColorDot x={sx(t)} y={sy(v)} color={VIZ.velocity} />
+                {tt !== null && tt <= T_END && <circle cx={sx(tt)} cy={sy(0)} r={5 * dotK} fill={VIZ.surface} stroke={VIZ.velocity} strokeWidth={2 * dotK} />}
+                <ColorDot x={sx(t)} y={sy(v)} r={7 * dotK} color={VIZ.velocity} />
               </g>
             );
           }}
@@ -381,7 +313,7 @@ function Graphs({
               )}
               <line x1={sx(t)} x2={sx(t)} y1={y1} y2={y0} className="viz-guide" />
               <line x1={sx(0)} x2={sx(T_END)} y1={sy(m.a)} y2={sy(m.a)} stroke={VIZ.acceleration} strokeWidth={3.5} />
-              <ColorDot x={sx(t)} y={sy(m.a)} color={VIZ.acceleration} />
+              <ColorDot x={sx(t)} y={sy(m.a)} r={7 * dotK} color={VIZ.acceleration} />
             </g>
           )}
         </Plot>
@@ -404,12 +336,13 @@ function explanation(m: Motion, t: number, v: number, ds: number, dist: number):
   const trend = speedTrend(m, t);
   const tt = turnTime(m);
   const a = `${fmt(m.a, 2)} m/s²`;
+  const dirName = (sign: number) => (sign > 0 ? 'positiv' : 'negativ');
   let state: ReactNode;
   switch (trend) {
     case 'ro':
       state = (
         <>
-          <strong>Vogna står i ro.</strong> Både v og a er null, så s-t-grafen er en vannrett linje.
+          <strong>Bilen står i ro.</strong> Både v og a er null, så s-t-grafen er en vannrett linje, og alle merkene ligger på samme sted.
         </>
       );
       break;
@@ -417,23 +350,23 @@ function explanation(m: Motion, t: number, v: number, ds: number, dist: number):
       state = (
         <>
           <strong>Konstant fart.</strong> Med a = 0 er v-t-grafen en vannrett linje (ikke skrå), og s-t-grafen er en rett linje med
-          stigningstall v = {fmt(v, 1)} m/s.
+          stigningstall v = {fmt(v, 1)} m/s. Merkene på veien ligger like langt fra hverandre, fordi bilen kjører like langt hvert sekund.
         </>
       );
       break;
     case 'starter':
       state = (
         <>
-          <strong>Vogna starter fra ro.</strong> Farten er null akkurat nå, så tangenten i s-t-grafen er vannrett. Men akselerasjonen er a ={' '}
-          {a}, så vogna begynner å kjøre i {m.a > 0 ? 'positiv' : 'negativ'} retning.
+          <strong>Bilen starter fra ro.</strong> Farten er null akkurat nå, så tangenten i s-t-grafen er vannrett. Men akselerasjonen er a ={' '}
+          {a}, så bilen begynner å kjøre i {dirName(m.a)} retning.
         </>
       );
       break;
     case 'snur':
       state = (
         <>
-          <strong>Vogna snur akkurat nå.</strong> Farten er null, så tangenten i s-t-grafen er vannrett. Men akselerasjonen er fortsatt a ={' '}
-          {a}, så vogna blir ikke stående i ro.
+          <strong>Bilen snur akkurat nå.</strong> Farten er null, så tangenten i s-t-grafen er vannrett (et {m.a < 0 ? 'toppunkt' : 'bunnpunkt'}),
+          og v-t-grafen krysser t-aksen. Men akselerasjonen er fortsatt a = {a}, så bilen blir ikke stående i ro: den begynner å rygge.
         </>
       );
       break;
@@ -441,12 +374,13 @@ function explanation(m: Motion, t: number, v: number, ds: number, dist: number):
       state =
         m.a < 0 ? (
           <>
-            <strong>Vogna går fortere, selv om a er negativ.</strong> Både v og a er negative, så vogna går fortere og fortere i negativ
-            retning. Negativ akselerasjon betyr altså ikke alltid at vogna bremser.
+            <strong>Bilen går fortere, selv om a er negativ.</strong> Både v og a er negative, så bilen kjører fortere og fortere i negativ
+            retning. Negativ akselerasjon betyr altså ikke alltid at bilen bremser.
           </>
         ) : (
           <>
-            <strong>Vogna går fortere</strong> fordi v og a har samme fortegn. s-t-grafen blir brattere og brattere.
+            <strong>Bilen går fortere</strong> fordi v og a har samme fortegn. s-t-grafen blir brattere og brattere, og avstanden mellom
+            merkene på veien blir større for hvert sekund.
           </>
         );
       break;
@@ -454,26 +388,37 @@ function explanation(m: Motion, t: number, v: number, ds: number, dist: number):
       state =
         m.a < 0 ? (
           <>
-            <strong>Vogna bremser</strong> fordi v og a har motsatt fortegn. v-t-grafen går nedover, men vogna kjører fortsatt framover så
-            lenge v er positiv: grafen viser farten, ikke veien vogna kjører.
+            <strong>Bilen bremser</strong> fordi v og a har motsatt fortegn, og bremselysene lyser. v-t-grafen går nedover, men bilen kjører
+            fortsatt i positiv retning så lenge v er positiv: grafen viser farten, ikke hvor bilen er. Merkene på veien kommer tettere og
+            tettere.
           </>
         ) : (
           <>
-            <strong>Vogna bremser, selv om a er positiv.</strong> Vogna kjører i negativ retning (v &lt; 0), og akselerasjonen peker motsatt
-            vei. Det er fortegnet til v sammenlignet med a som avgjør om vogna går fortere eller saktere.
+            <strong>Bilen bremser, selv om a er positiv.</strong> Bilen kjører i negativ retning (v &lt; 0), og akselerasjonen peker motsatt
+            vei. Det er fortegnet til v sammenlignet med a som avgjør om bilen går fortere eller saktere.
           </>
         );
       break;
   }
+  const facing = facingDirection(m);
+  const reversing = trend !== 'snur' && isReversing(m, t);
   const turned = tt !== null && tt < t - 0.05;
   return (
     <p>
-      {state} Arealet under v-t-grafen fra 0 til t er forflytningen Δs = {fmt(ds, 1)} m.
+      {state}
+      {reversing && (
+        <>
+          {' '}
+          Fronten på bilen peker i {dirName(facing)} retning, men v er {dirName(-facing)}: bilen rygger.
+        </>
+      )}{' '}
+      Arealet under v-t-grafen fra 0 til t er forflytningen Δs = {fmt(ds, 1)} m.
       {turned && (
         <>
           {' '}
-          Areal under t-aksen teller negativt, så forflytningen er mindre i tallverdi enn strekningen vogna faktisk har kjørt,{' '}
-          {fmt(dist, 1)} m.
+          Areal under t-aksen teller negativt, så forflytningen er mindre i tallverdi enn strekningen bilen faktisk har kjørt,{' '}
+          {fmt(dist, 1)} m. Det er derfor tripptelleren i en bil viser strekningen og ikke forflytningen: den teller opp også når bilen
+          rygger.
         </>
       )}
     </p>

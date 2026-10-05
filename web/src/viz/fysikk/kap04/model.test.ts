@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { collide, dtForFmax, elasticityForLossShare, explode, fitTrack, impact, maxLoss, pulseForce, pulseImpulse } from './model';
+import {
+  collide,
+  dtForFmax,
+  elasticityForLossShare,
+  explode,
+  fitTrack,
+  impact,
+  impactAt,
+  maxLoss,
+  pulseForce,
+  pulseImpulse,
+  timeToForce,
+} from './model';
 
 describe('impulsloven', () => {
   // Egg på 60 g som faller 1,0 m: v = √(2gh) = 4,43 m/s
@@ -64,6 +76,68 @@ describe('impulsloven', () => {
       // Farten er null akkurat når støtet er over
       expect(v - pulseImpulse(r.Fmax, dt, dt) / m).toBeCloseTo(0, 12);
     }
+  });
+
+  it('tilstanden underveis i støtet: start, toppen og slutten', () => {
+    const dt = 0.005;
+    const r = impact(m, v, dt);
+    const start = impactAt(m, v, dt, 0);
+    expect(start).toEqual({ F: 0, v, s: 0, I: 0 });
+    const mid = impactAt(m, v, dt, dt / 2);
+    expect(mid.F).toBeCloseTo(r.Fmax, 9);
+    expect(mid.v).toBeCloseTo(v / 2, 12);
+    expect(mid.I).toBeCloseTo(r.dp / 2, 12);
+    // Ved toppen har egget sunket litt over 80 % av bremselengden
+    expect(mid.s / r.stopDist).toBeCloseTo(0.5 + 1 / Math.PI, 12);
+    const end = impactAt(m, v, dt, dt);
+    expect(end).toMatchObject({ F: 0, v: 0, I: r.dp });
+    expect(end.s).toBeCloseTo(r.stopDist, 12);
+    // Rett før slutten er alt nesten likt sluttverdiene (ingen hopp)
+    const almost = impactAt(m, v, dt, dt * (1 - 1e-9));
+    expect(almost.v).toBeCloseTo(0, 6);
+    expect(almost.s).toBeCloseTo(r.stopDist, 9);
+    expect(almost.I).toBeCloseTo(r.dp, 9);
+    // Etter støtet står det stille, før støtet går det med v₀
+    expect(impactAt(m, v, dt, 0.02)).toEqual(end);
+    expect(impactAt(m, v, dt, -0.002)).toEqual({ F: 0, v, s: -0.002 * v, I: 0 });
+  });
+
+  it('impulsloven gjelder i hvert øyeblikk, og s, v og F henger sammen', () => {
+    for (const [mm, vv, dt] of [
+      [m, v, 0.012],
+      [75, 50 / 3.6, 0.1],
+    ] as const) {
+      const r = impact(mm, vv, dt);
+      let prev = impactAt(mm, vv, dt, 0);
+      const n = 400;
+      for (let i = 1; i <= n; i++) {
+        const t = (i * dt) / n;
+        const st = impactAt(mm, vv, dt, t);
+        // I(t) = m·v₀ − m·v(t), og I er arealet under F-t-grafen
+        expect(st.I + mm * st.v).toBeCloseTo(mm * vv, 9);
+        expect(st.I).toBeCloseTo(pulseImpulse(r.Fmax, dt, t), 9);
+        expect(st.F).toBeCloseTo(pulseForce(r.Fmax, dt, t), 9);
+        // Farten avtar og strekningen øker; Δs ≈ v·Δt (trapesmetoden)
+        expect(st.v).toBeLessThanOrEqual(prev.v + 1e-12);
+        expect(st.s).toBeGreaterThanOrEqual(prev.s);
+        expect(st.s - prev.s).toBeCloseTo(((st.v + prev.v) / 2) * (dt / n), 7);
+        prev = st;
+      }
+    }
+  });
+
+  it('tidspunktet der kraften når en grense', () => {
+    const dt = 0.005;
+    const r = impact(m, v, dt);
+    const t35 = timeToForce(r.Fmax, dt, 35);
+    expect(t35).not.toBeNull();
+    expect(pulseForce(r.Fmax, dt, t35!)).toBeCloseTo(35, 9);
+    expect(t35!).toBeLessThan(dt / 2);
+    expect(timeToForce(r.Fmax, dt, r.Fmax)).toBeCloseTo(dt / 2, 12);
+    expect(timeToForce(r.Fmax, dt, 0)).toBe(0);
+    // Lang støttid: toppen er under grensen, så egget holder
+    const soft = impact(m, v, 0.025);
+    expect(timeToForce(soft.Fmax, 0.025, 35)).toBeNull();
   });
 
   it('bilfører på 75 kg som stopper fra 50 km/h: kraften i antall G', () => {

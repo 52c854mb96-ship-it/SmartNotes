@@ -43,6 +43,43 @@ export function dtForFmax(dp: number, Fmax: number): number {
   return (Math.PI * dp) / (2 * Fmax);
 }
 
+export interface ImpactState {
+  /** Kraften fra underlaget på legemet (N). */
+  F: number;
+  /** Farten (m/s), positiv i bevegelsesretningen før støtet. */
+  v: number;
+  /** Hvor langt legemet har flyttet seg siden det traff (m). Negativ før støtet. */
+  s: number;
+  /** Impulsen så langt (N·s): arealet under F-t-grafen fra 0 til t. */
+  I: number;
+}
+
+/**
+ * Tilstanden ved tiden t (s) i støtet fra `impact` (til avspilling i sakte film): t = 0 når legemet treffer, t = Δt når
+ * det står stille. Med kraften som en halv sinusbue blir v(t) = (v₀/2)·(1 + cos(πt/Δt)) og
+ * s(t) = (v₀/2)·(t + (Δt/π)·sin(πt/Δt)). Impulsloven gjelder i hvert øyeblikk: I(t) = m·v₀ − m·v(t).
+ * Før støtet går legemet med farten v₀; tyngden er sett bort fra, som i `impact`.
+ */
+export function impactAt(m: number, v0: number, dt: number, t: number): ImpactState {
+  if (t <= 0) return { F: 0, v: v0, s: v0 * t, I: 0 };
+  if (t >= dt) return { F: 0, v: 0, s: (v0 * dt) / 2, I: m * v0 };
+  const w = (Math.PI * t) / dt;
+  const Fmax = (Math.PI / 2) * ((m * v0) / dt);
+  return {
+    F: Fmax * Math.sin(w),
+    v: (v0 / 2) * (1 + Math.cos(w)),
+    s: (v0 / 2) * (t + (dt / Math.PI) * Math.sin(w)),
+    I: ((m * v0) / 2) * (1 - Math.cos(w)),
+  };
+}
+
+/** Første tidspunkt (s) der kraften i en halv sinuspuls når F, eller null hvis toppen F_maks er mindre enn F. */
+export function timeToForce(Fmax: number, dt: number, F: number): number | null {
+  if (!(Fmax >= F)) return null;
+  if (F <= 0) return 0;
+  return (dt / Math.PI) * Math.asin(F / Fmax);
+}
+
 /* ---------- 4C/4D Sentrale støt ---------- */
 
 export interface CollisionResult {
