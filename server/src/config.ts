@@ -64,7 +64,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     appPassword = 'smartnotes';
   }
 
-  const effort = (env.CLAUDE_EFFORT ?? 'high') as Effort;
+  // Middels grundighet ved konvertering: mindre tenkning og lavere pris enn «high», og godt nok for vanlige notater.
+  const effort = (env.CLAUDE_EFFORT ?? 'medium') as Effort;
   if (!EFFORTS.includes(effort)) {
     throw new Error(`CLAUDE_EFFORT må være en av ${EFFORTS.join(', ')}`);
   }
@@ -85,7 +86,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dataDir: path.resolve(env.DATA_DIR ?? path.join(SERVER_ROOT, '..', 'data')),
     appPassword,
     anthropicApiKey: env.ANTHROPIC_API_KEY?.trim() || null,
-    model: env.CLAUDE_MODEL?.trim() || 'claude-opus-5-5',
+    // Sonnet 5.5 koster halvparten av Opus 5.5 og leser bilder i like høy oppløsning. CLAUDE_MODEL=claude-opus-5-5 gir Opus.
+    model: env.CLAUDE_MODEL?.trim() || 'claude-sonnet-5-5',
     effort,
     useFallbacks: bool(env.CLAUDE_FALLBACKS, true),
     fakeClaude,

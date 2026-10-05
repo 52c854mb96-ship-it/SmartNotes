@@ -8,7 +8,7 @@ import { ConversionError } from '../errors.js';
 const execFileAsync = promisify(execFile);
 
 /**
- * Bildestørrelse sendt til Claude. Opus 5.5 leser bilder i høy oppløsning opp til 2576 px på langsiden
+ * Bildestørrelse sendt til Claude. Sonnet 5.5 og Opus 5.5 leser bilder i høy oppløsning opp til 2576 px på langsiden
  * og ca. 3,75 MP totalt; holder vi oss under begge grensene, blir koordinatene Claude oppgir for figurer
  * 1:1 med pikslene i sidebildet vårt.
  */
