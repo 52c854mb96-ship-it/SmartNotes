@@ -145,12 +145,12 @@ I skyøktene med Claude Code finnes det ingen API-nøkkel, så Claude har bare t
 | Hva | Omtrent |
 |---|---|
 | Railway: serveren (et par hundre MB minne når den står stille) og lagring | noen få dollar i måneden i forbruk, som helt eller delvis dekkes av det som er inkludert i abonnementet ditt |
-| Claude: et notat på 5 sider | 3–6 kr |
-| Claude: en kortstokk med flashcards | 1–4 kr |
+| Claude: et notat på 5 sider | 1–1,50 kr |
+| Claude: en kortstokk med flashcards | 0,50–2 kr |
 
 - Forbruket hos Railway ser du under **Usage** i workspace-innstillingene. Der kan du også sette en øvre grense (**Usage limits**).
 - Forbruket hos Claude ser du under **Usage** i Anthropic Console.
-- Vil du gjøre Claude-delen billigere, legger du til variabelen `CLAUDE_EFFORT` med verdien `medium` i Railway.
+- Appen bruker Claude Sonnet 5.5 med middels grundighet som standard. Vil du heller ha den grundigere Opus 5.5 (dobbel pris), legger du til variabelen `CLAUDE_MODEL` med verdien `claude-opus-5-5` i Railway, og eventuelt `CLAUDE_EFFORT` med verdien `high`.
 
 ## Sikkerhetskopi
 

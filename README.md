@@ -89,8 +89,8 @@ Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du m�
 |---|---|---|
 | `APP_PASSWORD` | – (påkrevd i produksjon) | Passordet du logger inn med |
 | `ANTHROPIC_API_KEY` | – | Claude API-nøkkel |
-| `CLAUDE_MODEL` | `claude-opus-5-5` | Modellen som leser notatene |
-| `CLAUDE_EFFORT` | `high` | Hvor grundig Claude jobber: `low` / `medium` / `high` / `xhigh` / `max` |
+| `CLAUDE_MODEL` | `claude-sonnet-5-5` | Modellen som leser notatene og lager kortene (`claude-opus-5-5` er grundigere, men koster det dobbelte) |
+| `CLAUDE_EFFORT` | `medium` | Hvor grundig Claude jobber ved konvertering: `low` / `medium` / `high` / `xhigh` / `max` |
 | `CLAUDE_FALLBACKS` | `true` | Hvis Claudes sikkerhetsfiltre ved en feil avslår et notat, prøves en anbefalt reservemodell automatisk |
 | `SEED_TEXTBOOKS` | alle kjente | Læreboksett (fag, kapitler, delkapitler og kompetansemål) som legges inn, hvert bare én gang. Kommaliste, f.eks. `ergo-fysikk-1,aschehoug-kjemi-1`, eller `none` for et tomt fag. Se `server/src/textbooks.ts` |
 | `DATA_DIR` | `./data` | Database, originaler og PDF-er |
@@ -103,7 +103,7 @@ Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du m�
 
 ## Hva koster det?
 
-Hver side sendes som et bilde i høy oppløsning (ca. 4 600 tokens). Med Claude Opus 5.5 ($4 per million input-tokens og $20 per million output-tokens, der tenkning regnes som output) koster et notat på 5 sider omtrent **3–6 kroner**, avhengig av hvor mye som står på sidene. Instruksene caches mellom notater, og det gjør det litt billigere. `CLAUDE_EFFORT=medium` reduserer kostnaden ytterligere. Hvor mange tokens hvert notat brukte, lagres i `meta.json` i notatets mappe på serveren. En kortstokk med flashcards koster omtrent 1–4 kroner, avhengig av hvor mange notater og kort den har.
+Hver side sendes som et bilde i høy oppløsning (ca. 4 800 tokens). Med Claude Sonnet 5.5 ($2 per million input-tokens og $10 per million output-tokens, der tenkning regnes som output) og middels grundighet koster en side omtrent **0,25 kr**, og et notat på 5 sider omtrent **1–1,50 kr**, avhengig av hvor mye som står på sidene. En kortstokk med flashcards koster omtrent 0,50–2 kr, opptil ca. 5 kr for de største. Med vanlig bruk i tre fag blir det rundt 40 kr i måneden til Claude. Instruksene caches mellom notater, og det gjør det litt billigere. Hvor mange tokens hvert notat brukte, lagres i `meta.json` i notatets mappe på serveren.
 
 ## Personvern
 

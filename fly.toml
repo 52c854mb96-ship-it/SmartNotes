@@ -9,8 +9,8 @@ primary_region = "arn" # Stockholm
   NODE_ENV = "production"
   PORT = "8080"
   DATA_DIR = "/data"
-  CLAUDE_MODEL = "claude-opus-5-5"
-  CLAUDE_EFFORT = "high"
+  CLAUDE_MODEL = "claude-sonnet-5-5"
+  CLAUDE_EFFORT = "medium"
 
 [http_service]
   internal_port = 8080
