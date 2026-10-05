@@ -555,7 +555,7 @@ function Tyngdekraft() {
       <Readouts>
         <Readout label="Skuddet" value={shoot.bend > 0 ? 'Bøyer seg opp' : 'Vokser rett'} tone={BIO.plante.line} />
         <Readout label="Rota" value={root.bend < 0 ? 'Bøyer seg ned' : 'Vokser rett'} tone={BIO.ved} />
-        <Readout label="Vinkel fra loddrett nå" value={fmt(angle, 0)} unit="°" />
+        <Readout label="Vinkel fra loddrett nå" value={`${fmt(angle, 0)}°`} />
       </Readouts>
       <Formula label="Samme auksin, motsatt virkning">
         <FormulaLine>
@@ -573,22 +573,29 @@ function Tyngdekraft() {
 function GraviScene({ tilt, angle, f, t }: { tilt: number; angle: number; f: number; t: number }) {
   const narrow = f > 1.3;
   const k = Math.max(1, f * 0.85);
-  const H = narrow ? 600 : 430;
+  const H = narrow ? 620 : 470;
   const cx = 400;
   const cy = H / 2 + 10;
-  const L = narrow ? 230 : 170;
-  const W = narrow ? 44 : 34;
+  const L = narrow ? 235 : 200;
+  const W = narrow ? 46 : 38;
   const shoot = gravitropism('stengel', angle);
   const root = gravitropism('rot', angle);
   // Undersiden er venstre side for skuddet (sett i vekstretningen) når det peker mot høyre
-  const shootLeft = 0.5 + (shoot.lower - shoot.upper) / (4 * GRAVI_SHIFT) * 0.3;
-  const rootRight = 0.5 + (root.lower - root.upper) / (4 * GRAVI_SHIFT) * 0.3;
+  const shootLeft = 0.5 + ((shoot.lower - shoot.upper) / (4 * GRAVI_SHIFT)) * 0.3;
+  const rootRight = 0.5 + ((root.lower - root.upper) / (4 * GRAVI_SHIFT)) * 0.3;
   // Statolittene i rotspissen synker mot undersiden
   const rootTipDir = 180 + angle;
-  const rootLine = centerline(cx, cy, L, 180 + tilt, rootTipDir);
+  const rootLine = centerline(cx, cy, L * 0.9, 180 + tilt, rootTipDir);
+  const shootLine = centerline(cx, cy, L, tilt, angle);
   const tipQ = rootLine[rootLine.length - 4]!;
+  const shootTip = shootLine[shootLine.length - 1]!.p;
+  const rootTip = rootLine[rootLine.length - 1]!.p;
   return (
-    <Figure viewBox={`0 0 800 ${H}`} maxHeight={narrow ? 900 : H} label={`Kimplante lagt ${fmt(tilt, 0)} grader. Etter ${fmt(t, 0)} minutter peker skuddet ${fmt(angle, 0)} grader fra loddrett opp og rota ${fmt(angle, 0)} grader fra loddrett ned.`}>
+    <Figure
+      viewBox={`0 0 800 ${H}`}
+      maxHeight={narrow ? 900 : H}
+      label={`Kimplante lagt ${fmt(tilt, 0)} grader. Etter ${fmt(t, 0)} minutter peker skuddet ${fmt(angle, 0)} grader fra loddrett opp og rota ${fmt(angle, 0)} grader fra loddrett ned.`}
+    >
       <rect x={20} y={10} width={760} height={H - 20} rx={14} fill="none" stroke={VIZ.grid} strokeWidth={1.5} />
       <line x1={70} x2={70} y1={40} y2={140} stroke={VIZ.muted} strokeWidth={2} />
       <polygon points={`70,${150} 63,${136} 77,${136}`} fill={VIZ.muted} />
@@ -596,14 +603,32 @@ function GraviScene({ tilt, angle, f, t }: { tilt: number; angle: number; f: num
         tyngdekraft
       </Txt>
       <Shoot x={cx} y={cy} L={L} W={W} base={tilt} tip={angle} leftShare={tilt > 0 ? shootLeft : 0.5} auxin={1} t={t} k={k} />
-      <Shoot x={cx} y={cy} L={L * 0.9} W={W * 0.75} base={180 + tilt} tip={rootTipDir} leftShare={tilt > 0 ? 1 - rootRight : 0.5} auxin={1} t={t} k={k} paint={{ fill: mixColor(VIZ.surface, BIO.ved, 0.25), line: BIO.ved }} />
+      <Shoot
+        x={cx}
+        y={cy}
+        L={L * 0.9}
+        W={W * 0.75}
+        base={180 + tilt}
+        tip={rootTipDir}
+        leftShare={tilt > 0 ? 1 - rootRight : 0.5}
+        auxin={1}
+        t={t}
+        k={k}
+        paint={{ fill: mixColor(VIZ.surface, BIO.ved, 0.25), line: BIO.ved }}
+      />
       {/* Statolitter nederst i rotspissen */}
       {[0, 1, 2].map((i) => (
-        <circle key={i} cx={tipQ.p[0] - 6 + i * 6} cy={tipQ.p[1] + 6} r={3.4 * k} fill={BIO.kloroplast.line} />
+        <circle key={i} cx={tipQ.p[0] - 7 * k + i * 7 * k} cy={tipQ.p[1] + 6} r={3.6 * k} fill={BIO.kloroplast.line} />
       ))}
       <circle cx={cx} cy={cy} r={20 * k} style={{ fill: mixColor(VIZ.surface, BIO.ved, 0.5) }} stroke={BIO.ved} strokeWidth={1.5} />
-      <Txt x={cx + 26 * k} y={cy + 30 * k + 14 * f} anchor="start" size={0.75} muted>
+      <Txt x={cx + 24 * k} y={cy + 24 * k + 14 * f} anchor="start" size={0.75} muted>
         frø
+      </Txt>
+      <Txt x={shootTip[0] + W / 2 + 12} y={shootTip[1] + 6} anchor="start" size={0.8} weight={700} color={BIO.plante.line}>
+        skudd
+      </Txt>
+      <Txt x={rootTip[0] - W / 2 - 12} y={rootTip[1] + 6} anchor="end" size={0.8} weight={700} color={BIO.ved}>
+        rot
       </Txt>
       <Txt x={760} y={H - 26} anchor="end" size={0.75} muted>
         {fmt(t, 0)} min
