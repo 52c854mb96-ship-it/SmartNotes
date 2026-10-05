@@ -333,6 +333,9 @@ async function flushProgress(): Promise<void> {
     // En forespørsel serveren avviser (400), blir ikke bedre av å sendes igjen.
     if (err instanceof ApiError && err.status === 400) {
       await removeSentProgress(entries);
+      // Nivåene på denne enheten kan nå avvike fra serverens: hent alt på nytt.
+      fullRequested = true;
+      rerunRequested = true;
       return;
     }
     throw err;
@@ -552,8 +555,12 @@ export async function logoutAndClear(): Promise<void> {
   clearTimeout(progressTimer);
   for (const abort of uploadAborts.values()) abort.abort();
   try {
-    // Fremgang fra øving sendes først, ellers går den tapt når de lokale dataene slettes.
-    if (isOnline()) await syncPendingProgress();
+    // Fremgang fra øving sendes først, ellers går den tapt når de lokale dataene slettes (dialogen har advart om
+    // det som ikke kommer fram). En synk som pågår, får bli ferdig, så den ikke skriver tilbake etter slettingen.
+    if (running) await running.catch(() => undefined);
+    if (isOnline() && (await db.progress.count())) {
+      await withLock('smartnotes-progress', flushProgress, true).catch(() => undefined);
+    }
     if (isOnline()) await api.logout();
   } catch {
     /* logger ut lokalt uansett */

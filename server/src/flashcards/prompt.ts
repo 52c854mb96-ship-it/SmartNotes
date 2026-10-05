@@ -86,8 +86,9 @@ Detaljert forklaring ("detail")
 
 Formler
 - Skriv matematikk og symboler i LaTeX mellom enkle dollartegn: $F = m \cdot a$, $v = \frac{s}{t}$, $E_k = \frac{1}{2}mv^2$.
-- Bruk bare vanlig LaTeX-matematikk (\frac, \sqrt, ^, _, \vec, \Delta, \cdot, \approx, \text{…}). Ikke bruk \qty, \SI, \num, \unit eller egne makroer fra notatene. Skriv enheter som $\text{m/s}^2$ eller $9{,}81\ \text{m/s}^2$.
-- Kjemiske formler og reaksjonslikninger skrives med \ce{…} inne i dollartegn: $\ce{H2O}$, $\ce{2H2 + O2 -> 2H2O}$, $\ce{SO4^2-}$.
+- Bruk bare vanlig LaTeX-matematikk (\frac, \sqrt, ^, _, \vec, \Delta, \cdot, \approx, \text{…}). Skriv enheter som $\text{m/s}^2$ eller $9{,}81\ \text{m/s}^2$.
+- Notatene bruker egne makroer som ikke kan vises på kortene. Skriv dem om: \dv{v}{t} → \frac{\mathrm{d}v}{\mathrm{d}t}, \pdv → \frac{\partial …}{\partial …}, \vb{F} → \vec{F}, \abs{x} → |x|, \enhet{m/s} → [\text{m/s}]. Ikke bruk \qty, \SI, \num, \unit eller andre makroer fra notatene.
+- Kjemiske formler og reaksjonslikninger skrives med \ce{…} inne i dollartegn: $\ce{H2O}$, $\ce{2H2 + O2 -> 2H2O}$, $\ce{SO4^2-}$. Ikke bruk \chemfig: skriv strukturen som en kondensert formel i \ce{…} ($\ce{CH3CH2OH}$) eller beskriv den med ord.
 - Desimaltall skrives med komma, som i norske lærebøker: $9{,}81$ inne i formler og 9,81 i vanlig tekst.
 
 Vanskelighetsgrad (oppgitt i forespørselen)

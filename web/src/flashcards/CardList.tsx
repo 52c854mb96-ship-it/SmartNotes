@@ -12,7 +12,7 @@ import { parseBackLine, plainText } from './richtext';
 import { RichParagraphs, RichText } from './RichText';
 
 /** Alle kortene i kortstokken, gruppert per notat, med søk, redigering og sletting (som «Mål-mal» i originalen). */
-export function CardList({ deck, cards, notes }: { deck: Deck; cards: Flashcard[]; notes: Note[] }) {
+export function CardList({ deck, cards, notes, online }: { deck: Deck; cards: Flashcard[]; notes: Note[]; online: boolean }) {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Flashcard | null | 'new'>(null);
   const titles = useMemo(() => new Map(notes.map((n) => [n.id, n.title || 'Notat uten tittel'])), [notes]);
@@ -60,10 +60,11 @@ export function CardList({ deck, cards, notes }: { deck: Deck; cards: Flashcard[
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
         />
-        <button type="button" className="btn" onClick={() => setEditing('new')}>
+        <button type="button" className="btn" onClick={() => setEditing('new')} disabled={!online} title={online ? undefined : 'Krever nett'}>
           <Plus size={18} aria-hidden /> Nytt kort
         </button>
       </div>
+      {!online && <p className="muted small">Du er offline. Kortene kan øves, men ikke endres før du er på nett igjen.</p>}
       {query && (
         <p className="muted small" role="status">
           {plural(hits, 'treff', 'treff')}
@@ -103,10 +104,10 @@ export function CardList({ deck, cards, notes }: { deck: Deck; cards: Flashcard[
                   </div>
                 )}
                 <div className="fc-item-actions">
-                  <button type="button" className="btn btn-sm" onClick={() => setEditing(c)}>
+                  <button type="button" className="btn btn-sm" onClick={() => setEditing(c)} disabled={!online}>
                     <Pencil size={15} aria-hidden /> Rediger
                   </button>
-                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => void remove(c)}>
+                  <button type="button" className="btn btn-sm btn-ghost" onClick={() => void remove(c)} disabled={!online}>
                     <Trash2 size={15} aria-hidden /> Slett
                   </button>
                 </div>

@@ -129,7 +129,8 @@ export class FlashcardGenerator {
           continue;
         }
         if (this.stopped && e.retryable) return;
-        this.repo.failDeck(deckId, e.message);
+        // Meldingene for midlertidige feil lover et nytt forsøk; her må eleven selv trykke «Prøv igjen».
+        this.repo.failDeck(deckId, e.retryable ? 'Fikk ikke kontakt med Claude. Trykk «Prøv igjen» om litt.' : e.message);
         return;
       }
     }

@@ -7,7 +7,7 @@ import type { Deck, Flashcard, ProgressResponse, Subject, SyncResponse } from '@
 import { buildApp, type AppContext } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { buildFlashcardPrompt, cleanFlashcards, defaultDeckTitle, noteSourceText, MAX_CARDS } from '../src/flashcards/prompt.js';
-import { FakeClaude } from '../src/pipeline/claude.js';
+import { FakeClaude, flashcardError, parseFlashcardMessage } from '../src/pipeline/claude.js';
 
 /** Flashcards: kortstokker fra notater, redigering av kort og fremgang som synkes mellom enheter. */
 let ctx: AppContext;
@@ -90,11 +90,17 @@ describe('kortstokker', () => {
     const pending = doneNote({ title: 'Under arbeid', done: false });
     const notDone = await inject<{ message: string }>('POST', '/api/decks', { subjectId: subject.id, noteIds: [pending], difficulty: 'easy' });
     expect(notDone.status).toBe(400);
-    expect(notDone.body.message).toBe('Ingen av notatene er ferdig konvertert ennå.');
+    expect(notDone.body.message).toBe('Notatet er ikke ferdig konvertert ennå. Vent litt, eller fjern det fra utvalget.');
 
     const ready = doneNote({ title: 'Ferdig' });
     const mixed = await inject<{ message: string }>('POST', '/api/decks', { subjectId: subject.id, noteIds: [ready, pending], difficulty: 'easy' });
-    expect(mixed.body.message).toMatch(/^Ett av notatene er ikke ferdig konvertert ennå/);
+    expect(mixed.body.message).toBe('Ett av notatene er ikke ferdig konvertert ennå. Vent litt, eller fjern det fra utvalget.');
+
+    // Et slettet notat (f.eks. på en annen enhet) blir ikke ferdig av å vente.
+    const gone = doneNote({ title: 'Slettet' });
+    ctx.repo.deleteNote(gone);
+    const deleted = await inject<{ message: string }>('POST', '/api/decks', { subjectId: subject.id, noteIds: [ready, gone], difficulty: 'easy' });
+    expect(deleted.body.message).toBe('Ett av notatene finnes ikke lenger eller kunne ikke konverteres. Fjern det fra utvalget.');
 
     const badLevel = await inject<{ message: string }>('POST', '/api/decks', { subjectId: subject.id, noteIds: [ready], difficulty: 'umulig' });
     expect(badLevel.body.message).toBe('Ukjent vanskelighetsgrad.');
@@ -239,9 +245,9 @@ describe('fremgang', () => {
     const first = await progress([{ id: card.id, level: 2, at: '2026-09-10T12:00:00.000Z' }]);
     expect(first.body.cards).toEqual([expect.objectContaining({ id: card.id, level: 2, levelAt: '2026-09-10T12:00:00.000Z' })]);
 
-    // En annen enhet som var offline, sender en eldre vurdering: ignoreres.
+    // En annen enhet som var offline, sender en eldre vurdering: ignoreres, men enheten får serverens nivå tilbake.
     const older = await progress([{ id: card.id, level: 0, at: '2026-09-10T11:00:00.000Z' }]);
-    expect(older.body.cards).toEqual([]);
+    expect(older.body.cards).toEqual([expect.objectContaining({ id: card.id, level: 2, levelAt: '2026-09-10T12:00:00.000Z' })]);
     expect(ctx.repo.getCard(card.id)!.level).toBe(2);
 
     const newer = await progress([{ id: card.id, level: 3, at: '2026-09-10T13:00:00.000Z' }]);
@@ -260,7 +266,7 @@ describe('fremgang', () => {
     const up = await progress([], [{ id: deck.id, best: 7 }]);
     expect(up.body.decks[0]!.best).toBe(7);
     const down = await progress([], [{ id: deck.id, best: 4 }]);
-    expect(down.body.decks).toEqual([]);
+    expect(down.body.decks).toEqual([expect.objectContaining({ id: deck.id, best: 7 })]);
     expect(ctx.repo.getDeck(deck.id)!.best).toBe(7);
   });
 
@@ -271,6 +277,7 @@ describe('fremgang', () => {
       { id: randomUUID(), level: 2, at: new Date().toISOString() },
     ]);
     expect(res.status).toBe(200);
+    expect(res.body.cards.map((c) => c.id)).toEqual([card.id]);
     expect((await sync(cursor)).cards.map((c) => [c.id, c.level])).toEqual([[card.id, 2]]);
   });
 
@@ -295,6 +302,23 @@ describe('fremgang', () => {
     const s = await sync();
     expect(s.decks.some((x) => x.id === d.id)).toBe(false);
     expect(s.cards.some((c) => c.deckId === d.id)).toBe(false);
+  });
+});
+
+describe('svar fra Claude', () => {
+  const text = (t: string, stop: string | null = 'end_turn') => ({ stop_reason: stop, content: [{ type: 'text', text: t }] });
+  const ok = JSON.stringify({ cards: [{ note: 'n1', kind: 'concept', front: 'Hva er fart?', back: ['s/t'], detail: '' }] });
+
+  it('tolker kortene og gir norske meldinger ved avslag, avkuttet svar og ugyldig JSON', () => {
+    expect(parseFlashcardMessage(text(ok))).toHaveLength(1);
+    expect(() => parseFlashcardMessage(text(ok.slice(0, 40), 'max_tokens'))).toThrow('Utvalget ble for stort. Velg færre notater eller færre kort.');
+    expect(() => parseFlashcardMessage(text('{"cards": [', 'refusal'))).toThrow('Claude avslo å lage kort av disse notatene.');
+    expect(() => parseFlashcardMessage(text('{"cards": ['))).toThrow('Claude svarte ikke med kort. Prøv igjen.');
+    expect(() => parseFlashcardMessage(text('{"kort": []}'))).toThrow('Claude svarte ikke med kort. Prøv igjen.');
+  });
+
+  it('feilmeldingene handler om kort, ikke om konvertering', () => {
+    expect(flashcardError(new Error('x')).message).toBe('Uventet feil da kortene skulle lages. Prøv igjen.');
   });
 });
 

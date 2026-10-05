@@ -92,6 +92,19 @@ export async function recordBest(deckId: string, best: number): Promise<void> {
   syncProgressSoon();
 }
 
+/**
+ * Angring av en vurdering som ga ny rekord: rekorden settes tilbake lokalt og i køen til serveren. Er den høyere
+ * rekorden alt sendt, blir den stående der (høyeste verdi vinner), og kommer tilbake ved neste fulle synk.
+ */
+export async function restoreBest(deckId: string, best: number): Promise<void> {
+  await db.transaction('rw', [db.decks, db.progress], async () => {
+    const deck = await db.decks.get(deckId);
+    if (deck && deck.best > best) await db.decks.update(deckId, { best });
+    const key = `deck:${deckId}`;
+    if (await db.progress.get(key)) await db.progress.put({ key, type: 'deck', id: deckId, best });
+  });
+}
+
 /** Øktene lagres bare på denne enheten. */
 export async function savePractice(state: PracticeState): Promise<void> {
   await db.practice.put({ ...state, updatedAt: Date.now() });

@@ -66,10 +66,17 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
 
     const { notes, skipped } = await loadSourceNotes(repo, storage, subject.id, body.noteIds);
     if (skipped.length > 0) {
+      // Et notat kan mangle fordi det er slettet (f.eks. på en annen enhet), feilet eller ikke er ferdig ennå.
+      const waiting = skipped.some((nid) => {
+        const row = repo.getNoteRow(nid);
+        return row?.subject_id === subject.id && (row.status === 'queued' || row.status === 'processing');
+      });
+      const one = skipped.length === 1;
+      const what = skipped.length === body.noteIds.length ? (one ? 'Notatet' : 'Notatene') : one ? 'Ett av notatene' : `${skipped.length} av notatene`;
       throw badRequest(
-        skipped.length === body.noteIds.length
-          ? 'Ingen av notatene er ferdig konvertert ennå.'
-          : `${skipped.length === 1 ? 'Ett av notatene' : `${skipped.length} av notatene`} er ikke ferdig konvertert ennå. Fjern ${skipped.length === 1 ? 'det' : 'dem'} fra utvalget eller vent litt.`,
+        waiting
+          ? `${what} er ikke ferdig konvertert ennå. Vent litt, eller fjern ${one ? 'det' : 'dem'} fra utvalget.`
+          : `${what} finnes ikke lenger eller kunne ikke konverteres. Fjern ${one ? 'det' : 'dem'} fra utvalget.`,
       );
     }
     const chars = notes.reduce((n, x) => n + x.body.length, 0);

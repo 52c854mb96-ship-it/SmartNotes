@@ -952,7 +952,7 @@ export class Repo {
 
   /**
    * Fremgang fra øving (også offline). Et kortnivå lagres bare når vurderingen er nyere enn den serveren har (siste
-   * vurdering vinner på tvers av enheter); for beste rekke vinner den høyeste verdien. Gir tilbake radene som ble endret.
+   * vurdering vinner på tvers av enheter); for beste rekke vinner den høyeste verdien. Gir tilbake radene slik de er etterpå.
    */
   applyProgress(input: { cards: { id: string; level: number; at: string }[]; decks: { id: string; best: number }[] }): {
     cards: Flashcard[];
@@ -960,24 +960,27 @@ export class Repo {
   } {
     return this.db.transaction(() => {
       const t = now();
-      const cards: Flashcard[] = [];
-      const decks: Deck[] = [];
+      // Radene sendes tilbake også når vurderingen ble avvist (en nyere fantes), så enheten får serverens nivå.
+      const cards = new Map<string, Flashcard>();
+      const decks = new Map<string, Deck>();
       for (const p of input.cards) {
         const level = Math.max(0, Math.min(MASTER_LEVEL, Math.round(p.level)));
         // En klokke som går for fort, skal ikke låse kortet: tidspunkt fram i tid regnes som nå.
         const at = p.at > t ? t : p.at;
-        const res = this.db
+        this.db
           .prepare(`UPDATE cards SET level = ?, level_at = ?, rev = ?, updated_at = ? WHERE id = ? AND deleted = 0 AND (level_at IS NULL OR level_at < ?)`)
           .run(level, at, this.nextRev(), t, p.id, at);
-        if (res.changes > 0) cards.push(this.getCard(p.id)!);
+        const card = this.getCard(p.id);
+        if (card) cards.set(card.id, card);
       }
       for (const p of input.decks) {
-        const res = this.db
+        this.db
           .prepare(`UPDATE decks SET best = ?, rev = ?, updated_at = ? WHERE id = ? AND deleted = 0 AND best < ?`)
           .run(Math.max(0, Math.round(p.best)), this.nextRev(), t, p.id, Math.round(p.best));
-        if (res.changes > 0) decks.push(this.getDeck(p.id)!);
+        const deck = this.getDeck(p.id);
+        if (deck) decks.set(deck.id, deck);
       }
-      return { cards, decks };
+      return { cards: [...cards.values()], decks: [...decks.values()] };
     })();
   }
 

@@ -13,6 +13,7 @@ import { useDeck, useDeckCards } from '../flashcards/data';
 import { DIFFICULTY_LABEL } from '../flashcards/labels';
 import { Practice } from '../flashcards/Practice';
 import { db } from '../db';
+import { useOnline } from '../lib/connectivity';
 import { plural } from '../lib/format';
 import { confirmDialog, toast } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
@@ -32,6 +33,7 @@ export function DeckPage() {
   const [renaming, setRenaming] = useState(false);
   // Øvingen tas ned mens fremgangen nullstilles, så den ikke lagrer den gamle økta på nytt.
   const [resetting, setResetting] = useState(false);
+  const { online } = useOnline();
   useDocumentTitle(deck ? `${deck.title} · Flashcards` : null);
 
   if (subject === undefined || deck === undefined || cards === undefined || notes === undefined) return <PageSkeleton />;
@@ -88,7 +90,7 @@ export function DeckPage() {
           Flashcards
         </Link>
       </nav>
-      <header className="page-header">
+      <header className="page-header fc-deck-header">
         <div className="page-heading">
           <p className="eyebrow">Kortstokk · {DIFFICULTY_LABEL[deck.difficulty]}</p>
           <h1 className="page-title">{deck.title}</h1>
@@ -103,21 +105,34 @@ export function DeckPage() {
           <Menu
             label="Mer"
             items={[
-              { label: 'Gi nytt navn', icon: <Pencil size={16} aria-hidden />, onSelect: () => setRenaming(true) },
+              {
+                label: 'Gi nytt navn',
+                icon: <Pencil size={16} aria-hidden />,
+                onSelect: () => setRenaming(true),
+                disabled: !online,
+                hint: 'Krever nett',
+              },
               {
                 label: 'Nullstill fremgang',
                 icon: <RotateCcw size={16} aria-hidden />,
                 onSelect: () => void resetAll(),
                 disabled: cards.length === 0,
               },
-              { label: 'Slett kortstokken', icon: <Trash2 size={16} aria-hidden />, onSelect: () => void remove(), danger: true },
+              {
+                label: 'Slett kortstokken',
+                icon: <Trash2 size={16} aria-hidden />,
+                onSelect: () => void remove(),
+                danger: true,
+                disabled: !online,
+                hint: 'Krever nett',
+              },
             ]}
           />
         </div>
       </header>
 
       {deck.status === 'generating' && <Generating />}
-      {deck.status === 'failed' && <Failed deck={deck} />}
+      {deck.status === 'failed' && <Failed deck={deck} online={online} />}
       {deck.status === 'ready' && (
         <>
           <div className="tabs" role="tablist" aria-label="Visning">
@@ -127,7 +142,7 @@ export function DeckPage() {
               className="tab"
               id="fc-tab-ov"
               aria-selected={tab === 'ov'}
-              aria-controls="fc-panel"
+              aria-controls="fc-panel-ov"
               onClick={() => setTab('ov')}
             >
               <GalleryVerticalEnd size={17} aria-hidden /> Øv
@@ -138,18 +153,18 @@ export function DeckPage() {
               className="tab"
               id="fc-tab-kort"
               aria-selected={tab === 'kort'}
-              aria-controls="fc-panel"
+              aria-controls="fc-panel-kort"
               onClick={() => setTab('kort')}
             >
               <ListChecks size={17} aria-hidden /> Alle kort
             </button>
           </div>
-          <div id="fc-panel" role="tabpanel" aria-labelledby={tab === 'ov' ? 'fc-tab-ov' : 'fc-tab-kort'}>
-            {tab === 'kort' ? (
-              <CardList deck={deck} cards={cards} notes={notes} />
-            ) : resetting ? null : (
-              <PracticeTab deck={deck} cards={cards} notes={notes} />
-            )}
+          {/* Begge fanene beholdes, så økta (angring, pauseklokka, snudd kort) overlever en tur innom «Alle kort». */}
+          <div id="fc-panel-ov" role="tabpanel" aria-labelledby="fc-tab-ov" hidden={tab !== 'ov'}>
+            {!resetting && <PracticeTab deck={deck} cards={cards} notes={notes} active={tab === 'ov'} />}
+          </div>
+          <div id="fc-panel-kort" role="tabpanel" aria-labelledby="fc-tab-kort" hidden={tab !== 'kort'}>
+            <CardList deck={deck} cards={cards} notes={notes} online={online} />
           </div>
         </>
       )}
@@ -159,11 +174,11 @@ export function DeckPage() {
   );
 }
 
-function PracticeTab({ deck, cards, notes }: { deck: Deck; cards: Flashcard[]; notes: Note[] }) {
+function PracticeTab({ deck, cards, notes, active }: { deck: Deck; cards: Flashcard[]; notes: Note[]; active: boolean }) {
   if (cards.length === 0) {
     return <p className="muted">Kortstokken har ingen kort. Legg til kort under «Alle kort».</p>;
   }
-  return <Practice key={deck.id} deck={deck} cards={cards} notes={notes} />;
+  return <Practice key={deck.id} deck={deck} cards={cards} notes={notes} active={active} />;
 }
 
 function Generating() {
@@ -173,7 +188,7 @@ function Generating() {
       <div>
         <h2>Lager kortene …</h2>
         <p className="muted">
-          Claude leser notatene og skriver spørsmål og svar. Det tar gjerne et halvt til ett par minutter. Du kan gå videre
+          Claude leser notatene og skriver spørsmål og svar. Det tar gjerne fra et halvt til et par minutter. Du kan gå videre
           til noe annet, kortstokken blir klar her.
         </p>
       </div>
@@ -181,7 +196,7 @@ function Generating() {
   );
 }
 
-function Failed({ deck }: { deck: Deck }) {
+function Failed({ deck, online }: { deck: Deck; online: boolean }) {
   const [busy, setBusy] = useState(false);
   const retry = async () => {
     setBusy(true);
@@ -199,9 +214,10 @@ function Failed({ deck }: { deck: Deck }) {
       <div>
         <h2>Kortene kunne ikke lages</h2>
         <p className="muted">{deck.error ?? 'Ukjent feil.'}</p>
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void retry()}>
+        <button type="button" className="btn btn-primary" disabled={busy || !online} onClick={() => void retry()}>
           <RotateCcw size={17} aria-hidden /> Prøv igjen
         </button>
+        {!online && <p className="muted small">Du må være på nett for å prøve igjen.</p>}
       </div>
     </section>
   );

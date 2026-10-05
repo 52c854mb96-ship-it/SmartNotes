@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Coffee, RotateCcw, Undo2 } from 'lucide-react';
 import type { Deck, Flashcard, FlashcardKind, Note } from '@smartnotes/shared';
 import type { PracticeOrder, PracticeState } from '../db';
 import { plural } from '../lib/format';
 import { confirmDialog } from '../lib/ui';
-import { recordBest, savePractice, setCardLevels } from './actions';
+import { recordBest, restoreBest, savePractice, setCardLevels } from './actions';
 import { usePracticeState } from './data';
 import { bump, burst, centerOf, flash, pop, toast } from './effects';
 import { KIND_FILTER_LABEL, KIND_LABEL, KINDS } from './labels';
@@ -39,6 +39,8 @@ interface Props {
   cards: Flashcard[];
   /** Notatene i faget (til navn på gruppene). */
   notes: Note[];
+  /** false når fanen med øvingen er skjult: tastatursnarveiene er da av, men økta beholdes. */
+  active?: boolean;
 }
 
 /** Øving med kortene i kortstokken. Økta lagres på enheten, nivåene synkes. */
@@ -58,6 +60,20 @@ interface UndoEntry {
   round: Round;
   cardId: string;
   level: number;
+  /** Beste rekke før vurderingen (angring setter den tilbake, som i originalen). */
+  best: number;
+}
+
+/**
+ * Pauseklokka per kortstokk lever utenfor komponenten, så den teller videre når man bytter fane eller side og kommer
+ * tilbake (inaktiv tid over 2 minutter teller uansett ikke).
+ */
+const breakClocks = new Map<string, { sinceBreak: number; lastAction: number; due: boolean }>();
+
+function breakClock(deckId: string) {
+  let c = breakClocks.get(deckId);
+  if (!c) breakClocks.set(deckId, (c = { sinceBreak: 0, lastAction: Date.now(), due: false }));
+  return c;
 }
 
 type ViewFilter = Filter & { order: PracticeOrder };
@@ -68,6 +84,11 @@ const GRADES: { grade: Grade; label: string; hint: string }[] = [
   { grade: 3, label: 'Bra', hint: 'Det viktigste' },
   { grade: 4, label: 'Perfekt', hint: 'Alt, uten å nøle' },
 ];
+
+/** Fokus i faner og menyer: piltastene og tallene hører til dem, ikke til øvingen. */
+function inWidget(el: Element | null): boolean {
+  return !!el?.closest('[role="tablist"], [role="menu"], [role="listbox"]');
+}
 
 function isEditable(el: Element | null): boolean {
   return (
@@ -80,7 +101,7 @@ function isEditable(el: Element | null): boolean {
 
 const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 
-function PracticeSession({ deck, cards, notes, initial }: Props & { initial: PracticeState | null }) {
+function PracticeSession({ deck, cards, notes, initial, active = true }: Props & { initial: PracticeState | null }) {
   // ---------- Nivåer: lokale vurderinger gjelder til databasen har tatt dem igjen ----------
   const [overrides, setOverrides] = useState<Map<string, { level: number; at: string }>>(() => new Map());
   const effCards = useMemo(
@@ -120,14 +141,16 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
 
   // ---------- Utvalg og runde ----------
   const [init] = useState(() => {
+    // Et lagret notatfilter kan peke på kort som er slettet siden: da starter vi på hele kortstokken.
+    const valid = !!initial && (initial.noteId === null || groups.includes(initial.noteId));
     const filter: ViewFilter = {
-      noteId: initial?.noteId ?? null,
+      noteId: valid ? initial.noteId : null,
       kind: initial?.kind ?? null,
-      subset: initial?.subset ?? null,
+      subset: valid ? initial.subset : null,
       order: initial?.order ?? 'notes',
     };
     const sel = selectCards(cards, filter);
-    const round: Round = initial
+    const round: Round = valid
       ? {
           queue: reconcileQueue(initial.queue, sel),
           grades: initial.grades,
@@ -135,7 +158,7 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
           correct: initial.correct,
           streak: initial.streak,
         }
-      : emptyRound(buildQueue(sel, filter.order));
+      : emptyRound(buildQueue(sel, filter.order), initial?.streak ?? 0);
     return { filter, round };
   });
   const [filter, setFilter] = useState<ViewFilter>(init.filter);
@@ -167,8 +190,12 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
   const [flipped, setFlipped] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
-  const [localBest, setLocalBest] = useState(0);
-  const best = Math.max(deck.best, localBest);
+  const [localBest, setLocalBest] = useState<number | null>(null);
+  const best = localBest ?? deck.best;
+  // Rekorden fra andre enheter (via synk) gjelder når den er høyere.
+  useEffect(() => {
+    if (localBest !== null && deck.best > localBest) setLocalBest(null);
+  }, [deck.best, localBest]);
 
   // ---------- Tilbakemelding ----------
   const [feedback, setFeedbackState] = useState<{ text: string; tone: Tone | '' }>({ text: '', tone: '' });
@@ -181,26 +208,47 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
   useEffect(() => () => clearTimeout(feedbackTimer.current), []);
 
   // ---------- Pause ----------
-  const lastAction = useRef(Date.now());
-  const sinceBreak = useRef(0);
-  const [breakDue, setBreakDue] = useState(false);
+  const clock = breakClock(deck.id);
+  const [breakDue, setBreakDueState] = useState(clock.due);
+  const setBreakDue = useCallback(
+    (due: boolean) => {
+      clock.due = due;
+      setBreakDueState(due);
+    },
+    [clock],
+  );
   const [pausedAt, setPausedAt] = useState<number | null>(null);
   const tick = useCallback(() => {
     const now = Date.now();
-    sinceBreak.current = addActiveTime(sinceBreak.current, lastAction.current, now);
-    lastAction.current = now;
-    if (sinceBreak.current >= BREAK_MS) setBreakDue(true);
-  }, []);
+    clock.sinceBreak = addActiveTime(clock.sinceBreak, clock.lastAction, now);
+    clock.lastAction = now;
+    if (clock.sinceBreak >= BREAK_MS) setBreakDue(true);
+  }, [clock, setBreakDue]);
   const endPause = () => {
     setPausedAt(null);
-    sinceBreak.current = 0;
-    lastAction.current = Date.now();
+    clock.sinceBreak = 0;
+    clock.lastAction = Date.now();
+    focusNext.current = flipped ? 'answer' : 'question';
   };
 
-  // ---------- Elementer for effektene ----------
+  // ---------- Elementer for effektene og fokus ----------
+  const rootRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const questionRef = useRef<HTMLParagraphElement>(null);
+  const answerRef = useRef<HTMLUListElement>(null);
   const streakRef = useRef<HTMLSpanElement>(null);
   const liveRef = useRef<HTMLDivElement>(null);
+  // Etter snu og vurdering flyttes fokus til svaret eller det nye spørsmålet, så skjermlesere leser det opp og fokus
+  // ikke blir stående på en knapp som forsvant eller ble deaktivert.
+  const focusNext = useRef<'question' | 'answer' | null>(null);
+  useEffect(() => {
+    const target = focusNext.current;
+    if (!target) return;
+    focusNext.current = null;
+    const activeEl = document.activeElement;
+    if (activeEl && activeEl !== document.body && !rootRef.current?.contains(activeEl)) return;
+    (target === 'answer' ? answerRef.current : questionRef.current)?.focus({ preventScroll: true });
+  });
 
   const current = round.queue.length ? effCards.find((c) => c.id === round.queue[0]) : undefined;
 
@@ -225,15 +273,19 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
     if (!current) return;
     tick();
     if (flipped) setDetailOpen(false);
+    focusNext.current = flipped ? 'question' : 'answer';
     setFlipped(!flipped);
   }, [current, flipped, tick]);
 
   const toggleDetail = useCallback(() => {
     if (!current?.detail) return;
     tick();
-    if (!detailOpen) setFlipped(true);
+    if (!detailOpen && !flipped) {
+      setFlipped(true);
+      focusNext.current = 'answer';
+    }
     setDetailOpen(!detailOpen);
-  }, [current, detailOpen, tick]);
+  }, [current, detailOpen, flipped, tick]);
 
   const onRate = useCallback(
     (grade: Grade) => {
@@ -252,7 +304,7 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
         groupName,
       });
       if (!out) return;
-      setUndoStack((s) => [...s.slice(-(UNDO_LIMIT - 1)), { round, cardId: out.cardId, level: levels.get(out.cardId) ?? 0 }]);
+      setUndoStack((s) => [...s.slice(-(UNDO_LIMIT - 1)), { round, cardId: out.cardId, level: levels.get(out.cardId) ?? 0, best }]);
       setLevels([out.cardId], out.level);
       if (out.best > best) {
         setLocalBest(out.best);
@@ -261,6 +313,7 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
       setRound(out.round);
       setFlipped(false);
       setDetailOpen(false);
+      focusNext.current = 'question';
 
       const center = centerOf(cardRef.current);
       flash(cardRef.current, out.fx.flash);
@@ -279,10 +332,15 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
     setUndoStack((s) => s.slice(0, -1));
     setRound(last.round);
     setLevels([last.cardId], last.level);
+    if (last.best < best) {
+      setLocalBest(last.best);
+      void restoreBest(deck.id, last.best);
+    }
     setFlipped(true);
     setDetailOpen(false);
+    focusNext.current = 'answer';
     setFeedback('Angret.', '');
-  }, [undoStack, setLevels, setFeedback]);
+  }, [undoStack, setLevels, setFeedback, best, deck.id]);
 
   const onReset = async () => {
     const ok = await confirmDialog({
@@ -299,15 +357,15 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
   handlers.current = { flip, toggleDetail, onRate, onUndo };
   const paused = pausedAt !== null;
   useEffect(() => {
-    if (paused) return;
+    if (paused || !active) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
       if (document.querySelector('dialog[open]')) return;
-      const active = document.activeElement;
-      if (isEditable(active)) return;
+      const focused = document.activeElement;
+      if (isEditable(focused) || inWidget(focused)) return;
       const h = handlers.current;
       if (e.key === ' ' || e.key === 'Enter') {
-        if (active instanceof HTMLButtonElement || active instanceof HTMLAnchorElement || active?.tagName === 'SUMMARY') return;
+        if (focused instanceof HTMLButtonElement || focused instanceof HTMLAnchorElement || focused?.tagName === 'SUMMARY') return;
         e.preventDefault();
         h.flip();
       } else if (isGrade(Number(e.key))) h.onRate(Number(e.key) as Grade);
@@ -318,7 +376,14 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [paused]);
+  }, [paused, active]);
+
+  // Et notatfilter eller repetisjonsutvalg uten kort igjen (slettet her eller på en annen enhet): tilbake til alle kort.
+  useEffect(() => {
+    const noteGone = filter.noteId !== null && !groups.includes(filter.noteId);
+    const subsetGone = filter.subset !== null && selection.length === 0;
+    if (noteGone || subsetGone) restart({ ...filter, noteId: noteGone ? null : filter.noteId, subset: null });
+  }, [groups, filter, selection.length, restart]);
 
   // ---------- Visning ----------
   const mastered = masteredCount(selection);
@@ -327,9 +392,9 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
   const changeFilter = (patch: Partial<ViewFilter>) => restart({ ...filter, ...patch, subset: null });
 
   return (
-    <div className="fc-practice">
+    <div ref={rootRef} className="fc-practice">
       <div className="fc-controls">
-        {groups.length > 1 && (
+        {(groups.length > 1 || filter.noteId !== null) && (
           <label className="field">
             <span className="field-label">Notat</span>
             <select value={filter.noteId ?? ''} onChange={(e) => changeFilter({ noteId: e.currentTarget.value || null })}>
@@ -384,7 +449,7 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
               className="btn btn-sm"
               onClick={() => {
                 setBreakDue(false);
-                sinceBreak.current = 0;
+                clock.sinceBreak = 0;
               }}
             >
               Fortsett
@@ -443,11 +508,11 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
                 <span className={`fc-tag fc-tag-${current.kind}`}>{KIND_LABEL[current.kind]}</span>
               </span>
             </div>
-            <p className="fc-question">
+            <p ref={questionRef} className="fc-question" tabIndex={-1}>
               <RichText text={current.front} />
             </p>
             {flipped ? (
-              <ul className="fc-answer">
+              <ul ref={answerRef} className="fc-answer" tabIndex={-1} aria-label="Svar">
                 {current.back.map((line, i) => {
                   const l = parseBackLine(line);
                   return (
@@ -516,7 +581,7 @@ function PracticeSession({ deck, cards, notes, initial }: Props & { initial: Pra
           filter={filter}
           groups={groups}
           groupName={groupName}
-          groupDone={(g) => selectCards(effCards, { noteId: g, kind: null, subset: null }).every((c) => levelOf(c) >= MASTER)}
+          groupDone={(g) => selectCards(effCards, { noteId: g, kind: filter.kind, subset: null }).every((c) => levelOf(c) >= MASTER)}
           onRepeat={(ids) => restart({ ...filter, subset: ids }, ids)}
           onRepeatAll={() => {
             const all = selectCards(effCards, { ...filter, subset: null });
@@ -637,23 +702,39 @@ function Done({
 
 function PauseOverlay({ since, onResume }: { since: number | null; onResume: () => void }) {
   const [now, setNow] = useState(() => Date.now());
+  const ref = useRef<HTMLDialogElement>(null);
+  const resume = useRef(onResume);
+  resume.current = onResume;
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
-  const ref = useRef<HTMLButtonElement>(null);
-  useEffect(() => ref.current?.focus(), []);
+  // Ekte modal dialog: fokus holdes inne, bakgrunnen kan ikke brukes, og Esc betyr «Fortsett å øve».
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (!dialog.open) dialog.showModal();
+    const onCancel = (e: Event) => {
+      e.preventDefault();
+      resume.current();
+    };
+    dialog.addEventListener('cancel', onCancel);
+    return () => {
+      dialog.removeEventListener('cancel', onCancel);
+      if (dialog.open) dialog.close();
+    };
+  }, []);
   const s = Math.max(0, Math.floor((now - (since ?? now)) / 1000));
   return (
-    <div className="fc-pause" role="dialog" aria-modal="true" aria-labelledby="fc-pause-title">
+    <dialog ref={ref} className="fc-pause" aria-labelledby="fc-pause-title">
       <h2 id="fc-pause-title">Pause</h2>
       <div className="fc-pause-clock" aria-hidden>
         {Math.floor(s / 60)}:{String(s % 60).padStart(2, '0')}
       </div>
       <p>Se bort fra skjermen, strekk på deg og drikk litt vann. Fremgangen din er lagret.</p>
-      <button ref={ref} type="button" className="btn btn-primary btn-lg" onClick={onResume}>
+      <button type="button" className="btn btn-primary btn-lg" onClick={onResume} autoFocus>
         Fortsett å øve
       </button>
-    </div>
+    </dialog>
   );
 }

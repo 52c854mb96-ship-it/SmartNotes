@@ -1,4 +1,4 @@
-import { Outlet, RouterProvider, createBrowserRouter } from 'react-router';
+import { Outlet, RouterProvider, createBrowserRouter, useRouteError } from 'react-router';
 import { AppShell } from './components/AppShell';
 import { ConfirmHost } from './components/ConfirmHost';
 import { Toaster } from './components/Toaster';
@@ -27,9 +27,29 @@ function Root() {
   );
 }
 
+/** Uventet feil under visningen: norsk melding i stedet for standardsiden til react-router. */
+function RouteError() {
+  const error = useRouteError();
+  console.error(error);
+  return (
+    <div className="login-page">
+      <div className="login-card">
+        <h1 className="page-title">Noe gikk galt</h1>
+        <p className="muted">En feil stoppet visningen av denne siden. Notatene og kortene dine er ikke berørt.</p>
+        <p>
+          <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
+            Last inn på nytt
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 const router = createBrowserRouter([
   {
     element: <Root />,
+    errorElement: <RouteError />,
     children: [
       { path: '/logg-inn', element: <LoginPage /> },
       {

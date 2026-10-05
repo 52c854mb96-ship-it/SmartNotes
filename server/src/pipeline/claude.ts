@@ -314,26 +314,53 @@ export class AnthropicClaude implements ClaudeService {
 
   async generateFlashcards(req: FlashcardRequest): Promise<{ cards: RawFlashcard[]; usage: Usage }> {
     const client = this.requireClient();
+    // Formatet sendes uten `parse`, så SDK-en ikke tolker svaret selv: et avkuttet eller avslått svar skal gi en norsk
+    // melding (se parseFlashcardMessage), ikke en generell feil.
+    const { schema } = zodOutputFormat(flashcardSchema);
+    let msg: Anthropic.Beta.BetaMessage;
     try {
-      const msg = await client.messages
+      msg = await client.beta.messages
         .stream({
           model: this.config.model,
           max_tokens: 64_000,
           thinking: { type: 'adaptive' },
-          output_config: { effort: 'medium', format: zodOutputFormat(flashcardSchema) },
+          output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
           system: [{ type: 'text', text: FLASHCARD_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
           messages: [{ role: 'user', content: buildFlashcardPrompt(req) }],
+          // Avslår modellens sikkerhetsfiltre feilaktig (f.eks. biologi om virus), prøves en anbefalt reservemodell.
+          ...(this.config.useFallbacks ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
         })
         .finalMessage();
-      if (msg.stop_reason === 'refusal') throw new ConversionError('Claude avslo å lage kort av disse notatene.');
-      if (msg.stop_reason === 'max_tokens') throw new ConversionError('Utvalget ble for stort. Velg færre notater eller færre kort.');
-      const parsed = msg.parsed_output;
-      if (!parsed) throw new ConversionError('Claude svarte ikke med kort. Prøv igjen.');
-      return { cards: parsed.cards, usage: usageOf('flashcards', msg) };
     } catch (err) {
-      throw mapApiError(err);
+      throw flashcardError(err);
     }
+    return { cards: parseFlashcardMessage(msg), usage: usageOf('flashcards', msg) };
   }
+}
+
+/** Feilmeldingene fra mapApiError handler om notatkonvertering; her gjelder de kortstokker. */
+export function flashcardError(err: unknown): ConversionError {
+  const e = mapApiError(err);
+  if (e.message === 'Uventet feil under konverteringen.') return new ConversionError('Uventet feil da kortene skulle lages. Prøv igjen.');
+  if (e.message.startsWith('Claude kunne ikke behandle notatet')) {
+    return new ConversionError(e.message.replace('Claude kunne ikke behandle notatet', 'Claude kunne ikke lage kort av notatene'));
+  }
+  return e;
+}
+
+/** Kortene i svaret fra Claude. Avslag, avkuttet svar og ugyldig JSON gir norske feilmeldinger. */
+export function parseFlashcardMessage(msg: { stop_reason: string | null; content: Array<{ type: string }> }): RawFlashcard[] {
+  if (msg.stop_reason === 'refusal') throw new ConversionError('Claude avslo å lage kort av disse notatene.');
+  if (msg.stop_reason === 'max_tokens') throw new ConversionError('Utvalget ble for stort. Velg færre notater eller færre kort.');
+  let data: unknown;
+  try {
+    data = JSON.parse(textOf(msg.content));
+  } catch {
+    throw new ConversionError('Claude svarte ikke med kort. Prøv igjen.');
+  }
+  const parsed = flashcardSchema.safeParse(data);
+  if (!parsed.success) throw new ConversionError('Claude svarte ikke med kort. Prøv igjen.');
+  return parsed.data.cards;
 }
 
 // ---------- Falsk Claude (utvikling og tester) ----------

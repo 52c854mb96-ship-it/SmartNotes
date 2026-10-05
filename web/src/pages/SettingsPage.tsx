@@ -6,7 +6,7 @@ import { api, errorMessage } from '../api';
 import { Spinner } from '../components/Status';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { db } from '../db';
-import { useOnline } from '../lib/connectivity';
+import { isOnline, useOnline } from '../lib/connectivity';
 import { formatBytes, formatTimestamp, plural } from '../lib/format';
 import { confirmDialog, toast } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
@@ -285,15 +285,21 @@ function StorageCard() {
 function AccountCard() {
   const navigate = useNavigate();
   const outboxCount = useLiveQuery(() => db.outbox.count(), []) ?? 0;
+  const progressCount = useLiveQuery(() => db.progress.count(), []) ?? 0;
   const logout = async () => {
+    // Fremgang fra øving sendes ved utlogging hvis det er nett; uten nett går den tapt.
+    const progressLost = progressCount > 0 && !isOnline();
+    const losses = [
+      outboxCount > 0 ? `${plural(outboxCount, 'opplasting', 'opplastinger')} som ikke er sendt ennå, går tapt!` : '',
+      progressLost ? 'Fremgang fra øving med flashcards som ikke er sendt ennå, går tapt.' : '',
+    ].filter(Boolean);
     const ok = await confirmDialog({
       title: 'Logge ut?',
-      body:
-        outboxCount > 0
-          ? `Alle lokalt lagrede notater og PDF-er fjernes fra denne enheten. ${plural(outboxCount, 'opplasting', 'opplastinger')} som ikke er sendt ennå, går tapt!`
-          : 'Alle lokalt lagrede notater og PDF-er fjernes fra denne enheten. Alt ligger trygt på serveren og hentes igjen når du logger inn.',
+      body: losses.length
+        ? `Alle lokalt lagrede notater og PDF-er fjernes fra denne enheten. ${losses.join(' ')}`
+        : 'Alle lokalt lagrede notater og PDF-er fjernes fra denne enheten. Alt ligger trygt på serveren og hentes igjen når du logger inn.',
       confirmLabel: 'Logg ut',
-      danger: outboxCount > 0,
+      danger: losses.length > 0,
     });
     if (!ok) return;
     await logoutAndClear();

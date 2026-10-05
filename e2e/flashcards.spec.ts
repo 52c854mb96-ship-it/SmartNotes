@@ -150,6 +150,11 @@ test('flashcards: lag, øv (også offline), repeter og rediger', async ({ page, 
     .poll(async () => (await syncData(page)).cards.filter((c) => c.deckId === deckId).map((c) => c.front))
     .toContain('Hva sier Newtons andre lov?');
 
+  // Tilbake til øvingen: repetisjonen er der fortsatt (økta beholdes når man bytter fane).
+  await page.getByRole('tab', { name: 'Øv' }).click();
+  await expect(main(page).getByText('Repetisjon av 1 kort')).toBeVisible();
+  await expect(card).toContainText(first);
+
   // 8) Oversikten viser kortstokken.
   await page.goto(page.url().split('/flashcards/')[0] + '/flashcards');
   await expect(main(page).getByRole('link', { name: new RegExp(title) })).toContainText('2 kort');

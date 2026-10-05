@@ -19,6 +19,11 @@
   --fc-kind-apply: #a3581a;
   --fc-overlay: rgb(15 19 24 / 0.9);
   --fc-overlay-text: #e6eaef;
+  /* Mørkere tekstfarger i lyst tema, så teksten på knappene har nok kontrast (WCAG AA). */
+  --fc-bad-text: #a52a1a;
+  --fc-mid-text: #8a5200;
+  --fc-good-text: #17663d;
+  --fc-flame-text: #8f5300;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -37,6 +42,10 @@
     --fc-kind-apply: #e0b84a;
     --fc-overlay: rgb(10 13 19 / 0.94);
     --fc-overlay-text: #e6eaef;
+    --fc-bad-text: #ff5468;
+    --fc-mid-text: #ffb648;
+    --fc-good-text: #34d17a;
+    --fc-flame-text: #ffb648;
   }
 }
 
@@ -55,6 +64,10 @@
   --fc-kind-apply: #e0b84a;
   --fc-overlay: rgb(10 13 19 / 0.94);
   --fc-overlay-text: #e6eaef;
+  --fc-bad-text: #ff5468;
+  --fc-mid-text: #ffb648;
+  --fc-good-text: #34d17a;
+  --fc-flame-text: #ffb648;
 }
 
 /* ---------- Oversikt over kortstokker ---------- */
@@ -304,7 +317,7 @@
 
 .fc-pill.is-hot {
   border-color: var(--fc-flame);
-  color: var(--fc-flame);
+  color: var(--fc-flame-text);
   box-shadow: 0 0 12px color-mix(in srgb, var(--fc-flame) 25%, transparent);
 }
 
@@ -437,6 +450,12 @@
   font-size: 1.32rem;
   line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+.fc-question:focus,
+.fc-answer:focus {
+  /* Fokus flyttes hit for skjermlesere; elementene er ikke knapper, så ingen fokusring. */
+  outline: none;
 }
 
 .fc-card.is-flipped .fc-question {
@@ -800,25 +819,24 @@
 .fc-rate button small {
   font-size: 0.72rem;
   font-weight: 400;
-  opacity: 0.85;
 }
 
 .fc-rate .fc-g1 {
   border: 1px solid color-mix(in srgb, var(--fc-bad) 55%, transparent);
   background: color-mix(in srgb, var(--fc-bad) 12%, transparent);
-  color: var(--fc-bad);
+  color: var(--fc-bad-text);
 }
 
 .fc-rate .fc-g2 {
   border: 1px solid color-mix(in srgb, var(--fc-mid) 50%, transparent);
   background: color-mix(in srgb, var(--fc-mid) 12%, transparent);
-  color: var(--fc-mid);
+  color: var(--fc-mid-text);
 }
 
 .fc-rate .fc-g3 {
   border: 1px solid color-mix(in srgb, var(--fc-good) 55%, transparent);
   background: color-mix(in srgb, var(--fc-good) 13%, transparent);
-  color: var(--fc-good);
+  color: var(--fc-good-text);
 }
 
 .fc-rate .fc-g4 {
@@ -857,15 +875,15 @@
 }
 
 .fc-feedback.is-bad {
-  color: var(--fc-bad);
+  color: var(--fc-bad-text);
 }
 
 .fc-feedback.is-mid {
-  color: var(--fc-mid);
+  color: var(--fc-mid-text);
 }
 
 .fc-feedback.is-ok {
-  color: var(--fc-good);
+  color: var(--fc-good-text);
 }
 
 .fc-sub {
@@ -1011,10 +1029,16 @@
   color: var(--text-3);
 }
 
-/* Pause */
+/* Pause (modal <dialog> over hele skjermen) */
 .fc-pause {
   position: fixed;
   inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  border: 0;
   z-index: 200;
   display: flex;
   flex-direction: column;
@@ -1025,6 +1049,14 @@
   background: var(--fc-overlay);
   color: var(--fc-overlay-text);
   text-align: center;
+}
+
+.fc-pause:not([open]) {
+  display: none;
+}
+
+.fc-pause::backdrop {
+  background: transparent;
 }
 
 .fc-pause h2 {
@@ -1141,6 +1173,18 @@
 }
 
 /* ---------- Mobil ---------- */
+@media (max-width: 600px) {
+  /* Menyknappen blir stående ved tittelen, så kortet kommer høyere opp på skjermen. */
+  .fc-deck-header {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+
+  .fc-deck-header .page-actions {
+    width: auto;
+  }
+}
+
 @media (max-width: 560px) {
   .fc-controls {
     grid-template-columns: 1fr 1fr;
@@ -1165,11 +1209,12 @@
   }
 
   .fc-card {
-    min-height: 340px;
-    padding: 18px 16px;
+    min-height: min(280px, 42vh);
+    padding: 16px;
   }
 
   .fc-question {
+    margin: 12px 0 auto;
     font-size: 1.22rem;
   }
 
