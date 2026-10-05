@@ -122,7 +122,7 @@ export const ORGANISMS: readonly Organism[] = [
     short: 'menneske',
     sci: 'Homo sapiens',
     glyph: 'menneske',
-    lineage: lineage(EUK, DYR, CHORDATA, MAMMALIA, PRIMATES, HOMINIDAE, { sci: 'Homo' }, { no: 'menneske', sci: 'Homo sapiens' }),
+    lineage: lineage(EUK, DYR, CHORDATA, MAMMALIA, PRIMATES, HOMINIDAE, { no: 'Menneskeslekten', sci: 'Homo' }, { no: 'menneske', sci: 'Homo sapiens' }),
   },
   {
     id: 'sjimpanse',
@@ -130,7 +130,7 @@ export const ORGANISMS: readonly Organism[] = [
     short: 'sjimpanse',
     sci: 'Pan troglodytes',
     glyph: 'ape',
-    lineage: lineage(EUK, DYR, CHORDATA, MAMMALIA, PRIMATES, HOMINIDAE, { no: 'Sjimpanser', sci: 'Pan' }, { no: 'sjimpanse', sci: 'Pan troglodytes' }),
+    lineage: lineage(EUK, DYR, CHORDATA, MAMMALIA, PRIMATES, HOMINIDAE, { no: 'Sjimpanseslekten', sci: 'Pan' }, { no: 'sjimpanse', sci: 'Pan troglodytes' }),
   },
   {
     id: 'hund',

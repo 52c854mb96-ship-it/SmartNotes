@@ -86,11 +86,8 @@ export default function Mitose() {
       </div>
       <Legend
         items={[
-          { color: BIO.kromosom.mor[0], label: 'Kromosom fra mor' },
-          {
-            color: BIO.kromosom.far[0],
-            label: 'Kromosom fra far (samme farge = homologt par)',
-          },
+          { color: BIO.kromosom.mor[0], label: 'Kromosomer fra mor (varme farger)' },
+          { color: BIO.kromosom.far[0], label: 'Kromosomer fra far (kalde farger)' },
           { color: BIO.cytoskjelett, label: 'Spoletråder' },
         ]}
       />
@@ -176,7 +173,8 @@ function DivisionScene({ id, step, u, n, type, f }: { id: CycleStep; step: numbe
 
   return (
     <Figure viewBox={`0 0 800 ${H}`} maxHeight={narrow ? 900 : Math.round(H * 1.15)} label={label}>
-      <g transform={frame.transform || undefined}>
+      {/* Ny key når tekstskaleringen endres (første måling på mobil), så kromatidene ikke glir inn fra PC-plassene */}
+      <g key={Math.round(f * 20)} transform={frame.transform || undefined}>
         {type === 'dyr' ? <AnimalCell id={id} lay={lay} shiftE={shiftE} /> : <PlantCell id={id} mother={mother} wall={wall} />}
         {lay.kjerner.map((k, i) => {
           const e = shiftE(k, twoNuclei ? i : 0);
@@ -480,7 +478,7 @@ function mitosisCallouts(
         push({
           x: k.x,
           y: k.y,
-          text: ['Søsterkromatidene', 'trekkes fra hverandre'],
+          text: ['Søsterkromatidene', 'skilles'],
           strong: true,
         });
       push(pole());
@@ -535,7 +533,7 @@ function mitosisCallouts(
         });
       if (type === 'dyr' && a)
         push({
-          ...onEllipse({ ...a, cx: a.cx + dx(0) }, -30),
+          ...onEllipse({ ...a, cx: a.cx + dx(0) }, -140),
           text: 'Cellemembran',
         });
       break;
@@ -670,7 +668,7 @@ function explanation(id: CycleStep, type: CellType, n: number, s: number): React
           <strong>Profase.</strong> Kromosomene kveiler seg sammen (kondenserer) og blir korte og tykke, så de kan ses i mikroskopet. Hvert
           kromosom består av to søsterkromatider. Kjernemembranen og kjernelegemet løses opp, og spoletrådene vokser ut fra{' '}
           {plant ? 'de to polene. Planteceller har ikke sentrioler, men lager spolen likevel.' : 'sentriolene ved de to polene.'} De
-          homologe kromosomene (samme farge) legger seg ikke sammen i mitosen; det skjer bare i meiosen.
+          homologe kromosomene (like lange, ett fra mor og ett fra far) legger seg ikke sammen i mitosen; det skjer bare i meiosen.
         </p>
       );
     case 'metafase':

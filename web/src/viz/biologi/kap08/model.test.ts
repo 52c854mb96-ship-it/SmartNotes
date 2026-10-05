@@ -22,6 +22,7 @@ import {
   naOpen,
   repolarisedAt,
   riseTime,
+  shuntFactor,
   simulateGlucose,
   simulateNeuron,
   simulateSynapse,
@@ -89,6 +90,25 @@ describe('aksjonspotensialet', () => {
         { t: 12, S: 20 },
       ]).spikes,
     ).toHaveLength(2);
+  });
+
+  it('et stimulus i den absolutte refraktærperioden gir ingen ny topp, bare en liten bump', () => {
+    for (const interval of [1, 1.5]) {
+      const run = simulateNeuron([
+        { t: 2, S: 40 },
+        { t: 2 + interval, S: 40 },
+      ]);
+      expect(run.spikes).toHaveLength(1);
+      expect(run.stimuli[1]!.refractory).toBe('absolutt');
+      // Etter stimulus 2 går potensialet ikke opp mot toppen igjen (de åpne kanalene leder bort det meste av strømmen)
+      const vAt = run.V(2 + interval);
+      let max = -Infinity;
+      for (let t = 2 + interval; t < 2 + interval + 3; t += 0.01) max = Math.max(max, run.V(t));
+      expect(max - vAt).toBeLessThan(10);
+      expect(max).toBeLessThan(V_PEAK - 10);
+    }
+    expect(shuntFactor(0.9)).toBeLessThan(0.25);
+    expect(shuntFactor(20)).toBeCloseTo(1, 6);
   });
 
   it('summering: to svake stimuli tett etter hverandre kan nå terskelen', () => {

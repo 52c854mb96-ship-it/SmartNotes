@@ -9,6 +9,9 @@ import {
   O2_WATER,
   RC_SKIN,
   RC_TRACHEA,
+  SIZE_MAX_EXP,
+  SIZE_MIN_EXP,
+  SIZE_REFERENCES,
   anoxicCore,
   chamberText,
   circuit,
@@ -31,6 +34,9 @@ import {
   pressureProfile,
   saturations,
   segmentSpans,
+  surfacePerVolume,
+  HUMAN_LUNG_AREA,
+  HUMAN_SKIN_AREA,
 } from './model';
 
 describe('geometri', () => {
@@ -275,6 +281,29 @@ describe('gassutveksling og kroppsstørrelse', () => {
   it('diffusjonstid: dobbel avstand gir fire ganger så lang tid', () => {
     expect(diffusionTime(2e-3) / diffusionTime(1e-3)).toBeCloseTo(4, 9);
     expect(diffusionTime(1e-3)).toBeCloseTo(250, 6); // 1 mm: ca. 4 min
+  });
+
+  it('overflate per volum: 6/d, og ti ganger tykkere gir ti ganger mindre', () => {
+    expect(surfacePerVolume(1e-3)).toBeCloseTo(6, 9); // 1 mm: 6 mm² per mm³
+    expect(surfacePerVolume(3e-3)).toBeCloseTo(2, 9);
+    expect(surfacePerVolume(1e-3) / surfacePerVolume(1e-2)).toBeCloseTo(10, 9);
+    expect(surfacePerVolume(0)).toBe(Infinity);
+    // Lungene gir mennesket rundt 40 ganger så stor flate som huden
+    expect(HUMAN_LUNG_AREA / HUMAN_SKIN_AREA).toBeGreaterThan(30);
+  });
+
+  it('forhåndsvalgene er tykkelser, ikke lengder: humla trenger trakeer, ikke laksen', () => {
+    const d = (name: string) => SIZE_REFERENCES.find((r) => r.name === name)!.d;
+    // Et insekt på noen millimeter er for tykt for hudånding, men greit med trakeer
+    expect(o2Coverage(getStrategy('hud'), d('humle'))).toBeLessThan(1);
+    expect(o2Coverage(getStrategy('trakeer'), d('humle'))).toBe(1);
+    // De største billene ligger rundt grensen for trakeer; en laks er langt over
+    expect(d('stor bille')).toBeLessThan(maxDiameter(getStrategy('trakeer')));
+    expect(o2Coverage(getStrategy('trakeer'), d('laks'))).toBeLessThan(1);
+    for (const r of SIZE_REFERENCES) {
+      expect(Math.log10(r.d)).toBeGreaterThanOrEqual(SIZE_MIN_EXP);
+      expect(Math.log10(r.d)).toBeLessThanOrEqual(SIZE_MAX_EXP);
+    }
   });
 
   it('formater lengder og tider', () => {

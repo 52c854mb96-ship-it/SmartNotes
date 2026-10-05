@@ -44,7 +44,7 @@ const viz: VizMeta[] = [
     sections: [],
     title: 'Gassutveksling og kroppsstørrelse',
     summary:
-      'Gjør et dyr større og se hvorfor diffusjon gjennom huden bare holder for dyr på noen få millimeter, og hvordan trakeer, gjeller, lunger og fuglelunger med luftsekker løser problemet.',
+      'Gjør et dyr større og se hvorfor diffusjon gjennom huden bare holder for dyr på noen få millimeter, hvordan overflaten per volum synker, og hvordan trakeer, gjeller, lunger og fuglelunger med luftsekker løser problemet.',
     keywords: [
       'respirasjon',
       'gassutveksling',
@@ -52,6 +52,7 @@ const viz: VizMeta[] = [
       'diffusjonsavstand',
       'Ficks lov',
       'overflate',
+      'overflate per volum',
       'hudånding',
       'trakeer',
       'åndehull',

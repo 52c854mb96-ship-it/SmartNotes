@@ -36,6 +36,7 @@ import {
   formatVolume,
   grossPhotosynthesis,
   hasPart,
+  leafExchange,
   limitingFactor,
   netO2,
   outgrowthFactor,
@@ -254,11 +255,16 @@ describe('store overflater', () => {
   });
 
   it('sammenligning med kjente flater', () => {
-    expect(compareArea(80).navn).toBe('en badmintonbane');
+    // Den største flaten som ikke er større: alltid «x ganger» med x ≥ 1 (unntatt under et A4-ark)
+    expect(compareArea(80)).toMatchObject({ navn: 'en parkeringsplass', m2: 12.5 });
+    expect(compareArea(80).ratio).toBeCloseTo(6.4, 12);
     expect(compareArea(30).navn).toBe('en parkeringsplass');
+    expect(compareArea(72).ratio).toBeGreaterThan(1);
     expect(compareArea(0.2).navn).toBe('et A4-ark');
     expect(compareArea(650).navn).toBe('en tennisbane');
-    for (const r of AREA_REFERENCES) expect(compareArea(r.m2).ratio).toBeCloseTo(1, 12);
+    expect(compareArea(0.03).navn).toBe('et A4-ark');
+    expect(compareArea(0.03).ratio).toBeLessThan(1);
+    for (const r of AREA_REFERENCES) expect(compareArea(r.m2)).toMatchObject({ navn: r.navn, ratio: 1 });
   });
 });
 
@@ -313,6 +319,25 @@ describe('fotosyntese og celleånding', () => {
     // For varmt eller for lite CO₂: fotosyntesen tar aldri igjen celleåndingen
     expect(compensationLight(CO2_AIR, 44)).toBeNull();
     expect(compensationLight(20, 25)).toBeNull();
+  });
+
+  it('stoffbalansen i bladcellen: kloroplasten bruker P CO₂ og H₂O, mitokondrien lager R', () => {
+    for (const [P, R] of [
+      [40, 7],
+      [3, 10],
+      [0, 4],
+      [10, 10],
+    ] as const) {
+      const e = leafExchange(P, R);
+      // CO₂ og H₂O til kloroplasten: fra mitokondrien + det som kommer inn utenfra
+      expect(e.internal + Math.max(0, e.co2In)).toBeCloseTo(P, 12);
+      expect(e.internal + Math.max(0, e.h2oIn)).toBeCloseTo(P, 12);
+      // CO₂ fra mitokondrien: til kloroplasten + det som går ut av cellen
+      expect(e.internal + Math.max(0, -e.co2In)).toBeCloseTo(R, 12);
+      // O₂ til mitokondrien: fra kloroplasten + det som tas inn utenfra
+      expect(e.internal + Math.max(0, -e.o2Out)).toBeCloseTo(R, 12);
+      expect(e.starch).toBeCloseTo(P - R, 12);
+    }
   });
 
   it('begrensende faktor: lys, CO₂ eller temperatur', () => {

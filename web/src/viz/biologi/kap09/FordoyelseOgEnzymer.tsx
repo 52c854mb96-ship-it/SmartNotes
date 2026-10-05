@@ -151,12 +151,13 @@ function TractFigure({ nutrient, station, f }: { nutrient: Nutrient; station: St
       viewBox={`0 0 800 ${Math.round(H)}`}
       maxHeight={narrow ? 1500 : Math.round(H * 1.15)}
       label={`Fordøyelseskanalen med maten i ${st.name.toLowerCase()}. ${NUTRIENTS[nutrient].name}: ${fmtPct(st.digested[nutrient])} brutt ned.`}
+      caption="Sett forfra: kroppens høyre side (med leveren) er til venstre i figuren."
     >
-      <g transform={narrow ? 'translate(110 0) scale(1.3)' : 'translate(4 0)'}>
+      <g transform={narrow ? 'translate(110 0) scale(1.3)' : 'translate(2 0)'}>
         <TractDrawing station={station} nutrient={nutrient} narrow={narrow} />
       </g>
-      <g transform={narrow ? `translate(0 ${tractH * 1.3 + 20})` : 'translate(440 0)'}>
-        <MoleculePanel nutrient={nutrient} station={station} w={narrow ? 800 : 358} h={molH} />
+      <g transform={narrow ? `translate(0 ${tractH * 1.3 + 20})` : 'translate(456 0)'}>
+        <MoleculePanel nutrient={nutrient} station={station} w={narrow ? 800 : 342} h={molH} />
       </g>
     </Figure>
   );
@@ -203,14 +204,19 @@ function TractDrawing({ station, nutrient, narrow }: { station: StationId; nutri
     tykktarm: { x: 300, y: 330 },
   };
   const b = bolus[station];
+  // Sett forfra: tynntarmen munner ut i blindtarmen nede til høyre i kroppen (til venstre i figuren), tykktarmen går opp
+  // på kroppens høyre side, over magen og ned på venstre side til endetarmen.
   const smallIntestine =
-    'M200,215 C200,250 150,250 130,265 S150,300 190,295 S260,290 250,315 S180,340 150,340 S140,375 190,372 S250,360 255,385';
+    'M200,215 C200,250 150,250 130,265 S150,300 190,295 S260,290 250,315 S180,340 150,340 S140,375 190,372 S240,385 205,395 S150,402 132,400';
   const largeIntestine =
-    'M255,400 C290,400 305,395 305,370 L305,245 C305,232 295,228 280,228 L105,228 C90,228 85,235 85,250 L85,400 C85,420 110,425 150,425 L180,425 L180,455';
-  const label = (x: number, y: number, text: string, anchor: 'start' | 'end', strong = false) => (
-    <Txt x={x} y={y} anchor={anchor} size={narrow ? 0.62 : 0.72} weight={strong ? 750 : 560} muted={!strong}>
-      {text}
-    </Txt>
+    'M132,400 C100,400 85,395 85,370 L85,245 C85,232 95,228 110,228 L285,228 C300,228 305,235 305,250 L305,400 C305,420 280,425 240,425 L210,425 L210,455';
+  const label = (x: number, y: number, text: string, anchor: 'start' | 'end', strong = false, to?: { x: number; y: number }) => (
+    <g>
+      {to && <line x1={anchor === 'start' ? x - 4 : x + 4} y1={y - 5} x2={to.x} y2={to.y} stroke={VIZ.muted} strokeWidth={1.2 * lw} />}
+      <Txt x={x} y={y} anchor={anchor} size={narrow ? 0.62 : 0.72} weight={strong ? 750 : 560} muted={!strong}>
+        {text}
+      </Txt>
+    </g>
   );
   return (
     <g>
@@ -260,10 +266,10 @@ function TractDrawing({ station, nutrient, narrow }: { station: StationId; nutri
       {label(70, 156, 'Leveren', 'start', bile)}
       {label(100, 214, 'Galleblæren', 'end', bile)}
       {label(300, 160, 'Magesekken', 'start', on('magesekk'))}
-      {label(305, 250, 'Bukspyttkjertelen', 'start', pancreas)}
-      {label(74, 300, 'Tykktarmen', 'end', on('tykktarm'))}
-      {label(270, 300, 'Tynntarmen', 'start', on('tynntarm'))}
-      {label(190, 452, 'Endetarmen', 'start')}
+      {label(318, 250, 'Bukspyttkjertelen', 'start', pancreas)}
+      {label(318, 380, 'Tykktarmen', 'start', on('tykktarm'))}
+      {label(318, 300, 'Tynntarmen', 'start', on('tynntarm'), { x: 252, y: 312 })}
+      {label(222, 452, 'Endetarmen', 'start')}
       {label(190, 100, 'Spiserøret', 'start')}
     </g>
   );
@@ -658,10 +664,11 @@ function EnzymeShape({ state, a, color }: { state: EnzymeState; a: number; color
   const lw = useLineScale();
   const narrow = f > 1.3;
   const k = Math.min(1.5, Math.max(1, f * 0.85));
-  const H = Math.round(200 + 190 * (f - 1));
   const cx = narrow ? 400 : 300;
   const R = 70 * k;
-  const cy = narrow ? 40 + R + 8 : H / 2 + 6;
+  // Plass over enzymet til substratet når det ikke passer (det står da ca. 50 enheter over enzymet)
+  const cy = R + 62;
+  const H = Math.round(narrow ? cy + R * 0.7 + 30 + 2 * 22 * f + 10 : cy + R * 0.7 + 24);
   const fits = state === 'aktivt' || state === 'kaldt';
   const denat = state === 'denaturert' || state === 'varmet';
   const distorted = state === 'feil-ph';
@@ -676,16 +683,16 @@ function EnzymeShape({ state, a, color }: { state: EnzymeState; a: number; color
     const y = cy + Math.sin(i * 0.9) * 22 + Math.sin(i * 0.37) * 14;
     return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
-  const text: Record<EnzymeState, string> = {
-    aktivt: 'Substratet passer i det aktive setet',
-    kaldt: 'Passer, men molekylene beveger seg sakte',
-    'feil-ph': 'Feil pH endrer formen på det aktive setet',
-    denaturert: 'For varmt: proteinet har mistet formen',
-    varmet: 'Varig ødelagt: formen kommer ikke tilbake',
+  const text: Record<EnzymeState, [string, string]> = {
+    aktivt: ['Substratet passer', 'i det aktive setet'],
+    kaldt: ['Passer, men molekylene', 'beveger seg sakte'],
+    'feil-ph': ['Feil pH endrer formen', 'på det aktive setet'],
+    denaturert: ['For varmt: proteinet', 'har mistet formen'],
+    varmet: ['Varig ødelagt: formen', 'kommer ikke tilbake'],
   };
   return (
     <div ref={ref}>
-      <Figure viewBox={`0 0 800 ${H}`} label={`Enzym og substrat: ${text[state]}. Aktivitet ${fmtPct(a)}.`}>
+      <Figure viewBox={`0 0 800 ${H}`} label={`Enzym og substrat: ${text[state].join(' ')}. Aktivitet ${fmtPct(a)}.`}>
         {denat ? (
           <path d={coil} fill="none" stroke={color} strokeWidth={7 * lw} strokeLinecap="round" strokeLinejoin="round" opacity={0.85} />
         ) : (
@@ -713,9 +720,18 @@ function EnzymeShape({ state, a, color }: { state: EnzymeState; a: number; color
             få støt per sekund
           </Txt>
         )}
-        <Txt x={f > 1.3 ? 400 : 470} y={f > 1.3 ? H - 12 : cy + 6} anchor={f > 1.3 ? 'middle' : 'start'} size={0.85} weight={650}>
-          {text[state]}
-        </Txt>
+        {text[state].map((line, i) => (
+          <Txt
+            key={i}
+            x={narrow ? 400 : 470}
+            y={narrow ? H - 12 - (1 - i) * 22 * f : cy - 6 + i * 22 * f}
+            anchor={narrow ? 'middle' : 'start'}
+            size={0.85}
+            weight={650}
+          >
+            {line}
+          </Txt>
+        ))}
       </Figure>
     </div>
   );
@@ -819,7 +835,7 @@ function enzymeText(id: EnzymeId, pH: number, T: number, heated: boolean, a: num
   const e = ENZYMES[id];
   const intro = (
     <p>
-      <strong>{e.name}</strong> lages i {e.source} og bryter ned {e.substrate} til {e.product} i {e.where}. Den virker best ved pH ca.{' '}
+      <strong>{e.name}</strong> lages i {e.source} og bryter ned {e.substrate} til {e.product} i {e.where}. Enzymet virker best ved pH ca.{' '}
       {fmt(e.optPH, 0)} og rundt {fmt(Math.round(T_OPT / 5) * 5 - 3, 0)}–{fmt(Math.round(T_OPT), 0)} °C. Nå er aktiviteten {fmtPct(a)} av
       det høyeste.
     </p>
@@ -879,7 +895,7 @@ function enzymeText(id: EnzymeId, pH: number, T: number, heated: boolean, a: num
       {heated ? null : (
         <p>
           Enzymer er proteiner. Reaksjonsfarten øker med temperaturen (omtrent dobbelt så fort for hver 10 °C) helt til enzymet begynner å
-          denatureres over ca. 45 °C.
+          denatureres. For menneskets enzymer skjer det fra ca. 40 °C, og ved ca. 45 °C har halvparten mistet formen.
         </p>
       )}
     </>

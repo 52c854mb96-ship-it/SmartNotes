@@ -47,6 +47,9 @@ const PRESETS = [
   { id: 'ekvator', label: 'Ekvator', h: 12 },
 ] as const;
 
+/** Høyden på stolpene i plantefiguren. */
+const BAR_H = 28;
+
 const TYPE_NAME: Record<PhotoPlant['type'], string> = { langdag: 'langdagsplante', kortdag: 'kortdagsplante', dagnoytral: 'dagnøytral' };
 
 /** Rødt og langrødt lys i glimtet. */
@@ -265,12 +268,29 @@ function PlantsFigure({ s, f }: { s: Schedule; f: number }) {
           </Txt>
         </g>
       ))}
+      {/* Først stolpene, så strekene for natta, og til slutt tekstene (med lys kant) oppå */}
+      {PHOTO_PLANTS.map((p, i) => {
+        const barTop = head + i * rowH + nameH + 18;
+        const [a, b] = floweringRange(p);
+        return (
+          <g key={p.id}>
+            <rect x={X(0)} y={barTop} width={X(24) - X(0)} height={BAR_H} rx={6} fill={VIZ.grid} opacity={0.5} />
+            <rect x={X(a)} y={barTop} width={X(b) - X(a)} height={BAR_H} rx={6} fill={C_FLOWER} opacity={0.75} />
+          </g>
+        );
+      })}
+      {s.interruption === 'glimt' && dark < night - 0.01 && (
+        <line x1={X(night)} x2={X(night)} y1={head - 4} y2={head + PHOTO_PLANTS.length * rowH} stroke={VIZ.muted} strokeWidth={2} strokeDasharray="6 5" />
+      )}
+      <line x1={X(dark)} x2={X(dark)} y1={head - 4} y2={head + PHOTO_PLANTS.length * rowH} stroke={VIZ.ink} strokeWidth={3} />
+      <circle cx={X(dark)} cy={head - 4} r={6} fill={VIZ.ink} />
       {PHOTO_PLANTS.map((p, i) => {
         const y = head + i * rowH;
         const barTop = y + nameH + 18;
-        const barH = 28;
-        const [a, b] = floweringRange(p);
         const on = flowers(p, dark);
+        // Grensen står inne i stolpen, i enden bort fra den kritiske nattlengden
+        const range = p.critical === null ? 'alle nattlengder' : p.type === 'langdag' ? `≤ ${hoursText(p.critical)}` : `≥ ${hoursText(p.critical)}`;
+        const atEnd = p.type === 'kortdag';
         return (
           <g key={p.id}>
             {narrow ? (
@@ -290,31 +310,16 @@ function PlantsFigure({ s, f }: { s: Schedule; f: number }) {
                 </Txt>
               </g>
             )}
-            <rect x={X(0)} y={barTop} width={X(24) - X(0)} height={barH} rx={6} fill={VIZ.grid} opacity={0.5} />
-            <rect x={X(a)} y={barTop} width={X(b) - X(a)} height={barH} rx={6} fill={C_FLOWER} opacity={0.75} />
-            {p.critical !== null && (
-              <Txt x={X(p.critical)} y={barTop + barH / 2 + 5 * f} anchor={p.type === 'langdag' ? 'end' : 'start'} size={0.68} weight={700}>
-                {p.type === 'langdag' ? `≤ ${hoursText(p.critical)} ` : ` ≥ ${hoursText(p.critical)}`}
-              </Txt>
-            )}
-            {p.critical === null && (
-              <Txt x={X(12)} y={barTop + barH / 2 + 5 * f} size={0.68} weight={700}>
-                alle nattlengder
-              </Txt>
-            )}
-            <PlantGlyph id={p.id} x={bx1 + 40} y={barTop + barH} on={on} />
-            <Txt x={bx1 + 76} y={barTop + barH / 2 + 5 * f} anchor="start" size={0.72} weight={700} color={on ? C_FLOWER : VIZ.muted}>
+            <Txt x={atEnd ? X(24) - 8 : X(0) + 8} y={barTop + BAR_H / 2 + 5 * f} anchor={atEnd ? 'end' : 'start'} size={0.68} weight={700}>
+              {range}
+            </Txt>
+            <PlantGlyph id={p.id} x={bx1 + 40} y={barTop + BAR_H} on={on} />
+            <Txt x={bx1 + 76} y={barTop + BAR_H / 2 + 5 * f} anchor="start" size={0.72} weight={700} color={on ? C_FLOWER : VIZ.muted}>
               {on ? (narrow ? 'ja' : 'blomstrer') : 'nei'}
             </Txt>
           </g>
         );
       })}
-      {/* Natta uten lysglimtet og den lengste mørkeperioden */}
-      {s.interruption === 'glimt' && dark < night - 0.01 && (
-        <line x1={X(night)} x2={X(night)} y1={head - 4} y2={head + PHOTO_PLANTS.length * rowH} stroke={VIZ.muted} strokeWidth={2} strokeDasharray="6 5" />
-      )}
-      <line x1={X(dark)} x2={X(dark)} y1={head - 4} y2={head + PHOTO_PLANTS.length * rowH} stroke={VIZ.ink} strokeWidth={3} />
-      <circle cx={X(dark)} cy={head - 4} r={6} fill={VIZ.ink} />
     </Figure>
   );
 }
@@ -397,7 +402,8 @@ function explanation(s: Schedule, dark: number, blooming: PhotoPlant[]): ReactNo
         <p>
           <strong>Et rødt lysglimt deler natta i to.</strong> Natta er {hoursText(night)}, men et glimt på bare noen minutter midt i natta gjør
           den lengste mørkeperioden til {hoursText(dark)}. Rødt lys gjør fytokrom om til den aktive formen Pfr, og plantene reagerer som om
-          natta var kort: kortdagsplantene blomstrer ikke, mens langdagsplantene gjør det. Derfor kan gatelys og drivhuslys forstyrre blomstringen.
+          natta var kort. Kortdagsplanter som blomstrer: {names(sdp)}. Langdagsplanter som blomstrer: {names(ldp)}. Derfor kan gatelys og
+          drivhuslys forstyrre blomstringen.
         </p>
       ) : (
         <p>
@@ -426,7 +432,7 @@ function explanation(s: Schedule, dark: number, blooming: PhotoPlant[]): ReactNo
         Med {hoursText(s.day)} lys er natta {hoursText(dark)}. Langdagsplanter som blomstrer: {names(ldp)}. Kortdagsplanter som blomstrer:{' '}
         {names(sdp)}. Tomat er dagnøytral og blomstrer uansett.
         {s.day <= 12.5 && s.day >= 8
-          ? ' Julestjerne blomstrer når nettene er lengre enn ca. 11 t 40 min; i Norge skjer det fra oktober, så de røde høybladene er klare til jul.'
+          ? ' Julestjerne blomstrer når nettene er lengre enn ca. 11 t 40 min. I Sør-Norge blir nettene så lange fra slutten av september, og etter omtrent åtte uker med lange netter er de røde høybladene klare til jul.'
           : ''}
         {s.day >= 17 ? ' Slik er det i Sør-Norge rundt sankthans: nettene er så korte at bare langdagsplantene blomstrer.' : ''}
       </p>

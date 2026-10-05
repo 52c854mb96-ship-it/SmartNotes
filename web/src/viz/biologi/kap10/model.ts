@@ -106,7 +106,7 @@ export const ANIMALS: readonly Animal[] = [
   {
     id: 'insekt',
     name: 'Insekt',
-    example: 'gresshoppe',
+    example: 'vandregresshoppe',
     latin: 'Locusta migratoria',
     system: 'åpent',
     atria: 0,
@@ -551,17 +551,37 @@ export function diffusionTime(x: number, D = D_TISSUE): number {
   return (x * x) / (2 * D);
 }
 
+/**
+ * Overflate per volum (per mm) for en kuleformet kropp med diameter d (m): A/V = 4πr² / (4/3 πr³) = 3/r = 6/d.
+ * Ti ganger tykkere kropp gir ti ganger mindre overflate per volum: overflaten vokser med d², volumet (og O₂-behovet)
+ * med d³.
+ */
+export function surfacePerVolume(d: number): number {
+  return d > 0 ? 6 / (d * 1000) : Infinity;
+}
+
+/**
+ * Overflaten der gassene utveksles hos et voksent menneske, sammenlignet med hudens (m²): lungene ca. 70 m²
+ * (300–500 millioner lungeblærer; Weibel), huden ca. 1,8 m².
+ */
+export const HUMAN_LUNG_AREA = 70;
+export const HUMAN_SKIN_AREA = 1.8;
+
 /** Kroppsstørrelse på glidebryteren: 10^v meter, v fra −4 (0,1 mm) til 0 (1 m). */
 export const SIZE_MIN_EXP = -4;
 export const SIZE_MAX_EXP = 0;
 
-/** Kjente dyr langs størrelsesaksen (diameter/tykkelse i m). */
+/**
+ * Kjente dyr langs størrelsesaksen: tykkelsen på kroppen (ikke lengden) i m. Hjuldyr ca. 0,2 mm, flatormer ca. 1 mm,
+ * brystet på en humle ca. 6 mm, de største billene (goliatbiller) ca. 3 cm, en voksen laks ca. 10 cm og
+ * overkroppen på et menneske ca. 30 cm.
+ */
 export const SIZE_REFERENCES: readonly { d: number; name: string }[] = [
   { d: 2e-4, name: 'hjuldyr' },
-  { d: 1e-3, name: 'flatorm (tykkelse)' },
-  { d: 5e-3, name: 'maur' },
+  { d: 1e-3, name: 'flatorm' },
+  { d: 6e-3, name: 'humle' },
   { d: 3e-2, name: 'stor bille' },
-  { d: 0.1, name: 'sild' },
+  { d: 0.1, name: 'laks' },
   { d: 0.3, name: 'menneske' },
 ];
 

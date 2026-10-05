@@ -21,6 +21,7 @@ import {
   VizLayout,
   fmt,
   fmtPct,
+  fmtSig,
   linePath,
   mixColor,
   useContainerTextScale,
@@ -42,6 +43,9 @@ import {
   formatDuration,
   formatMeters,
   getStrategy,
+  surfacePerVolume,
+  HUMAN_LUNG_AREA,
+  HUMAN_SKIN_AREA,
   maxDiameter,
   o2At,
   o2Coverage,
@@ -49,6 +53,9 @@ import {
   type GasStrategy,
 } from './model';
 import { GjelleFilament } from './felles';
+
+/** Desimaler for en lengde i mm: 0,05 mm, 1,5 mm, 30 mm, 500 mm. */
+const mmDecimals = (mm: number) => (mm < 1 ? 2 : mm < 10 ? 1 : 0);
 
 /** O₂-nivå (0–1) i vevet som farge: grått uten O₂, rødt med mye O₂. */
 const o2Color = (level: number) => mixColor(BIO.dod, BIO.oksygenrikt, Math.min(1, Math.max(0, level)));
@@ -117,7 +124,7 @@ export default function RespirasjonHosDyr() {
 
       <Readouts>
         <Readout label="Andel av kroppen med nok O₂" value={fmtPct(cov)} tone={cov < 0.999 ? VIZ.muted : BIO.oksygenrikt} />
-        <Readout label="Bare diffusjon i vev: tid inn til midten" value={formatDuration(tCentre)} />
+        <Readout label="Overflate per volum" value={fmtSig(surfacePerVolume(d), 2)} unit="mm² per mm³" />
         <Readout
           label="Diffusjonsavstand der O₂ tas opp"
           value={strategy.barrier === null ? formatMeters(R) : strategy.id === 'trakeer' ? '< 1 µm' : `ca. ${formatMeters(strategy.barrier * 1e-6)}`}
@@ -132,14 +139,15 @@ export default function RespirasjonHosDyr() {
 
       <Formula label="Diffusjon tar tid">
         <FormulaLine>
-          Tid til midten: t ≈ x² / (2D) = ({fmt(R * 1000, R < 1e-3 ? 2 : 1)} mm)² / (2 · {fmt(D_TISSUE * 1e6, 3)} mm²/s) ={' '}
+          Tid til midten: t ≈ x² / (2D) = ({fmt(R * 1000, mmDecimals(R * 1000))} mm)² / (2 · {fmt(D_TISSUE * 1e6, 3)} mm²/s) ={' '}
           {formatDuration(tCentre)}
         </FormulaLine>
         <FormulaLine>
-          Dobbelt så tykk kropp gir fire ganger så lang tid.
+          Overflate per volum (kule): A/V = 6/d = 6/({fmt(d * 1000, mmDecimals(d * 1000))} mm) = {fmtSig(surfacePerVolume(d), 2)} mm²
+          per mm³
         </FormulaLine>
-        <FormulaLine>Ficks lov: raskere diffusjon med stor overflate, stor forskjell og kort avstand.
-        </FormulaLine>
+        <FormulaLine>Dobbelt så tykk kropp: fire ganger så lang diffusjonstid og halvparten så mye overflate per volum.</FormulaLine>
+        <FormulaLine>Ficks lov: raskere diffusjon med stor overflate, stor forskjell og kort avstand.</FormulaLine>
       </Formula>
 
       <Explain>{explanation(strategy, d, cov)}</Explain>
@@ -342,7 +350,7 @@ function OrganHud({ box, d }: { box: Box; d: number }) {
           key={i}
           cx={X(0.06 + (i % 7) * 0.145)}
           cy={Y(0.2 + Math.floor(i / 7) * 0.08 + (i % 2) * 0.025)}
-          r={3.6}
+          r={3.6 * Math.max(1, f * 0.85)}
           fill={BIO.oksygenrikt}
           opacity={0.85}
         />
@@ -539,19 +547,22 @@ function OrganFuglelunger({ box }: { box: Box }) {
       <Txt x={X(0.4)} y={Y(0.82) + 20 * f} size={0.78} weight={700} color={BIO.vann}>
         1 inn
       </Txt>
-      {/* Gjennom lungen bakfra og fram, én vei */}
+      {/* 2: gjennom lungen bakfra og fram, én vei (utånding) */}
       <Arrow x1={X(0.76)} y1={midY} x2={lung.x + 10} y2={midY} color={BIO.vann} width={4} head={12} />
-      {/* 2: ut via de fremre sekkene */}
+      {/* 3: fra lungen til de fremre sekkene (neste innånding), 4: ut gjennom luftrøret (neste utånding) */}
       <Arrow x1={lung.x + 6} y1={lung.y - 4} x2={X(0.3)} y2={Y(0.27)} color={BIO.vann} width={2.8} head={10} />
       <Arrow x1={X(0.12)} y1={Y(0.29)} x2={X(0.08)} y2={midY - 10} color={BIO.vann} width={2.8} head={10} />
       <Txt x={X(0.03)} y={Y(0.36) + 6 * f} anchor="start" size={0.78} weight={700} color={BIO.vann}>
-        2 ut
+        4 ut
       </Txt>
       <Txt x={X(0.52)} y={lung.y - 10} size={0.78} weight={650}>
         lunge
       </Txt>
-      <Txt x={X(0.52)} y={lung.y + lung.h + 18 * f} size={0.72} weight={650} color={BIO.vann}>
-        én vei
+      <Txt x={X(0.52)} y={lung.y + lung.h + 18 * f} size={0.72} weight={700} color={BIO.vann}>
+        2 ut · én vei
+      </Txt>
+      <Txt x={X(0.335)} y={Y(0.375)} anchor="end" size={0.78} weight={700} color={BIO.vann}>
+        3 inn
       </Txt>
       <Txt x={X(0.2)} y={Y(0.2) + 5 * f} size={0.72} weight={650}>
         fremre
@@ -694,7 +705,8 @@ function explanation(s: GasStrategy, d: number, cov: number): ReactNode {
           </p>
           <p>
             Diffusjon går raskt over korte avstander, men tida øker med kvadratet av avstanden: med vanlig stoffskifte holder det bare for en
-            kropp som er opptil ca. {formatMeters(2 * RC_SKIN)} tykk. Dyr som bare puster gjennom huden, er derfor små (hjuldyr), flate
+            kropp som er opptil ca. {formatMeters(2 * RC_SKIN)} tykk. Samtidig vokser overflaten med kvadratet av størrelsen, mens volumet (og
+            O₂-behovet) vokser med kubikken: ti ganger tykkere kropp har ti ganger mindre overflate per volum. Dyr som bare puster gjennom huden, er derfor små (hjuldyr), flate
             (flatormer, og bendelormen kan bli flere meter lang) eller har lite levende vev (maneter). Meitemarken puster også gjennom huden,
             men den har blodkretsløp som frakter O₂ videre innover.
           </p>
@@ -742,8 +754,9 @@ function explanation(s: GasStrategy, d: number, cov: number): ReactNode {
         <>
           <p>
             <strong>Lunger og blod.</strong> Lungene ligger inne i kroppen, så den tynne overflaten holdes fuktig uten å tørke ut. Hos
-            mennesket gir 300–500 millioner lungeblærer (alveoler) en samlet overflate på ca. 70 m², omtrent som en badmintonbane, og luften
-            er bare ca. 0,6 µm fra blodet. Blodkretsløpet frakter O₂ videre til alle cellene, så kroppen kan bli stor: diffusjon alene ville
+            mennesket gir 300–500 millioner lungeblærer (alveoler) en samlet overflate på ca. {fmt(HUMAN_LUNG_AREA, 0)} m², omtrent{' '}
+            {fmt(HUMAN_LUNG_AREA / HUMAN_SKIN_AREA, 0)} ganger så mye som huden (ca. {fmt(HUMAN_SKIN_AREA, 1)} m²), og luften er bare ca. 0,6 µm
+            fra blodet. Blodkretsløpet frakter O₂ videre til alle cellene, så kroppen kan bli stor: diffusjon alene ville
             brukt ca. {t} inn til midten av en kropp som er {size} tykk.
           </p>
           <p>
@@ -756,9 +769,10 @@ function explanation(s: GasStrategy, d: number, cov: number): ReactNode {
       return (
         <>
           <p>
-            <strong>Luftsekker og én vei gjennom lungene.</strong> Fugler har stive lunger og flere luftsekker som virker som belger. Når
-            fuglen puster inn (1), går frisk luft til de bakre luftsekkene; når den puster ut (2), presses den gjennom lungene og ut via de
-            fremre sekkene. Lufta strømmer derfor én vei gjennom de tynne rørene i lungene (parabronkiene) både når fuglen puster inn og ut, og
+            <strong>Luftsekker og én vei gjennom lungene.</strong> Fugler har stive lunger og flere luftsekker som virker som belger. Én porsjon
+            luft bruker to pust på veien: ved innånding (1) går frisk luft til de bakre luftsekkene, ved utånding (2) presses den fra de bakre
+            sekkene gjennom lungene, ved neste innånding (3) går den videre til de fremre sekkene, og ved neste utånding (4) går den ut gjennom
+            luftrøret. Lufta strømmer derfor én vei gjennom de tynne rørene i lungene (parabronkiene) både når fuglen puster inn og ut, og
             lungene får hele tida frisk luft.
           </p>
           <p>

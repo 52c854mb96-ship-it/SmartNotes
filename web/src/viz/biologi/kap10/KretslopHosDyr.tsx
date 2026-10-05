@@ -121,9 +121,9 @@ export default function KretslopHosDyr() {
 
       <Readouts>
         <Readout
-          label="Hjerterom"
-          value={insect ? 'Rør' : String(animal.atria + animal.ventricles)}
-          unit={insect ? '(ryggkaret)' : `(${chamberText(animal)})`}
+          label={insect ? 'Hjerte' : 'Forkamre + hjertekamre'}
+          value={insect ? 'Rørformet' : `${animal.atria} + ${animal.ventricles}`}
+          unit={insect ? undefined : `= ${animal.atria + animal.ventricles} rom`}
         />
         <Readout
           label="O₂-metning i blodet ut til kroppen"
@@ -226,7 +226,7 @@ function circuitGeometry(animal: Animal, f: number, sat: Saturations): CircuitGe
   const titleH = Math.round(26 * f);
   const gasY = titleH + 4;
   const gasMid = gasY + bh / 2;
-  const cw = narrow ? 178 : 122;
+  const cw = narrow ? 200 : 122;
   const gap = 10;
   const ah = Math.round(76 * s + 8 * (f - 1));
   const vh = Math.round(96 * s + 8 * (f - 1));
@@ -257,7 +257,7 @@ function circuitGeometry(animal: Animal, f: number, sat: Saturations): CircuitGe
       body,
       chambers: [
         { id: 'kammer', box: { x: hx - cw / 2, y: vTop, w: cw, h: vh }, lines: ['hjerte-', 'kammer'], tx, ty: vTop + vh / 2, sat: sat.venous },
-        { id: 'forkammer', box: { x: hx - cw / 2, y: aTop, w: cw, h: ah }, lines: narrow ? ['forkam-', 'mer'] : ['forkammer'], tx, ty: aTop + ah / 2, sat: sat.venous },
+        { id: 'forkammer', box: { x: hx - cw / 2, y: aTop, w: cw, h: ah }, lines: ['forkammer'], tx, ty: aTop + ah / 2, sat: sat.venous },
       ],
       paths: [
         [
@@ -337,12 +337,14 @@ function circuitGeometry(animal: Animal, f: number, sat: Saturations): CircuitGe
       { id: 'kammerV', box: { x: right, y: vTop, w: cw, h: vh }, lines: ['venstre', 'hjertekammer'], tx: laC, ty: vText, sat: sat.arterial },
     );
   } else {
+    // Med delvis skillevegg (krypdyr) står navnet over skilleveggen, i midten der blodet ikke går
+    const partial = animal.septum === 'delvis';
     chambers.push({
       id: 'kammer',
       box: { x: left, y: vTop, w: 2 * cw + gap, h: vh },
-      lines: ['hjertekammer'],
+      lines: partial ? ['hjerte-', 'kammer'] : ['hjertekammer'],
       tx: 400,
-      ty: vText,
+      ty: partial ? vTop + 0.27 * vh : vText,
       sat: [sat.toGas, sat.arterial],
     });
   }
@@ -351,7 +353,7 @@ function circuitGeometry(animal: Animal, f: number, sat: Saturations): CircuitGe
     gas,
     body,
     chambers,
-    septum: animal.septum === 'delvis' ? { x: 400, y1: vBot, y2: vBot - vh * 0.5 } : undefined,
+    septum: animal.septum === 'delvis' ? { x: 400, y1: vBot, y2: vBot - vh * 0.42 } : undefined,
     paths: [
       // kammerV: fra venstre forkammer ned i (venstre del av) hjertekammeret og ut til høyre
       [
@@ -442,7 +444,17 @@ function CircuitScene({ animal, segs, sat, f, laps, color }: SceneProps) {
   }. Blodet ut til kroppen er ${fmtPct(sat.arterial)} mettet med O₂.`;
 
   return (
-    <Figure viewBox={`0 0 800 ${g.H}`} maxHeight={narrow ? 1100 : g.H} label={label}>
+    <Figure
+      viewBox={`0 0 800 ${g.H}`}
+      maxHeight={narrow ? 1100 : g.H}
+      label={label}
+      caption={
+        <>
+          Eksempel: {animal.example} (<em>{animal.latin}</em>){animal.id === 'pattedyr' ? '; fugler har samme oppbygning' : ''}.
+          {animal.system === 'dobbelt' ? ' Hjertet er sett forfra, så dyrets høyre side er til venstre i figuren.' : ''}
+        </>
+      }
+    >
       <defs>
         {/* Kapillærnettene: fargen går fra blodet inn til blodet ut (gjellene/lungene venstre → høyre, kroppen høyre → venstre) */}
         <linearGradient id={`${gradId}-gas`} x1="0" x2="1" y1="0" y2="0">
@@ -501,7 +513,7 @@ function CircuitScene({ animal, segs, sat, f, laps, color }: SceneProps) {
       {/* Hjertet */}
       {g.chambers.map((c) => {
         const fill = Array.isArray(c.sat) ? `url(#${gradId}-${c.id})` : color(c.sat);
-        const ts = narrow ? 0.66 : 0.72;
+        const ts = narrow ? 0.8 : 0.72;
         const lh = 19 * f * ts;
         return (
           <g key={c.id}>
@@ -681,7 +693,11 @@ function InsectScene({ segs, f, laps, color }: SceneProps) {
       viewBox={narrow ? `100 0 692 ${H}` : `0 0 800 ${H}`}
       maxHeight={narrow ? 900 : H}
       label="Insekt sett fra siden: ryggkaret pumper hemolymfe fram mot hodet og ut i kroppshulen, der den strømmer fritt bakover og tilbake inn i ryggkaret gjennom ostier. Trakeer frakter luft til cellene."
-      caption="Skjematisk tegning av en gresshoppe. Trakeene er bare tegnet på bakkroppen."
+      caption={
+        <>
+          Skjematisk tegning av en vandregresshoppe (<em>Locusta migratoria</em>). Trakeene er bare tegnet på bakkroppen.
+        </>
+      }
     >
       {/* Bein */}
       {[262, 300, 338].map((x, i) => (
@@ -774,7 +790,7 @@ function PressureFigure({
   color: (v: number) => string;
 }) {
   const [ref, f] = useContainerTextScale<HTMLDivElement>();
-  const H = Math.round(300 + 250 * (f - 1));
+  const H = Math.round(320 + 260 * (f - 1));
   const pts = pressureProfile(segs);
   const spans = segmentSpans(segs);
   // Blodcellen vi følger: samme andel av kretsløpet som i scenen, men delene har andre lengder i grafen
@@ -928,13 +944,17 @@ function explanation(a: Animal, s: Saturations, activity: number): ReactNode {
           <p>
             <strong>Dobbelt kretsløp, men bare ett hjertekammer.</strong> Frosken har to forkamre: det høyre får oksygenfattig blod fra
             kroppen og det venstre oksygenrikt blod fra lungene. I det felles hjertekammeret blandes de delvis, så blodet ut til kroppen er
-            bare {fmtPct(s.arterial)} mettet, mens blodet fra lungene og huden er {fmtPct(s.gasOut)} mettet.
+            bare {fmtPct(s.arterial)} mettet, mens blodet fra lungene er {fmtPct(s.gasOut)} mettet.
           </p>
           <p>
             Fordelen med to kretsløp er at blodet pumpes på nytt etter lungene, så det får høyere trykk ut til kroppen enn hos fisk. Blandingen
             er ikke så dum som den høres ut: frosken tar også opp O₂ gjennom den fuktige huden, og når den dykker, kan blodet sendes forbi
             lungene. Et ektotermt dyr med lavt stoffskifte klarer seg godt med litt blandet blod.
             {high ? ` Ved høy aktivitet blir veneblodet mer oksygenfattig (${fmtPct(s.venous)}), og da drar blandingen ned O₂-innholdet til kroppen enda mer.` : ''}
+          </p>
+          <p>
+            Forenkling: blodet som har tatt opp O₂ i huden, går egentlig tilbake til høyre forkammer sammen med blodet fra kroppen. Her er
+            huden tegnet sammen med lungene, og blandingen m = {fmtPct(a.mixing)} er en typisk verdi som varierer med aktivitet og dykking.
           </p>
           {colours}
         </>
@@ -943,8 +963,8 @@ function explanation(a: Animal, s: Saturations, activity: number): ReactNode {
       return (
         <>
           <p>
-            <strong>Delvis skillevegg i hjertekammeret.</strong> Hos øgler, slanger og skilpadder deler en ufullstendig skillevegg
-            hjertekammeret, så det blir mindre blanding enn hos amfibier (her ca. {fmtPct(a.mixing)}). Blodet til kroppen er {fmtPct(s.arterial)}{' '}
+            <strong>Delvis skillevegg i hjertekammeret.</strong> Hos øgler, slanger og skilpadder er hjertekammeret delvis delt av en
+            skillevegg, så det blir mindre blanding enn hos amfibier (her ca. {fmtPct(a.mixing)}). Blodet til kroppen er {fmtPct(s.arterial)}{' '}
             mettet, og trykket ut til kroppen ({fmt(a.pBody, 0)} mmHg) kan bli høyere enn trykket til lungene ({fmt(a.pGas, 0)} mmHg).
           </p>
           <p>
@@ -968,7 +988,7 @@ function explanation(a: Animal, s: Saturations, activity: number): ReactNode {
             <strong>Hvorfor trenger endoterme dyr dette?</strong> Fugler og pattedyr lager kroppsvarmen sin selv ved celleånding, og bruker i
             hvile 5–10 ganger så mye O₂ som et krypdyr av samme størrelse. Da må mye blod med full O₂-metning fram til cellene raskt, og det
             krever høyt trykk og ingen blanding. Fugler og pattedyr har utviklet firedelt hjerte hver for seg (konvergent evolusjon).
-            {high ? ` Nå arbeider dyret hardt: kroppen tar ut ${fmtPct(s.extracted)} av O₂-et, og hjertet slår raskere.` : ''}
+            {high ? ` Nå arbeider dyret hardt: kroppen tar ut ${fmtPct(s.extracted / s.arterial)} av O₂-et i blodet, og hjertet slår raskere.` : ''}
           </p>
           {colours}
         </>

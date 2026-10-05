@@ -26,6 +26,7 @@ import {
   sample,
   useContainerTextScale,
   useSimClock,
+  useTextScale,
 } from '../kit';
 import {
   EXPERIMENTS,
@@ -82,6 +83,11 @@ interface ShootProps {
   tip: number;
   /** Andel auksin på venstre side (sett i vekstretningen) i vekstsonen. */
   leftShare: number;
+  /**
+   * Andel av veksten på venstre side (standard: samme som auksinet, som i stengelen). I rota hemmer mye auksin veksten,
+   * så der vokser siden med minst auksin mest.
+   */
+  growthShare?: number;
   /** Hvor mye auksin som strømmer (0 = ingen). */
   auxin: number;
   t: number;
@@ -110,7 +116,7 @@ function centerline(x: number, y: number, L: number, base: number, tip: number, 
   return out;
 }
 
-function Shoot({ x, y, L, W, base, tip, leftShare, auxin, t, paint = BIO.plante, flat, k }: ShootProps) {
+function Shoot({ x, y, L, W, base, tip, leftShare, growthShare, auxin, t, paint = BIO.plante, flat, k }: ShootProps) {
   const line = centerline(x, y, L, base, tip);
   const side = (q: { p: Pt; a: number }, s: 1 | -1, w = W / 2): Pt => {
     const r = (q.a * Math.PI) / 180;
@@ -130,8 +136,9 @@ function Shoot({ x, y, L, W, base, tip, leftShare, auxin, t, paint = BIO.plante,
   // Celleveggene: lengre celler på siden med mest auksin (i vekstsonen)
   const n = line.length - 1;
   const walls: ReactNode[] = [];
+  const growLeft = growthShare ?? leftShare;
   for (const s of [1, -1] as const) {
-    const share = s === 1 ? leftShare : 1 - leftShare;
+    const share = s === 1 ? growLeft : 1 - growLeft;
     let pos = 0.04;
     let i = 0;
     while (pos < 0.94 && i < 40) {
@@ -206,9 +213,12 @@ function LysFraSiden() {
   const [light, setLight] = useState(90);
   const [intensity, setIntensity] = useState(80);
   const clock = useSimClock({ tMax: T_MAX, speed: 30 });
-  const { reset } = clock;
-  // Ny lysretning: start på nytt med et rett skudd
-  useEffect(() => reset(), [light, intensity, reset]);
+  const { setT, pause } = clock;
+  // Vis resultatet etter tre timer når siden åpnes og når du endrer lyset (trykk «Spill av» for å se forløpet)
+  useEffect(() => {
+    pause();
+    setT(T_MAX);
+  }, [light, intensity, pause, setT]);
   const t = clock.t;
   const tip = bendAngle(light, intensity, t);
   const share = shadedShare(light, tip, intensity);
@@ -227,6 +237,19 @@ function LysFraSiden() {
           format={(v) => (v === 0 ? 'rett ovenfra' : v < 0 ? `venstre, ${fmt(-v, 0)}°` : `høyre, ${fmt(v, 0)}°`)}
         />
         <Slider label="Lysstyrke" value={intensity} onChange={setIntensity} min={0} max={100} step={5} unit="%" />
+        <Slider
+          label="Tid"
+          ariaLabel="Tid i minutter"
+          value={Math.round(t)}
+          onChange={(v) => {
+            pause();
+            setT(v);
+          }}
+          min={0}
+          max={T_MAX}
+          step={5}
+          unit="min"
+        />
       </Controls>
       <Toolbar>
         <PlayBar clock={clock} time={`${fmt(t, 0)} min`} />
@@ -244,8 +267,12 @@ function LysFraSiden() {
       <BendPlot light={light} intensity={intensity} t={t} />
       <Readouts>
         <Readout label="Auksin på skyggesiden" value={fmtPct(share)} tone={C_AUXIN} />
-        <Readout label="Cellene på skyggesiden er" value={fmt(elongationRatio(share), 2)} unit="ganger så lange" />
-        <Readout label="Bøyning etter tida" value={fmt(Math.abs(tip), 0)} unit={`° ${Math.abs(tip) < 0.5 ? '' : tip > 0 ? 'mot høyre' : 'mot venstre'}`} />
+        <Readout label="Skyggesiden vokser" value={fmt(elongationRatio(share), 2)} unit="ganger så fort" />
+        <Readout
+          label="Bøyning"
+          value={`${fmt(Math.abs(tip), 0)}°`}
+          unit={Math.abs(tip) < 0.5 ? undefined : tip > 0 ? 'mot høyre' : 'mot venstre'}
+        />
       </Readouts>
       <Formula label="Bøyningen">
         <FormulaLine>
@@ -277,48 +304,146 @@ function LightScene({
 }) {
   const narrow = f > 1.3;
   const k = Math.max(1, f * 0.85);
-  const H = narrow ? 560 : 430;
-  const groundY = H - 50;
+  const sceneH = narrow ? 560 : 430;
+  const groundY = sceneH - 50;
   const L = narrow ? 300 : 230;
   const W = narrow ? 64 : 46;
-  const cx = 400;
+  // PC: koleoptilen til venstre og cellene forstørret til høyre. Mobil: cellene under.
+  const cx = narrow ? 400 : 280;
+  const zoom: ZoomBox = narrow ? { x: 20, y: sceneH + 10, w: 760, h: 420 } : { x: 548, y: 16, w: 232, h: groundY - 4 };
+  const H = narrow ? zoom.y + zoom.h + 8 : sceneH;
   // Lampa går i en sirkel rundt midten av koleoptilen, så den alltid er inne i figuren
   const pivotY = groundY - L * 0.5;
-  const lampR = Math.min(pivotY - 30, narrow ? 340 : 300);
+  const lampR = Math.min(pivotY - 30, narrow ? 340 : 250);
   const leftShare = shadedLeft ? share : 1 - share;
+  const lit = intensity > 0 && Math.abs(light) > 4;
+  // Celleforlengelsen i vekstsonen så langt: like mye på begge sider i snitt, forskjellen gir bøyningen
+  const tau = t / T_MAX;
+  const delta = (0.3 * Math.abs(tip)) / 90;
+  const bendsRight = tip > 0.5;
+  const bendsLeft = tip < -0.5;
+  const growLeft = 1 + 0.45 * tau + (bendsRight ? delta : bendsLeft ? -delta : 0);
+  const growRight = 1 + 0.45 * tau + (bendsLeft ? delta : bendsRight ? -delta : 0);
   return (
     <Figure
       viewBox={`0 0 800 ${H}`}
-      maxHeight={narrow ? 900 : H}
+      maxHeight={narrow ? 1100 : H}
       label={`Havrekoleoptil med lys fra ${light === 0 ? 'rett ovenfra' : light < 0 ? 'venstre' : 'høyre'}. Den har bøyd seg ${fmt(Math.abs(tip), 0)} grader. ${fmtPct(share)} av auksinet er på skyggesiden.`}
     >
       <Lamp cx={cx} cy={pivotY} R={lampR} angle={light} intensity={intensity} k={k} />
-      <Soil x={20} y={groundY} w={760} h={H - groundY - 6} />
+      <Soil x={20} y={groundY} w={narrow ? 760 : 510} h={sceneH - groundY - 6} />
       <ellipse cx={cx} cy={groundY + 16} rx={34} ry={14} style={{ fill: mixColor(VIZ.surface, BIO.ved, 0.5) }} stroke={BIO.ved} strokeWidth={1.5} />
       <Shoot x={cx} y={groundY + 4} L={L} W={W} base={0} tip={tip} leftShare={leftShare} auxin={1} t={t} k={k} />
-      <Txt x={40} y={30 * f} anchor="start" weight={700} size={0.85}>
+      <Txt x={36} y={30 * f} anchor="start" weight={700} size={0.85}>
         Havrekoleoptil (<tspan fontStyle="italic">Avena sativa</tspan>)
       </Txt>
-      {Math.abs(light) > 4 && intensity > 0 && (
+      {lit && (
         <g>
-          <Txt x={shadedLeft ? cx - W - 40 : cx + W + 40} y={groundY - L * 0.45} anchor={shadedLeft ? 'end' : 'start'} size={0.78} weight={700} color={C_AUXIN}>
+          <Txt x={shadedLeft ? cx - W - 28 : cx + W + 28} y={groundY - L * 0.32} anchor={shadedLeft ? 'end' : 'start'} size={0.78} weight={700} color={C_AUXIN}>
             skyggesiden
           </Txt>
-          <Txt x={shadedLeft ? cx - W - 40 : cx + W + 40} y={groundY - L * 0.45 + 20 * f * 0.78} anchor={shadedLeft ? 'end' : 'start'} size={0.72} muted>
-            mer auksin, lengre celler
+          <Txt x={shadedLeft ? cx - W - 28 : cx + W + 28} y={groundY - L * 0.32 + 20 * f * 0.78} anchor={shadedLeft ? 'end' : 'start'} size={0.72} muted>
+            mer auksin
           </Txt>
         </g>
       )}
-      <Txt x={760} y={groundY - 12} anchor="end" size={0.75} muted>
+      <Txt x={narrow ? 760 : 520} y={groundY - 12} anchor="end" size={0.75} muted>
         {fmt(t, 0)} min
       </Txt>
+      <CellZoom box={zoom} growLeft={growLeft} growRight={growRight} leftShare={leftShare} lit={lit} shadedLeft={shadedLeft} />
     </Figure>
+  );
+}
+
+interface ZoomBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Cellene i vekstsonen forstørret: én cellerad på hver side av koleoptilen. Begge sider vokser, men siden med mest
+ * auksin får lengst celler, og koleoptilen bøyer seg mot den andre siden.
+ */
+function CellZoom({
+  box,
+  growLeft,
+  growRight,
+  leftShare,
+  lit,
+  shadedLeft,
+}: {
+  box: ZoomBox;
+  growLeft: number;
+  growRight: number;
+  leftShare: number;
+  lit: boolean;
+  shadedLeft: boolean;
+}) {
+  const f = useTextScale();
+  const k = Math.max(1, f * 0.85);
+  const titleH = 30 * f;
+  const footH = 2 * 20 * f + 8;
+  const n = 4;
+  const maxGrow = 1.8;
+  const baseY = box.y + box.h - footH;
+  const cellH = (baseY - box.y - titleH - 12 * f - 8) / (n * maxGrow);
+  const colW = Math.min(box.w > 400 ? 120 : 76, box.w * 0.26);
+  const gap = Math.min(box.w > 400 ? 70 : 40, box.w * 0.12);
+  const cols = [
+    { side: 'venstre', x: box.x + box.w / 2 - gap / 2 - colW, grow: growLeft, share: leftShare, shaded: shadedLeft },
+    { side: 'høyre', x: box.x + box.w / 2 + gap / 2, grow: growRight, share: 1 - leftShare, shaded: !shadedLeft },
+  ];
+  return (
+    <g>
+      <rect x={box.x} y={box.y} width={box.w} height={box.h} rx={14} fill="none" stroke={VIZ.grid} strokeWidth={1.5} />
+      <Txt x={box.x + box.w / 2} y={box.y + 22 * f} size={0.8} weight={700}>
+        Cellene i vekstsonen
+      </Txt>
+      {cols.map((c) => {
+        const h = cellH * c.grow;
+        const dots = Math.max(1, Math.round(c.share * 8));
+        return (
+          <g key={c.side}>
+            {Array.from({ length: n }, (_, i) => {
+              const y = baseY - (i + 1) * h;
+              return (
+                <g key={i}>
+                  <rect x={c.x} y={y} width={colW} height={h} rx={6} fill={BIO.plante.fill} stroke={BIO.plante.line} strokeWidth={1.5} />
+                  {Array.from({ length: dots }, (_, j) => (
+                    <circle
+                      key={j}
+                      cx={c.x + colW * (0.25 + 0.5 * ((j % 2) as number))}
+                      cy={y + (h * (Math.floor(j / 2) + 0.7)) / (Math.ceil(dots / 2) + 0.4)}
+                      r={3 * k}
+                      fill={C_AUXIN}
+                    />
+                  ))}
+                </g>
+              );
+            })}
+            <Txt x={c.x + colW / 2} y={baseY - n * h - 8} size={0.75} weight={700}>
+              ×{fmt(c.grow, 2)}
+            </Txt>
+            <Txt x={c.x + colW / 2} y={baseY + 20 * f} size={0.72} muted>
+              {c.side}
+            </Txt>
+            {lit && (
+              <Txt x={c.x + colW / 2} y={baseY + 40 * f} size={0.72} weight={700} color={c.shaded ? C_AUXIN : C_LIGHT}>
+                {c.shaded ? 'skygge' : 'lys'}
+              </Txt>
+            )}
+          </g>
+        );
+      })}
+    </g>
   );
 }
 
 function BendPlot({ light, intensity, t }: { light: number; intensity: number; t: number }) {
   const [ref, f] = useContainerTextScale<HTMLDivElement>();
-  const H = Math.round(300 + 250 * (f - 1));
+  const H = Math.round(320 + 260 * (f - 1));
   const sign = light < 0 ? -1 : 1;
   return (
     <div ref={ref}>
@@ -436,7 +561,7 @@ function Tyngdekraft() {
       <Readouts>
         <Readout label="Skuddet" value={shoot.bend > 0 ? 'Bøyer seg opp' : 'Vokser rett'} tone={BIO.plante.line} />
         <Readout label="Rota" value={root.bend < 0 ? 'Bøyer seg ned' : 'Vokser rett'} tone={BIO.ved} />
-        <Readout label="Vinkel fra loddrett nå" value={fmt(angle, 0)} unit="°" />
+        <Readout label="Vinkel fra loddrett nå" value={`${fmt(angle, 0)}°`} />
       </Readouts>
       <Formula label="Samme auksin, motsatt virkning">
         <FormulaLine>
@@ -454,37 +579,66 @@ function Tyngdekraft() {
 function GraviScene({ tilt, angle, f, t }: { tilt: number; angle: number; f: number; t: number }) {
   const narrow = f > 1.3;
   const k = Math.max(1, f * 0.85);
-  const H = narrow ? 600 : 430;
+  const H = narrow ? 620 : 470;
   const cx = 400;
   const cy = H / 2 + 10;
-  const L = narrow ? 230 : 170;
-  const W = narrow ? 44 : 34;
+  const L = narrow ? 235 : 200;
+  const W = narrow ? 46 : 38;
   const shoot = gravitropism('stengel', angle);
   const root = gravitropism('rot', angle);
-  // Undersiden er venstre side for skuddet (sett i vekstretningen) når det peker mot høyre
-  const shootLeft = 0.5 + (shoot.lower - shoot.upper) / (4 * GRAVI_SHIFT) * 0.3;
-  const rootRight = 0.5 + (root.lower - root.upper) / (4 * GRAVI_SHIFT) * 0.3;
+  // Andelen auksin på undersiden (samme omfordeling i skudd og rot). Skuddet peker mot høyre, så undersiden er høyre side
+  // sett i vekstretningen; rota peker mot venstre, så der er undersiden venstre side.
+  const shootLower = 0.5 + ((shoot.lower - shoot.upper) / (4 * GRAVI_SHIFT)) * 0.3;
+  const rootLower = 0.5 + ((root.lower - root.upper) / (4 * GRAVI_SHIFT)) * 0.3;
   // Statolittene i rotspissen synker mot undersiden
   const rootTipDir = 180 + angle;
-  const rootLine = centerline(cx, cy, L, 180 + tilt, rootTipDir);
+  const rootLine = centerline(cx, cy, L * 0.9, 180 + tilt, rootTipDir);
+  const shootLine = centerline(cx, cy, L, tilt, angle);
   const tipQ = rootLine[rootLine.length - 4]!;
+  const shootTip = shootLine[shootLine.length - 1]!.p;
+  const rootTip = rootLine[rootLine.length - 1]!.p;
   return (
-    <Figure viewBox={`0 0 800 ${H}`} maxHeight={narrow ? 900 : H} label={`Kimplante lagt ${fmt(tilt, 0)} grader. Etter ${fmt(t, 0)} minutter peker skuddet ${fmt(angle, 0)} grader fra loddrett opp og rota ${fmt(angle, 0)} grader fra loddrett ned.`}>
+    <Figure
+      viewBox={`0 0 800 ${H}`}
+      maxHeight={narrow ? 900 : H}
+      label={`Kimplante lagt ${fmt(tilt, 0)} grader. Etter ${fmt(t, 0)} minutter peker skuddet ${fmt(angle, 0)} grader fra loddrett opp og rota ${fmt(angle, 0)} grader fra loddrett ned.`}
+    >
       <rect x={20} y={10} width={760} height={H - 20} rx={14} fill="none" stroke={VIZ.grid} strokeWidth={1.5} />
       <line x1={70} x2={70} y1={40} y2={140} stroke={VIZ.muted} strokeWidth={2} />
       <polygon points={`70,${150} 63,${136} 77,${136}`} fill={VIZ.muted} />
       <Txt x={84} y={100} anchor="start" size={0.75} muted>
         tyngdekraft
       </Txt>
-      <Shoot x={cx} y={cy} L={L} W={W} base={tilt} tip={angle} leftShare={tilt > 0 ? shootLeft : 0.5} auxin={1} t={t} k={k} />
-      <Shoot x={cx} y={cy} L={L * 0.9} W={W * 0.75} base={180 + tilt} tip={rootTipDir} leftShare={tilt > 0 ? 1 - rootRight : 0.5} auxin={1} t={t} k={k} paint={{ fill: mixColor(VIZ.surface, BIO.ved, 0.25), line: BIO.ved }} />
+      {/* Skuddet: mest auksin og mest vekst på undersiden (høyre side) */}
+      <Shoot x={cx} y={cy} L={L} W={W} base={tilt} tip={angle} leftShare={tilt > 0 ? 1 - shootLower : 0.5} auxin={1} t={t} k={k} />
+      {/* Rota: mest auksin på undersiden (venstre side), men der hemmes veksten, så oversiden vokser mest */}
+      <Shoot
+        x={cx}
+        y={cy}
+        L={L * 0.9}
+        W={W * 0.75}
+        base={180 + tilt}
+        tip={rootTipDir}
+        leftShare={tilt > 0 ? rootLower : 0.5}
+        growthShare={tilt > 0 ? 1 - rootLower : 0.5}
+        auxin={1}
+        t={t}
+        k={k}
+        paint={{ fill: mixColor(VIZ.surface, BIO.ved, 0.25), line: BIO.ved }}
+      />
       {/* Statolitter nederst i rotspissen */}
       {[0, 1, 2].map((i) => (
-        <circle key={i} cx={tipQ.p[0] - 6 + i * 6} cy={tipQ.p[1] + 6} r={3.4 * k} fill={BIO.kloroplast.line} />
+        <circle key={i} cx={tipQ.p[0] - 7 * k + i * 7 * k} cy={tipQ.p[1] + 6} r={3.6 * k} fill={BIO.kloroplast.line} />
       ))}
       <circle cx={cx} cy={cy} r={20 * k} style={{ fill: mixColor(VIZ.surface, BIO.ved, 0.5) }} stroke={BIO.ved} strokeWidth={1.5} />
-      <Txt x={cx + 26 * k} y={cy + 30 * k + 14 * f} anchor="start" size={0.75} muted>
+      <Txt x={cx + 24 * k} y={cy + 24 * k + 14 * f} anchor="start" size={0.75} muted>
         frø
+      </Txt>
+      <Txt x={shootTip[0] + W / 2 + 12} y={shootTip[1] + 6} anchor="start" size={0.8} weight={700} color={BIO.plante.line}>
+        skudd
+      </Txt>
+      <Txt x={rootTip[0] - W / 2 - 12} y={rootTip[1] + 6} anchor="end" size={0.8} weight={700} color={BIO.ved}>
+        rot
       </Txt>
       <Txt x={760} y={H - 26} anchor="end" size={0.75} muted>
         {fmt(t, 0)} min
@@ -585,6 +739,8 @@ function graviText(tilt: number, angle: number): ReactNode {
 /* ====================================================================== */
 
 const OUTCOME_TEXT: Record<Outcome, string> = { venstre: 'bøyer seg mot venstre', rett: 'vokser rett opp', hoyre: 'bøyer seg mot høyre' };
+/** Resultatet slik det vises: uten spiss (eller med tom agar) vokser koleoptilen nesten ikke, så den bøyer seg bare ikke. */
+const resultText = (r: { outcome: Outcome; grows: boolean }) => (r.outcome === 'rett' && !r.grows ? 'bøyer seg ikke' : OUTCOME_TEXT[r.outcome]);
 
 function Forsok() {
   const [id, setId] = useState(EXPERIMENTS[0]!.id);
@@ -642,7 +798,7 @@ function Forsok() {
       <Readouts>
         <Readout label="Auksin på venstre side" value={shown ? fmtPct(r.left) : '?'} tone={C_AUXIN} />
         <Readout label="Auksin på høyre side" value={shown ? fmtPct(r.right) : '?'} tone={C_AUXIN} />
-        <Readout label="Resultat" value={shown ? capitalize(OUTCOME_TEXT[r.outcome]) : 'Ikke vist ennå'} />
+        <Readout label="Resultat" value={shown ? capitalize(resultText(r)) : 'Ikke vist ennå'} />
         <Readout
           label="Ditt svar"
           value={guess === null ? 'Ikke valgt' : shown ? (guess === r.outcome ? 'Riktig' : 'Feil') : capitalize(OUTCOME_TEXT[guess])}
@@ -675,7 +831,7 @@ function ExperimentScene({
 }) {
   const narrow = f > 1.3;
   const k = Math.max(1, f * 0.85);
-  const H = narrow ? 540 : 390;
+  const H = narrow ? 480 : 340;
   const groundY = H - 50;
   const W = narrow ? 64 : 48;
   const L0 = narrow ? 250 : 190;
@@ -709,7 +865,7 @@ function ExperimentScene({
     );
   };
   return (
-    <Figure viewBox={`0 0 800 ${H}`} maxHeight={narrow ? 900 : H} label={`${e.who}: ${e.name}. ${shown ? `Resultat: koleoptilen ${OUTCOME_TEXT[r.outcome]}.` : 'Resultatet er ikke vist ennå.'}`}>
+    <Figure viewBox={`0 0 800 ${H}`} maxHeight={narrow ? 900 : H} label={`${e.who}: ${e.name}. ${shown ? `Resultat: koleoptilen ${resultText(r)}.` : 'Resultatet er ikke vist ennå.'}`}>
       {!e.light && <rect x={20} y={10} width={760} height={groundY - 10} rx={14} fill={VIZ.bodyStrong} opacity={0.35} />}
       {e.light && <Lamp cx={cx} cy={groundY - L0 * 0.8} R={narrow ? 320 : 300} angle={90} intensity={90} k={k} />}
       <Txt x={40} y={30 * f} anchor="start" weight={700} size={0.85}>
@@ -783,7 +939,7 @@ function ExperimentScene({
       )}
       {shown && (
         <Txt x={760} y={groundY - 14} anchor="end" weight={700} size={0.85} color={BIO.plante.line}>
-          {capitalize(OUTCOME_TEXT[r.outcome])}
+          {capitalize(resultText(r))}
         </Txt>
       )}
     </Figure>

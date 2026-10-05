@@ -65,7 +65,8 @@ export default function Meiose() {
   const random = randomGametes(n, crossing, RANDOM_COUNT, seed + 1);
   const [ref, f] = useContainerTextScale<HTMLDivElement>();
   const combos = combinations(n);
-  const perCell = info.ploidy === '2n' ? 2 * n : n;
+  // I anafase II er søsterkromatidene skilt og regnes som egne kromosomer (som i mitosen): 2 · n i cella et øyeblikk
+  const perCell = info.ploidy === '2n' || info.id === 'anafase2' ? 2 * n : n;
   const cellsNow = info.fase === 'telofase' ? info.cells : info.deling === 'meiose2' ? 2 : 1;
 
   const reshuffle = () => {
@@ -113,8 +114,8 @@ export default function Meiose() {
       </div>
       <Legend
         items={[
-          { color: BIO.kromosom.mor[0], label: 'Kromosom fra mor' },
-          { color: BIO.kromosom.far[0], label: 'Kromosom fra far (samme farge = homologt par)' },
+          { color: BIO.kromosom.mor[0], label: 'Kromosomer fra mor (varme farger)' },
+          { color: BIO.kromosom.far[0], label: 'Kromosomer fra far (kalde farger)' },
           { color: BIO.cytoskjelett, label: 'Spoletråder' },
         ]}
       />
@@ -122,7 +123,11 @@ export default function Meiose() {
       <Readouts>
         <Readout label="Fase" value={info.name} />
         <Readout label="Antall celler" value={String(cellsNow)} />
-        <Readout label="Kromosomer per celle" value={String(perCell)} unit={info.ploidy === '2n' ? '(2n, diploid)' : '(n, haploid)'} />
+        <Readout
+          label="Kromosomer per celle"
+          value={String(perCell)}
+          unit={info.ploidy === '2n' ? '(2n, diploid)' : info.id === 'anafase2' ? `(n = ${n} mot hver pol)` : '(n, haploid)'}
+        />
         <Readout
           label={
             <>
@@ -185,7 +190,8 @@ function MeiosisScene({
       maxHeight={f > 1.3 ? 900 : Math.round(frame.H * 1.15)}
       label={`${info.name} med 2n = ${2 * n}${crossing ? ', med overkrysning' : ''}.`}
     >
-      <g transform={frame.transform || undefined}>
+      {/* Ny key når tekstskaleringen endres (første måling på mobil), så kromatidene ikke glir inn fra PC-plassene */}
+      <g key={Math.round(f * 20)} transform={frame.transform || undefined}>
         <Delingsfigur {...opts} />
       </g>
       <Callouts items={callouts} box={frame.box} bands={frame.bands} />
@@ -242,7 +248,7 @@ function meiosisCallouts(id: MeiosisStep, lay: DivisionLayout, crossing: boolean
     }
     case 'anafase1': {
       const s = [...lay.sentromerer].sort((a, b) => a.y - b.y)[0];
-      push(s && { x: s.x, y: s.y, text: ['Homologe kromosomer', 'skilles'], strong: true });
+      push(s && { x: s.x, y: s.y, text: ['Homologe par', 'skilles'], strong: true });
       const t = [...lay.sentromerer].sort((a, b) => b.y - a.y)[0];
       push(t && { x: t.x, y: t.y, text: ['Søsterkromatidene', 'henger sammen'] });
       push(spindleFibre());
@@ -383,7 +389,8 @@ function GameteFigure({
   const made = new Set(gametes.map((g) => g.map((c) => c.opphav).join()));
   const perRowA = narrow ? 4 : 8;
   const perRowB = narrow ? 5 : 10;
-  const r = (narrow ? 30 : 28) * (narrow ? k / 1.25 : 1);
+  // Cellene i oversikten: så store som raden tillater (8 eller 10 per rad på PC)
+  const r = narrow ? 30 * (k / 1.25) : 34;
   const cellH = 2 * r + 34;
   const head = 30 * f;
   const rowsA = Math.ceil(all.length / perRowA);
@@ -410,20 +417,22 @@ function GameteFigure({
             : 'Uten overkrysning finnes bare disse kombinasjonene.'
         }
       >
-        <Txt x={20} y={head - 4} anchor="start" weight={650} size={0.95}>
-          {`Alle 2${n === 2 ? '²' : '³'} = ${all.length} kombinasjoner (uten overkrysning)`}
-        </Txt>
-        {all.map((g, i) => {
-          const p = place(i, perRowA, all.length, yA);
-          return <MiniCelle key={i} x={p.x} y={p.y} r={r} chromatids={g} ring={made.has(g.map((c) => c.opphav).join())} />;
-        })}
-        <Txt x={20} y={yB - 14} anchor="start" weight={650} size={0.95}>
-          {`${random.length} tilfeldige kjønnsceller: ${distinct} ulike`}
-        </Txt>
-        {random.map((g, i) => {
-          const p = place(i, perRowB, random.length, yB);
-          return <MiniCelle key={i} x={p.x} y={p.y} r={r} chromatids={g} />;
-        })}
+        <g key={Math.round(f * 20)}>
+          <Txt x={20} y={head - 4} anchor="start" weight={650} size={0.95}>
+            {`Alle 2${n === 2 ? '²' : '³'} = ${all.length} kombinasjoner (uten overkrysning)`}
+          </Txt>
+          {all.map((g, i) => {
+            const p = place(i, perRowA, all.length, yA);
+            return <MiniCelle key={i} x={p.x} y={p.y} r={r} chromatids={g} ring={made.has(g.map((c) => c.opphav).join())} />;
+          })}
+          <Txt x={20} y={yB - 14} anchor="start" weight={650} size={0.95}>
+            {`${random.length} tilfeldige kjønnsceller: ${distinct} ulike`}
+          </Txt>
+          {random.map((g, i) => {
+            const p = place(i, perRowB, random.length, yB);
+            return <MiniCelle key={i} x={p.x} y={p.y} r={r} chromatids={g} />;
+          })}
+        </g>
       </Figure>
       <Legend items={[{ color: VIZ.ink, label: 'Ring: dannes i meiosen over (med denne fordelingen)' }]} />
     </div>
@@ -547,9 +556,11 @@ function ComparisonFigure({
         maxHeight={narrow ? 1400 : Math.round(H * 1.15)}
         label="Sammenligning av mitose og meiose: antall delinger, celler, kromosomtall og om cellene er like."
       >
-        {column('mitose', 0, 0)}
-        {!narrow && <line x1={400} x2={400} y1={10} y2={H - 10} stroke={VIZ.grid} strokeWidth={1.5} />}
-        {column('meiose', narrow ? 0 : 400, narrow ? blockH : 0)}
+        <g key={Math.round(f * 20)}>
+          {column('mitose', 0, 0)}
+          {!narrow && <line x1={400} x2={400} y1={10} y2={H - 10} stroke={VIZ.grid} strokeWidth={1.5} />}
+          {column('meiose', narrow ? 0 : 400, narrow ? blockH : 0)}
+        </g>
       </Figure>
     </div>
   );
@@ -634,7 +645,8 @@ function explanation(id: MeiosisStep, n: number, crossing: boolean, combos: numb
     case 'anafase2':
       main = (
         <p>
-          <strong>Anafase II.</strong> Sentromerene deler seg, og søsterkromatidene trekkes mot hver sin pol.{' '}
+          <strong>Anafase II.</strong> Sentromerene deler seg, og søsterkromatidene trekkes mot hver sin pol. Nå regnes hver kromatide
+          som et eget kromosom, så hver celle har {2 * n} kromosomer et kort øyeblikk, {n} på vei mot hver pol.{' '}
           {crossing
             ? 'Etter overkrysningen er søsterkromatidene ikke lenger helt like, så de fire cellene blir forskjellige.'
             : 'Uten overkrysning er søsterkromatidene like, så cellene fra samme celle i meiose I blir like.'}
@@ -644,8 +656,9 @@ function explanation(id: MeiosisStep, n: number, crossing: boolean, combos: numb
     case 'telofase2':
       main = (
         <p>
-          <strong>Telofase II.</strong> Resultatet er fire haploide celler med {n} kromosomer hver. Hos dyr blir de til kjønnsceller (egg
-          eller sædceller), og ved befruktningen får det befruktede egget igjen 2n = {twoN}.{' '}
+          <strong>Telofase II.</strong> Resultatet er fire haploide celler med {n} kromosomer hver. Hos menn blir alle fire til sædceller;
+          hos kvinner blir bare én av dem et egg (de tre andre blir små pollegemer som går til grunne). Ved befruktningen får det
+          befruktede egget igjen 2n = {twoN}.{' '}
           {crossing ? 'Alle fire er genetisk ulike.' : 'Cellene er like to og to, men ulike morcella.'}
         </p>
       );

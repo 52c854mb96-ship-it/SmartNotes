@@ -606,12 +606,13 @@ function explanation(p: HarvestParams, a: HarvestAnalysis, run: HarvestRun, tota
         <p>
           <strong>Kollaps og fiskestopp.</strong> Kvoten ({fmt(p.H, 2)} mill. tonn) er større enn MSY ({fmt(a.msy, 2)}), så bestanden minker.
           Under {fmtPct(STOP_BELOW)} av K stoppes fisket, og bestanden vokser til den er over {fmtPct(REOPEN_ABOVE)} av K igjen. Slik gikk det med
-          norsk vårgytende sild: bestanden kollapset rundt 1970, fisket ble nesten stoppet, og det tok rundt 20 år før silda var tilbake.
+          norsk vårgytende sild: bestanden kollapset rundt 1970, fisket ble nesten stoppet, og det tok rundt 20 år før silda var tilbake. I
+          modellen går det raskere, fordi bestanden vokser like godt hvert år (samme r).
         </p>
         <p>
           Men åpnes fisket med den samme kvoten, kollapser bestanden igjen. Fiskestopp redder bestanden, men en bærekraftig forvaltning krever
-          en kvote under MSY. Ikke alle bestander kommer tilbake: torsken ved Newfoundland kollapset i 1992 og har ikke tatt seg opp igjen, blant
-          annet fordi økosystemet endret seg mens torsken var borte.
+          en kvote under MSY. Og det kan ta lang tid: torsken ved Newfoundland kollapset i 1992, og det gikk over 30 år før fisket kunne åpnes
+          igjen, blant annet fordi økosystemet endret seg mens torsken var borte.
         </p>
         {model}
       </>

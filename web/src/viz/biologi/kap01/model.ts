@@ -9,6 +9,8 @@
  * økosystemet i eksemplene har samme utstrekning (det som skiller dem, er hva vi tar med, ikke hvor stort området er).
  */
 
+import { fmt } from '../../kit/format';
+
 /* ====================================================================== */
 /* Organisasjonsnivåer                                                      */
 /* ====================================================================== */
@@ -50,7 +52,7 @@ export interface Level {
   forest: LevelExample;
   /** En ny egenskap som oppstår på dette nivået (emergent egenskap). */
   emergent: string;
-  /** Er nivået levende i seg selv? Cellen er den minste levende enheten. */
+  /** Finnes det liv på dette nivået? Cellen er den minste levende enheten; molekyler og organeller er ikke levende alene. */
   living: boolean;
   /** Økologisk nivå (populasjon og oppover). */
   ecological: boolean;
@@ -60,7 +62,7 @@ export const LEVELS: readonly Level[] = [
   {
     id: 'molekyl',
     name: 'Molekyl',
-    definition: 'Atomer bundet sammen. De store biologiske molekylene er DNA, proteiner, karbohydrater og lipider.',
+    definition: 'Atomer bundet sammen. De store biologiske molekylene er karbohydrater, lipider, proteiner og nukleinsyrer (DNA og RNA).',
     consistsOf: 'atomer',
     human: { name: 'DNA', detail: 'Arvestoffet i cellekjernen, en dobbelthelix av to tråder.', size: 2e-9, measure: 'bredde' },
     forest: { name: 'Klorofyll', detail: 'Det grønne fargestoffet i granbaret, som fanger lys.', size: 1.5e-9, measure: 'bredde' },
@@ -76,7 +78,7 @@ export const LEVELS: readonly Level[] = [
     human: { name: 'Mitokondrie', detail: 'Lager ATP i celleåndingen. En hjertemuskelcelle har tusenvis.', size: 2e-6, measure: 'lengde' },
     forest: { name: 'Kloroplast', detail: 'Driver fotosyntesen i cellene i barnålene.', size: 5e-6, measure: 'lengde' },
     emergent:
-      'Molekylene er ordnet i membraner og enzymer som samarbeider: mitokondrien omdanner energien i sukker til ATP. Men en organell kan ikke leve alene utenfor cellen.',
+      'Molekylene er ordnet i membraner og enzymer som samarbeider: mitokondrien frigjør energien i næringsstoffer og lagrer den i ATP. Men en organell kan ikke leve alene utenfor cellen.',
     living: false,
     ecological: false,
   },
@@ -99,7 +101,8 @@ export const LEVELS: readonly Level[] = [
     consistsOf: 'celler av samme type',
     human: { name: 'Hjertemuskelvev', detail: 'Muskelceller koblet i et nettverk. Hjerteveggen er ca. 1 cm tykk.', size: 1e-2, measure: 'tykkelse' },
     forest: { name: 'Fotosyntesevev', detail: 'Tett i tett med celler fulle av kloroplaster inne i barnåla.', size: 1e-3, measure: 'tykkelse' },
-    emergent: 'Cellene er koblet sammen, så hjertemuskelvevet trekker seg sammen i takt. En enkelt celle kan ikke det.',
+    emergent:
+      'Cellene er koblet sammen, så signalet sprer seg fra celle til celle, og hele vevet trekker seg sammen samtidig. Det klarer ikke én celle alene.',
     living: true,
     ecological: false,
   },
@@ -136,7 +139,7 @@ export const LEVELS: readonly Level[] = [
     definition: 'Et helt individ, bygd av organsystemer (eller av én celle hos encellede).',
     consistsOf: 'organsystemer',
     human: { name: 'Et menneske', detail: 'Ca. 30 000 milliarder celler i ett individ.', size: 1.7, measure: 'høyde' },
-    forest: { name: 'En gran', detail: 'Vanligste treslaget i norsk skog, *Picea abies*.', size: 25, measure: 'høyde' },
+    forest: { name: 'En gran', detail: 'Treslaget med mest tømmer i norsk skog, *Picea abies*.', size: 25, measure: 'høyde' },
     emergent: 'Et helt individ kan regulere sitt indre miljø (homeostase), reagere på omgivelsene og formere seg.',
     living: true,
     ecological: false,
@@ -202,18 +205,8 @@ export function levelAt(i: number): Level {
   return LEVELS[k]!;
 }
 
-/** Hvor mange ganger større eksemplet er enn eksemplet på nivået under (samme kolonne). 1 når de er like store. */
-export function ratioToPrevious(i: number, column: 'human' | 'forest'): number | null {
-  if (i <= 0 || i >= LEVEL_COUNT) return null;
-  return LEVELS[i]![column].size / LEVELS[i - 1]![column].size;
-}
-
 /* ---------- Lengder ---------- */
 
-/** Tallformat med desimalkomma og mellomrom som tusenskille (uten avhengighet til React-kit-et). */
-function numberNo(v: number, decimals: number): string {
-  return new Intl.NumberFormat('nb-NO', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(v);
-}
 
 const UNITS: readonly { unit: string; m: number }[] = [
   { unit: 'nm', m: 1e-9 },
@@ -236,9 +229,9 @@ export function fmtLength(m: number): string {
   let text: string;
   if (v < 10) {
     const r = Math.round(v * 10) / 10;
-    text = numberNo(r, Number.isInteger(r) ? 0 : 1);
-  } else if (v < 1000) text = numberNo(Math.round(v), 0);
-  else text = numberNo(Math.round(v / 100) * 100, 0);
+    text = fmt(r, Number.isInteger(r) ? 0 : 1);
+  } else if (v < 1000) text = fmt(Math.round(v), 0);
+  else text = fmt(Math.round(v / 100) * 100, 0);
   return `${text}\u00a0${u.unit}`;
 }
 
@@ -267,27 +260,41 @@ export interface Criterion {
   name: string;
   /** Kort navn til kolonneoverskrifter og brytere. */
   short: string;
+  /** Kjennetegnet som substantiv i løpende tekst: «Det mangler celler, stoffskifte og …». */
+  noun: string;
   /** Hva kjennetegnet betyr. */
   meaning: string;
 }
 
 /** Kjennetegnene på liv i Bi 1 (rekkefølgen er rekkefølgen i figuren). */
 export const CRITERIA: readonly Criterion[] = [
-  { id: 'celler', name: 'Er bygd opp av celler', short: 'Celler', meaning: 'Alle levende organismer består av én eller flere celler.' },
+  { id: 'celler', name: 'Er bygd opp av celler', short: 'Celler', noun: 'celler', meaning: 'Alle levende organismer består av én eller flere celler.' },
   {
     id: 'stoffskifte',
     name: 'Har stoffskifte',
     short: 'Stoffskifte',
+    noun: 'stoffskifte',
     meaning: 'Tar opp stoffer og energi og bygger om dem med enzymer (f.eks. celleånding og fotosyntese).',
   },
-  { id: 'vekst', name: 'Vokser og utvikler seg', short: 'Vekst', meaning: 'Bygger nytt stoff av seg selv og går gjennom en livssyklus.' },
-  { id: 'formering', name: 'Formerer seg', short: 'Formering', meaning: 'Lager nye individer, kjønnet eller ukjønnet.' },
-  { id: 'reagerer', name: 'Reagerer på omgivelsene', short: 'Reagerer', meaning: 'Merker endringer (lys, temperatur, stoffer) og svarer på dem.' },
-  { id: 'homeostase', name: 'Holder et stabilt indre miljø', short: 'Homeostase', meaning: 'Regulerer det indre miljøet (homeostase), f.eks. vann og pH.' },
+  { id: 'vekst', name: 'Vokser og utvikler seg', short: 'Vekst', noun: 'vekst', meaning: 'Bygger nytt stoff av seg selv og går gjennom en livssyklus.' },
+  { id: 'formering', name: 'Formerer seg', short: 'Formering', noun: 'formering', meaning: 'Lager nye individer, kjønnet eller ukjønnet.' },
+  {
+    id: 'reagerer',
+    name: 'Reagerer på omgivelsene',
+    short: 'Reagerer',
+    noun: 'evnen til å reagere på omgivelsene',
+    meaning: 'Merker endringer (lys, temperatur, stoffer) og svarer på dem.' },
+  {
+    id: 'homeostase',
+    name: 'Holder et stabilt indre miljø',
+    short: 'Homeostase',
+    noun: 'homeostase',
+    meaning: 'Regulerer det indre miljøet (homeostase), f.eks. vann og pH.' },
   {
     id: 'arv',
     name: 'Har arvestoff og utvikler seg (evolusjon)',
     short: 'Arv og evolusjon',
+    noun: 'arvestoff og evolusjon',
     meaning: 'Har DNA (eller RNA) som føres videre til avkommet, så arten kan endre seg over generasjoner.',
   },
 ];
@@ -305,13 +312,17 @@ export type Mark = 'ja' | 'delvis' | 'hvile' | 'nei';
 
 export const MARK_NAMES: Record<Mark, string> = { ja: 'Ja', delvis: 'Delvis', hvile: 'Ikke nå (i hvile)', nei: 'Nei' };
 
-export type CandidateId = 'bakterie' | 'gjaer' | 'fro' | 'tardigrad' | 'virus' | 'prion' | 'ild' | 'krystall';
+export type CandidateId = 'bakterie' | 'gjaer' | 'fro' | 'bjornedyr' | 'virus' | 'prion' | 'ild' | 'krystall';
 
 export interface Candidate {
   id: CandidateId;
   /** Navn med stor forbokstav (figur og nedtrekksliste). */
   name: string;
-  /** Vitenskapelig navn når det finnes (kursiv i visningen). */
+  /** Bestemt form med stor forbokstav til løpende tekst: «Viruset», «Bakterien». */
+  the: string;
+  /** Pronomenet som viser til kandidaten: «den» (hankjønn/hunkjønn) eller «det» (intetkjønn). */
+  pron: 'den' | 'det';
+  /** Vitenskapelig navn på arten når det finnes (kursiv i visningen). */
   sci?: string;
   marks: Record<CriterionId, { mark: Mark; why: string }>;
   /** Hva biologene mener, kort. */
@@ -322,13 +333,15 @@ const m = (mark: Mark, why: string) => ({ mark, why });
 
 /**
  * Kandidatene. Vurderingene følger Bi 1 og vanlige lærebøker; grensetilfellene er bevisst valgt fordi de deler
- * kjennetegnene på ulike måter. «Tardigrad i dvale» = bjørnedyr i tørkedvale (tun-stadium), der stoffskiftet er nede i
- * under 0,01 % av det normale (kryptobiose).
+ * kjennetegnene på ulike måter. «Bjørnedyr i dvale» = bjørnedyr (tardigrader, rekken Tardigrada) i tørkedvale
+ * (tun-stadium), der stoffskiftet er nede i under 0,01 % av det normale (kryptobiose).
  */
 export const CANDIDATES: readonly Candidate[] = [
   {
     id: 'bakterie',
     name: 'Bakterie',
+    the: 'Bakterien',
+    pron: 'den',
     sci: 'Escherichia coli',
     marks: {
       celler: m('ja', 'Én prokaryot celle med cellemembran, cellevegg og ribosomer.'),
@@ -344,6 +357,8 @@ export const CANDIDATES: readonly Candidate[] = [
   {
     id: 'gjaer',
     name: 'Gjærcelle',
+    the: 'Gjærcellen',
+    pron: 'den',
     sci: 'Saccharomyces cerevisiae',
     marks: {
       celler: m('ja', 'Én eukaryot celle med cellekjerne og mitokondrier.'),
@@ -359,6 +374,8 @@ export const CANDIDATES: readonly Candidate[] = [
   {
     id: 'fro',
     name: 'Frø',
+    the: 'Frøet',
+    pron: 'det',
     marks: {
       celler: m('ja', 'Et lite plantefoster (kim) og opplagsnæring, bygd av celler.'),
       stoffskifte: m('hvile', 'Nesten ingen celleånding mens det er tørt. Starter igjen når frøet får vann.'),
@@ -368,29 +385,32 @@ export const CANDIDATES: readonly Candidate[] = [
       homeostase: m('hvile', 'Tåler uttørking i hvile. Regulerer igjen når det spirer.'),
       arv: m('ja', 'Har DNA fra begge foreldrene.'),
     },
-    consensus: 'Et frø er levende, men i hvile (latent liv). Noen frø kan spire etter flere hundre år.',
+    consensus: 'Frø regnes som levende. Noen frø kan spire etter flere hundre år.',
   },
   {
-    id: 'tardigrad',
-    name: 'Tardigrad i dvale',
-    sci: 'Tardigrada',
+    id: 'bjornedyr',
+    name: 'Bjørnedyr i dvale',
+    the: 'Bjørnedyret',
+    pron: 'det',
     marks: {
       celler: m('ja', 'Et lite dyr (under 1 mm) bygd av celler.'),
       stoffskifte: m('hvile', 'I tørkedvale er stoffskiftet nede i under 0,01 % av det normale.'),
-      vekst: m('hvile', 'Vokser ikke i dvale, men fortsetter når den får vann.'),
-      formering: m('hvile', 'Kan ikke formere seg i dvale, men legger egg når den er aktiv.'),
-      reagerer: m('hvile', 'Reagerer ikke på lys eller berøring i dvale, men våkner når den får vann.'),
+      vekst: m('hvile', 'Vokser ikke i dvale, men fortsetter når det får vann.'),
+      formering: m('hvile', 'Kan ikke formere seg i dvale, men legger egg når det er aktivt.'),
+      reagerer: m('hvile', 'Reagerer ikke på lys eller berøring i dvale, men våkner når det får vann.'),
       homeostase: m('hvile', 'Tørker nesten helt ut og beskytter cellene med spesielle sukker og proteiner.'),
-      arv: m('ja', 'Har DNA og er en dyreart med egen evolusjon.'),
+      arv: m('ja', 'Har DNA. Bjørnedyr (tardigrader) er en egen dyrerekke med rundt 1300 arter.'),
     },
     consensus:
-      'En tardigrad i dvale regnes som levende, fordi den har alt som trengs og våkner igjen. Den har overlevd både tørke, kulde og verdensrommet.',
+      'Et bjørnedyr i dvale regnes som levende, fordi det har alt som trengs og våkner igjen. Bjørnedyr har overlevd både tørke, kulde og verdensrommet.',
   },
   {
     id: 'virus',
     name: 'Virus',
+    the: 'Viruset',
+    pron: 'det',
     marks: {
-      celler: m('nei', 'Bare arvestoff i en proteinkappe (kapsid). Ingen cellemembran, ingen ribosomer.'),
+      celler: m('nei', 'Bare arvestoff i en proteinkappe (kapsid), hos noen med en fettkappe fra vertscellen. Ingen ribosomer.'),
       stoffskifte: m('nei', 'Har ingen enzymer for å lage energi. Bruker vertscellens stoffskifte.'),
       vekst: m('nei', 'Vokser ikke: nye virus settes sammen av ferdige deler inne i vertscellen.'),
       formering: m('delvis', 'Formerer seg bare inne i en levende vertscelle, ved å bruke cellens maskineri.'),
@@ -404,6 +424,8 @@ export const CANDIDATES: readonly Candidate[] = [
   {
     id: 'prion',
     name: 'Prion',
+    the: 'Prionet',
+    pron: 'det',
     marks: {
       celler: m('nei', 'Et feilfoldet protein, ikke en celle.'),
       stoffskifte: m('nei', 'Har ikke stoffskifte.'),
@@ -418,6 +440,8 @@ export const CANDIDATES: readonly Candidate[] = [
   {
     id: 'ild',
     name: 'Ild',
+    the: 'Ilden',
+    pron: 'den',
     marks: {
       celler: m('nei', 'Ingen celler: en kjemisk reaksjon mellom brensel og oksygen.'),
       stoffskifte: m('delvis', 'Bruker oksygen og frigjør energi, som celleånding, men uten enzymer og uten regulering.'),
@@ -432,8 +456,10 @@ export const CANDIDATES: readonly Candidate[] = [
   {
     id: 'krystall',
     name: 'Krystall',
+    the: 'Krystallen',
+    pron: 'den',
     marks: {
-      celler: m('nei', 'Atomer eller ioner i et fast mønster, f.eks. salt eller is.'),
+      celler: m('nei', 'Atomer, ioner eller molekyler i et fast mønster, f.eks. salt eller is.'),
       stoffskifte: m('nei', 'Har ikke stoffskifte.'),
       vekst: m('delvis', 'Vokser i en mettet løsning ved at flere like ioner fester seg på overflaten.'),
       formering: m('delvis', 'En bit som brekker av, kan bli starten på en ny krystall.'),
@@ -451,10 +477,11 @@ export function candidate(id: CandidateId): Candidate {
   return c;
 }
 
-export type Verdict = 'levende' | 'grense' | 'ikke' | 'ingen';
+export type Verdict = 'levende' | 'hvile' | 'grense' | 'ikke' | 'ingen';
 
 export const VERDICT_NAMES: Record<Verdict, string> = {
   levende: 'Levende',
+  hvile: 'Levende i hvile',
   grense: 'Grensetilfelle',
   ikke: 'Ikke levende',
   ingen: 'Ingen krav',
@@ -462,13 +489,15 @@ export const VERDICT_NAMES: Record<Verdict, string> = {
 
 /**
  * Dom etter en definisjon (kjennetegnene som kreves): `ikke` når ett krav ikke er oppfylt, `levende` når alle er helt
- * oppfylt, ellers `grense` (noen krav bare delvis eller ikke nå). `ingen` når ingen kjennetegn er valgt.
+ * oppfylt, `hvile` når resten bare er satt på pause (latent liv, som frø og bjørnedyr i dvale), ellers `grense` (noen
+ * krav bare delvis eller tilsynelatende oppfylt). `ingen` når ingen kjennetegn er valgt.
  */
 export function verdict(c: Candidate, required: readonly CriterionId[]): Verdict {
   if (required.length === 0) return 'ingen';
   const marks = required.map((r) => c.marks[r].mark);
   if (marks.includes('nei')) return 'ikke';
   if (marks.every((x) => x === 'ja')) return 'levende';
+  if (marks.every((x) => x === 'ja' || x === 'hvile')) return 'hvile';
   return 'grense';
 }
 

@@ -211,11 +211,6 @@ export function diffusionReach(t: number, D = D_O2): number {
   return Math.sqrt(2 * D * Math.max(0, t));
 }
 
-/** Avstanden fra overflaten til midten: halve siden eller radien. */
-export function centreDistance(d: number): number {
-  return d / 2;
-}
-
 /** Tid som tekst med passende enhet: 0,0062 → «6,3 ms», 95 → «1,6 min», 7200 → «2,0 timer». */
 export function formatDuration(s: number): string {
   const f = (v: number) => (v >= 100 ? fmtNo(v, 0) : v >= 10 ? fmtNo(v, 0) : fmtNo(v, 1));
@@ -304,7 +299,7 @@ export interface Outgrowth {
  * Utposninger modellert som sylindre på et flatt underlag (kit-et regner bare sideflatene; toppen erstatter flaten
  * under). Omtrentlige verdier fra lærebøker:
  * - Tarmtotter: 0,5–1 mm lange og ca. 0,1 mm tykke, 20–40 per mm² → ca. 7–10 ganger så stor overflate. Mikrovilli på
- *   hver tarmcelle gir ca. 20 ganger til.
+ *   hver tarmcelle gir ca. 13 ganger til (Helander og Fändriks 2014, se GUT).
  * - Rothår: ca. 0,01 mm tykke og opptil 1–1,5 mm lange, svært tette. Hos en rugplante (Dittmer 1937) var rotsystemet
  *   uten rothår ca. 240 m² og rothårene ca. 400 m²; standardverdiene (0,45 mm, 100 per mm²) gir samme forhold, ca. 2,7.
  */
@@ -441,21 +436,24 @@ export function gutArea(villi: number): number {
  */
 export const ROOT_AREA = 240;
 
-/** Kjente flater å sammenligne med (m²), med entall og flertall uten artikkel. */
-export const AREA_REFERENCES: readonly { navn: string; en: string; flere: string; m2: number }[] = [
-  { navn: 'et A4-ark', en: 'A4-ark', flere: 'A4-ark', m2: 0.0624 },
-  { navn: 'et skrivebord', en: 'skrivebord', flere: 'skrivebord', m2: 1 },
-  { navn: 'en parkeringsplass', en: 'parkeringsplass', flere: 'parkeringsplasser', m2: 12.5 },
-  { navn: 'en badmintonbane', en: 'badmintonbane', flere: 'badmintonbaner', m2: 82 },
-  { navn: 'en tennisbane', en: 'tennisbane', flere: 'tennisbaner', m2: 261 },
-  { navn: 'en fotballbane', en: 'fotballbane', flere: 'fotballbaner', m2: 7140 },
+/** Kjente flater å sammenligne med (m²): navn med artikkel og flertall. */
+export const AREA_REFERENCES: readonly { navn: string; flere: string; m2: number }[] = [
+  { navn: 'et A4-ark', flere: 'A4-ark', m2: 0.0624 },
+  { navn: 'et skrivebord', flere: 'skrivebord', m2: 1 },
+  { navn: 'en parkeringsplass', flere: 'parkeringsplasser', m2: 12.5 },
+  { navn: 'en badmintonbane', flere: 'badmintonbaner', m2: 82 },
+  { navn: 'en tennisbane', flere: 'tennisbaner', m2: 261 },
+  { navn: 'en fotballbane', flere: 'fotballbaner', m2: 7140 },
 ];
 
-/** Den kjente flaten som er nærmest (på logaritmisk skala), og hvor mange av den det er. */
-export function compareArea(m2: number): { navn: string; en: string; flere: string; ratio: number } {
+/**
+ * Den største kjente flaten som ikke er større enn m2 (så det blir «2,7 parkeringsplasser», ikke «0,4 badmintonbane»), og
+ * hvor mange av den det er. Mindre enn et A4-ark: sammenlignet med A4-arket.
+ */
+export function compareArea(m2: number): { navn: string; flere: string; m2: number; ratio: number } {
   let best = AREA_REFERENCES[0]!;
-  for (const r of AREA_REFERENCES) if (Math.abs(Math.log(m2 / r.m2)) < Math.abs(Math.log(m2 / best.m2))) best = r;
-  return { navn: best.navn, en: best.en, flere: best.flere, ratio: m2 / best.m2 };
+  for (const r of AREA_REFERENCES) if (r.m2 <= m2 * 1.0001) best = r;
+  return { navn: best.navn, flere: best.flere, m2: best.m2, ratio: m2 / best.m2 };
 }
 
 /* ====================================================================== */
@@ -531,6 +529,30 @@ export function respiration(T: number): number {
 /** Netto O₂-produksjon: det planten gir fra seg (negativ: den tar opp O₂). */
 export function netO2(I: number, C: number, T: number): number {
   return grossPhotosynthesis(I, C, T) - respiration(T);
+}
+
+export interface LeafExchange {
+  /** Glukose + O₂ fra kloroplasten til mitokondrien, og CO₂ + H₂O tilbake (samme fart, i O₂-enheter). */
+  internal: number;
+  /** Netto inn i cellen utenfra (negativ = ut): CO₂ og H₂O. */
+  co2In: number;
+  h2oIn: number;
+  /** Netto O₂ ut av cellen (negativ = inn). */
+  o2Out: number;
+  /** Glukose som lagres som stivelse (negativ = hentes fra stivelse). */
+  starch: number;
+}
+
+/**
+ * Stoffbalansen i en bladcelle med fotosyntese P og celleånding R (summeformlene, 6 CO₂ + 6 H₂O ⇌ C₆H₁₂O₆ + 6 O₂):
+ * mitokondrien får glukose og O₂ fra kloroplasten og gir CO₂ og H₂O tilbake (min(P, R)). Bare forskjellen P − R går inn
+ * og ut av cellen: CO₂ og H₂O inn og O₂ ut når P > R, motsatt når R > P. Overskuddet lagres som stivelse.
+ */
+export function leafExchange(P: number, R: number): LeafExchange {
+  const p = Math.max(0, P);
+  const r = Math.max(0, R);
+  const net = p - r;
+  return { internal: Math.min(p, r), co2In: net, h2oIn: net, o2Out: net, starch: net };
 }
 
 /**

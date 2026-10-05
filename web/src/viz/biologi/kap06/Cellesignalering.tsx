@@ -247,7 +247,7 @@ function SignalCell({
     const level = cas.levels[lvl]!;
     const n = counts[lvl] ?? 0;
     const show = iconCount(n);
-    const iconY = narrow ? y + 24 * f + 18 : y + rowH / 2;
+    const iconY = narrow ? y + 24 * f + 25 : y + rowH / 2;
     const step = (iconX1 - iconX0) / 18;
     const items: ReactNode[] = [];
     if (!water && lvl === 1) items.push(<DnaStrand key="dna" x0={iconX0 - 4} x1={iconX1} y={iconY + 2} k={k} />);
@@ -526,7 +526,11 @@ function signalText(kind: HormoneKind, t: number, hormones: number, receptor: bo
     );
   const amp = (
     <p>
-      <strong>Forsterkning:</strong> hvert aktivt enzym lager eller aktiverer mange molekyler på neste trinn, så {hormones}{' '}
+      <strong>Forsterkning:</strong>{' '}
+      {water
+        ? 'hvert aktivt molekyl (reseptor eller enzym) aktiverer eller lager mange molekyler på neste trinn'
+        : 'genet skrives av til mange mRNA-molekyler, og hvert mRNA leses av ribosomene mange ganger'}
+      , så {hormones}{' '}
       {hormones === 1 ? 'hormonmolekyl' : 'hormonmolekyler'} gir til slutt ca. {fmtBig(cascadeTotals(kind, hormones)[last] ?? 0)}{' '}
       {water ? 'glukosemolekyler' : 'proteinmolekyler'}
       {done < 0.99 ? ` (så langt ${fmtBig(counts[last] ?? 0)})` : ''}. Derfor trengs det bare svært små mengder hormon i blodet.

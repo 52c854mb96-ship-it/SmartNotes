@@ -281,6 +281,14 @@ export function carrierVmax(n: number, kcat: number = GLUT.kcat): number {
 }
 
 /**
+ * Det netto glukose inn flater ut mot når det er svært mye glukose ute: n · kcat · (1 − c_inne/(c_inne + Km)). Når det
+ * er glukose inne, frakter noen av bæreproteinene glukose ut igjen, så nettoen når aldri helt opp til n · kcat.
+ */
+export function carrierNetMax(cIn: number, n: number, Km: number = GLUT.Km, kcat: number = GLUT.kcat): number {
+  return carrierVmax(n, kcat) * (1 - carrierOccupancy(cIn, Km));
+}
+
+/**
  * Kaliumkanal: en åpen kanal slipper gjennom ca. 10⁶–10⁸ ioner per sekund (Hille, Ion Channels of Excitable
  * Membranes). Her: 10⁵ ioner per s per mmol/L forskjell, så 136 mmol/L gir ca. 1,4 · 10⁷ per s. Spenningen over
  * membranen er ikke tatt med.

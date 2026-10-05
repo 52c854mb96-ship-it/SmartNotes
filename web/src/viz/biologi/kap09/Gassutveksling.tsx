@@ -134,8 +134,8 @@ export default function Gassutveksling() {
       <CurveFigure g={g} />
       <Legend
         items={[
-          { color: RED, label: 'Metningskurve i lungene (pH 7,4, 37 °C)' },
-          { color: TISSUE_C, label: `Metningskurve i vevet (pH ${fmt(pH, 2)}, ${fmt(T, 1)} °C)`, dashed: true },
+          { color: RED, label: `Metningskurve i lungene (pH ${fmt(g.pHa, 2)}, 37 °C)` },
+          { color: TISSUE_C, label: `Metningskurve i vevet (pH ${fmt(g.pHt, 2)}, ${fmt(T, 1)} °C)`, dashed: true },
         ]}
       />
 
@@ -156,9 +156,15 @@ export default function Gassutveksling() {
           Lufttrykk {fmt(airPressure(h), 1)} kPa · O<Sub>2</Sub> i alveolene {fmt(g.PAO2, 1)} kPa · P50 = {fmt(g.p50Tissue, 2)} kPa i vevet
           (normalt {fmt(P50_STANDARD, 1)} kPa)
         </FormulaLine>
+        {g.PvO2 < PO2 - 0.05 && (
+          <FormulaLine>
+            I høyden: O<Sub>2</Sub>-trykket i vevet {fmt(PO2, 1)} → {fmt(g.PvO2, 1)} kPa, behov {fmt(g.demand, 0)} mL per liter blod
+            {g.limited ? ' (ikke nok)' : ''}
+          </FormulaLine>
+        )}
       </Formula>
 
-      <Explain>{explanation(g, h, PO2, pH, T)}</Explain>
+      <Explain>{explanation(g, h, PO2, T)}</Explain>
     </VizLayout>
   );
 }
@@ -257,7 +263,7 @@ function LungPanel({ x, y, w, h, head, g, f, k, lw, alvR }: PanelProps & { alvR:
   const x0 = x + 20;
   const x1 = x + w - 20;
   const Pv = g.PvO2;
-  const S = (u: number) => saturation(capillaryPO2(u, Pv, g.PaO2));
+  const S = (u: number) => saturation(capillaryPO2(u, Pv, g.PaO2), g.p50Lung);
   const dO2 = Math.max(0, g.PAO2 - Pv);
   const dCO2 = Math.max(0, g.PvCO2 - g.PACO2);
   return (
@@ -365,9 +371,19 @@ function TissuePanel({ x, y, w, h, head, g, f, k, lw }: PanelProps) {
           />
         </g>
       ))}
-      <Txt x={x + w / 2} y={cellTop + 22 * f} size={0.75} muted>
-        celleånding bruker O₂
-      </Txt>
+      {(() => {
+        const c0 = cells[0]!;
+        return (
+          <g>
+            <Txt x={c0.x - c0.w / 2 + 12} y={cellTop + 22 * f} anchor="start" size={0.75} muted>
+              Celleånding
+            </Txt>
+            <Txt x={c0.x - c0.w / 2 + 12} y={cellTop + 42 * f} anchor="start" size={0.75} muted>
+              bruker O₂
+            </Txt>
+          </g>
+        );
+      })()}
       {[0.25, 0.5].map((u, i) => (
         <Arrow
           key={i}
@@ -476,7 +492,7 @@ function CurveFigure({ g }: { g: GasExchange }) {
 /* Forklaring                                                               */
 /* ====================================================================== */
 
-function explanation(g: GasExchange, h: number, PO2: number, pH: number, T: number): ReactNode {
+function explanation(g: GasExchange, h: number, PO2: number, T: number): ReactNode {
   const shifted = g.p50Tissue > g.p50Lung + 0.15;
   const gain = g.released - g.releasedNoBohr;
   const diffusion = (
@@ -487,15 +503,17 @@ function explanation(g: GasExchange, h: number, PO2: number, pH: number, T: numb
       alveolene ({fmt(g.PACO2, 1)} kPa). I vevet snur forskjellene: cellene bruker O<Sub>2</Sub> i celleåndingen og lager CO<Sub>2</Sub>.
     </p>
   );
-  const causes = [pH < 7.36 ? 'lav pH (mer CO₂, som gir karbonsyre, og melkesyre)' : null, T > 37.4 ? 'høy temperatur' : null].filter(
+  const causes = [g.pHt < 7.36 ? 'lav pH (mer CO₂, som gir karbonsyre, og melkesyre)' : null, T > 37.4 ? 'høy temperatur' : null].filter(
     (c): c is string => c !== null,
   );
   const bohr = shifted ? (
     <p>
-      <strong>Bohr-effekten.</strong> I vevet er pH {fmt(pH, 2)} og temperaturen {fmt(T, 1)} °C.{' '}
-      {causes.length ? `${capitalize(causes.join(' og '))} gjør` : 'Forholdene i vevet gjør'} at hemoglobinet slipper oksygenet lettere:
-      kurven flyttes mot høyre (P50 = {fmt(g.p50Tissue, 2)} kPa i stedet for {fmt(g.p50Lung, 1)}). Blodet avgir {fmt(g.released, 0)} mL O
-      <Sub>2</Sub> per liter, {fmt(Math.max(0, gain), 0)} mL mer enn uten Bohr-effekten. Slik får muskler som arbeider hardt, mest oksygen.
+      <strong>Bohr-effekten.</strong> I vevet er pH {fmt(g.pHt, 2)} og temperaturen {fmt(T, 1)} °C
+      {g.pHa > 7.42 ? `, mens blodet i lungene har pH ${fmt(g.pHa, 2)}` : ''}.{' '}
+      {causes.length ? `${capitalize(causes.join(' og '))} gjør` : 'Forskjellen i pH mellom lungene og vevet gjør'} at hemoglobinet slipper
+      oksygenet lettere i vevet: kurven der ligger mer mot høyre (P50 = {fmt(g.p50Tissue, 2)} kPa i stedet for {fmt(g.p50Lung, 1)} kPa i
+      lungene). Blodet avgir {fmt(g.released, 0)} mL O<Sub>2</Sub> per liter, {fmt(Math.max(0, gain), 0)} mL mer enn uten Bohr-effekten.
+      Slik får muskler som arbeider hardt, mest oksygen.
     </p>
   ) : g.p50Tissue < g.p50Lung - 0.15 ? (
     <p>
@@ -514,10 +532,16 @@ function explanation(g: GasExchange, h: number, PO2: number, pH: number, T: numb
     h >= 1500 ? (
       <p>
         <strong>I høyden ({fmt(h, 0)} moh.)</strong> er lufttrykket lavere, så O<Sub>2</Sub>-trykket i alveolene er bare {fmt(g.PAO2, 1)}{' '}
-        kPa.{' '}
+        kPa. Vi puster mer, CO<Sub>2</Sub> faller og blodet blir litt basisk (pH {fmt(g.pHa, 2)}), så kurven i lungene flyttes litt mot
+        venstre og hemoglobinet binder O<Sub>2</Sub> lettere. Blodet i vevet blir like mye mer basisk (pH {fmt(g.pHt, 2)}).{' '}
         {g.SaO2 > 0.9
           ? `Fordi kurven er flat øverst, er blodet likevel ${fmtPct(g.SaO2)} mettet. Den S-formede kurven beskytter oss.`
-          : `Nå er vi på den bratte delen av kurven, og blodet er bare ${fmtPct(g.SaO2)} mettet. Derfor bruker fjellklatrere ofte ekstra oksygen på de høyeste toppene.`}
+          : `Nå er vi på den bratte delen av kurven, og blodet er bare ${fmtPct(g.SaO2)} mettet.`}{' '}
+        {g.limited
+          ? `Arterieblodet har ikke nok oksygen til at vevet får de ${fmt(g.demand, 0)} mL per liter blod det trenger, så musklene klarer ikke å arbeide like hardt. Derfor bruker fjellklatrere ofte ekstra oksygen på de høyeste toppene.`
+          : g.PvO2 < PO2 - 0.05
+            ? `For at vevet skal få like mye oksygen som ved havet, må O₂-trykket i vevet falle fra ${fmt(PO2, 1)} til ${fmt(g.PvO2, 1)} kPa.`
+            : ''}
       </p>
     ) : (
       <p>

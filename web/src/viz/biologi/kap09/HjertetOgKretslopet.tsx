@@ -42,6 +42,9 @@ import {
 
 const RED = BIO.oksygenrikt;
 const BLUE = BIO.oksygenfattig;
+/** Klaffene: grønne når de er åpne, mørke når de er lukket (ikke rødt, som er oksygenrikt blod). */
+const VALVE_OPEN = BIO.sir.R;
+const VALVE_SHUT = VIZ.ink;
 /** Blod (mL) som flytter prikkene én runde rundt i figuren (ikke i målestokk: i virkeligheten 5 L). */
 const LAP_ML = 900;
 
@@ -110,8 +113,8 @@ export default function HjertetOgKretslopet() {
         items={[
           { color: RED, label: 'Oksygenrikt blod' },
           { color: BLUE, label: 'Oksygenfattig blod' },
-          { color: BIO.sir.R, label: 'Klaff åpen' },
-          { color: BIO.sir.I, label: 'Klaff lukket' },
+          { color: VALVE_OPEN, label: 'Klaff åpen' },
+          { color: VALVE_SHUT, label: 'Klaff lukket' },
         ]}
       />
 
@@ -176,9 +179,12 @@ function CirculationFigure({ st, t, HR, SV }: { st: HeartState; t: number; HR: n
   const lw = useLineScale();
   const narrow = f > 1.3;
   const k = Math.max(1, f * 0.85);
-  const H = Math.round(600 + 60 * (f - 1));
+  const H0 = Math.round(600 + 60 * (f - 1));
+  // På mobil forstørres tegningen litt (kretsløpet har plass i bredden), så kamrene og etikettene blir lesbare
+  const zoom = narrow ? 1.12 : 1;
+  const H = Math.round(H0 * zoom);
   const yLung = 70;
-  const yBody = H - 70;
+  const yBody = H0 - 70;
   // Kamrene (sett forfra: hjertets høyre side til venstre i figuren)
   const aSq = 1 - 0.14 * st.atrialSqueeze;
   const vSq = 1 - 0.16 * st.ventricularSqueeze;
@@ -266,7 +272,7 @@ function CirculationFigure({ st, t, HR, SV }: { st: HeartState; t: number; HR: n
     const len = 20;
     const a = open ? 70 : 0;
     const rad = (a * Math.PI) / 180;
-    const col = open ? BIO.sir.R : BIO.sir.I;
+    const col = open ? VALVE_OPEN : VALVE_SHUT;
     return (
       <g key={key}>
         <line
@@ -303,87 +309,89 @@ function CirculationFigure({ st, t, HR, SV }: { st: HeartState; t: number; HR: n
         label={`Hjertet og det doble kretsløpet. ${HEART_PHASE_NAMES[st.phase]}. Volum i hvert hjertekammer ${fmt(st.volume, 0)} mL.`}
         caption="Sett forfra: hjertets høyre side er til venstre i figuren. Blodmengden og farten i figuren er ikke i målestokk."
       >
-        {/* Lungene og kroppen */}
-        <path
-          d={roundedRectPath(220, yLung - 44, 360, 92, 30)}
-          fill={mixColor(BIO.vannFyll, RED, 0.08)}
-          stroke={VIZ.grid}
-          strokeWidth={1.5}
-        />
-        <path
-          d={roundedRectPath(130, yBody - 40, 620, 84, 30)}
-          fill={mixColor(BIO.cytoplasma, BLUE, 0.06)}
-          stroke={VIZ.grid}
-          strokeWidth={1.5}
-        />
-        {label(400, yLung - 22, 'Lungene (lungekapillærer)', 'middle', undefined, 0.8)}
-        {label(
-          narrow ? 420 : 400,
-          yBody + 34 + 6 * (f - 1),
-          narrow ? 'Kroppen' : 'Kroppen (kapillærer i organene)',
-          'middle',
-          undefined,
-          0.8,
-        )}
-        {/* Blodårene */}
-        {vessel(0, 2, BLUE, 20)}
-        {vessel(3, 6, BLUE)}
-        {vessel(6, 10, mixColor(BLUE, RED, 0.5), 10)}
-        {vessel(10, 13, RED)}
-        {vessel(13, 15, RED, 20)}
-        {vessel(16, 20, RED, 18)}
-        {vessel(20, 26, mixColor(RED, BLUE, 0.5), 10)}
-        {vessel(26, 30, BLUE, 18)}
-        {/* Hjertet */}
-        {chamber(RA, BLUE)}
-        {chamber(RV, BLUE, 2.2)}
-        {chamber(LA, RED)}
-        {chamber(LV, RED, 4.5)}
-        <line x1={400} x2={400} y1={318} y2={440} stroke={BIO.membran} strokeWidth={6 * lw} strokeLinecap="round" />
-        {/* Klaffene */}
-        {valve(300, yValveAV, st.avOpen, 1, 'avh')}
-        {valve(500, yValveAV, st.avOpen, 1, 'avv')}
-        {valve(378, 308, st.semilunarOpen, -1, 'pulm')}
-        {valve(422, 308, st.semilunarOpen, -1, 'aorta')}
-        {/* Blodet */}
-        {Array.from({ length: N }, (_, i) => {
-          const s = i / N + flow;
-          const p = pointAt(path, acc, s);
-          return <circle key={i} cx={p.x} cy={p.y} r={r} fill={colorAt(s)} stroke={VIZ.surface} strokeWidth={1.1 * lw} />;
-        })}
-        {/* Etiketter */}
-        {[
-          [RA, 'Høyre', 'forkammer'],
-          [LA, 'Venstre', 'forkammer'],
-          [RV, 'Høyre', 'hjertekammer'],
-          [LV, 'Venstre', 'hjertekammer'],
-        ].map(([c, a, b]) => {
-          const box = c as typeof RA;
-          return (
-            <g key={`${a}${b}`}>
-              <Txt x={box.x} y={box.y - 2} size={narrow ? 0.55 : 0.7} weight={650}>
-                {a as string}
-              </Txt>
-              <Txt x={box.x} y={box.y + (narrow ? 13 : 16) * f} size={narrow ? 0.55 : 0.7} weight={650}>
-                {b as string}
-              </Txt>
+        <g transform={zoom === 1 ? undefined : `translate(400 0) scale(${zoom}) translate(-400 0)`}>
+          {/* Lungene og kroppen */}
+          <path
+            d={roundedRectPath(220, yLung - 44, 360, 92, 30)}
+            fill={mixColor(BIO.vannFyll, RED, 0.08)}
+            stroke={VIZ.grid}
+            strokeWidth={1.5}
+          />
+          <path
+            d={roundedRectPath(130, yBody - 40, 620, 84, 30)}
+            fill={mixColor(BIO.cytoplasma, BLUE, 0.06)}
+            stroke={VIZ.grid}
+            strokeWidth={1.5}
+          />
+          {label(400, yLung - 22, 'Lungene (lungekapillærer)', 'middle', undefined, 0.8)}
+          {label(
+            narrow ? 420 : 400,
+            yBody + 34 + 6 * (f - 1),
+            narrow ? 'Kroppen' : 'Kroppen (kapillærer i organene)',
+            'middle',
+            undefined,
+            0.8,
+          )}
+          {/* Blodårene */}
+          {vessel(0, 2, BLUE, 20)}
+          {vessel(3, 6, BLUE)}
+          {vessel(6, 10, mixColor(BLUE, RED, 0.5), 10)}
+          {vessel(10, 13, RED)}
+          {vessel(13, 15, RED, 20)}
+          {vessel(16, 20, RED, 18)}
+          {vessel(20, 26, mixColor(RED, BLUE, 0.5), 10)}
+          {vessel(26, 30, BLUE, 18)}
+          {/* Hjertet */}
+          {chamber(RA, BLUE)}
+          {chamber(RV, BLUE, 2.2)}
+          {chamber(LA, RED)}
+          {chamber(LV, RED, 4.5)}
+          <line x1={400} x2={400} y1={318} y2={440} stroke={BIO.membran} strokeWidth={6 * lw} strokeLinecap="round" />
+          {/* Klaffene */}
+          {valve(300, yValveAV, st.avOpen, 1, 'avh')}
+          {valve(500, yValveAV, st.avOpen, 1, 'avv')}
+          {valve(378, 308, st.semilunarOpen, -1, 'pulm')}
+          {valve(422, 308, st.semilunarOpen, -1, 'aorta')}
+          {/* Blodet */}
+          {Array.from({ length: N }, (_, i) => {
+            const s = i / N + flow;
+            const p = pointAt(path, acc, s);
+            return <circle key={i} cx={p.x} cy={p.y} r={r} fill={colorAt(s)} stroke={VIZ.surface} strokeWidth={1.1 * lw} />;
+          })}
+          {/* Etiketter */}
+          {[
+            [RA, 'Høyre', 'forkammer'],
+            [LA, 'Venstre', 'forkammer'],
+            [RV, 'Høyre', 'hjertekammer'],
+            [LV, 'Venstre', 'hjertekammer'],
+          ].map(([c, a, b]) => {
+            const box = c as typeof RA;
+            return (
+              <g key={`${a}${b}`}>
+                <Txt x={box.x} y={box.y - 2} size={narrow ? 0.62 : 0.7} weight={650}>
+                  {a as string}
+                </Txt>
+                <Txt x={box.x} y={box.y + (narrow ? 14 : 16) * f} size={narrow ? 0.62 : 0.7} weight={650}>
+                  {b as string}
+                </Txt>
+              </g>
+            );
+          })}
+          {!narrow && (
+            <g>
+              {label(240, 170, 'Lungearterien', 'end', BLUE)}
+              {label(562, 172, 'Lungevenene', 'start', RED)}
+              {label(574, 116, 'Aorta', 'start', RED)}
+              {label(92, 340, 'Hulvenene', 'start', BLUE)}
+              {label(258, yValveAV + 6, 'seilklaff', 'end')}
+              {label(542, yValveAV + 6, 'seilklaff', 'start')}
+              {label(400, 268, 'lommeklaffer', 'middle', undefined, 0.65)}
+              {label(740, 300, 'Kropps-', 'start', undefined, 0.72)}
+              {label(740, 320, 'kretsløpet', 'start', undefined, 0.72)}
+              {label(600, 40, 'Lungekretsløpet', 'start', undefined, 0.72)}
             </g>
-          );
-        })}
-        {!narrow && (
-          <g>
-            {label(240, 170, 'Lungearterien', 'end', BLUE)}
-            {label(562, 172, 'Lungevenene', 'start', RED)}
-            {label(574, 116, 'Aorta', 'start', RED)}
-            {label(92, 340, 'Hulvenene', 'start', BLUE)}
-            {label(258, yValveAV + 6, 'seilklaff', 'end')}
-            {label(542, yValveAV + 6, 'seilklaff', 'start')}
-            {label(400, 268, 'lommeklaffer', 'middle', undefined, 0.65)}
-            {label(740, 300, 'Kropps-', 'start', undefined, 0.72)}
-            {label(740, 320, 'kretsløpet', 'start', undefined, 0.72)}
-            {label(600, 40, 'Lungekretsløpet', 'start', undefined, 0.72)}
-          </g>
-        )}
+          )}
+        </g>
         {/* Fasen */}
         <Txt x={20} y={narrow ? H - 10 : 128} anchor="start" size={0.85} weight={700}>
           {st.phase === 'hjertekammersystole' ? 'Systole' : st.phase === 'diastole' ? 'Diastole' : 'Forkammersystole'}
@@ -435,7 +443,7 @@ function VolumePlot({ HR, SV, t }: { HR: number; SV: number; t: number }) {
               ))}
               <line x1={x0} x2={x1} y1={sy(edv)} y2={sy(edv)} stroke={VIZ.muted} strokeWidth={1.2} strokeDasharray="4 5" />
               <line x1={x0} x2={x1} y1={sy(esv)} y2={sy(esv)} stroke={VIZ.muted} strokeWidth={1.2} strokeDasharray="4 5" />
-              <Txt x={x1 - 6} y={sy(edv) - 8} anchor="end" size={0.8} weight={650}>
+              <Txt x={x1 - 6} y={sy(edv) - 11} anchor="end" size={0.8} weight={650}>
                 {`slagvolum = ${fmt(edv, 0)} − ${fmt(esv, 0)} = ${fmt(SV, 0)} mL`}
               </Txt>
               <path d={linePath(pts, sx, sy)} fill="none" stroke={BIO.dna} strokeWidth={3.2} />
@@ -491,9 +499,9 @@ function explanation(st: HeartState, HR: number, SV: number, co: number): ReactN
   const output =
     co < 3.5 ? (
       <p>
-        Minuttvolumet er bare {fmt(co, 1)} L/min, mye mindre enn de ca. 5 L/min kroppen trenger i hvile. Med så lav puls og så lite
-        slagvolum får organene for lite blod og oksygen. Hos friske øker pulsen eller slagvolumet automatisk; ved hjertesvikt klarer ikke
-        hjertet å pumpe nok.
+        Minuttvolumet er bare {fmt(co, 1)} L/min, mye mindre enn de ca. 5 L/min kroppen trenger i hvile.{' '}
+        {HR < 60 && SV < 60 ? 'Med så lav puls og så lite slagvolum' : HR < 60 ? 'Med så lav puls' : 'Med så lite slagvolum'} får organene
+        for lite blod og oksygen. Hos friske øker pulsen eller slagvolumet automatisk; ved hjertesvikt klarer ikke hjertet å pumpe nok.
       </p>
     ) : co < 6 ? (
       <p>

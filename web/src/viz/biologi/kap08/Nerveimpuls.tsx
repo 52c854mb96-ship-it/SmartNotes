@@ -56,8 +56,10 @@ import {
 type Mode = 'ap' | 'ledning';
 const NA = BIO.natrium;
 const K = BIO.kalium;
-const T_MAX = 15;
-const STIM1 = 2;
+const T_MAX = 16;
+/** Første stimulus (ms): litt ut i grafen, så det er plass til etiketten «depolarisering» foran aksjonspotensialet. */
+const STIM1 = 3;
+const T_TICKS = [0, 2, 4, 6, 8, 10, 12, 14, 16];
 
 export default function Nerveimpuls() {
   const [mode, setMode] = useState<Mode>('ap');
@@ -86,7 +88,7 @@ export default function Nerveimpuls() {
 function ActionPotential() {
   const [S, setS] = useState(20);
   const [two, setTwo] = useState(false);
-  const [interval, setInterval] = useState(4);
+  const [interval, setStimGap] = useState(4);
   const run = useMemo(
     () =>
       simulateNeuron(
@@ -102,7 +104,7 @@ function ActionPotential() {
   // Vis toppen av det første aksjonspotensialet når siden åpnes
   const clock = useSimClock({ tMax: T_MAX, speed: 1.2 });
   const { setT, pause } = clock;
-  useEffect(() => setT(2.75), [setT]);
+  useEffect(() => setT(STIM1 + 0.75), [setT]);
   const t = clock.t;
   const st = membraneAt(run, t);
   const s1 = run.stimuli[0]!;
@@ -116,7 +118,7 @@ function ActionPotential() {
           <Slider
             label="Tid mellom stimuliene"
             value={interval}
-            onChange={setInterval}
+            onChange={setStimGap}
             min={1}
             max={10}
             step={0.5}
@@ -188,7 +190,7 @@ function ActionPotential() {
       <Formula label="Når terskelen">
         <FormulaLine>
           Stimulus 1: {fmt(V_REST, 0)} mV + {fmt(S, 0)} mV = {fmt(V_REST + S, 0)} mV {V_REST + S >= V_THRESHOLD ? '≥' : '<'} terskelen{' '}
-          {fmt(V_THRESHOLD, 0)} mV → {s1.fired ? 'aksjonspotensial' : 'bare lokal depolarisering'}
+          {fmt(V_THRESHOLD, 0)} mV → {s1.fired ? 'aksjonspotensial' : S === 0 ? 'ingen depolarisering' : 'bare lokal depolarisering'}
         </FormulaLine>
         {s2 && (
           <FormulaLine>
@@ -408,7 +410,7 @@ function PotentialPlot({ run, t }: { run: NeuronRun; t: number }) {
         label={`Membranpotensialet over ${T_MAX} ms. ${run.spikes.length} aksjonspotensial${run.spikes.length === 1 ? '' : 'er'}.`}
       >
         <Plot
-          x={{ min: 0, max: T_MAX, label: 'Tid (ms)', ticks: [0, 3, 6, 9, 12, 15] }}
+          x={{ min: 0, max: T_MAX, label: 'Tid (ms)', ticks: T_TICKS }}
           y={{ min: -105, max: 40, label: 'Membranpotensial (mV)', ticks: [-100, -80, -60, -40, -20, 0, 20, 40] }}
           width={800}
           height={H1}
@@ -435,7 +437,7 @@ function PotentialPlot({ run, t }: { run: NeuronRun; t: number }) {
                   />
                   {!narrow && i === 0 && (
                     <g>
-                      <Txt x={sx(s + ABS_REFRACTORY / 2)} y={y1 + 16} size={0.7} muted>
+                      <Txt x={sx(s + ABS_REFRACTORY * 0.65)} y={y1 + 16} size={0.7} muted>
                         absolutt
                       </Txt>
                       <Txt x={sx(s + (ABS_REFRACTORY + REL_REFRACTORY) / 2)} y={y1 + 16} size={0.7} muted>
@@ -491,7 +493,7 @@ function PotentialPlot({ run, t }: { run: NeuronRun; t: number }) {
         </Plot>
         <g transform={`translate(0 ${H1})`}>
           <Plot
-            x={{ min: 0, max: T_MAX, label: 'Tid (ms)', ticks: [0, 3, 6, 9, 12, 15] }}
+            x={{ min: 0, max: T_MAX, label: 'Tid (ms)', ticks: T_TICKS }}
             y={{ min: 0, max: 100, label: 'Åpne (%)', ticks: [0, 50, 100] }}
             width={800}
             height={H2}
@@ -685,7 +687,7 @@ function Conduction() {
         items={[
           { color: NA, label: 'Aksjonspotensial (Na⁺ strømmer inn)' },
           { color: VIZ.muted, label: 'Refraktær del (kan ikke fyre igjen ennå)' },
-          { color: BIO.lipidHode, label: 'Myelinskjede (Schwannske celler)' },
+          { color: BIO.lipidHode, label: 'Myelinskjede (schwannske celler)' },
         ]}
       />
       <Readouts>
@@ -705,7 +707,7 @@ function Conduction() {
       </Formula>
       <Explain>
         <p>
-          <strong>Saltatorisk ledning.</strong> Myelinskjeden er lag på lag av cellemembranen til Schwannske celler, og den isolerer
+          <strong>Saltatorisk ledning.</strong> Myelinskjeden er lag på lag av cellemembranen til schwannske celler, og den isolerer
           aksonet. Spenningsstyrte natriumkanaler finnes nesten bare i de små åpningene mellom skjedene, Ranviers innsnøringer.
           Aksjonspotensialet oppstår derfor bare der, og strømmen «hopper» fra innsnøring til innsnøring. Uten myelin må aksjonspotensialet
           lages på nytt i hver eneste bit av membranen, og det går langt saktere.

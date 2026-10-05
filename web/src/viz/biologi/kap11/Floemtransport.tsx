@@ -31,6 +31,7 @@ import {
   ORGANS,
   PARENT,
   SEASONS,
+  canBeSource,
   matchSeason,
   phloem,
   stemDirection,
@@ -53,6 +54,18 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: 'av', label: 'ingen' },
 ];
 
+/**
+ * Skuddspissen med de unge bladene, blomstene og røttene bruker mer sukker enn de lager, så de kan bare være sluk eller
+ * ingen ting. Bladene og knollene kan være begge deler.
+ */
+const optionsFor = (id: OrganId) => (canBeSource(id) ? ROLE_OPTIONS : ROLE_OPTIONS.filter((o) => o.value !== 'kilde'));
+/** «Skuddspiss, blomster og knoller» til avlesningene (stor forbokstav bare først). */
+const labelList = (ids: OrganId[]) => {
+  if (ids.length === 0) return 'Ingen';
+  const words = ids.map((i, j) => (j === 0 ? LABEL[i] : LABEL[i].toLowerCase()));
+  return words.length === 1 ? words[0]! : `${words.slice(0, -1).join(', ')} og ${words[words.length - 1]!}`;
+};
+
 const list = (ids: OrganId[]) =>
   ids.length === 0 ? 'ingen' : ids.length === 1 ? NAME[ids[0]!] : `${ids.slice(0, -1).map((i) => NAME[i]).join(', ')} og ${NAME[ids[ids.length - 1]!]}`;
 
@@ -68,6 +81,9 @@ export default function Floemtransport() {
   const sources = ORGANS.filter((o) => r.net[o.id] > 1e-6).map((o) => o.id);
   const sinks = ORGANS.filter((o) => r.net[o.id] < -1e-6).map((o) => o.id);
   const pMax = Math.max(...NODES.map((n) => r.pressure[n]));
+  // Det sluket som trekker sterkest (etter rollene, også når det ikke får sukker, f.eks. under ringen)
+  const sinkOrgans = ORGANS.filter((o) => roles[o.id] === 'sluk');
+  const strongest = sinkOrgans.length ? sinkOrgans.reduce((a, b) => (b.sink > a.sink ? b : a)).id : null;
 
   return (
     <VizLayout>
@@ -85,7 +101,7 @@ export default function Floemtransport() {
             key={o.id}
             label={LABEL[o.id]}
             value={roles[o.id]}
-            options={ROLE_OPTIONS}
+            options={optionsFor(o.id)}
             onChange={(v) => setRoles((old) => ({ ...old, [o.id]: v }))}
           />
         ))}
@@ -95,24 +111,24 @@ export default function Floemtransport() {
       </Controls>
       <Toolbar>
         <Toggle label="Ringbarking: fjern floemet rundt stengelen" checked={girdled} onChange={setGirdled} />
-        <PlayBar clock={clock} time={`${fmt(clock.t, 0)} s`} />
+        <PlayBar clock={clock} time="hurtigfilm" />
       </Toolbar>
 
       <div ref={ref}>
-        <Scene roles={roles} r={r} f={f} t={clock.t} girdled={girdled} sources={sources} sinks={sinks} />
+        <Scene roles={roles} r={r} f={f} t={clock.t} girdled={girdled} sources={sources} sinks={sinks} dark={light === 0} />
       </div>
       <Legend
         items={[
           { color: C_SUGAR, label: 'Floem med sukker (tykkere = mer sukker)' },
           { color: C_WATER, label: 'Xylem med vann' },
           { color: BIO.plante.line, label: 'Kilde: laster sukker inn' },
-          { color: VIZ.muted, label: 'Sluk: tar sukker ut', dashed: true },
+          { color: VIZ.ink, label: 'Sluk: tar sukker ut' },
         ]}
       />
 
       <Readouts>
-        <Readout label="Kilder" value={sources.length ? sources.map((i) => LABEL[i]).join(', ') : 'Ingen'} tone={BIO.plante.line} />
-        <Readout label="Sluk" value={sinks.length ? sinks.map((i) => LABEL[i]).join(', ') : 'Ingen'} />
+        <Readout label="Kilder" value={labelList(ORGANS.filter((o) => roles[o.id] === 'kilde').map((o) => o.id))} tone={BIO.plante.line} />
+        <Readout label="Sterkeste sluk" value={strongest ? LABEL[strongest] : 'Ingen'} />
         <Readout
           label="Sukkeret i stengelen går"
           value={girdled ? 'Stopper ved ringen' : dir === 'ned' ? 'Nedover' : dir === 'opp' ? 'Oppover' : 'Står stille'}
@@ -125,12 +141,13 @@ export default function Floemtransport() {
         {r.total > 1e-6 ? (
           <>
             <FormulaLine>
+              Sukker inn (+) og ut (−):{' '}
               {ORGANS.filter((o) => Math.abs(r.net[o.id]) > 1e-6)
-                .map((o) => `${LABEL[o.id]} ${r.net[o.id] > 0 ? '+' : '−'}${fmt(Math.abs(r.net[o.id]), 2)}`)
+                .map((o) => `${LABEL[o.id].toLowerCase()} ${r.net[o.id] > 0 ? '+' : '−'}${fmt(Math.abs(r.net[o.id]), 2)}`)
                 .join(' · ')}
             </FormulaLine>
             <FormulaLine>
-              Relative enheter: + lastes inn, − tas ut. Summen er 0: det kildene laster inn, tar slukene ut
+              Relative enheter. Summen er 0: det kildene laster inn, tar slukene ut
               {girdled && r.surplus > 1e-6 ? ' (unntatt det som hoper seg opp over ringen)' : ''}.
             </FormulaLine>
           </>
@@ -163,6 +180,7 @@ function Scene({
   girdled,
   sources,
   sinks,
+  dark,
 }: {
   roles: Roles;
   r: PhloemResult;
@@ -171,6 +189,8 @@ function Scene({
   girdled: boolean;
   sources: OrganId[];
   sinks: OrganId[];
+  /** Ingen lys på bladene (de kan ikke være kilder). */
+  dark: boolean;
 }) {
   const narrow = f > 1.3;
   const titleH = 26 * f;
@@ -186,11 +206,11 @@ function Scene({
       <Txt x={P.x + 4} y={P.y - 10} anchor="start" weight={700}>
         Potetplante (<tspan fontStyle="italic">Solanum tuberosum</tspan>)
       </Txt>
-      <PlantPanel box={P} roles={roles} r={r} t={t} girdled={girdled} />
+      <PlantPanel box={P} roles={roles} r={r} t={t} girdled={girdled} dark={dark} />
       <Txt x={M.x + 4} y={M.y - 10} anchor="start" weight={700}>
         Trykkstrømmodellen
       </Txt>
-      <MunchPanel box={M} r={r} t={t} source={sources[0] ?? null} sink={strongestSink(r, sinks)} narrow={narrow} />
+      <MunchPanel box={M} r={r} t={t} source={strongestSource(r, sources)} sink={strongestSink(r, sinks)} narrow={narrow} />
     </Figure>
   );
 }
@@ -198,6 +218,11 @@ function Scene({
 function strongestSink(r: PhloemResult, sinks: OrganId[]): OrganId | null {
   if (sinks.length === 0) return null;
   return sinks.reduce((a, b) => (r.net[b] < r.net[a] ? b : a));
+}
+
+function strongestSource(r: PhloemResult, sources: OrganId[]): OrganId | null {
+  if (sources.length === 0) return null;
+  return sources.reduce((a, b) => (r.net[b] > r.net[a] ? b : a));
 }
 
 /* ---------- Planten ---------- */
@@ -222,7 +247,7 @@ function pointOn(pts: readonly Pt[], u: number): Pt {
 
 const pathD = (pts: readonly Pt[]) => `M${pts.map((p) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' L')}`;
 
-function PlantPanel({ box, roles, r, t, girdled }: { box: Box; roles: Roles; r: PhloemResult; t: number; girdled: boolean }) {
+function PlantPanel({ box, roles, r, t, girdled, dark }: { box: Box; roles: Roles; r: PhloemResult; t: number; girdled: boolean; dark: boolean }) {
   const f = useTextScale();
   const k = Math.max(1, f * 0.85);
   const X = (u: number) => box.x + u * box.w;
@@ -263,7 +288,17 @@ function PlantPanel({ box, roles, r, t, girdled }: { box: Box; roles: Roles; r: 
   const role = (id: OrganId) => roles[id];
   const roleColor = (id: OrganId) => (r.net[id] > 1e-6 ? BIO.plante.line : r.net[id] < -1e-6 ? VIZ.ink : VIZ.muted);
   const roleText = (id: OrganId) =>
-    role(id) === 'av' ? 'ingen rolle' : r.net[id] > 1e-6 ? 'kilde' : r.net[id] < -1e-6 ? 'sluk' : role(id) === 'kilde' ? 'kilde (fullt)' : 'sluk (sulter)';
+    role(id) === 'av'
+      ? 'ingen'
+      : r.net[id] > 1e-6
+        ? 'kilde'
+        : r.net[id] < -1e-6
+          ? 'sluk'
+          : role(id) === 'kilde'
+            ? id === 'blader' && dark
+              ? 'kilde (mørkt)'
+              : 'kilde (ingen sluk)'
+            : 'sluk (sulter)';
   // Bladene: to sammensatte blader fra bladnoden
   const leafBase = pos.blader;
   const leaves = leafSide.map((side) => {
@@ -300,7 +335,7 @@ function PlantPanel({ box, roles, r, t, girdled }: { box: Box; roles: Roles; r: 
   ];
   const labelPos: Record<OrganId, { x: number; y: number; anchor: 'start' | 'end' }> = {
     skudd: { x: sx + 16, y: Y(0.05) + 6 * f, anchor: 'start' },
-    blomster: { x: flowerEnd[0] + 22, y: flowerEnd[1] + 6 * f, anchor: 'start' },
+    blomster: { x: sx - 18, y: pos.blomster[1] + 6 * f, anchor: 'end' },
     blader: { x: X(0.02), y: Y(0.4) + 16 * f, anchor: 'start' },
     knoll: { x: X(0.98), y: Y(0.97), anchor: 'end' },
     rot: { x: X(0.02), y: Y(0.97), anchor: 'start' },
@@ -566,21 +601,25 @@ function MunchPanel({
           <Arrow x1={mid1[0]} y1={mid1[1]} x2={mid2[0]} y2={mid2[1]} color={VIZ.ink} width={3.5} head={12} />
         </g>
       )}
-      {/* Trykket i silrøret og navnene på rørene */}
+      {/* Trykket i silrøret (bare når sukkeret strømmer) og navnene på rørene */}
       {vertical ? (
         <>
-          <Txt x={pHigh[0]} y={pHigh[1] - 2} size={0.7} weight={700}>
-            høyt
-          </Txt>
-          <Txt x={pHigh[0]} y={pHigh[1] - 2 + lh} size={0.7} weight={700}>
-            trykk
-          </Txt>
-          <Txt x={pLow[0]} y={pLow[1] - 2} size={0.7} weight={700}>
-            lavt
-          </Txt>
-          <Txt x={pLow[0]} y={pLow[1] - 2 + lh} size={0.7} weight={700}>
-            trykk
-          </Txt>
+          {active && (
+            <>
+              <Txt x={pHigh[0]} y={pHigh[1] - 2} size={0.7} weight={700}>
+                høyt
+              </Txt>
+              <Txt x={pHigh[0]} y={pHigh[1] - 2 + lh} size={0.7} weight={700}>
+                trykk
+              </Txt>
+              <Txt x={pLow[0]} y={pLow[1] - 2} size={0.7} weight={700}>
+                lavt
+              </Txt>
+              <Txt x={pLow[0]} y={pLow[1] - 2 + lh} size={0.7} weight={700}>
+                trykk
+              </Txt>
+            </>
+          )}
           <Txt x={sieve.x + sieve.w / 2} y={sieve.y - 10} size={0.7} weight={650} color={C_SUGAR}>
             floem
           </Txt>
@@ -590,11 +629,18 @@ function MunchPanel({
         </>
       ) : (
         <>
-          <Txt x={pHigh[0]} y={pHigh[1] + 6 * f} size={0.72} weight={700}>
-            høyt trykk
-          </Txt>
-          <Txt x={pLow[0]} y={pLow[1] + 6 * f} size={0.72} weight={700}>
-            lavt trykk
+          {active && (
+            <>
+              <Txt x={pHigh[0]} y={pHigh[1] + 6 * f} size={0.72} weight={700}>
+                høyt trykk
+              </Txt>
+              <Txt x={pLow[0]} y={pLow[1] + 6 * f} size={0.72} weight={700}>
+                lavt trykk
+              </Txt>
+            </>
+          )}
+          <Txt x={sieve.x + sieve.w / 2} y={sieve.y - 12} size={0.72} weight={650} color={C_SUGAR}>
+            floem
           </Txt>
           <Txt x={xylem.x + xylem.w / 2} y={xylem.y + xylem.h / 2 + 6 * f} size={0.72} weight={650} color={C_WATER}>
             xylem (vann)
@@ -622,7 +668,7 @@ function MunchPanel({
         {active ? `${sinkName} (sluk)` : 'Sluk'}
       </Txt>
       {!active && (
-        <Txt x={box.x + box.w / 2} y={vertical ? box.y + box.h / 2 : xylem.y + xylem.h + 26 * f} size={0.75} weight={650} muted>
+        <Txt x={box.x + box.w / 2} y={vertical ? sieve.y + sieve.h + 22 * f : xylem.y + xylem.h + 26 * f} size={0.75} weight={650} muted>
           ingen strøm
         </Txt>
       )}
@@ -676,8 +722,8 @@ function explanation(
           </>
         ) : season === 'var' ? (
           <>
-            <strong>Vår:</strong> settepoteten har ingen grønne blader ennå. Stivelsen i knollen brytes ned til sukker, som sendes{' '}
-            <strong>oppover</strong> til skuddspissen, de unge bladene og røttene. Knollen er altså en kilde om våren.{' '}
+            <strong>Vår:</strong> settepoteten har ingen utvokste blader ennå. Stivelsen i knollen brytes ned til sukker, som sendes{' '}
+            <strong>oppover</strong> til skuddspissen og de unge bladene og ut i de nye røttene. Knollen er altså en kilde om våren.{' '}
           </>
         ) : season === 'sommer' ? (
           <>
@@ -707,7 +753,7 @@ function explanation(
   }
   const girdle = girdled ? (
     <p>
-      <strong>Ringbarking.</strong> Floemet ligger ytterst, rett under barken, mens xylemet ligger lenger inn. Når en ring av barken fjernes,
+      <strong>Ringbarking.</strong> Floemet ligger i den innerste delen av barken, mens xylemet (veden) ligger lenger inn. Når en ring av barken fjernes,
       kan vannet fortsatt gå opp, men sukkeret kommer ikke forbi ringen.{' '}
       {r.deficit > 1e-6 ? `Delene under ringen (${list(ORGANS.filter((o) => component(o.id) === 'under' && roles[o.id] === 'sluk').map((o) => o.id))}) får ikke sukker og sulter etter hvert. ` : ''}
       {r.surplus > 1e-6 ? 'Over ringen hoper sukkeret seg opp, og barken sveller. ' : ''}

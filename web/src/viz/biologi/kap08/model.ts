@@ -95,6 +95,15 @@ export function localResponse(dt: number, S: number): number {
   return S * Math.exp(-(dt - STIM_RAMP) / TAU_LOCAL);
 }
 
+/**
+ * Hvor mye av et stimulus som virker i den absolutte refraktærperioden: mange ionekanaler er åpne (særlig K⁺), så
+ * membranen har lav motstand og det meste av strømmen lekker ut. Depolariseringen blir derfor bare en liten bump, ikke
+ * en ny topp.
+ */
+export function shuntFactor(tau: number): number {
+  return 1 / (1 + 6 * (naOpen(tau) + kOpen(tau)));
+}
+
 export interface Stimulus {
   /** Tidspunkt (ms). */
   t: number;
@@ -156,7 +165,9 @@ export function simulateNeuron(input: readonly Stimulus[]): NeuronRun {
       spikes.push(crossing);
       stimuli.push({ ...s, fired, crossing, vBefore, threshold, refractory });
     } else {
-      parts.push({ kind: 'local', t: s.t, S: s.S });
+      // I den absolutte refraktærperioden lekker det meste av stimuluset ut gjennom de åpne kanalene
+      const S = refractory === 'absolutt' ? s.S * shuntFactor(tau) : s.S;
+      parts.push({ kind: 'local', t: s.t, S });
       stimuli.push({ ...s, fired, crossing: null, vBefore, threshold, refractory });
     }
   }

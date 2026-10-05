@@ -213,12 +213,19 @@ function TreeFigure({
 
   // Etiketter på navngitte knutepunkter. De skal ikke overlappe hverandre eller krysse greiner (da ser teksten
   // overstrøket ut), så greinene er hindringer. De felles stamformene plasseres først.
+  const branches: LabelBox[] = [];
   const taken: LabelBox[] = [];
   for (const n of nodes) {
     if (!n.children.length) continue;
     const x = px(n);
-    taken.push({ x0: x - 1.5, x1: x + 1.5, y0: py(n.children[0]!), y1: py(n.children.at(-1)!) });
-    for (const c of n.children) taken.push({ x0: x, x1: px(c), y0: py(c) - 1.5, y1: py(c) + 1.5 });
+    branches.push({ x0: x - 1.5, x1: x + 1.5, y0: py(n.children[0]!), y1: py(n.children.at(-1)!) });
+    for (const c of n.children) branches.push({ x0: x, x1: px(c), y0: py(c) - 1.5, y1: py(c) + 1.5 });
+  }
+  // Markeringene av de to felles stamformene skal heller ikke dekkes av tekst
+  for (const m of [mY, mZ]) {
+    const p = placed.get(m)!;
+    const rr = 10 * k;
+    taken.push({ x0: px(p) - rr, x1: px(p) + rr, y0: py(p) - rr, y1: py(p) + rr });
   }
   const labels: ReactNode[] = [];
   const root = nodes[0]!;
@@ -245,37 +252,50 @@ function TreeFigure({
       return pa - pb || a.depth - b.depth;
     });
   for (const n of order) {
-    const name = (n.node as { name?: string }).name!;
+    const full = (n.node as { name?: string }).name!;
     const isY = n.node === mY;
     const isZ = n.node === mZ;
     const strong = isY || isZ;
-    const w = name.length * (strong ? 0.62 : 0.57) * fs;
     const nx = px(n);
     const ny = py(n);
+    // De fremhevede knutepunktene har en stor markering; hold teksten klar av den
+    const gapL = strong ? 9 * k + 3 : 7;
+    const gapR = strong ? 9 * k + 4 : 9;
     const candidates: { x: number; y: number; anchor: 'start' | 'end' }[] = [
-      { x: nx - 7, y: ny - 6, anchor: 'end' },
-      { x: nx - 7, y: ny + fs + 3, anchor: 'end' },
-      { x: nx + 9, y: ny - 6, anchor: 'start' },
-      { x: nx + 9, y: ny + fs + 3, anchor: 'start' },
+      { x: nx - gapL, y: ny - 6, anchor: 'end' },
+      { x: nx - gapL, y: ny + fs + 3, anchor: 'end' },
+      { x: nx + gapR, y: ny - 6, anchor: 'start' },
+      { x: nx + gapR, y: ny + fs + 3, anchor: 'start' },
     ];
+    // Først uten å krysse greiner; de to fremhevede stamformene får navnet sitt uansett (teksten har en glorie, så den
+    // kan krysse en grein), men aldri oppå en annen etikett. Får ikke hele navnet plass, prøves navnet uten parentes.
+    const variants = strong && full.includes(' (') ? [full, full.split(' (')[0]!] : [full];
     let chosen: { x: number; y: number; anchor: 'start' | 'end' } | null = null;
-    for (const c of candidates) {
-      const box: LabelBox = {
-        x0: c.anchor === 'end' ? c.x - w : c.x,
-        x1: c.anchor === 'end' ? c.x : c.x + w,
-        y0: c.y - fs * 0.8,
-        y1: c.y + 2,
-      };
-      if (box.x0 < xRoot || box.x1 > xLeaf + 4 || box.y0 < 0 || box.y1 > H) continue;
-      if (taken.some((t) => overlaps(t, box))) continue;
-      taken.push(box);
-      chosen = c;
-      break;
+    let name = full;
+    search: for (const v of variants) {
+      const w = v.length * (strong ? 0.62 : 0.57) * fs;
+      for (const avoidBranches of strong ? [true, false] : [true]) {
+        for (const c of candidates) {
+          const box: LabelBox = {
+            x0: c.anchor === 'end' ? c.x - w : c.x,
+            x1: c.anchor === 'end' ? c.x : c.x + w,
+            y0: c.y - fs * 0.8,
+            y1: c.y + 2,
+          };
+          if (box.x0 < xRoot || box.x1 > xLeaf + 4 || box.y0 < 0 || box.y1 > H) continue;
+          if (taken.some((t) => overlaps(t, box))) continue;
+          if (avoidBranches && branches.some((t) => overlaps(t, box))) continue;
+          taken.push(box);
+          chosen = c;
+          name = v;
+          break search;
+        }
+      }
     }
     if (!chosen) continue;
     labels.push(
       <Txt
-        key={`${name}-${n.row}`}
+        key={`${full}-${n.row}`}
         x={chosen.x}
         y={chosen.y}
         anchor={chosen.anchor}
@@ -342,7 +362,7 @@ function TreeFigure({
         const role = id === x ? VIZ.ink : id === y ? COL_Y : id === z ? COL_Z : null;
         return (
           <g key={id}>
-            <OrganismGlyph id={id} x={xLeaf + 8 + glyph / 2} y={cy} size={glyph} />
+            <OrganismGlyph id={id} x={xLeaf + 8 + glyph / 2} y={cy} size={glyph} flagell={false} />
             <Txt x={xLeaf + 8 + glyph + 8} y={cy + 6 * f} anchor="start" size={nameSize} weight={role ? 700 : 500} color={role ?? undefined}>
               {o.italic ? <tspan fontStyle="italic">{o.short}</tspan> : o.short}
             </Txt>
@@ -419,8 +439,8 @@ const SPECIFIC: Record<Question['id'], Record<TreeMode, ReactNode>> = {
   arke: {
     utseende: (
       <>
-        Arker, bakterier og gjærceller er for små til å sees uten mikroskop. Ingen visste at de fantes før Antoni van Leeuwenhoek så dem i
-        1670-årene, så etter ytre likhet havner de i én gruppe av «små organismer».
+        Arker, bakterier og gjærceller er for små til å sees uten mikroskop. Ingen visste at det fantes mikroorganismer før Antoni van
+        Leeuwenhoek så bakterier i mikroskopet sitt i 1670-årene, så etter ytre likhet havner de i én gruppe av «små organismer».
       </>
     ),
     anatomi: (
@@ -498,9 +518,11 @@ function explanation(s: {
       <p>{main}</p>
       <p>{TECHNOLOGY[mode]}</p>
       <p>
-        <strong>Slik leser du treet:</strong> to organismer er nærmere i slekt jo lenger til høyre deres nærmeste felles stamform ligger.
-        Rekkefølgen ovenfra og ned betyr ingenting, for greinene kan dreies om knutepunktene. Ingen nålevende art er stamform til en annen:
-        mennesket stammer ikke fra sjimpansen, men begge stammer fra en felles stamform.
+        <strong>Slik leser du treet:</strong> følg greinene fra to organismer bakover mot venstre til de møtes. Der står deres nærmeste
+        felles stamform. Av to slektninger er den som møter {nm(X)} i en nyere stamform (lenger til høyre langs greina til {nm(X, 'short')}),
+        nærmest i slekt. Treet viser bare rekkefølgen av forgreiningene, ikke tid: avstanden mellom knutepunktene sier ingenting om hvor
+        lenge siden de levde. Rekkefølgen ovenfra og ned betyr heller ingenting, for greinene kan dreies om knutepunktene. Ingen nålevende
+        art er stamform til en annen: mennesket stammer ikke fra sjimpansen, men begge stammer fra en felles stamform.
       </p>
     </>
   );

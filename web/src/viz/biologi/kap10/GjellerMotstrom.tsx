@@ -27,7 +27,6 @@ import {
   useContainerTextScale,
   useSimClock,
   useSvgId,
-  useTextScale,
 } from '../kit';
 import { NTU_PER_MM, concurrentLimit, gillProfile, type Flow, type GillProfile } from './model';
 import { GjelleFilament } from './felles';
@@ -74,7 +73,7 @@ export default function GjellerMotstrom() {
         <Slider label="O₂-metning i blodet som kommer inn" value={bloodIn} onChange={setBloodIn} min={0} max={60} step={5} unit="%" />
       </Controls>
       <Toolbar>
-        <PlayBar clock={clock} time={`${fmt(clock.t, 1)} s`} />
+        <PlayBar clock={clock} time="sakte film" />
       </Toolbar>
 
       <div ref={ref}>
@@ -83,7 +82,7 @@ export default function GjellerMotstrom() {
       <Legend
         items={[
           { color: C_WATER, label: 'Vann (strømmer alltid mot høyre)' },
-          { color: C_BLOOD, label: 'O₂ i vannet (prikker) og oksygenrikt blod' },
+          { color: C_BLOOD, label: 'O₂-molekyler (prikker) og oksygenrikt blod' },
           { color: BIO.oksygenfattig, label: 'Oksygenfattig blod' },
         ]}
       />
@@ -112,7 +111,8 @@ export default function GjellerMotstrom() {
               {fmt((100 - bloodIn) / (1 + ntu), 1)} prosentpoeng
             </FormulaLine>
             <FormulaLine>
-              Blodet ut = 100 % − Δ = {fmtPct(p.bloodOut / 100)} (blodet møter hele tida vann med litt mer O₂)
+              Blodet ut = 100 % − Δ = {fmtPct(p.bloodOut / 100)} (blodet møter hele tida vann med {(100 - bloodIn) / (1 + ntu) < 20 ? 'litt ' : ''}mer
+              O₂)
             </FormulaLine>
           </>
         ) : (
@@ -121,7 +121,10 @@ export default function GjellerMotstrom() {
               Medstrøm: forskjellen forsvinner langs lamellen. Blodet når høyst snittet: (100 + {fmt(bloodIn, 0)}) / 2 ={' '}
               {fmtPct(concurrentLimit(100, bloodIn) / 100)}
             </FormulaLine>
-            <FormulaLine>Her: {fmtPct(p.bloodOut / 100)} i blodet ut, og vannet går ut med like mye O₂ som blodet</FormulaLine>
+            <FormulaLine>
+              Her: {fmtPct(p.bloodOut / 100)} i blodet ut og {fmtPct(p.waterOut / 100)} i vannet ut
+              {p.waterOut - p.bloodOut < 1 ? ': vann og blod har nådd like mye O₂' : ': lamellen er for kort til at de rekker å bli like'}
+            </FormulaLine>
           </>
         )}
         <FormulaLine>
@@ -305,7 +308,6 @@ function ProfilePlot({ p, q, flow }: { p: GillProfile; q: GillProfile; flow: Flo
 }
 
 function ProfileLines({ p, q, flow, sx, sy }: { p: GillProfile; q: GillProfile; flow: Flow; sx: (v: number) => number; sy: (v: number) => number }) {
-  const f = useTextScale();
   const wPts = sample(p.water, 0, 1, 80);
   const bPts = sample(p.blood, 0, 1, 80);
   const area = `${linePath(wPts, sx, sy)} L${[...bPts]
@@ -337,16 +339,6 @@ function ProfileLines({ p, q, flow, sx, sy }: { p: GillProfile; q: GillProfile; 
       {tri(p.water, 1, C_WATER)}
       {tri(p.blood, bloodRight ? 1 : -1, C_BLOOD)}
       <circle cx={sx(outX)} cy={sy(p.bloodOut)} r={7} fill={C_BLOOD} stroke={VIZ.surface} strokeWidth={2.5} />
-      <Txt
-        x={sx(outX) + (bloodRight ? -12 : 12)}
-        y={sy(p.bloodOut) + (bloodRight ? -14 : 30 * f)}
-        anchor={bloodRight ? 'end' : 'start'}
-        weight={700}
-        color={C_BLOOD}
-        size={0.9}
-      >
-        blodet ut: {fmt(p.bloodOut, 0)} %
-      </Txt>
     </g>
   );
 }
@@ -361,7 +353,7 @@ function explanation(flow: Flow, p: GillProfile, q: GillProfile, bloodIn: number
       O₂ diffunderer alltid fra høy til lav konsentrasjon, og jo større forskjellen er, jo raskere går det. Vann har omtrent 30 ganger mindre
       O₂ enn luft, så fisken må få mest mulig ut av vannet som strømmer over gjellene. Samme motstrømsprinsipp finnes også andre steder, for
       eksempel i beina til fugler, der varmt blod på vei ut varmer opp kaldt blod på vei tilbake. Modellen er forenklet: blodets O₂-metning
-      følger O₂-innholdet i vannet som en rett linje, og vann og blod frakter like mye O₂ per tid.
+      øker som en rett linje med O₂-trykket (hemoglobinets bindingskurve er S-formet), og vann og blod frakter like mye O₂ per tid.
     </p>
   );
   if (flow === 'motstrom')
@@ -371,12 +363,14 @@ function explanation(flow: Flow, p: GillProfile, q: GillProfile, bloodIn: number
           <strong>Motstrøm: blodet og vannet strømmer hver sin vei.</strong> Blodet som nettopp har kommet inn ({fmt(bloodIn, 0)} %), møter
           vann som allerede har gitt fra seg mye O₂, men som likevel har mer O₂ enn blodet. Lenger fram møter blodet stadig friskere vann. Derfor
           er det en forskjell som driver diffusjonen <strong>langs hele lamellen</strong>, og blodet går ut med {fmtPct(p.bloodOut / 100)}{' '}
-          O₂-metning, nær de 100 % i vannet som kommer inn.
+          O₂-metning
+          {p.bloodOut >= 80
+            ? ', nær de 100 % i vannet som kommer inn.'
+            : '. Lamellen er så kort at blodet ikke rekker å bli mettet, men det får likevel mer O₂ enn med medstrøm.'}
         </p>
         <p>
           Med medstrøm ville den samme lamellen bare gitt {fmtPct(q.bloodOut / 100)}. Fisken tar på denne måten opp {fmtPct(p.utilization)} av
           O₂-et i vannet{p.utilization > 0.6 ? ', langt mer enn vi klarer med lungene (ca. 25 % av O₂-et i lufta)' : ''}.
-          {length < 0.3 ? ' Lamellen er svært kort nå, så det er lite tid og overflate til diffusjon uansett retning.' : ''}
         </p>
         {general}
       </>
@@ -386,7 +380,8 @@ function explanation(flow: Flow, p: GillProfile, q: GillProfile, bloodIn: number
       <p>
         <strong>Medstrøm: blodet og vannet strømmer samme vei.</strong> Ved inngangen er forskjellen stor, og O₂ diffunderer raskt inn i blodet.
         Men vannet tømmes og blodet fylles samtidig, så forskjellen forsvinner. Når vann og blod har like mye O₂, stopper diffusjonen: blodet kan
-        aldri bli mer mettet enn snittet av vannet og blodet som kom inn, her {fmtPct(concurrentLimit(100, bloodIn) / 100)}.
+        aldri bli mer mettet enn snittet av vannet og blodet som kom inn, her {fmtPct(concurrentLimit(100, bloodIn) / 100)}
+        {bloodIn > 0 ? ' (med helt oksygenfattig blod inn ville grensen vært 50 %)' : ''}.
       </p>
       <p>
         Blodet går ut med {fmtPct(p.bloodOut / 100)}, og bare {fmtPct(p.utilization)} av O₂-et i vannet blir tatt opp. Med motstrøm ville den

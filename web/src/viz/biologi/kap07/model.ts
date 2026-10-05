@@ -278,24 +278,6 @@ export function allCombinations(n: number): GameteChromatid[][] {
   );
 }
 
-/** Sammenligning av mitose og meiose (lærebokas tabell). */
-export const COMPARISON = {
-  mitose: {
-    divisions: 1,
-    cells: 2,
-    ploidy: '2n (diploide)',
-    identical: 'Genetisk like morcella',
-    purpose: 'Vekst, reparasjon og ukjønnet formering',
-  },
-  meiose: {
-    divisions: 2,
-    cells: 4,
-    ploidy: 'n (haploide)',
-    identical: 'Genetisk ulike',
-    purpose: 'Kjønnsceller (egg og sædceller)',
-  },
-} as const;
-
 /* ====================================================================== */
 /* 3. Regulering av celledelingen                                           */
 /* ====================================================================== */
@@ -384,6 +366,13 @@ export function solveTissue(p: TissueParams): TissueResult {
 export function tissueAt(r: TissueResult, t: number): { normal: number; mutant: number; total: number } {
   const [n = 0, m = 0] = valueAt(r.sol, t);
   return { normal: n, mutant: m, total: n + m };
+}
+
+/** Største antall celler i vevet i løpet av modelltida (andel av fullt vev). */
+export function maxTotal(r: TissueResult): number {
+  let max = 0;
+  for (const row of r.sol.y) max = Math.max(max, (row[0] ?? 0) + (row[1] ?? 0));
+  return max;
 }
 
 /** Første tidspunkt der vevet er (nesten) helt igjen (≥ 98 %), eller null om det ikke skjer innen modelltida. */

@@ -373,9 +373,9 @@ function explanation(type: Celletype, id: OrganelleId): ReactNode {
     ),
     plante: (
       <p>
-        <strong>Plantecellen er også eukaryot.</strong> I tillegg til det dyrecellen har, har den cellevegg av cellulose, kloroplaster og en
-        stor vakuole. Legg merke til at den <em>også</em> har mitokondrier: planter lager glukose ved fotosyntese og bruker den i
-        celleåndingen, akkurat som dyr.
+        <strong>Plantecellen er også eukaryot.</strong> Den har det meste av det dyrecellen har, og i tillegg cellevegg av cellulose,
+        kloroplaster og en stor vakuole (som også gjør mye av jobben lysosomene gjør i dyreceller). Legg merke til at den <em>også</em> har
+        mitokondrier: planter lager glukose ved fotosyntese og bruker den i celleåndingen, akkurat som dyr.
       </p>
     ),
     bakterie: (

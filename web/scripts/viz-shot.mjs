@@ -66,7 +66,8 @@ try {
               const value = await slider.getAttribute(variant);
               if (value !== null) await slider.fill(value);
             }
-            await page.waitForTimeout(200);
+            // Gi animerte overganger (f.eks. kromosomer som glir mellom faser) tid til å bli ferdige.
+            await page.waitForTimeout(600);
           }
           const file = path.join(out, `${id}-${theme}-${width}${variant ? `-${variant}` : ''}.png`);
           await page.screenshot({ path: file, fullPage: true });

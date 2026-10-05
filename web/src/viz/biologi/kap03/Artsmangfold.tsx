@@ -353,8 +353,9 @@ function explanation(a: Community, b: Community, cA: number[], cB: number[], sho
       {meaning}
       {showShannon && (
         <p>
-          Shannons indeks H = −Σ p · ln p måler det samme, men legger mer vekt på sjeldne arter. Den har ingen øvre grense, så den brukes
-          gjerne sammen med jevnheten H / ln S (1 betyr helt jevn fordeling): her {fmt(jA, 2)} i A og {fmt(jB, 2)} i B.
+          Shannons indeks H = −Σ p · ln p måler det samme, men legger mer vekt på sjeldne arter. Den har ingen fast øvre grense (den
+          største verdien, ln S, vokser med antall arter), så den brukes gjerne sammen med jevnheten H / ln S (1 betyr helt jevn
+          fordeling): her {fmt(jA, 2)} i A og {fmt(jB, 2)} i B.
         </p>
       )}
       <p>
