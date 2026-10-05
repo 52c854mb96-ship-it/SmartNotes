@@ -2,6 +2,17 @@
 
 Personal app for a Norwegian student: handwritten lecture notes (photos/PDF) → Claude vision → LaTeX → PDF, organised by subject → textbook chapter → section. Subjects so far: Fysikk 1, Kjemi 1, Biologi 1 (VG2, LK20). Offline-first PWA + one Docker server that syncs devices. UI text, error messages and the PDF template are **Norwegian bokmål**; code identifiers are English.
 
+## Session start
+- Read `docs/STATUS.md` first: what the app does today, the decisions the user has made, working agreements, open questions and suggested next steps. Then check `git log origin/main` for anything newer.
+- **The user's messages in chat override this file and `docs/STATUS.md`.** Both are snapshots.
+- Key agreements (details in STATUS):
+  - Reply in Norwegian bokmål; the user likes analogies for new concepts.
+  - Ask clarifying questions before a new feature, all together, recommended option first.
+  - Work on the branch the session instructions name, open a PR to `main` and merge it yourself when CI is green (the user approved this), then reset the work branch from `main`.
+  - Never ask the user to paste API keys or passwords in chat.
+  - The user does the Railway/Anthropic Console steps themselves: give exact values to copy.
+- When a larger task is done, update `docs/STATUS.md` (and this file if the architecture changed).
+
 ## Layout
 - `shared/src/index.ts` – API contract (types only; import with `import type`).
 - `server/` – Fastify + better-sqlite3. `src/app.ts` wires everything; routes in `src/routes/`; `src/db.ts` holds all SQL (`Repo`).
