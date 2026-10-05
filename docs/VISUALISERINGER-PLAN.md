@@ -33,12 +33,14 @@
 Merk av her når en del er ferdig, og commit + push. Grenen er `claude/blissful-lamport-eh0x58`.
 
 - [x] 0. Plan, påminnelse og TeX Live
-- [ ] 1. Grunnmur
-  - [ ] `viz/kit/scene/`: materialer, skygger, bakgrunner, underlag og gjenstander, lyst og mørkt tema
-  - [ ] Eksempeloppgaver: `viz/kit/eksempel.tsx`, `kind: 'eksempel'` i `VizMeta`, egen gruppe på sidene
-  - [ ] Referanser: én oppgradert visualisering, én ny praktisk og én eksempeloppgave
-  - [ ] README i `viz/` med stilguide for illustrert realisme og eksempeloppgaver
-- [ ] 2. Fysikk (kapittel 1–10): oppgradere, lage nye, lage eksempler, kontrollere og rette
+- [x] 1. Grunnmur
+  - [x] `viz/kit/scene/`: materialer, skygger, bakgrunner, underlag og gjenstander, lyst og mørkt tema (seks familier, bygget, kontrollert og rettet)
+  - [x] Eksempeloppgaver: `viz/kit/eksempel.tsx`, `kind: 'eksempel'` i `VizMeta`, egen gruppe på sidene
+  - [x] Referanse: eksempeloppgaven `k2-eks-skraplan` (kapittelagentene oppgraderer og lager nye etter stilguiden)
+  - [x] README i `viz/` med stilguide for illustrert realisme og eksempeloppgaver
+- [ ] 2. Fysikk (kapittel 1–10): oppgradere, lage nye, lage eksempler, kontrollere og rette. Startet 5. oktober kl. 17.15 (UTC), én workflow per kapittel; hvert kapittel committes for seg («Fysikk kapittel N: …»)
+  - Ferdige kapitler: (ingen ennå)
+- [ ] 2b. Finpuss av kjemi- og biologi-kit-et (startet parallelt)
 - [ ] 3. PR for fysikk, CI grønn, flettet
 - [ ] 4. Kjemi (kapittel 1–8)
 - [ ] 5. Biologi (kapittel 1–15)
