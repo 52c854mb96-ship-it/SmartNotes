@@ -7,7 +7,7 @@ export * from '../../kit';
 
 // Generelle hjelpere fra kjemi-kit-et (importeres, ikke kopieres)
 export { seededRandom, placeParticles, jiggle, type Box, type PlacedParticle } from '../../kjemi/kit/random';
-export { Txt, type TxtProps } from '../../kjemi/kit/txt';
+export { Txt, type TxtProps } from '../../kit/txt';
 export { Select, useContainerTextScale } from '../../kjemi/kit/controls';
 export { Partikler, Begerglass, type ParticleGroup, type GlassProps } from '../../kjemi/kit/beger';
 export { mixColor } from '../../kjemi/kit/colors';

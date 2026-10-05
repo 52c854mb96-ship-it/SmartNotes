@@ -9,7 +9,7 @@ export * from './formel';
 export * from './geometri';
 export * from './random';
 export * from './colors';
-export * from './txt';
+// Txt kommer fra det felles kit-et (export * from '../../kit')
 export * from './Formel';
 export * from './controls';
 export * from './molekyl';

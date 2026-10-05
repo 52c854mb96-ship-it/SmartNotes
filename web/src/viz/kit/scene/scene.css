@@ -1,0 +1,303 @@
+/*
+ * Fargene i de illustrerte scenene (viz/kit/scene). Scenene er dempet og naturlige, så kraft- og fartspilene
+ * (VIZ-fargene) står tydelig fram oppå dem. Mørkt tema er skumring, ikke invertert: samme materialer, mindre lys.
+ *
+ * Mørkt tema gjelder både ved systemvalg uten data-theme og ved data-theme="dark". Verdiene må være like i begge
+ * blokkene. Familiene i scene-kit-et kan ha egne variabler i egne filer (samme mønster), men bruk disse først.
+ */
+:root {
+  /* Himmel og lys */
+  --sc-sky-top: #93c1e8;
+  --sc-sky-bottom: #e3eef7;
+  --sc-sun: #ffd76e;
+  --sc-sun-glow: #fff1c4;
+  --sc-cloud: #ffffff;
+  --sc-cloud-shade: #dbe6ef;
+  --sc-space: #0b1222;
+  --sc-space-glow: #1c2a4a;
+  --sc-star: #fff8e6;
+
+  /* Landskap */
+  --sc-mountain: #a7b6c6;
+  --sc-mountain-shade: #8fa0b3;
+  --sc-snowcap: #f4f7fb;
+  --sc-hill-far: #b5c9bc;
+  --sc-hill-near: #9cbc92;
+  --sc-grass: #85ac60;
+  --sc-grass-dark: #6a914f;
+  --sc-foliage: #5e8f4d;
+  --sc-foliage-dark: #46733d;
+  --sc-trunk: #7a5a3c;
+  --sc-soil: #a88b68;
+  --sc-soil-dark: #8a6e50;
+
+  /* Underlag */
+  --sc-asphalt: #62676e;
+  --sc-asphalt-dark: #4c5157;
+  --sc-asphalt-wet: #4a5562;
+  --sc-road-line: #f4f2e8;
+  --sc-gravel: #b5ab97;
+  --sc-gravel-dark: #968c78;
+  --sc-concrete: #c6c6c0;
+  --sc-concrete-dark: #a9a9a2;
+  --sc-snow: #f6f9fc;
+  --sc-snow-shade: #d2dde9;
+  --sc-ice: #cde7f3;
+  --sc-ice-shine: #f5fbff;
+  --sc-water: #4f93c9;
+  --sc-water-light: #8cc0e6;
+  --sc-water-deep: #2f6fa3;
+
+  /* Materialer */
+  --sc-wood-light: #dcb17a;
+  --sc-wood: #c18e56;
+  --sc-wood-dark: #8f6235;
+  --sc-metal-light: #f0f3f6;
+  --sc-metal: #b9c1ca;
+  --sc-metal-dark: #7c8792;
+  --sc-rubber: #2d3034;
+  --sc-rubber-light: #4c5157;
+  --sc-plastic: #f1f2f4;
+  --sc-plastic-shade: #d6d9de;
+  --sc-glass: #cfe6f3;
+  --sc-glass-edge: #8fb7cf;
+  --sc-stone: #9b9b97;
+  --sc-stone-dark: #7d7d79;
+  --sc-brick: #b65f46;
+  --sc-copper: #c47a45;
+  --sc-gold: #d9b24a;
+
+  /* Lakk, tøy og hud (navngitte farger i PAINTS) */
+  --sc-paint-red: #c94a3f;
+  --sc-paint-blue: #3f72b5;
+  --sc-paint-green: #4f8f5f;
+  --sc-paint-yellow: #e2b23e;
+  --sc-paint-orange: #dd7a35;
+  --sc-paint-purple: #7a5aa6;
+  --sc-paint-white: #eef0f2;
+  --sc-paint-grey: #8a939c;
+  --sc-paint-black: #34383d;
+  --sc-skin: #e8b896;
+  --sc-skin-shade: #cc9775;
+  --sc-hair: #4a3426;
+  --sc-denim: #4d6584;
+
+  /* Innendørs */
+  --sc-wall: #eff1ef;
+  --sc-wall-shade: #dfe3df;
+  --sc-floor: #cdb79a;
+  --sc-floor-dark: #b39b7d;
+  --sc-bench: #dde1e6;
+  --sc-bench-edge: #b9c0c8;
+
+  /* Lys, skygge og kanter */
+  --sc-shadow: rgb(20 25 35 / 0.24);
+  --sc-highlight: rgb(255 255 255 / 0.55);
+  --sc-outline: rgb(28 33 42 / 0.55);
+  --sc-glow: #ffe49a;
+  --sc-hot: #e5572a;
+  --sc-warm: #f0a04b;
+  --sc-cold: #4f9ad6;
+  --sc-display: #1f2a24;
+  --sc-display-text: #9be28f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --sc-sky-top: #0f1b2d;
+    --sc-sky-bottom: #24384f;
+    --sc-sun: #f2c766;
+    --sc-sun-glow: #6d5a2f;
+    --sc-cloud: #4a5a6e;
+    --sc-cloud-shade: #36455a;
+    --sc-space: #05080f;
+    --sc-space-glow: #131d36;
+    --sc-star: #fff4dc;
+
+    --sc-mountain: #34404f;
+    --sc-mountain-shade: #2a3441;
+    --sc-snowcap: #a9b6c5;
+    --sc-hill-far: #24322f;
+    --sc-hill-near: #2b3f2e;
+    --sc-grass: #3d5c34;
+    --sc-grass-dark: #2e4728;
+    --sc-foliage: #304d2e;
+    --sc-foliage-dark: #233c23;
+    --sc-trunk: #4c3a2a;
+    --sc-soil: #4d4032;
+    --sc-soil-dark: #3c3227;
+
+    --sc-asphalt: #373b40;
+    --sc-asphalt-dark: #2a2d31;
+    --sc-asphalt-wet: #2b343e;
+    --sc-road-line: #b9b7ad;
+    --sc-gravel: #5b5446;
+    --sc-gravel-dark: #48423a;
+    --sc-concrete: #545552;
+    --sc-concrete-dark: #434441;
+    --sc-snow: #b8c4d1;
+    --sc-snow-shade: #8b9aab;
+    --sc-ice: #5f8296;
+    --sc-ice-shine: #9fc3d6;
+    --sc-water: #2c6189;
+    --sc-water-light: #3f7ba8;
+    --sc-water-deep: #1e4766;
+
+    --sc-wood-light: #9a7550;
+    --sc-wood: #7d5c3b;
+    --sc-wood-dark: #553d27;
+    --sc-metal-light: #b3bcc6;
+    --sc-metal: #78828e;
+    --sc-metal-dark: #4c555f;
+    --sc-rubber: #17191c;
+    --sc-rubber-light: #33373c;
+    --sc-plastic: #9aa1aa;
+    --sc-plastic-shade: #7b828c;
+    --sc-glass: #4c6b80;
+    --sc-glass-edge: #84a8c0;
+    --sc-stone: #5e605f;
+    --sc-stone-dark: #4a4c4b;
+    --sc-brick: #74402f;
+    --sc-copper: #a2643a;
+    --sc-gold: #b8963f;
+
+    --sc-paint-red: #b24a40;
+    --sc-paint-blue: #416fae;
+    --sc-paint-green: #427a51;
+    --sc-paint-yellow: #bb9539;
+    --sc-paint-orange: #b9672f;
+    --sc-paint-purple: #6c5394;
+    --sc-paint-white: #a3aab3;
+    --sc-paint-grey: #66707a;
+    --sc-paint-black: #25282c;
+    --sc-skin: #c19478;
+    --sc-skin-shade: #a37a5f;
+    --sc-hair: #2f2219;
+    --sc-denim: #3d5470;
+
+    --sc-wall: #1e252e;
+    --sc-wall-shade: #181e26;
+    --sc-floor: #3e352c;
+    --sc-floor-dark: #322a23;
+    --sc-bench: #39414b;
+    --sc-bench-edge: #4d5662;
+
+    --sc-shadow: rgb(0 0 0 / 0.5);
+    --sc-highlight: rgb(255 255 255 / 0.2);
+    --sc-outline: rgb(0 0 0 / 0.6);
+    --sc-glow: #ffd66b;
+    --sc-hot: #f07a4a;
+    --sc-warm: #e89a4d;
+    --sc-cold: #6fb0e6;
+    --sc-display: #0e1411;
+    --sc-display-text: #8fd884;
+  }
+}
+
+:root[data-theme='dark'] {
+  --sc-sky-top: #0f1b2d;
+  --sc-sky-bottom: #24384f;
+  --sc-sun: #f2c766;
+  --sc-sun-glow: #6d5a2f;
+  --sc-cloud: #4a5a6e;
+  --sc-cloud-shade: #36455a;
+  --sc-space: #05080f;
+  --sc-space-glow: #131d36;
+  --sc-star: #fff4dc;
+
+  --sc-mountain: #34404f;
+  --sc-mountain-shade: #2a3441;
+  --sc-snowcap: #a9b6c5;
+  --sc-hill-far: #24322f;
+  --sc-hill-near: #2b3f2e;
+  --sc-grass: #3d5c34;
+  --sc-grass-dark: #2e4728;
+  --sc-foliage: #304d2e;
+  --sc-foliage-dark: #233c23;
+  --sc-trunk: #4c3a2a;
+  --sc-soil: #4d4032;
+  --sc-soil-dark: #3c3227;
+
+  --sc-asphalt: #373b40;
+  --sc-asphalt-dark: #2a2d31;
+  --sc-asphalt-wet: #2b343e;
+  --sc-road-line: #b9b7ad;
+  --sc-gravel: #5b5446;
+  --sc-gravel-dark: #48423a;
+  --sc-concrete: #545552;
+  --sc-concrete-dark: #434441;
+  --sc-snow: #b8c4d1;
+  --sc-snow-shade: #8b9aab;
+  --sc-ice: #5f8296;
+  --sc-ice-shine: #9fc3d6;
+  --sc-water: #2c6189;
+  --sc-water-light: #3f7ba8;
+  --sc-water-deep: #1e4766;
+
+  --sc-wood-light: #9a7550;
+  --sc-wood: #7d5c3b;
+  --sc-wood-dark: #553d27;
+  --sc-metal-light: #b3bcc6;
+  --sc-metal: #78828e;
+  --sc-metal-dark: #4c555f;
+  --sc-rubber: #17191c;
+  --sc-rubber-light: #33373c;
+  --sc-plastic: #9aa1aa;
+  --sc-plastic-shade: #7b828c;
+  --sc-glass: #4c6b80;
+  --sc-glass-edge: #84a8c0;
+  --sc-stone: #5e605f;
+  --sc-stone-dark: #4a4c4b;
+  --sc-brick: #74402f;
+  --sc-copper: #a2643a;
+  --sc-gold: #b8963f;
+
+  --sc-paint-red: #b24a40;
+  --sc-paint-blue: #416fae;
+  --sc-paint-green: #427a51;
+  --sc-paint-yellow: #bb9539;
+  --sc-paint-orange: #b9672f;
+  --sc-paint-purple: #6c5394;
+  --sc-paint-white: #a3aab3;
+  --sc-paint-grey: #66707a;
+  --sc-paint-black: #25282c;
+  --sc-skin: #c19478;
+  --sc-skin-shade: #a37a5f;
+  --sc-hair: #2f2219;
+  --sc-denim: #3d5470;
+
+  --sc-wall: #1e252e;
+  --sc-wall-shade: #181e26;
+  --sc-floor: #3e352c;
+  --sc-floor-dark: #322a23;
+  --sc-bench: #39414b;
+  --sc-bench-edge: #4d5662;
+
+  --sc-shadow: rgb(0 0 0 / 0.5);
+  --sc-highlight: rgb(255 255 255 / 0.2);
+  --sc-outline: rgb(0 0 0 / 0.6);
+  --sc-glow: #ffd66b;
+  --sc-hot: #f07a4a;
+  --sc-warm: #e89a4d;
+  --sc-cold: #6fb0e6;
+  --sc-display: #0e1411;
+  --sc-display-text: #8fd884;
+}
+
+/* Kraftpiler i scenene: tykk pil med glorie i flatefargen, så den kan leses oppå himmel, asfalt og snø. */
+.sc-force {
+  paint-order: stroke;
+  stroke: var(--viz-surface);
+  stroke-linejoin: round;
+}
+
+/* Bevegelige deler som skal gli mykt mellom tilstander (ikke i animasjoner med useSimClock). */
+.sc-ease {
+  transition: transform 0.35s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-ease {
+    transition: none;
+  }
+}

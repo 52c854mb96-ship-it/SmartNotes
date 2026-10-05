@@ -2,9 +2,10 @@
  * Små felles hjelpere for biologifigurene: skalering på mobil, unike SVG-id-er, markering (glorie) og etiketter med
  * strek til det de peker på.
  */
-import { useId, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { useSvgId } from '../../kit/ids';
 import { VIZ, useTextScale } from '../../kit';
-import { Txt } from '../../kjemi/kit/txt';
+import { Txt } from '../../kit/txt';
 
 /**
  * Hvor mye små figurer (partikler, organismesymboler) bør forstørres for å kunne sees: 1 på PC, ca. 1,5 på mobil.
@@ -22,10 +23,8 @@ export function useLineScale(): number {
   return Math.max(1, useTextScale() * 0.75);
 }
 
-/** Gyldig og unik id for clipPath/mask (useId kan inneholde tegn som ikke passer i url(#…)). */
-export function useSvgId(prefix: string): string {
-  return `${prefix}${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
-}
+/** `useSvgId` ligger i det felles kit-et (viz/kit/ids.ts) og eksporteres videre herfra. */
+export { useSvgId };
 
 /** Felles egenskaper for celledeler, membranproteiner og organismesymboler. */
 export interface MarkProps {
