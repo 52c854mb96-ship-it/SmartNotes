@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { CELL_PARTS, ORGANELLER, type Celletype } from '../kit';
 import {
+  AREA_REFERENCES,
   CELLETYPER,
+  CUBE_CENTRE,
+  GUT,
+  LUNG,
+  O2_SURFACE,
+  O2_USE,
+  ROOT_AREA,
+  SIZE_STEPS,
+  alveoliCount,
+  compareArea,
+  gutArea,
+  lungArea,
+  lungAreaTwoSacs,
+  maxSize,
+  o2CriticalRadius,
+  o2Profile,
+  o2Radius,
   CO2_AIR,
   DELER,
   D_O2,
@@ -13,8 +30,10 @@ import {
   diffusionReach,
   diffusionTime,
   enzymeLimited,
+  formatArea,
   formatDuration,
   formatLength,
+  formatVolume,
   grossPhotosynthesis,
   hasPart,
   limitingFactor,
@@ -32,6 +51,8 @@ import {
 } from './model';
 
 const TYPES: Celletype[] = ['dyr', 'plante', 'bakterie'];
+/** Tusenskillet fra Intl er et hardt mellomrom. */
+const sp = (s: string) => s.replace(/\s/g, ' ');
 
 describe('cellen', () => {
   it('alle deler i kit-ets celletyper har struktur og funksjon', () => {
@@ -121,6 +142,14 @@ describe('overflate og volum', () => {
     expect(formatLength(20)).toBe('20 µm');
     expect(formatLength(1500)).toBe('1,5 mm');
     expect(formatLength(10000)).toBe('1 cm');
+    expect(sp(formatArea(2400))).toBe('2 400 µm²');
+    expect(formatArea(6)).toBe('6 µm²');
+    expect(formatArea(Math.PI)).toBe('3,14 µm²');
+    expect(formatArea(24e6)).toBe('24 mm²');
+    expect(sp(formatVolume(8000))).toBe('8 000 µm³');
+    expect(formatVolume(179594380)).toBe('0,18 mm³');
+    expect(formatVolume(8e9)).toBe('8 mm³');
+    expect(formatVolume(0.5236)).toBe('0,524 µm³');
   });
 
   it('oppdeling: samme volum, n ganger så stor overflate', () => {
@@ -143,6 +172,93 @@ describe('overflate og volum', () => {
     expect(fr).toBeGreaterThan(2);
     expect(fr).toBeLessThan(4);
     expect(outgrowthFactor(0, 0.05, 1)).toBe(1);
+  });
+});
+
+describe('oksygen inne i cellen', () => {
+  it('kritisk størrelse ca. 1 mm (Krogh): R² = 6Dc₀/q', () => {
+    const Rc = o2CriticalRadius();
+    expect(Rc).toBeCloseTo(Math.sqrt((6 * D_O2 * O2_SURFACE) / O2_USE), 9);
+    expect(maxSize('kule')).toBeGreaterThan(900);
+    expect(maxSize('kule')).toBeLessThan(1300);
+    expect(maxSize('kube')).toBeGreaterThan(800);
+    // Kuben har like stort underskudd i midten som den ekvivalente kula
+    expect(o2Radius('kube', 100) ** 2 / 6).toBeCloseTo(CUBE_CENTRE * 100 ** 2, 9);
+    expect(o2Radius('kule', 100)).toBe(50);
+  });
+
+  it('små celler: nesten like mye O₂ i midten som ved overflaten', () => {
+    const p = o2Profile('kule', 20);
+    expect(p.centre).toBeGreaterThan(0.999);
+    expect(p.anoxic).toBe(0);
+    expect(p.at(1)).toBeCloseTo(1, 12);
+    // Profilen er en parabel: underskuddet i midten er R²/R_c²
+    const big = o2Profile('kule', 600);
+    expect(big.centre).toBeCloseTo(1 - 300 ** 2 / o2CriticalRadius() ** 2, 9);
+    expect(big.at(0.5)).toBeGreaterThan(big.centre);
+  });
+
+  it('akkurat ved grensen er midten tom, og over den blir det en kjerne uten O₂', () => {
+    const edge = o2Profile('kule', maxSize('kule'));
+    expect(edge.centre).toBeCloseTo(0, 6);
+    expect(edge.anoxic).toBeLessThan(0.01);
+    const p = o2Profile('kule', 2000);
+    expect(p.centre).toBe(0);
+    expect(p.anoxic).toBeGreaterThan(0.3);
+    expect(p.anoxic).toBeLessThan(0.9);
+    expect(p.anoxicVolume).toBeCloseTo(p.anoxic ** 3, 12);
+    // Kontinuerlig og glatt overgang ved kjernen, 1 ved overflaten, aldri negativ
+    expect(p.at(p.anoxic)).toBeCloseTo(0, 6);
+    expect(p.at(p.anoxic + 0.01)).toBeLessThan(0.01);
+    expect(p.at(1)).toBeCloseTo(1, 9);
+    for (let u = 0; u <= 1; u += 0.05) expect(p.at(u)).toBeGreaterThanOrEqual(0);
+    // Større celle: større død kjerne
+    expect(o2Profile('kule', 1500).anoxic).toBeLessThan(p.anoxic);
+  });
+
+  it('glidebryterens størrelser er stigende og dekker 1 µm–2 mm', () => {
+    expect(SIZE_STEPS[0]).toBe(1);
+    expect(SIZE_STEPS[SIZE_STEPS.length - 1]).toBe(2000);
+    for (let i = 1; i < SIZE_STEPS.length; i++) expect(SIZE_STEPS[i]!).toBeGreaterThan(SIZE_STEPS[i - 1]!);
+    expect(SIZE_STEPS).toContain(20);
+  });
+});
+
+describe('store overflater', () => {
+  it('lungeblærer: ca. 70 m² og ca. 400 millioner blærer, mot 0,2 m² for to sekker', () => {
+    const A = lungArea(LUNG.alveolus);
+    expect(A).toBeGreaterThan(50);
+    expect(A).toBeLessThan(100);
+    const n = alveoliCount(LUNG.alveolus);
+    expect(n).toBeGreaterThan(3e8);
+    expect(n).toBeLessThan(5e8);
+    // Samme som n · πd² (mm² → m²)
+    expect((n * Math.PI * LUNG.alveolus ** 2) / 1e6).toBeCloseTo(A, 9);
+    expect(lungArea(LUNG.alveolus / 2) / A).toBeCloseTo(2, 12);
+    expect(lungAreaTwoSacs()).toBeCloseTo(0.2, 2);
+    expect(lungArea(0)).toBe(0);
+  });
+
+  it('tynntarmen: ca. 30 m² med standard tarmtotter', () => {
+    const t = OUTGROWTHS.tarmtotter;
+    const A = gutArea(outgrowthFactor(t.density, t.radius, t.length));
+    expect(A).toBeGreaterThan(25);
+    expect(A).toBeLessThan(40);
+    expect(gutArea(1)).toBeCloseTo(Math.PI * GUT.diameter * GUT.length * GUT.folds * GUT.microvilli, 9);
+  });
+
+  it('rothår: standardverdiene gir Dittmers forhold (ca. 2,7)', () => {
+    const r = OUTGROWTHS.rothar;
+    expect(outgrowthFactor(r.density, r.radius, r.length)).toBeCloseTo(2.7, 1);
+    expect(ROOT_AREA).toBe(240);
+  });
+
+  it('sammenligning med kjente flater', () => {
+    expect(compareArea(80).navn).toBe('en badmintonbane');
+    expect(compareArea(30).navn).toBe('en parkeringsplass');
+    expect(compareArea(0.2).navn).toBe('et A4-ark');
+    expect(compareArea(650).navn).toBe('en tennisbane');
+    for (const r of AREA_REFERENCES) expect(compareArea(r.m2).ratio).toBeCloseTo(1, 12);
   });
 });
 
@@ -172,6 +288,11 @@ describe('fotosyntese og celleånding', () => {
     // Mer CO₂ hever metningsnivået
     expect(grossPhotosynthesis(100, 1000, 25)).toBeGreaterThan(P(100) * 1.2);
     expect(saturationLight(1000, 25)).toBeGreaterThan(saturationLight(CO2_AIR, 25));
+    // Ved lysmetningen er fotosyntesen 95 % av det høyeste den kan bli
+    const Is = saturationLight(CO2_AIR, 25);
+    expect(grossPhotosynthesis(Is, CO2_AIR, 25)).toBeCloseTo(0.95 * enzymeLimited(CO2_AIR, 25), 9);
+    expect(Is).toBeGreaterThan(40);
+    expect(Is).toBeLessThan(80);
   });
 
   it('celleånding: Q₁₀ = 2 og uavhengig av lys', () => {

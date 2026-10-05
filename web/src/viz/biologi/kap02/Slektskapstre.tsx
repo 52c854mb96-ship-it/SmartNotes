@@ -29,6 +29,7 @@ import {
   organism,
   pathTo,
   softHyphens,
+  type Organism,
   type OrganismId,
   type PlacedNode,
   type Question,
@@ -46,6 +47,12 @@ const MODES: { value: TreeMode; label: string }[] = [
   { value: 'anatomi', label: 'Anatomi' },
   { value: 'dna', label: 'DNA' },
 ];
+
+/** Organismenavn i HTML, i kursiv når det er et vitenskapelig navn (E. coli). */
+function nm(o: { name: string; short: string; italic?: boolean }, which: 'name' | 'short' = 'name', capital = false): ReactNode {
+  const t = capital ? cap(o[which]) : o[which];
+  return o.italic ? <em>{t}</em> : t;
+}
 
 /** Navnet på et knutepunkt i tekst. */
 const nodeName = (tree: TreeNode, n: TreeNode) => (n === tree ? 'rota (alt liv)' : isLeaf(n) ? organism(n.leaf).name : (n.name ?? 'en felles stamform uten navn'));
@@ -91,17 +98,31 @@ export default function Slektskapstre() {
       </div>
       <Legend
         items={[
-          { color: COL_Y, label: `Felles stamform og greiner: ${X.short} og ${Y.short}` },
-          { color: COL_Z, label: `Felles stamform og greiner: ${X.short} og ${Z.short}` },
+          {
+            color: COL_Y,
+            label: (
+              <span>
+                Felles stamform og greiner: {nm(X, 'short')} og {nm(Y, 'short')}
+              </span>
+            ),
+          },
+          {
+            color: COL_Z,
+            label: (
+              <span>
+                Felles stamform og greiner: {nm(X, 'short')} og {nm(Z, 'short')}
+              </span>
+            ),
+          },
           { color: VIZ.muted, label: 'Hvert knutepunkt er en felles stamform' },
         ]}
       />
 
       <Readouts>
-        <Readout label={`Felles stamform med ${Y.short}`} value={softHyphens(cap(nodeName(tree, mY)))} tone={COL_Y} />
-        <Readout label={`Felles stamform med ${Z.short}`} value={softHyphens(cap(nodeName(tree, mZ)))} tone={COL_Z} />
+        <Readout label={<>Felles stamform med {nm(Y, 'short')}</>} value={valid ? softHyphens(cap(nodeName(tree, mY))) : '–'} tone={COL_Y} />
+        <Readout label={<>Felles stamform med {nm(Z, 'short')}</>} value={valid ? softHyphens(cap(nodeName(tree, mZ))) : '–'} tone={COL_Z} />
         <Readout
-          label={`${cap(X.short)} er nærmest`}
+          label={<>{nm(X, 'short', true)} er nærmest</>}
           value={!valid ? '–' : answer === 'y' ? cap(Y.short) : answer === 'z' ? cap(Z.short) : 'Like nær'}
           tone={answer === 'y' ? COL_Y : answer === 'z' ? COL_Z : undefined}
         />
@@ -154,7 +175,7 @@ function TreeFigure({
   const longest = Math.max(...ORGANISMS.map((o) => o.short.length));
   const nameW = longest * charW;
   const xLeaf = X1 - (8 + glyph + 8 + nameW);
-  const rowH = Math.max(27, 26 * f);
+  const rowH = narrow ? 31 * f : Math.max(27, 26 * f);
   const top = 10;
   const H = Math.round(top + nodes.filter((n) => n.children.length === 0).length * rowH + 10);
   // Rota får navnet sitt loddrett helt til venstre
@@ -270,7 +291,10 @@ function TreeFigure({
   const rootX = X0 + fs * 0.8;
   // Loddrett navn langs venstre kant, så nær rota som mulig uten å gå ut av figuren
   const half = ((rootName?.length ?? 0) * 0.57 * fs) / 2 + 6;
-  const rootY = Math.min(H - half, Math.max(half, py(root)));
+  // Loddrett ved siden av rota, men over eller under markeringen av den (rota kan være en felles stamform)
+  const clear = 14 * k;
+  const aboveY = py(root) - clear - half;
+  const rootY = aboveY >= half ? aboveY : Math.min(H - half, py(root) + clear + half);
 
   const leafNodes = nodes.filter((n) => n.children.length === 0);
   return (
@@ -320,7 +344,7 @@ function TreeFigure({
           <g key={id}>
             <OrganismGlyph id={id} x={xLeaf + 8 + glyph / 2} y={cy} size={glyph} />
             <Txt x={xLeaf + 8 + glyph + 8} y={cy + 6 * f} anchor="start" size={nameSize} weight={role ? 700 : 500} color={role ?? undefined}>
-              {o.short}
+              {o.italic ? <tspan fontStyle="italic">{o.short}</tspan> : o.short}
             </Txt>
           </g>
         );
@@ -361,8 +385,9 @@ const SPECIFIC: Record<Question['id'], Record<TreeMode, ReactNode>> = {
     ),
     anatomi: (
       <>
-        Med anatomi som kriterium ble fugler og pattedyr ofte satt sammen fordi begge er varmblodige og har et hjerte med fire kamre.
-        Krokodillen og firfisla ble krypdyr fordi de har skjell og er vekselvarme.
+        Etter anatomien er krypdyr, fugler og pattedyr tre likestilte klasser. Krokodillen og firfisla står sammen som krypdyr fordi de
+        har skjell og er vekselvarme, mens kongeørnen står for seg med fjær og varmt blod. Hvem fuglene er nærmest i slekt med, sier ikke
+        treet noe om: tre greiner går ut fra samme knutepunkt.
       </>
     ),
     dna: (
@@ -439,9 +464,9 @@ function explanation(s: {
   tree: TreeNode;
   mode: TreeMode;
   question: Question | null;
-  X: { name: string; short: string };
-  Y: { name: string; short: string };
-  Z: { name: string; short: string };
+  X: Organism;
+  Y: Organism;
+  Z: Organism;
   mY: TreeNode;
   mZ: TreeNode;
   answer: 'y' | 'z' | 'lik';
@@ -454,8 +479,8 @@ function explanation(s: {
   else if (answer === 'lik')
     main = (
       <>
-        {cap(X.name)} har den samme nærmeste felles stamformen med {Y.name} og med {Z.name} ({nodeName(tree, mY)}). Etter dette treet er{' '}
-        {X.short} like nær i slekt med begge.
+        {nm(X, 'name', true)} har den samme nærmeste felles stamformen med {nm(Y)} og med {nm(Z)} ({nodeName(tree, mY)}). Etter dette
+        treet er {nm(X, 'short')} like nær i slekt med begge.
       </>
     );
   else {
@@ -463,8 +488,8 @@ function explanation(s: {
     const far = answer === 'y' ? Z : Y;
     main = (
       <>
-        {cap(X.name)} og {near.name} har en nyere felles stamform ({nodeName(tree, answer === 'y' ? mY : mZ)}) enn {X.name} og {far.name}{' '}
-        ({nodeName(tree, answer === 'y' ? mZ : mY)}). Derfor er {X.short} nærmest i slekt med {near.short}.
+        {nm(X, 'name', true)} og {nm(near)} har en nyere felles stamform ({nodeName(tree, answer === 'y' ? mY : mZ)}) enn {nm(X)} og{' '}
+        {nm(far)} ({nodeName(tree, answer === 'y' ? mZ : mY)}). Derfor er {nm(X, 'short')} nærmest i slekt med {nm(near, 'short')}.
       </>
     );
   }

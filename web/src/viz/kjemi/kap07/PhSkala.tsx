@@ -121,7 +121,7 @@ export default function PhSkala() {
         <Figure
           viewBox={`0 0 800 ${layout.H}`}
           label={`pH-skalaen med pH ${fmt(pH, 1)}: [H₃O⁺] = ${fmtSig(s.h3o, 2)} mol/L, [OH⁻] = ${fmtSig(s.oh, 2)} mol/L og pOH ${fmt(s.pOH, 1)}.`}
-          caption="Buene over skalaen viser at [H₃O⁺] blir 10 ganger større for hvert pH-steg mot venstre (eller 10 ganger mindre mot høyre). Stoffene står ved typisk pH."
+          caption="Buene over skalaen viser at [H₃O⁺] blir 10 ganger større for hvert pH-steg mot venstre (eller 10 ganger mindre mot høyre). Stoffene står ved typisk pH (stolpen)."
           maxHeight={layout.H}
         >
           <ScaleFigure pH={pH} f={f} layout={layout} highlight={near?.id ?? null} />
@@ -181,24 +181,21 @@ interface ScaleLayout {
 const ROW_LABELS = ['[H₃O⁺] i mol/L', '[OH⁻] i mol/L', 'pOH'];
 
 function scaleLayout(f: number): ScaleLayout {
-  // Etikettene til stoffene fordeles på rader så de ikke overlapper.
+  // Etikettene står som flagg til høyre for sin egen stolpe. Radene fordeles fra høyre mot venstre: en etikett må
+  // ligge høyere enn alle stolpene som står under den (og etikettene til høyre som den ellers ville overlappe), så
+  // ingen stolpe går gjennom en etikett.
   const size = 0.82;
-  const gap = 10;
-  const rowEnds: number[] = [];
-  const rowOf: number[] = [];
-  const labelX: number[] = [];
-  for (const e of EVERYDAY) {
-    const w = textW(e.name, f, size);
-    const x = Math.min(X1 + 30 - w / 2, Math.max(X0 - 30 + w / 2, sx(e.pH)));
-    let r = rowEnds.findIndex((end) => end + gap < x - w / 2);
-    if (r < 0) {
-      r = rowEnds.length;
-      rowEnds.push(-Infinity);
-    }
-    rowEnds[r] = x + w / 2;
-    rowOf.push(r);
-    labelX.push(x);
+  const gap = 8;
+  const rowOf: number[] = new Array(EVERYDAY.length).fill(0);
+  const labelX: number[] = EVERYDAY.map((e) => sx(e.pH) + 5);
+  for (let i = EVERYDAY.length - 1; i >= 0; i--) {
+    // Litt bredere anslag (0,6 em per tegn), så uthevet (fet) etikett også får plass
+    const end = labelX[i]! + textW(EVERYDAY[i]!.name, f, size) * 1.08 + gap;
+    let r = 0;
+    for (let j = i + 1; j < EVERYDAY.length; j++) if (sx(EVERYDAY[j]!.pH) <= end) r = Math.max(r, rowOf[j]! + 1);
+    rowOf[i] = r;
   }
+  const rowEnds = Array.from({ length: Math.max(...rowOf) + 1 }, () => 0);
   const labelRows = rowEnds.length;
   const rowH = 22 * f;
   const title = 22 * f;
@@ -235,7 +232,7 @@ function ScaleFigure({ pH, f, layout: L, highlight }: { pH: number; f: number; l
   const arcs = [1, 2].map((n) => ({ n, x2: sx(pH + dir * n), h: (n === 1 ? 16 : 56) * f }));
   // Verdien står rett til høyre for markøren (eller til venstre helt til høyre), men aldri oppå radtittelen.
   const value = (row: number, text: string) => {
-    const titleEnd = X0 + textW(ROW_LABELS[row]!, f, 0.85) + 14;
+    const titleEnd = X0 + textW(ROW_LABELS[row]!, f, 0.85) + 14 * f;
     const w = textW(text, f, 0.95);
     if (xm + 12 + w <= X1 + 30) return { x: Math.max(xm + 12, titleEnd), anchor: 'start' as const };
     return { x: xm - 12, anchor: 'end' as const };
@@ -256,19 +253,23 @@ function ScaleFigure({ pH, f, layout: L, highlight }: { pH: number; f: number; l
         pH-skalaen ved 25 °C
       </Txt>
 
-      {/* Stoffene */}
+      {/* Stoffene: først alle strekene, så etikettene (med lys kant) oppå, så ingen strek går gjennom en etikett */}
       {EVERYDAY.map((e, i) => {
-        const r = L.rowOf[i]!;
-        const ly = L.labelY(r);
+        const ly = L.labelY(L.rowOf[i]!);
         const on = e.id === highlight;
         return (
           <g key={e.id}>
-            <line x1={sx(e.pH)} y1={ly + 6} x2={sx(e.pH)} y2={L.barTop} stroke={on ? VIZ.ink : VIZ.muted} strokeWidth={on ? 2 : 1} opacity={on ? 1 : 0.55} />
+            <line x1={sx(e.pH)} y1={ly - 13 * f} x2={sx(e.pH)} y2={L.barTop} stroke={on ? VIZ.ink : VIZ.muted} strokeWidth={on ? 2 : 1} opacity={on ? 1 : 0.55} />
             <circle cx={sx(e.pH)} cy={L.barTop} r={4.5} fill={on ? VIZ.ink : VIZ.surface} stroke={VIZ.ink} strokeWidth={1.5} />
-            <Txt x={L.labelX[i]!} y={ly} size={0.82} weight={on ? 700 : 500} muted={!on}>
-              {e.name}
-            </Txt>
           </g>
+        );
+      })}
+      {EVERYDAY.map((e, i) => {
+        const on = e.id === highlight;
+        return (
+          <Txt key={e.id} x={L.labelX[i]!} y={L.labelY(L.rowOf[i]!)} anchor="start" size={0.82} weight={on ? 700 : 500} muted={!on}>
+            {e.name}
+          </Txt>
         );
       })}
 
@@ -457,7 +458,7 @@ function explanation(pH: number, ch: ReturnType<typeof character>, near: string 
       </>
     ) : (
       <>
-        {H3O} = {fmtSig(s.h3o, 2)} mol/L er bare 1/{fmtSig(1 / ratio, 2)} av det i rent vann, mens {OH} er {fmtSig(1 / ratio, 2)} ganger så stor.
+        {H3O} = {fmtSig(s.h3o, 2)} mol/L er {fmtSig(1 / ratio, 2)} ganger mindre enn i rent vann, mens {OH} er {fmtSig(1 / ratio, 2)} ganger så stor.
       </>
     );
   const btb = INDICATORS.bromtymolblatt;

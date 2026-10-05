@@ -26,6 +26,7 @@ import {
   linePath,
   sample,
   useContainerTextScale,
+  useTextScale,
 } from '../kit';
 import {
   EDGE_WIDTH,
@@ -46,7 +47,8 @@ type Mode = 'oyer' | 'oppstykking';
 
 const COL = BIO.serie[0];
 const REF = VIZ.muted;
-const DOT_COLORS = [BIO.serie[0], BIO.serie[1], BIO.serie[2], BIO.serie[3], BIO.signal, BIO.kalium];
+/** Prikkene på øya (hver prikk ≈ 10 arter). */
+const DOT = BIO.serie[2];
 
 /** Areal i km² med passe mange desimaler: 0,01 · 0,5 · 3,2 · 250 · 10 000. */
 export function fmtArea(A: number): string {
@@ -106,7 +108,7 @@ function Oyer({ z, setZ }: { z: number; setZ: (z: number) => void }) {
       </div>
       <Legend
         items={[
-          { color: BIO.serie[2], label: 'Hver prikk er omtrent 10 arter' },
+          { color: DOT, label: 'Hver prikk på øya er omtrent 10 arter' },
           { color: COL, label: 'Innvandring fra fastlandet (tykkere pil = flere nye arter)' },
         ]}
       />
@@ -115,7 +117,7 @@ function Oyer({ z, setZ }: { z: number; setZ: (z: number) => void }) {
         viewBox={`0 0 800 ${plotH}`}
         label={`Arter mot areal med logaritmiske akser. Øya på ${fmtArea(A)} km² har ca. ${fmt(S, 0)} arter.`}
       >
-        <LogLogPlot A={A} S={S} c={c} z={z} d={d} height={plotH} />
+        <LogLogPlot A={A} S={S} c={c} z={z} height={plotH} />
       </Figure>
       <Legend
         items={[
@@ -152,14 +154,18 @@ function Oyer({ z, setZ }: { z: number; setZ: (z: number) => void }) {
 
 function IslandScene({ A, d, S, c, f }: { A: number; d: number; S: number; c: number; f: number }) {
   const k = Math.max(1, 0.85 * f);
-  const H = Math.round(300 + 150 * (f - 1));
-  const top = 34 * f;
-  const cy = (top + H) / 2 + 6;
-  const coast = 120;
-  const R = (18 + (72 * (Math.log10(A) + 2)) / 6) * Math.min(k, 1.3);
-  const xMin = coast + 60 + R;
+  const narrow = f > 1.3;
+  const H = Math.round(300 + 230 * (f - 1));
+  const top = 30 * f;
+  const titleY = top + 26 * f;
+  const cy = (titleY + 10 + H) / 2 + 4;
+  const coast = narrow ? 110 : 120;
+  // Radius vokser med lg A (ikke i målestokk: 0,01 km² til 10 000 km²)
+  const Rmax = Math.min((H - titleY - 30) / 2 / 0.82, narrow ? 190 : 150);
+  const R = Rmax * (0.2 + (0.8 * (Math.log10(A) + 2)) / 6);
+  const xMin = coast + 70 + R;
   const xMax = 800 - 16 - R;
-  const cx = xMin + (Math.min(d, 500) / 500) * (xMax - xMin);
+  const cx = xMin + (Math.min(d, 500) / 500) * Math.max(0, xMax - xMin);
   const island = blobPath(cx, cy, R, R * 0.82, 0.08, 7, 12);
   const nDots = Math.max(1, Math.round(S / 10));
   // Prikkene i et solsikkemønster: jevnt fordelt i en sirkel, alltid like
@@ -168,10 +174,11 @@ function IslandScene({ A, d, S, c, f }: { A: number; d: number; S: number; c: nu
     const th = i * 2.39996;
     return { x: cx + rr * Math.cos(th), y: cy + rr * Math.sin(th) * 0.82 };
   });
-  const dotR = Math.max(2, Math.min(5 * k, (R * 0.72) / Math.sqrt(nDots) / 1.6));
+  const dotR = Math.max(2.5, Math.min(5 * k, (R * 0.72) / Math.sqrt(nDots) / 1.5));
   const strength = c / ISLAND_C0;
-  const arrowW = 2 + 7 * strength;
+  const arrowW = (2 + 7 * strength) * Math.min(k, 1.3);
   const gap = Math.max(0, cx - R - coast - 24);
+  const ground = BIO.plante;
   return (
     <Figure
       viewBox={`0 0 800 ${H}`}
@@ -183,18 +190,21 @@ function IslandScene({ A, d, S, c, f }: { A: number; d: number; S: number; c: nu
       {/* Fastlandet med skog */}
       <path
         d={`M0,${top - 8} H${coast - 10} Q${coast + 12},${top + (H - top) * 0.25} ${coast - 4},${top + (H - top) * 0.5} Q${coast - 18},${top + (H - top) * 0.75} ${coast + 4},${H} H0 Z`}
-        fill={BIO.plante.fill}
-        stroke={BIO.plante.line}
+        fill={ground.fill}
+        stroke={ground.line}
         strokeWidth={1.5}
       />
-      {[0.22, 0.42, 0.62, 0.82].map((v, i) => (
-        <Tre key={v} x={i % 2 ? 72 : 40} y={top + (H - top) * v} size={30 * k} bartre={i % 2 === 0} />
+      {[0.25, 0.45, 0.65, 0.85].map((v, i) => (
+        <Tre key={v} x={i % 2 ? 70 : 38} y={top + (H - top) * v} size={30 * k} bartre={i % 2 === 0} />
       ))}
-      <Txt x={10} y={top - 14} anchor="start" size={0.85} weight={650}>
+      <Txt x={8} y={top - 14} anchor="start" size={0.85} weight={650}>
         Fastland
       </Txt>
+      <Txt x={792} y={titleY} anchor="end" size={0.95} weight={700} color={COL}>
+        {fmtArea(A)} km², ca. {fmt(S, 0)} arter
+      </Txt>
       {/* Innvandring */}
-      {gap > 30 &&
+      {gap > 60 &&
         [-0.35, 0, 0.35].map((v) => (
           <Arrow
             key={v}
@@ -207,24 +217,21 @@ function IslandScene({ A, d, S, c, f }: { A: number; d: number; S: number; c: nu
             head={10 + arrowW}
           />
         ))}
-      {gap > 30 && (
-        <Txt x={(coast + cx - R) / 2} y={cy - R * 0.55 - 14} size={0.8} color={COL} weight={650}>
+      {gap > 40 + 70 * f && (
+        <Txt x={(coast + cx - R) / 2 + 4} y={cy - R * 0.62 - 14} size={0.8} color={COL} weight={650}>
           innvandring
         </Txt>
       )}
       {/* Avstand */}
-      <line x1={coast + 4} x2={cx} y1={H - 14} y2={H - 14} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="5 4" />
-      <Txt x={(coast + cx) / 2} y={H - 22} size={0.8} muted>
+      <line x1={coast + 4} x2={cx} y1={H - 12} y2={H - 12} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="5 4" />
+      <Txt x={Math.max(coast + 60 * f, (coast + cx) / 2)} y={H - 20} size={0.8} muted>
         d = {fmt(d, 0)} km
       </Txt>
       {/* Øya */}
-      <path d={island} fill={BIO.plante.fill} stroke={BIO.plante.line} strokeWidth={2} />
+      <path d={island} fill={ground.fill} stroke={ground.line} strokeWidth={2} />
       {dots.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r={dotR} fill={DOT_COLORS[i % DOT_COLORS.length]} stroke={VIZ.surface} strokeWidth={0.8} />
+        <circle key={i} cx={p.x} cy={p.y} r={dotR} fill={DOT} stroke={VIZ.surface} strokeWidth={0.8} />
       ))}
-      <Txt x={Math.min(cx, 800 - 90 * f)} y={Math.max(top + 14 * f, cy - R * 0.82 - 10)} weight={700}>
-        {fmtArea(A)} km², ca. {fmt(S, 0)} arter
-      </Txt>
     </Figure>
   );
 }
@@ -232,16 +239,17 @@ function IslandScene({ A, d, S, c, f }: { A: number; d: number; S: number; c: nu
 /** Tall på logaritmiske akser: 0,01 · 0,1 · 1 · 10 · 100 · 1 000 · 10 000. */
 const logLabel = (e: number) => fmt(10 ** e, e < 0 ? -e : 0);
 
-function LogLogPlot({ A, S, c, z, d, height }: { A: number; S: number; c: number; z: number; d: number; height: number }) {
+function LogLogPlot({ A, S, c, z, height }: { A: number; S: number; c: number; z: number; height: number }) {
   return (
     <Plot
-      x={{ min: -2, max: 4, label: 'Areal A (km²), logaritmisk akse', ticks: [] }}
+      x={{ min: 0, max: 6, label: 'Areal A (km²), logaritmisk akse', ticks: [] }}
       y={{ min: 0, max: 3, label: 'Antall arter S, logaritmisk', ticks: [] }}
       width={800}
       height={height}
     >
+      {/* Aksen går fra lg A = −2 til 4; forskjøvet med 2 så Plot ikke tegner en akse ved A = 1 */}
       {({ sx, sy, x0, x1, y0, y1 }) => (
-        <LogLogContent A={A} S={S} c={c} z={z} d={d} sx={sx} sy={sy} x0={x0} x1={x1} y0={y0} y1={y1} />
+        <LogLogContent A={A} S={S} c={c} z={z} sx={(e) => sx(e + 2)} sy={sy} x0={x0} x1={x1} y0={y0} y1={y1} />
       )}
     </Plot>
   );
@@ -252,7 +260,6 @@ function LogLogContent({
   S,
   c,
   z,
-  d,
   sx,
   sy,
   x0,
@@ -264,7 +271,6 @@ function LogLogContent({
   S: number;
   c: number;
   z: number;
-  d: number;
   sx: (v: number) => number;
   sy: (v: number) => number;
   x0: number;
@@ -272,7 +278,8 @@ function LogLogContent({
   y0: number;
   y1: number;
 }) {
-  const [, f] = [0, 1];
+  const f = useTextScale();
+  const narrow = f > 1.3;
   const lg = Math.log10;
   const line = (cc: number) => sample((e) => lg(Math.max(1e-9, speciesArea(cc, 10 ** e, z))), -2, 4, 60).filter(([, v]) => v >= 0 && v <= 3);
   const px = sx(lg(A));
@@ -281,20 +288,21 @@ function LogLogContent({
   const right = lg(A) + 1 <= 4;
   const ax = sx(lg(A) + (right ? 1 : -1));
   const ay = sy(lg(Math.max(1, S)) + (right ? z : -z));
+  const xTicks = narrow ? [-2, 0, 2, 4] : [-2, -1, 0, 1, 2, 3, 4];
   return (
     <g>
       {[-2, -1, 0, 1, 2, 3, 4].map((e) => (
-        <g key={`x${e}`}>
-          <line x1={sx(e)} x2={sx(e)} y1={y0} y2={y1} className="viz-gridline" />
-          <text x={sx(e)} y={y0 + 22} textAnchor="middle" className="viz-tick">
-            {logLabel(e)}
-          </text>
-        </g>
+        <line key={`g${e}`} x1={sx(e)} x2={sx(e)} y1={y0} y2={y1} className="viz-gridline" />
+      ))}
+      {xTicks.map((e) => (
+        <text key={`x${e}`} x={sx(e)} y={y0 + 22 * f} textAnchor={e === 4 ? 'end' : 'middle'} className="viz-tick">
+          {logLabel(e)}
+        </text>
       ))}
       {[0, 1, 2, 3].map((e) => (
         <g key={`y${e}`}>
           <line x1={x0} x2={x1} y1={sy(e)} y2={sy(e)} className="viz-gridline" />
-          <text x={x0 - 10} y={sy(e) + 5} textAnchor="end" className="viz-tick">
+          <text x={x0 - 10} y={sy(e) + 5 * f} textAnchor="end" className="viz-tick">
             {logLabel(e)}
           </text>
         </g>
@@ -304,19 +312,20 @@ function LogLogContent({
       {S >= 1 && (
         <g>
           <path d={`M${px},${py} H${ax} V${ay}`} fill="none" stroke={VIZ.ink} strokeWidth={1.8} strokeDasharray="4 4" />
-          <Txt x={(px + ax) / 2} y={py + (right ? 22 : -10) * f} size={0.75} muted>
+          <Txt x={(px + ax) / 2} y={py + (right ? 22 * f : -10)} size={0.75} muted>
             × 10 areal
           </Txt>
-          <Txt x={ax + (right ? 8 : -8)} y={(py + ay) / 2 + 5} anchor={right ? 'start' : 'end'} size={0.75} muted>
-            × {fmt(factorPerTenfold(z), 2)} arter
-          </Txt>
+          {(() => {
+            // Til høyre for den loddrette streken når det er plass, ellers til venstre
+            const roomRight = right && ax + 8 + 110 * f < x1;
+            return (
+              <Txt x={ax + (roomRight ? 8 : -8)} y={(py + ay) / 2 + 5} anchor={roomRight ? 'start' : 'end'} size={0.75} muted>
+                × {fmt(factorPerTenfold(z), 2)} arter
+              </Txt>
+            );
+          })()}
           <circle cx={px} cy={py} r={8} fill={COL} stroke={VIZ.surface} strokeWidth={3} />
         </g>
-      )}
-      {d > 0 && (
-        <Txt x={x1 - 8} y={sy(Math.min(3, lg(speciesArea(ISLAND_C0, 10 ** 4, z)))) + 22} anchor="end" size={0.75} muted>
-          ved fastlandet
-        </Txt>
       )}
     </g>
   );
@@ -416,8 +425,9 @@ function Oppstykking({ z, setZ }: { z: number; setZ: (z: number) => void }) {
 
       <Formula label="Arter i hver skogbit">
         <FormulaLine>
-          Hele skogen: {FOREST_AREA} km² og {FOREST_SPECIES_COUNT} arter, så c = {FOREST_SPECIES_COUNT} / {FOREST_AREA}
-          <Sup>{fmt(z, 2)}</Sup> = {fmt(FOREST_SPECIES_COUNT / FOREST_AREA ** z, 1)}
+          Hele skogen: {edge ? `${fmtArea(r.referenceArea)} km² indre skog` : `${FOREST_AREA} km²`} og {FOREST_SPECIES_COUNT} arter, så c ={' '}
+          {FOREST_SPECIES_COUNT} / {fmtArea(r.referenceArea)}
+          <Sup>{fmt(z, 2)}</Sup> = {fmt(r.c, 1)}
         </FormulaLine>
         <FormulaLine>
           Hver bit: {fmt(r.remaining, 0)} km² / {layout.n} = {fmtArea(r.patchArea)} km²
@@ -428,7 +438,7 @@ function Oppstykking({ z, setZ }: { z: number; setZ: (z: number) => void }) {
           ) : null}
         </FormulaLine>
         <FormulaLine>
-          S = {fmt(FOREST_SPECIES_COUNT / FOREST_AREA ** z, 1)} · {fmtArea(r.effective)}
+          S = {fmt(r.c, 1)} · {fmtArea(r.effective)}
           <Sup>{fmt(z, 2)}</Sup> ≈ {fmt(r.species, 0)} arter
         </FormulaLine>
       </Formula>
@@ -534,7 +544,9 @@ function FragmentScene({
 }
 
 function fragmentText(r: Fragmentation, n: number, loss: number, edge: boolean, lost: number, lostByLoss: number): ReactNode {
-  const byFragmentation = lost - lostByLoss;
+  // Hele tall som summerer riktig: tapt = tapt fordi skog er borte + tapt fordi resten er delt opp
+  const byLoss = Math.round(lostByLoss);
+  const byFragmentation = Math.round(lost) - byLoss;
   return (
     <>
       <p>
@@ -548,7 +560,7 @@ function fragmentText(r: Fragmentation, n: number, loss: number, edge: boolean, 
             <strong>
               Ca. {fmt(lost, 0)} av {FOREST_SPECIES_COUNT} arter forsvinner på sikt.
             </strong>{' '}
-            {loss > 0 ? `Omtrent ${fmt(lostByLoss, 0)} fordi ${fmtPct(loss)} av skogen er borte` : 'Ingen skog er borte'}
+            {loss > 0 ? `Omtrent ${fmt(byLoss, 0)} fordi ${fmtPct(loss)} av skogen er borte` : 'Ingen skog er borte'}
             {n > 1 ? `, og omtrent ${fmt(byFragmentation, 0)} fordi resten er delt i ${n} biter på ${fmtArea(r.patchArea)} km²` : ''}.
             {n > 1
               ? ' Hver bit er en «øy» i landskapet: små bestander dør lettere ut, og det er vanskelig å spre seg til neste bit over hogstflater, veier og jorder.'

@@ -42,6 +42,7 @@ import {
   shiftPerDegreeAltitude,
   shiftPerDegreeLatitude,
   speciesRange,
+  tempAtAltitude,
   tempAtLatitude,
   type Band,
   type RangeMode,
@@ -188,7 +189,7 @@ export default function KlimaOgUtbredelse() {
         )}
       </Formula>
 
-      <Explain>{explanation({ mode, res, dT, name, preset, peak, shift })}</Explain>
+      <Explain>{explanation({ mode, res, dT, name, preset, peak, shift, Tmin })}</Explain>
     </VizLayout>
   );
 }
@@ -532,6 +533,7 @@ function explanation({
   preset,
   peak,
   shift,
+  Tmin,
 }: {
   mode: RangeMode;
   res: RangeResult;
@@ -540,6 +542,7 @@ function explanation({
   preset: Species | null;
   peak: number;
   shift: number;
+  Tmin: number;
 }): ReactNode {
   const where = mode === 'hoyde' ? `${fmt(shift, 0)} m oppover` : `ca. ${fmt(shift, 0)} km nordover`;
   const latin = preset ? (
@@ -596,17 +599,30 @@ function explanation({
     ),
   };
   const note = preset ? speciesNote[preset.id] : null;
-  if (!res.today)
+  if (!res.today) {
+    // For kaldt overalt (selv ved havnivået / lengst sør) eller for varmt overalt (selv på toppen / lengst nord)?
+    const tooCold = mode === 'hoyde' ? tempAtAltitude(0) < Tmin : tempAtLatitude(LAT_MIN) < Tmin;
+    const arrives = !!res.future && res.areaFuture > 0;
     return (
       <>
         <p>
-          <strong>Ikke passende klima {mode === 'hoyde' ? 'på dette fjellet' : 'i lavlandet'} i dag.</strong> Med dette toleranseområdet er det
-          for varmt {mode === 'hoyde' ? `selv på toppen (${fmt(peak, 0)} m)` : 'overalt på land'}.{' '}
-          {mode === 'hoyde' ? 'Gjør fjellet høyere eller velg en art.' : 'Velg en art, eller se på fjellet i stedet.'}
+          <strong>Ikke passende klima {mode === 'hoyde' ? 'på dette fjellet' : 'i lavlandet'} i dag.</strong> Med dette toleranseområdet er det{' '}
+          {tooCold
+            ? `for kaldt ${mode === 'hoyde' ? `selv ved havnivået (${fmt(tempAtAltitude(0), 0)} °C i juli)` : 'selv lengst sør'}`
+            : `for varmt ${mode === 'hoyde' ? `selv på toppen (${fmt(peak, 0)} m)` : 'overalt på land'}`}
+          .{' '}
+          {arrives
+            ? `Med ${fmt(dT, 1)} °C oppvarming får ${name.toLowerCase()} passende klima her, så arten kan spre seg hit og bli en ny art i området. Slik kommer sørlige arter nordover og oppover når klimaet blir varmere.`
+            : mode === 'hoyde'
+              ? tooCold
+                ? 'Øk oppvarmingen eller velg en art.'
+                : 'Gjør fjellet høyere eller velg en art.'
+              : 'Velg en art, eller se på fjellet i stedet.'}
         </p>
         {move}
       </>
     );
+  }
   if (dT < 0.05)
     return (
       <>

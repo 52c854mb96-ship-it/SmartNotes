@@ -105,8 +105,8 @@ describe('slektskapstrærne', () => {
     expect(answer('utseende', 'hval')).toBe('y');
     expect(answer('anatomi', 'hval')).toBe('z');
     expect(answer('dna', 'hval')).toBe('z');
-    // Fugler: nær pattedyr (varmblodige) etter anatomi, nær krokodiller etter DNA
-    expect(answer('anatomi', 'fugl')).toBe('z');
+    // Fugler: en egen klasse (uavklart slektskap) etter anatomi, nær krokodiller etter DNA
+    expect(answer('anatomi', 'fugl')).toBe('lik');
     expect(answer('dna', 'fugl')).toBe('y');
     // Sopp: plante etter utseende, uavklart etter anatomi, nærmere dyr etter DNA
     expect(answer('utseende', 'sopp')).toBe('y');

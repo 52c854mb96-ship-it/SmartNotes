@@ -168,6 +168,10 @@ export const PATCH_LAYOUTS: readonly { n: number; rows: number; cols: number }[]
 ];
 
 export interface Fragmentation {
+  /** Konstanten c i S = c · A^z, satt så den hele skogen har 100 arter. */
+  c: number;
+  /** Arealet som teller for artene i den hele skogen (indre skog med kanteffekt). */
+  referenceArea: number;
   /** Skog som er igjen (km²). */
   remaining: number;
   /** Areal per bit (km²) og sidelengden til en kvadratisk bit (km). */
@@ -187,24 +191,31 @@ export interface Fragmentation {
 
 /**
  * Arter som blir igjen når skogen (100 km², 100 arter) mister en andel `loss` og resten deles i n like store biter.
- * Forenklinger: c bestemmes av den hele skogen; bitene har de samme artene (de som klarer seg på lite areal), så
+ * Med kanteffekt teller bare indre skog (mer enn EDGE_WIDTH fra kanten), også i den hele skogen. Forenklinger: c bestemmes
+ * av den hele skogen; bitene har de samme artene (de som klarer seg på lite areal), så
  * landskapet har like mange arter som én bit; arter som trenger mer areal enn en bit, dør ut på sikt (utdøingsgjeld).
  */
 export function fragmentation(n: number, loss: number, z: number, edge: boolean): Fragmentation {
-  const c = FOREST_SPECIES_COUNT / FOREST_AREA ** z;
+  const coreOf = (area: number) => Math.max(0, Math.sqrt(area) - 2 * EDGE_WIDTH) ** 2;
+  const eff = (area: number) => (edge ? coreOf(area) : area);
+  // c er satt så den hele skogen (med sin egen ytterkant når kanteffekten er med) har akkurat 100 arter
+  const referenceArea = eff(FOREST_AREA);
+  const c = FOREST_SPECIES_COUNT / referenceArea ** z;
   const remaining = FOREST_AREA * (1 - Math.min(0.99, Math.max(0, loss)));
   const patchArea = remaining / Math.max(1, n);
   const side = Math.sqrt(patchArea);
-  const core = Math.max(0, side - 2 * EDGE_WIDTH) ** 2;
-  const effective = edge ? core : patchArea;
+  const core = coreOf(patchArea);
+  const effective = eff(patchArea);
   return {
+    c,
+    referenceArea,
     remaining,
     patchArea,
     side,
     core,
     effective,
     species: speciesArea(c, effective, z),
-    speciesOnePiece: speciesArea(c, remaining, z),
+    speciesOnePiece: speciesArea(c, eff(remaining), z),
     before: FOREST_SPECIES_COUNT,
   };
 }
@@ -378,6 +389,25 @@ export function cascade(removed: WebId | null): Map<WebId, Effect> {
     const both = p >= EFFECT_THRESHOLD && -n >= EFFECT_THRESHOLD;
     if (both && Math.min(p, -n) > 0.5 * Math.max(p, -n)) out.set(id, { kind: 'usikker', value: total, round: r });
     else if (Math.abs(total) >= EFFECT_THRESHOLD) out.set(id, { kind: total > 0 ? 'oker' : 'minker', value: total, round: r });
+  }
+  return out;
+}
+
+export interface EffectSummary {
+  /** Runde 1: arter som spiser eller blir spist av arten som er fjernet. */
+  direct: Record<Exclude<EffectKind, 'fjernet'>, WebId[]>;
+  /** Runde 2: virkninger som har gått via en annen art. */
+  indirect: Record<Exclude<EffectKind, 'fjernet'>, WebId[]>;
+}
+
+/** Virkningene sortert etter runde og type, i rekkefølgen artene står i nettet. */
+export function summarizeEffects(effects: Map<WebId, Effect>): EffectSummary {
+  const empty = () => ({ 'dor-ut': [] as WebId[], oker: [] as WebId[], minker: [] as WebId[], usikker: [] as WebId[] });
+  const out: EffectSummary = { direct: empty(), indirect: empty() };
+  for (const s of WEB) {
+    const e = effects.get(s.id);
+    if (!e || e.kind === 'fjernet') continue;
+    (e.round <= 1 ? out.direct : out.indirect)[e.kind].push(s.id);
   }
   return out;
 }

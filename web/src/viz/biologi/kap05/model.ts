@@ -240,17 +240,29 @@ function fmtNo(v: number, d: number): string {
   return new Intl.NumberFormat('nb-NO', { minimumFractionDigits: d, maximumFractionDigits: d }).format(v);
 }
 
-/** Store tall i µm² eller µm³ med passende enhet. */
-export function formatArea(um2: number): string {
-  if (um2 < 1e6) return `${fmtNo(um2, um2 < 10 ? 1 : 0)} µm²`;
-  if (um2 < 1e8) return `${fmtNo(um2 / 1e6, 2)} mm²`;
-  return `${fmtNo(um2 / 1e8, 2)} cm²`;
+/** Tre gjeldende siffer uten unødvendige nuller: 2400 → «2 400», 24 → «24», 1,5 → «1,5», 0,18 → «0,18». */
+function sig3(v: number): string {
+  if (!(v > 0)) return '0';
+  const r = Number(v.toPrecision(3));
+  const exp = Math.floor(Math.log10(r));
+  const txt = fmtNo(r, Math.max(0, 2 - exp));
+  return txt.includes(',') ? txt.replace(/,?0+$/, '') : txt;
 }
 
+/** Areal med passende enhet og tre gjeldende siffer: «2 400 µm²», «24 mm²», «3,14 cm²». */
+export function formatArea(um2: number): string {
+  if (!Number.isFinite(um2)) return '–';
+  if (um2 < 1e6) return `${sig3(um2)} µm²`;
+  if (um2 < 1e8) return `${sig3(um2 / 1e6)} mm²`;
+  return `${sig3(um2 / 1e8)} cm²`;
+}
+
+/** Volum med passende enhet og tre gjeldende siffer: «8 000 µm³», «0,18 mm³», «8 mm³». */
 export function formatVolume(um3: number): string {
-  if (um3 < 1e9) return `${fmtNo(um3, um3 < 10 ? 1 : 0)} µm³`;
-  if (um3 < 1e12) return `${fmtNo(um3 / 1e9, 2)} mm³`;
-  return `${fmtNo(um3 / 1e12, 2)} cm³`;
+  if (!Number.isFinite(um3)) return '–';
+  if (um3 < 1e7) return `${sig3(um3)} µm³`;
+  if (um3 < 1e12) return `${sig3(um3 / 1e9)} mm³`;
+  return `${sig3(um3 / 1e12)} cm³`;
 }
 
 /** Kjente ting langs størrelsesskalaen (µm), lærebokverdier. */
@@ -294,16 +306,156 @@ export interface Outgrowth {
  * - Tarmtotter: 0,5–1 mm lange og ca. 0,1 mm tykke, 20–40 per mm² → ca. 7–10 ganger så stor overflate. Mikrovilli på
  *   hver tarmcelle gir ca. 20 ganger til.
  * - Rothår: ca. 0,01 mm tykke og opptil 1–1,5 mm lange, svært tette. Hos en rugplante (Dittmer 1937) var rotsystemet
- *   uten rothår ca. 240 m² og rothårene ca. 400 m².
+ *   uten rothår ca. 240 m² og rothårene ca. 400 m²; standardverdiene (0,45 mm, 100 per mm²) gir samme forhold, ca. 2,7.
  */
 export const OUTGROWTHS: Record<OutgrowthId, Outgrowth> = {
   tarmtotter: { navn: 'Tarmtotter', radius: 0.05, length: 0.75, maxLength: 1.5, density: 25, maxDensity: 40 },
-  rothar: { navn: 'Rothår', radius: 0.006, length: 0.6, maxLength: 1.5, density: 100, maxDensity: 300 },
+  rothar: { navn: 'Rothår', radius: 0.006, length: 0.45, maxLength: 1.5, density: 100, maxDensity: 300 },
 };
 
 /** Hvor mange ganger større overflaten blir med n utposninger per mm² (radius r, lengde L i mm): 1 + n · 2πrL. */
 export function outgrowthFactor(density: number, radius: number, length: number): number {
   return 1 + Math.max(0, density) * 2 * Math.PI * radius * Math.max(0, length);
+}
+
+/** Størrelsene på glidebryteren (µm): «pene» tall fra en bakterie (1 µm) til et stort egg (2 mm). */
+export const SIZE_STEPS: readonly number[] = [1, 1.5, 2, 3, 5, 8, 10, 15, 20, 30, 50, 70, 100, 150, 200, 300, 500, 700, 1000, 1500, 2000];
+
+/* ---------- Oksygen inne i en celle som bruker oksygen ---------- */
+
+/**
+ * O₂ ved overflaten av cellen (mmol/L). Vann i likevekt med luft har ca. 0,28 mmol/L ved 20 °C og ca. 0,2 ved 37 °C.
+ */
+export const O2_SURFACE = 0.25;
+/**
+ * O₂-forbruket i en aktiv celle (mmol O₂ per liter celle per sekund). Hele kroppen bruker i hvile ca. 250 mL O₂ per
+ * minutt, ca. 0,003 mmol/(L · s) i snitt over 70 L; aktive celler bruker flere ganger så mye. Forenklet: forbruket er
+ * det samme overalt i cellen så lenge det er O₂ der (nulte ordens forbruk).
+ */
+export const O2_USE = 0.01;
+/** Senterverdien av −∇²u = 1 i en kube med side a og u = 0 på overflaten: ca. 0,0562 · a² (kule: R²/6). */
+export const CUBE_CENTRE = 0.05622;
+
+/**
+ * Radiusen i kulemodellen for O₂: kule R = d/2. For kuben brukes kula som gir samme O₂-underskudd i midten:
+ * R²/6 = 0,0562 · a², altså R ≈ 0,58 · a (tilnærming; kuben har hjørner som når lenger ut).
+ */
+export function o2Radius(shape: Shape, d: number): number {
+  return shape === 'kule' ? d / 2 : d * Math.sqrt(6 * CUBE_CENTRE);
+}
+
+/** Den største radiusen der O₂ så vidt når midten: R² = 6 · D · c₀ / q. */
+export function o2CriticalRadius(D = D_O2, c0 = O2_SURFACE, q = O2_USE): number {
+  return Math.sqrt((6 * D * c0) / q);
+}
+
+/** Den største cellen (side eller diameter, µm) der midten fortsatt får O₂. Med standardverdiene ca. 1 mm. */
+export function maxSize(shape: Shape, D = D_O2, c0 = O2_SURFACE, q = O2_USE): number {
+  const Rc = o2CriticalRadius(D, c0, q);
+  return shape === 'kule' ? 2 * Rc : Rc / Math.sqrt(6 * CUBE_CENTRE);
+}
+
+export interface O2Profile {
+  /** O₂ i midten som andel av O₂ ved overflaten (0 når midten er uten O₂). */
+  centre: number;
+  /** Radiusen til kjernen uten O₂, som andel av cellens radius (0 når hele cellen får O₂). */
+  anoxic: number;
+  /** Andelen av volumet som er uten O₂. */
+  anoxicVolume: number;
+  /** O₂ (andel av overflaten) i relativ avstand u fra midten (0 = midten, 1 = overflaten). */
+  at: (u: number) => number;
+}
+
+/**
+ * Stasjonær O₂-profil i en kule som bruker O₂ med fast fart q der det finnes O₂: D∇²c = q.
+ * - Når R ≤ R_c: c(r)/c₀ = 1 − (R² − r²)/R_c², med R_c² = 6Dc₀/q.
+ * - Når R > R_c blir det en kjerne uten O₂ med radius ρ = sR, der 3s² − 2s³ = 1 − (R_c/R)² (c og c′ er 0 i ρ), og
+ *   c(r)/c₀ = 1 − (R² − r²)/R_c² + 2ρ³(1/r − 1/R)/R_c² utenfor kjernen.
+ */
+export function o2Profile(shape: Shape, d: number, D = D_O2, c0 = O2_SURFACE, q = O2_USE): O2Profile {
+  const R = Math.max(1e-9, o2Radius(shape, d));
+  const Rc2 = (6 * D * c0) / q;
+  if (R * R <= Rc2) {
+    const at = (u: number) => 1 - (R * R * (1 - Math.min(1, Math.max(0, u)) ** 2)) / Rc2;
+    return { centre: at(0), anoxic: 0, anoxicVolume: 0, at };
+  }
+  const target = 1 - Rc2 / (R * R);
+  // 3s² − 2s³ øker fra 0 til 1 på [0, 1]: halveringsmetoden
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    if (3 * mid * mid - 2 * mid ** 3 < target) lo = mid;
+    else hi = mid;
+  }
+  const s = (lo + hi) / 2;
+  const rho = s * R;
+  const at = (u: number) => {
+    const r = Math.min(1, Math.max(0, u)) * R;
+    if (r <= rho) return 0;
+    return Math.max(0, 1 - (R * R - r * r) / Rc2 + (2 * rho ** 3 * (1 / r - 1 / R)) / Rc2);
+  };
+  return { centre: 0, anoxic: s, anoxicVolume: s ** 3, at };
+}
+
+/* ---------- Store overflater i kroppen ---------- */
+
+/**
+ * Lungene: lungeblærer (alveoler) med diameter d (mm) som fyller en andel φ av lungevolumet V. Antall blærer er
+ * φV/(πd³/6), og hver har overflate πd², så samlet overflate blir 6φV/d (samme 6/d som for én celle).
+ * Med V = 6 L, φ = 0,5 og d = 0,25 mm blir det ca. 70 m² (lærebøkene oppgir 50–100 m²).
+ */
+export const LUNG = { volume: 6, airFraction: 0.5, alveolus: 0.25, minD: 0.1, maxD: 20 } as const;
+
+/** Samlet overflate (m²) av lungeblærer med diameter d (mm) i lunger med volum V (L). */
+export function lungArea(d: number, V: number = LUNG.volume, phi: number = LUNG.airFraction): number {
+  return d > 0 ? (6 * phi * V) / d : 0;
+}
+
+/** Antall lungeblærer med diameter d (mm). Med 0,25 mm ca. 400 millioner (lærebøkene: 300–500 millioner). */
+export function alveoliCount(d: number, V: number = LUNG.volume, phi: number = LUNG.airFraction): number {
+  return d > 0 ? (phi * V * 1e6) / ((Math.PI / 6) * d ** 3) : 0;
+}
+
+/** Overflaten (m²) hvis lungene bare var to kuleformede sekker på V/2 hver (ca. 0,2 m² for 6 L). */
+export function lungAreaTwoSacs(V: number = LUNG.volume): number {
+  const r = Math.cbrt((3 * (V / 2)) / (4 * Math.PI)); // dm
+  return (2 * 4 * Math.PI * r * r) / 100;
+}
+
+/**
+ * Tynntarmen (Helander og Fändriks 2014): et glatt rør på ca. 3 m med diameter 2,5 cm har en indre flate på ca.
+ * 0,24 m². Ringfolder gjør den ca. 1,6 ganger større, tarmtottene ca. 6,5 ganger og mikrovilliene ca. 13 ganger, til
+ * sammen ca. 30 m². (Eldre bøker oppgir 200–300 m², «som en tennisbane», men det er senere målt mindre.)
+ */
+export const GUT = { length: 3, diameter: 0.025, folds: 1.6, microvilli: 13 } as const;
+
+/** Indre overflate (m²) av tynntarmen med tarmtotter som gir faktoren `villi`. */
+export function gutArea(villi: number): number {
+  return Math.PI * GUT.diameter * GUT.length * GUT.folds * Math.max(1, villi) * GUT.microvilli;
+}
+
+/**
+ * Røttene til én rugplante etter fire måneder (Dittmer 1937): ca. 240 m² røtter uten rothår og ca. 400 m² rothår,
+ * altså ca. 2,7 ganger så stor overflate med rothårene.
+ */
+export const ROOT_AREA = 240;
+
+/** Kjente flater å sammenligne med (m²), med entall og flertall uten artikkel. */
+export const AREA_REFERENCES: readonly { navn: string; en: string; flere: string; m2: number }[] = [
+  { navn: 'et A4-ark', en: 'A4-ark', flere: 'A4-ark', m2: 0.0624 },
+  { navn: 'et skrivebord', en: 'skrivebord', flere: 'skrivebord', m2: 1 },
+  { navn: 'en parkeringsplass', en: 'parkeringsplass', flere: 'parkeringsplasser', m2: 12.5 },
+  { navn: 'en badmintonbane', en: 'badmintonbane', flere: 'badmintonbaner', m2: 82 },
+  { navn: 'en tennisbane', en: 'tennisbane', flere: 'tennisbaner', m2: 261 },
+  { navn: 'en fotballbane', en: 'fotballbane', flere: 'fotballbaner', m2: 7140 },
+];
+
+/** Den kjente flaten som er nærmest (på logaritmisk skala), og hvor mange av den det er. */
+export function compareArea(m2: number): { navn: string; en: string; flere: string; ratio: number } {
+  let best = AREA_REFERENCES[0]!;
+  for (const r of AREA_REFERENCES) if (Math.abs(Math.log(m2 / r.m2)) < Math.abs(Math.log(m2 / best.m2))) best = r;
+  return { navn: best.navn, en: best.en, flere: best.flere, ratio: m2 / best.m2 };
 }
 
 /* ====================================================================== */
@@ -392,9 +544,13 @@ export function compensationLight(C: number, T: number): number | null {
   return (R * (b - PS.theta * R)) / (PS.phi * (b - R));
 }
 
-/** Lyset (%) der fotosyntesen er nær metning: der lysbegrenset og enzymbegrenset fart er like store. */
-export function saturationLight(C: number, T: number): number {
-  return enzymeLimited(C, T) / PS.phi;
+/**
+ * Lysmetning: lyset (%) der fotosyntesen har nådd andelen q (standard 95 %) av det høyeste den kan få med denne CO₂-en
+ * og temperaturen. Fra θP² − (a + b)P + ab = 0 med P = qb: a = qb(1 − θq)/(1 − q), og I = a/φ.
+ */
+export function saturationLight(C: number, T: number, q = 0.95): number {
+  const b = enzymeLimited(C, T);
+  return (q * b * (1 - PS.theta * q)) / ((1 - q) * PS.phi);
 }
 
 export type Limiting = 'lys' | 'co2' | 'temperatur';

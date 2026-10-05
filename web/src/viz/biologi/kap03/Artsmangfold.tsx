@@ -147,8 +147,8 @@ function SimpsonLine({ name, c }: { name: string; c: number[] }) {
   ));
   return (
     <FormulaLine>
-      Flate {name}: D = 1 − ({terms}
-      {c.length > 3 ? ' + …' : ''}) = 1 − {fmt(1 - simpson(c), 3)} = {fmt(simpson(c), 2)}
+      Flate {name}: D = 1 − [{terms}
+      {c.length > 3 ? ' + …' : ''}] = 1 − {fmt(1 - simpson(c), 3)} = {fmt(simpson(c), 2)}
     </FormulaLine>
   );
 }
@@ -254,7 +254,7 @@ function PlotsFigure({ cA, cB, f }: { cA: number[]; cB: number[]; f: number }) {
             )}
             {/* Søyler: antall av hver art, vanligste først */}
             {p.c.map((n, i) => {
-              const h = ((barsH - 22 * f) * n) / maxN;
+              const h = Math.max(3, ((barsH - 22 * f) * n) / maxN);
               const x = p.x + 8 + i * bw;
               const yb = bTop + barsH;
               return (
@@ -303,7 +303,14 @@ function explanation(a: Community, b: Community, cA: number[], cB: number[], sho
   const jA = pielou(cA);
   const jB = pielou(cB);
   let main: ReactNode;
-  if (Math.abs(dA - dB) < 0.005)
+  if (a.S === 1 && b.S === 1)
+    main = (
+      <p>
+        <strong>Begge flatene har bare én art</strong>, så det er ikke noe artsmangfold å måle: D = 0. Øk antall arter for å se hvordan
+        indeksen vokser.
+      </p>
+    );
+  else if (Math.abs(dA - dB) < 0.005)
     main = (
       <p>
         <strong>Flatene har omtrent like stort mangfold</strong> (D = {fmt(dA, 2)}).{' '}

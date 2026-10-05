@@ -7,7 +7,17 @@ import {
   SERIES,
   SUB_KINDS,
   bondChanges,
+  bondSummary,
+  smallMolecule,
   buildNamed,
+  isomerRelation,
+  pairLayout,
+  reactionsOfType,
+  REACTION_TYPES,
+  sideTally,
+  trackedAtoms,
+  PAIR_DISTANCE,
+  HBOND_OO,
   carbonBonds,
   equationText,
   generalFormula,
@@ -71,9 +81,17 @@ describe('struktur: molekyler', () => {
     expect(molFormula(molecule({ chain: ['C', 'C', 'C'] }))).toBe('C3H8');
     expect(condensed(molecule({ chain: ['C', 'C', 'C'] }))).toBe('CH3–CH2–CH3');
     expect(condensed(molecule({ chain: ['C', 'C', 'C'], branches: [{ at: 1, side: 'up', atoms: ['O'] }] }))).toBe('CH3–CH(OH)–CH3');
-    expect(condensed(molecule({ chain: ['C', 'C', 'C'], branches: [{ at: 1, side: 'up', atoms: ['C'] }, { at: 1, side: 'down', atoms: ['C'] }] }))).toBe(
-      'CH3–C(CH3)2–CH3',
-    );
+    expect(
+      condensed(
+        molecule({
+          chain: ['C', 'C', 'C'],
+          branches: [
+            { at: 1, side: 'up', atoms: ['C'] },
+            { at: 1, side: 'down', atoms: ['C'] },
+          ],
+        }),
+      ),
+    ).toBe('CH3–C(CH3)2–CH3');
     expect(condensed(molecule(seriesSpec('karboksylsyrer', 2)))).toBe('CH3–COOH');
     expect(condensed(molecule(seriesSpec('karboksylsyrer', 1)))).toBe('HCOOH');
     expect(condensed(molecule(seriesSpec('alkener', 2)))).toBe('CH2=CH2');
@@ -188,45 +206,135 @@ describe('homologe rekker', () => {
 describe('navnsetting: lærebokeksempler', () => {
   it('eksemplene i oppgaven', () => {
     expect(nameOf(4, [['metyl', 2]])).toBe('2-metylbutan');
-    expect(nameOf(3, [['metyl', 2], ['metyl', 2]])).toBe('2,2-dimetylpropan');
+    expect(
+      nameOf(3, [
+        ['metyl', 2],
+        ['metyl', 2],
+      ]),
+    ).toBe('2,2-dimetylpropan');
     expect(nameOf(4, [], 2)).toBe('but-2-en');
     expect(nameOf(3, [], null, 2)).toBe('propan-2-ol');
-    expect(nameOf(3, [['klor', 2], ['metyl', 2]])).toBe('2-klor-2-metylpropan');
+    expect(
+      nameOf(3, [
+        ['klor', 2],
+        ['metyl', 2],
+      ]),
+    ).toBe('2-klor-2-metylpropan');
   });
 
   it('alkaner, enkle', () => {
     expect(nameOf(1)).toBe('metan');
     expect(nameOf(2)).toBe('etan');
     expect(nameOf(8)).toBe('oktan');
-    expect(nameOf(5, [['metyl', 2], ['metyl', 3]])).toBe('2,3-dimetylpentan');
-    expect(nameOf(5, [['metyl', 2], ['metyl', 2], ['metyl', 3]])).toBe('2,2,3-trimetylpentan');
-    expect(nameOf(5, [['etyl', 3], ['metyl', 2]])).toBe('3-etyl-2-metylpentan');
-    expect(nameOf(6, [['etyl', 3], ['etyl', 4]])).toBe('3,4-dietylheksan');
+    expect(
+      nameOf(5, [
+        ['metyl', 2],
+        ['metyl', 3],
+      ]),
+    ).toBe('2,3-dimetylpentan');
+    expect(
+      nameOf(5, [
+        ['metyl', 2],
+        ['metyl', 2],
+        ['metyl', 3],
+      ]),
+    ).toBe('2,2,3-trimetylpentan');
+    expect(
+      nameOf(5, [
+        ['etyl', 3],
+        ['metyl', 2],
+      ]),
+    ).toBe('3-etyl-2-metylpentan');
+    expect(
+      nameOf(6, [
+        ['etyl', 3],
+        ['etyl', 4],
+      ]),
+    ).toBe('3,4-dietylheksan');
   });
 
   it('laveste nummer: nummerer fra den enden som gir lavest tall', () => {
     expect(nameOf(4, [['metyl', 3]])).toBe('2-metylbutan');
-    expect(nameOf(5, [['metyl', 3], ['metyl', 4]])).toBe('2,3-dimetylpentan');
-    expect(nameOf(6, [['metyl', 2], ['metyl', 5], ['metyl', 5]])).toBe('2,2,5-trimetylheksan');
+    expect(
+      nameOf(5, [
+        ['metyl', 3],
+        ['metyl', 4],
+      ]),
+    ).toBe('2,3-dimetylpentan');
+    expect(
+      nameOf(6, [
+        ['metyl', 2],
+        ['metyl', 5],
+        ['metyl', 5],
+      ]),
+    ).toBe('2,2,5-trimetylheksan');
     expect(nameOf(4, [], 3)).toBe('but-1-en');
     expect(nameOf(5, [], null, 4)).toBe('pentan-2-ol');
   });
 
   it('alfabetisk rekkefølge (brom, etyl, klor, metyl) og di-/tri- teller ikke', () => {
-    expect(nameOf(6, [['brom', 2], ['klor', 5]])).toBe('2-brom-5-klorheksan');
-    expect(nameOf(6, [['brom', 5], ['klor', 2]])).toBe('2-brom-5-klorheksan');
-    expect(nameOf(5, [['metyl', 2], ['metyl', 2], ['etyl', 3]])).toBe('3-etyl-2,2-dimetylpentan');
-    expect(nameOf(4, [['klor', 2], ['klor', 3], ['brom', 2]])).toBe('2-brom-2,3-diklorbutan');
+    expect(
+      nameOf(6, [
+        ['brom', 2],
+        ['klor', 5],
+      ]),
+    ).toBe('2-brom-5-klorheksan');
+    expect(
+      nameOf(6, [
+        ['brom', 5],
+        ['klor', 2],
+      ]),
+    ).toBe('2-brom-5-klorheksan');
+    expect(
+      nameOf(5, [
+        ['metyl', 2],
+        ['metyl', 2],
+        ['etyl', 3],
+      ]),
+    ).toBe('3-etyl-2,2-dimetylpentan');
+    expect(
+      nameOf(4, [
+        ['klor', 2],
+        ['klor', 3],
+        ['brom', 2],
+      ]),
+    ).toBe('2-brom-2,3-diklorbutan');
   });
 
   it('halogenerte metaner og etaner uten unødvendige tall', () => {
     expect(nameOf(1, [['klor', 1]])).toBe('klormetan');
-    expect(nameOf(1, [['klor', 1], ['klor', 1]])).toBe('diklormetan');
-    expect(nameOf(1, [['klor', 1], ['klor', 1], ['klor', 1]])).toBe('triklormetan');
-    expect(nameOf(1, [['brom', 1], ['klor', 1]])).toBe('bromklormetan');
+    expect(
+      nameOf(1, [
+        ['klor', 1],
+        ['klor', 1],
+      ]),
+    ).toBe('diklormetan');
+    expect(
+      nameOf(1, [
+        ['klor', 1],
+        ['klor', 1],
+        ['klor', 1],
+      ]),
+    ).toBe('triklormetan');
+    expect(
+      nameOf(1, [
+        ['brom', 1],
+        ['klor', 1],
+      ]),
+    ).toBe('bromklormetan');
     expect(nameOf(2, [['klor', 1]])).toBe('kloretan');
-    expect(nameOf(2, [['klor', 1], ['klor', 2]])).toBe('1,2-dikloretan');
-    expect(nameOf(2, [['klor', 1], ['klor', 1]])).toBe('1,1-dikloretan');
+    expect(
+      nameOf(2, [
+        ['klor', 1],
+        ['klor', 2],
+      ]),
+    ).toBe('1,2-dikloretan');
+    expect(
+      nameOf(2, [
+        ['klor', 1],
+        ['klor', 1],
+      ]),
+    ).toBe('1,1-dikloretan');
   });
 
   it('alkener', () => {
@@ -278,19 +386,57 @@ describe('navnsetting: feil kjede', () => {
   it('etyl på C2 forlenger kjeden', () => {
     expect(nameOf(4, [['etyl', 2]])).toBe('3-metylpentan');
     expect(nameOf(3, [['etyl', 2]])).toBe('2-metylbutan');
-    expect(nameOf(8, [['etyl', 1], ['etyl', 8]])).toBe('dodekan');
+    expect(
+      nameOf(8, [
+        ['etyl', 1],
+        ['etyl', 8],
+      ]),
+    ).toBe('dodekan');
   });
   it('flest substituenter når to kjeder er like lange', () => {
-    expect(nameOf(6, [['etyl', 3], ['metyl', 2]])).toBe('3-etyl-2-metylheksan');
-    expect(nameOf(3, [['klor', 1], ['etyl', 2]])).toBe('1-klor-2-metylbutan');
+    expect(
+      nameOf(6, [
+        ['etyl', 3],
+        ['metyl', 2],
+      ]),
+    ).toBe('3-etyl-2-metylheksan');
+    expect(
+      nameOf(3, [
+        ['klor', 1],
+        ['etyl', 2],
+      ]),
+    ).toBe('1-klor-2-metylbutan');
   });
 });
 
 describe('navnsetting: ugyldige valg', () => {
   it('for mange bindinger på ett C', () => {
-    expect(nameOf(3, [['metyl', 2], ['metyl', 2], ['klor', 2]])).toBe('ugyldig');
-    expect(nameOf(4, [['metyl', 2], ['metyl', 2]], 2)).toBe('ugyldig');
-    const b = buildNamed({ length: 3, subs: [{ kind: 'metyl', pos: 2 }, { kind: 'metyl', pos: 2 }], double: null, oh: 2 });
+    expect(
+      nameOf(3, [
+        ['metyl', 2],
+        ['metyl', 2],
+        ['klor', 2],
+      ]),
+    ).toBe('ugyldig');
+    expect(
+      nameOf(
+        4,
+        [
+          ['metyl', 2],
+          ['metyl', 2],
+        ],
+        2,
+      ),
+    ).toBe('ugyldig');
+    const b = buildNamed({
+      length: 3,
+      subs: [
+        { kind: 'metyl', pos: 2 },
+        { kind: 'metyl', pos: 2 },
+      ],
+      double: null,
+      oh: 2,
+    });
     expect(b.errors).toEqual([{ kind: 'valens', carbon: 2, bonds: 5 }]);
   });
   it('plass utenfor kjeden', () => {
@@ -315,7 +461,17 @@ describe('navnsetting: dom over elevens forslag', () => {
     expect(judge({ length: 4, subs: [{ kind: 'metyl', pos: 2 }], double: null, oh: null })).toEqual({ kind: 'riktig' });
     expect(judge({ length: 4, subs: [{ kind: 'metyl', pos: 1 }], double: null, oh: null })).toEqual({ kind: 'lengre-kjede', length: 5 });
     expect(judge({ length: 4, subs: [{ kind: 'metyl', pos: 3 }], double: null, oh: null })).toEqual({ kind: 'nummerering', rule: 'substituenter' });
-    expect(judge({ length: 6, subs: [{ kind: 'brom', pos: 5 }, { kind: 'klor', pos: 2 }], double: null, oh: null })).toEqual({ kind: 'nummerering', rule: 'alfabetisk' });
+    expect(
+      judge({
+        length: 6,
+        subs: [
+          { kind: 'brom', pos: 5 },
+          { kind: 'klor', pos: 2 },
+        ],
+        double: null,
+        oh: null,
+      }),
+    ).toEqual({ kind: 'nummerering', rule: 'alfabetisk' });
     expect(judge({ length: 3, subs: [], double: 1, oh: 3 })).toEqual({ kind: 'nummerering', rule: 'oh' });
     expect(judge({ length: 4, subs: [], double: 3, oh: null })).toEqual({ kind: 'nummerering', rule: 'dobbeltbinding' });
   });
@@ -340,7 +496,17 @@ describe('navnsetting: egenskaper for alle kombinasjoner', () => {
       for (let p1 = 1; p1 <= L; p1++)
         for (const k2 of [null, ...SUB_KINDS])
           for (let p2 = 1; p2 <= (k2 ? L : 1); p2++)
-            combos.push({ length: L, subs: k2 ? [{ kind: k1, pos: p1 }, { kind: k2, pos: p2 }] : [{ kind: k1, pos: p1 }], double: null, oh: null });
+            combos.push({
+              length: L,
+              subs: k2
+                ? [
+                    { kind: k1, pos: p1 },
+                    { kind: k2, pos: p2 },
+                  ]
+                : [{ kind: k1, pos: p1 }],
+              double: null,
+              oh: null,
+            });
 
   it('speilvendt molekyl (tall fra den andre enden) får samme navn', () => {
     for (const c of combos) {
@@ -458,5 +624,128 @@ describe('organiske reaksjoner', () => {
       if (r.type === 'kondensasjon') expect(r.products.some((p) => p.formula === 'H2O')).toBe(true);
       if (r.type === 'forbrenning') expect(r.products.map((p) => p.formula).sort()).toEqual(['CO2', 'H2O']);
     }
+  });
+});
+
+describe('isomeri: forhold mellom isomerene', () => {
+  const get = (set: string, id: string) => ISOMER_SETS.find((s) => s.id === set)!.isomers.find((i) => i.id === id)!;
+  it('kjede-, posisjons-, funksjonelle og cis-trans-isomerer', () => {
+    expect(isomerRelation(get('C5H12', 'pentan'), get('C5H12', '22-dimetylpropan'))).toBe('kjede');
+    expect(isomerRelation(get('C4H10', 'butan'), get('C4H10', '2-metylpropan'))).toBe('kjede');
+    expect(isomerRelation(get('C6H14', '2-metylpentan'), get('C6H14', '3-metylpentan'))).toBe('kjede');
+    expect(isomerRelation(get('C2H6O', 'etanol'), get('C2H6O', 'dimetyleter'))).toBe('funksjon');
+    expect(isomerRelation(get('C3H8O', 'propan-1-ol'), get('C3H8O', 'propan-2-ol'))).toBe('posisjon');
+    expect(isomerRelation(get('C4H8', 'but-1-en'), get('C4H8', 'cis-but-2-en'))).toBe('posisjon');
+    expect(isomerRelation(get('C4H8', 'cis-but-2-en'), get('C4H8', 'trans-but-2-en'))).toBe('cis-trans');
+    expect(isomerRelation(get('C4H8', 'but-1-en'), get('C4H8', '2-metylpropen'))).toBe('kjede');
+    expect(isomerRelation(get('C4H8', 'but-1-en'), get('C4H8', 'syklobutan'))).toBe('funksjon');
+    expect(isomerRelation(get('C4H8', 'syklobutan'), get('C4H8', 'syklobutan'))).toBe('samme');
+  });
+  it('standardsammenligningen i hvert sett er to ulike isomerer', () => {
+    for (const set of ISOMER_SETS) {
+      const [a, b] = set.compare;
+      expect(a).not.toBe(b);
+      expect(set.isomers[a]).toBeDefined();
+      expect(set.isomers[b]).toBeDefined();
+    }
+  });
+});
+
+describe('isomeri: to molekyler inntil hverandre', () => {
+  const get = (set: string, id: string) => ISOMER_SETS.find((s) => s.id === set)!.isomers.find((i) => i.id === id)!;
+  const near = (id: string, set = 'C5H12') => {
+    const i = get(set, id);
+    return pairLayout(i.build(), i.hbond);
+  };
+  it('de nærmeste atomene står i avstanden PAIR_DISTANCE, og ingen overlapper', () => {
+    for (const set of ISOMER_SETS)
+      for (const i of set.isomers) {
+        const p = pairLayout(i.build(), i.hbond);
+        const heavy = p.atoms.filter((a) => a.el !== 'H');
+        let m = Infinity;
+        for (const a of heavy) for (const b of heavy) if (a.mol !== b.mol) m = Math.min(m, Math.hypot(a.x - b.x, a.y - b.y));
+        expect(m).toBeGreaterThanOrEqual(PAIR_DISTANCE - 1e-6);
+        if (!i.hbond) expect(m).toBeLessThan(PAIR_DISTANCE + 0.01);
+      }
+  });
+  it('rett kjede gir flere nærkontakter (større kontaktflate) enn forgrenet', () => {
+    expect(near('pentan').contacts.length).toBeGreaterThan(near('22-dimetylpropan').contacts.length);
+    expect(near('heksan', 'C6H14').contacts.length).toBeGreaterThan(near('22-dimetylbutan', 'C6H14').contacts.length);
+    // I en flat modell får butan og 2-metylpropan like mange nærkontakter; forskjellen der er liten (11 °C).
+    expect(near('butan', 'C4H10').contacts.length).toBeGreaterThanOrEqual(near('2-metylpropan', 'C4H10').contacts.length);
+  });
+  it('etanol får en hydrogenbinding mellom molekylene, dimetyleter ingen', () => {
+    const e = near('etanol', 'C2H6O');
+    expect(e.hbond).not.toBeNull();
+    const [h, o] = e.hbond!;
+    expect(e.atoms[h]!.el).toBe('H');
+    expect(e.atoms[o]!.el).toBe('O');
+    expect(e.atoms[h]!.mol).not.toBe(e.atoms[o]!.mol);
+    // H···O er lengre enn O–H, men kortere enn avstanden mellom C-atomene i nabomolekylene
+    const hx = e.atoms[h]!;
+    const ox = e.atoms[o]!;
+    expect(Math.hypot(hx.x - ox.x, hx.y - ox.y)).toBeCloseTo(HBOND_OO - 0.6, 6);
+    expect(near('dimetyleter', 'C2H6O').hbond).toBeNull();
+  });
+});
+
+describe('organiske reaksjoner: atomene vi følger', () => {
+  it('like mange fulgte atomer av hvert grunnstoff før og etter', () => {
+    for (const r of ORG_REACTIONS) {
+      const tally = (list: typeof r.reactants) => {
+        const t: Record<string, number> = {};
+        for (const s of list) {
+          const mol = s.build();
+          for (const i of trackedAtoms(s, mol)) t[mol.atoms[i]!.el] = (t[mol.atoms[i]!.el] ?? 0) + s.coef;
+        }
+        return t;
+      };
+      expect(tally(r.reactants)).toEqual(tally(r.products));
+      if (r.type !== 'forbrenning') expect(Object.keys(tally(r.reactants)).length).toBeGreaterThan(0);
+    }
+  });
+  it('OH-gruppa tas med når O følges', () => {
+    const elim = ORG_REACTIONS.find((r) => r.id === 'elim')!;
+    const s = elim.reactants[0]!;
+    const mol = s.build();
+    expect(
+      trackedAtoms(s, mol)
+        .map((i) => mol.atoms[i]!.el)
+        .sort(),
+    ).toEqual(['H', 'H', 'O']);
+  });
+  it('atomene er bevart (sideTally)', () => {
+    for (const r of ORG_REACTIONS) expect(sideTally(r.reactants)).toEqual(sideTally(r.products));
+  });
+  it('alle reaksjonstypene har minst én reaksjon', () => {
+    for (const t of REACTION_TYPES) expect(reactionsOfType(t).length).toBeGreaterThan(0);
+  });
+});
+
+describe('organiske reaksjoner: bindingene som brytes og dannes', () => {
+  const get = (id: string) => ORG_REACTIONS.find((r) => r.id === id)!;
+  const asMap = (l: { label: string; count: number }[]) => Object.fromEntries(l.map((x) => [x.label, x.count]));
+  it('addisjon av brom: C=C og Br–Br brytes, to C–Br dannes', () => {
+    expect(asMap(bondSummary(get('add-br2').reactants))).toEqual({ 'C=C': 1, 'Br–Br': 1 });
+    expect(asMap(bondSummary(get('add-br2').products))).toEqual({ 'C–Br': 2 });
+  });
+  it('substitusjon: C–H og Cl–Cl brytes, C–Cl og H–Cl dannes', () => {
+    expect(asMap(bondSummary(get('sub-cl2').reactants))).toEqual({ 'C–H': 1, 'Cl–Cl': 1 });
+    expect(asMap(bondSummary(get('sub-cl2').products))).toEqual({ 'C–Cl': 1, 'H–Cl': 1 });
+  });
+  it('forestring: C–O i syra og O–H i alkoholen brytes', () => {
+    expect(asMap(bondSummary(get('ester').reactants))).toEqual({ 'C–O': 1, 'O–H': 1 });
+    expect(asMap(bondSummary(get('ester').products))).toEqual({ 'C–O': 1, 'O–H': 1 });
+  });
+  it('forbrenning av metan: 4 C–H og 2 O=O brytes, 2 C=O og 4 O–H dannes', () => {
+    expect(asMap(bondSummary(get('forbr-metan').reactants))).toEqual({ 'C–H': 4, 'O=O': 2 });
+    expect(asMap(bondSummary(get('forbr-metan').products))).toEqual({ 'C=O': 2, 'O–H': 4 });
+  });
+  it('det lille molekylet', () => {
+    expect(smallMolecule(get('elim'))).toBe('H2O');
+    expect(smallMolecule(get('ester'))).toBe('H2O');
+    expect(smallMolecule(get('sub-cl2'))).toBe('HCl');
+    expect(smallMolecule(get('add-h2o'))).toBeNull();
+    expect(smallMolecule(get('forbr-propan'))).toBeNull();
   });
 });

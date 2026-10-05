@@ -25,6 +25,7 @@ import {
   jiggle,
   linePath,
   logisticRate,
+  niceTicks,
   placeParticles,
   sample,
   useContainerTextScale,
@@ -321,6 +322,12 @@ function Boat({ x, y, k }: { x: number; y: number; k: number }) {
   );
 }
 
+/** Desimaler som trengs for at akseverdiene skal bli forskjellige (0,5-steg gir én desimal). */
+function tickDecimals(ticks: readonly number[]): number {
+  const step = ticks.length > 1 ? Math.abs(ticks[1]! - ticks[0]!) : 1;
+  return step >= 1 - 1e-9 ? 0 : step >= 0.1 - 1e-9 ? 1 : 2;
+}
+
 /* ---------- Bestand og fangst over tid ---------- */
 
 function StockPlot({ run, t, K, f }: { run: HarvestRun; t: number; K: number; f: number }) {
@@ -343,7 +350,12 @@ function StockPlot({ run, t, K, f }: { run: HarvestRun; t: number; K: number; f:
   const catches = run.t.map((x, i) => [x, run.catchRate[i]!] as [number, number]);
   return (
     <Figure viewBox={`0 0 800 ${H}`} label={`Bestand og fangst over ${HARVEST_YEARS} år. År ${fmt(t, 0)}: bestand ${fmt(N, 1)} og fangst ${fmt(c, 2)} millioner tonn.`}>
-      <Plot x={{ min: 0, max: HARVEST_YEARS, label: 'Tid (år)' }} y={{ min: 0, max: yAxis.max, label: 'Millioner tonn', ticks: yAxis.ticks }} width={800} height={H}>
+      <Plot
+        x={{ min: 0, max: HARVEST_YEARS, label: 'Tid (år)' }}
+        y={{ min: 0, max: yAxis.max, label: 'Millioner tonn', ticks: yAxis.ticks, decimals: tickDecimals(yAxis.ticks) }}
+        width={800}
+        height={H}
+      >
         {({ sx, sy, y0, y1, x1 }) => (
           <g>
             {bands.map(([a, b], i) => (
@@ -389,7 +401,7 @@ function GrowthPlot({ params, a, N, f, closed }: { params: HarvestParams; a: Har
       label={`Tilvekst og fangst som funksjon av bestanden. Størst tilvekst ${fmt(msyY, 2)} millioner tonn per år ved N = ${fmt(K / 2, 1)}.`}
     >
       <Plot
-        x={{ min: 0, max: K, label: 'Bestand N (mill. tonn)' }}
+        x={{ min: 0, max: K, label: 'Bestand N (mill. tonn)', ticks: niceTicks(0, K, 5), decimals: tickDecimals(niceTicks(0, K, 5)) }}
         y={{ min: 0, max: yMax, label: 'Mill. tonn per år', decimals: dec, ticks }}
         width={800}
         height={Hh}

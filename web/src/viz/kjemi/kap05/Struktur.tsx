@@ -88,12 +88,14 @@ export interface MoleculeViewProps {
   groups?: FunctionalGroup[];
   /** Atomer med rød ring (for mange bindinger). */
   errorAtoms?: number[];
+  /** Atomer som markeres med en farget ring (f.eks. atomene vi følger gjennom en reaksjon). */
+  rings?: { atoms: number[]; color: string };
   /** Ton ned hele molekylet. */
   dim?: boolean;
 }
 
 /** Et molekyl i valgt visning. */
-export function MoleculeView({ mol, view, fit, marks, chain, numbers, groups, errorAtoms, dim }: MoleculeViewProps) {
+export function MoleculeView({ mol, view, fit, marks, chain, numbers, groups, errorAtoms, rings, dim }: MoleculeViewProps) {
   const f = useTextScale();
   const k = Math.max(1, 0.85 * f);
   const { u, ox, oy } = fit;
@@ -138,7 +140,14 @@ export function MoleculeView({ mol, view, fit, marks, chain, numbers, groups, er
         {pts.length === 1 ? (
           <circle cx={pts[0]!.x} cy={pts[0]!.y} r={w / 2} fill={CHAIN} />
         ) : (
-          <polyline points={pts.map((p) => `${p.x},${p.y}`).join(' ')} fill="none" stroke={CHAIN} strokeWidth={w} strokeLinecap="round" strokeLinejoin="round" />
+          <polyline
+            points={pts.map((p) => `${p.x},${p.y}`).join(' ')}
+            fill="none"
+            stroke={CHAIN}
+            strokeWidth={w}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         )}
       </g>,
     );
@@ -173,7 +182,26 @@ export function MoleculeView({ mol, view, fit, marks, chain, numbers, groups, er
     const p = pos(b.a);
     const q = pos(b.b);
     if (!p || !q) return;
-    layers.push(<line key={`halo${bi}`} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={markColor} strokeWidth={10 * k} strokeLinecap="round" opacity={0.25} />);
+    // Glorien stopper ved bokstavene, så de kan leses
+    const len = Math.hypot(q.x - p.x, q.y - p.y);
+    const ra = radius(b.a);
+    const rb = radius(b.b);
+    if (!(len > ra + rb + 2)) return;
+    const ux = (q.x - p.x) / len;
+    const uy = (q.y - p.y) / len;
+    layers.push(
+      <line
+        key={`halo${bi}`}
+        x1={p.x + ux * ra}
+        y1={p.y + uy * ra}
+        x2={q.x - ux * rb}
+        y2={q.y - uy * rb}
+        stroke={markColor}
+        strokeWidth={10 * k}
+        strokeLinecap="butt"
+        opacity={0.25}
+      />,
+    );
   });
 
   // Bindinger
@@ -218,6 +246,15 @@ export function MoleculeView({ mol, view, fit, marks, chain, numbers, groups, er
       </Txt>,
     );
   });
+
+  // Markerte atomer: farget ring rundt bokstaven eller kula
+  for (const i of rings?.atoms ?? []) {
+    const p = pos(i);
+    if (!p) continue;
+    const el = mol.atoms[i]!.el;
+    const r = view === 'kule' ? BALL[el]! * u + 5 * k : Math.max(fs * (el.length > 1 ? 0.78 : 0.62), 0.24 * u);
+    layers.push(<circle key={`ring${i}`} cx={p.x} cy={p.y} r={r} fill="none" stroke={rings!.color} strokeWidth={2.6 * k} />);
+  }
 
   // Feil: rød ring
   for (const i of errorAtoms ?? []) {

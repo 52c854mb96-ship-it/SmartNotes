@@ -54,7 +54,7 @@ export default function Klassifisering() {
       <Toolbar>
         <Forvalg
           label="Eksempler"
-          options={PAIRS.map((p) => ({ value: p.id, label: p.label }))}
+          options={PAIRS.map((p) => ({ value: p.id, label: p.id === 'ecoli-arke' ? <><em>E. coli</em> og arke</> : p.label }))}
           value={pair}
           onPick={(id) => {
             const p = PAIRS.find((x) => x.id === id)!;
@@ -244,7 +244,7 @@ function Ladder({ A, B, s, f }: { A: Organism; B: Organism; s: number; f: number
             {tag}
           </Txt>
           <Txt x={cx} y={g.glyphY + g.glyph * 0.62 + 24 * f} weight={700}>
-            {cap(o.name)}
+            {o.italic ? <tspan fontStyle="italic">{cap(o.name)}</tspan> : cap(o.name)}
           </Txt>
           <Txt x={cx} y={g.glyphY + g.glyph * 0.62 + 46 * f} size={0.85} muted>
             <tspan fontStyle="italic">{narrow && o.sci.length > 20 ? abbreviateSpecies(o.sci) : o.sci}</tspan>
@@ -340,6 +340,12 @@ function Ladder({ A, B, s, f }: { A: Organism; B: Organism; s: number; f: number
 
 /* ---------- Forklaring ---------- */
 
+/** Navnet på organismen i løpende tekst, i kursiv når det er et vitenskapelig navn (E. coli). */
+function orgName(o: Organism, capital = false): ReactNode {
+  const t = capital ? cap(o.name) : o.name;
+  return o.italic ? <em>{t}</em> : t;
+}
+
 /** Et takson i løpende tekst: slekt og art med vitenskapelig navn i kursiv, ellers norsk navn når det finnes. */
 function taxonText(t: Taxon, rank: Rank): ReactNode {
   if (rank === 'slekt' || rank === 'art') return <em>{t.sci}</em>;
@@ -347,8 +353,8 @@ function taxonText(t: Taxon, rank: Rank): ReactNode {
 }
 
 function explanation(A: Organism, B: Organism, s: number): ReactNode {
-  const a = A.name;
-  const b = B.name;
+  const a = orgName(A, true);
+  const b = orgName(B);
   const ids = new Set([A.id, B.id]);
   const has = (id: OrganismId) => ids.has(id);
   const general = (
@@ -369,7 +375,7 @@ function explanation(A: Organism, B: Organism, s: number): ReactNode {
     main = (
       <p>
         <strong>
-          {cap(a)} og {b} har ikke ett eneste nivå felles.
+          {a} og {b} har ikke ett eneste nivå felles.
         </strong>{' '}
         {has('ecoli') && has('arke') ? (
           <>
@@ -404,7 +410,7 @@ function explanation(A: Organism, B: Organism, s: number): ReactNode {
       main = (
         <p>
           <strong>
-            {cap(a)} og {b} er samme art,
+            {a} og {b} er samme art,
           </strong>{' '}
           <em>Canis lupus</em>. Hunden er temmet fra ulv for minst 15 000 år siden og regnes som en underart, <em>Canis lupus familiaris</em>.
           At de er samme art, betyr at de kan få unger sammen som selv kan få unger (fertilt avkom). Hunderasene ser svært ulike ut, men
@@ -415,7 +421,7 @@ function explanation(A: Organism, B: Organism, s: number): ReactNode {
       main = (
         <p>
           <strong>
-            {cap(a)} og {b} har felles {RANK_NAMES[rank].toLowerCase()}: {tName}.
+            {a} og {b} har felles {RANK_NAMES[rank].toLowerCase()}: {tName}.
           </strong>{' '}
           Fra {RANK_NAMES[next!].toLowerCase()} og nedover skilles de ({taxonText(A.lineage[next!], next!)} og{' '}
           {taxonText(B.lineage[next!], next!)}).{' '}

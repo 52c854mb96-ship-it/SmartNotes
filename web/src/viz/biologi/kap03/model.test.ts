@@ -21,6 +21,7 @@ import {
   simpson,
   simpsonMax,
   speciesArea,
+  summarizeEffects,
   trophicLevels,
   webRow,
   type WebId,
@@ -115,6 +116,9 @@ describe('arter og areal', () => {
       // Uten kanteffekt: S = S0 · n^(−z)
       expect(r.species).toBeCloseTo(FOREST_SPECIES_COUNT * n ** -z, 9);
     }
+    // Den hele skogen har 100 arter også med kanteffekt (c er satt etter den)
+    expect(fragmentation(1, 0, z, true).species).toBeCloseTo(FOREST_SPECIES_COUNT, 9);
+    expect(fragmentation(1, 0, z, true).referenceArea).toBeCloseTo(9.8 ** 2, 9);
     // Kanteffekt gir enda færre, og tap av skog gir færre
     expect(fragmentation(9, 0, z, true).species).toBeLessThan(fragmentation(9, 0, z, false).species);
     expect(fragmentation(4, 0.5, z, false).species).toBeLessThan(fragmentation(4, 0, z, false).species);
@@ -189,6 +193,17 @@ describe('næringsnettet', () => {
       }
     // Spurvehauken har bare én matkilde
     expect(predatorsOf('meis')).toContain('spurvehauk');
+  });
+
+  it('oppsummeringen fordeler virkningene på direkte og indirekte', () => {
+    const sum = summarizeEffects(cascade('ulv'));
+    expect(sum.direct.oker).toEqual(['radyr', 'elg']);
+    expect(sum.indirect.minker).toContain('lauvtraer');
+    const all = [...Object.values(sum.direct), ...Object.values(sum.indirect)].flat();
+    expect(all).not.toContain('ulv');
+    expect(new Set(all).size).toBe(all.length);
+    const none = summarizeEffects(cascade(null));
+    expect([...Object.values(none.direct), ...Object.values(none.indirect)].flat()).toHaveLength(0);
   });
 
   it('energipyramiden: 10 % videre gir 16 000, 1 600, 160 og 16 kJ', () => {

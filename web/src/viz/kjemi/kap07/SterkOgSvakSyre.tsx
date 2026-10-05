@@ -165,7 +165,7 @@ export default function SterkOgSvakSyre() {
         <Figure
           viewBox={`0 0 800 ${scene.H}`}
           label={`${strong.formula} og ${weak.formula}, begge ${fmtSig(c, 2)} mol/L: pH ${fmt(strong.sol.pH, 2)} og ${fmt(weak.sol.pH, 2)}. Protolysegrad ${pct(strong.sol.alpha)} % og ${pct(weak.sol.alpha)} %.`}
-          caption={`Hvert glass viser ${N} ${mode === 'syre' ? 'syremolekyler' : 'formelenheter eller molekyler'} før de reagerer med vann. Vannmolekylene er ikke tegnet, og ${weak.name} har minst én protolysert partikkel i bildet selv om andelen er mindre. Fargen er universalindikator.`}
+          caption={`Hvert glass viser ${N} ${mode === 'syre' ? 'syremolekyler før de reagerer med vann' : 'formelenheter NaOH eller molekyler NH₃ før de løses i vann'}. Vannmolekylene er ikke tegnet, og ${weak.name} har minst én protolysert partikkel i bildet selv om andelen er mindre. Fargen er universalindikator.`}
           maxHeight={scene.H}
         >
           {[strong, weak].map((s, i) => (
@@ -429,7 +429,17 @@ function DilutionPlot({
   const y = mode === 'syre' ? { min: 0, max: 7 } : { min: 7, max: 14 };
   return (
     <Plot x={{ min: LG_MIN, max: LG_MAX, label: 'Konsentrasjon c (mol/L)', ticks: [] }} y={{ ...y, label: 'pH' }} width={800} height={H}>
-      {({ sx, sy, y0, y1 }) => (
+      {({ sx, sy, x0, y0, y1 }) => {
+        // Etikettene står midt på hver trapp, men skyves fra hverandre når trappene ligger tett
+        const mids = [(sy(strong.sol.pH) + sy(strongNext.pH)) / 2, (sy(weak.sol.pH) + sy(weakNext.pH)) / 2];
+        const minGap = 24 * f;
+        let labels = mids;
+        if (Math.abs(mids[0]! - mids[1]!) < minGap) {
+          const mean = (mids[0]! + mids[1]!) / 2;
+          const up = mids[0]! <= mids[1]! ? 0 : 1;
+          labels = up === 0 ? [mean - minGap / 2, mean + minGap / 2] : [mean + minGap / 2, mean - minGap / 2];
+        }
+        return (
         <g>
           {[-4, -3, -2, -1, 0].map((e) => (
             <g key={e}>
@@ -442,25 +452,28 @@ function DilutionPlot({
           <path d={linePath(pts('strong'), sx, sy)} fill="none" stroke={VIZ.series[0]} strokeWidth={3} />
           <path d={linePath(pts('weak'), sx, sy)} fill="none" stroke={VIZ.series[1]} strokeWidth={3} />
           <line x1={sx(lgc)} x2={sx(lgc)} y1={y0} y2={y1} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="5 4" />
-          <Stair x0={sx(lgc)} x1={sx(lgc + step)} ya={sy(strong.sol.pH)} yb={sy(strongNext.pH)} d={strongNext.pH - strong.sol.pH} color={VIZ.series[0]!} />
-          <Stair x0={sx(lgc)} x1={sx(lgc + step)} ya={sy(weak.sol.pH)} yb={sy(weakNext.pH)} d={weakNext.pH - weak.sol.pH} color={VIZ.series[1]!} />
+          <Stair x0={sx(lgc)} x1={sx(lgc + step)} ya={sy(strong.sol.pH)} yb={sy(strongNext.pH)} d={strongNext.pH - strong.sol.pH} color={VIZ.series[0]!} xMin={x0} labelY={labels[0]!} />
+          <Stair x0={sx(lgc)} x1={sx(lgc + step)} ya={sy(weak.sol.pH)} yb={sy(weakNext.pH)} d={weakNext.pH - weak.sol.pH} color={VIZ.series[1]!} xMin={x0} labelY={labels[1]!} />
           <Dot x={sx(lgc)} y={sy(strong.sol.pH)} color={VIZ.series[0]} />
           <Dot x={sx(lgc)} y={sy(weak.sol.pH)} color={VIZ.series[1]} />
         </g>
-      )}
+        );
+      }}
     </Plot>
   );
 }
 
 /** Trapp fra (x0, ya) vannrett til x1 og loddrett til yb, med endringen i pH som etikett. */
-function Stair({ x0, x1, ya, yb, d, color }: { x0: number; x1: number; ya: number; yb: number; d: number; color: string }) {
-  const left = x1 < x0;
+function Stair({ x0, x1, ya, yb, d, color, xMin, labelY }: { x0: number; x1: number; ya: number; yb: number; d: number; color: string; xMin: number; labelY: number }) {
+  const f = useTextScale();
+  // Etiketten står utenfor trappa, men flyttes inn i den når det ikke er plass mellom trappa og aksen
+  const left = x1 < x0 ? x1 - 8 - 56 * f > xMin : x1 + 8 + 56 * f > 800;
   return (
     <g>
       <line x1={x0} y1={ya} x2={x1} y2={ya} stroke={color} strokeWidth={1.8} strokeDasharray="4 3" />
       <line x1={x1} y1={ya} x2={x1} y2={yb} stroke={color} strokeWidth={2.2} />
       <circle cx={x1} cy={yb} r={4} fill={color} />
-      <Txt x={left ? x1 - 8 : x1 + 8} y={(ya + yb) / 2 + 6} anchor={left ? 'end' : 'start'} size={0.85} weight={700} color={color}>
+      <Txt x={left ? x1 - 8 : x1 + 8} y={labelY + 6} anchor={left ? 'end' : 'start'} size={0.85} weight={700} color={color}>
         {d >= 0 ? '+' : '−'}
         {fmt(Math.abs(d), 2)}
       </Txt>

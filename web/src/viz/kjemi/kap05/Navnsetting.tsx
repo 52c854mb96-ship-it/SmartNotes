@@ -87,7 +87,8 @@ export default function Navnsetting() {
   const v = result ? verdict(built, input, result) : null;
   const naive = naiveName(built, input);
   const example = NAME_EXAMPLES.find((e) => same(e.input, input))?.id ?? CUSTOM;
-  const scene = sceneLayout(built.mol, view, f);
+  const subLines = wrapText(subtitle(built, result, v, naive), Math.floor(740 / (fontPx(f, 0.85) * 0.56)));
+  const scene = sceneLayout(built.mol, view, f, subLines.length);
   const formulaStr = molFormula(built.mol);
 
   const pick = (id: string) => {
@@ -120,17 +121,27 @@ export default function Navnsetting() {
         />
       </Toolbar>
       <Controls>
-        <Slider label="Kjede du tegner" ariaLabel="Antall karbonatomer i kjeden" value={length} onChange={setLength} min={1} max={8} step={1} format={(x) => `${x} C`} />
         <Slider
-          label="Dobbeltbinding"
-          value={double}
-          onChange={setDouble}
-          min={0}
-          max={7}
+          label="Kjede du tegner"
+          ariaLabel="Antall karbonatomer i kjeden"
+          value={length}
+          onChange={setLength}
+          min={1}
+          max={8}
           step={1}
-          format={(x) => (x === 0 ? 'ingen' : `C${x}=C${x + 1}`)}
+          format={(x) => `${x} C`}
         />
-        <Slider label="OH-gruppe på" ariaLabel="OH-gruppe på karbonatom" value={oh} onChange={setOh} min={0} max={8} step={1} format={(x) => (x === 0 ? 'ingen' : `C${x}`)} />
+        <Slider label="Dobbeltbinding" value={double} onChange={setDouble} min={0} max={7} step={1} format={(x) => (x === 0 ? 'ingen' : `C${x}=C${x + 1}`)} />
+        <Slider
+          label="OH-gruppe på"
+          ariaLabel="OH-gruppe på karbonatom"
+          value={oh}
+          onChange={setOh}
+          min={0}
+          max={8}
+          step={1}
+          format={(x) => (x === 0 ? 'ingen' : `C${x}`)}
+        />
       </Controls>
       <Toolbar>
         {slots.map((s, i) => (
@@ -169,7 +180,7 @@ export default function Navnsetting() {
           }
           maxHeight={scene.H}
         >
-          <NameScene built={built} result={result} v={v} naive={naive} view={view} f={f} scene={scene} />
+          <NameScene built={built} result={result} v={v} subLines={subLines} view={view} f={f} scene={scene} />
         </Figure>
       </div>
       <Legend
@@ -181,10 +192,14 @@ export default function Navnsetting() {
       />
 
       <Readouts>
-        <Readout label="Molekylformel" value={formulaText(formulaStr)} />
-        <Readout label="Molar masse M" value={fmt(molarMass(formulaStr), 2)} unit="g/mol" />
-        <Readout label="Hovedkjede" value={result ? String(result.chain.length) : '–'} unit="C" tone={CHAIN} />
-        <Readout label="Ditt forslag" value={v ? (v.kind === 'riktig' ? 'Riktig' : 'Må rettes') : 'Ugyldig'} tone={v ? (v.kind === 'riktig' ? VIZ.series[2] : VIZ.series[1]) : KJEMI.minus} />
+        <Readout label="Molekylformel" value={result ? formulaText(formulaStr) : '–'} />
+        <Readout label="Molar masse M" value={result ? fmt(molarMass(formulaStr), 2) : '–'} unit={result ? 'g/mol' : undefined} />
+        <Readout label="Hovedkjede" value={result ? String(result.chain.length) : '–'} unit={result ? 'C' : undefined} tone={CHAIN} />
+        <Readout
+          label="Ditt forslag"
+          value={v ? (v.kind === 'riktig' ? 'Riktig' : 'Må rettes') : 'Ugyldig'}
+          tone={v ? (v.kind === 'riktig' ? VIZ.series[2] : VIZ.series[1]) : KJEMI.minus}
+        />
       </Readouts>
 
       {result && (
@@ -197,9 +212,7 @@ export default function Navnsetting() {
             2. Endelse: {result.multiple ? `dobbeltbinding gir «-en»` : 'bare enkeltbindinger gir «-an»'}
             {result.ohLocant !== null ? ', OH-gruppe gir «-ol»' : ''} → {result.parent}
           </FormulaLine>
-          <FormulaLine>
-            3. Substituenter: {result.prefix ? `${substituentList(result)} → ${result.prefix}` : 'ingen'}
-          </FormulaLine>
+          <FormulaLine>3. Substituenter: {result.prefix ? `${substituentList(result)} → ${result.prefix}` : 'ingen'}</FormulaLine>
           <FormulaLine>
             Navn: <strong>{result.name}</strong>
             {naive && naive !== result.name ? <> (ikke «{naive}»)</> : null}
@@ -230,8 +243,30 @@ interface SceneLayout {
   box: { x: number; y: number; w: number; h: number };
 }
 
-function sceneLayout(mol: ReturnType<typeof buildNamed>['mol'], view: View, f: number): SceneLayout {
-  const header = 74 * f;
+/** Linja under navnet: om forslaget stemmer, og hva som er galt. */
+function subtitle(built: ReturnType<typeof buildNamed>, result: NameResult | null, v: NameVerdict | null, naive: string | null): string {
+  if (!result) return 'Rett opp valgene (se forklaringen)';
+  if (v?.kind === 'riktig') return 'Kjeden og nummereringen din stemmer';
+  if (v?.kind === 'lengre-kjede') return `Den lengste kjeden har ${v.length} C, ikke ${built.mol.chain.length}. Ikke «${naive}»`;
+  return `Ikke «${naive}»`;
+}
+
+/** Deler teksten i linjer på høyst `max` tegn (ved mellomrom). */
+function wrapText(text: string, max: number): string[] {
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of text.split(' ')) {
+    if (cur && `${cur} ${w}`.length > max) {
+      lines.push(cur);
+      cur = w;
+    } else cur = cur ? `${cur} ${w}` : w;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+function sceneLayout(mol: ReturnType<typeof buildNamed>['mol'], view: View, f: number, subLines: number): SceneLayout {
+  const header = (50 + 24 * Math.max(1, subLines)) * f;
   const b = bounds(mol, view);
   const m = marginPx(view, f);
   const uMax = 84 * Math.max(1, 0.85 * f);
@@ -245,7 +280,7 @@ function NameScene({
   built,
   result,
   v,
-  naive,
+  subLines,
   view,
   f,
   scene,
@@ -253,7 +288,7 @@ function NameScene({
   built: ReturnType<typeof buildNamed>;
   result: NameResult | null;
   v: NameVerdict | null;
-  naive: string | null;
+  subLines: string[];
   view: View;
   f: number;
   scene: SceneLayout;
@@ -264,21 +299,25 @@ function NameScene({
   const size = Math.min(1.35, 740 / Math.max(1, title.length * 0.58 * fontPx(f, 1)));
   const errorAtoms = built.errors.flatMap((e) => (e.kind === 'valens' ? [e.carbon - 1] : []));
   const groups = functionalGroups(built.mol).filter((g) => g.kind === 'dobbeltbinding' || g.kind === 'hydroksyl');
-  const sub = !result
-    ? 'Rett opp valgene (se forklaringen)'
-    : v?.kind === 'riktig'
-      ? 'Kjeden og nummereringen din stemmer'
-      : v?.kind === 'lengre-kjede'
-        ? `Den lengste kjeden har ${v.length} C, ikke ${result ? '' : ''}${naive ? naive.replace(/.*?(met|et|prop|but|pent|heks|hept|okt)(an|-|en|yn).*/, '$1') : ''}`.replace(/, ikke [a-z]*$/, '')
-        : `Ikke «${naive}»`;
   return (
     <g>
       <Txt x={20} y={34 * f} anchor="start" size={size} weight={700} color={result ? VIZ.ink : KJEMI.minus}>
         {title}
       </Txt>
-      <Txt x={20} y={62 * f} anchor="start" size={0.85} muted={v?.kind === 'riktig'} color={v?.kind === 'riktig' ? undefined : result ? VIZ.series[1] : KJEMI.minus} weight={600}>
-        {sub}
-      </Txt>
+      {subLines.map((line, i) => (
+        <Txt
+          key={i}
+          x={20}
+          y={(62 + 24 * i) * f}
+          anchor="start"
+          size={0.85}
+          muted={v?.kind === 'riktig'}
+          color={v?.kind === 'riktig' ? undefined : result ? VIZ.series[1] : KJEMI.minus}
+          weight={600}
+        >
+          {line}
+        </Txt>
+      ))}
       <MoleculeView mol={built.mol} view={view} fit={fit} chain={result?.chain} numbers={!!result} groups={groups} errorAtoms={errorAtoms} />
     </g>
   );
@@ -293,8 +332,8 @@ function errorText(e: BuildError): ReactNode {
     case 'posisjon':
       return (
         <>
-          {KIND_TEXT[e.what] ?? capitalize(e.what)} står på C{e.pos}, men kjeden har bare {e.length} karbonatom{e.length === 1 ? '' : 'er'}. Flytt
-          den eller gjør kjeden lengre.
+          {KIND_TEXT[e.what] ?? capitalize(e.what)} står på C{e.pos}, men kjeden har bare {e.length} karbonatom{e.length === 1 ? '' : 'er'}. Flytt den eller
+          gjør kjeden lengre.
         </>
       );
     case 'dobbeltbinding':
@@ -342,12 +381,16 @@ function explanation(errors: BuildError[], r: NameResult | null, v: NameVerdict 
       );
       break;
     case 'lengre-kjede': {
-      const ends = input.subs.filter((s) => (s.kind === 'metyl' || s.kind === 'etyl') && (s.pos === 1 || s.pos === input.length || (s.kind === 'etyl' && (s.pos === 2 || s.pos === input.length - 1))));
+      const ends = input.subs.filter(
+        (s) =>
+          (s.kind === 'metyl' || s.kind === 'etyl') &&
+          (s.pos === 1 || s.pos === input.length || (s.kind === 'etyl' && (s.pos === 2 || s.pos === input.length - 1))),
+      );
       main = (
         <p>
           <strong>Kjeden er ikke den lengste.</strong> Du har tegnet {input.length} C i kjeden, men følger du bindingene inn i{' '}
-          {ends.length ? `${ends[0]!.kind}gruppa på C${ends[0]!.pos}` : 'en av grenene'}, får du en kjede på {v.length} C (det blå båndet).
-          Hovedkjeden er alltid den lengste sammenhengende kjeden, uansett hvordan den er tegnet. Derfor heter stoffet <strong>{r.name}</strong>
+          {ends.length ? `${ends[0]!.kind}gruppa på C${ends[0]!.pos}` : 'en av grenene'}, får du en kjede på {v.length} C (det blå båndet). Hovedkjeden er
+          alltid den lengste sammenhengende kjeden, uansett hvordan den er tegnet. Derfor heter stoffet <strong>{r.name}</strong>
           {naive ? <>, ikke «{naive}»</> : null}. En metylgruppe på C1 eller en etylgruppe på C2 er alltid et tegn på at kjeden kan forlenges.
         </p>
       );
@@ -356,8 +399,8 @@ function explanation(errors: BuildError[], r: NameResult | null, v: NameVerdict 
     case 'annen-kjede':
       main = (
         <p>
-          <strong>Velg kjeden med flest substituenter.</strong> Flere kjeder er like lange. Da er hovedkjeden den som har flest grener og
-          halogenatomer (det blå båndet). Navnet blir <strong>{r.name}</strong>
+          <strong>Velg kjeden med flest substituenter.</strong> Flere kjeder er like lange. Da er hovedkjeden den som har flest grener og halogenatomer (det blå
+          båndet). Navnet blir <strong>{r.name}</strong>
           {naive ? <>, ikke «{naive}»</> : null}.
         </p>
       );
@@ -383,9 +426,9 @@ function explanation(errors: BuildError[], r: NameResult | null, v: NameVerdict 
     <>
       {main}
       <p>
-        Reglene i kortform: finn den lengste kjeden (som må ha med dobbeltbindingen og C-atomet med OH), nummerer så OH, dobbeltbinding og
-        substituenter får lavest mulig tall, og sett substituentene alfabetisk foran stammen med di-, tri- når samme gruppe kommer flere ganger.
-        Formelen er <Formel f={formula} />.
+        Reglene i kortform: finn den lengste kjeden (som må ha med dobbeltbindingen og C-atomet med OH), nummerer så OH, dobbeltbinding og substituenter får
+        lavest mulig tall, og sett substituentene alfabetisk foran stammen med di-, tri- når samme gruppe kommer flere ganger. Formelen er{' '}
+        <Formel f={formula} />.
       </p>
     </>
   );

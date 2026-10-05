@@ -89,6 +89,8 @@ export interface Organism {
   lineage: Record<Rank, Taxon>;
   /** Kort merknad, f.eks. om underart. */
   note?: string;
+  /** Navnet er et vitenskapelig navn (E. coli) og skal stå i kursiv. */
+  italic?: boolean;
 }
 
 /* ---------- Felles taksa (samme objekt = samme takson) ---------- */
@@ -354,6 +356,7 @@ export const ORGANISMS: readonly Organism[] = [
   {
     id: 'ecoli',
     name: 'E. coli',
+    italic: true,
     short: 'E. coli',
     sci: 'Escherichia coli',
     glyph: 'bakterie',
@@ -461,9 +464,9 @@ const TREE_UTSEENDE: TreeNode = N(
 /**
  * Tre etter anatomi og mikroskop (morfologi), slik det så ut i skolebøkene før DNA-sekvensering (ca. 1970):
  * fem riker (Whittaker 1969), hvalene er pattedyr (lunger, melk, hår), sopper er et eget rike, og bakterier og arker
- * er én gruppe uten cellekjerne (prokaryoter). Varmblodige fugler og pattedyr står sammen (som hos Owen og senere
- * morfologer), og forholdet mellom pattedyrordenene og mellom planter, sopper og dyr er uavklart (flere greiner fra
- * samme knutepunkt).
+ * er én gruppe uten cellekjerne (prokaryoter). Krypdyr, fugler og pattedyr er tre likestilte klasser av amnioter
+ * (dyr med fosterhinner), der krypdyrene er samlet fordi de har skjell og er vekselvarme. Rekkefølgen mellom klassene,
+ * mellom pattedyrordenene og mellom planter, sopper og dyr er uavklart (flere greiner fra samme knutepunkt).
  */
 const TREE_ANATOMI: TreeNode = N(
   'Alt levende',
@@ -481,11 +484,8 @@ const TREE_ANATOMI: TreeNode = N(
         N(
           'Amnioter',
           N('Krypdyr', L('krokodille'), L('firfisle')),
-          N(
-            'Varmblodige',
-            L('kongeorn'),
-            N('Pattedyr', N('Primater', L('menneske'), L('sjimpanse')), N('Rovdyr', L('katt'), N('Hundeslekten', L('hund'), L('ulv'))), L('blahval')),
-          ),
+          N('Fugler', L('kongeorn')),
+          N('Pattedyr', N('Primater', L('menneske'), L('sjimpanse')), N('Rovdyr', L('katt'), N('Hundeslekten', L('hund'), L('ulv'))), L('blahval')),
         ),
       ),
     ),

@@ -60,9 +60,9 @@ const PKA = pKa(KA_ACETIC);
 
 const ACID_NAME: Record<TitrationAcid, string> = { HCl: 'saltsyre', CH3COOH: 'eddiksyre' };
 
-/** Største volum på x-aksen: omtrent 2 · V_e, rundet opp til 5 mL, mellom 10 og 50 mL (byretten rommer 50 mL). */
+/** Største volum på x-aksen: omtrent 2 · V_e, rundet opp til 5 mL, mellom 5 og 50 mL (byretten rommer 50 mL). */
 function axisMax(Ve: number): number {
-  return Math.min(50, Math.max(10, Math.ceil((2 * Ve) / 5) * 5));
+  return Math.min(50, Math.max(5, Math.ceil((2 * Ve) / 5) * 5));
 }
 
 export default function Titrering() {
@@ -88,7 +88,7 @@ export default function Titrering() {
   useEffect(() => setT(T_RUN / 4), [setT]);
 
   const scene = sceneLayout(f);
-  const plotH = Math.round(360 + 300 * (f - 1));
+  const plotH = Math.round(360 + 400 * (f - 1));
 
   return (
     <VizLayout>
@@ -157,8 +157,10 @@ export default function Titrering() {
           n(<Formel f={acid} />) = n(NaOH) = {fmtSig((cb * ep.Vend) / 1000, 3)} mol (molforhold 1 : 1)
         </FormulaLine>
         <FormulaLine>
-          c(<Formel f={acid} />) = n / V = {fmtSig((cb * ep.Vend) / 1000, 3)} mol / {fmt(Va / 1000, 4)} L = {fmtSig(ep.cFound, 3)} mol/L{' '}
-          (riktig verdi {fmtSig(ca, 3)} mol/L, avvik {fmt(ep.relError * 100, 1)} %)
+          c(<Formel f={acid} />) = n / V = {fmtSig((cb * ep.Vend) / 1000, 3)} mol / {fmt(Va / 1000, 4)} L = {fmtSig(ep.cFound, 3)} mol/L
+        </FormulaLine>
+        <FormulaLine>
+          Riktig verdi: {fmtSig(ca, 3)} mol/L, avvik {fmt(ep.relError * 100, 1)} %
         </FormulaLine>
       </Formula>
 
@@ -281,6 +283,10 @@ function Curve({ setup, xMax, Vb, pH, ind, ep, H }: { setup: TitrationSetup; xMa
     <Plot x={{ min: 0, max: xMax, label: 'Tilsatt NaOH V (mL)' }} y={{ min: 0, max: 14, label: 'pH', ticks: [0, 2, 4, 6, 8, 10, 12, 14] }} width={800} height={H}>
       {({ sx, sy, x0, x1, y0, y1 }) => {
         const eqLabelX = sx(Ve) + 12;
+        // «halvtitrerpunkt» (ca. 15 tegn) sentreres over punktet, men holdes inne i plottet og til venstre for V_e
+        const halfW = 15 * 0.56 * 17 * f * 0.85;
+        const halfAbove = sx(Ve) - x0 >= halfW + 20;
+        const halfX = halfAbove ? Math.max(x0 + 8, Math.min(sx(Ve) - halfW - 10, sx(Ve / 2) - halfW / 2)) : sx(Ve / 2) - 6;
         const eqRight = eqLabelX + 15 * 0.56 * 17 * f * 0.85 < x1;
         return (
           <g>
@@ -304,12 +310,16 @@ function Curve({ setup, xMax, Vb, pH, ind, ep, H }: { setup: TitrationSetup; xMa
                 <line x1={x0} y1={sy(pHhalf)} x2={sx(Ve / 2)} y2={sy(pHhalf)} stroke={VIZ.muted} strokeWidth={1.2} strokeDasharray="4 4" />
                 <line x1={sx(Ve / 2)} y1={sy(pHhalf)} x2={sx(Ve / 2)} y2={y0} stroke={VIZ.muted} strokeWidth={1.2} strokeDasharray="4 4" />
                 <circle cx={sx(Ve / 2)} cy={sy(pHhalf)} r={6} fill={VIZ.surface} stroke={VIZ.ink} strokeWidth={2.5} />
-                {/* Etiketten står oppe til venstre, der kurven er lav, med en strek ned til punktet */}
-                <line x1={sx(Ve / 2)} y1={sy(pHhalf) - 34 * f} x2={sx(Ve / 2)} y2={sy(pHhalf) - 9} stroke={VIZ.ink} strokeWidth={1.2} />
-                <Txt x={x0 + 10} y={sy(pHhalf) - 64 * f} anchor="start" size={0.85} weight={650}>
+                {/* Etiketten står over punktet (der kurven er lav), eller under kurven til høyre når det er for trangt til venstre for V_e */}
+                {halfAbove ? (
+                  <line x1={sx(Ve / 2)} y1={sy(pHhalf) - 34 * f} x2={sx(Ve / 2)} y2={sy(pHhalf) - 9} stroke={VIZ.ink} strokeWidth={1.2} />
+                ) : (
+                  <line x1={sx(Ve / 2)} y1={sy(pHhalf) + 9} x2={sx(Ve / 2)} y2={sy(pHhalf) + 26 * f} stroke={VIZ.ink} strokeWidth={1.2} />
+                )}
+                <Txt x={halfX} y={halfAbove ? sy(pHhalf) - 64 * f : sy(pHhalf) + 44 * f} anchor="start" size={0.85} weight={650}>
                   halvtitrerpunkt
                 </Txt>
-                <Txt x={x0 + 10} y={sy(pHhalf) - 42 * f} anchor="start" size={0.8} muted>
+                <Txt x={halfX} y={halfAbove ? sy(pHhalf) - 42 * f : sy(pHhalf) + 66 * f} anchor="start" size={0.8} muted>
                   pH ≈ pK<TSub>a</TSub> = {fmt(PKA, 2)}
                 </Txt>
               </g>
@@ -329,11 +339,21 @@ function Curve({ setup, xMax, Vb, pH, ind, ep, H }: { setup: TitrationSetup; xMa
                 />
               </g>
             )}
-            {ep.verdict === 'dårlig' && (
-              <Txt x={x0 + 10} y={y1 + 22 * f} anchor="start" size={0.85} weight={700} color={KJEMI.minus}>
-                {ep.alreadyShifted ? 'Indikatoren har slått om før du starter' : `Dårlig indikator: slår om ved ${fmt(ep.Vend, 2)} mL, ikke ${fmt(Ve, 2)} mL`}
-              </Txt>
-            )}
+            {ep.verdict === 'dårlig' &&
+              (f > 1.3 && !ep.alreadyShifted ? (
+                <>
+                  <Txt x={x0 + 10} y={y1 + 22 * f} anchor="start" size={0.85} weight={700} color={KJEMI.minus}>
+                    Dårlig indikator:
+                  </Txt>
+                  <Txt x={x0 + 10} y={y1 + 44 * f} anchor="start" size={0.85} weight={700} color={KJEMI.minus}>
+                    slår om ved {fmt(ep.Vend, 2)} mL
+                  </Txt>
+                </>
+              ) : (
+                <Txt x={x0 + 10} y={y1 + 22 * f} anchor="start" size={0.85} weight={700} color={KJEMI.minus}>
+                  {ep.alreadyShifted ? 'Indikatoren har slått om før du starter' : `Dårlig indikator: slår om ved ${fmt(ep.Vend, 2)} mL, ikke ${fmt(Ve, 2)} mL`}
+                </Txt>
+              ))}
 
             {/* Nå */}
             <line x1={sx(Vb)} y1={y0} x2={sx(Vb)} y2={sy(pH)} stroke={VIZ.ink} strokeWidth={1.2} strokeDasharray="2 4" />
