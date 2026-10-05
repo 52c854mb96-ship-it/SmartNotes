@@ -209,6 +209,7 @@ function Scene({
   const eBot = L.fy + L.flask.h - 22 * L.k;
   const M = L.meter;
   const Ve = equivalenceVolume(setup);
+  const phase = titrationPhase(setup, Vb);
   const lines: ReactNode[] = [
     <>
       Tilsatt: {fmt(Vb, 2)} mL NaOH
@@ -219,7 +220,7 @@ function Scene({
     <>
       n<TSub>0</TSub>(syre) = {fmtSig((setup.ca * setup.Va) / 1000, 3)} mol
     </>,
-    Vb < Ve - 1e-9 ? <>Syre i overskudd</> : Math.abs(Vb - Ve) < 0.02 ? <>Ekvivalens</> : <>NaOH i overskudd</>,
+    phase === 'ekvivalens' ? <>Ekvivalens</> : Vb < Ve ? <>Syre i overskudd</> : <>NaOH i overskudd</>,
   ];
   return (
     <g>
@@ -288,13 +289,27 @@ function Curve({ setup, xMax, Vb, pH, ind, ep, H }: { setup: TitrationSetup; xMa
         const halfAbove = sx(Ve) - x0 >= halfW + 20;
         const halfX = halfAbove ? Math.max(x0 + 8, Math.min(sx(Ve) - halfW - 10, sx(Ve / 2) - halfW / 2)) : sx(Ve / 2) - 6;
         const eqRight = eqLabelX + 15 * 0.56 * 17 * f * 0.85 < x1;
+        // Navnet på omslagsområdet står over eller under feltet, der det ikke krysser etikettene til ekvivalenspunktet
+        // (på mobil er begge brede). Er ingen plass ledig, står navnet bare i fargeforklaringen under figuren.
+        const indText = `${indicator.name} ${fmt(indicator.low, 1)}–${fmt(indicator.high, 1)}`;
+        const indW = indText.length * 0.56 * 17 * 0.78 * f;
+        const eqW = 22 * 0.56 * 17 * 0.8 * f;
+        const eqX0 = eqRight ? eqLabelX : sx(Ve) - 12 - eqW;
+        const sideBySide = eqX0 < x1 - 6 && x1 - 6 - indW < eqX0 + eqW;
+        const eqTop = sy(pHe) + 12 * f;
+        const eqBottom = sy(pHe) + 52 * f;
+        const indY = [sy(indicator.high) - 6, sy(indicator.low) + 18 * f].find(
+          (y) => y - 13 * f > y1 && y < y0 - 4 && (!sideBySide || y + 3 * f < eqTop || y - 13 * f > eqBottom),
+        );
         return (
           <g>
             {/* Omslagsområdet */}
             <rect x={x0} y={sy(indicator.high)} width={x1 - x0} height={sy(indicator.low) - sy(indicator.high)} fill={badgeColor} opacity={0.28} />
-            <Txt x={x1 - 6} y={sy(indicator.high) - 6} anchor="end" size={0.78} muted>
-              {indicator.name} {fmt(indicator.low, 1)}–{fmt(indicator.high, 1)}
-            </Txt>
+            {indY !== undefined && (
+              <Txt x={x1 - 6} y={indY} anchor="end" size={0.78} muted>
+                {indText}
+              </Txt>
+            )}
 
             {/* Ekvivalens- og halvtitrerpunktet */}
             <line x1={sx(Ve)} y1={y0} x2={sx(Ve)} y2={y1} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="6 5" />
@@ -378,7 +393,7 @@ function explanation(s: TitrationSetup, Vb: number, pH: number, phase: ReturnTyp
     now = (
       <>
         Før du tilsetter NaOH, er pH {fmt(pH, 2)}.{' '}
-        {weak ? 'Eddiksyre er en svak syre, så startpH er mye høyere enn for saltsyre med samme konsentrasjon.' : 'Saltsyre er fullstendig protolysert, så pH = −lg c.'}
+        {weak ? 'Eddiksyre er en svak syre, så pH ved start er mye høyere enn for saltsyre med samme konsentrasjon.' : 'Saltsyre er fullstendig protolysert, så pH = −lg c.'}
       </>
     );
   else if (phase === 'halv')
@@ -395,19 +410,28 @@ function explanation(s: TitrationSetup, Vb: number, pH: number, phase: ReturnTyp
         stiger {weak ? 'langsomt (blandingen av eddiksyre og acetat er en buffer)' : 'langsomt'}.
       </>
     );
-  else if (phase === 'ekvivalens')
+  else if (phase === 'ekvivalens') {
+    const pHe = titrationPH(s, Ve);
     now = (
       <>
-        <strong>Ekvivalenspunktet:</strong> n(<Formel f="OH^-" />) = n({A}), og pH er {fmt(pH, 2)}.{' '}
+        <strong>Ekvivalenspunktet:</strong> n(<Formel f="OH^-" />) = n({A}) ved V<Sub>e</Sub> = {fmt(Ve, 2)} mL, og der er pH {fmt(pHe, 2)}.{' '}
         {weak ? (
           <>
             pH er over 7 fordi acetationet <Formel f="CH3COO^-" /> er en svak base. Ekvivalenspunktet er altså ikke det samme som et nøytralt punkt.
           </>
         ) : (
-          <>Saltløsningen NaCl er nøytral, så pH er 7,00.</>
+          <>Løsningen inneholder bare NaCl og vann, og den er nøytral.</>
+        )}
+        {Math.abs(pH - pHe) >= 0.05 && (
+          <>
+            {' '}
+            pH-meteret viser {fmt(pH, 2)} fordi {fmt(Vb, 2)} mL ikke er nøyaktig V<Sub>e</Sub>: her er kurven så bratt at en brøkdel av en dråpe
+            endrer pH mye.
+          </>
         )}
       </>
     );
+  }
   else
     now = (
       <>

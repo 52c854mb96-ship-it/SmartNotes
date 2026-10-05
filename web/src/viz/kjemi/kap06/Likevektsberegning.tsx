@@ -26,7 +26,7 @@ import {
   scaleLinear,
   useContainerTextScale,
 } from '../kit';
-import { ICE_PRESETS, direction, iceEquation, quotient, solveEquilibrium, type IcePreset, type IceSpecies } from './model';
+import { ICE_PRESETS, direction, iceEquation, quotient, reactionPossible, solveEquilibrium, type IcePreset, type IceSpecies } from './model';
 
 const START_C = VIZ.muted;
 const EQ_C = VIZ.series[0]!;
@@ -42,7 +42,7 @@ export default function Likevektsberegning() {
   const start = preset.species.map((_, i) => c0[i] ?? 0);
   const r = solveEquilibrium(nu, start, K);
   const dir = direction(r.q0, K);
-  const possible = Math.abs(r.x) > 0 || dir === 'likevekt';
+  const possible = reactionPossible(nu, start);
   const xAbs = Math.abs(r.x);
   const table = tableLayout(preset, f);
   const barsH = Math.round(250 + 150 * (f - 1));
@@ -97,7 +97,7 @@ export default function Likevektsberegning() {
       <Figure
         viewBox={`0 0 800 ${barsH}`}
         label={`Startkonsentrasjoner og likevektskonsentrasjoner som søyler.`}
-        caption={preset.Ktext ? `K = ${fmtSig(K, 3)} ${preset.Ktext}.` : `K = ${fmtSig(K, 3)}, valgt med glidebryteren.`}
+        caption={preset.Ktext ? `K = ${fmtSig(K, 2)} ${preset.Ktext}.` : `K = ${fmtSig(K, 2)}, valgt med glidebryteren.`}
         maxHeight={barsH}
       >
         <Bars preset={preset} start={start} eq={r.c} height={barsH} f={f} />
@@ -111,13 +111,13 @@ export default function Likevektsberegning() {
 
       <Readouts>
         <Readout label="Q i startblandingen" value={Number.isNaN(r.q0) ? '–' : r.q0 === Infinity ? '∞' : fmtSig(r.q0, 3)} />
-        <Readout label={preset.Ktext ? `K ${preset.Ktext.replace(/ \(omtrent\)$/, '')}` : 'K'} value={fmtSig(K, 3)} tone={EQ_C} />
+        <Readout label={preset.Ktext ? `K ${preset.Ktext.replace(/ \(omtrent\)$/, '')}` : 'K'} value={fmtSig(K, 2)} tone={EQ_C} />
         <Readout label="Omsetning x" value={fmtSig(xAbs, 3)} unit="mol/L" />
-        <Readout label="Netto reaksjon" value={!possible ? 'ingen' : dir === 'høyre' ? 'mot høyre' : dir === 'venstre' ? 'mot venstre' : 'ingen'} />
+        <Readout label="Netto reaksjon" value={!possible ? 'Ingen' : dir === 'høyre' ? 'Mot høyre' : dir === 'venstre' ? 'Mot venstre' : 'Ingen'} />
       </Readouts>
 
       <Formula label="Likevektsuttrykket">
-        <FormulaLine>{preset.generic ? <>aA + bB ⇌ cC + dD: </> : <Reaksjon r={iceEquation(preset)} />}</FormulaLine>
+        <FormulaLine>{preset.generic ? preset.label : <Reaksjon r={iceEquation(preset)} />}</FormulaLine>
         <FormulaLine>
           K = <KExpression preset={preset} /> = <KNumbers preset={preset} c={r.c} /> = {possible ? fmtSig(quotient(nu, r.c), 3) : '–'}
         </FormulaLine>
@@ -366,24 +366,24 @@ function explanation(p: IcePreset, K: number, q0: number, dir: string, possible:
   const size =
     K >= 1000 ? (
       <>
-        <strong>K = {fmtSig(K, 3)} er svært stor,</strong> så likevekten ligger helt mot høyre: reaksjonen går nesten fullstendig, og den begrensende reaktanten
+        <strong>K = {fmtSig(K, 2)} er svært stor,</strong> så likevekten ligger helt mot høyre: reaksjonen går nesten fullstendig, og den begrensende reaktanten
         blir nesten helt brukt opp.
       </>
     ) : K > 10 ? (
       <>
-        <strong>K = {fmtSig(K, 3)} er stor,</strong> så likevekten ligger mot høyre: det er mest produkter ved likevekt, men litt av reaktantene er igjen.
+        <strong>K = {fmtSig(K, 2)} er stor,</strong> så likevekten ligger mot høyre: det er mest produkter ved likevekt, men litt av reaktantene er igjen.
       </>
     ) : K >= 0.1 ? (
       <>
-        <strong>K = {fmtSig(K, 3)} ligger nær 1,</strong> så det finnes merkbare mengder av både reaktanter og produkter ved likevekt.
+        <strong>K = {fmtSig(K, 2)} ligger nær 1,</strong> så det finnes merkbare mengder av både reaktanter og produkter ved likevekt.
       </>
     ) : K > 0.001 ? (
       <>
-        <strong>K = {fmtSig(K, 3)} er liten,</strong> så likevekten ligger mot venstre: det er mest reaktanter ved likevekt.
+        <strong>K = {fmtSig(K, 2)} er liten,</strong> så likevekten ligger mot venstre: det er mest reaktanter ved likevekt.
       </>
     ) : (
       <>
-        <strong>K = {fmtSig(K, 3)} er svært liten,</strong> så likevekten ligger helt mot venstre: nesten ingenting av reaktantene blir til produkt.
+        <strong>K = {fmtSig(K, 2)} er svært liten,</strong> så likevekten ligger helt mot venstre: nesten ingenting av reaktantene blir til produkt.
       </>
     );
   const way =
@@ -397,7 +397,7 @@ function explanation(p: IcePreset, K: number, q0: number, dir: string, possible:
         Da får produktene «−» og reaktantene «+» i endringsraden.
       </>
     );
-  const sym = p.id === 'hi' && Math.abs(start[0]! - start[1]!) < 1e-9 && start[2] === 0;
+  const sq = squareRootShortcut(p, start);
   return (
     <>
       <p>
@@ -405,11 +405,11 @@ function explanation(p: IcePreset, K: number, q0: number, dir: string, possible:
       </p>
       <p>
         Slik regner du: sett opp tabellen, uttrykk likevektskonsentrasjonene med x, sett dem inn i likevektsuttrykket og løs for x.
-        {sym ? (
+        {sq ? (
           <>
             {' '}
-            Her er [H<Sub>2</Sub>] = [I<Sub>2</Sub>], så du kan ta kvadratroten på begge sider: √{fmtSig(K, 3)} = 2x / ({fmt(start[0]!, 2)} − x), som gir x ={' '}
-            {fmtSig(x, 3)} mol/L.
+            Her er {sq.equal}, så du kan ta kvadratroten på begge sider: √{fmtSig(K, 2)} = {sq.num}x / ({fmt(start[0]!, 2)} − x), som gir x = {fmtSig(x, 3)}{' '}
+            mol/L.
           </>
         ) : (
           <> Likningen blir ofte av høyere grad, så her løses den numerisk ved halvering: x prøves til Q = K.</>
@@ -421,6 +421,22 @@ function explanation(p: IcePreset, K: number, q0: number, dir: string, possible:
       </p>
     </>
   );
+}
+
+/**
+ * Snarveien med kvadratrot: to reaktanter med koeffisient 1 og like startkonsentrasjoner, og ingen produkter fra start.
+ * Da er K = (2x)² / (c − x)² (ett produkt med koeffisient 2) eller K = x² / (c − x)² (to produkter med koeffisient 1).
+ */
+function squareRootShortcut(p: IcePreset, start: number[]): { equal: string; num: string } | null {
+  const reac = p.species.map((s, i) => ({ s, i })).filter(({ s }) => s.nu < 0);
+  const prod = p.species.map((s, i) => ({ s, i })).filter(({ s }) => s.nu > 0);
+  const name = (f: string) => `[${p.generic ? f : formulaText(f)}]`;
+  if (reac.length !== 2 || reac.some(({ s }) => s.nu !== -1)) return null;
+  if (!(start[reac[0]!.i]! > 0) || Math.abs(start[reac[0]!.i]! - start[reac[1]!.i]!) > 1e-9 || prod.some(({ i }) => start[i] !== 0)) return null;
+  const eqR = `${name(reac[0]!.s.formula)} = ${name(reac[1]!.s.formula)}`;
+  if (prod.length === 1 && prod[0]!.s.nu === 2) return { equal: eqR, num: '2' };
+  if (prod.length === 2 && prod.every(({ s }) => s.nu === 1)) return { equal: `${eqR} og ${name(prod[0]!.s.formula)} = ${name(prod[1]!.s.formula)}`, num: '' };
+  return null;
 }
 
 function changesText(p: IcePreset): string {

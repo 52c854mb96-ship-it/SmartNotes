@@ -92,6 +92,7 @@ import {
   LIMITING_REACTIONS,
   PIPETTES,
   SOLUTES,
+  amountStep,
   balanceOrder,
   balanceSolution,
   balanceState,
@@ -104,6 +105,7 @@ import {
   percentYield,
   pictureCounts,
   solutionInfo,
+  standsAlone,
   withCoefficients,
 } from './model';
 
@@ -139,12 +141,19 @@ describe('balansering', () => {
     }
   });
 
-  it('metoden: grunnstoffer i få stoffer først, H og O til slutt', () => {
+  it('metoden: grunnstoffer i få stoffer først, så H og O, og grunnstoffer som står alene til slutt', () => {
     expect(balanceOrder(byId('metan'))).toEqual(['C', 'H', 'O']);
     expect(balanceOrder(byId('fotosyntese'))).toEqual(['C', 'H', 'O']);
-    expect(balanceOrder(byId('aluminium'))).toEqual(['Al', 'Cl', 'H']);
     expect(balanceOrder(byId('jern'))).toEqual(['Fe', 'O']);
     expect(balanceOrder(byId('kalkstein'))).toEqual(['Ca', 'C', 'Cl', 'H', 'O']);
+    // Al og H₂ står alene, Cl er bare bundet: Cl først
+    expect(balanceOrder(byId('aluminium'))).toEqual(['Cl', 'Al', 'H']);
+    expect(balanceOrder(byId('natrium'))).toEqual(['O', 'Na', 'H']);
+    expect(balanceOrder(byId('termitt'))).toEqual(['O', 'Al', 'Fe']);
+    // Ag⁺ er et ion, men Ag(s) står alene
+    expect(balanceOrder(byId('kobber-solv'))).toEqual(['Cu', 'Ag']);
+    expect(standsAlone(byId('metan'), 'O')).toBe(true);
+    expect(standsAlone(byId('metan'), 'H')).toBe(false);
   });
 
   it('ubalansert likning: atomtelling og neste steg', () => {
@@ -256,7 +265,42 @@ describe('begrensende reaktant', () => {
         expect(p.after.every((v) => v >= 0 && Number.isInteger(v))).toBe(true);
       }
     }
-    expect(pictureCounts(rxn('2 H2(g) + O2(g) → 2 H2O(l)'), [3, 2])).toEqual({ before: [6, 4, 0], after: [0, 1, 6], extent: 3 });
+    expect(pictureCounts(rxn('2 H2(g) + O2(g) → 2 H2O(l)'), [3, 2])).toEqual({ before: [6, 4, 0], after: [0, 1, 6], extent: 3, exact: true });
+  });
+
+  it('i bildet er den begrensende reaktanten alltid brukt opp (også når tallene ikke går opp)', () => {
+    // 4 mol N₂ og 8 mol H₂: H₂ er begrensende, ξ = 8/3 mol går ikke opp i halve mol
+    const rx = rxn('N2(g) + 3 H2(g) → 2 NH3(g)');
+    const p = pictureCounts(rx, [4, 8]);
+    expect(p.exact).toBe(false);
+    expect(p.after[1]).toBe(0);
+    expect(p.after[0]).toBe(3);
+    for (const L of LIMITING_REACTIONS) {
+      const r = parsedEquation(L);
+      for (const n of [L.n0, L.nMax, [1.3, 0.4], [0.7, 2.3], [L.nMax[0]!, 0.1]]) {
+        const res = limitingResult(r, n);
+        const pic = pictureCounts(r, n);
+        for (const i of res.limiting) expect(pic.after[i], `${L.id} ${n}`).toBe(0);
+      }
+    }
+  });
+
+  it('med stegene på glidebryterne (koeffisient · ½ mol) er bildet eksakt', () => {
+    for (const L of LIMITING_REACTIONS) {
+      const r = parsedEquation(L);
+      const steps = r.reactants.map((t) => amountStep(t.coef));
+      // Startverdiene og maksimum ligger på stegene
+      L.n0.forEach((v, i) => expect(Math.abs(v / steps[i]! - Math.round(v / steps[i]!)), L.id).toBeLessThan(1e-9));
+      L.nMax.forEach((v, i) => expect(Math.abs(v / steps[i]! - Math.round(v / steps[i]!)), L.id).toBeLessThan(1e-9));
+      const grid = (i: number) => Array.from({ length: Math.round(L.nMax[i]! / steps[i]!) + 1 }, (_, j) => j * steps[i]!);
+      for (const a of grid(0))
+        for (const b of grid(1)) {
+          const res = limitingResult(r, [a, b]);
+          const pic = pictureCounts(r, [a, b]);
+          expect(pic.exact, `${L.id} ${a} ${b}`).toBe(true);
+          pic.after.forEach((N, i) => expect(N * 0.5).toBeCloseTo(res.after[i]!, 9));
+        }
+    }
   });
 
   it('prosentvis utbytte og pene steg', () => {

@@ -775,7 +775,7 @@ export const ISOMER_SETS: IsomerSet[] = [
       alkane('heksan', 'heksan', undefined, () => molecule({ chain: chainC(6) }), 68.7, 'rett', 0),
       alkane('2-metylpentan', '2-metylpentan', undefined, () => molecule({ chain: chainC(5), branches: [up(1)] }), 60.3, '2-metyl', 1),
       alkane('3-metylpentan', '3-metylpentan', undefined, () => molecule({ chain: chainC(5), branches: [up(2)] }), 63.3, '3-metyl', 1),
-      alkane('23-dimetylbutan', '2,3-dimetylbutan', undefined, () => molecule({ chain: chainC(4), branches: [up(1), up(2)] }), 58.0, '2,3-dimetyl', 2),
+      alkane('23-dimetylbutan', '2,3-dimetylbutan', undefined, () => molecule({ chain: chainC(4), branches: [up(1), up(2)] }), 57.9, '2,3-dimetyl', 2),
       alkane('22-dimetylbutan', '2,2-dimetylbutan', undefined, () => molecule({ chain: chainC(4), branches: [up(1), down(1)] }), 49.7, '2,2-dimetyl', 2),
     ],
   },
@@ -856,6 +856,8 @@ export const ISOMER_SETS: IsomerSet[] = [
     formula: 'C4H8',
     compare: [1, 2],
     isomers: [
+      // Dipolmoment (CRC): but-1-en 0,34 D, cis-but-2-en 0,25 D, 2-metylpropen 0,50 D, trans-but-2-en 0 (dipolene
+      // opphever hverandre). Alle alkenene unntatt trans-formen er altså svakt polare.
       {
         id: 'but-1-en',
         name: 'but-1-en',
@@ -864,10 +866,9 @@ export const ISOMER_SETS: IsomerSet[] = [
         group: 'alken',
         skeleton: 'rett',
         hbond: false,
-        polar: false,
+        polar: true,
         branches: 0,
       },
-      // cis-but-2-en har et lite dipolmoment (0,3 D), trans-formen ingen (dipolene opphever hverandre).
       {
         id: 'cis-but-2-en',
         name: 'cis-but-2-en',
@@ -899,7 +900,7 @@ export const ISOMER_SETS: IsomerSet[] = [
         group: 'alken',
         skeleton: 'forgrenet',
         hbond: false,
-        polar: false,
+        polar: true,
         branches: 1,
       },
       {
@@ -1102,7 +1103,7 @@ export const REACTION_TYPE_NAME: Record<ReactionType, string> = {
 export interface Species {
   /** Navn, f.eks. «eten». */
   name: string;
-  /** Formel til likningen («C2H4», «H2O»). */
+  /** Formel til likningen («C2H4», «C2H5OH», «CH3COOH»), skrevet som i lærebøkene. */
   formula: string;
   coef: number;
   build: () => Mol;
@@ -1174,7 +1175,7 @@ export const ORG_REACTIONS: OrgReaction[] = [
     products: [
       {
         name: '1,2-dibrometan',
-        formula: 'C2H4Br2',
+        formula: 'CH2BrCH2Br',
         coef: 1,
         build: () => molecule({ chain: ['C', 'C'], branches: [up(0, ['Br']), up(1, ['Br'])] }),
         bonds: [
@@ -1198,7 +1199,7 @@ export const ORG_REACTIONS: OrgReaction[] = [
     products: [
       {
         name: 'etanol',
-        formula: 'C2H6O',
+        formula: 'C2H5OH',
         coef: 1,
         build: () => molecule({ chain: ['C', 'C'], branches: [down(0, ['H']), up(1, ['O'])] }),
         bonds: [
@@ -1288,7 +1289,7 @@ export const ORG_REACTIONS: OrgReaction[] = [
     reactants: [
       {
         name: 'etanol',
-        formula: 'C2H6O',
+        formula: 'C2H5OH',
         coef: 1,
         build: () => molecule({ chain: ['C', 'C'], branches: [down(0, ['H']), down(1, ['O'])] }),
         bonds: [
@@ -1313,18 +1314,18 @@ export const ORG_REACTIONS: OrgReaction[] = [
     reactants: [
       {
         name: 'etansyre',
-        formula: 'C2H4O2',
+        formula: 'CH3COOH',
         coef: 1,
         build: () => molecule({ chain: ['C', 'C', 'O'], branches: [{ at: 1, side: 'up', atoms: ['O'], orders: [2] }] }),
         bonds: [[1, 2]],
         tracked: [2],
       },
-      { name: 'etanol', formula: 'C2H6O', coef: 1, build: () => molecule({ chain: ['H', 'O', 'C', 'C'] }), bonds: [[0, 1]], tracked: [0] },
+      { name: 'etanol', formula: 'C2H5OH', coef: 1, build: () => molecule({ chain: ['H', 'O', 'C', 'C'] }), bonds: [[0, 1]], tracked: [0] },
     ],
     products: [
       {
         name: 'etyletanoat',
-        formula: 'C4H8O2',
+        formula: 'CH3COOC2H5',
         coef: 1,
         build: () => molecule({ chain: ['C', 'C', 'O', 'C', 'C'], branches: [{ at: 1, side: 'up', atoms: ['O'], orders: [2] }] }),
         bonds: [[1, 2]],
@@ -1352,7 +1353,7 @@ export const ORG_REACTIONS: OrgReaction[] = [
     label: 'Etanol',
     conditions: 'tenning',
     reactants: [
-      { name: 'etanol', formula: 'C2H6O', coef: 1, build: () => molecule({ chain: ['C', 'C', 'O'] }), bonds: 'alle' },
+      { name: 'etanol', formula: 'C2H5OH', coef: 1, build: () => molecule({ chain: ['C', 'C', 'O'] }), bonds: 'alle' },
       { name: 'oksygen', formula: 'O2', coef: 3, build: diatomic('O', 'O', 2), bonds: 'alle' },
     ],
     products: [
@@ -1380,7 +1381,7 @@ export function reactionsOfType(type: ReactionType): OrgReaction[] {
   return ORG_REACTIONS.filter((r) => r.type === type);
 }
 
-/** Likningen som tekst til kit-ets Reaksjon: «C2H4 + Br2 → C2H4Br2». */
+/** Likningen som tekst til kit-ets Reaksjon: «C2H4 + Br2 → CH2BrCH2Br». */
 export function equationText(r: OrgReaction): string {
   const side = (s: Species[]) => s.map((x) => `${x.coef === 1 ? '' : `${x.coef} `}${x.formula}`).join(' + ');
   return `${side(r.reactants)} ${r.equilibrium ? '⇌' : '→'} ${side(r.products)}`;
@@ -1401,16 +1402,13 @@ export function trackedAtoms(s: Species, mol: Mol): number[] {
   return [...out].sort((a, b) => a - b);
 }
 
-/** Antall bindinger som brytes og dannes i alt (med koeffisientene). En dobbeltbinding som åpnes, teller som én. */
-export function bondChanges(r: OrgReaction): { broken: number; formed: number } {
-  const count = (list: Species[]) =>
-    list.reduce((s, x) => {
-      const mol = x.build();
-      const idx = highlightedBonds(x, mol);
-      const all = x.bonds === 'alle';
-      return s + x.coef * idx.reduce((t, i) => t + (all ? mol.bonds[i]!.order : 1), 0);
-    }, 0);
-  return { broken: count(r.reactants), formed: count(r.products) };
+/**
+ * Bindingen C=C som bare delvis brytes eller dannes: ved addisjon åpnes bare den ene av de to bindingene (C=C blir
+ * C–C), og ved eliminasjon dannes bare den andre bindingen (C–C blir C=C). Gjelder utgangsstoffene ved addisjon og
+ * produktene ved eliminasjon.
+ */
+export function onlySecondBond(r: OrgReaction, side: 'reactants' | 'products'): boolean {
+  return (r.type === 'addisjon' && side === 'reactants') || (r.type === 'eliminasjon' && side === 'products');
 }
 
 /** Atomtelling på hver side (med koeffisientene), for å vise at atomene er bevart. */

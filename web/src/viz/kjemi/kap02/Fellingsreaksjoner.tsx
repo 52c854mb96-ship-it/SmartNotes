@@ -40,6 +40,8 @@ import {
   mixSolutions,
   pairInfo,
   spectatorIons,
+  unitParticles,
+  zoomCounts,
   type Ion,
   type MixResult,
   type PairInfo,
@@ -58,7 +60,8 @@ const PRECIPITATE_COLOR: Record<PrecipitateColor, string> = {
   blått: mixColor(WHITE, KJEMI.indicator.btbBasisk, 0.65),
   blågrønt: KJEMI.ph[4]!,
   rustbrunt: mixColor(KJEMI.valence, atomColors('Br').line, 0.5),
-  brunt: mixColor(atomColors('Br').line, KJEMI.bond, 0.35),
+  // Brom-fyll og -kant bytter lys/mørk mellom temaene, så en jevn blanding gir samme brune farge i begge
+  brunt: mixColor(atomColors('Br').fill, atomColors('Br').line, 0.5),
 };
 const COLOR_WORD: Record<PrecipitateColor, string> = {
   hvitt: 'hvitt',
@@ -69,9 +72,9 @@ const COLOR_WORD: Record<PrecipitateColor, string> = {
   rustbrunt: 'rustbrunt',
   brunt: 'brunt',
 };
-/** Mørke bunnfall får lys tekst; de lyse (hvitt, gult, blått) får mørk tekst i begge temaer. */
-const DARK: PrecipitateColor[] = ['brunt', 'rustbrunt', 'blågrønt'];
-const inkOn = (c: PrecipitateColor) => (DARK.includes(c) ? VIZ.surface : atomColors('H').ink);
+/** Mørke bunnfall får lys tekst; de lyse (hvitt, gult, blått) og det mellombrune får vanlig tekst i begge temaer. */
+const DARK: PrecipitateColor[] = ['rustbrunt', 'blågrønt'];
+const inkOn = (c: PrecipitateColor) => (DARK.includes(c) ? VIZ.surface : c === 'brunt' ? VIZ.ink : atomColors('H').ink);
 const KIND_CODE: Record<SolubilityKind, string> = { løselig: 'L', 'lite løselig': 'lite', tungtløselig: 'T', reagerer: 'R' };
 
 const ionLabel = (f: string) => formulaText(f);
@@ -130,7 +133,8 @@ export default function Fellingsreaksjoner() {
         items={[
           { color: KJEMI.plus, label: 'Positive ioner' },
           { color: KJEMI.minus, label: 'Negative ioner' },
-          ...(shownP ? [{ color: PRECIPITATE_COLOR[p.color], label: `Bunnfall (${COLOR_WORD[p.color]})` }] : []),
+          // Hvitt bunnfall vises med en lys grå strek, ellers synes den ikke mot bakgrunnen
+          ...(shownP ? [{ color: p.color === 'hvitt' ? mixColor(WHITE, VIZ.muted, 0.45) : PRECIPITATE_COLOR[p.color], label: `Bunnfall (${COLOR_WORD[p.color]})` }] : []),
         ]}
       />
 
@@ -186,10 +190,10 @@ function sceneLayout(f: number, k: number) {
     const by = 60;
     return {
       wide,
-      A: { x: 24, y: by, w: 92, h: 130 },
-      B: { x: 160, y: by, w: 92, h: 130 },
-      M: { x: 300, y: by - 10, w: 150, h: 200 },
-      zoom: { x: 500, y: 16, w: 284, h: 284 },
+      A: { x: 18, y: by, w: 86, h: 130 },
+      B: { x: 144, y: by, w: 86, h: 130 },
+      M: { x: 272, y: by - 10, w: 140, h: 200 },
+      zoom: { x: 446, y: 14, w: 340, h: 304 },
       H: Math.round(330 + 10 * f),
     };
   }
@@ -219,19 +223,20 @@ interface P {
   from: { x: number; y: number };
   to: { x: number; y: number };
   label: string;
-  kind: 'kation' | 'anion' | 'tilskuer+' | 'tilskuer-' | 'I2' | 'CO2' | 'OH';
+  kind: 'kation' | 'anion' | 'tilskuer+' | 'tilskuer-';
   inSolid: boolean;
   /** Flytter seg fra `from` til `to` mens reaksjonen skjer. */
   moves: boolean;
-  /** Ladningstekst etter reaksjonen (Fe³⁺ → Fe²⁺). */
+  /** Ny tekst etter reaksjonen (Fe³⁺ → Fe²⁺, Cu²⁺ → Cu⁺ i CuI, OH⁻ → O²⁻ i Ag₂O, I⁻ → I₂). */
   labelAfter?: string;
-  /** Forsvinner (CO₂ som bobler ut, I⁻ som blir til I₂). */
+  /** Blir et nøytralt molekyl (CO₂, H₂O, I₂). */
+  neutralAfter?: boolean;
+  /** Forsvinner (CO₂ som bobler ut, vann som blandes med resten av vannet, I⁻ som går sammen med et annet til I₂). */
   fades?: boolean;
+  /** Kommer til underveis (OH⁻ fra vannet i Fe(OH)₃). */
   appears?: boolean;
   phase: number;
 }
-
-const UNITS = 6;
 
 function Scene({ cation, anion, info, mix, t, layout, f, k }: { cation: Ion; anion: Ion; info: PairInfo; mix: MixResult; t: number; layout: ReturnType<typeof sceneLayout>; f: number; k: number }) {
   const { zoom, A, B, M } = layout;
@@ -239,7 +244,7 @@ function Scene({ cation, anion, info, mix, t, layout, f, k }: { cation: Ion; ani
   const r = (layout.wide ? 13 : 17) * k;
   const p = info.precipitate;
   const key = `${cation.id}-${anion.id}`;
-  const parts = useMemo(() => buildParticles(cation, anion, info, mix, zoom, r, 34 * f), [cation, anion, info, mix, zoom.x, zoom.y, zoom.w, zoom.h, r, f]);
+  const parts = useMemo(() => buildParticles(cation, anion, mix, zoom, r, 34 * f), [cation, anion, mix, zoom.x, zoom.y, zoom.w, zoom.h, r, f]);
   const tintCat = cation.id === 'Cu' || cation.id === 'Fe' ? cation.id : '';
   // Hvor mye av det fargede kationet som er igjen i løsningen (Fe³⁺ blir til Fe²⁺ med jodid)
   const consumed = cation.id === 'Fe' && anion.id === 'I' ? 1 : mix.precipitates && p ? Math.min(1, (mix.x * p.a) / mix.cCation) : 0;
@@ -313,43 +318,35 @@ function Suspension({ box, color, amount, pr, gas, seed, k }: { box: Box; color:
   );
 }
 
-/** Bygger partiklene i utsnittet: ionene fra begge løsningene, og hvor hver av dem ender. */
+/** Bygger partiklene i utsnittet: ionene fra begge løsningene, og hvor hver av dem ender (se unitParticles i model.ts). */
 function buildParticles(
   cation: Ion,
   anion: Ion,
-  info: PairInfo,
   mix: MixResult,
   zoom: { x: number; y: number; w: number; h: number },
   r: number,
   labelBand: number,
 ): P[] {
-  const key = `${cation.id}-${anion.id}`;
-  const nNO3 = UNITS * cation.charge;
-  const nNa = UNITS * -anion.charge;
+  const u = unitParticles(cation.id, anion.id);
+  const { ions, units } = zoomCounts(cation.id, anion.id, mix);
+  const nNO3 = ions * cation.charge;
+  const nNa = ions * -anion.charge;
   // Na⁺ og NO₃⁻ fra begge løsningene er tilskuerioner; velger eleven dem selv, tegnes de også blekt.
   const catSpect = cation.id === 'Na';
   const anSpect = anion.id === 'NO3';
   const groups = [
-    { n: UNITS, r: catSpect ? r * 0.8 : r },
-    { n: UNITS, r: anSpect ? r * 0.8 : r },
+    { n: ions, r: catSpect ? r * 0.8 : r },
+    { n: ions, r: anSpect ? r * 0.8 : r },
     { n: nNO3, r: r * 0.8 },
     { n: nNa, r: r * 0.8 },
   ];
-  const p = info.precipitate;
-  // Formelenheter som felles ut i utsnittet
-  const maxUnits = p ? Math.floor(Math.min(UNITS / p.a, UNITS / p.b)) : 0;
-  const units = mix.precipitates && p ? Math.max(1, Math.round(mix.fraction * maxUnits)) : 0;
-  const nCatSolid = units * (p?.a ?? 0);
-  let nAnSolid = units * (p?.b ?? 0);
-  // Fe³⁺ + CO₃²⁻: bunnfallet er Fe(OH)₃; karbonationene blir CO₂ og OH⁻ kommer fra vannet
-  const ohFromWater = key === 'Fe-CO3' ? units * 3 : 0;
-  const co2 = key === 'Fe-CO3' ? Math.min(UNITS, Math.round((units * 3) / 2)) : 0;
-  if (key === 'Fe-CO3') nAnSolid = 0;
-  // Jod: Cu²⁺ + I⁻ gir I₂ i tillegg til CuI (ett I₂ per to CuI); Fe³⁺ + I⁻ gir I₂ og Fe²⁺ (alle ionene reagerer)
-  const feI = key === 'Fe-I';
-  const nI2Ions = key === 'Cu-I' ? units : feI ? UNITS : 0;
+  const nCatSolid = u ? units * u.cationsInSolid : 0;
+  const nCatConv = u ? units * u.cationsConverted : 0;
+  const nAnSolid = u ? units * u.anionsInSolid : 0;
+  const nAnConv = u ? units * u.anionsConverted : 0;
+  const nWater = u ? units * u.fromWater : 0;
   // Gitteret nederst i utsnittet
-  const solidCount = nCatSolid + nAnSolid + ohFromWater;
+  const solidCount = nCatSolid + nAnSolid + nWater;
   const d = 2 * r + 2;
   const cols = Math.max(1, Math.min(Math.floor((zoom.w - 40) / d), Math.ceil(Math.sqrt(solidCount * 3))));
   const slots: { x: number; y: number; even: boolean }[] = [];
@@ -364,55 +361,58 @@ function buildParticles(
   const top = rows > 0 ? labelBand : 0;
   const box = { x: zoom.x + 6, y: zoom.y + 6 + top, w: zoom.w - 12, h: zoom.h - 12 - band - top };
   const placed = placeParticles(box, groups, 9 + cation.charge * 3 - anion.charge);
-  const at = (g: number, i: number) => placed.find((q) => q.group === g && q.index === i)!;
+  const at = (g: number, i: number) => placed.find((q) => q.group === g && q.index === i);
   const evenSlots = slots.filter((s) => s.even);
   const oddSlots = slots.filter((s) => !s.even);
   const nextSlot = (pref: 'even' | 'odd') => (pref === 'even' ? evenSlots.shift() ?? oddSlots.shift() : oddSlots.shift() ?? evenSlots.shift());
   const out: P[] = [];
   const cl = ionLabel(cation.formula);
   const al = ionLabel(anion.formula);
-  for (let i = 0; i < UNITS; i++) {
-    const q = at(0, i);
+  for (let i = 0; i < ions; i++) {
+    const q = at(0, i)!;
     const solid = i < nCatSolid;
+    const conv = !solid && i < nCatSolid + nCatConv;
     const s = solid ? nextSlot('even') : undefined;
-    out.push({ from: q, to: s ?? q, label: cl, kind: catSpect ? 'tilskuer+' : 'kation', inSolid: solid, moves: solid, labelAfter: feI ? 'Fe²⁺' : solid && key === 'Cu-I' ? 'Cu⁺' : undefined, phase: q.phase });
+    const after = solid && u && u.cationInSolid !== cation.formula ? ionLabel(u.cationInSolid) : conv && u?.cationAfter ? ionLabel(u.cationAfter) : undefined;
+    out.push({ from: q, to: s ?? q, label: cl, kind: catSpect ? 'tilskuer+' : 'kation', inSolid: solid, moves: solid, labelAfter: after, phase: q.phase });
   }
-  for (let i = 0; i < UNITS; i++) {
-    const q = at(1, i);
-    const solid = i < nAnSolid;
-    const s = solid ? nextSlot('odd') : undefined;
-    // Jodidionene som går sammen to og to til I₂, og karbonationene som blir til CO₂ og bobler ut
-    const j = i - nAnSolid;
-    if (j >= 0 && j < nI2Ions) {
-      const partner = at(1, j % 2 === 0 ? i + 1 : i - 1) ?? q;
-      const mid = { x: (q.x + partner.x) / 2, y: (q.y + partner.y) / 2 };
-      out.push({ from: q, to: mid, label: al, kind: 'anion', inSolid: false, moves: true, labelAfter: j % 2 === 0 ? 'I₂' : undefined, fades: j % 2 === 1, phase: q.phase });
+  for (let i = 0; i < ions; i++) {
+    const q = at(1, i)!;
+    const kind = anSpect ? 'tilskuer-' : 'anion';
+    if (i < nAnSolid) {
+      const s = nextSlot('odd');
+      const after = u && u.anionInSolid !== anion.formula ? ionLabel(u.anionInSolid) : undefined;
+      out.push({ from: q, to: s ?? q, label: al, kind, inSolid: true, moves: true, labelAfter: after, phase: q.phase });
       continue;
     }
-    const toCO2 = key === 'Fe-CO3' && i < co2;
-    out.push({
-      from: q,
-      to: s ?? (toCO2 ? { x: q.x, y: zoom.y + 4 } : q),
-      label: al,
-      kind: anSpect ? 'tilskuer-' : 'anion',
-      inSolid: solid,
-      moves: solid || toCO2,
-      labelAfter: toCO2 ? 'CO₂' : undefined,
-      fades: toCO2,
-      phase: q.phase,
-    });
+    const j = i - nAnSolid;
+    if (u && j < nAnConv) {
+      if (u.convertedTo === 'I2') {
+        // To og to jodidioner blir ett I₂-molekyl: det ene blir stående og får navnet I₂, det andre glir inn i det og
+        // forsvinner (så I₂ havner på en ledig plass og ikke oppå andre ioner).
+        if (j % 2 === 0) out.push({ from: q, to: q, label: al, kind, inSolid: false, moves: false, labelAfter: 'I₂', neutralAfter: true, phase: q.phase });
+        else out.push({ from: q, to: at(1, i - 1) ?? q, label: al, kind, inSolid: false, moves: true, fades: true, phase: q.phase });
+      } else if (u.convertedTo === 'CO2') {
+        out.push({ from: q, to: { x: q.x, y: zoom.y + 4 }, label: al, kind, inSolid: false, moves: true, labelAfter: 'CO₂', neutralAfter: true, fades: true, phase: q.phase });
+      } else {
+        // OH⁻ som tar opp et H⁺ fra det andre OH⁻ (som blir O²⁻ i Ag₂O): blir vann og blandes med resten av vannet.
+        out.push({ from: q, to: { x: q.x, y: q.y + 10 }, label: al, kind, inSolid: false, moves: true, labelAfter: 'H₂O', neutralAfter: true, fades: true, phase: q.phase });
+      }
+      continue;
+    }
+    out.push({ from: q, to: q, label: al, kind, inSolid: false, moves: false, phase: q.phase });
   }
-  for (let i = 0; i < ohFromWater; i++) {
+  for (let i = 0; i < nWater; i++) {
     const s = nextSlot('odd');
     if (!s) break;
-    out.push({ from: { x: s.x, y: zoom.y + zoom.h * 0.3 }, to: s, label: 'OH⁻', kind: 'OH', inSolid: true, moves: true, appears: true, phase: i });
+    out.push({ from: { x: s.x, y: zoom.y + zoom.h * 0.3 }, to: s, label: 'OH⁻', kind: 'anion', inSolid: true, moves: true, appears: true, phase: i });
   }
   for (let i = 0; i < nNO3; i++) {
-    const q = at(2, i);
+    const q = at(2, i)!;
     out.push({ from: q, to: q, label: 'NO₃⁻', kind: 'tilskuer-', inSolid: false, moves: false, phase: q.phase });
   }
   for (let i = 0; i < nNa; i++) {
-    const q = at(3, i);
+    const q = at(3, i)!;
     out.push({ from: q, to: q, label: 'Na⁺', kind: 'tilskuer+', inSolid: false, moves: false, phase: q.phase });
   }
   return out;
@@ -430,24 +430,26 @@ function Particle({ q, pr, t, r, solid, solidInk, k }: { q: P; pr: number; t: nu
   const y = q.from.y + (q.to.y - q.from.y) * e + jy;
   const spect = q.kind === 'tilskuer+' || q.kind === 'tilskuer-';
   const positive = q.kind === 'kation' || q.kind === 'tilskuer+';
-  const sign = positive ? KJEMI.plus : KJEMI.minus;
+  const changed = q.labelAfter !== undefined && pr > 0.5;
+  const sign = changed && q.neutralAfter ? VIZ.muted : positive ? KJEMI.plus : KJEMI.minus;
   const rr = spect ? r * 0.8 : r;
   const opacity = q.fades ? 1 - e : q.appears ? Math.min(1, pr * 3) : spect ? 0.45 : 1;
-  const changed = q.labelAfter && pr > 0.5;
   const inSolidNow = q.inSolid && solid && pr > 0.5;
-  const fill = inSolidNow ? solid : mixColor(VIZ.surface, sign, 0.22);
+  const fill = inSolidNow ? solid : changed && q.neutralAfter ? mixColor(VIZ.surface, KJEMI.molecule, 0.25) : mixColor(VIZ.surface, positive ? KJEMI.plus : KJEMI.minus, 0.22);
   const label = changed ? q.labelAfter! : q.label;
   if (opacity <= 0.02) return null;
-  if (changed && q.labelAfter === 'I₂')
+  if (changed && q.labelAfter === 'I₂') {
+    const c = atomColors('I');
     return (
       <g opacity={opacity}>
-        <circle cx={x - r * 0.45} cy={y} r={r * 0.75} fill={atomColors('I').fill} stroke={atomColors('I').line} strokeWidth={1.5} />
-        <circle cx={x + r * 0.45} cy={y} r={r * 0.75} fill={atomColors('I').fill} stroke={atomColors('I').line} strokeWidth={1.5} />
-        <text x={x} y={y + r * 0.3} textAnchor="middle" className="kj-atom-symbol" style={{ fill: atomColors('I').ink, fontSize: r * 0.75 }}>
+        <circle cx={x - r * 0.45} cy={y} r={r * 0.75} fill={c.fill} stroke={c.line} strokeWidth={1.5} />
+        <circle cx={x + r * 0.45} cy={y} r={r * 0.75} fill={c.fill} stroke={c.line} strokeWidth={1.5} />
+        <text x={x} y={y + r * 0.3} textAnchor="middle" className="kj-atom-symbol" style={{ fill: c.ink, fontSize: r * 0.75 }}>
           I₂
         </text>
       </g>
     );
+  }
   return (
     <g opacity={opacity}>
       <circle cx={x} cy={y} r={rr} fill={fill} stroke={sign} strokeWidth={spect ? 1.2 : 2} />
@@ -528,6 +530,8 @@ function SolubilityTable({ cat, an, onPick, layout, f }: { cat: string; an: stri
 
 /* ---------- Forklaring ---------- */
 
+const gcdOf = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcdOf(b, a % b));
+
 function explanation(cation: Ion, anion: Ion, info: PairInfo, mix: MixResult, c: number): ReactNode {
   const C = <Formel f={cation.formula} />;
   const A = <Formel f={anion.formula} />;
@@ -555,17 +559,21 @@ function explanation(cation: Ion, anion: Ion, info: PairInfo, mix: MixResult, c:
     );
   const word = COLOR_WORD[p!.color];
   const P = <Formel f={p!.formula} />;
+  // Forholdet mellom ionene i nettolikningen, forkortet (CuI: 4 I⁻ per 2 Cu²⁺ = 2 per 1)
+  const g = gcdOf(p!.a, p!.b);
+  const ra = p!.a / g;
+  const rb = p!.b / g;
   const limit =
     mix.limiting === 'anion' ? (
       <>
         {' '}
-        Det trengs {p!.b} {A} per {p!.a === 1 ? '' : `${p!.a} `}
+        Det trengs {rb} {A} per {ra === 1 ? '' : `${ra} `}
         {C}, så {A} blir brukt opp først, og det blir {C} igjen i løsningen.
       </>
     ) : mix.limiting === 'kation' ? (
       <>
         {' '}
-        Det trengs {p!.a} {C} per {p!.b === 1 ? '' : `${p!.b} `}
+        Det trengs {ra} {C} per {rb === 1 ? '' : `${rb} `}
         {A}, så {C} blir brukt opp først, og det blir {A} igjen i løsningen.
       </>
     ) : null;

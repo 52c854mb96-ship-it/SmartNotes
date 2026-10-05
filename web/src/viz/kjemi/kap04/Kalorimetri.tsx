@@ -36,6 +36,7 @@ import {
   CAL_PROCESSES,
   C_ACID_BASE,
   C_WATER,
+  SALT_MAX,
   TAU_MIX,
   T_END,
   T_START,
@@ -86,7 +87,17 @@ export default function Kalorimetri() {
   return (
     <VizLayout>
       <Toolbar>
-        <Select label="Forsøk" value={id} onChange={setId} options={CAL_PROCESSES.map((x) => ({ value: x.id, label: x.name }))} />
+        <Select
+          label="Forsøk"
+          value={id}
+          onChange={(v) => {
+            setId(v);
+            // Hold massen innenfor det som løses helt (KNO₃ har lavere grense)
+            const next = CAL_PROCESSES.find((x) => x.id === v);
+            setMSalt((m) => Math.min(m, next?.mMax ?? SALT_MAX));
+          }}
+          options={CAL_PROCESSES.map((x) => ({ value: x.id, label: x.name }))}
+        />
         <Toggle label="Varmetap til omgivelsene" checked={loss} onChange={setLoss} />
       </Toolbar>
       <Controls>
@@ -102,7 +113,7 @@ export default function Kalorimetri() {
               value={mSalt}
               onChange={setMSalt}
               min={1}
-              max={15}
+              max={p.mMax ?? SALT_MAX}
               step={0.5}
               unit="g"
               decimals={1}
@@ -155,7 +166,21 @@ export default function Kalorimetri() {
       <Readouts>
         <Readout label="ΔT målt" value={signed(meas.dT)} unit="°C" tone={tone} />
         <Readout label="Varme q til løsningen" value={signed((r.m * C_WATER * meas.dT) / 1000, 2)} unit="kJ" />
-        <Readout label={p.kind === 'salt' ? 'Stoffmengde salt n' : 'Stoffmengde vann dannet n'} value={fmtSig(r.n)} unit="mol" />
+        <Readout
+          label={
+            p.kind === 'salt' ? (
+              <>
+                n(<Formel f={p.salt!} />)
+              </>
+            ) : (
+              <>
+                n(<Formel f="H2O" />) dannet
+              </>
+            )
+          }
+          value={fmtSig(r.n)}
+          unit="mol"
+        />
         <Readout label="ΔH beregnet" value={signed(dHm, 1)} unit="kJ/mol" tone={tone} />
       </Readouts>
 
@@ -171,8 +196,9 @@ export default function Kalorimetri() {
         ) : (
           <FormulaLine>
             n(
-            <Formel f="H2O" />) = n(minst av <Formel f="HCl" /> og <Formel f="NaOH" />) = {fmt(C_ACID_BASE, 2)} mol/L · {fmt(Math.min(Vacid, Vbase) / 1000, 3)}{' '}
-            L = {fmtSig(r.n)} mol; &nbsp; m = {fmt(Vacid + Vbase, 0)} g
+            <Formel f="H2O" />) = n(
+            <Formel f={Vacid <= Vbase ? 'HCl' : 'NaOH'} />) = {fmt(C_ACID_BASE, 2)} mol/L · {fmt(Math.min(Vacid, Vbase) / 1000, 3)} L = {fmtSig(r.n)} mol; &nbsp; m ={' '}
+            {fmt(Vacid + Vbase, 0)} mL · 1,00 g/mL = {fmt(r.m, 0)} g
           </FormulaLine>
         )}
         <FormulaLine>
@@ -183,7 +209,16 @@ export default function Kalorimetri() {
         </FormulaLine>
       </Formula>
 
-      <Explain>{explanation(p, r, meas.dT, dHm, errPct, loss, Vacid, Vbase)}</Explain>
+      <Explain>
+        {tNow < meas.t - 1e-6 && (
+          <p>
+            <strong>{tNow <= 0 ? 'Forsøket har ikke startet.' : `Forsøket pågår: T = ${fmt(Tnow, 1)} °C etter ${fmt(tNow, 0)} s.`}</strong>{' '}
+            {tNow <= 0 ? 'Spill av for å se temperaturen endre seg.' : `Temperaturen ${exo ? 'stiger' : 'synker'} fortsatt.`} Resultatet under gjelder når den
+            {loss ? ` har nådd ${exo ? 'toppen' : 'bunnen'} etter ${fmt(meas.t, 0)} s.` : ' har flatet ut.'}
+          </p>
+        )}
+        {explanation(p, r, meas.dT, dHm, errPct, loss, Vacid, Vbase)}
+      </Explain>
     </VizLayout>
   );
 }

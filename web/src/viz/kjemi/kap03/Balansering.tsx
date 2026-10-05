@@ -264,7 +264,7 @@ const hasChargeRow = (st: BalanceState) => st.hasCharge;
 function tableLayout(r: BalanceReaction, sol: number[], st: BalanceState, f: number, narrow: boolean): TableLayout {
   const W = narrow ? 420 : 800;
   const k = Math.max(1, 0.85 * f);
-  const ballR = narrow ? 6 : 9;
+  const ballR = narrow ? 7.5 : 9;
   const pitch = 2 * ballR + 3;
   const badgeX = (narrow ? 20 : 26) * k;
   const inner = (narrow ? (hasChargeRow(st) ? 96 : 64) : hasChargeRow(st) ? 118 : 108) * k;
@@ -479,8 +479,6 @@ function list(items: ReactNode[]): ReactNode {
 
 function explanation(r: BalanceReaction, coefs: number[], st: BalanceState, sol: number[], revealed: boolean): ReactNode {
   const order = balanceOrder(r);
-  const first = order.filter((s) => s !== 'H' && s !== 'O');
-  const late = order.filter((s) => s === 'H' || s === 'O');
   const all = [...r.reactants, ...r.products];
   let status: ReactNode;
   if (st.balanced && st.divisor === 1) {
@@ -533,11 +531,16 @@ function explanation(r: BalanceReaction, coefs: number[], st: BalanceState, sol:
     <>
       {status}
       <p>
-        Metoden: Balanser først grunnstoffene som finnes i færrest stoffer
-        {first.length > 0 ? <> (her {list(first.map((s) => <strong key={s}>{s}</strong>))})</> : null}
-        {late.length > 0 ? <>, og ta {list(late.map((s) => <strong key={s}>{s}</strong>))} til slutt fordi de ofte finnes i flere stoffer</> : null}
-        . Et grunnstoff som står alene, som <Formel f="O2" /> eller <Formel f="Fe" />, er lettest å justere sist. Du kan bare endre koeffisientene, aldri de små
-        tallene i formlene: <Formel f="H2O2" /> er et helt annet stoff enn <Formel f="H2O" />.
+        Metoden: Ta ett grunnstoff om gangen, i rekkefølgen i tabellen (her{' '}
+        {order.map((s, i) => (
+          <span key={s}>
+            {i > 0 && ' → '}
+            <strong>{s}</strong>
+          </span>
+        ))}
+        ). Begynn med grunnstoffene som er bundet i forbindelser og finnes i færrest stoffer, og ta H og O etter dem fordi de ofte finnes i flere stoffer.
+        Grunnstoffer som står alene, som <Formel f="O2" /> eller <Formel f="Fe" />, venter du med til slutt: koeffisienten foran dem endrer ikke noe annet
+        grunnstoff. Du kan bare endre koeffisientene, aldri de små tallene i formlene: <Formel f="H2O2" /> er et helt annet stoff enn <Formel f="H2O" />.
       </p>
       <p>{r.about}</p>
     </>

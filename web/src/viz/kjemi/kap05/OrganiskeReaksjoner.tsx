@@ -26,6 +26,7 @@ import {
   bondSummary,
   equationText,
   highlightedBonds,
+  onlySecondBond,
   reactionsOfType,
   sideTally,
   smallMolecule,
@@ -34,7 +35,7 @@ import {
   type ReactionType,
   type Species,
 } from './model';
-import { bounds, functionalGroups, type Mol, type View } from './struktur';
+import { bounds, functionalGroups, wrapText, type Mol, type View } from './struktur';
 import { BREAK, FORM, GROUP, MoleculeView, fontPx, marginPx, minUnit } from './Struktur';
 
 type Stage = 'alt' | 'grupper' | 'brytes' | 'dannes';
@@ -104,7 +105,7 @@ export default function OrganiskeReaksjoner() {
 
       <Readouts>
         <Readout label="Stoffer før → etter" value={`${r.reactants.length} → ${r.products.length}`} tone={VIZ.series[0]} />
-        <Readout label="Spaltes av" value={small ? formulaText(small) : 'ingen'} />
+        <Readout label="Spaltes av" value={small ? formulaText(small) : 'Ingen'} />
         <Readout label="Bindinger brytes" value={String(count(broken))} tone={BREAK} />
         <Readout label="Bindinger dannes" value={String(count(formed))} tone={FORM} />
       </Readouts>
@@ -113,11 +114,12 @@ export default function OrganiskeReaksjoner() {
         <FormulaLine>
           <Reaksjon r={equationText(r)} /> &nbsp;({r.conditions})
         </FormulaLine>
-        <FormulaLine>Brytes: {bondText(broken, r.type === 'addisjon')}</FormulaLine>
-        <FormulaLine>Dannes: {bondText(formed, false)}</FormulaLine>
+        <FormulaLine>Brytes: {bondText(broken, onlySecondBond(r, 'reactants') ? ' (blir C–C)' : '')}</FormulaLine>
+        <FormulaLine>Dannes: {bondText(formed, onlySecondBond(r, 'products') ? ' (C–C blir C=C)' : '')}</FormulaLine>
         <FormulaLine>
           Atomer på hver side:{' '}
           {Object.entries(tally)
+            .sort(([a], [b]) => hillRank(a) - hillRank(b) || a.localeCompare(b))
             .map(([el, n]) => `${n} ${el}`)
             .join(', ')}{' '}
           (ingen atomer forsvinner)
@@ -130,30 +132,21 @@ export default function OrganiskeReaksjoner() {
 }
 
 const count = (list: { count: number }[]) => list.reduce((s, b) => s + b.count, 0);
+/** Hill-rekkefølge i atomtellingen: C, H og så resten alfabetisk. */
+const hillRank = (el: string) => (el === 'C' ? 0 : el === 'H' ? 1 : 2);
 
-/** Deler en tekst i linjer på høyst `max` tegn (ved mellomrom). */
-function wrap(text: string, max: number): string[] {
-  const lines: string[] = [];
-  let cur = '';
-  for (const w of text.split(' ')) {
-    if (cur && (cur + ' ' + w).length > max) {
-      lines.push(cur);
-      cur = w;
-    } else cur = cur ? `${cur} ${w}` : w;
-  }
-  if (cur) lines.push(cur);
-  return lines;
-}
-
-function bondText(list: { label: string; count: number; order: number }[], opens: boolean): string {
+/** «C=C (blir C–C), Br–Br»: `cc` er tillegget etter C=C når bare den ene bindingen i dobbeltbindingen endres. */
+function bondText(list: { label: string; count: number; order: number }[], cc: string): string {
   return list
     .map((b) => {
       const n = b.count === 1 ? '' : `${b.count} `;
-      const extra = opens && b.label === 'C=C' ? ' (blir C–C)' : '';
-      return `${n}${b.label}${extra}`;
+      return `${n}${b.label}${b.label === 'C=C' ? cc : ''}`;
     })
     .join(', ');
 }
+
+/** Stor forbokstav i tekst som står alene i figuren («Romtemperatur», «UV-lys»). */
+const sentence = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 
 function legendItems(r: OrgReaction, stage: Stage) {
   const items: { color: string; label: ReactNode; dashed?: boolean }[] = [];
@@ -251,7 +244,13 @@ function Scene({ r, layout, stage, view, f }: { r: OrgReaction; layout: SceneLay
           const cx = it.x + it.w / 2;
           const cy = row.y + molH / 2;
           const fit = { u: layout.u, ox: cx - ((b.minX + b.maxX) / 2) * layout.u, oy: cy + ((b.minY + b.maxY) / 2) * layout.u };
-          const marks = on ? { bonds: highlightedBonds(it.s, it.mol), kind: side === 're' ? ('brytes' as const) : ('dannes' as const) } : undefined;
+          const marks = on
+            ? {
+                bonds: highlightedBonds(it.s, it.mol),
+                kind: side === 're' ? ('brytes' as const) : ('dannes' as const),
+                half: onlySecondBond(r, side === 're' ? 'reactants' : 'products'),
+              }
+            : undefined;
           const tracked = on && it.s.tracked ? { atoms: trackedAtoms(it.s, it.mol), color: TRACK } : undefined;
           return (
             <g key={i}>
@@ -306,14 +305,14 @@ function Scene({ r, layout, stage, view, f }: { r: OrgReaction; layout: SceneLay
           <polygon points={`${ax},${a1} ${ax - head * 0.55},${a1 - head} ${ax + head * 0.55},${a1 - head}`} fill={VIZ.ink} />
         </g>
       )}
-      {wrap(r.conditions, f > 1.3 ? 20 : 34).map((line, i, all) => (
+      {wrapText(sentence(r.conditions), f > 1.3 ? 20 : 34).map((line, i, all) => (
         <Txt key={i} x={ax + 26} y={(a0 + a1) / 2 + 6 * f + (i - (all.length - 1) / 2) * 22 * f} anchor="start" size={0.85} weight={600}>
           {line}
         </Txt>
       ))}
       {!(narrow && r.bromineTest) && (
         <Txt x={ax - 26} y={(a0 + a1) / 2 + 6 * f} anchor="end" size={0.85} weight={700} color={VIZ.series[0]}>
-          {REACTION_TYPE_NAME[r.type].toLowerCase()}
+          {REACTION_TYPE_NAME[r.type]}
         </Txt>
       )}
       {r.bromineTest && <BromineTest x={narrow ? 110 : 720} y={a0 - 4} h={a1 - a0 + 8} kind={r.bromineTest} f={f} captionLeft={narrow} />}
@@ -353,7 +352,7 @@ function BromineTest({ x, y, h, kind, f, captionLeft }: { x: number; y: number; 
       <line x1={x - tw * 0.6} x2={x + tw * 0.35} y1={ay} y2={ay} stroke={VIZ.ink} strokeWidth={2} />
       <polygon points={`${x + tw * 0.6},${ay} ${x + tw * 0.3},${ay - 5} ${x + tw * 0.3},${ay + 5}`} fill={VIZ.ink} />
       <Txt x={captionLeft ? 10 : x} y={y + th + 20 * f} anchor={captionLeft ? 'start' : 'middle'} size={0.72} muted>
-        {kind === 'rask' ? 'bromvann avfarges' : 'avfarges i lys'}
+        {kind === 'rask' ? 'Bromvann avfarges' : 'Avfarges i lys'}
       </Txt>
     </g>
   );
@@ -370,9 +369,17 @@ function explanation(r: OrgReaction, stage: Stage): ReactNode {
         forestring, og et alkan uten funksjonell gruppe kan bare gi substitusjon (og forbrenning).
       </p>
     ),
-    brytes: <p>Det koster energi å bryte bindinger. Se hvilke bindinger som er stiplet: {bondText(bondSummary(r.reactants), r.type === 'addisjon')}.</p>,
+    brytes: (
+      <p>
+        Det koster energi å bryte bindinger. Se hvilke bindinger som er stiplet:{' '}
+        {bondText(bondSummary(r.reactants), onlySecondBond(r, 'reactants') ? ' (bare den ene av de to bindingene)' : '')}.
+      </p>
+    ),
     dannes: (
-      <p>Det frigjøres energi når nye bindinger dannes: {bondText(bondSummary(r.products), false)}. Atomene med grønn ring kommer fra utgangsstoffene.</p>
+      <p>
+        Det frigjøres energi når nye bindinger dannes: {bondText(bondSummary(r.products), onlySecondBond(r, 'products') ? ' (den andre bindingen i C=C)' : '')}.
+        {r.type === 'forbrenning' ? '' : ' Atomene med grønn ring kommer fra utgangsstoffene.'}
+      </p>
     ),
   };
   let main: ReactNode;

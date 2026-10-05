@@ -53,6 +53,8 @@ const T_MAX = 10;
 const K_LADDER = [0.1, 0.2, 0.3, 0.5, 1, 2, 3, 5, 10];
 /** Partikler per mol/L i partikkelbildet. */
 const OMEGA: Record<Sys, number> = { AB: 15, HI: 12 };
+/** K som på glidebryteren: 0,1 · 0,5 · 3 · 54 (verdiene er valgt eller fra tabell med to gjeldende siffer). */
+const fmtK = (K: number) => fmt(K, K < 1 ? 1 : 0);
 const FWD = VIZ.series[2]!;
 const BWD = VIZ.series[4]!;
 
@@ -163,7 +165,7 @@ export default function LikevektInnstilles() {
               min={0}
               max={K_LADDER.length - 1}
               step={1}
-              format={(i) => fmt(K_LADDER[i] ?? 1, (K_LADDER[i] ?? 1) < 1 ? 1 : 0)}
+              format={(i) => fmtK(K_LADDER[i] ?? 1)}
             />
           </>
         ) : (
@@ -221,7 +223,7 @@ export default function LikevektInnstilles() {
       <div ref={ref}>
         <Figure
           viewBox={`0 0 800 ${boxH}`}
-          label={`Partikkelbilde ved t = ${fmt(t, 1)} s og reaksjonskvotienten Q = ${fmtSig(now.q, 3)} sammenlignet med K = ${fmtSig(K, 3)}.`}
+          label={`Partikkelbilde ved t = ${fmt(t, 1)} s og reaksjonskvotienten Q = ${fmtSig(now.q, 3)} sammenlignet med K = ${fmtK(K)}.`}
           caption={`Partikkelbildet er en tilfeldig simulering med ${om} partikler per mol/L, så antallet svinger litt rundt likevekten. Ringene viser partikler som nettopp har reagert.`}
           maxHeight={boxH}
         >
@@ -262,7 +264,7 @@ export default function LikevektInnstilles() {
 
       <Readouts>
         <Readout label="Q nå" value={stuck ? '–' : fmtSig(now.q, 3)} tone={qColor(now.q, K)} />
-        <Readout label={sys === 'HI' ? 'K ved 430 °C' : 'K'} value={fmtSig(K, 3)} />
+        <Readout label={sys === 'HI' ? 'K ved 430 °C' : 'K'} value={fmtK(K)} />
         <Readout label="Fart mot høyre" value={fmtSig(now.rf, 2)} unit="mol/(L·s)" tone={FWD} />
         <Readout label="Fart mot venstre" value={fmtSig(now.rb, 2)} unit="mol/(L·s)" tone={BWD} />
       </Readouts>
@@ -271,12 +273,12 @@ export default function LikevektInnstilles() {
         {sys === 'AB' ? (
           <FormulaLine>
             Q = [B] / [A] = {fmtSig(now.c[1] ?? 0, 3)} / {fmtSig(now.c[0] ?? 0, 3)} = {stuck ? '–' : fmtSig(now.q, 3)} &nbsp; ved likevekt er Q = K ={' '}
-            {fmtSig(K, 3)}
+            {fmtK(K)}
           </FormulaLine>
         ) : (
           <FormulaLine>
             Q = [HI]<Sup>2</Sup> / ([H<Sub>2</Sub>] · [I<Sub>2</Sub>]) = {fmtSig(now.c[2] ?? 0, 3)}
-            <Sup>2</Sup> / ({fmtSig(now.c[0] ?? 0, 3)} · {fmtSig(now.c[1] ?? 0, 3)}) = {stuck ? '–' : fmtSig(now.q, 3)} &nbsp; ved likevekt er Q = K = {HI_K}
+            <Sup>2</Sup> / ({fmtSig(now.c[0] ?? 0, 3)} · {fmtSig(now.c[1] ?? 0, 3)}) = {stuck ? '–' : fmtSig(now.q, 3)} &nbsp; ved likevekt er Q = K = {fmtK(HI_K)}
           </FormulaLine>
         )}
       </Formula>
@@ -352,10 +354,10 @@ function explanation(sys: Sys, phase: Phase, now: KineticsSample, K: number, t: 
       return (
         <>
           <p>
-            <strong>Likevekt etter omtrent {fmt(t, 1)} s:</strong> Q = K = {fmtSig(K, 3)}, og farten er like stor begge veier ({fmtSig(now.rf, 2)} mol/(L·s)).{' '}
+            <strong>Likevekt etter omtrent {fmt(t, 1)} s:</strong> Q = K = {fmtK(K)}, og farten er like stor begge veier ({fmtSig(now.rf, 2)} mol/(L·s)).{' '}
             {sys === 'AB'
-              ? `Forholdet [B]/[A] er alltid ${fmtSig(K, 3)} ved likevekt, uansett hvor mye du starter med.`
-              : 'Du kan starte med bare HI, og ende opp i den samme likevekten som fra H₂ og I₂.'}
+              ? `Forholdet [B]/[A] er alltid ${fmtK(K)} ved likevekt, uansett hvor mye du starter med.`
+              : 'Starter du med 2,0 mol/L HI i stedet for 1,0 mol/L av både H₂ og I₂, ender du i nøyaktig den samme likevekten.'}
           </p>
           {misconception}
         </>
@@ -365,13 +367,17 @@ function explanation(sys: Sys, phase: Phase, now: KineticsSample, K: number, t: 
         <>
           <p>
             <strong>
-              {t === 0 ? 'I starten' : 'Nå'} er Q = {fmtSig(now.q, 3)} mindre enn K = {fmtSig(K, 3)},
+              {t === 0 ? 'I starten' : 'Nå'} er Q = {fmtSig(now.q, 3)} mindre enn K = {fmtK(K)},
             </strong>{' '}
             så reaksjonen går netto mot høyre: {r} raskere enn {l}. Etter hvert som reaktantene brukes opp, avtar farten mot høyre, og farten mot venstre øker
             fordi det blir mer produkt.
             {t === 0 ? ' Trykk «Spill av» og følg kurvene til farten er lik begge veier.' : ''}
           </p>
-          <p>Partiklene vil ikke noe: de kolliderer tilfeldig, og det er bare antallet som avgjør hvor ofte hver reaksjon skjer.</p>
+          <p>
+            {sys === 'AB'
+              ? 'Partiklene «vil» ikke noe: hver A har en viss sjanse per sekund for å bli til B, og hver B for å bli til A. Det er bare antallet som avgjør hvor mange omdanninger som skjer hver vei.'
+              : 'Partiklene «vil» ikke noe: de kolliderer tilfeldig, og det er bare antallet (konsentrasjonen) som avgjør hvor ofte hver reaksjon skjer.'}
+          </p>
         </>
       );
     case 'venstre':
@@ -379,7 +385,7 @@ function explanation(sys: Sys, phase: Phase, now: KineticsSample, K: number, t: 
         <>
           <p>
             <strong>
-              {t === 0 ? 'I starten' : 'Nå'} er Q {now.q === Infinity ? 'uendelig stor' : `= ${fmtSig(now.q, 3)}`}, altså større enn K = {fmtSig(K, 3)},
+              {t === 0 ? 'I starten' : 'Nå'} er Q {now.q === Infinity ? 'uendelig stor' : `= ${fmtSig(now.q, 3)}`}, altså større enn K = {fmtK(K)},
             </strong>{' '}
             så reaksjonen går netto mot venstre: {l} raskere enn {r}. Det er for mye produkt i forhold til likevekten.
             {t === 0 ? ' Trykk «Spill av» og se konsentrasjonene nærme seg likevekten.' : ''}
@@ -509,7 +515,7 @@ function QkScale({ x, y, w, f, q, K, stuck }: { x: number; y: number; w: number;
       ))}
       <line x1={kx} x2={kx} y1={axisY - 30 * f} y2={axisY + 6} stroke={VIZ.ink} strokeWidth={3} />
       <Txt x={kx} y={axisY - 36 * f} size={0.85} weight={700}>
-        K = {fmtSig(K, 3)}
+        K = {fmtK(K)}
       </Txt>
       {!(stuck || Number.isNaN(q)) && (
         <g>
@@ -550,6 +556,17 @@ function QkScale({ x, y, w, f, q, K, stuck }: { x: number; y: number; w: number;
 
 /* ---------- Figur 2 og 3: grafer ---------- */
 
+/** Farten mot høyre og mot venstre er like (innen 5 %, eller begge nesten null). */
+function equalRates(rf: number, rb: number, rMax: number): boolean {
+  return Math.abs(rf - rb) <= 0.05 * Math.max(rf, rb) + 0.0005 * rMax;
+}
+
+/** Kurver som ligger oppå en tidligere kurve (f.eks. [H₂] = [I₂]), tegnes stiplet så begge synes. */
+function overlapsEarlier(samples: KineticsSample[], i: number, cMax: number): boolean {
+  for (let j = 0; j < i; j++) if (samples.every((x) => Math.abs((x.c[i] ?? 0) - (x.c[j] ?? 0)) < 0.01 * cMax)) return true;
+  return false;
+}
+
 function cursorX(sx: (v: number) => number, t: number) {
   return sx(Math.min(T_MAX, Math.max(0, t)));
 }
@@ -559,8 +576,8 @@ function ConcPlot({ samples, species, t, height, f }: { samples: KineticsSample[
   const now = sampleAt(samples, t);
   return (
     <Plot
-      x={{ min: 0, max: T_MAX, label: 'tid t (s)', ticks: niceTicks(0, T_MAX, f > 1.3 ? 5 : 10) }}
-      y={{ min: 0, max: cMax, label: 'konsentrasjon (mol/L)', decimals: cMax < 2 ? 1 : 0, ticks: niceTicks(0, cMax, f > 1.3 ? 4 : 5) }}
+      x={{ min: 0, max: T_MAX, label: 'Tid t (s)', ticks: niceTicks(0, T_MAX, f > 1.3 ? 5 : 10) }}
+      y={{ min: 0, max: cMax, label: 'Konsentrasjon (mol/L)', decimals: cMax < 2 ? 1 : 0, ticks: niceTicks(0, cMax, f > 1.3 ? 4 : 5) }}
       width={800}
       height={height}
     >
@@ -578,6 +595,7 @@ function ConcPlot({ samples, species, t, height, f }: { samples: KineticsSample[
               fill="none"
               stroke={s.color}
               strokeWidth={3}
+              strokeDasharray={overlapsEarlier(samples, i, cMax) ? '9 7' : undefined}
             />
           ))}
           {species.map((s, i) => (
@@ -600,12 +618,12 @@ function ConcPlot({ samples, species, t, height, f }: { samples: KineticsSample[
 function RatePlot({ samples, t, height, f, stuck }: { samples: KineticsSample[]; t: number; height: number; f: number; stuck: boolean }) {
   const rMax = Math.max(0.05, ...samples.flatMap((s) => [s.rf, s.rb])) * 1.1;
   const now = sampleAt(samples, t);
-  // Når er farten lik begge veier (innen 3 % av største fart)?
-  const eq = stuck ? undefined : samples.find((_, i) => i > 0 && samples.slice(i).every((x) => Math.abs(x.rf - x.rb) < 0.03 * rMax));
+  // Når er farten lik begge veier (innen 5 % av hverandre) resten av tiden?
+  const eq = stuck ? undefined : samples.find((_, i) => i > 0 && samples.slice(i).every((x) => equalRates(x.rf, x.rb, rMax)));
   return (
     <Plot
-      x={{ min: 0, max: T_MAX, label: 'tid t (s)', ticks: niceTicks(0, T_MAX, f > 1.3 ? 5 : 10) }}
-      y={{ min: 0, max: rMax, label: 'fart (mol/(L·s))', decimals: rMax < 0.5 ? 2 : 1, ticks: niceTicks(0, rMax, f > 1.3 ? 4 : 5) }}
+      x={{ min: 0, max: T_MAX, label: 'Tid t (s)', ticks: niceTicks(0, T_MAX, f > 1.3 ? 5 : 10) }}
+      y={{ min: 0, max: rMax, label: 'Fart (mol/(L·s))', decimals: rMax < 0.5 ? 2 : 1, ticks: niceTicks(0, rMax, f > 1.3 ? 4 : 5) }}
       width={800}
       height={height}
     >
@@ -616,7 +634,7 @@ function RatePlot({ samples, t, height, f, stuck }: { samples: KineticsSample[];
               <rect x={sx(eq.t)} y={y1} width={Math.max(0, x1 - sx(eq.t))} height={y0 - y1} fill={VIZ.muted} opacity={0.12} />
               {x1 - sx(eq.t) > 110 * f && (
                 <Txt x={(sx(eq.t) + x1) / 2} y={y1 + 22 * f} size={0.8} weight={650} muted>
-                  likevekt
+                  Likevekt
                 </Txt>
               )}
             </g>

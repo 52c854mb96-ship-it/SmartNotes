@@ -186,10 +186,10 @@ export default function LeChatelier() {
 
       <Readouts>
         <Readout label="Q rett etter" value={fmtSig(r.after.q, 3)} />
-        <Readout label={kind === 'temperatur' ? `K ved ${fmt(Tc, 0)} °C` : 'K'} value={fmtSig(r.final.K, 3)} />
+        <Readout label={kind === 'temperatur' ? `K ved ${fmt(Tc, 0)} °C` : 'K'} value={fmtSig(r.final.K, 2)} />
         <Readout
           label="Likevekten forskyves"
-          value={r.direction === 'ingen' ? 'ikke' : `mot ${r.direction}`}
+          value={r.direction === 'ingen' ? 'Ikke' : `Mot ${r.direction}`}
           tone={r.direction === 'høyre' ? VIZ.series[2] : r.direction === 'venstre' ? VIZ.series[4] : undefined}
         />
         {systemReadout(s, r)}
@@ -204,9 +204,8 @@ export default function LeChatelier() {
           {s.id === 'kobolt' ? ' (vann er løsemiddel og står ikke i K)' : ''}
         </FormulaLine>
         <FormulaLine>
-          Rett etter endringen: Q = {fmtSig(r.after.q, 3)} og K = {fmtSig(r.after.K, 3)}, så Q{' '}
-          {r.direction === 'høyre' ? '<' : r.direction === 'venstre' ? '>' : '='} K
-          {r.direction === 'ingen' ? ': ingen forskyvning' : `: reaksjonen går mot ${r.direction} til Q = K igjen`}
+          Rett etter: Q = {fmtSig(r.after.q, 3)} og K = {fmtSig(r.after.K, 3)}, så Q {r.direction === 'høyre' ? '<' : r.direction === 'venstre' ? '>' : '='} K
+          {r.direction === 'ingen' ? ' (ingen forskyvning)' : ` (netto mot ${r.direction} til Q = K)`}
         </FormulaLine>
         {kind === 'temperatur' && (
           <>
@@ -300,6 +299,20 @@ function Panels({ s, r, f, H }: { s: LcSystem; r: LcResult; f: number; H: number
   const vessel = vesselH(f);
   const narrow = f > 1.3;
   const top = 34 * f;
+  const cylW = narrow ? 220 : 160;
+  // Molekylene får samme størrelse i alle tre sylindrene: så store som mulig (større på mobil), men så de får plass i den
+  // minste gassmengden uten å overlappe
+  const k = Math.max(1, 0.85 * f);
+  const molScale = s.gas
+    ? Math.min(
+        k,
+        ...states.map((p) => {
+          const g = gasBox(0, top, vessel, cylW, p.st.V);
+          const need = p.st.n.reduce((sum, x, i) => sum + Math.round(x * MOLECULES_PER_MOL) * (2 * (MOL_R[i] ?? 10) + 2) ** 2, 0);
+          return Math.sqrt((0.55 * g.w * g.h) / Math.max(1, need));
+        }),
+      )
+    : 1;
   return (
     <g>
       {states.map((p, i) => {
@@ -311,7 +324,7 @@ function Panels({ s, r, f, H }: { s: LcSystem; r: LcResult; f: number; H: number
               {p.title}
             </Txt>
             {s.gas ? (
-              <Cylinder cx={cx} y={top} h={vessel} w={narrow ? 220 : 160} st={p.st} seed={i === 0 ? 3 : i === 1 ? 3 : 5} />
+              <Cylinder cx={cx} y={top} h={vessel} w={cylW} st={p.st} seed={i === 0 ? 3 : i === 1 ? 3 : 5} scale={molScale} />
             ) : (
               <Beaker s={s} cx={cx} y={top} h={vessel} w={narrow ? 200 : 150} st={p.st} />
             )}
@@ -362,30 +375,37 @@ function Beaker({ s, cx, y, h, w, st }: { s: LcSystem; cx: number; y: number; h:
   return <Begerglass x={cx - w / 2} y={y + 6} w={w} h={h - 12} level={level} liquid={solutionColor(s, st)} />;
 }
 
+/** Antall molekyler som tegnes per mol, og radiusen (før skalering) til N₂, H₂ og NH₃. */
+const MOLECULES_PER_MOL = 8;
+const MOL_R = [9, 6, 10];
+
+/** Gassrommet under stempelet. Høyden følger volumet, men ikke i skala (√V), så også et lite volum får plass. */
+function gasBox(cx: number, y: number, h: number, w: number, V: number) {
+  const gh = Math.max(36, (h - 16) * Math.sqrt(V / 2));
+  return { x: cx - w / 2 + 6, y: y + h - gh + 4, w: w - 12, h: gh - 10, top: y + h - gh };
+}
+
 /** Sylinder med stempel: gassvolumet (høyden) og molekylene N₂, H₂ og NH₃. */
-function Cylinder({ cx, y, h, w, st, seed }: { cx: number; y: number; h: number; w: number; st: LcState; seed: number }) {
-  const maxH = h - 16;
-  // Høyden følger volumet, men ikke i skala (V^0,7), så også et lite volum får plass til molekylene
-  const gh = Math.max(36, maxH * (st.V / 2) ** 0.7);
-  const gy = y + h - gh;
-  const per = 8;
-  const n = st.n.map((x) => Math.round(x * per));
+function Cylinder({ cx, y, h, w, st, seed, scale }: { cx: number; y: number; h: number; w: number; st: LcState; seed: number; scale: number }) {
+  const box = gasBox(cx, y, h, w, st.V);
+  const gy = box.top;
+  const n = st.n.map((x) => Math.round(x * MOLECULES_PER_MOL));
   const nC = atomColors('N');
   const hC = atomColors('H');
   const groups: ParticleGroup[] = [
     {
       n: n[0]!,
-      r: 9,
+      r: MOL_R[0]! * scale,
       render: ({ x, y: yy, r, angle }) => <Diatomic x={x} y={yy} r={r * 0.5} angle={angle} fill={nC.fill} line={nC.line} />,
     },
     {
       n: n[1]!,
-      r: 6,
+      r: MOL_R[1]! * scale,
       render: ({ x, y: yy, r, angle }) => <Diatomic x={x} y={yy} r={r * 0.52} angle={angle} fill={hC.fill} line={hC.line} />,
     },
     {
       n: n[2]!,
-      r: 10,
+      r: MOL_R[2]! * scale,
       render: ({ x, y: yy, r, angle }) => (
         <g>
           {[0, 120, 240].map((a) => {
@@ -404,7 +424,7 @@ function Cylinder({ cx, y, h, w, st, seed }: { cx: number; y: number; h: number;
       <rect x={cx - w / 2} y={y} width={w} height={h} rx={8} fill={KJEMI.glassFill} stroke={KJEMI.glass} strokeWidth={2} />
       <rect x={cx - w / 2 + 3} y={gy - 12} width={w - 6} height={12} rx={3} fill={VIZ.bodyStrong} />
       <rect x={cx - 6} y={y - 6} width={12} height={Math.max(0, gy - 12 - y + 6)} fill={VIZ.body} />
-      <Partikler box={{ x: cx - w / 2 + 6, y: gy + 4, w: w - 12, h: gh - 10 }} groups={groups} seed={seed} gap={1} />
+      <Partikler box={{ x: box.x, y: box.y, w: box.w, h: box.h }} groups={groups} seed={seed} gap={1} />
     </g>
   );
 }
@@ -437,13 +457,13 @@ function TimePlot({ s, r, height, f, tau }: { s: LcSystem; r: LcResult; height: 
       x={{
         min: T_BEFORE,
         max: T_AFTER,
-        label: 'tid (s)',
+        label: 'Tid (forenklet tidsskala)',
         ticks: niceTicks(T_BEFORE, T_AFTER, f > 1.3 ? 5 : 10),
       }}
       y={{
         min: 0,
         max: vMax,
-        label: `konsentrasjon (${unit})`,
+        label: `Konsentrasjon (${unit})`,
         decimals: vMax < 0.5 ? 2 : vMax < 5 ? 1 : 0,
         ticks: niceTicks(0, vMax, f > 1.3 ? 4 : 5),
       }}
@@ -455,11 +475,22 @@ function TimePlot({ s, r, height, f, tau }: { s: LcSystem; r: LcResult; height: 
           <rect x={sx(T_BEFORE)} y={y1} width={sx(0) - sx(T_BEFORE)} height={y0 - y1} fill={VIZ.muted} opacity={0.08} />
           <line x1={sx(0)} x2={sx(0)} y1={y0} y2={y1} stroke={VIZ.ink} strokeWidth={1.5} strokeDasharray="5 4" />
           <Txt x={sx(0) + 8} y={y1 + 18 * f} anchor="start" size={0.8} weight={650}>
-            endring
+            Endring
           </Txt>
-          {series.map((pts, j) => (
-            <path key={j} d={linePath(pts, sx, sy)} fill="none" stroke={COLORS[s.id][idx[j]!]} strokeWidth={3} />
-          ))}
+          {series.map((pts, j) => {
+            // En kurve som ligger oppå en tidligere (f.eks. [Fe³⁺] = [SCN⁻] før endringen), tegnes stiplet så begge synes
+            const hidden = series.slice(0, j).some((q) => pts.some(([, v], m) => m <= 60 && Math.abs(v - q[m]![1]) < 0.01 * vMax));
+            return (
+              <path
+                key={j}
+                d={linePath(pts, sx, sy)}
+                fill="none"
+                stroke={COLORS[s.id][idx[j]!]}
+                strokeWidth={3}
+                strokeDasharray={hidden ? '9 7' : undefined}
+              />
+            );
+          })}
         </g>
       )}
     </Plot>

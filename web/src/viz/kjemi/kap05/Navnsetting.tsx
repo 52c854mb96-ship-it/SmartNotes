@@ -17,6 +17,7 @@ import {
   Txt,
   VIZ,
   VizLayout,
+  capitalize,
   fmt,
   formulaText,
   molarMass,
@@ -36,7 +37,7 @@ import {
   type NameVerdict,
   type SubKind,
 } from './model';
-import { bounds, functionalGroups, molFormula, type View } from './struktur';
+import { bounds, functionalGroups, molFormula, wrapText, type View } from './struktur';
 import { CHAIN, GROUP, MoleculeView, fitMolecule, fontPx, marginPx, minUnit } from './Struktur';
 
 type SlotKind = SubKind | 'ingen';
@@ -46,8 +47,8 @@ interface Slot {
 }
 
 const KIND_OPTIONS: { value: SlotKind; label: string }[] = [
-  { value: 'ingen', label: 'ingen' },
-  ...SUB_KINDS.map((k) => ({ value: k, label: `${k} (${k === 'metyl' ? '–CH₃' : k === 'etyl' ? '–CH₂CH₃' : k === 'klor' ? '–Cl' : '–Br'})` })),
+  { value: 'ingen', label: 'Ingen' },
+  ...SUB_KINDS.map((k) => ({ value: k, label: `${capitalize(k)} (${k === 'metyl' ? '–CH₃' : k === 'etyl' ? '–CH₂CH₃' : k === 'klor' ? '–Cl' : '–Br'})` })),
 ];
 const CUSTOM = 'egen';
 
@@ -90,6 +91,9 @@ export default function Navnsetting() {
   const subLines = wrapText(subtitle(built, result, v, naive), Math.floor(740 / (fontPx(f, 0.85) * 0.56)));
   const scene = sceneLayout(built.mol, view, f, subLines.length);
   const formulaStr = molFormula(built.mol);
+  const groupKinds = new Set(functionalGroups(built.mol).map((g) => g.kind));
+  const hasDouble = groupKinds.has('dobbeltbinding');
+  const hasOh = groupKinds.has('hydroksyl');
 
   const pick = (id: string) => {
     const e = NAME_EXAMPLES.find((x) => x.id === id);
@@ -185,9 +189,9 @@ export default function Navnsetting() {
       </div>
       <Legend
         items={[
-          { color: CHAIN, label: 'Hovedkjeden med riktig nummerering' },
-          { color: GROUP, label: 'Dobbeltbinding og OH-gruppe' },
-          ...(built.valid ? [] : [{ color: KJEMI.minus, label: 'For mange bindinger' }]),
+          ...(result ? [{ color: CHAIN, label: 'Hovedkjeden med riktig nummerering' }] : []),
+          ...(hasDouble || hasOh ? [{ color: GROUP, label: hasDouble && hasOh ? 'Dobbeltbinding og OH-gruppe' : hasDouble ? 'Dobbeltbinding' : 'OH-gruppe' }] : []),
+          ...(built.errors.some((e) => e.kind === 'valens') ? [{ color: KJEMI.minus, label: 'For mange bindinger' }] : []),
         ]}
       />
 
@@ -206,7 +210,7 @@ export default function Navnsetting() {
         <Formula label="Navnet steg for steg">
           <FormulaLine>
             1. Hovedkjede: {result.chain.length} C gir stammen «{stem(result.chain.length)}»
-            {result.multiple || result.ohLocant ? ' (kjeden må ha med dobbeltbindingen og OH-gruppa)' : ''}
+            {mustContain(result)}
           </FormulaLine>
           <FormulaLine>
             2. Endelse: {result.multiple ? `dobbeltbinding gir «-en»` : 'bare enkeltbindinger gir «-an»'}
@@ -225,7 +229,13 @@ export default function Navnsetting() {
   );
 }
 
-const capitalize = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+/** Hva hovedkjeden må inneholde (dobbeltbindingen og/eller C-atomet med OH-gruppa). */
+function mustContain(r: NameResult): string {
+  if (r.multiple && r.ohLocant !== null) return ' (kjeden må ha med dobbeltbindingen og C-atomet med OH-gruppa)';
+  if (r.multiple) return ' (kjeden må ha med dobbeltbindingen)';
+  if (r.ohLocant !== null) return ' (kjeden må ha med C-atomet med OH-gruppa)';
+  return '';
+}
 
 /** «metyl på C2, etyl på C3» i rekkefølgen de står i hovedkjeden. */
 function substituentList(r: NameResult): string {
@@ -249,20 +259,6 @@ function subtitle(built: ReturnType<typeof buildNamed>, result: NameResult | nul
   if (v?.kind === 'riktig') return 'Kjeden og nummereringen din stemmer';
   if (v?.kind === 'lengre-kjede') return `Den lengste kjeden har ${v.length} C, ikke ${built.mol.chain.length}. Ikke «${naive}»`;
   return `Ikke «${naive}»`;
-}
-
-/** Deler teksten i linjer på høyst `max` tegn (ved mellomrom). */
-function wrapText(text: string, max: number): string[] {
-  const lines: string[] = [];
-  let cur = '';
-  for (const w of text.split(' ')) {
-    if (cur && `${cur} ${w}`.length > max) {
-      lines.push(cur);
-      cur = w;
-    } else cur = cur ? `${cur} ${w}` : w;
-  }
-  if (cur) lines.push(cur);
-  return lines;
 }
 
 function sceneLayout(mol: ReturnType<typeof buildNamed>['mol'], view: View, f: number, subLines: number): SceneLayout {
@@ -345,7 +341,7 @@ function errorText(e: BuildError): ReactNode {
     case 'valens':
       return (
         <>
-          C{e.carbon} får {e.bonds} bindinger, men et karbonatom har bare fire (fire valenselektroner). En dobbeltbinding teller som to.
+          C{e.carbon} får {e.bonds} bindinger, men et karbonatom kan bare danne fire (det har fire valenselektroner). En dobbeltbinding teller som to.
         </>
       );
   }
@@ -391,7 +387,8 @@ function explanation(errors: BuildError[], r: NameResult | null, v: NameVerdict 
           <strong>Kjeden er ikke den lengste.</strong> Du har tegnet {input.length} C i kjeden, men følger du bindingene inn i{' '}
           {ends.length ? `${ends[0]!.kind}gruppa på C${ends[0]!.pos}` : 'en av grenene'}, får du en kjede på {v.length} C (det blå båndet). Hovedkjeden er
           alltid den lengste sammenhengende kjeden, uansett hvordan den er tegnet. Derfor heter stoffet <strong>{r.name}</strong>
-          {naive ? <>, ikke «{naive}»</> : null}. En metylgruppe på C1 eller en etylgruppe på C2 er alltid et tegn på at kjeden kan forlenges.
+          {naive ? <>, ikke «{naive}»</> : null}. En metyl- eller etylgruppe på enden av kjeden, eller en etylgruppe på C2, er alltid et tegn på at kjeden kan
+          forlenges.
         </p>
       );
       break;
@@ -399,8 +396,8 @@ function explanation(errors: BuildError[], r: NameResult | null, v: NameVerdict 
     case 'annen-kjede':
       main = (
         <p>
-          <strong>Velg kjeden med flest substituenter.</strong> Flere kjeder er like lange. Da er hovedkjeden den som har flest grener og halogenatomer (det blå
-          båndet). Navnet blir <strong>{r.name}</strong>
+          <strong>Velg en annen kjede.</strong> Flere kjeder er like lange. Da er hovedkjeden den som har flest substituenter (grener og halogenatomer), og ved
+          likhet den som gir lavest tall (det blå båndet). Navnet blir <strong>{r.name}</strong>
           {naive ? <>, ikke «{naive}»</> : null}.
         </p>
       );
@@ -426,8 +423,9 @@ function explanation(errors: BuildError[], r: NameResult | null, v: NameVerdict 
     <>
       {main}
       <p>
-        Reglene i kortform: finn den lengste kjeden (som må ha med dobbeltbindingen og C-atomet med OH), nummerer så OH, dobbeltbinding og substituenter får
-        lavest mulig tall, og sett substituentene alfabetisk foran stammen med di-, tri- når samme gruppe kommer flere ganger. Formelen er{' '}
+        Reglene i kortform: finn den lengste kjeden (den må ha med dobbeltbindingen og C-atomet med OH). Nummerer kjeden slik at OH-gruppa får lavest mulig
+        tall, så dobbeltbindingen og så substituentene. Sett substituentene i alfabetisk rekkefølge foran stammen, med di- og tri- når samme gruppe kommer
+        flere ganger. Formelen er{' '}
         <Formel f={formula} />.
       </p>
     </>

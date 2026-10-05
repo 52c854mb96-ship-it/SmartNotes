@@ -53,6 +53,8 @@ interface Side {
   anion: string;
   /** Tekst i molekylet som ikke har reagert (HA eller NH₃). */
   molLabel: string;
+  /** Hva som har skjedd med partiklene: syrer og NH₃ protolyseres, mens NaOH bare spaltes i ioner når det løses. */
+  done: string;
   sol: AcidSolution;
 }
 
@@ -70,6 +72,7 @@ function sides(mode: Mode, weakId: string, c: number): { strong: Side; weak: Sid
         cation: 'H3O^+',
         anion: 'Cl^-',
         molLabel: 'HCl',
+        done: 'protolysert',
         sol: strongAcid(c),
       },
       weak: {
@@ -80,6 +83,7 @@ function sides(mode: Mode, weakId: string, c: number): { strong: Side; weak: Sid
         cation: 'H3O^+',
         anion: a.base,
         molLabel: 'HA',
+        done: 'protolysert',
         sol: weakAcid(c, a.Ka),
       },
     };
@@ -95,6 +99,7 @@ function sides(mode: Mode, weakId: string, c: number): { strong: Side; weak: Sid
       cation: 'Na^+',
       anion: 'OH^-',
       molLabel: 'NaOH',
+      done: 'spaltet i ioner',
       sol: strongBase(c),
     },
     weak: {
@@ -105,6 +110,7 @@ function sides(mode: Mode, weakId: string, c: number): { strong: Side; weak: Sid
       cation: 'NH4^+',
       anion: 'OH^-',
       molLabel: 'NH₃',
+      done: 'protolysert',
       sol: weakBase(c, KB_NH3),
     },
   };
@@ -164,7 +170,7 @@ export default function SterkOgSvakSyre() {
       <div ref={ref}>
         <Figure
           viewBox={`0 0 800 ${scene.H}`}
-          label={`${strong.formula} og ${weak.formula}, begge ${fmtSig(c, 2)} mol/L: pH ${fmt(strong.sol.pH, 2)} og ${fmt(weak.sol.pH, 2)}. Protolysegrad ${pct(strong.sol.alpha)} % og ${pct(weak.sol.alpha)} %.`}
+          label={`${strong.formula} og ${weak.formula}, begge ${fmtSig(c, 2)} mol/L: pH ${fmt(strong.sol.pH, 2)} og ${fmt(weak.sol.pH, 2)}. ${pct(strong.sol.alpha)} % ${strong.done} og ${pct(weak.sol.alpha)} % ${weak.done}.`}
           caption={`Hvert glass viser ${N} ${mode === 'syre' ? 'syremolekyler før de reagerer med vann' : 'formelenheter NaOH eller molekyler NH₃ før de løses i vann'}. Vannmolekylene er ikke tegnet, og ${weak.name} har minst én protolysert partikkel i bildet selv om andelen er mindre. Fargen er universalindikator.`}
           maxHeight={scene.H}
         >
@@ -355,7 +361,9 @@ function Panel({ side, weak, layout: L }: { side: Side; weak: boolean; layout: P
   const color = weak ? VIZ.series[1] : VIZ.series[0];
   const stats: ReactNode[] = [
     <>pH {fmt(side.sol.pH, 2)}</>,
-    <>{pct(side.sol.alpha)} % protolysert</>,
+    <>
+      {pct(side.sol.alpha)} % {side.done}
+    </>,
     <>
       {nP} av {N} har reagert
     </>,
@@ -380,7 +388,7 @@ function Panel({ side, weak, layout: L }: { side: Side; weak: boolean; layout: P
           pH {fmt(side.sol.pH, 2)}
           <tspan fontWeight={500} className="is-muted">
             {'  ·  '}
-            {pct(side.sol.alpha)} % protolysert
+            {pct(side.sol.alpha)} % {side.done}
           </tspan>
         </Txt>
       ) : (
@@ -488,12 +496,23 @@ function explanation(mode: Mode, c: number, strong: Side, weak: Side, step: numb
   const dS = Math.abs(strongNext.pH - strong.sol.pH);
   const dW = Math.abs(weakNext.pH - weak.sol.pH);
   const diluted = step < 0;
+  // Den svake syra ved 1,0 mol/L og hvor fortynnet HCl må være for å få samme pH
+  const weakConc = weakAcid(1, K);
   const contrast =
     mode === 'syre' ? (
       <>
-        Sterk og svak sier hvor stor andel av molekylene som protolyseres, ikke hvor mye syre det er. 0,0010 mol/L HCl har pH{' '}
-        {fmt(strongAcid(0.001).pH, 2)}, mens 1,0 mol/L {weak.name} har pH {fmt(weakAcid(1, K).pH, 2)}: den svake syra er surest fordi det er
-        så mye mer av den.
+        Sterk og svak sier hvor stor andel av molekylene som protolyseres, ikke hvor mye syre det er. 1,0 mol/L {weak.name} har pH{' '}
+        {fmt(weakConc.pH, 2)}, like surt som en HCl-løsning på bare {fmtSig(weakConc.h3o, 2)} mol/L.{' '}
+        {weakConc.pH < strongAcid(0.001).pH ? (
+          <>
+            En konsentrert svak syre kan altså være surere enn en fortynnet sterk syre: 0,0010 mol/L HCl har pH {fmt(strongAcid(0.001).pH, 2)}.
+          </>
+        ) : (
+          <>
+            {capital(weak.name)} er så svak at selv 1,0 mol/L er mindre surt enn 0,0010 mol/L HCl (pH {fmt(strongAcid(0.001).pH, 2)}), men med eddiksyre
+            eller maursyre er den konsentrerte svake syra surest.
+          </>
+        )}
       </>
     ) : (
       <>
@@ -512,13 +531,14 @@ function explanation(mode: Mode, c: number, strong: Side, weak: Side, step: numb
           </>
         ) : (
           <>
-            NaOH er en ionisk forbindelse som gir like mye <Formel f="OH^-" /> som c, så pH = {fmt(strong.sol.pH, 2)}. Ammoniakk er en svak base:
+            NaOH er en ionisk forbindelse som løses fullstendig i ioner, så [<Formel f="OH^-" />] = c og pH = {fmt(strong.sol.pH, 2)}. Ammoniakk er en
+            svak base:
             bare {pct(weak.sol.alpha)} % av molekylene tar opp et proton fra vann (⇌), så pH blir {fmt(weak.sol.pH, 2)}.
           </>
         )}
       </p>
       <p>
-        {diluted ? 'Fortynner du ti ganger' : 'Gjør du løsningen ti ganger sterkere'}, endres pH med {fmt(dS, 2)} for {strong.formula}, men bare{' '}
+        {diluted ? 'Fortynner du ti ganger' : 'Gjør du løsningen ti ganger mer konsentrert'}, endres pH med {fmt(dS, 2)} for {strong.formula}, men bare{' '}
         {fmt(dW, 2)} for {W}. Protolysegraden til den svake {mode === 'syre' ? 'syra' : 'basen'} {diluted ? 'øker' : 'synker'} da fra {pct(weak.sol.alpha)} % til{' '}
         {pct(weakNext.alpha)} %: jo mer fortynnet, desto større andel reagerer med vannet.
       </p>

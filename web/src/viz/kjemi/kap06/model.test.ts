@@ -23,6 +23,7 @@ import {
   meanEnergy,
   particleStateAt,
   quotient,
+  reactionPossible,
   recentEvents,
   sampleAt,
   simulateAB,
@@ -92,6 +93,14 @@ describe('likevektsberegning', () => {
     expect(r.x).toBe(0);
     expect(r.c).toEqual([1, 0, 0]);
   });
+  it('reaksjon mulig: ikke med bare én reaktant eller ingenting, men i en blanding som allerede er i likevekt', () => {
+    expect(reactionPossible([-1, -1, 2], [0, 0, 0])).toBe(false);
+    expect(reactionPossible([-1, -1, 2], [1, 0, 0])).toBe(false);
+    expect(reactionPossible([-1, -1, 2], [1, 0, 1])).toBe(true);
+    expect(reactionPossible([-1, -1, 2], [0, 0, 2])).toBe(true);
+    const eq = solveEquilibrium([-1, -1, 2], [1, 1, 0], 54).c;
+    expect(reactionPossible([-1, -1, 2], eq)).toBe(true);
+  });
   it('retning: Q < K mot høyre, Q > K mot venstre', () => {
     expect(direction(0, 54)).toBe('høyre');
     expect(direction(100, 54)).toBe('venstre');
@@ -126,6 +135,14 @@ describe('likevekt innstilles', () => {
       expect(2 * x.c[1]! + x.c[2]!).toBeCloseTo(1.6 + 0.2, 9);
     }
     expect(rel(end.rf, end.rb)).toBeLessThan(1e-3);
+  });
+  it('H₂ + I₂ ⇌ 2 HI: likevekten nås godt innenfor de 10 s grafen viser (1,0 mol/L av hver)', () => {
+    const s = simulateHI(1, 1, 0, 10, 200);
+    const at6 = sampleAt(s, 6);
+    expect(rel(at6.q, HI_K)).toBeLessThan(0.01);
+    expect(rel(s[s.length - 1]!.q, HI_K)).toBeLessThan(0.001);
+    // [HI] ved likevekt: 2x med x = √K / (2 + √K) = 0,786
+    expect(s[s.length - 1]!.c[2]!).toBeCloseTo((2 * Math.sqrt(HI_K)) / (2 + Math.sqrt(HI_K)), 2);
   });
   it('sampleAt interpolerer', () => {
     const s = simulateAB(1, 0, 1, 10, 10);

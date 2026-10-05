@@ -429,11 +429,6 @@ function bondOrder(mol: Mol, a: number, b: number): Order {
   return mol.bonds.find((x) => (x.a === a && x.b === b) || (x.a === b && x.b === a))?.order ?? 1;
 }
 
-/** Indeksen til bindingen mellom to atomer, eller -1. */
-export function bondIndex(mol: Mol, a: number, b: number): number {
-  return mol.bonds.findIndex((x) => (x.a === a && x.b === b) || (x.a === b && x.b === a));
-}
-
 export interface Bounds {
   minX: number;
   maxX: number;
@@ -496,4 +491,18 @@ export function functionalGroups(mol: Mol): FunctionalGroup[] {
     if ((a.el === 'Cl' || a.el === 'Br' || a.el === 'I') && neighbours(mol, i).some(({ j }) => mol.atoms[j]!.el === 'C')) out.push({ kind: 'halogen', atoms: [i] });
   });
   return out;
+}
+
+/** Deler en tekst i linjer på høyst `max` tegn (ved mellomrom), til SVG-tekst som ikke brytes av seg selv. */
+export function wrapText(text: string, max: number): string[] {
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of text.split(' ')) {
+    if (cur && `${cur} ${w}`.length > max) {
+      lines.push(cur);
+      cur = w;
+    } else cur = cur ? `${cur} ${w}` : w;
+  }
+  if (cur) lines.push(cur);
+  return lines;
 }

@@ -16,7 +16,7 @@ const viz: VizMeta[] = [
     chapter: '3',
     sections: [],
     title: 'Balansering av reaksjonslikninger',
-    summary: 'Juster koeffisientene til atomene stemmer på begge sider, og lær metoden: grunnstoffene i færrest stoffer først, H og O til slutt.',
+    summary: 'Juster koeffisientene til atomene stemmer på begge sider, og lær metoden: grunnstoffene i færrest stoffer først, så H og O, og grunnstoffer som står alene til slutt.',
     keywords: ['reaksjonslikning', 'koeffisient', 'balansere', 'bevaring av masse', 'forbrenning', 'ionelikning', 'ladning'],
     load: () => import('./Balansering'),
   },

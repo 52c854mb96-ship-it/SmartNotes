@@ -29,7 +29,7 @@ import {
   useSimClock,
   type Term,
 } from '../kit';
-import { BOND_REACTIONS, bondEstimate, moleculeTemplate, type BondEstimate, type BondTally } from './model';
+import { BOND_REACTIONS, bondEstimate, moleculeTemplate, onlyDiatomic, type BondEstimate, type BondTally } from './model';
 
 const BREAK = KJEMI.endo;
 const FORM = KJEMI.exo;
@@ -355,7 +355,7 @@ function MoleculeScene({ scene, p, k, f }: { scene: SceneLayout; p: number; k: n
 /** På mobil tegnes energitrappa i en smalere viewBox (460 bred) med vanlig tekststørrelse (f = 1). */
 function energyLayout(narrow: boolean, f: number) {
   const W = narrow ? 460 : 800;
-  const top = 64 * f;
+  const top = 74 * f;
   const plotH = narrow ? 330 : 300;
   const low = top + plotH;
   return {
@@ -446,7 +446,10 @@ function EnergyStairs({
   return (
     <g>
       {/* Nivåer */}
-      <line x1={10} y1={y0} x2={E.dhX + 20} y2={y0} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="5 5" />
+      {/* Hjelpelinja fra startnivået går rundt søylene, så den ikke krysser tallene i dem */}
+      <line x1={10} y1={y0} x2={col1.x} y2={y0} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="5 5" />
+      <line x1={col1.x + col1.w} y1={y0} x2={col2.x} y2={y0} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="5 5" />
+      <line x1={col2.x + col2.w} y1={y0} x2={E.dhX + 20} y2={y0} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="5 5" />
       <line x1={10} y1={y0} x2={col1.x + col1.w} y2={y0} stroke={VIZ.ink} strokeWidth={3.5} />
       <line x1={col1.x} y1={yTop} x2={col2.x + col2.w} y2={yTop} stroke={VIZ.ink} strokeWidth={3.5} />
       <line x1={col2.x} y1={yP} x2={E.W - 10} y2={yP} stroke={VIZ.ink} strokeWidth={3.5} />
@@ -526,13 +529,24 @@ function explanation(tabulated: number, liquid: number | undefined, est: BondEst
         <strong>
           ΔH ≈ Σ brutte − Σ dannede = {fmt(est.sumBroken, 0)} − {fmt(est.sumFormed, 0)} = {signed(est.dH)} kJ.
         </strong>{' '}
-        Å bryte en binding krever alltid energi, og når en ny binding dannes, frigjøres like mye energi. Reaksjonen er {exo ? 'eksoterm' : 'endoterm'} fordi
+        Å bryte en binding krever alltid energi, og når den samme bindingen dannes, frigjøres like mye energi som det kostet å bryte den. Reaksjonen er{' '}
+        {exo ? 'eksoterm' : 'endoterm'} fordi
         bindingene i produktene til sammen er {exo ? 'sterkere' : 'svakere'} enn bindingene i reaktantene. Det frigjøres altså ikke energi når bindinger brytes,
         selv om det er en vanlig misforståelse.
       </p>
       <p>
-        Tabellverdien er {signed(tabulated, 1)} kJ. Bindingsentalpiene er gjennomsnitt for samme binding i mange forskjellige stoffer, så beregningen blir et
-        anslag: her er avviket {fmt(Math.abs(diff), 1)} kJ ({fmtSig(pct, 1)} %).
+        Tabellverdien er {signed(tabulated, 1)} kJ.{' '}
+        {onlyDiatomic(est) ? (
+          <>
+            Her finnes alle bindingene i toatomige molekyler, så bindingsentalpiene gjelder nettopp disse stoffene, og avviket på {fmt(Math.abs(diff), 1)} kJ (
+            {fmtSig(pct, 1)} %) skyldes bare avrunding. Bindinger som C–H og O–H finnes i mange stoffer, og der er tabellverdien et gjennomsnitt.
+          </>
+        ) : (
+          <>
+            Bindinger som C–H, O–H og N–H finnes i mange forskjellige stoffer, og tabellverdien er et gjennomsnitt, så beregningen blir et anslag: her er
+            avviket {fmt(Math.abs(diff), 1)} kJ ({fmtSig(pct, 1)} %).
+          </>
+        )}
         {liquid !== undefined && (
           <>
             {' '}

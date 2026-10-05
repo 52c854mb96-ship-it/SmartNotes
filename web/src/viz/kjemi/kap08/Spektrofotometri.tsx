@@ -170,7 +170,7 @@ export default function Spektrofotometri() {
           A = −lg T = −lg {fmt(r.T, 3)} = {fmt(r.A, 3)}
         </FormulaLine>
         <FormulaLine>
-          Beer–Lamberts lov: A = ε · l · c, der ε({nm} nm) = {fmtSig(eps, 3)} L/(mol·cm) og l = {fmt(l, 1)} cm
+          Beer–Lamberts lov: A = ε · l · c, der ε({nm} nm) {eps < 1e-3 * a.epsMax ? '≈ 0' : `= ${fmtSig(eps, 3)}`} L/(mol·cm) og l = {fmt(l, 1)} cm
         </FormulaLine>
         {r.status !== 'ingen-absorpsjon' && (
           <FormulaLine>
@@ -471,7 +471,7 @@ function CurvePlot({
                   prøven: {fmtSig(found, 3)} mmol/L
                 </Txt>
                 {outside && (
-                  <Txt x={x1 - 6} y={sy(yMax * 0.14)} anchor="end" size={0.8} weight={700} color={KJEMI.minus}>
+                  <Txt x={x1 - 6} y={sy(yMax * 0.2)} anchor="end" size={0.8} weight={700} color={KJEMI.minus}>
                     Utenfor standardkurven: fortynn prøven
                   </Txt>
                 )}
@@ -482,9 +482,12 @@ function CurvePlot({
                 <TFormel f={a.formula} /> absorberer nesten ikke ved {nm} nm
               </Txt>
             )}
-            <Txt x={x0 + 10} y={sy(yMax) + 22 * f} anchor="start" size={0.8} muted>
-              {curve.r2 > 0 ? `R² = ${fmt(curve.r2, 4)}` : ''}
-            </Txt>
+            {/* R² nede til høyre, der verken kurvene eller avlesningslinjene går */}
+            {canRead && curve.r2 > 0 && (
+              <Txt x={x1 - 6} y={y0 - 10} anchor="end" size={0.8} muted>
+                R² = {fmt(curve.r2, 4)}
+              </Txt>
+            )}
           </g>
         );
       }}
@@ -536,7 +539,7 @@ function explanation(a: Absorber, nm: number, c: number, l: number, r: SampleRea
     ) : (
       <>
         Prøven ligger innenfor standardene, så du kan lese av standardkurven: c = A/k = {fmtSig(r.cFound * MM, 3)} mmol/L (prøven har egentlig{' '}
-        {fmtSig(c * MM, 3)} mmol/L; forskjellen skyldes litt målestøy i standardene).
+        {fmtSig(c * MM, 3)} mmol/L; forskjellen skyldes litt målestøy og strølys i standardene).
       </>
     );
   return (

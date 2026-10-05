@@ -30,6 +30,7 @@ import {
   POLLUTANTS,
   V_M,
   airUnits,
+  formatLimit,
   getPollutant,
   limitRatio,
   limitStatus,
@@ -116,7 +117,7 @@ export default function Vannkvalitet() {
 
       <Figure
         viewBox={`0 0 800 ${scaleH}`}
-        label={`Logaritmisk skala: ${fmtSig(value, 2)} ${p.unit} er ${fmtSig(ratio, 2)} ganger grenseverdien ${fmtSig(main.value, 2)} ${p.unit}.`}
+        label={`Logaritmisk skala: ${fmtSig(value, 2)} ${p.unit} er ${fmtSig(ratio, 2)} ganger grenseverdien ${formatLimit(main.value)} ${p.unit}.`}
         caption={`Hvert merke er ti ganger så mye som det forrige. Grønt er under grenseverdien, rødt over (oransje: mellom to grenseverdier for ulike midlingstider). Grenseverdiene er fra ${p.medium === 'vann' ? 'drikkevannsforskriften' : 'forurensningsforskriften (kapittel 7)'}.`}
         maxHeight={scaleH}
       >
@@ -126,15 +127,15 @@ export default function Vannkvalitet() {
       <Readouts>
         {p.medium === 'vann' ? (
           <>
-            <Readout label="Konsentrasjon" value={M ? fmtSig(waterUnits(value, p.unit, M).molPerL, 3) : '–'} unit="mol/L" />
-            <Readout label="mg/L ≈ ppm" value={fmtSig(waterUnits(value, p.unit, M ?? 1).ppm, 3)} unit="ppm" />
-            <Readout label="µg/L ≈ ppb" value={fmtSig(waterUnits(value, p.unit, M ?? 1).ppb, 3)} unit="ppb" />
+            <Readout label="Konsentrasjon" value={M ? fmtSig(waterUnits(value, p.unit, M).molPerL, 2) : '–'} unit="mol/L" />
+            <Readout label="mg/L ≈ ppm" value={fmtSig(waterUnits(value, p.unit, M ?? 1).ppm, 2)} unit="ppm" />
+            <Readout label="µg/L ≈ ppb" value={fmtSig(waterUnits(value, p.unit, M ?? 1).ppb, 2)} unit="ppb" />
           </>
         ) : (
           <>
-            <Readout label="Massekonsentrasjon" value={fmtSig(airUnits(value, p.unit, M).ugPerM3, 3)} unit="µg/m³" />
-            <Readout label="Volumandel" value={M ? fmtSig(airUnits(value, p.unit, M).ppb, 3) : '–'} unit="ppb" />
-            <Readout label="Volumandel" value={M ? fmtSig(airUnits(value, p.unit, M).ppm, 3) : '–'} unit="ppm" />
+            <Readout label="Massekonsentrasjon" value={fmtSig(airUnits(value, p.unit, M).ugPerM3, 2)} unit="µg/m³" />
+            <Readout label="Volumandel" value={M ? fmtSig(airUnits(value, p.unit, M).ppb, 2) : '–'} unit="ppb" />
+            <Readout label="Volumandel" value={M ? fmtSig(airUnits(value, p.unit, M).ppm, 2) : '–'} unit="ppm" />
           </>
         )}
         <Readout
@@ -172,22 +173,22 @@ function chainFor(p: Pollutant, value: number, M: number | null): ChainStep[] {
     const u = waterUnits(value, p.unit, M ?? 1);
     return [
       {
-        box: { title: 'stoffmengde', value: M ? `${fmtSig(u.molPerL, 3)} mol/L` : '–' },
+        box: { title: 'stoffmengde per liter', value: M ? `${fmtSig(u.molPerL, 2)} mol/L` : '–' },
         op: { label: <>· M · 1000</>, detail: M ? `M = ${fmt(M, 2)} g/mol` : '' },
       },
-      { box: { title: 'mg/L ≈ ppm', value: `${fmtSig(u.mgPerL, 3)} mg/L`, measured: p.unit === 'mg/L' }, op: { label: <>· 1000</>, detail: '1 mg = 1000 µg' } },
-      { box: { title: 'µg/L ≈ ppb', value: `${fmtSig(u.ugPerL, 3)} µg/L`, measured: p.unit === 'µg/L' } },
+      { box: { title: 'mg/L ≈ ppm', value: `${fmtSig(u.mgPerL, 2)} mg/L`, measured: p.unit === 'mg/L' }, op: { label: <>· 1000</>, detail: '1 mg = 1000 µg' } },
+      { box: { title: 'µg/L ≈ ppb', value: `${fmtSig(u.ugPerL, 2)} µg/L`, measured: p.unit === 'µg/L' } },
     ];
   }
   const u = airUnits(value, p.unit, M);
   const none = M === null;
   return [
     {
-      box: { title: 'masse per m³', value: p.unit === 'mg/m³' ? `${fmtSig(u.mgPerM3, 3)} mg/m³` : `${fmtSig(u.ugPerM3, 3)} µg/m³`, measured: true },
+      box: { title: 'masse per m³', value: p.unit === 'mg/m³' ? `${fmtSig(u.mgPerM3, 2)} mg/m³` : `${fmtSig(u.ugPerM3, 2)} µg/m³`, measured: true },
       op: { label: <>÷ M</>, detail: M ? `M = ${fmt(M, 2)} g/mol` : 'ingen M' },
     },
     {
-      box: { title: 'stoffmengde per m³', value: none ? 'ikke definert' : `${fmtSig(u.umolPerM3, 3)} µmol/m³`, disabled: none },
+      box: { title: 'stoffmengde per m³', value: none ? 'ikke definert' : `${fmtSig(u.umolPerM3, 2)} µmol/m³`, disabled: none },
       op: {
         label: (
           <>
@@ -198,10 +199,10 @@ function chainFor(p: Pollutant, value: number, M: number | null): ChainStep[] {
       },
     },
     {
-      box: { title: 'volumandel', value: none ? 'ikke definert' : `${fmtSig(u.ppb, 3)} ppb`, disabled: none },
+      box: { title: 'volumandel', value: none ? 'ikke definert' : `${fmtSig(u.ppb, 2)} ppb`, disabled: none },
       op: { label: <>÷ 1000</>, detail: '1 ppm = 1000 ppb' },
     },
-    { box: { title: 'volumandel', value: none ? 'ikke definert' : `${fmtSig(u.ppm, 3)} ppm`, disabled: none } },
+    { box: { title: 'volumandel', value: none ? 'ikke definert' : `${fmtSig(u.ppm, 2)} ppm`, disabled: none } },
   ];
 }
 
@@ -231,7 +232,7 @@ function Chain({ chain, f }: { chain: ChainStep[]; f: number }) {
                 strokeWidth={b.measured ? 2.5 : 1.5}
                 strokeDasharray={b.disabled ? '6 5' : undefined}
               />
-              <Txt x={x + w / 2} y={y + 28} size={0.8} muted>
+              <Txt x={x + w / 2} y={y + 28} size={n === 3 ? 0.8 : 0.74} muted>
                 {b.title}
               </Txt>
               <Txt x={x + w / 2} y={y + 64} size={n === 3 ? 1.05 : 0.9} weight={700} color={b.measured ? VIZ.series[0] : undefined}>
@@ -342,13 +343,14 @@ function LimitScale({ p, value, f }: { p: Pollutant; value: number; f: number })
   const valueText = `målt: ${fmtSig(value, 2)} ${unitLabel}`;
   const valW = valueText.length * 0.56 * 17 * f * 0.95;
   const vAnchor = xv + valW / 2 > 790 ? 'end' : xv - valW / 2 < 10 ? 'start' : 'middle';
-  const factor = ratio >= 1 ? `${fmtSig(ratio, 2)} ganger grenseverdien (${main.label})` : `${fmtSig(1 / ratio, 2)} ganger lavere enn grenseverdien (${main.label})`;
+  const factor =
+    ratio >= 1 ? `${fmtSig(ratio, 2)} ganger grenseverdien (${main.label})` : `grenseverdien (${main.label}) er ${fmtSig(1 / ratio, 2)} ganger så høy`;
   const textW = (t: string) => t.length * 0.56 * 17 * f * 0.8;
   // Grenseverdiene: den laveste på første rad, den høyeste på neste. Streken til den laveste stopper på første rad, så
   // etiketten på andre rad aldri krysses; etiketten på første rad står til venstre for streken når den får plass.
   const labels = sorted.map((l, i) => {
     const x = lx(l.value);
-    const text = `${fmtSig(l.value, 2)} ${unitLabel} (${l.label})`;
+    const text = `${formatLimit(l.value)} ${unitLabel} (${l.label})`;
     const w = textW(text);
     const y = barY + barH + (54 + i * 26) * f;
     let anchor: 'start' | 'end';
@@ -415,7 +417,7 @@ function formulaLines(p: Pollutant, value: number, M: number | null): ReactNode 
         )}
         <FormulaLine>
           c = {fmtSig(u.mgPerL, 2)} mg/L = {fmtSig(u.mgPerL / 1000, 2)} g/L, n per liter = {fmtSig(u.mgPerL / 1000, 2)} g / {fmt(M ?? NaN, 2)} g/mol ={' '}
-          {fmtSig(u.molPerL, 3)} mol/L
+          {fmtSig(u.molPerL, 2)} mol/L
         </FormulaLine>
         <FormulaLine>
           1 L vann ≈ 1 kg: {fmtSig(u.mgPerL, 2)} mg/L ≈ {fmtSig(u.ppm, 2)} mg/kg = {fmtSig(u.ppm, 2)} ppm = {fmtSig(u.ppb, 2)} ppb
@@ -431,10 +433,12 @@ function formulaLines(p: Pollutant, value: number, M: number | null): ReactNode 
   const u = airUnits(value, p.unit, M);
   if (M === null)
     return (
-      <FormulaLine>
-        Svevestøv er en blanding av partikler uten én molar masse, så det måles bare som masse per volum: {fmtSig(u.ugPerM3, 2)} µg/m³ ={' '}
-        {fmtSig(u.ugPerM3 / 1000, 2)} mg/m³
-      </FormulaLine>
+      <>
+        <FormulaLine>Svevestøv har ingen molar masse, så bare masse per volum gir mening:</FormulaLine>
+        <FormulaLine>
+          {fmtSig(u.ugPerM3, 2)} µg/m³ = {fmtSig(u.ugPerM3 / 1000, 2)} mg/m³
+        </FormulaLine>
+      </>
     );
   return (
     <>
@@ -444,13 +448,13 @@ function formulaLines(p: Pollutant, value: number, M: number | null): ReactNode 
         </FormulaLine>
       )}
       <FormulaLine>
-        n per m³ = {fmtSig(u.ugPerM3, 2)} µg / {fmt(M, 2)} g/mol = {fmtSig(u.umolPerM3, 3)} µmol (i 1 m³ = 1000 L luft)
+        n per m³ = {fmtSig(u.ugPerM3, 2)} µg / {fmt(M, 2)} g/mol = {fmtSig(u.umolPerM3, 2)} µmol (i 1 m³ = 1000 L luft)
       </FormulaLine>
       <FormulaLine>
-        V(gass) = n · V<Sub>m</Sub> = {fmtSig(u.umolPerM3, 3)} µmol · {fmt(V_M, 1)} L/mol = {fmtSig(u.ppb, 3)} µL per m³ = {fmtSig(u.ppb, 3)} nL per L
+        V(gass) = n · V<Sub>m</Sub> = {fmtSig(u.umolPerM3, 2)} µmol · {fmt(V_M, 1)} L/mol = {fmtSig(u.ppb, 2)} µL per m³ = {fmtSig(u.ppb, 2)} nL per L
       </FormulaLine>
       <FormulaLine>
-        Volumandel = {fmtSig(u.ppb, 3)} ppb = {fmtSig(u.ppm, 3)} ppm
+        Volumandel = {fmtSig(u.ppb, 2)} ppb = {fmtSig(u.ppm, 2)} ppm
       </FormulaLine>
     </>
   );
@@ -470,7 +474,7 @@ function explanation(p: Pollutant, value: number, M: number | null): ReactNode {
     <>{p.name}</>
   );
   const v = `${fmtSig(value, 2)} ${p.unit}`;
-  const lim = `${fmtSig(main.value, 2)} ${p.unit}`;
+  const lim = `${formatLimit(main.value)} ${p.unit}`;
   const verdict =
     st === 'over' ? (
       <>
@@ -481,12 +485,12 @@ function explanation(p: Pollutant, value: number, M: number | null): ReactNode {
       </>
     ) : st === 'nær' ? (
       <>
-        <strong>{v} er like under grenseverdien</strong> ({lim}, {main.label}): {fmt(ratio * 100, 0)} % av grensen.
+        <strong>{v} er {ratio >= 0.995 ? 'akkurat på' : 'like under'} grenseverdien</strong> ({lim}, {main.label}): {fmt(ratio * 100, 0)} % av grensen.
       </>
     ) : (
       <>
         <strong>
-          {v} er {st === 'langt under' ? 'langt' : ''} under grenseverdien
+          {v} er {st === 'langt under' ? 'langt under' : 'under'} grenseverdien
         </strong>{' '}
         ({lim}, {main.label}): {fmt(ratio * 100, ratio < 0.1 ? 1 : 0)} % av grensen.
       </>
@@ -506,7 +510,7 @@ function explanation(p: Pollutant, value: number, M: number | null): ReactNode {
       </>
     ) : (
       <>
-        I luft er ppm og ppb volumandeler, ikke masseandeler: {fmtSig(value, 2)} {p.unit} <Formel f={p.formula!} /> er {fmtSig(airUnits(value, p.unit, M).ppb, 3)} ppb.
+        I luft er ppm og ppb volumandeler, ikke masseandeler: {fmtSig(value, 2)} {p.unit} <Formel f={p.formula!} /> er {fmtSig(airUnits(value, p.unit, M).ppb, 2)} ppb.
         Samme volumandel gir ulik masse for ulike gasser, fordi massen avhenger av den molare massen ({fmt(M, 2)} g/mol her).
       </>
     );
@@ -515,16 +519,22 @@ function explanation(p: Pollutant, value: number, M: number | null): ReactNode {
       <p>
         {verdict}
         {second &&
-          (value > second.value ? (
+          (value <= second.value ? (
             <>
               {' '}
-              Men verdien er over grensen for {second.label} ({fmtSig(second.value, 2)} {p.unit}): er dette gjennomsnittet for hele perioden, er den grensen
-              overskredet. Grenseverdier gjelder alltid et gjennomsnitt over en bestemt tid, så en enkelt måling må sammenlignes med riktig grense.
+              Den er også under grensen for {second.label} ({formatLimit(second.value)} {p.unit}). Grenseverdier gjelder et gjennomsnitt over en bestemt tid.
+            </>
+          ) : st === 'over' ? (
+            <>
+              {' '}
+              Den er også over grensen for {second.label} ({formatLimit(second.value)} {p.unit}). Grenseverdier gjelder et gjennomsnitt over en bestemt tid, så
+              en enkelt måling må sammenlignes med grensen for riktig midlingstid.
             </>
           ) : (
             <>
               {' '}
-              Den er også under grensen for {second.label} ({fmtSig(second.value, 2)} {p.unit}). Grenseverdier gjelder et gjennomsnitt over en bestemt tid.
+              Men verdien er over grensen for {second.label} ({formatLimit(second.value)} {p.unit}): er dette gjennomsnittet for hele perioden, er den grensen
+              overskredet. Grenseverdier gjelder alltid et gjennomsnitt over en bestemt tid, så en enkelt måling må sammenlignes med riktig grense.
             </>
           ))}
       </p>

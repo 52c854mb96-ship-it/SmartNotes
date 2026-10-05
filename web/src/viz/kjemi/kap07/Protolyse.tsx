@@ -449,8 +449,17 @@ function explanation(r: ProtolysisResult): ReactNode {
         <p>
           {water ? (
             <>
-              Vann er en amfolytt: det kan både gi fra seg et proton (og bli <Formel f="OH^-" />) og ta opp et proton (og bli <Formel f="H3O^+" />). Velg vann
-              både som syre og base for å se autoprotolysen, der K = K<Sub>w</Sub> = 1,0 · 10⁻¹⁴.
+              Vann er en amfolytt: det kan både gi fra seg et proton (og bli <Formel f="OH^-" />) og ta opp et proton (og bli <Formel f="H3O^+" />).{' '}
+              {r.acid.id === 'H2O' && r.base.id === 'H2O' ? (
+                <>
+                  Her reagerer vann med vann: det er autoprotolysen, der K = K<Sub>w</Sub> = 1,0 · 10⁻¹⁴. Derfor inneholder selv rent vann litt{' '}
+                  <Formel f="H3O^+" /> og <Formel f="OH^-" /> (1,0 · 10⁻⁷ mol/L av hver ved 25 °C).
+                </>
+              ) : (
+                <>
+                  Velg vann både som syre og base for å se autoprotolysen, der K = K<Sub>w</Sub> = 1,0 · 10⁻¹⁴.
+                </>
+              )}
             </>
           ) : (
             <>

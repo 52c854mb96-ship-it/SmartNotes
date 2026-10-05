@@ -1,6 +1,6 @@
 /** Ren kjemi for kapittel 2 Egenskaper og reaksjoner (ingen React), så den kan testes for seg. */
 import { ELEMENTS, type Element } from '../kit/grunnstoffer';
-import { balanceCoefficients, formula, molarMass, type Reaction, type State } from '../kit/formel';
+import { balanceCoefficients, molarMass, type Reaction, type State } from '../kit/formel';
 
 /* ---------- Periodiske trender (KM6) ---------- */
 
@@ -72,6 +72,31 @@ export function innerElectrons(e: Element): number {
  */
 export function shieldedCharge(e: Element): number {
   return e.Z - innerElectrons(e);
+}
+
+export type TrendDirection = 'periode' | 'gruppe';
+
+/** Retningen trenden har i Kjemi 1: +1 = verdien øker, −1 = den minker (radius minker bortover og øker nedover). */
+export function expectedTrend(p: TrendProperty, dir: TrendDirection): 1 | -1 {
+  const up = p === 'radius' ? dir === 'gruppe' : dir === 'periode';
+  return up ? 1 : -1;
+}
+
+/**
+ * Grunnstoffene i rekka der verdien endrer seg motsatt vei av trenden, sammenlignet med grunnstoffet foran som har en
+ * verdi. Bortover en periode er edelgassen ikke med for radius (anslått verdi) og elektronegativitet (ikke en del av
+ * trenden). Eksempler: Al og S bortover periode 3 (ioniseringsenergi), Ga nedover gruppe 13 (elektronegativitet).
+ */
+export function againstTrend(series: readonly Element[], p: TrendProperty, dir: TrendDirection): { e: Element; prev: Element }[] {
+  const sign = expectedTrend(p, dir);
+  const pts = series.filter((e) => propertyValue(e, p) !== null && !(dir === 'periode' && p !== 'ie' && e.group === 18));
+  const out: { e: Element; prev: Element }[] = [];
+  for (let i = 1; i < pts.length; i++) {
+    const e = pts[i]!;
+    const prev = pts[i - 1]!;
+    if ((propertyValue(e, p)! - propertyValue(prev, p)!) * sign < 0) out.push({ e, prev });
+  }
+  return out;
 }
 
 export type IeAnomaly = 'p-elektron' | 'paret' | null;
@@ -223,9 +248,14 @@ export interface Precipitate {
   formula: string;
   name: string;
   color: PrecipitateColor;
-  /** Kationer og anioner som går med per formelenhet bunnfall (Ag₂O: 2 Ag⁺ og 2 OH⁻). */
+  /**
+   * Kationer og anioner som går med når nettolikningen skjer én gang (én «reaksjonsenhet»): PbI₂ 1 og 2,
+   * Ag₂O 2 og 2 (2 Ag⁺ + 2 OH⁻ → Ag₂O + H₂O), CuI 2 og 4 (2 Cu²⁺ + 4 I⁻ → 2 CuI + I₂).
+   */
   a: number;
   b: number;
+  /** Formelenheter bunnfall per reaksjonsenhet (standard 1): 2 for CuI og for Fe(OH)₃ fra karbonat. */
+  units?: number;
   /** Løselighetsproduktet (25 °C), uttrykt med eksponentene `exps` på [kation] og [anion]. Mangler: går fullstendig. */
   ksp?: number;
   exps?: [number, number];
@@ -279,12 +309,12 @@ const PRECIPITATES: Record<string, { kind: SolubilityKind; p: Precipitate | null
   'Cu-OH': { kind: 'tungtløselig', p: { formula: 'Cu(OH)2', name: 'kobber(II)hydroksid', color: 'blått', a: 1, b: 2, ksp: 2.2e-20 } },
   'Cu-I': {
     kind: 'reagerer',
-    p: { formula: 'CuI', name: 'kobber(I)jodid', color: 'hvitt', a: 2, b: 4 },
+    p: { formula: 'CuI', name: 'kobber(I)jodid', color: 'hvitt', a: 2, b: 4, units: 2 },
     note: 'Cu²⁺ oksiderer jodid til jod (I₂), som farger løsningen brun. Bunnfallet er hvitt kobber(I)jodid.',
   },
   'Fe-CO3': {
     kind: 'reagerer',
-    p: { formula: 'Fe(OH)3', name: 'jern(III)hydroksid', color: 'rustbrunt', a: 2, b: 3 },
+    p: { formula: 'Fe(OH)3', name: 'jern(III)hydroksid', color: 'rustbrunt', a: 2, b: 3, units: 2 },
     note: 'Jern(III)karbonat finnes ikke: karbonationene reagerer med vannet, og det dannes rustbrunt jern(III)hydroksid og CO₂-gass.',
   },
   'Fe-OH': { kind: 'tungtløselig', p: { formula: 'Fe(OH)3', name: 'jern(III)hydroksid', color: 'rustbrunt', a: 1, b: 3, ksp: 2.79e-39 } },
@@ -356,7 +386,7 @@ export interface MixResult {
   /** Ioneproduktet Q (samme eksponenter som Ksp) og om det er større enn Ksp. */
   Q: number | null;
   precipitates: boolean;
-  /** Formelenheter bunnfall per liter blanding (mol/L) og i alt (mol), og massen (g). */
+  /** Hvor mange ganger nettolikningen skjer per liter blanding (mol/L), stoffmengden bunnfall i alt (mol) og massen (g). */
   x: number;
   n: number;
   mass: number;
@@ -381,8 +411,9 @@ export function mixSolutions(cationId: string, anionId: string, c: number): MixR
   const xMax = Math.min(cM / p.a, cX / p.b);
   const limiting = Math.abs(cM / p.a - cX / p.b) < 1e-12 ? null : cM / p.a < cX / p.b ? 'kation' : 'anion';
   const vol = 2 * MIX_VOLUME;
+  const per = p.units ?? 1;
   if (p.ksp === undefined) {
-    const n = xMax * vol;
+    const n = xMax * vol * per;
     return { ...none, precipitates: true, x: xMax, n, mass: n * molarMass(p.formula), fraction: 1, limiting };
   }
   const [ep, eq] = p.exps ?? [p.a, p.b];
@@ -397,7 +428,7 @@ export function mixSolutions(cationId: string, anionId: string, c: number): MixR
     else hi = mid;
   }
   const x = (lo + hi) / 2;
-  const n = x * vol;
+  const n = x * vol * per;
   return { cCation: cM, cAnion: cX, Q, precipitates: true, x, n, mass: n * molarMass(p.formula), fraction: x / xMax, limiting };
 }
 
@@ -415,12 +446,78 @@ export function spectatorIons(cationId: string, anionId: string): string[] {
   return all.filter((f) => !inNet.has(f));
 }
 
-/** Molar masse til et salt eller bunnfall (g/mol), for tester og visning. */
-export function saltMolarMass(f: string): number {
-  return molarMass(formula(f));
+
+/* ---------- Partiklene i utsnittet ---------- */
+
+/**
+ * Hva som skjer med ionene når nettolikningen skjer én gang, slik partikkelbildet tegner det. Formlene skrives med ^
+ * for ladningen. Bunnfallet bygges av `cationsInSolid` kationer (som `cationInSolid`), `anionsInSolid` anioner (som
+ * `anionInSolid`) og `fromWater` hydroksidioner fra vannet; resten av de reagerende ionene blir til noe annet.
+ */
+export interface UnitParticles {
+  /** Kationer og anioner fra løsningene som går med (samme som a og b i Precipitate). */
+  a: number;
+  b: number;
+  cationsInSolid: number;
+  /** Cu²⁺ blir Cu⁺ i CuI. */
+  cationInSolid: string;
+  anionsInSolid: number;
+  /** OH⁻ blir O²⁻ i Ag₂O. */
+  anionInSolid: string;
+  /** OH⁻ fra vannet i Fe(OH)₃ (karbonationene reagerer med vannet). */
+  fromWater: number;
+  /** Anioner som ikke havner i bunnfallet, men blir til I₂ (to og to), CO₂ eller H₂O. */
+  anionsConverted: number;
+  convertedTo: 'I2' | 'CO2' | 'H2O' | null;
+  /** Kationer som skifter ladning i løsningen uten å felles ut (Fe³⁺ → Fe²⁺ med jodid). */
+  cationsConverted: number;
+  cationAfter: string | null;
 }
 
-/** Elementsymbolet i et enkelt kation: «Ag^+» → «Ag». */
-export function cationSymbol(f: string): string {
-  return Object.keys(formula(f).atoms)[0] ?? '';
+/** Partikkelregnskapet for ett par, eller null når ingenting skjer. */
+export function unitParticles(cationId: string, anionId: string): UnitParticles | null {
+  const info = pairInfo(cationId, anionId);
+  if (!info.net) return null;
+  const cat = CATIONS.find((c) => c.id === cationId)!;
+  const an = ANIONS.find((a) => a.id === anionId)!;
+  const p = info.precipitate;
+  const base: UnitParticles = {
+    a: p?.a ?? 0,
+    b: p?.b ?? 0,
+    cationsInSolid: p?.a ?? 0,
+    cationInSolid: cat.formula,
+    anionsInSolid: p?.b ?? 0,
+    anionInSolid: an.formula,
+    fromWater: 0,
+    anionsConverted: 0,
+    convertedTo: null,
+    cationsConverted: 0,
+    cationAfter: null,
+  };
+  switch (`${cationId}-${anionId}`) {
+    case 'Cu-I': // 2 Cu²⁺ + 4 I⁻ → 2 CuI + I₂
+      return { ...base, cationInSolid: 'Cu^+', anionsInSolid: 2, anionsConverted: 2, convertedTo: 'I2' };
+    case 'Fe-CO3': // 2 Fe³⁺ + 3 CO₃²⁻ + 3 H₂O → 2 Fe(OH)₃ + 3 CO₂
+      return { ...base, anionsInSolid: 0, fromWater: 6, anionsConverted: 3, convertedTo: 'CO2' };
+    case 'Ag-OH': // 2 Ag⁺ + 2 OH⁻ → Ag₂O + H₂O
+      return { ...base, anionsInSolid: 1, anionInSolid: 'O^2-', anionsConverted: 1, convertedTo: 'H2O' };
+    case 'Fe-I': // 2 Fe³⁺ + 2 I⁻ → 2 Fe²⁺ + I₂
+      return { ...base, a: 2, b: 2, cationsInSolid: 0, anionsInSolid: 0, anionsConverted: 2, convertedTo: 'I2', cationsConverted: 2, cationAfter: 'Fe^2+' };
+  }
+  return base;
+}
+
+/**
+ * Antall ioner av hvert slag i utsnittet (like mange, fordi konsentrasjonene er like) og hvor mange ganger
+ * nettolikningen skjer der. 6 av hvert går opp for alle parene unntatt CuI (2 Cu²⁺ + 4 I⁻), som trenger 8.
+ * Bunnfallet tegnes i forhold til hvor mye som felles ut (`fraction`), men minst én enhet når det dannes bunnfall.
+ */
+export function zoomCounts(cationId: string, anionId: string, mix: MixResult): { ions: number; units: number } {
+  const u = unitParticles(cationId, anionId);
+  if (!u) return { ions: 6, units: 0 };
+  const ions = [6, 8].find((n) => Number.isInteger(Math.min(n / u.a, n / u.b))) ?? 6;
+  const max = Math.floor(Math.min(ions / u.a, ions / u.b));
+  const complete = !pairInfo(cationId, anionId).precipitate;
+  const units = complete ? max : mix.precipitates ? Math.max(1, Math.round(mix.fraction * max)) : 0;
+  return { ions, units };
 }

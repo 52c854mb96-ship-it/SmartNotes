@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkBalance, molarMass, reaction } from '../kit/formel';
+import { checkBalance, formula, molarMass, reaction } from '../kit/formel';
 import { element } from '../kit/grunnstoffer';
 import {
   ANIONS,
@@ -8,6 +8,8 @@ import {
   PROPERTIES,
   REDOX_METALS,
   TREND_ELEMENTS,
+  againstTrend,
+  expectedTrend,
   groupSeries,
   ieAnomaly,
   innerElectrons,
@@ -21,6 +23,8 @@ import {
   redox,
   shieldedCharge,
   spectatorIons,
+  unitParticles,
+  zoomCounts,
 } from './model';
 
 describe('periodiske trender', () => {
@@ -62,6 +66,26 @@ describe('periodiske trender', () => {
     // Te har høyere ioniseringsenergi enn Sb i dataene, så ingen dupp der
     expect(ieAnomaly(element('Te'))).toBeNull();
     for (const s of ['C', 'N', 'F', 'Ne', 'Na', 'P', 'Cl']) expect(ieAnomaly(element(s)), s).toBeNull();
+  });
+
+  it('trendene og grunnstoffene som går mot dem (fra dataene)', () => {
+    expect(expectedTrend('radius', 'periode')).toBe(-1);
+    expect(expectedTrend('radius', 'gruppe')).toBe(1);
+    expect(expectedTrend('ie', 'periode')).toBe(1);
+    expect(expectedTrend('en', 'gruppe')).toBe(-1);
+    const sym = (xs: { e: { symbol: string } }[]) => xs.map((x) => x.e.symbol);
+    // Bortover periode 2 og 3: bare unntakene i gruppe 13 og 16
+    expect(sym(againstTrend(periodSeries(2), 'ie', 'periode'))).toEqual(['B', 'O']);
+    expect(sym(againstTrend(periodSeries(3), 'ie', 'periode'))).toEqual(['Al', 'S']);
+    expect(againstTrend(periodSeries(1), 'ie', 'periode')).toEqual([]);
+    expect(againstTrend(periodSeries(3), 'radius', 'periode')).toEqual([]);
+    expect(againstTrend(periodSeries(3), 'en', 'periode')).toEqual([]);
+    // Nedover gruppene: radiusen øker alltid, men Ga har høyere elektronegativitet enn Al og Ge enn Si
+    for (const g of [1, 2, 13, 14, 15, 16, 17, 18]) expect(againstTrend(groupSeries(g), 'radius', 'gruppe'), `gruppe ${g}`).toEqual([]);
+    expect(sym(againstTrend(groupSeries(13), 'en', 'gruppe'))).toEqual(['Ga']);
+    expect(sym(againstTrend(groupSeries(14), 'en', 'gruppe'))).toEqual(['Ge']);
+    expect(againstTrend(groupSeries(17), 'en', 'gruppe')).toEqual([]);
+    expect(againstTrend(groupSeries(1), 'ie', 'gruppe')).toEqual([]);
   });
 
   it('skjerming: Z minus indre elektroner', () => {
@@ -185,6 +209,80 @@ describe('fellingsreaksjoner', () => {
     // Tungtløselige feller ut selv ved den laveste konsentrasjonen
     expect(mixSolutions('Ag', 'Cl', CONCENTRATIONS[0]).precipitates).toBe(true);
     expect(mixSolutions('Fe', 'OH', CONCENTRATIONS[0]).fraction).toBeGreaterThan(0.99);
+  });
+
+  it('CuI og Fe(OH)₃: to formelenheter bunnfall per nettolikning', () => {
+    // 50 mL + 50 mL av 0,10 mol/L: 0,005 mol av hvert ion. I⁻ er begrensende: 2 Cu²⁺ + 4 I⁻ → 2 CuI + I₂ gir 0,0025 mol CuI.
+    const cui = mixSolutions('Cu', 'I', 0.1);
+    expect(cui.limiting).toBe('anion');
+    expect(cui.n).toBeCloseTo(0.0025, 9);
+    expect(cui.mass).toBeCloseTo(0.0025 * molarMass('CuI'), 6);
+    expect(cui.mass).toBeCloseTo(0.476, 3);
+    // CO₃²⁻ er begrensende: 2 Fe³⁺ + 3 CO₃²⁻ + 3 H₂O → 2 Fe(OH)₃ + 3 CO₂ gir 0,005 · 2/3 mol Fe(OH)₃.
+    const feoh = mixSolutions('Fe', 'CO3', 0.1);
+    expect(feoh.limiting).toBe('anion');
+    expect(feoh.n).toBeCloseTo((0.005 * 2) / 3, 9);
+    expect(feoh.mass).toBeCloseTo(0.356, 3);
+    // Ag₂O: én formelenhet per 2 Ag⁺ + 2 OH⁻
+    expect(mixSolutions('Ag', 'OH', 0.5).n).toBeCloseTo(0.0125, 4);
+  });
+
+  it('partikkelbildet: bunnfallet har samme sammensetning som formelen, og ladningene går opp', () => {
+    for (const c of CATIONS)
+      for (const a of ANIONS) {
+        const info = pairInfo(c.id, a.id);
+        const u = unitParticles(c.id, a.id);
+        if (!info.net) {
+          expect(u).toBeNull();
+          continue;
+        }
+        expect(u, `${c.id}-${a.id}`).not.toBeNull();
+        // a og b er koeffisientene foran kationet og anionet i nettolikningen
+        const coef = (f: string) => info.net!.reactants.find((t) => t.formula === f)?.coef;
+        expect(u!.a, `${c.id}-${a.id}`).toBe(coef(c.formula));
+        expect(u!.b, `${c.id}-${a.id}`).toBe(coef(a.formula));
+        const p = info.precipitate;
+        if (!p) {
+          expect(u!.cationsInSolid + u!.anionsInSolid + u!.fromWater).toBe(0);
+          continue;
+        }
+        const atoms: Record<string, number> = {};
+        let charge = 0;
+        const add = (f: string, n: number) => {
+          if (n === 0) return;
+          const pf = formula(f);
+          for (const [sym, k] of Object.entries(pf.atoms)) atoms[sym] = (atoms[sym] ?? 0) + n * k;
+          charge += n * pf.charge;
+        };
+        add(u!.cationInSolid, u!.cationsInSolid);
+        add(u!.anionInSolid, u!.anionsInSolid);
+        add('OH^-', u!.fromWater);
+        const want = Object.fromEntries(Object.entries(formula(p.formula).atoms).map(([sym, k]) => [sym, k * (p.units ?? 1)]));
+        expect(atoms, `${c.id}-${a.id}`).toEqual(want);
+        expect(charge, `${c.id}-${a.id}`).toBe(0);
+        expect(u!.anionsInSolid + u!.anionsConverted, `${c.id}-${a.id}`).toBe(u!.b);
+      }
+    expect(unitParticles('Cu', 'I')).toMatchObject({ cationInSolid: 'Cu^+', anionsInSolid: 2, anionsConverted: 2, convertedTo: 'I2' });
+    expect(unitParticles('Fe', 'CO3')).toMatchObject({ cationsInSolid: 2, fromWater: 6, anionsConverted: 3, convertedTo: 'CO2' });
+    expect(unitParticles('Ag', 'OH')).toMatchObject({ anionInSolid: 'O^2-', anionsInSolid: 1, convertedTo: 'H2O' });
+    expect(unitParticles('Fe', 'I')).toMatchObject({ cationsConverted: 2, cationAfter: 'Fe^2+', anionsConverted: 2 });
+  });
+
+  it('utsnittet: hele enheter, og det begrensende ionet brukes opp', () => {
+    expect(zoomCounts('Pb', 'I', mixSolutions('Pb', 'I', 0.5))).toEqual({ ions: 6, units: 3 });
+    expect(zoomCounts('Cu', 'I', mixSolutions('Cu', 'I', 0.1))).toEqual({ ions: 8, units: 2 });
+    expect(zoomCounts('Fe', 'CO3', mixSolutions('Fe', 'CO3', 0.1))).toEqual({ ions: 6, units: 2 });
+    expect(zoomCounts('Fe', 'I', mixSolutions('Fe', 'I', 0.1))).toEqual({ ions: 6, units: 3 });
+    expect(zoomCounts('Ca', 'SO4', mixSolutions('Ca', 'SO4', 0.001)).units).toBe(0);
+    expect(zoomCounts('Na', 'Cl', mixSolutions('Na', 'Cl', 0.1))).toEqual({ ions: 6, units: 0 });
+    for (const c of CATIONS)
+      for (const a of ANIONS) {
+        const u = unitParticles(c.id, a.id);
+        const z = zoomCounts(c.id, a.id, mixSolutions(c.id, a.id, 0.5));
+        if (!u) continue;
+        expect(z.units * u.a, `${c.id}-${a.id}`).toBeLessThanOrEqual(z.ions);
+        expect(z.units * u.b, `${c.id}-${a.id}`).toBeLessThanOrEqual(z.ions);
+      }
   });
 
   it('alle kombinasjoner og konsentrasjoner gir gyldige tall', () => {

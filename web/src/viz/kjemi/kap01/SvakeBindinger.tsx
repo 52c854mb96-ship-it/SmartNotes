@@ -156,7 +156,7 @@ export default function SvakeBindinger() {
         )}
       </Formula>
 
-      <Explain>{mode === 'hydrider' ? hydrideText(h, on, model) : alkaneText(a, on, model)}</Explain>
+      <Explain>{mode === 'hydrider' ? hydrideText(h, on) : alkaneText(a, on, model)}</Explain>
     </VizLayout>
   );
 }
@@ -444,8 +444,10 @@ function MoleculeRing({ h, on, cx, cy, f, k }: { h: Hydride; on: ForceSwitches; 
       {tempDipole &&
         [m0, m5].map((m, i) => {
           const c = { x: m.p.x + shiftOf(i === 0 ? 0 : 5).x, y: m.p.y + shiftOf(i === 0 ? 0 : 5).y };
-          const minus = polar(c.x, c.y, cloudR + 12 * f, dir05 + 35);
-          const plus = polar(c.x, c.y, cloudR + 12 * f, dir05 + 215);
+          // Etikettene står på yttersiden av ringen (60° ut fra aksen mellom molekylene), så de ikke havner oppå naboene.
+          // Molekyl 0: elektronskyen er forskjøvet mot molekyl 5 (δ− den veien). Molekyl 5: δ+ mot molekyl 0, δ− bort fra det.
+          const minus = polar(c.x, c.y, cloudR + 12 * f, i === 0 ? dir05 + 60 : dir05);
+          const plus = polar(c.x, c.y, cloudR + 12 * f, i === 0 ? dir05 + 180 : dir05 + 120);
           return (
             <g key={`td${i}`}>
               <Txt x={minus.x} y={minus.y + 6 * f} color={KJEMI.minus} weight={700} size={0.9}>
@@ -457,7 +459,7 @@ function MoleculeRing({ h, on, cx, cy, f, k }: { h: Hydride; on: ForceSwitches; 
             </g>
           );
         })}
-      <RingLabels h={h} on={on} mols={mols} cx={cx} cy={cy} cloudR={cloudR} f={f} />
+      <RingLabels h={h} on={on} mols={mols} cx={cx} cy={cy} f={f} />
     </g>
   );
 }
@@ -469,7 +471,6 @@ function RingLabels({
   mols,
   cx,
   cy,
-  cloudR,
   f,
 }: {
   h: Hydride;
@@ -477,7 +478,6 @@ function RingLabels({
   mols: { p: { x: number; y: number }; next: { x: number; y: number }; dirs: number[]; Hs: { x: number; y: number; d: number }[] }[];
   cx: number;
   cy: number;
-  cloudR: number;
   f: number;
 }) {
   const hb = h.hbond && on.hbond;
@@ -510,11 +510,17 @@ function RingLabels({
     </g>,
   );
   if (on.london && !h.polar) {
+    // Midt i ringen, med strek til der de to molekylene med midlertidige dipoler møtes
+    const m0 = mols[0]!;
     const m5 = mols[5]!;
+    const meet = { x: (m0.p.x + m5.p.x) / 2, y: (m0.p.y + m5.p.y) / 2 };
     items.push(
-      <Txt key="l" x={m5.p.x} y={m5.p.y - cloudR - 30 * f} size={0.8} weight={600} color={LONDON}>
-        midlertidige dipoler
-      </Txt>,
+      <g key="l">
+        <line x1={cx + 20 * f} y1={cy - 30 * f} x2={meet.x - 4} y2={meet.y + 4} stroke={VIZ.muted} strokeWidth={1} />
+        <Txt x={cx} y={cy - 12 * f} size={0.8} weight={700} color={LONDON}>
+          midlertidige dipoler
+        </Txt>
+      </g>,
     );
   }
   return <g>{items}</g>;
@@ -676,7 +682,7 @@ function ForceBar({ parts, on, measured, box, f }: { parts: ForceParts; on: Forc
 
 /* ---------- Forklaring ---------- */
 
-function hydrideText(h: Hydride, on: ForceSwitches, model: number | null): ReactNode {
+function hydrideText(h: Hydride, on: ForceSwitches): ReactNode {
   const name = capitalize(h.name);
   const F = <Formel f={h.formula} />;
   const e = electronCount(h.formula);
@@ -697,7 +703,7 @@ function hydrideText(h: Hydride, on: ForceSwitches, model: number | null): React
         </p>
       ) : (
         <p key="a">
-          <strong>Uten hydrogenbindinger</strong> ville {h.name} fulgt trenden i gruppe {h.group} og kokt ved ca. {fmt(model ?? est, 0)} °C
+          <strong>Uten hydrogenbindinger</strong> ville {h.name} fulgt trenden i gruppe {h.group} og kokt ved ca. {fmt(est, 0)} °C
           {h.formula === 'H2O' ? ', og vann ville vært en gass ved romtemperatur' : ''}. Det er hydrogenbindingene som gjør at {F} skiller seg ut
           i grafen.
         </p>
@@ -732,8 +738,10 @@ function hydrideText(h: Hydride, on: ForceSwitches, model: number | null): React
     else if (!on.london)
       t = `Uten London-krefter faller alle kokepunktene kraftig, mest for de store molekylene. London-krefter virker mellom alle molekyler og er ofte det største bidraget.`;
     else if (!on.dipole && on.hbond)
-      t = 'Med bare London-krefter (og hydrogenbindinger) samler hydridene i hver periode seg nesten i samme punkt, fordi de har like mange elektroner.';
+      t =
+        'Uten dipol-dipol-krefter samler hydridene i periode 3–5 seg i samme punkt, fordi de har like mange elektroner og da bare London-kreftene er igjen. NH₃, H₂O og HF ligger fortsatt høyere, fordi hydrogenbindingene er med.';
     else if (!on.dipole) t = 'Med bare London-krefter koker hydridene i samme periode ved samme temperatur, fordi de har like mange elektroner.';
+    else if (!on.hbond && !h.hbond) t = 'Uten hydrogenbindinger faller NH₃, H₂O og HF ned til trenden i gruppene sine (stiplet linje i grafen).';
     if (t) parts.push(<p key="b">{t}</p>);
   } else if (!h.hbond && h.group !== 14) {
     parts.push(

@@ -70,12 +70,17 @@ function shown(id: string, bonds: number, lps: number): Shown {
 
 const angleText = (a: number) => `${fmt(a, Number.isInteger(a) ? 0 : 1)}°`;
 
+/** Formnavnet slik det står etter «formen er»: «vinklet», men «en trigonal pyramide» og «en vippehuske». */
+const shapeAfterIs = (id: ShapeId) => (id === 'trigonal-pyramidal' || id === 'seesaw' ? `en ${SHAPES[id].name}` : SHAPES[id].name);
+
 /** Atomene i romfiguren tegnes større enn vanlig. */
 const BIG = 1.45;
 
+/** I fri modus tegnes X som et kloratom og A som et karbonatom. */
+const ligEl = (l: string) => (l === 'X' ? 'Cl' : l);
+
 /** Avstand sentrum–sentrum i romfiguren. */
 function bondLength(s: Shown, k: number): number {
-  const ligEl = (l: string) => (l === 'X' ? 'Cl' : l);
   const rc = atomRadius(s.preset ? s.center : 'C', { scale: k * BIG });
   const rl = Math.max(...s.ligands.map((l) => atomRadius(ligEl(l), { scale: k * BIG })));
   return (rc + rl) * 1.2 + 34 * k;
@@ -128,11 +133,11 @@ export default function Molekylform() {
       <div ref={ref}>
         <Figure
           viewBox={`0 0 800 ${layout.H}`}
-          label={`${capitalize(name)}: ${info.name} form, bindingsvinkel ${s.preset ? angleText(s.angle) : info.angleText}, ${isPolar ? 'polart' : 'upolart'} molekyl.`}
+          label={`${capitalize(name)}: formen er ${shapeAfterIs(s.shape)}, bindingsvinkel ${s.preset ? angleText(s.angle) : info.angleText}, ${isPolar ? 'polart' : 'upolart'} molekyl.`}
           maxHeight={layout.H}
         >
           <Lewis s={s} x={layout.lewis.x} y={layout.lewis.y} title={layout.lewis.title} f={f} k={k} />
-          <Spatial s={s} pol={pol} panel={layout.space} k={k} />
+          <Spatial s={s} panel={layout.space} k={k} />
         </Figure>
       </div>
       <Figure
@@ -160,7 +165,10 @@ export default function Molekylform() {
 
       <Formula label="Elektronområder og polaritet">
         <FormulaLine>
-          {s.ligands.length} bundne atomer + {s.lonePairs} frie par = {s.ligands.length + s.lonePairs} elektronområder → {info.electronGeometry} ordnet → {info.name} form
+          {s.ligands.length} bundne atomer + {s.lonePairs === 1 ? '1 fritt par' : `${s.lonePairs} frie par`} = {s.ligands.length + s.lonePairs}{' '}
+          elektronområder → ordnet{' '}
+          {info.electronGeometry === 'lineær' ? 'lineært' : info.electronGeometry === 'trigonal bipyramide' ? 'som en trigonal bipyramide' : info.electronGeometry} →
+          formen er {shapeAfterIs(s.shape)}
         </FormulaLine>
         {s.preset && <BondLine s={s} pol={pol} />}
         {s.preset && (
@@ -201,29 +209,78 @@ interface Panel {
 type SumLayout = ReturnType<typeof sumLayout>;
 
 const LEWIS_L = 90;
+/** Avstanden fra et symbol til de frie elektronparene i Lewisstrukturen (ganges med f). */
+const LEWIS_LP = 28;
+
+/** Retningene til de frie parene på et ytre atom i Lewisstrukturen (bindingen peker mot `deg` + 180°). */
+function ligandLonePairDirs(el: string, order: number, deg: number): number[] {
+  const lp = ligandLonePairs(el, order);
+  return lp >= 3 ? [deg, deg + 90, deg - 90] : lp === 2 ? [deg + 90, deg - 90] : lp === 1 ? [deg] : [];
+}
+
+/** Øverste og nederste y som tegningen bruker, i forhold til sentrum (SVG-retning: negativ = over sentrum). */
+interface Extent {
+  top: number;
+  bottom: number;
+}
+
+function grow(e: Extent, y: number, pad: number) {
+  e.top = Math.min(e.top, y - pad);
+  e.bottom = Math.max(e.bottom, y + pad);
+}
+
+/** Hvor høyt og lavt Lewisstrukturen rekker: symbolene og de frie elektronparene. */
+function lewisExtent(s: Shown, f: number, k: number): Extent {
+  const L = LEWIS_L * f;
+  const sym = 16 * f;
+  const e: Extent = { top: -sym, bottom: sym };
+  const dir = lewisDirections(s.ligands.length, s.lonePairs);
+  s.ligands.forEach((el, i) => {
+    const deg = dir.ligands[i] ?? 0;
+    const p = polar(0, 0, L, deg);
+    grow(e, p.y, sym);
+    for (const d of ligandLonePairDirs(el, s.orders[i] ?? 1, deg)) grow(e, polar(p.x, p.y, LEWIS_LP * f, d).y, 9 * k);
+  });
+  for (const d of dir.lonePairs.slice(0, s.lonePairs)) grow(e, polar(0, 0, LEWIS_LP * f, d).y, 9 * k);
+  return e;
+}
+
+/** Hvor høyt og lavt romfiguren rekker: atomene, δ-etikettene, de frie parene og vinkeletiketten. */
+function spatialExtent(s: Shown, k: number, f: number): Extent {
+  const g = spatialGeometry(s, k);
+  const lab = 13 * f;
+  const e: Extent = { top: -g.rc, bottom: g.rc };
+  for (const l of g.ligs) {
+    const p = polar(0, 0, l.len, l.deg);
+    grow(e, p.y, l.r);
+    if (Math.abs(l.p) >= DIPOLE_DRAW_MIN) grow(e, polar(p.x, p.y, l.r + 9 + 9 * f, l.deg).y, lab);
+  }
+  for (const d of g.lay.lonePairs) grow(e, polar(0, 0, g.rc + 15 * k, d).y, 24 * k);
+  grow(e, polar(0, 0, g.rc + 9 + 9 * f, g.free).y, lab);
+  if (g.arcMid !== null) grow(e, polar(0, 0, g.rc + 16 * k + 8 + 12 * f, g.arcMid).y, lab);
+  return e;
+}
 
 function sceneLayout(f: number, k: number, s: Shown) {
   const wide = f <= 1.3;
-  const reachLewis = LEWIS_L * f + 44 * f;
-  // Lengste binding + største ytre atom + δ-etiketten
-  const rl = Math.max(...s.ligands.map((l) => atomRadius(l === 'X' ? 'Cl' : l, { scale: k * BIG })));
-  const reach3d = bondLength(s, k) + rl + 9 + 30 * f;
+  const le = lewisExtent(s, f, k);
+  const se = spatialExtent(s, k, f);
   const title = 26 * f;
   if (wide) {
-    const cy = title + 18 * f + Math.max(reachLewis, reach3d);
-    return {
-      lewis: { x: 200, y: cy, title },
-      space: { x: 590, y: cy, title },
-      H: Math.round(cy + Math.max(reachLewis, reach3d) + 30 * f),
-    };
+    const top = title + 20 * f;
+    const content = Math.max(-le.top, -se.top) + Math.max(le.bottom, se.bottom);
+    // Litt fast minstehøyde, så figuren ikke hopper mye når du bytter molekyl
+    const H = Math.round(Math.max(top + content + 18 * f, 270));
+    const cy = top + (H - 18 * f - top - content) / 2 + Math.max(-le.top, -se.top);
+    return { lewis: { x: 200, y: cy, title }, space: { x: 590, y: cy, title }, H };
   }
-  const ly = title + 12 * f + reachLewis;
-  const t2 = ly + reachLewis + 40 * f;
-  const sy = t2 + 18 * f + reach3d;
+  const ly = title + 18 * f - le.top;
+  const t2 = ly + le.bottom + 38 * f;
+  const sy = t2 + 18 * f - se.top;
   return {
     lewis: { x: 400, y: ly, title },
     space: { x: 400, y: sy, title: t2 },
-    H: Math.round(sy + reach3d + 34 * f),
+    H: Math.round(sy + se.bottom + 18 * f),
   };
 }
 
@@ -260,7 +317,7 @@ function Lewis({ s, x, y, title, f, k }: { s: Shown; x: number; y: number; title
   const L = LEWIS_L * f;
   const dir = lewisDirections(s.ligands.length, s.lonePairs);
   const symR = 18 * f;
-  const lpD = 28 * f;
+  const lpD = LEWIS_LP * f;
   const symbol = (sx: number, sy: number, el: string) => (
     <Txt x={sx} y={sy + 11 * f} size={1.8} weight={700} color={el === 'A' || el === 'X' || el === 'H' || el === 'C' ? VIZ.ink : atomColors(el).line}>
       {el}
@@ -279,8 +336,7 @@ function Lewis({ s, x, y, title, f, k }: { s: Shown; x: number; y: number; title
         const a = polar(x, y, symR + 3, deg);
         const b = polar(x, y, L - symR - 3, deg);
         const n = polar(0, 0, 1, deg + 90);
-        const lp = ligandLonePairs(el, order);
-        const lpDirs = lp >= 3 ? [deg, deg + 90, deg - 90] : lp === 2 ? [deg + 90, deg - 90] : lp === 1 ? [deg] : [];
+        const lpDirs = ligandLonePairDirs(el, order, deg);
         return (
           <g key={i}>
             {offs.map((o) => (
@@ -347,24 +403,33 @@ function freeDirection(dirs: number[], avoid: number | null): number {
   return best;
 }
 
-function Spatial({ s, pol, panel, k }: { s: Shown; pol: number[]; panel: Panel; k: number }) {
-  const { x, y } = panel;
+/** Geometrien i romfiguren rundt (0, 0): sentralatomet, de ytre atomene, retningen til δ-etiketten og vinkelbuen. */
+function spatialGeometry(s: Shown, k: number) {
   const centerEl = s.preset ? s.center : 'C';
   const rc = atomRadius(centerEl, { scale: k * BIG });
   const lay = shapeLayout(s.shape, s.angle);
-  const ligEl = (l: string) => (l === 'X' ? 'Cl' : l);
   const L = bondLength(s, k);
+  const pol = bondPolarities(s.center, s.ligands);
   const ligs = lay.ligands.map((slot, i) => {
     const el = s.ligands[i] ?? 'X';
-    return { ...polar(x, y, L * slot.len, slot.deg), deg: slot.deg, stereo: slot.stereo, len: L * slot.len, el, r: atomRadius(ligEl(el), { scale: k * BIG }), p: pol[i] ?? 0, order: s.orders[i] ?? 1 };
+    return { deg: slot.deg, stereo: slot.stereo, len: L * slot.len, el, r: atomRadius(ligEl(el), { scale: k * BIG }), p: pol[i] ?? 0, order: s.orders[i] ?? 1 };
   });
+  const arcMidDeg = lay.arc ? arcMid(lay.ligands[lay.arc[0]]!.deg, lay.ligands[lay.arc[1]]!.deg) : null;
+  const free = freeDirection([...lay.ligands.map((l) => l.deg), ...lay.lonePairs], arcMidDeg);
+  return { centerEl, rc, lay, ligs, free, arcMid: arcMidDeg };
+}
+
+function Spatial({ s, panel, k }: { s: Shown; panel: Panel; k: number }) {
+  const { x, y } = panel;
+  const g = spatialGeometry(s, k);
+  const { centerEl, rc, lay, free } = g;
+  const ligs = g.ligs.map((l) => ({ ...l, ...polar(x, y, l.len, l.deg) }));
   const drawn = (p: number) => Math.abs(p) >= DIPOLE_DRAW_MIN;
   const signs = ligs.filter((l) => drawn(l.p)).map((l) => Math.sign(l.p));
   const centerPartial = signs.length > 0 && signs.every((v) => v === signs[0]) ? (signs[0]! > 0 ? 'plus' : 'minus') : null;
   const order = ligs.map((_, i) => i).sort((a, b) => (ligs[a]!.stereo === 'hash' ? -1 : 0) - (ligs[b]!.stereo === 'hash' ? -1 : 0));
   const arc = lay.arc ? [ligs[lay.arc[0]]!, ligs[lay.arc[1]]!] : null;
   const label = s.preset ? angleText(s.angle) : SHAPES[s.shape].angleText.replace('ca. ', '');
-  const free = freeDirection([...lay.ligands.map((l) => l.deg), ...lay.lonePairs], arc ? arcMid(arc[0]!.deg, arc[1]!.deg) : null);
   return (
     <g>
       <Txt x={x} y={panel.title} muted size={0.9}>
@@ -474,7 +539,7 @@ function explanation(s: Shown, pol: number[], isPolar: boolean): ReactNode {
         ? 'Frie elektronpar tar mer plass enn bindende par og presser bindingene sammen: 109,5° uten frie par, ca. 107° med ett og ca. 104,5° med to.'
         : ''}
       {n > 4 ? ' Med mer enn fire elektronområder får sentralatomet over åtte elektroner rundt seg. Det går bare for større atomer fra periode 3 og nedover, og er ikke vanlig pensum i Kjemi 1.' : ''}
-      {m?.id === 'CO2' || m?.id === 'HCN' ? ' En dobbelt- eller trippelbinding teller som ett elektronområde.' : ''}
+      {s.orders.some((o) => o > 1) ? ' En dobbelt- eller trippelbinding teller som ett elektronområde.' : ''}
     </p>
   );
   let polarity: ReactNode;
@@ -520,6 +585,14 @@ function explanation(s: Shown, pol: number[], isPolar: boolean): ReactNode {
         vinkelen.
       </p>
     );
+  } else if (m.id === 'CH2O') {
+    polarity = (
+      <p>
+        CH₂O er plan trekantet som BF₃, men bindingene er ikke like: C=O er polar (ΔEN = {fmt(maxDen, 2)}), mens C–H er nesten upolare. Dipolene
+        opphever ikke hverandre, og molekylet er <strong>polart</strong> med den negative enden mot oksygen. Dobbeltbindingen har flere
+        elektroner og frastøter C–H-bindingene mer, så vinkelen H–C–H blir litt mindre enn 120°.
+      </p>
+    );
   } else if (m.id === 'HCN') {
     polarity = (
       <p>
@@ -530,8 +603,8 @@ function explanation(s: Shown, pol: number[], isPolar: boolean): ReactNode {
   } else {
     polarity = (
       <p>
-        Bindingene er polare (ΔEN = {fmt(maxDen, 2)}), og fordi formen er {info.name}, peker bindingsdipolene til samme side. De legges sammen
-        til en dipol for hele molekylet: {what} er <strong>polart</strong>.
+        Bindingene er polare (ΔEN = {fmt(maxDen, 2)}), og fordi formen er {shapeAfterIs(s.shape)}, peker
+        bindingsdipolene til samme side. De legges sammen til en dipol for hele molekylet: {what} er <strong>polart</strong>.
         {m.id === 'SO2' ? ` Begge S–O-bindingene er like lange, og S har ${centralElectrons(m)} elektroner rundt seg (utvidet oktett).` : ''}
         {m.id === 'PCl3' ? ' Vinkelen er 100°, litt mindre enn i NH₃, fordi P er større enn N.' : ''}
       </p>

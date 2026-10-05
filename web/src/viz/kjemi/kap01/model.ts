@@ -372,10 +372,6 @@ export function aufbauFill(Z: number): FilledSubshell[] {
  */
 export const CONFIG_EXCEPTIONS: Readonly<Record<number, 'halvfullt' | 'fullt'>> = { 24: 'halvfullt', 29: 'fullt' };
 
-export function isConfigException(Z: number): boolean {
-  return clampZ(Z) in CONFIG_EXCEPTIONS;
-}
-
 /** Grunntilstanden (med unntakene for Cr og Cu), i fyllingsrekkefølge. Tomme delskall er med. */
 export function electronConfiguration(Z: number): FilledSubshell[] {
   const z = clampZ(Z);

@@ -3,8 +3,8 @@
  *
  * Konstanter og data som i Kjemi 1 (Aschehoug) og vanlige norske tabeller (Aylward og Findlay, SI Chemical Data;
  * «Tabeller og formler i kjemi»): K_w = 1,0 · 10⁻¹⁴ ved 25 °C, K_a for eddiksyre 1,8 · 10⁻⁵, maursyre 1,8 · 10⁻⁴,
- * flussyre 6,8 · 10⁻⁴, benzosyre 6,3 · 10⁻⁵, ammoniumion 5,6 · 10⁻¹⁰, hydrogenkarbonation 4,7 · 10⁻¹¹,
- * hydrogensulfation 1,0 · 10⁻², K_b for ammoniakk 1,8 · 10⁻⁵.
+ * flussyre 6,8 · 10⁻⁴, hypoklorsyrling 4,0 · 10⁻⁸ (pK_a 7,40), ammoniumion 5,6 · 10⁻¹⁰, hydrogenkarbonation
+ * 4,7 · 10⁻¹¹, hydrogensulfation 1,0 · 10⁻², K_b for ammoniakk 1,8 · 10⁻⁵.
  */
 
 /** Vannets ioneprodukt ved 25 °C: [H₃O⁺] · [OH⁻] = K_w. */
@@ -145,12 +145,16 @@ export interface WeakAcid {
   Ka: number;
 }
 
-/** Svake syrer med K_a ved 25 °C (se kildene øverst i fila). */
+/**
+ * Svake syrer med K_a ved 25 °C (se kildene øverst i fila). Konsentrasjonen kan settes helt opp til 1 mol/L, så bare
+ * syrer som løser seg så godt er med (benzosyre løser seg bare til ca. 0,03 mol/L og passer ikke). Hypoklorsyrling
+ * (HClO, den desinfiserende syra i klorvann) er med som et eksempel på en svært svak syre.
+ */
 export const WEAK_ACIDS: WeakAcid[] = [
   { id: 'eddiksyre', name: 'eddiksyre', formula: 'CH3COOH', base: 'CH3COO^-', Ka: 1.8e-5 },
   { id: 'maursyre', name: 'maursyre', formula: 'HCOOH', base: 'HCOO^-', Ka: 1.8e-4 },
   { id: 'flussyre', name: 'flussyre', formula: 'HF', base: 'F^-', Ka: 6.8e-4 },
-  { id: 'benzosyre', name: 'benzosyre', formula: 'C6H5COOH', base: 'C6H5COO^-', Ka: 6.3e-5 },
+  { id: 'hypoklorsyrling', name: 'hypoklorsyrling', formula: 'HClO', base: 'ClO^-', Ka: 4.0e-8 },
 ];
 
 /** K_b for ammoniakk ved 25 °C. */
@@ -348,12 +352,16 @@ export function endpoint(s: TitrationSetup, ind: Indicator): EndpointResult {
 
 export type TitrationPhase = 'start' | 'før' | 'halv' | 'ekvivalens' | 'etter';
 
+/** Hvor nær V_e (mL) vi må være for å kalle det ekvivalenspunktet: et halvt steg på glidebryteren (0,05 mL). */
+export const EQ_TOL = 0.026;
+
 /** Hvor i titreringen vi er (med litt slingringsmonn rundt de spesielle punktene). */
 export function titrationPhase(s: TitrationSetup, Vb: number): TitrationPhase {
   const Ve = equivalenceVolume(s);
   const tol = Math.max(0.02, Ve * 0.01);
   if (Vb < tol) return 'start';
-  if (Math.abs(Vb - Ve) <= tol) return 'ekvivalens';
+  // Spranget er så bratt at bare det nærmeste glidebrytersteget (0,05 mL) regnes som ekvivalenspunktet
+  if (Math.abs(Vb - Ve) <= EQ_TOL) return 'ekvivalens';
   if (s.acid === 'CH3COOH' && Math.abs(Vb - Ve / 2) <= Math.max(tol, Ve * 0.02)) return 'halv';
   return Vb < Ve ? 'før' : 'etter';
 }
@@ -448,6 +456,3 @@ export function protolysis(acidId: string, baseId: string): ProtolysisResult {
   const equation = `${term(acid)} + ${term(base)} ${arrow} ${term(base.conj)} + ${term(acid.conj)}`;
   return { acid, base, logK, kind, arrow, equation, identity };
 }
-
-/** Partikler som kan være både syre og base (amfolytter) blant valgene. */
-export const AMPHOLYTES = ['H2O', 'HSO4^-', 'HCO3^-'];

@@ -281,9 +281,19 @@ export function balanceSolution(r: BalanceReaction): number[] {
   return s;
 }
 
+/** Grunnstoffet står alene i et av stoffene (et fritt grunnstoff som O₂, Fe eller Ag, ikke et ion). */
+export function standsAlone(r: BalanceReaction, sym: string): boolean {
+  return [...r.reactants, ...r.products].some((f) => {
+    const p = formula(f);
+    const syms = Object.keys(p.atoms);
+    return p.charge === 0 && syms.length === 1 && syms[0] === sym;
+  });
+}
+
 /**
- * Rekkefølgen grunnstoffene bør balanseres i (lærebokas metode): først grunnstoffene som finnes i færrest stoffer
- * (helst bare ett stoff på hver side), så H og til slutt O, som ofte finnes i mange stoffer.
+ * Rekkefølgen grunnstoffene bør balanseres i (lærebokas metode): først grunnstoffene som er bundet i forbindelser og
+ * finnes i færrest stoffer, så H og O, som ofte finnes i mange stoffer. Grunnstoffer som står alene (O₂, Fe, H₂) tas
+ * til slutt, fordi koeffisienten foran dem ikke endrer noe annet grunnstoff.
  */
 export function balanceOrder(r: BalanceReaction): string[] {
   const species = [...r.reactants, ...r.products].map((f) => formula(f));
@@ -292,8 +302,8 @@ export function balanceOrder(r: BalanceReaction): string[] {
   const inSpecies = (sym: string) => species.filter((s) => (s.atoms[sym] ?? 0) > 0).length;
   const rank = (sym: string) => (sym === 'O' ? 2 : sym === 'H' ? 1 : 0);
   return symbols
-    .map((sym, i) => ({ sym, i, rank: rank(sym), count: inSpecies(sym) }))
-    .sort((a, b) => a.rank - b.rank || a.count - b.count || a.i - b.i)
+    .map((sym, i) => ({ sym, i, free: standsAlone(r, sym) ? 1 : 0, rank: rank(sym), count: inSpecies(sym) }))
+    .sort((a, b) => a.free - b.free || a.rank - b.rank || a.count - b.count || a.i - b.i)
     .map((x) => x.sym);
 }
 
@@ -379,9 +389,9 @@ export interface LimitingReaction {
   name: string;
   /** Balansert likning med tilstander og heltallige koeffisienter. */
   equation: string;
-  /** Største stoffmengde på glidebryteren for hver reaktant (mol). */
+  /** Største stoffmengde på glidebryteren for hver reaktant (mol), et multiplum av amountStep(koeffisient). */
   nMax: number[];
-  /** Startverdier (mol). */
+  /** Startverdier (mol), også multipler av amountStep(koeffisient). */
   n0: number[];
   /** Hvilket produkt utbyttet regnes for (indeks blant produktene). */
   yieldOf: number;
@@ -389,7 +399,7 @@ export interface LimitingReaction {
 
 export const LIMITING_REACTIONS: LimitingReaction[] = [
   { id: 'vann', name: 'Hydrogen + oksygen → vann', equation: '2 H2(g) + O2(g) → 2 H2O(l)', nMax: [6, 4], n0: [3, 2], yieldOf: 0 },
-  { id: 'ammoniakk', name: 'Ammoniakksyntesen', equation: 'N2(g) + 3 H2(g) → 2 NH3(g)', nMax: [4, 8], n0: [2, 4.5], yieldOf: 0 },
+  { id: 'ammoniakk', name: 'Ammoniakksyntesen', equation: 'N2(g) + 3 H2(g) → 2 NH3(g)', nMax: [4, 9], n0: [2, 4.5], yieldOf: 0 },
   { id: 'metan', name: 'Forbrenning av metan', equation: 'CH4(g) + 2 O2(g) → CO2(g) + 2 H2O(l)', nMax: [4, 6], n0: [2, 3], yieldOf: 0 },
   { id: 'jernsulfid', name: 'Jern + svovel → jern(II)sulfid', equation: 'Fe(s) + S(s) → FeS(s)', nMax: [4, 4], n0: [1.5, 1], yieldOf: 0 },
 ];
@@ -434,17 +444,31 @@ export function limitingResult(rx: Reaction, n: readonly number[]): LimitingResu
 }
 
 /**
- * Partikkelbildet: hver tegnet partikkel er `unit` mol. Antallene rundes til hele partikler, og reaksjonen regnes på
- * nytt med heltall, så atomene alltid er bevart i bildet (reaktantene først, så produktene).
+ * Partikkelbildet: hver tegnet partikkel er `unit` mol (reaktantene først, så produktene). Antall omsetninger i bildet
+ * er den eksakte ξ rundet til hele partikler, og restene er de eksakte restene rundet av. Før-bildet bygges så baklengs
+ * (rest + koeffisient · omsetninger), så atomene alltid er bevart, og den begrensende reaktanten er alltid brukt opp i
+ * bildet. Går tallene opp i hele partikler, er bildet eksakt.
  */
-export function pictureCounts(rx: Reaction, n: readonly number[], unit = 0.5): { before: number[]; after: number[]; extent: number } {
-  const N = rx.reactants.map((_, i) => Math.max(0, Math.round((n[i] ?? 0) / unit)));
-  const extent = Math.min(...rx.reactants.map((t, i) => Math.floor(N[i]! / t.coef)));
+export function pictureCounts(rx: Reaction, n: readonly number[], unit = 0.5): { before: number[]; after: number[]; extent: number; exact: boolean } {
+  const res = limitingResult(rx, n);
+  const extent = Math.max(0, Math.round(res.extent / unit + 1e-9));
+  const left = rx.reactants.map((_, i) => Math.max(0, Math.round(res.after[i]! / unit + 1e-9)));
+  const before = rx.reactants.map((t, i) => left[i]! + t.coef * extent);
+  const exact = before.every((N, i) => Math.abs(N * unit - res.before[i]!) < 1e-9) && Math.abs(extent * unit - res.extent) < 1e-9;
   return {
-    before: [...N, ...rx.products.map(() => 0)],
-    after: [...rx.reactants.map((t, i) => N[i]! - t.coef * extent), ...rx.products.map((t) => t.coef * extent)],
+    before: [...before, ...rx.products.map(() => 0)],
+    after: [...left, ...rx.products.map((t) => t.coef * extent)],
     extent,
+    exact,
   };
+}
+
+/**
+ * Steget på glidebryteren for stoffmengden av en reaktant (mol): koeffisienten · én partikkel. Da går
+ * partikkelbildet alltid opp når mengdene er oppgitt i mol (se pictureCounts).
+ */
+export function amountStep(coef: number, unit = 0.5): number {
+  return coef * unit;
 }
 
 /** Prosentvis utbytte = faktisk / teoretisk · 100 %. NaN når det teoretiske utbyttet er 0. */

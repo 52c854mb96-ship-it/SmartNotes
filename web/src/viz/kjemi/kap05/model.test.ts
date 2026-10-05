@@ -6,8 +6,8 @@ import {
   ORG_REACTIONS,
   SERIES,
   SUB_KINDS,
-  bondChanges,
   bondSummary,
+  onlySecondBond,
   smallMolecule,
   buildNamed,
   isomerRelation,
@@ -44,6 +44,7 @@ import {
   molecule,
   subscriptDigits,
   VALENCE,
+  wrapText,
   type Mol,
 } from './struktur';
 
@@ -149,6 +150,10 @@ describe('struktur: molekyler', () => {
     expect(kinds(molecule(seriesSpec('alkaner', 5)))).toEqual([]);
   });
 
+  it('tekst deles i linjer ved mellomrom', () => {
+    expect(wrapText('kons. H₂SO₄, ca. 170 °C', 12)).toEqual(['kons. H₂SO₄,', 'ca. 170 °C']);
+    expect(wrapText('UV-lys', 34)).toEqual(['UV-lys']);
+  });
   it('vann er vinklet og har to H', () => {
     const w = ORG_REACTIONS.find((r) => r.id === 'elim')!.products[1]!.build();
     expect(molFormula(w)).toBe('H2O');
@@ -568,15 +573,43 @@ describe('isomeri', () => {
     const c5 = ISOMER_SETS.find((s) => s.id === 'C5H12')!.isomers;
     expect(c5.map((i) => i.bp)).toEqual([...c5.map((i) => i.bp)].sort((a, b) => b - a));
   });
+  it('kjedeisomerer: den mest forgrenede koker alltid lavest (forklaringen bygger på det)', () => {
+    for (const set of ISOMER_SETS)
+      for (const a of set.isomers)
+        for (const b of set.isomers)
+          if (isomerRelation(a, b) === 'kjede' && a.branches > b.branches) expect(a.bp).toBeLessThan(b.bp);
+  });
+  it('alkoholer og syrer koker mye høyere enn alkanen med nesten samme molare masse', () => {
+    for (let n = 1; n <= 7; n++) {
+      // CₙH₂ₙ₊₁OH (14n + 18) mot Cₙ₊₁H₂ₙ₊₄ (14n + 16)
+      expect(Math.abs(molarMass(generalFormula('alkoholer', n)) - molarMass(generalFormula('alkaner', n + 1)))).toBeLessThan(3);
+      expect(seriesMember('alkoholer', n).bp - seriesMember('alkaner', n + 1).bp).toBeGreaterThan(45);
+    }
+    for (let n = 1; n <= 6; n++) expect(seriesMember('karboksylsyrer', n).bp - seriesMember('alkaner', n + 2).bp).toBeGreaterThan(70);
+  });
   it('alkoholen koker høyere enn eteren (hydrogenbindinger)', () => {
     const c2 = ISOMER_SETS.find((s) => s.id === 'C2H6O')!.isomers;
     expect(c2[0]!.bp - c2[1]!.bp).toBeGreaterThan(100);
+  });
+  it('polaritet: alle C4H8-alkenene er svakt polare unntatt trans-but-2-en, og ringene er upolare', () => {
+    const c4 = ISOMER_SETS.find((s) => s.id === 'C4H8')!.isomers;
+    const polar = Object.fromEntries(c4.map((i) => [i.id, i.polar]));
+    expect(polar).toEqual({
+      'but-1-en': true,
+      'cis-but-2-en': true,
+      'trans-but-2-en': false,
+      '2-metylpropen': true,
+      syklobutan: false,
+      metylsyklopropan: false,
+    });
   });
   it('cis-but-2-en (polar) koker høyere enn trans-but-2-en', () => {
     const c4 = ISOMER_SETS.find((s) => s.id === 'C4H8')!.isomers;
     expect(c4.find((i) => i.id === 'cis-but-2-en')!.bp).toBeGreaterThan(c4.find((i) => i.id === 'trans-but-2-en')!.bp);
   });
 });
+
+const asMapTop = (l: { label: string; count: number }[]) => Object.fromEntries(l.map((x) => [x.label, x.count]));
 
 describe('organiske reaksjoner', () => {
   it('likningene er balanserte', () => {
@@ -610,12 +643,30 @@ describe('organiske reaksjoner', () => {
       }
   });
   it('addisjon: dobbeltbinding åpnes, to nye bindinger; substitusjon: én brytes og én dannes per molekyl', () => {
-    expect(bondChanges(ORG_REACTIONS.find((r) => r.id === 'add-br2')!)).toEqual({ broken: 2, formed: 2 });
-    expect(bondChanges(ORG_REACTIONS.find((r) => r.id === 'sub-cl2')!)).toEqual({ broken: 2, formed: 2 });
-    expect(bondChanges(ORG_REACTIONS.find((r) => r.id === 'elim')!)).toEqual({ broken: 2, formed: 2 });
-    expect(bondChanges(ORG_REACTIONS.find((r) => r.id === 'ester')!)).toEqual({ broken: 2, formed: 2 });
-    // Forbrenning av metan: 4 C–H + 2 · (O=O) brytes = 4 + 2 · 2; 2 C=O (= 4) + 2 · 2 O–H dannes
-    expect(bondChanges(ORG_REACTIONS.find((r) => r.id === 'forbr-metan')!)).toEqual({ broken: 8, formed: 8 });
+    const total = (id: string) => {
+      const r = ORG_REACTIONS.find((x) => x.id === id)!;
+      const sum = (l: { count: number }[]) => l.reduce((s, b) => s + b.count, 0);
+      return { broken: sum(bondSummary(r.reactants)), formed: sum(bondSummary(r.products)) };
+    };
+    expect(total('add-br2')).toEqual({ broken: 2, formed: 2 });
+    expect(total('sub-cl2')).toEqual({ broken: 2, formed: 2 });
+    expect(total('elim')).toEqual({ broken: 2, formed: 2 });
+    expect(total('ester')).toEqual({ broken: 2, formed: 2 });
+    // Forbrenning av metan: 4 C–H + 2 O=O brytes, 2 C=O + 4 O–H dannes
+    expect(total('forbr-metan')).toEqual({ broken: 6, formed: 6 });
+  });
+  it('bare den andre bindingen i C=C åpnes ved addisjon og dannes ved eliminasjon', () => {
+    const add = ORG_REACTIONS.find((r) => r.id === 'add-br2')!;
+    const elim = ORG_REACTIONS.find((r) => r.id === 'elim')!;
+    expect(onlySecondBond(add, 'reactants')).toBe(true);
+    expect(onlySecondBond(add, 'products')).toBe(false);
+    expect(onlySecondBond(elim, 'products')).toBe(true);
+    expect(onlySecondBond(elim, 'reactants')).toBe(false);
+    for (const r of ORG_REACTIONS.filter((x) => x.type === 'substitusjon' || x.type === 'forbrenning' || x.type === 'kondensasjon'))
+      expect(onlySecondBond(r, 'reactants') || onlySecondBond(r, 'products')).toBe(false);
+    // C=C er markert i eten på riktig side
+    expect(asMapTop(bondSummary(add.reactants))['C=C']).toBe(1);
+    expect(asMapTop(bondSummary(elim.products))['C=C']).toBe(1);
   });
   it('addisjon gir ett produkt, eliminasjon gir to', () => {
     for (const r of ORG_REACTIONS) {

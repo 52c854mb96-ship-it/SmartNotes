@@ -4,7 +4,7 @@
  */
 import type { ReactNode } from 'react';
 import { Atom, Bond, KJEMI, Txt, VIZ, atomColors, useTextScale } from '../kit';
-import { bounds, dist, freeDirections, dirOf, hydrogenCount, neighbours, step, type FunctionalGroup, type Mol, type P, type View } from './struktur';
+import { bounds, freeDirections, dirOf, hydrogenCount, neighbours, step, type FunctionalGroup, type Mol, type P, type View } from './struktur';
 
 export const VIEW_OPTIONS: { value: View; label: string }[] = [
   { value: 'struktur', label: 'Strukturformel' },
@@ -44,13 +44,6 @@ export interface Fit {
   h: number;
 }
 
-/** Størrelsen molekylet tar med enheten u (inkludert marg). */
-export function moleculeSize(mol: Mol, view: View, u: number, f: number): { w: number; h: number } {
-  const b = bounds(mol, view);
-  const m = marginPx(view, f);
-  return { w: (b.maxX - b.minX) * u + 2 * m, h: (b.maxY - b.minY) * u + 2 * m };
-}
-
 /**
  * Enhet og origo som får molekylet til å passe i boksen (sentrert), med enheten mellom minUnit og uMax. Er boksen for
  * liten, blir enheten likevel minUnit (boksen bør da gjøres større).
@@ -78,8 +71,11 @@ export interface MoleculeViewProps {
   view: View;
   /** Enhet og origo (se fitMolecule). */
   fit: Pick<Fit, 'u' | 'ox' | 'oy'>;
-  /** Bindinger som brytes eller dannes (indekser i mol.bonds). */
-  marks?: { bonds: number[]; kind: 'brytes' | 'dannes' };
+  /**
+   * Bindinger som brytes eller dannes (indekser i mol.bonds). `half`: i en dobbeltbinding er det bare den ene av de to
+   * bindingene som brytes eller dannes (addisjon til C=C, eliminasjon som gir C=C).
+   */
+  marks?: { bonds: number[]; kind: 'brytes' | 'dannes'; half?: boolean };
   /** Hovedkjeden som fremheves (atomindekser i rekkefølge fra C1). */
   chain?: number[];
   /** Skriv nummer (1, 2, 3 …) ved atomene i hovedkjeden. */
@@ -176,6 +172,9 @@ export function MoleculeView({ mol, view, fit, marks, chain, numbers, groups, er
     );
   }
 
+  /** Avstanden mellom de to strekene i en dobbeltbinding (som i kit-ets Bond), og forskyvningen av den markerte. */
+  const halfShift = (b: { order: number }) => (marks?.half && b.order === 2 ? -4.25 * k : 0);
+
   // Glorie rundt bindinger som brytes/dannes
   mol.bonds.forEach((b, bi) => {
     if (!marked.has(bi)) return;
@@ -189,15 +188,16 @@ export function MoleculeView({ mol, view, fit, marks, chain, numbers, groups, er
     if (!(len > ra + rb + 2)) return;
     const ux = (q.x - p.x) / len;
     const uy = (q.y - p.y) / len;
+    const o = halfShift(b);
     layers.push(
       <line
         key={`halo${bi}`}
-        x1={p.x + ux * ra}
-        y1={p.y + uy * ra}
-        x2={q.x - ux * rb}
-        y2={q.y - uy * rb}
+        x1={p.x + ux * ra - uy * o}
+        y1={p.y + uy * ra + ux * o}
+        x2={q.x - ux * rb - uy * o}
+        y2={q.y - uy * rb + ux * o}
         stroke={markColor}
-        strokeWidth={10 * k}
+        strokeWidth={(o ? 7 : 10) * k}
         strokeLinecap="butt"
         opacity={0.25}
       />,
@@ -210,6 +210,23 @@ export function MoleculeView({ mol, view, fit, marks, chain, numbers, groups, er
     const q = pos(b.b);
     if (!p || !q) return;
     const on = marked.has(bi);
+    const o = on ? halfShift(b) : 0;
+    if (o) {
+      // Den ene streken er uendret, den andre brytes (stiplet) eller dannes (uthevet)
+      const len = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+      const nx = -(q.y - p.y) / len;
+      const ny = (q.x - p.x) / len;
+      const end = (c: P, i: number, d: number) => ({ x: c.x + nx * d, y: c.y + ny * d, r: radius(i) });
+      layers.push(
+        <g key={`b${bi}`}>
+          <Bond a={end(p, b.a, -o)} b={end(q, b.b, -o)} order={1} color={KJEMI.bond} width={(view === 'skjelett' ? 2.6 : 2.2) * k} />
+          <g strokeDasharray={marks?.kind === 'brytes' ? `${6 * k} ${4 * k}` : undefined}>
+            <Bond a={end(p, b.a, o)} b={end(q, b.b, o)} order={1} color={markColor} width={3.4 * k} />
+          </g>
+        </g>,
+      );
+      return;
+    }
     layers.push(
       <g key={`b${bi}`} strokeDasharray={on && marks?.kind === 'brytes' ? `${6 * k} ${4 * k}` : undefined}>
         <Bond
@@ -314,6 +331,3 @@ function subscriptH(text: string): ReactNode {
     </>
   );
 }
-
-/** Avstand mellom to punkter i figuren (til layout). */
-export const figDist = dist;

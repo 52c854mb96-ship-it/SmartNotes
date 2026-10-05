@@ -57,7 +57,8 @@ export default function Redoks() {
   const k = Math.max(1, 0.85 * f);
   const series = seriesLayout(f);
   const scene = sceneLayout(f, k);
-  const eqH = Math.round(190 * f);
+  // Uten reaksjon er det bare én linje og en kort forklaring (ingen oksidasjonstall og klammer)
+  const eqH = Math.round((r.reacts ? 190 : 120) * f);
 
   return (
     <VizLayout>
@@ -114,8 +115,8 @@ export default function Redoks() {
 
       <Readouts>
         <Readout label="Skjer det en reaksjon?" value={r.reacts ? 'Ja' : 'Nei'} tone={r.reacts ? KJEMI.reduction : VIZ.muted} />
-        <Readout label="Reduksjonsmiddel (oksideres)" value={r.reacts ? r.metal.symbol : '–'} tone={KJEMI.oxidation} />
-        <Readout label="Oksidasjonsmiddel (reduseres)" value={r.reacts ? formulaText(ionOf(r.ion)) : '–'} tone={KJEMI.reduction} />
+        <Readout label="Reduksjonsmiddel (oksideres)" value={r.reacts ? r.metal.symbol : '–'} tone={r.reacts ? KJEMI.oxidation : undefined} />
+        <Readout label="Oksidasjonsmiddel (reduseres)" value={r.reacts ? formulaText(ionOf(r.ion)) : '–'} tone={r.reacts ? KJEMI.reduction : undefined} />
         <Readout label="Elektroner overført" value={r.reacts ? `${r.electrons} e⁻` : '0'} />
       </Readouts>
 
@@ -490,10 +491,10 @@ function Equation({ r, f }: { r: RedoxResult; f: number }) {
   if (!r.reacts)
     return (
       <g>
-        <Txt x={400} y={eqY - 14 * f} size={1.15} weight={700}>
+        <Txt x={400} y={50 * f} size={1.15} weight={700}>
           <TFormel f={r.metal.symbol} state={st ? 's' : false} /> + <TFormel f={ionOf(r.ion)} state={st ? 'aq' : false} /> → ingen reaksjon
         </Txt>
-        <Txt x={400} y={eqY + 24 * f} size={0.85} muted>
+        <Txt x={400} y={88 * f} size={0.85} muted>
           {r.same ? 'Atomer og ioner av samme metall bytter ikke netto elektroner.' : `${r.metal.symbol} er edlere enn ${r.ion.symbol}: ${formulaText(ionOf(r.ion))} kan ikke ta elektroner fra ${r.metal.symbol}.`}
         </Txt>
       </g>
@@ -565,7 +566,7 @@ function explanation(r: RedoxResult): ReactNode {
           elektroner til å ta dem fra {M.symbol}-atomene: {M.name} er et svakere reduksjonsmiddel enn {X.name}.
         </p>
         <p>
-          Den motsatte kombinasjonen reagerer: {X.name} i en løsning med {ionM} gir {M.name}metall.
+          Den motsatte kombinasjonen reagerer: {X.name} i en løsning med {ionM} gir metallisk {M.name}.
         </p>
       </>
     );

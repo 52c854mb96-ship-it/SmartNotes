@@ -18,13 +18,14 @@ import {
   Txt,
   VIZ,
   VizLayout,
+  capitalize,
   fmt,
   formulaText,
   linePath,
   molarMass,
   useContainerTextScale,
 } from '../kit';
-import { SERIES, series as getSeries, seriesMember, seriesSpec, stateAt25, type Series, type SeriesId } from './model';
+import { SERIES, generalFormula, series as getSeries, seriesMember, seriesSpec, stateAt25, type Series, type SeriesId } from './model';
 import { condensed, functionalGroups, molFormula, molecule, subscriptDigits, type View } from './struktur';
 import { GROUP, MoleculeView, VIEW_OPTIONS, fitMolecule, fontPx, marginPx, minUnit } from './Struktur';
 import { bounds } from './struktur';
@@ -140,8 +141,6 @@ export default function HomologeRekker() {
   );
 }
 
-const capitalize = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
-
 /** Navnestammen slik den står i navnet (met, et, prop, but-, …). */
 function stemOf(name: string): string {
   const m = /^(met|et|prop|but|pent|heks|hept|okt)/.exec(name);
@@ -244,6 +243,11 @@ function BoilingPlot({ sid, n, height, f }: { sid: SeriesId; n: number; height: 
   const alk = getSeries('alkaner');
   const pts = (x: Series) => x.members.map((m) => [m.n, m.bp] as [number, number]);
   const m = seriesMember(sid, n);
+  // Ved n = 1 er det ikke plass til venstre for punktet: tallet står til høyre, på samme høyde når kurven stiger bratt
+  // (alkanene), ellers under kurven
+  const next = s.members.find((x) => x.n === n + 1);
+  const labelY = (sy: (v: number) => number) =>
+    n >= 2 ? sy(m.bp) - 18 * f : next && next.bp - m.bp > 40 ? sy(m.bp) + 6 * f : sy(m.bp) + 26 * f;
   return (
     <Plot
       x={{ min: 1, max: 8, label: 'Antall karbonatomer n', ticks: [1, 2, 3, 4, 5, 6, 7, 8] }}
@@ -273,7 +277,14 @@ function BoilingPlot({ sid, n, height, f }: { sid: SeriesId; n: number; height: 
             <line x1={sx(n)} x2={sx(n)} y1={sy(seriesMember('alkaner', n).bp)} y2={sy(m.bp)} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="3 4" />
           )}
           <circle cx={sx(n)} cy={sy(m.bp)} r={8} fill={COLOR[sid]} stroke={VIZ.surface} strokeWidth={2} />
-          <Txt x={n > 6 ? sx(n) - 12 : sx(n) - 4} y={sy(m.bp) - 18 * f} anchor={n > 6 ? 'end' : 'middle'} size={0.85} weight={700} color={COLOR[sid]}>
+          <Txt
+            x={n > 6 ? sx(n) - 12 : n < 2 ? sx(n) + 14 : sx(n) - 4}
+            y={labelY(sy)}
+            anchor={n > 6 ? 'end' : n < 2 ? 'start' : 'middle'}
+            size={0.85}
+            weight={700}
+            color={COLOR[sid]}
+          >
             {fmtC(m.bp)}
           </Txt>
         </g>
@@ -293,6 +304,15 @@ function explanation(s: Series, n: number, bp: number, alkaneBp: number, M: numb
     </>
   ) : null;
   const diff = bp - alkaneBp;
+  // Alkanen med omtrent samme molare masse (like mange elektroner): da er det bare hydrogenbindingene som skiller
+  const twin = getSeries('alkaner').members.find((a) => Math.abs(molarMass(generalFormula('alkaner', a.n)) - M) < 3);
+  const sameMass = twin ? (
+    <>
+      {' '}
+      Også sammenlignet med {twin.name}, som er omtrent like tung (M = {fmt(molarMass(generalFormula('alkaner', twin.n)), 2)} g/mol), koker {m.name}{' '}
+      {fmt(bp - twin.bp, 0)} °C høyere. Det er altså ikke massen, men hydrogenbindingene som gir det høye kokepunktet.
+    </>
+  ) : null;
   const miscible = s.id === 'karboksylsyrer' ? 4 : 3;
   const solubility =
     n <= miscible ? (
@@ -332,8 +352,8 @@ function explanation(s: Series, n: number, bp: number, alkaneBp: number, M: numb
           <p>
             <strong>OH-gruppa gir hydrogenbindinger.</strong> H-atomet i –OH er bundet til det svært elektronegative O-atomet, så det
             dannes hydrogenbindinger mellom molekylene i tillegg til London-kreftene. Derfor koker {m.name} hele {fmt(diff, 0)} °C høyere
-            enn {seriesMember('alkaner', n).name}. Forskjellen blir mindre for lange kjeder, fordi London-kreftene langs den upolare kjeden
-            da betyr mer.
+            enn {seriesMember('alkaner', n).name}.{sameMass} Forskjellen blir mindre for lange kjeder, fordi London-kreftene langs den upolare
+            kjeden da betyr mer.
           </p>
           <p>{solubility}</p>
         </>
@@ -346,6 +366,7 @@ function explanation(s: Series, n: number, bp: number, alkaneBp: number, M: numb
             <strong>Karboksylgruppa –COOH gir sterke hydrogenbindinger.</strong> To syremolekyler kan binde seg til hverandre med to
             hydrogenbindinger (en dimer), så karboksylsyrene koker enda høyere enn alkoholene: {m.name} koker {fmt(diff, 0)} °C høyere enn{' '}
             {seriesMember('alkaner', n).name}, og {fmt(bp - seriesMember('alkoholer', n).bp, 0)} °C høyere enn {seriesMember('alkoholer', n).name}.
+            {sameMass}
           </p>
           <p>{solubility}</p>
         </>
@@ -357,7 +378,7 @@ function explanation(s: Series, n: number, bp: number, alkaneBp: number, M: numb
       {main}
       <p>
         I en homolog rekke skiller hvert stoff seg fra det neste med en CH<Sub>2</Sub>-gruppe ({fmt(molarMass('CH2'), 2)} g/mol). Alle har
-        samme funksjonelle gruppe og samme generelle formel, så de har like kjemiske egenskaper, mens fysiske egenskaper som kokepunkt
+        samme funksjonelle gruppe og samme generelle formel, så de har liknende kjemiske egenskaper, mens fysiske egenskaper som kokepunkt
         endrer seg jevnt med kjedelengden. Her er M = {fmt(M, 2)} g/mol.
       </p>
     </>

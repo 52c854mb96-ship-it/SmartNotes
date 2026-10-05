@@ -36,11 +36,13 @@ import {
   enthalpyKind,
   pathH,
   pathPoints,
+  pathStage,
   perGram,
   reverseEa,
   validEa,
   type EnthalpyPreset,
   type PathPoint,
+  type PathStage,
 } from './model';
 
 const signed = (v: number, d = 0) => (v > 0 ? `+${fmt(v, d)}` : fmt(v, d));
@@ -55,6 +57,8 @@ interface Current {
   catalyst: { name: string; ea: number; known: boolean } | null;
   perGramOf: string | null;
   note: string | null;
+  /** Energien tas opp som lys (fotosyntesen), ikke som varme fra omgivelsene. */
+  lightDriven: boolean;
 }
 
 export default function Entalpidiagram() {
@@ -76,6 +80,7 @@ export default function Entalpidiagram() {
         catalyst: preset.catalyst ?? null,
         perGramOf: preset.perGram,
         note: preset.note,
+        lightDriven: !!preset.lightDriven,
       }
     : {
         name: 'Egen reaksjon',
@@ -83,9 +88,10 @@ export default function Entalpidiagram() {
         dH: customDH,
         ea: validEa(customDH, customEa),
         eaKnown: true,
-        catalyst: { name: 'en katalysator', ea: catalysedEa(customDH, customEa), known: true },
+        catalyst: { name: '', ea: catalysedEa(customDH, customEa), known: true },
         perGramOf: null,
         note: null,
+        lightDriven: false,
       };
   const useCat = cat && !!cur.catalyst;
   const eaCat = cur.catalyst?.ea ?? cur.ea;
@@ -94,7 +100,7 @@ export default function Entalpidiagram() {
   const kind = enthalpyKind(cur.dH);
   const tone = cur.dH < 0 ? KJEMI.exo : KJEMI.endo;
   const pg = preset ? perGram(preset.equation, preset.dH, preset.perGram) : Number.NaN;
-  const stage = stageAt(progress, useCat);
+  const stage = pathStage(progress, useCat);
 
   const setDH = (v: number) => {
     setCustomDH(v);
@@ -161,7 +167,13 @@ export default function Entalpidiagram() {
 
       <Figure
         viewBox={`0 0 ${W} ${S.H}`}
-        label={cur.dH < 0 ? 'Systemet avgir varme til omgivelsene.' : 'Systemet tar opp varme fra omgivelsene.'}
+        label={
+          cur.lightDriven
+            ? 'Systemet tar opp energi fra sollyset.'
+            : cur.dH < 0
+              ? 'Systemet avgir varme til omgivelsene.'
+              : 'Systemet tar opp varme fra omgivelsene.'
+        }
         maxHeight={S.H}
       >
         <SystemScene cur={cur} S={S} f={fi} />
@@ -193,7 +205,17 @@ export default function Entalpidiagram() {
             unit="kJ/mol"
           />
         )}
-        {!preset && <Readout label="Eₐ for motsatt reaksjon" value={fmt(reverseEa(cur.dH, useCat ? eaCat : cur.ea), 0)} unit="kJ/mol" />}
+        {!preset && (
+          <Readout
+            label={
+              <>
+                E<Sub>a</Sub> for motsatt reaksjon
+              </>
+            }
+            value={fmt(reverseEa(cur.dH, useCat ? eaCat : cur.ea), 0)}
+            unit="kJ/mol"
+          />
+        )}
       </Readouts>
 
       <Formula label="Utregning">
@@ -205,7 +227,8 @@ export default function Entalpidiagram() {
         <FormulaLine>
           ΔH = H(produkter) − H(reaktanter) = {signed(cur.dH, dec(cur.dH))} kJ {cur.dH < 0 ? '< 0' : '> 0'}
         </FormulaLine>
-        {cur.eaKnown && (
+        {/* Bare for egen reaksjon (ett trinn): for presetene gjelder Eₐ per mol i det langsomste trinnet, mens ΔH gjelder hele likningen. */}
+        {!preset && (
           <FormulaLine>
             E<Sub>a</Sub>(motsatt vei) = E<Sub>a</Sub> − ΔH = {fmt(useCat ? eaCat : cur.ea, 0)} − ({signed(cur.dH, dec(cur.dH))}) ={' '}
             {fmt(reverseEa(cur.dH, useCat ? eaCat : cur.ea), 0)} kJ/mol
@@ -233,16 +256,7 @@ function PerGramLine({ preset, pg }: { preset: EnthalpyPreset; pg: number }) {
 
 /* ---------- Hvor på kurven er vi? ---------- */
 
-type Stage = 'reaktanter' | 'brytes' | 'topp' | 'mellomprodukt' | 'dannes' | 'produkter';
-
-function stageAt(x: number, cat: boolean): Stage {
-  if (x <= 0.14) return 'reaktanter';
-  if (x >= 0.86) return 'produkter';
-  if (!cat) return Math.abs(x - 0.48) <= 0.05 ? 'topp' : x < 0.48 ? 'brytes' : 'dannes';
-  if (Math.abs(x - 0.34) <= 0.04 || Math.abs(x - 0.66) <= 0.04) return 'topp';
-  if (Math.abs(x - 0.5) <= 0.05) return 'mellomprodukt';
-  return x < 0.34 ? 'brytes' : x < 0.5 ? 'brytes' : 'dannes';
-}
+type Stage = PathStage;
 
 const STAGE_TITLE: Record<Stage, string> = {
   reaktanter: 'Reaktantene',
@@ -407,7 +421,8 @@ function Diagram({
 
       {/* Eₐ og ΔH */}
       {arrowV(sx(0.48), y0, eaTop, useCat ? VIZ.muted : VIZ.ink)}
-      <Txt x={sx(0.48) + 8} y={(y0 + eaTop) / 2 + 6} anchor="start" muted={useCat}>
+      {/* Med katalysator ligger dalen (mellomproduktet) midt under toppen, så etiketten flyttes opp mot toppen */}
+      <Txt x={sx(0.48) + 8} y={useCat ? eaTop + 24 * f : (y0 + eaTop) / 2 + 6} anchor="start" muted={useCat}>
         E<TSub>a</TSub>
       </Txt>
       {useCat && ptsCat && (
@@ -487,6 +502,7 @@ function SystemScene({ cur, S, f }: { cur: Current; S: ReturnType<typeof systemL
   const midY = by + S.boxH / 2;
   const outerL = 20;
   const outerR = W - 20;
+  const energyWord = cur.lightDriven ? 'lys' : 'varme';
   return (
     <g>
       <rect x={6} y={6} width={W - 12} height={S.H - 12} rx={16} fill="none" stroke={VIZ.muted} strokeOpacity={0.5} strokeDasharray="6 6" strokeWidth={1.5} />
@@ -534,13 +550,13 @@ function SystemScene({ cur, S, f }: { cur: Current; S: ReturnType<typeof systemL
         </>
       )}
       <Txt x={(outerL + bx) / 2} y={midY - 16} size={0.85} color={tone} weight={700}>
-        varme
+        {energyWord}
       </Txt>
       <Txt x={(outerR + bx + bw) / 2} y={midY - 16} size={0.85} color={tone} weight={700}>
-        varme
+        {energyWord}
       </Txt>
       <Txt x={cx} y={by + S.boxH + 30 * f} size={0.9} weight={650} color={tone}>
-        {exo ? 'Omgivelsene blir varmere: ΔH < 0' : 'Omgivelsene blir kaldere: ΔH > 0'}
+        {cur.lightDriven ? 'Energien kommer fra sollyset: ΔH > 0' : exo ? 'Omgivelsene blir varmere: ΔH < 0' : 'Omgivelsene blir kaldere: ΔH > 0'}
       </Txt>
     </g>
   );
@@ -553,9 +569,13 @@ function explanation(cur: Current, useCat: boolean, eaCat: number, stage: Stage,
   const dH = `${signed(cur.dH, dec(cur.dH))} kJ`;
   const catName = cur.catalyst?.name;
   const stageText: Record<Stage, ReactNode> = {
-    reaktanter: 'Punktet står ved reaktantene. Partiklene må kollidere med nok energi for å komme over toppen.',
-    brytes: 'På vei opp bakken strekkes og svekkes bindingene i reaktantene. Det krever energi, så entalpien øker.',
-    topp: (
+    reaktanter: cur.lightDriven
+      ? 'Punktet står ved reaktantene.'
+      : 'Punktet står ved reaktantene. Partiklene må kollidere med nok energi for å komme over toppen.',
+    brytes: 'På vei opp bakken strekkes og svekkes bindinger. Det krever energi, så entalpien øker.',
+    topp: cur.lightDriven ? (
+      <>Punktet er på toppen. Her er toppen bare skjematisk: i fotosyntesen kommer energien fra lys i mange små trinn, ikke fra kollisjoner.</>
+    ) : (
       <>
         Punktet er på toppen: overgangstilstanden (det aktiverte komplekset), der gamle bindinger er delvis brutt og nye delvis dannet. Bare kollisjoner med
         minst E<Sub>a</Sub> kommer hit.
@@ -576,15 +596,24 @@ function explanation(cur: Current, useCat: boolean, eaCat: number, stage: Stage,
             Produktene har lavere entalpi enn reaktantene, og forskjellen avgis som varme til omgivelsene. Systemet (stoffene som reagerer) taper energi, så ΔH
             er negativ, selv om det er omgivelsene som blir varmere.
           </>
+        ) : cur.lightDriven ? (
+          <>
+            Produktene har høyere entalpi enn reaktantene, så ΔH er positiv. Energien kommer fra sollyset, som klorofyllet fanger opp, og ikke som varme fra
+            omgivelsene. Plantene lagrer altså solenergi som kjemisk energi i glukose.
+          </>
         ) : (
           <>Produktene har høyere entalpi enn reaktantene. Systemet tar opp varme fra omgivelsene, som blir kaldere, og ΔH er positiv.</>
         )}
       </p>
       <p>
-        {exo ? 'Også en eksoterm reaksjon trenger aktiveringsenergi for å komme i gang.' : 'Reaktantene må over toppen før reaksjonen kan skje.'}{' '}
-        {useCat && catName ? (
+        {exo
+          ? 'Også en eksoterm reaksjon trenger aktiveringsenergi for å komme i gang. '
+          : cur.lightDriven
+            ? ''
+            : 'Reaktantene må over toppen før reaksjonen kan skje. '}
+        {useCat && cur.catalyst ? (
           <>
-            Med {catName} som katalysator går reaksjonen en annen vei med lavere topp
+            {catName ? `Med ${catName} som katalysator` : 'Med katalysator'} går reaksjonen en annen vei med lavere topp
             {cur.eaKnown ? (
               <>
                 {' '}
@@ -594,8 +623,13 @@ function explanation(cur: Current, useCat: boolean, eaCat: number, stage: Stage,
             , så flere kollisjoner har nok energi og reaksjonen går raskere. Start- og sluttnivået er de samme, så ΔH er uendret: katalysatoren gir ikke mer
             varme, den gjør bare at reaksjonen går fortere.
           </>
-        ) : catName ? (
+        ) : cur.catalyst ? (
           <>Slå på katalysatoren og se at bare toppen flyttes, mens ΔH er den samme.</>
+        ) : cur.lightDriven ? (
+          <>
+            Fotosyntesen drives ikke av høy temperatur. Lyset gir energien i små porsjoner gjennom mange trinn, så kurven viser bare at produktene ligger
+            høyere enn reaktantene.
+          </>
         ) : preset?.id === 'ammoniumnitrat' ? (
           <>
             Når saltet løses, brytes ionebindingene i krystallet (krever energi), og ionene omgis av vannmolekyler (frigjør energi). Her krever bruddet mer enn

@@ -76,7 +76,7 @@ export default function Elektronkonfigurasjon() {
       <div ref={ref}>
         <Figure
           viewBox={`0 0 800 ${layout.H}`}
-          label={`${capitalize(el.name)} har ${Z} elektroner: ${shortConfigurationText(Z)}. Skall: ${shells.join(', ')}.`}
+          label={`${capitalize(el.name)} har ${Z === 1 ? 'ett elektron' : `${Z} elektroner`}: ${shortConfigurationText(Z)}. Skall: ${shells.join(', ')}.`}
           maxHeight={layout.H}
         >
           <AtomFigure Z={Z} el={el} subs={subs} shells={shells} layout={layout} f={f} k={k} />
@@ -117,7 +117,7 @@ export default function Elektronkonfigurasjon() {
           {el.symbol}: <ConfigHtml subs={subs} />
         </FormulaLine>
         <FormulaLine>
-          Skall: {shells.join(', ')} (til sammen {Z} elektroner)
+          Skall: {shells.join(', ')} (til sammen {Z === 1 ? 'ett elektron' : `${Z} elektroner`})
         </FormulaLine>
       </Formula>
 
@@ -414,9 +414,9 @@ function MiniTable({ Z, onPick, layout, f }: { Z: number; onPick: (z: number) =>
         />
         <text
           x={x + cell / 2}
-          y={y + cellH / 2 + cell * 0.16}
+          y={y + cellH / 2 + cell * (f > 1.3 ? 0.2 : 0.16)}
           textAnchor="middle"
-          style={{ fill: VIZ.ink, fontSize: cell * 0.44, fontWeight: on ? 800 : 600, opacity: done ? 1 : 0.6 }}
+          style={{ fill: VIZ.ink, fontSize: cell * (f > 1.3 ? 0.56 : 0.44), fontWeight: on ? 800 : 600, opacity: done ? 1 : 0.6 }}
         >
           {e.symbol}
         </text>
@@ -462,7 +462,7 @@ function subsText(Z: number): string {
     return `${outerS.electrons} + ${p.electrons} valenselektroner, gruppe 10 + ${outerS.electrons + p.electrons} = ${pos.group}.`;
   }
   const d = subs.find((s) => s.n === pos.period - 1 && s.l === 2)!;
-  return `${outerS.electrons} s-elektroner + ${d.electrons} d-elektroner = ${pos.group}.`;
+  return `${outerS.electrons} ${outerS.electrons === 1 ? 's-elektron' : 's-elektroner'} + ${d.electrons} ${d.electrons === 1 ? 'd-elektron' : 'd-elektroner'} = ${pos.group}.`;
 }
 
 /* ---------- Forklaring ---------- */
@@ -492,8 +492,9 @@ function explanation(Z: number, el: Element, subs: FilledSubshell[]): ReactNode 
             {name} er et unntak: {short}.
           </strong>{' '}
           Etter oppbyggingsprinsippet skulle {el.name} hatt {shortConfigurationText(Z, aufbauFill(Z))}, men ett elektron fra 4s går over i 3d.
-          Da blir 3d {exception === 'halvfullt' ? 'halvfullt, med fem uparede elektroner' : 'helt fullt'}, og et{' '}
-          {exception === 'halvfullt' ? 'halvfullt' : 'fullt'} d-delskall gir lavere energi enn det 4s-elektronet «koster».
+          Da blir 3d {exception === 'halvfullt' ? 'halvfullt, med fem uparede elektroner' : 'helt fullt'}. Et{' '}
+          {exception === 'halvfullt' ? 'halvfullt' : 'fullt'} d-delskall er ekstra stabilt, og 4s og 3d ligger så tett i energi at det lønner seg å
+          flytte elektronet.
         </p>
       );
     if (pos.block === 'd')

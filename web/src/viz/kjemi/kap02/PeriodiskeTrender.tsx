@@ -9,6 +9,7 @@ import {
   Readout,
   Readouts,
   Segmented,
+  Select,
   Toolbar,
   Txt,
   VIZ,
@@ -23,6 +24,7 @@ import {
 import {
   PROPERTIES,
   TREND_ELEMENTS,
+  againstTrend,
   groupSeries,
   ieAnomaly,
   innerElectrons,
@@ -32,10 +34,11 @@ import {
   propertyRange,
   propertyValue,
   shieldedCharge,
+  type TrendDirection,
   type TrendProperty,
 } from './model';
 
-type Direction = 'periode' | 'gruppe';
+type Direction = TrendDirection;
 
 const COLOR: Record<TrendProperty, string> = { radius: KJEMI.electron, ie: KJEMI.exo, en: KJEMI.bondType.polar };
 const AXIS: Record<TrendProperty, { max: number; ticks: number[]; label: string }> = {
@@ -82,13 +85,15 @@ export default function PeriodiskeTrender() {
           value={dir}
           onChange={setDir}
         />
+        {/* Samme valg som å trykke i periodesystemet, men også med tastatur og skjermleser */}
+        <Select label="Grunnstoff" value={sym} onChange={setSym} options={TREND_ELEMENTS.map((e) => ({ value: e.symbol, label: `${capitalize(e.name)} (${e.symbol})` }))} />
       </Toolbar>
 
       <div ref={ref}>
         <Figure
           viewBox={`0 0 800 ${table.H}`}
           label={`Periodesystemet farget etter ${info.name.toLowerCase()}. Valgt: ${el.name}, ${valueText(el, prop)} ${info.unit}.`}
-          caption={`Trykk på et grunnstoff for å velge det. Mørkere farge betyr større verdi.${prop === 'radius' ? ' Edelgassene (stiplet) danner nesten ikke bindinger, så radiusen deres er et anslag.' : prop === 'en' ? ' He, Ne og Ar har ingen elektronegativitet.' : ''}`}
+          caption={`Trykk på et grunnstoff for å velge det. Sterkere farge betyr større verdi.${prop === 'radius' ? ' Edelgassene (stiplet) danner nesten ikke bindinger, så radiusen deres er et anslag.' : prop === 'en' ? ' He, Ne og Ar har ingen elektronegativitet.' : ''}`}
           maxHeight={table.H}
         >
           <HeatTable prop={prop} sel={el} dir={dir} onPick={setSym} layout={table} f={f} />
@@ -216,9 +221,9 @@ function HeatTable({
             />
             <text
               x={x + cell / 2}
-              y={layout.wide ? y + cellH * 0.46 : y + cellH / 2 + cell * 0.16}
+              y={layout.wide ? y + cellH * 0.46 : y + cellH / 2 + cell * 0.2}
               textAnchor="middle"
-              style={{ fill: ink, fontSize: layout.wide ? 16 : cell * 0.44, fontWeight: on ? 800 : 650 }}
+              style={{ fill: ink, fontSize: layout.wide ? 16 : cell * 0.56, fontWeight: on ? 800 : 650 }}
             >
               {e.symbol}
             </text>
@@ -349,66 +354,120 @@ function TrendGraph({
 
 /* ---------- Forklaring ---------- */
 
+const PROP_WORD: Record<TrendProperty, string> = { radius: 'radius', ie: 'ioniseringsenergi', en: 'elektronegativitet' };
+
 function explanation(prop: TrendProperty, dir: Direction, el: Element, series: Element[]): ReactNode {
-  const first = series.find((e) => propertyValue(e, prop) !== null)!;
-  const last = [...series].reverse().find((e) => propertyValue(e, prop) !== null)!;
+  const withValue = series.filter((e) => propertyValue(e, prop) !== null);
+  // Elektronegativiteten bortover en periode: trenden går mot halogenet, edelgassen er ikke med.
+  const pts = prop === 'en' && dir === 'periode' ? withValue.filter((e) => e.group !== 18) : withValue;
+  const first = pts[0];
+  const last = pts[pts.length - 1];
   const unit = PROPERTIES[prop].unit ? ` ${PROPERTIES[prop].unit}` : '';
-  const span = (
-    <>
-      fra {first.symbol} ({valueText(first, prop)}
-      {unit}) til {last.symbol} ({valueText(last, prop)}
-      {unit})
-    </>
-  );
+  const span =
+    first && last && first !== last ? (
+      <>
+        , fra {first.symbol} ({valueText(first, prop)}
+        {unit}) til {last.symbol} ({valueText(last, prop)}
+        {unit})
+      </>
+    ) : null;
   const dBlock = dir === 'periode' && el.period >= 4;
+  const transitionGroup = dir === 'gruppe' && el.group !== null && el.group >= 3 && el.group <= 12;
+  const breaks = againstTrend(series, prop, dir);
   let main: ReactNode;
-  if (prop === 'radius')
+  if (prop === 'en' && dir === 'periode' && pts.length <= 1)
+    main = (
+      <p>
+        <strong>I periode 1 har bare hydrogen en elektronegativitet</strong> ({valueText(el.period === 1 ? series[0]! : el, prop)}). Helium danner
+        ikke bindinger og har ingen verdi. Velg en annen periode for å se trenden: elektronegativiteten øker bortover perioden, og fluor har
+        høyest av alle.
+      </p>
+    );
+  else if (transitionGroup && prop !== 'radius')
+    main = (
+      <p>
+        <strong>
+          I hovedgruppene synker {PROP_WORD[prop]}en nedover gruppa, men blant overgangsmetallene er forskjellene små og ujevne
+        </strong>
+        {span}. Den enkle trenden med flere skall og bedre skjerming gjelder best for gruppe 1, 2 og 13–18. Velg et grunnstoff der for å se den.
+      </p>
+    );
+  else if (prop === 'radius')
     main =
       dir === 'periode' ? (
         <p>
-          <strong>Atomene blir mindre bortover perioden</strong>, {span}. Alle har {el.period === 1 ? 'ett skall' : `${el.period} skall`}, men
-          kjerneladningen øker med én for hvert grunnstoff, mens de nye elektronene havner i det samme ytterste skallet og skjermer dårlig for
-          hverandre. Da trekkes valenselektronene nærmere kjernen. Flere elektroner gir altså ikke større atom her.
+          <strong>Atomene blir mindre bortover perioden</strong>
+          {span}. Alle har {el.period === 1 ? 'ett skall' : `${el.period} skall`}, men kjerneladningen øker med én for hvert grunnstoff, mens de
+          nye elektronene havner i det samme ytterste skallet og skjermer dårlig for hverandre. Da trekkes valenselektronene nærmere kjernen.
+          Flere elektroner gir altså ikke større atom her.
           {dBlock ? ' Blant overgangsmetallene endrer radiusen seg lite: de nye d-elektronene havner innenfor det ytterste skallet og skjermer godt.' : ''}
         </p>
       ) : (
         <p>
-          <strong>Atomene blir større nedover gruppa</strong>, {span}. For hver periode får atomet ett skall til. Kjerneladningen øker også, men
-          de indre elektronene skjermer for den, så det ytterste skallet ligger stadig lenger fra kjernen.
+          <strong>Atomene blir større nedover gruppa</strong>
+          {span}. For hver periode får atomet ett skall til. Kjerneladningen øker også, men de indre elektronene skjermer for den, så det
+          ytterste skallet ligger stadig lenger fra kjernen.
         </p>
       );
   else if (prop === 'ie')
     main =
       dir === 'periode' ? (
         <p>
-          <strong>Ioniseringsenergien øker bortover perioden</strong>, {span}. Den er energien som trengs for å fjerne det ytterste elektronet
-          fra ett mol atomer i gassform. Større kjerneladning og mindre radius holder elektronet hardere fast, og edelgassen til slutt har
-          høyest. Men trenden har to unntak (markert): gruppe 13 og gruppe 16 ligger lavere enn grunnstoffet foran.
+          <strong>Ioniseringsenergien øker bortover perioden</strong>
+          {span}. Den er energien som trengs for å fjerne det ytterste elektronet fra ett mol atomer i gassform. Større kjerneladning og mindre
+          radius holder elektronet hardere fast, og edelgassen til slutt har høyest.{ieExceptions(series)}
+          {dBlock ? ' Blant overgangsmetallene stiger den bare litt, og ujevnt.' : ''}
         </p>
       ) : (
         <p>
-          <strong>Ioniseringsenergien synker nedover gruppa</strong>, {span}. Det ytterste elektronet er lenger fra kjernen og bedre skjermet av
-          de indre skallene, så det er lettere å fjerne. Derfor er metallene nederst i gruppe 1 og 2 de mest reaktive.
+          <strong>Ioniseringsenergien synker nedover gruppa</strong>
+          {span}. Det ytterste elektronet er lenger fra kjernen og bedre skjermet av de indre skallene, så det er lettere å fjerne. Derfor er
+          metallene nederst i gruppe 1 og 2 de mest reaktive.
         </p>
       );
   else
     main =
       dir === 'periode' ? (
         <p>
-          <strong>Elektronegativiteten øker bortover perioden</strong>, {span}. Med større kjerneladning og mindre radius trekker atomet
-          hardere i elektronene i en binding. Fluor har høyest elektronegativitet av alle. He, Ne og Ar danner ikke bindinger og har ingen
-          verdi.
+          <strong>Elektronegativiteten øker bortover perioden</strong>
+          {span}. Med større kjerneladning og mindre radius trekker atomet hardere i elektronene i en binding. Fluor har høyest elektronegativitet
+          av alle.{' '}
+          {el.period <= 3
+            ? `Edelgassen ${series[series.length - 1]!.symbol} danner ikke bindinger og har ingen verdi.`
+            : 'Krypton og xenon kan danne noen få forbindelser (f.eks. XeF₄) og har derfor en verdi, men edelgassene regnes ikke med i trenden.'}
+          {dBlock ? ' Blant overgangsmetallene er verdiene ujevne.' : ''}
         </p>
       ) : (
         <p>
-          <strong>Elektronegativiteten synker nedover gruppa</strong>, {span}. Bindingselektronene ligger lenger fra kjernen og er bedre
-          skjermet, så atomet trekker svakere i dem.
+          <strong>Elektronegativiteten synker nedover gruppa</strong>
+          {span}. Bindingselektronene ligger lenger fra kjernen og er bedre skjermet, så atomet trekker svakere i dem.
         </p>
       );
+  // Unntak nedover hovedgruppene (Ga og Ge etter de ti overgangsmetallene i periode 4)
+  const groupBreaks =
+    dir === 'gruppe' && !transitionGroup && breaks.length > 0 ? (
+      <p>
+        <strong>Trenden er ikke helt jevn her:</strong>{' '}
+        {breaks.map((b, i) => {
+          const d = propertyValue(b.e, prop)! - propertyValue(b.prev, prop)!;
+          const small = Math.abs(d) < 0.03 * propertyValue(b.prev, prop)!;
+          return (
+            <span key={b.e.symbol}>
+              {i > 0 ? ' ' : ''}
+              {b.e.symbol} har {small ? 'litt ' : ''}
+              {d > 0 ? 'høyere' : 'lavere'} {PROP_WORD[prop]} enn {b.prev.symbol}.
+            </span>
+          );
+        })}{' '}
+        {breaks.some((b) => b.e.period === 4)
+          ? 'I periode 4 kommer de ti overgangsmetallene før gruppe 13. Elektronene i 3d skjermer dårlig, så valenselektronene merker en større kjerneladning enn trenden tilsier.'
+          : ''}
+      </p>
+    ) : null;
   const anomaly = ieAnomaly(el);
   const prev = TREND_ELEMENTS.find((x) => x.Z === el.Z - 1);
   let note: ReactNode = null;
-  if (prop === 'ie' && anomaly && prev)
+  if (prop === 'ie' && dir === 'periode' && anomaly && prev)
     note =
       anomaly === 'p-elektron' ? (
         <p>
@@ -421,18 +480,41 @@ function explanation(prop: TrendProperty, dir: Direction, el: Element, series: E
           orbital med et annet. De frastøter hverandre, og da er det ene lettere å fjerne enn et uparet elektron i {prev.symbol} (p³).
         </p>
       );
+  else if (innerElectrons(el) === 0)
+    note = (
+      <p>
+        {capitalize(el.name)} har bare ett skall, så ingen indre elektroner skjermer: {el.Z === 1 ? 'elektronet' : 'elektronene'} merker hele
+        kjerneladningen, +{el.Z}.{el.Z === 2 ? ' Derfor har helium den høyeste ioniseringsenergien av alle grunnstoffene.' : ''}
+      </p>
+    );
   else
     note = (
       <p>
-        {capitalize(el.name)} har {el.shells.length === 1 ? 'ett skall' : `${el.shells.length} skall`} og {outerShellElectrons(el)} elektroner i
+        {capitalize(el.name)} har {el.shells.length} skall og {outerShellElectrons(el) === 1 ? 'ett elektron' : `${outerShellElectrons(el)} elektroner`} i
         det ytterste. De {innerElectrons(el)} indre elektronene skjermer, så valenselektronene merker en kjerneladning på omtrent +
         {shieldedCharge(el)}, ikke +{el.Z}.
+        {el.block === 'd'
+          ? ' For overgangsmetallene er denne modellen grov: d-elektronene ligger nesten like langt ute som det ytterste skallet og skjermer dårlig.'
+          : ''}
       </p>
     );
   return (
     <>
       {main}
+      {groupBreaks}
       {note}
     </>
+  );
+}
+
+/** Unntakene i ioniseringsenergi bortover perioden, som setning (tom når det ikke er noen). */
+function ieExceptions(series: Element[]): string {
+  const ex = series.filter((e) => ieAnomaly(e) !== null);
+  if (ex.length === 0) return '';
+  const list = ex.map((e) => `${e.symbol} (gruppe ${e.group})`).join(' og ');
+  const te = series.find((e) => e.group === 16 && ieAnomaly(e) === null && e.period > 1);
+  return (
+    ` Men trenden har ${ex.length === 1 ? 'ett unntak' : ex.length === 2 ? 'to unntak' : `${ex.length} unntak`} (markert): ${list} ligger lavere enn grunnstoffet foran.` +
+    (te ? ` (${te.symbol} i gruppe 16 ligger litt høyere enn grunnstoffet foran i dataene, så der er det ingen dupp.)` : '')
   );
 }

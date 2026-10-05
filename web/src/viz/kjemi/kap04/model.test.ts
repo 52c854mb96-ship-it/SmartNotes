@@ -9,6 +9,7 @@ import {
   HESS_EXAMPLES,
   K_LOSS,
   MOLECULES,
+  SALT_MAX,
   T_END,
   bondEstimate,
   bondKey,
@@ -18,11 +19,14 @@ import {
   dHFromMeasurement,
   deltaTAt,
   enthalpyKind,
+  hessHint,
   hessSum,
   measuredDeltaT,
   netChange,
+  onlyDiatomic,
   pathH,
   pathPoints,
+  pathStage,
   perGram,
   reverseEa,
   scaleEquation,
@@ -78,6 +82,36 @@ describe('entalpidiagram', () => {
     }
   });
 
+  it('trinnet langs kurven stemmer med retningen: opp = bindinger svekkes, ned = nye bindinger dannes', () => {
+    const cases = [
+      ...ENTHALPY_PRESETS.map((p) => ({ dH: p.dH, ea: p.ea, eaCat: p.catalyst?.ea })),
+      { dH: 80, ea: 120, eaCat: catalysedEa(80, 120) },
+      { dH: -300, ea: 60, eaCat: catalysedEa(-300, 60) },
+    ];
+    for (const c of cases)
+      for (const cat of [false, true]) {
+        if (cat && c.eaCat === undefined) continue;
+        const pts = pathPoints(c.dH, c.ea, cat ? c.eaCat : undefined);
+        for (let i = 15; i < 86; i++) {
+          const x = i / 100;
+          const st = pathStage(x, cat);
+          const slope = pathH(pts, x + 0.002) - pathH(pts, x - 0.002);
+          if (st === 'brytes') expect(slope, `${c.dH} ${cat} ${x}`).toBeGreaterThan(0);
+          if (st === 'dannes') expect(slope, `${c.dH} ${cat} ${x}`).toBeLessThan(0);
+        }
+      }
+    expect(pathStage(0.42, true)).toBe('dannes');
+    expect(pathStage(0.58, true)).toBe('brytes');
+    expect(pathStage(0.5, true)).toBe('mellomprodukt');
+  });
+
+  it('fotosyntesen drives av lys og har ingen katalysatorvei i diagrammet', () => {
+    const foto = ENTHALPY_PRESETS.find((p) => p.id === 'fotosyntese')!;
+    expect(foto.lightDriven).toBe(true);
+    expect(foto.catalyst).toBeUndefined();
+    expect(ENTHALPY_PRESETS.filter((p) => p.lightDriven).every((p) => p.dH > 0)).toBe(true);
+  });
+
   it('Eₐ må være høyere enn ΔH for en endoterm reaksjon', () => {
     expect(validEa(100, 20)).toBe(110);
     expect(validEa(-100, 20)).toBe(20);
@@ -131,6 +165,14 @@ describe('bindingsentalpi', () => {
     }
     expect(Object.keys(BOND_ENTHALPY)).toHaveLength(9);
   });
+
+  it('bare H₂ + Cl₂ har bare bindinger fra toatomige molekyler (avviket er avrunding)', () => {
+    const only = (id: string) => onlyDiatomic(bondEstimate(reaction(BOND_REACTIONS.find((b) => b.id === id)!.equation)));
+    expect(only('hcl')).toBe(true);
+    expect(only('metan')).toBe(false);
+    expect(only('ammoniakk')).toBe(false);
+    expect(only('vann')).toBe(false);
+  });
 });
 
 describe('kalorimetri', () => {
@@ -181,6 +223,19 @@ describe('kalorimetri', () => {
     expect(deltaTAt(meas.t - eps, r.dT, true)).toBeLessThan(meas.dT);
   });
 
+  it('alt saltet løses også ved sluttemperaturen (KNO₃ har lav løselighet i kaldt vann)', () => {
+    // Løselighet for KNO₃ i g per 100 g vann (CRC): 0 °C 13,3, 10 °C 20,9, 20 °C 31,6
+    const sol = (T: number) => (T <= 0 ? 13.3 : T <= 10 ? 13.3 + (T / 10) * 7.6 : 20.9 + ((T - 10) / 10) * 10.7);
+    const kno3 = proc('kno3');
+    expect(kno3.mMax).toBeLessThan(SALT_MAX);
+    const r = calorimetry(kno3, { mSalt: kno3.mMax!, Vwater: 50, Vacid: 0, Vbase: 0 });
+    const Tend = 20 + r.dT;
+    expect((kno3.mMax! / 50) * 100).toBeLessThan(sol(Tend));
+    // Med 15 g i 50 mL ville det ikke løst seg (31,6 g/100 g ved 20 °C, men løsningen blir rundt 1 °C)
+    const tooMuch = calorimetry(kno3, { mSalt: 15, Vwater: 50, Vacid: 0, Vbase: 0 });
+    expect((15 / 50) * 100).toBeGreaterThan(sol(20 + tooMuch.dT));
+  });
+
   it('temperaturkurven starter i 0 og nærmer seg ΔT (uten tap) eller 0 (med tap)', () => {
     expect(deltaTAt(0, 10, false)).toBe(0);
     expect(deltaTAt(0, 10, true)).toBe(0);
@@ -208,6 +263,26 @@ describe("Hess' lov", () => {
     ]);
     expect(s.matches).toBe(false);
     expect(s.dH).toBeCloseTo(-676.5, 9);
+  });
+
+  it('hint: et stoff som bare finnes i én likning, avgjør om den skal snus og hva den skal ganges med', () => {
+    const so3 = HESS_EXAMPLES[2]!;
+    // Likning (1) ganget med 2 og likning (2) snudd: S står feil, og bare likning (1) har S
+    expect(hessHint(so3, [
+      { reverse: false, factor: 2 },
+      { reverse: true, factor: 1 },
+    ])).toEqual({ species: 'S(s)', eq: 0, want: -1, reverse: false, factor: 1 });
+    // Riktig likning (1), men likning (2) ikke halvert: SO₃ finnes bare i likning (2)
+    expect(hessHint(so3, [
+      { reverse: false, factor: 1 },
+      { reverse: false, factor: 1 },
+    ])).toEqual({ species: 'SO3(g)', eq: 1, want: 1, reverse: false, factor: 0.5 });
+    const co = HESS_EXAMPLES[0]!;
+    expect(hessHint(co, [
+      { reverse: false, factor: 1 },
+      { reverse: false, factor: 1 },
+    ])).toMatchObject({ species: 'CO(g)', eq: 1, reverse: true, factor: 1 });
+    expect(hessHint(co, co.solution)).toBeNull();
   });
 
   it('snu og gang: ΔH skifter fortegn og skaleres', () => {

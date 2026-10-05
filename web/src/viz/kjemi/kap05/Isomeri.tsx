@@ -117,7 +117,7 @@ export default function Isomeri() {
         items={[
           { color: VIZ.muted, label: 'Nærkontakt (London-krefter)', dashed: true },
           ...(A.hbond || B.hbond ? [{ color: KJEMI.hbond, label: 'Hydrogenbinding', dashed: true }] : []),
-          { color: GROUP, label: 'Funksjonell gruppe' },
+          ...(mols.some((m) => functionalGroups(m).length > 0) ? [{ color: GROUP, label: 'Funksjonell gruppe' }] : []),
         ]}
       />
 
@@ -138,10 +138,11 @@ export default function Isomeri() {
 
       <Formula label="Samme molekylformel">
         <FormulaLine>
-          Alle {set.isomers.length} stoffene har formelen <Formel f={set.formula} /> og M = {fmt(M, 2)} g/mol: like mange atomer og like mange elektroner.
+          {set.isomers.length === 2 ? 'Begge' : `Alle ${set.isomers.length}`} stoffene har formelen <Formel f={set.formula} /> og M = {fmt(M, 2)} g/mol: like
+          mange atomer og like mange elektroner.
         </FormulaLine>
         <FormulaLine>
-          {capitalize(A.name)} og {B.name}: {RELATION_NAME[rel]}
+          Stoff 1 og 2 ({A.name} og {B.name}): {RELATION_NAME[rel]}
           {RELATION_HINT[rel]}
         </FormulaLine>
       </Formula>
@@ -274,22 +275,26 @@ interface PairSceneLayout {
   H: number;
 }
 
+/** Plassen under molekylene til teksten «3 nærkontakter». */
+const noteH = (f: number) => 34 * f;
+
 function pairSceneLayout(pairs: readonly [PairLayout, PairLayout], f: number): PairSceneLayout {
   const stacked = f > 1.3;
   const panelW = stacked ? 800 : 390;
   const title = 34 * f;
   const k = Math.max(1, 0.85 * f);
-  const pad = 30 * k;
+  // Kulene har radius u/2 rundt atomsentrene, så molekylene trenger (bredde + 1) · u, pluss litt luft
+  const gap = 12 * k;
   const maxH = (stacked ? 300 : 280) * k;
   let u = (stacked ? 80 : 60) * k;
   for (const p of pairs) {
     const bw = Math.max(1e-6, p.bounds.maxX - p.bounds.minX);
     const bh = Math.max(1e-6, p.bounds.maxY - p.bounds.minY);
-    u = Math.min(u, (panelW - 2 * pad) / bw, (maxH - 2 * pad) / bh);
+    u = Math.min(u, (panelW - 2 * gap) / (bw + 1), (maxH - 2 * gap) / (bh + 1));
   }
-  u = Math.max(30 * k, u);
+  u = Math.max(24 * k, u);
   const tallest = Math.max(...pairs.map((p) => p.bounds.maxY - p.bounds.minY));
-  const panelH = title + tallest * u + 2 * pad + 26 * f;
+  const panelH = title + (tallest + 1) * u + 2 * gap + noteH(f);
   return { stacked, panelW, panelH, title, u, H: Math.round(stacked ? 2 * panelH + 10 : panelH) };
 }
 
@@ -327,7 +332,7 @@ function PairPanel({
   const color = role === 1 ? C1 : C2;
   const b = pair.bounds;
   const cx = x + panelW / 2;
-  const top = y + title + (panelH - title - 26 * f) / 2;
+  const top = y + title + (panelH - title - noteH(f)) / 2;
   const P = (i: number) => {
     const a = pair.atoms[i]!;
     return { x: cx + (a.x - (b.minX + b.maxX) / 2) * u, y: top - (a.y - (b.minY + b.maxY) / 2) * u };
@@ -457,9 +462,13 @@ function explanation(rel: IsomerRelation, A: Isomer, B: Isomer, pairs: readonly 
         </p>
       );
     case 'kjede': {
-      const ring = A.group === 'sykloalkan';
+      const ring = A.group === 'sykloalkan' && B.group === 'sykloalkan';
       const branched = A.branches === B.branches ? null : A.branches > B.branches ? A : B;
       const straight = branched === A ? B : A;
+      const cb = branched ? pairs[branched === A ? 0 : 1].contacts.length : 0;
+      const cs = branched ? pairs[branched === A ? 1 : 0].contacts.length : 0;
+      const contactNote =
+        cb < cs ? ` (${cb} mot ${cs} nærkontakter i figuren)` : ' (den flate modellen i figuren viser ikke hele forskjellen, for formen er tredimensjonal)';
       return (
         <>
           <p>
@@ -467,20 +476,25 @@ function explanation(rel: IsomerRelation, A: Isomer, B: Isomer, pairs: readonly 
             forskjellen i kokepunkt ({d} °C) skyldes formen på molekylene.
           </p>
           <p>
-            {branched ? (
+            {branched && ring ? (
+              <>
+                I {straight.name} er alle fire C-atomene med i ringen, mens {branched.name} har en mindre ring med en metylgruppe som stikker ut. Den
+                forgrenede formen gir mindre kontaktflate mellom nabomolekylene, svakere London-krefter og lavere kokepunkt.
+              </>
+            ) : branched ? (
               <>
                 {capitalize(branched.name)} er mer forgrenet og derfor mer kompakt og kuleformet enn {straight.name}. Da blir kontaktflaten mellom
-                nabomolekylene mindre ({pairs[branched === A ? 0 : 1].contacts.length} mot {pairs[branched === A ? 1 : 0].contacts.length} nærkontakter i
-                figuren), London-kreftene blir svakere, og stoffet koker {branched.bp < straight.bp ? 'lavere' : 'omtrent like høyt'}.
+                nabomolekylene mindre{contactNote}, London-kreftene blir svakere, og stoffet koker {Math.abs(A.bp - B.bp) < 2 ? 'litt ' : ''}lavere.
               </>
             ) : (
               <>
-                Begge er like mye forgrenet, så formene og kokepunktene ligger nær hverandre. {capitalize(lo.name)} er litt mer kompakt (gruppene sitter tettere
-                samlet), så den koker litt lavere.
+                Begge er like mye forgrenet, så formene og kokepunktene ligger nær hverandre.{' '}
+                {lo.name.startsWith('2,2-')
+                  ? `I ${lo.name} sitter begge metylgruppene på samme C-atom, så molekylet blir mest kuleformet og koker lavest.`
+                  : 'Så små forskjeller kommer av detaljer i formen. Hovedregelen er at flere forgreninger gir lavere kokepunkt.'}
               </>
-            )}
-            {ring ? ' Ringene gjør molekylene stive og kompakte.' : ''} Misforståelse å unngå: et forgrenet molekyl er ikke «større» eller tyngre. Det har
-            nøyaktig de samme atomene.
+            )}{' '}
+            Misforståelse å unngå: et forgrenet molekyl er ikke «større» eller tyngre. Det har nøyaktig de samme atomene.
           </p>
         </>
       );
@@ -495,9 +509,11 @@ function explanation(rel: IsomerRelation, A: Isomer, B: Isomer, pairs: readonly 
       ) : (
         <p>
           <strong>Dobbeltbindingen sitter et annet sted.</strong> {capitalize(A.name)} og {B.name} er posisjonsisomerer. Alkener er nesten upolare, så det er
-          London-kreftene som avgjør, og kokepunktene ligger nær hverandre ({d} °C forskjell).
-          {hi.polar && !lo.polar ? ` ${capitalize(hi.name)} er svakt polart og får i tillegg dipol-dipol-krefter, så det koker litt høyere.` : ''} Tallet i
-          navnet viser hvor dobbeltbindingen starter.
+          særlig London-kreftene som avgjør, og kokepunktene er nokså like ({d} °C forskjell).
+          {lo.polar && !hi.polar
+            ? ` Legg merke til at ${hi.name}, som er upolart, koker høyere enn det svakt polare ${lo.name}: dipolene i alkenene er så svake at formen på molekylene betyr mer.`
+            : ''}{' '}
+          Tallet i navnet viser hvor dobbeltbindingen starter.
         </p>
       );
     case 'funksjon':
@@ -508,8 +524,8 @@ function explanation(rel: IsomerRelation, A: Isomer, B: Isomer, pairs: readonly 
           <>
             <p>
               <strong>Ulik funksjonell gruppe gir ulike stoffer.</strong> {capitalize(alc.name)} er en alkohol med en OH-gruppe. H-atomet er bundet til det
-              elektronegative O-atomet, så det dannes hydrogenbindinger mellom molekylene. I {eth.name} sitter O-atomet mellom to C-atomer uten H, så eteren kan
-              ikke danne hydrogenbindinger med seg selv, bare svakere dipol-dipol-krefter og London-krefter.
+              elektronegative O-atomet, så det dannes hydrogenbindinger mellom molekylene. I {eth.name} sitter O-atomet mellom to C-atomer og har ingen H, så
+              eteren kan ikke danne hydrogenbindinger med seg selv, bare svakere dipol-dipol-krefter og London-krefter.
             </p>
             <p>
               Derfor koker {alc.name} {d} °C høyere enn {eth.name}, selv om formelen er den samme. Molekylformelen alene forteller altså ikke hvilket stoff du
@@ -525,7 +541,7 @@ function explanation(rel: IsomerRelation, A: Isomer, B: Isomer, pairs: readonly 
             opp to H-plasser på samme måte som en dobbeltbinding, så sykloalkaner har samme generelle formel som alkenene, C<sub>n</sub>H<sub>2n</sub>.
           </p>
           <p>
-            Kokepunktene er nokså like ({d} °C forskjell) fordi begge er upolare. Kjemisk er de svært ulike: alkenet reagerer med brom ved addisjon til C=C og
+            Kokepunktene er nokså like ({d} °C forskjell), fordi begge er nesten upolare og holdes sammen av London-krefter. Kjemisk er de svært ulike: alkenet reagerer med brom ved addisjon til C=C og
             avfarger bromvann, mens sykloalkanet ikke gjør det.
           </p>
         </>

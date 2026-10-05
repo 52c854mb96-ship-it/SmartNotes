@@ -39,7 +39,7 @@ const viz: VizMeta[] = [
     sections: [],
     title: 'Overflate og volum',
     summary:
-      'Gjør en celle større og se hvordan overflaten, volumet og forholdet mellom dem endrer seg, og hvor lang tid oksygen bruker inn til midten. Se også hvorfor tarmtotter og rothår gir stor overflate.',
+      'Gjør en celle større og se hvordan overflaten, volumet og forholdet mellom dem endrer seg, og om oksygenet når inn til midten. Se også hvorfor tarmtotter, rothår og lungeblærer gir stor overflate.',
     keywords: [
       'overflate',
       'volum',
@@ -52,6 +52,8 @@ const viz: VizMeta[] = [
       'mikrovilli',
       'rothår',
       'alveoler',
+      'lungeblærer',
+      'oksygen',
       'KM3',
       'KM5',
     ],

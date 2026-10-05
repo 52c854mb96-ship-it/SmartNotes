@@ -34,6 +34,8 @@ export interface EnthalpyPreset {
   eaKnown: boolean;
   /** Katalysator (navn i setning) og Eₐ med katalysator. */
   catalyst?: { name: string; ea: number; known: boolean };
+  /** Energien tas opp som lys, ikke som varme fra omgivelsene (fotosyntesen). */
+  lightDriven?: boolean;
   /** Én til to setninger om reaksjonen. */
   note: string;
 }
@@ -112,8 +114,8 @@ export const ENTHALPY_PRESETS: EnthalpyPreset[] = [
     perGram: 'C6H12O6',
     ea: 3250,
     eaKnown: false,
-    catalyst: { name: 'enzymer', ea: 3000, known: false },
-    note: 'Fotosyntesen er den omvendte reaksjonen av forbrenning av glukose. Den skjer i mange trinn som drives av lysenergi, så toppen i diagrammet er bare skjematisk.',
+    lightDriven: true,
+    note: 'Fotosyntesen er den omvendte reaksjonen av forbrenning av glukose. Den skjer i mange trinn i kloroplastene, og hvert trinn katalyseres av enzymer, så toppen i diagrammet er bare skjematisk.',
   },
 ];
 
@@ -180,6 +182,23 @@ export function pathPoints(dH: number, ea: number, eaCat?: number): PathPoint[] 
   ];
 }
 
+export type PathStage = 'reaktanter' | 'brytes' | 'topp' | 'mellomprodukt' | 'dannes' | 'produkter';
+
+/**
+ * Hvor på kurven punktet er (x = 0–1, samme x-verdier som pathPoints): uten katalysator opp til toppen (0,48) og ned;
+ * med katalysator opp til første topp (0,34), ned til mellomproduktet (0,5), opp til andre topp (0,66) og ned.
+ */
+export function pathStage(x: number, cat: boolean): PathStage {
+  if (x <= 0.14) return 'reaktanter';
+  if (x >= 0.86) return 'produkter';
+  if (!cat) return Math.abs(x - 0.48) <= 0.05 ? 'topp' : x < 0.48 ? 'brytes' : 'dannes';
+  if (Math.abs(x - 0.34) <= 0.04 || Math.abs(x - 0.66) <= 0.04) return 'topp';
+  if (Math.abs(x - 0.5) <= 0.05) return 'mellomprodukt';
+  if (x < 0.34) return 'brytes';
+  if (x < 0.5) return 'dannes';
+  return x < 0.66 ? 'brytes' : 'dannes';
+}
+
 /** Entalpien langs kurven ved forløp x (0–1): myk overgang (cosinus) mellom kontrollpunktene, flat i hvert punkt. */
 export function pathH(points: readonly PathPoint[], x: number): number {
   const xc = Math.min(1, Math.max(0, x));
@@ -223,6 +242,17 @@ export const BOND_ENTHALPY = {
 } as const;
 
 export type BondKey = keyof typeof BOND_ENTHALPY;
+
+/**
+ * Bindinger som bare finnes i ett stoff (toatomige molekyler): der er tabellverdien bindingsentalpien i nettopp det
+ * molekylet. De andre (C–H, O–H, N–H, C=O) finnes i mange stoffer, og tabellverdien er et gjennomsnitt.
+ */
+export const DIATOMIC_BONDS: readonly BondKey[] = ['H–H', 'Cl–Cl', 'H–Cl', 'O=O', 'N≡N'];
+
+/** Alle bindingene i reaksjonen er fra toatomige molekyler, så ΔH-anslaget er nesten eksakt (bare avrunding). */
+export function onlyDiatomic(est: { broken: { bond: BondKey }[]; formed: { bond: BondKey }[] }): boolean {
+  return [...est.broken, ...est.formed].every((b) => DIATOMIC_BONDS.includes(b.bond));
+}
 export type BondOrder = 1 | 2 | 3;
 
 const ORDER_SIGN: Record<BondOrder, string> = { 1: '–', 2: '=', 3: '≡' };
@@ -381,13 +411,21 @@ export interface CalProcess {
    */
   dH: number;
   equation: string;
+  /**
+   * Største masse salt på glidebryteren (g, standard 15). Med 50 mL vann må alt saltet være løst også ved
+   * sluttemperaturen: KNO₃ løses dårlig i kaldt vann (13,3 g per 100 g vann ved 0 °C, 20,9 g ved 10 °C).
+   */
+  mMax?: number;
 }
+
+/** Standard største masse salt (g). */
+export const SALT_MAX = 15;
 
 export const CAL_PROCESSES: CalProcess[] = [
   { id: 'naoh', name: 'Natriumhydroksid løses', kind: 'salt', salt: 'NaOH', dH: -44.5, equation: 'NaOH(s) → Na^+(aq) + OH^-(aq)' },
   { id: 'cacl2', name: 'Kalsiumklorid løses', kind: 'salt', salt: 'CaCl2', dH: -81.3, equation: 'CaCl2(s) → Ca^2+(aq) + 2 Cl^-(aq)' },
   { id: 'nh4no3', name: 'Ammoniumnitrat løses', kind: 'salt', salt: 'NH4NO3', dH: 25.7, equation: 'NH4NO3(s) → NH4^+(aq) + NO3^-(aq)' },
-  { id: 'kno3', name: 'Kaliumnitrat løses', kind: 'salt', salt: 'KNO3', dH: 34.9, equation: 'KNO3(s) → K^+(aq) + NO3^-(aq)' },
+  { id: 'kno3', name: 'Kaliumnitrat løses', kind: 'salt', salt: 'KNO3', dH: 34.9, equation: 'KNO3(s) → K^+(aq) + NO3^-(aq)', mMax: 7.5 },
   { id: 'noytralisering', name: 'Saltsyre + natronlut', kind: 'noytralisering', dH: -57, equation: 'HCl(aq) + NaOH(aq) → NaCl(aq) + H2O(l)' },
 ];
 
@@ -523,7 +561,7 @@ export const HESS_EXAMPLES: HessExample[] = [
       { reverse: false, factor: 1 },
       { reverse: false, factor: 0.5 },
     ],
-    note: 'Svovel brenner til SO₂. Videre til SO₃ (råstoff for svovelsyre) går det bare med katalysator.',
+    note: 'Svovel brenner til SO₂. Reaksjonen videre til SO₃ (råstoff for svovelsyre) går svært sakte uten katalysator, så i industrien brukes vanadium(V)oksid som katalysator (kontaktprosessen).',
   },
 ];
 
@@ -593,6 +631,36 @@ export function hessSum(ex: HessExample, choices: readonly HessChoice[]): HessSu
   const net = netChange(scaled);
   const dH = round9(scaled.reduce((s, e) => s + e.dH, 0));
   return { scaled, allLeft, allRight, cancelled, net: netEquation(net), dH, matches: sameReaction(net, netChange([ex.target])) };
+}
+
+export interface HessHint {
+  /** Stoffet (formel med tilstand) som bare finnes i én av de gitte likningene. */
+  species: string;
+  /** Indeksen til likningen. */
+  eq: number;
+  /** Koeffisienten i målreaksjonen: positiv på høyre side, negativ på venstre, 0 = skal ikke være med. */
+  want: number;
+  reverse: boolean;
+  factor: number;
+}
+
+/**
+ * Hint når summen ikke gir målreaksjonen: første stoff som står feil og bare finnes i én av de gitte likningene. Da er
+ * det entydig om den likningen må snus, og hva den må ganges med. Null når det ikke finnes et slikt stoff.
+ */
+export function hessHint(ex: HessExample, choices: readonly HessChoice[]): HessHint | null {
+  const target = netChange([ex.target]);
+  const current = netChange(ex.given.map((g, i) => scaleEquation(g, choices[i] ?? { reverse: false, factor: 1 })));
+  for (const s of new Set([...target.keys(), ...current.keys()])) {
+    const want = target.get(s) ?? 0;
+    if (Math.abs(want - (current.get(s) ?? 0)) < 1e-9) continue;
+    const inEq = ex.given.map((g, i) => ({ i, a: netChange([g]).get(s) ?? 0 })).filter((x) => Math.abs(x.a) > 1e-9);
+    if (inEq.length !== 1) continue;
+    const { i, a } = inEq[0]!;
+    const c = want / a;
+    return { species: s, eq: i, want, reverse: c < 0, factor: round9(Math.abs(c)) };
+  }
+  return null;
 }
 
 export interface StairLevel {

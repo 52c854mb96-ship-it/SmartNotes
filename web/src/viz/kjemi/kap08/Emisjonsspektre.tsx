@@ -73,6 +73,8 @@ export default function Emisjonsspektre() {
   const line = lines[Math.min(lineIdx, lines.length - 1)]!;
   const sample = UNKNOWN_SAMPLES.find((s) => s.id === sampleId) ?? UNKNOWN_SAMPLES[0]!;
   const match = guess ? matchElement(sample, guess) : null;
+  // λ regnet fra energinivåene (vakuum); tabellverdiene er målt i luft og er ca. 0,2 nm kortere
+  const lambdaCalc = ((H_PLANCK * C_LIGHT) / transitionEnergy(el, line)) * 1e9;
 
   const pickElement = (s: FlameElement) => {
     setEl(s);
@@ -147,11 +149,12 @@ export default function Emisjonsspektre() {
               ΔE = E({levelOf(el, line.from)?.label}) − E({levelOf(el, line.to)?.label}) = {fmtSci(transitionEnergy(el, line), 3)} J
             </FormulaLine>
             <FormulaLine>
-              λ = hc / ΔE = (6,626 · 10⁻³⁴ J·s · 2,998 · 10⁸ m/s) / {fmtSci(transitionEnergy(el, line), 3)} J ={' '}
-              {fmt(((H_PLANCK * C_LIGHT) / transitionEnergy(el, line)) * 1e9, 1)} nm
+              λ = hc / ΔE = (6,626 · 10⁻³⁴ J·s · 2,998 · 10⁸ m/s) / {fmtSci(transitionEnergy(el, line), 3)} J = {fmt(lambdaCalc, 1)} nm
             </FormulaLine>
+            {Math.abs(lambdaCalc - line.nm) >= 0.05 && <FormulaLine>(Tabellverdien {fmt(line.nm, 1)} nm er målt i luft.)</FormulaLine>}
             <FormulaLine>
-              Per mol: ΔE · N<Sub>A</Sub> = {fmtSci(photonEnergy(line.nm), 3)} J · {fmtSci(N_A, 3)} /mol = {fmt(photonEnergyPerMol(line.nm), 0)} kJ/mol
+              Per mol: ΔE · N<Sub>A</Sub> = {fmtSci(transitionEnergy(el, line), 3)} J · {fmtSci(N_A, 3)} /mol ={' '}
+              {fmt((transitionEnergy(el, line) * N_A) / 1000, 0)} kJ/mol
             </FormulaLine>
           </Formula>
 
@@ -173,7 +176,7 @@ export default function Emisjonsspektre() {
             <Figure
               viewBox={`0 0 800 ${unknownH}`}
               label={`Prøve ${sample.id} sammenlignet med linjespektrene til ${FLAME_ELEMENTS.join(', ')}.`}
-              caption="Øverst prøven, under linjespektrene til grunnstoffene. Et grunnstoff er i prøven bare hvis alle linjene dets finnes i prøvespekteret."
+              caption="Øverst prøven, under linjespektrene til grunnstoffene. Et grunnstoff er i prøven bare hvis alle linjene til grunnstoffet finnes i prøvespekteret."
               maxHeight={unknownH}
             >
               <UnknownScene sample={sample} guess={guess} f={f} H={unknownH} />
@@ -357,17 +360,30 @@ function FlameScene({ el, line, f, H }: { el: FlameElement; line: EmissionLine; 
       <Txt x={labelAnchor === 'end' ? lx + 8 : labelAnchor === 'start' ? lx - 8 : lx} y={spec.y - 18} anchor={labelAnchor} size={0.85} weight={700}>
         {fmt(line.nm, 1)} nm
       </Txt>
-      {/* Bånd fra molekyler merkes med navnet */}
+      {/* Bånd fra molekyler merkes med navnet, én gang per molekyl, og på to rader når navnene ligger tett */}
       {!narrow &&
-        d.lines
-          .filter((l) => l.band)
-          .map((l, i) => (
-            <Txt key={l.nm} x={sx(l.nm)} y={spec.y + spec.h + 50 * f + 22 + (i % 2) * 0} size={0.7} muted>
-              {l.band!.molecule}
-            </Txt>
-          ))}
+        bandLabels(d.lines, sx, f).map((b) => (
+          <Txt key={b.molecule} x={b.x} y={spec.y + spec.h + 50 * f + 22 + b.row * 18 * f} size={0.7} muted>
+            {b.molecule}
+          </Txt>
+        ))}
     </g>
   );
+}
+
+/** Ett navn per molekyl midt under båndene dets; navn som ville overlappe, flyttes ned en rad. */
+function bandLabels(lines: EmissionLine[], sx: (nm: number) => number, f: number): { molecule: string; x: number; row: number }[] {
+  const groups = new Map<string, number[]>();
+  for (const l of lines) if (l.band) groups.set(l.band.molecule, [...(groups.get(l.band.molecule) ?? []), l.nm]);
+  const labels = [...groups].map(([molecule, nms]) => ({ molecule, x: sx((Math.min(...nms) + Math.max(...nms)) / 2), row: 0 }));
+  labels.sort((a, b) => a.x - b.x);
+  const width = (t: string) => t.length * 0.6 * 17 * 0.7 * f;
+  for (let i = 1; i < labels.length; i++) {
+    const a = labels[i - 1]!;
+    const b = labels[i]!;
+    if (a.row === 0 && b.x - a.x < (width(a.molecule) + width(b.molecule)) / 2 + 8) b.row = 1;
+  }
+  return labels;
 }
 
 /* ---------- Figur 2: energinivåene ---------- */
@@ -401,6 +417,17 @@ function LevelDiagram({ el, selected, f, H }: { el: FlameElement; selected: Emis
   for (let i = labels.length - 2; i >= 0; i--) labels[i]!.ty = Math.max(labels[i]!.ty, labels[i + 1]!.ty + gap);
   const ticks: number[] = [];
   for (let v = 0; v <= ie * 1e19 + 1e-9; v += ie * 1e19 > 9 ? 4 : 2) ticks.push(v);
+  // Tallet ved en pil står midt i den største åpningen mellom nivåene pila krysser, så ingen nivålinje går gjennom det
+  const levelYs = d.levels.map((l) => sy(l.eV * EV));
+  const arrowLabelY = (yTop: number, yBottom: number) => {
+    const ys = [yTop, yBottom, ...levelYs.filter((y) => y > yTop + 1 && y < yBottom - 1)].sort((a, b) => a - b);
+    let best = { gap: -1, mid: (yTop + yBottom) / 2 };
+    for (let i = 1; i < ys.length; i++) {
+      const g = ys[i]! - ys[i - 1]!;
+      if (g > best.gap) best = { gap: g, mid: (ys[i]! + ys[i - 1]!) / 2 };
+    }
+    return best.mid;
+  };
   return (
     <g>
       {/* Energiakse i 10⁻¹⁹ J */}
@@ -454,7 +481,7 @@ function LevelDiagram({ el, selected, f, H }: { el: FlameElement; selected: Emis
             <line x1={x} y1={y1} x2={x} y2={y2 - 12} stroke={c} strokeWidth={w} />
             <polygon points={`${x},${y2 - 1} ${x - 7},${y2 - 14} ${x + 7},${y2 - 14}`} fill={c} />
             <circle cx={x} cy={y1} r={on ? 6 : 4} fill={KJEMI.electron} />
-            <Txt x={x + 9} y={(y1 + y2) / 2 + 5} anchor="start" size={on ? 0.8 : 0.68} weight={on ? 700 : 500} muted={!on}>
+            <Txt x={x + 9} y={arrowLabelY(y1, y2) + 5} anchor="start" size={on ? 0.8 : 0.68} weight={on ? 700 : 500} muted={!on}>
               {fmt(l.nm, 0)}
             </Txt>
           </g>
@@ -646,7 +673,7 @@ function unknownText(sample: UnknownSample, guess: FlameElement | null): ReactNo
     <>
       <p>
         <strong>Nei, ikke {d.name}.</strong> {capital(d.name)} har {m.missing?.band ? 'et bånd' : 'en linje'} ved {fmt(m.missing?.nm ?? NaN, 0)} nm som mangler i
-        prøven (rød stiplet linje). Et grunnstoff sender alltid ut alle linjene sine, så én linje som mangler er nok til å utelukke det.
+        prøven (rød stiplet linje). Et grunnstoff i flammen sender alltid ut de sterke linjene sine, så én linje som mangler er nok til å utelukke det.
       </p>
       <p>{sample.hint}</p>
     </>

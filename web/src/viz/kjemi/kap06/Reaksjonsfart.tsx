@@ -78,7 +78,8 @@ export default function Reaksjonsfart() {
   const total = c * k * fromRef;
   const narrow = f > 1.3;
   const energyH = narrow ? Math.round(300 + 220 * (f - 1)) * 2 + 20 : Math.round(330 + 160 * (f - 1));
-  const boxH = Math.round(475 + 40 * f + 10);
+  // Tittel over boksen, boksen (475 høy) og tekstlinja under
+  const boxH = Math.round(34 * f + 475 + 34 * f);
 
   return (
     <VizLayout>
@@ -97,7 +98,7 @@ export default function Reaksjonsfart() {
           step={5}
           unit="°C"
         />
-        <Slider label="Sammenlign med ΔT høyere" ariaLabel="Temperaturøkning" value={dT} onChange={setDT} min={5} max={50} step={5} unit="°C" />
+        <Slider label="Temperaturøkning ΔT" ariaLabel="Temperaturøkning" value={dT} onChange={setDT} min={5} max={50} step={5} unit="°C" />
         <Slider
           label={
             <>
@@ -185,7 +186,7 @@ export default function Reaksjonsfart() {
       <Figure
         viewBox={`0 0 800 ${boxH}`}
         label={`Syrepartikler som kolliderer med et fast stoff delt i ${k * k} biter. Konsentrasjon ${fmt(c, 2)} mol/L.`}
-        caption="Saltsyre på marmor (CaCO₃). Partiklene beveger seg raskere når temperaturen øker. Andelen effektive kollisjoner er sterkt forstørret: i virkeligheten har bare en svært liten andel nok energi."
+        caption="Saltsyre på marmor (CaCO₃). Partiklene beveger seg raskere når temperaturen øker. Andelen effektive kollisjoner er sterkt forstørret: 12 % ved 25 °C uten katalysator, og den øker like mange ganger som den virkelige andelen (høyst 90 %). I virkeligheten har bare en svært liten andel nok energi."
         maxHeight={boxH}
       >
         <BoxScene c={c} k={k} T={T1} pEff={visualP(EaEff, Ea, T1)} t={clock.t} f={f} />
@@ -224,7 +225,7 @@ export default function Reaksjonsfart() {
           value={`× ${fmtSig(tempF, 3)}`}
           tone={C2}
         />
-        <Readout label="Katalysator gir" value={cat ? `× ${fmtSig(catF, 2)}` : 'ingen'} tone={cat ? VIZ.series[2] : undefined} />
+        <Readout label="Katalysator gir" value={cat ? `× ${fmtSig(catF, 2)}` : 'Ingen'} tone={cat ? VIZ.series[2] : undefined} />
         <Readout label="Fart mot utgangspunktet" value={`× ${fmtSig(total, 3)}`} />
       </Readouts>
 
@@ -233,7 +234,7 @@ export default function Reaksjonsfart() {
           Andel med nok energi: {fmtSig(F2, 3)} ved {fmt(Tc + dT, 0)} °C og {fmtSig(F1, 3)} ved {fmt(Tc, 0)} °C, forholdet er {fmtSig(F2 / F1, 3)}
         </FormulaLine>
         <FormulaLine>
-          Med raskere partikler (√T<Sub>2</Sub>/T<Sub>1</Sub> = {fmt(Math.sqrt(T2 / T1), 3)}): farten blir × {fmtSig(tempF, 3)} (Arrhenius: e
+          Med raskere partikler (√(T<Sub>2</Sub>/T<Sub>1</Sub>) = {fmt(Math.sqrt(T2 / T1), 3)}, T i kelvin): farten blir × {fmtSig(tempF, 3)} (Arrhenius: e
           <sup>−Eₐ/R·(1/T₂ − 1/T₁)</sup> = {fmtSig(arrheniusFactor(EaEff, T1, T2), 3)})
         </FormulaLine>
         <FormulaLine>
@@ -241,7 +242,7 @@ export default function Reaksjonsfart() {
         </FormulaLine>
       </Formula>
 
-      <Explain>{explanation({ Tc, dT, Ea, EaEff, cat, F1, tempF, catF, c, k })}</Explain>
+      <Explain>{explanation({ Tc, dT, Ea, EaEff, cat, F1, F2, tempF, catF, c, k })}</Explain>
     </VizLayout>
   );
 }
@@ -293,10 +294,10 @@ function Profile({ Ea, cat, w, h, f }: { Ea: number; cat: boolean; w: number; h:
       <line x1={m.left} x2={m.left} y1={sy(y1)} y2={sy(y0)} className="viz-axis" />
       <line x1={m.left} x2={w - m.right} y1={sy(y0)} y2={sy(y0)} className="viz-axis" />
       <text x={16 * f} y={(sy(y0) + sy(y1)) / 2} textAnchor="middle" className="viz-axis-label" transform={`rotate(-90 ${16 * f} ${(sy(y0) + sy(y1)) / 2})`}>
-        energi
+        Energi
       </text>
       <Txt x={(m.left + w - m.right) / 2} y={h - 8} size={0.75} muted>
-        reaksjonsforløp
+        Reaksjonsforløp
       </Txt>
       <line x1={sx(0)} x2={sx(1)} y1={sy(0)} y2={sy(0)} stroke={VIZ.grid} strokeWidth={1.2} strokeDasharray="4 4" />
       <path d={path(Ea)} fill="none" stroke={VIZ.ink} strokeWidth={3} />
@@ -307,10 +308,10 @@ function Profile({ Ea, cat, w, h, f }: { Ea: number; cat: boolean; w: number; h:
       </Txt>
       {cat && arrow(sx(0.56), EaC, VIZ.series[2]!)}
       <Txt x={sx(0.04)} y={sy(0) + 20 * f} anchor="start" size={0.72} muted>
-        reaktanter
+        Reaktanter
       </Txt>
       <Txt x={sx(1)} y={sy(DH_MODEL) + 20 * f} anchor="end" size={0.72} muted>
-        produkter
+        Produkter
       </Txt>
     </g>
   );
@@ -326,8 +327,8 @@ function Distribution({ Ea, cat, T1, T2, w, h, f }: { Ea: number; cat: boolean; 
   const curve = (T: number, a: number, b: number) => sample((E) => energyDensity(E, T), a, b, 300);
   return (
     <Plot
-      x={{ min: 0, max: xMax, label: 'kinetisk energi E (kJ/mol)', ticks: niceTicks(0, xMax, f > 1.3 ? 5 : 5) }}
-      y={{ min: 0, max: yMax, label: 'andel partikler', ticks: [] }}
+      x={{ min: 0, max: xMax, label: 'Kinetisk energi E (kJ/mol)', ticks: niceTicks(0, xMax, 5) }}
+      y={{ min: 0, max: yMax, label: 'Andel partikler', ticks: [] }}
       width={w}
       height={h}
       margin={{ top: 30 * f, right: 14, bottom: 56 * f, left: 40 * f }}
@@ -349,6 +350,9 @@ function Distribution({ Ea, cat, T1, T2, w, h, f }: { Ea: number; cat: boolean; 
         const eaTop = eaX > box.x - 4 && eaX < box.x + box.w + 4 ? box.y + box.h + 4 : y1;
         return (
           <g>
+            <Txt x={x0} y={20 * f} anchor="start" size={0.85} weight={650}>
+              Energifordeling
+            </Txt>
             <path d={`${linePath(tail(T2), sx, sy)}Z`} fill={C2} opacity={0.25} />
             <path d={`${linePath(tail(T1), sx, sy)}Z`} fill={C1} opacity={0.3} />
             <path d={linePath(curve(T1, 0, xMax), sx, sy)} fill="none" stroke={C1} strokeWidth={3} />
@@ -371,7 +375,7 @@ function Distribution({ Ea, cat, T1, T2, w, h, f }: { Ea: number; cat: boolean; 
             </Txt>
             <rect x={box.x} y={box.y} width={box.w} height={box.h} rx={8} fill={VIZ.surface} stroke={VIZ.muted} strokeWidth={1.2} />
             <Txt x={box.x + 10} y={box.y + 18 * f} anchor="start" size={0.72} muted>
-              halen forstørret × 10{superscript(Math.max(0, mag))}
+              Halen forstørret × 10{superscript(Math.max(0, mag))}
             </Txt>
             <clipPath id={clip}>
               <rect x={box.x} y={box.y + 22 * f} width={box.w} height={box.h - 22 * f} />
@@ -448,7 +452,7 @@ function BoxScene({ c, k, T, pEff, t, f }: { c: number; k: number; T: number; pE
           <circle key={i} cx={X(h.x)} cy={Y(h.y)} r={7 * kk} fill="none" stroke={VIZ.muted} strokeWidth={2 * kk} opacity={1 - age} />
         );
       })}
-      <BoxCaption run={run} k={k} X={X} Y={Y} />
+      <BoxCaption run={run} k={k} X={X} Y={Y} f={f} />
     </g>
   );
 }
@@ -470,9 +474,10 @@ function Piece({ p, X, Y, s, label }: { p: SolidPiece; X: (v: number) => number;
   );
 }
 
-function BoxCaption({ run, k, X, Y }: { run: BoxRun; k: number; X: (v: number) => number; Y: (v: number) => number }) {
+/** Tekstlinja under boksen (utenfor, så partiklene aldri dekker den). */
+function BoxCaption({ run, k, X, Y, f }: { run: BoxRun; k: number; X: (v: number) => number; Y: (v: number) => number; f: number }) {
   return (
-    <Txt x={X(BOX_W) - 10} y={Y(BOX_H) - 12} anchor="end" size={0.75} muted halo>
+    <Txt x={X(BOX_W)} y={Y(BOX_H) + 24 * f} anchor="end" size={0.75} muted>
       {run.n} syrepartikler · overflate × {k}
     </Txt>
   );
@@ -487,24 +492,29 @@ function explanation(p: {
   EaEff: number;
   cat: boolean;
   F1: number;
+  F2: number;
   tempF: number;
   catF: number;
   c: number;
   k: number;
 }): ReactNode {
-  const { Tc, dT, Ea, EaEff, cat, F1, tempF, catF, c, k } = p;
+  const { Tc, dT, Ea, EaEff, cat, F1, F2, tempF, catF, c, k } = p;
   const rule =
     dT === 10 ? (
       tempF > 1.7 && tempF < 2.4 ? (
         <>
-          Det er derfor tommelfingerregelen sier at <strong>10 °C høyere omtrent dobler farten</strong>: for en typisk E<Sub>a</Sub> rundt 50 kJ/mol blir
-          andelen med nok energi omtrent dobbelt så stor.
+          Det er derfor tommelfingerregelen sier at <strong>10 °C høyere omtrent dobler farten</strong>: for en typisk E<Sub>a</Sub> rundt 50 kJ/mol nær
+          romtemperatur blir andelen med nok energi omtrent dobbelt så stor.
         </>
       ) : tempF <= 1.7 ? (
-        <>Med så lav aktiveringsenergi øker farten mindre enn tommelfingerregelen («10 °C dobler farten») sier, fordi en stor andel allerede har nok energi.</>
+        <>
+          Her øker farten mindre enn tommelfingerregelen («10 °C dobler farten») sier. Hvor mye farten øker, avhenger av E<Sub>a</Sub> og temperaturen: jo
+          lavere E<Sub>a</Sub> og jo høyere temperatur, jo mindre blir økningen.
+        </>
       ) : (
         <>
-          Med så høy aktiveringsenergi øker farten mer enn tommelfingerregelen («10 °C dobler farten») sier: regelen gjelder for E<Sub>a</Sub> rundt 50 kJ/mol.
+          Her øker farten mer enn tommelfingerregelen («10 °C dobler farten») sier. Jo høyere E<Sub>a</Sub> og jo lavere temperatur, jo større blir
+          økningen.
         </>
       )
     ) : (
@@ -518,8 +528,9 @@ function explanation(p: {
         ikke til reaksjon.
       </p>
       <p>
-        Øker du temperaturen med {fmt(dT, 0)} °C, flytter fordelingen seg mot høyere energi, og den skraverte halen blir {fmtSig(tempF, 2)} ganger så stor (med
-        litt raskere partikler). {rule} Temperaturen endrer ikke E<Sub>a</Sub>, bare hvor mange partikler som klarer den.
+        Øker du temperaturen med {fmt(dT, 0)} °C, flytter fordelingen seg mot høyere energi, og den skraverte halen blir {fmtSig(F2 / F1, 2)} ganger så stor.
+        Partiklene beveger seg også litt raskere og kolliderer litt oftere, så farten blir {fmtSig(tempF, 2)} ganger så stor. {rule} Temperaturen endrer ikke
+        E<Sub>a</Sub>, bare hvor mange partikler som klarer den.
       </p>
       {cat ? (
         <p>
@@ -531,9 +542,8 @@ function explanation(p: {
       )}
       <p>
         I boksen reagerer saltsyre med marmor: <Formel f="CaCO3(s)" /> + 2 <Formel f="H3O^+(aq)" /> → <Formel f="Ca^2+(aq)" /> + <Formel f="CO2(g)" /> + 3{' '}
-        <Formel f="H2O(l)" />. {c >= 1.5 ? 'Høy' : c <= 0.5 ? 'Lav' : 'Middels'} konsentrasjon ({fmt(c, 2)} mol/L) gir{' '}
-        {c > 1 ? 'flere' : c < 1 ? 'færre' : 'like mange'} syrepartikler per volum og dermed {c === 1 ? 'like mange' : c > 1 ? 'flere' : 'færre'} kollisjoner
-        per sekund.{' '}
+        <Formel f="H2O(l)" />. Høyere konsentrasjon gir flere syrepartikler per volum og dermed flere kollisjoner per sekund
+        {c === 1 ? '' : `: med ${fmt(c, 2)} mol/L er det ${fmtSig(c, 2)} ganger så mange som med 1 mol/L`}.{' '}
         {k > 1
           ? `Delt i ${k * k} biter har marmoren ${k} ganger så stor overflate (samme mengde stoff), så det skjer ${k} ganger så mange kollisjoner med overflaten. Derfor reagerer pulver mye raskere enn en klump.`
           : 'Del marmoren i flere biter for å se hvordan større overflate gir flere kollisjoner.'}

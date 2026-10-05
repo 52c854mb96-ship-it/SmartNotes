@@ -7,6 +7,7 @@ import {
   Formula,
   FormulaLine,
   KJEMI,
+  Legend,
   Partikler,
   Readout,
   Readouts,
@@ -113,7 +114,7 @@ export default function Konsentrasjon() {
           step={1}
           format={(i) => `${fmtSig(masses[i] ?? 1, 2)} g`}
         />
-        <Slider label="Målekolbe V" value={vi} onChange={setVi} min={0} max={STOCK_FLASKS.length - 1} step={1} format={(i) => `${STOCK_FLASKS[i] ?? 250} mL`} />
+        <Slider label="Målekolbe V" value={vi} onChange={setVi} min={0} max={STOCK_FLASKS.length - 1} step={1} format={(i) => `${fmt(STOCK_FLASKS[i] ?? 250, 0)} mL`} />
         <Slider
           label={
             <>
@@ -126,7 +127,7 @@ export default function Konsentrasjon() {
           min={0}
           max={PIPETTES.length - 1}
           step={1}
-          format={(i) => `${PIPETTES[i] ?? 25} mL`}
+          format={(i) => `${fmt(PIPETTES[i] ?? 25, 0)} mL`}
         />
         <Slider
           label={
@@ -140,20 +141,34 @@ export default function Konsentrasjon() {
           min={0}
           max={FLASKS.length - 1}
           step={1}
-          format={(i) => `${FLASKS[i] ?? 100} mL`}
+          format={(i) => `${fmt(FLASKS[i] ?? 100, 0)} mL`}
         />
       </Controls>
 
       <div ref={ref}>
         <Figure
           viewBox={`0 0 ${L.W} ${L.H}`}
-          label={`${fmtSig(m, 2)} g ${s.name} løst til ${V} mL gir ${fmtSig(sol.c)} mol/L. ${V1} mL av løsningen fortynnet til ${V2} mL gir ${fmtSig(dil.c2)} mol/L.`}
+          label={`${fmtSig(m, 2)} g ${s.name} løst til ${fmt(V, 0)} mL gir ${fmtSig(sol.c)} mol/L. ${fmt(V1, 0)} mL av løsningen fortynnet til ${fmt(V2, 0)} mL gir ${fmtSig(dil.c2)} mol/L.`}
           caption={`Prikkene viser et like stort utsnitt av hver løsning, så tettheten viser konsentrasjonen: hver prikk er ${fmt(C_PER_DOT, 3)} mol/L (høyst ${MAX_DOTS} av hver). Vannmolekylene er ikke tegnet.`}
           maxHeight={L.H}
         >
           <Scene s={s} m={m} V={V} V1={V1} V2={V2} c1={sol.c} c2={dil.c2} L={L} f={fi} />
         </Figure>
       </div>
+      <Legend
+        items={
+          s.ions
+            ? s.ions.map((ion) => ({
+                color: formula(ion.formula).charge > 0 ? KJEMI.plus : KJEMI.minus,
+                label: (
+                  <span>
+                    <Formel f={ion.formula} state="aq" /> ({formula(ion.formula).charge > 0 ? 'positivt ion' : 'negativt ion'})
+                  </span>
+                ),
+              }))
+            : [{ color: KJEMI.molecule, label: <span>glukosemolekyler (<Formel f={s.formula} />)</span> }]
+        }
+      />
 
       <Readouts>
         <Readout
@@ -194,7 +209,7 @@ export default function Konsentrasjon() {
           masseprosent = m / m(løsning) · 100 % = {fmtSig(m)} g / {fmtSig(sol.mSolution, 4)} g · 100 % = {fmtSig(sol.massPercent)} % = {fmtSig(sol.ppm)} ppm
         </FormulaLine>
         <FormulaLine>
-          c<Sub>1</Sub>V<Sub>1</Sub> = c<Sub>2</Sub>V<Sub>2</Sub> → c<Sub>2</Sub> = {fmtSig(sol.c)} mol/L · {V1} mL / {V2} mL = {fmtSig(dil.c2)} mol/L ={' '}
+          c<Sub>1</Sub>V<Sub>1</Sub> = c<Sub>2</Sub>V<Sub>2</Sub> → c<Sub>2</Sub> = {fmtSig(sol.c)} mol/L · {fmt(V1, 0)} mL / {fmt(V2, 0)} mL = {fmtSig(dil.c2)} mol/L ={' '}
           {fmtSig(sol2.mgPerL)} mg/L
         </FormulaLine>
       </Formula>
@@ -300,7 +315,22 @@ function Dots({ box, groups, seed }: { box: Box; groups: ParticleGroup[]; seed: 
 }
 
 /** Målekolbe: kule med flat bunn, lang hals og et kalibreringsmerke. Fylt helt opp til merket. */
-function Malekolbe({ cx, L, liquid, label, children }: { cx: number; L: SceneLayout; liquid: string; label: string; children?: (box: Box) => ReactNode }) {
+function Malekolbe({
+  cx,
+  L,
+  liquid,
+  label,
+  labelLeft,
+  children,
+}: {
+  cx: number;
+  L: SceneLayout;
+  liquid: string;
+  label: string;
+  /** Etiketten til venstre for halsen (kolben helt til høyre på mobil, så «1 000 mL» får plass). */
+  labelLeft?: boolean;
+  children?: (box: Box) => ReactNode;
+}) {
   const id = `kj-kolbe${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const { R, neckW, top, cy } = L;
   const hw = neckW / 2;
@@ -333,7 +363,7 @@ function Malekolbe({ cx, L, liquid, label, children }: { cx: number; L: SceneLay
       <path d={outline} fill="none" stroke={KJEMI.glass} strokeWidth={2.5} strokeLinejoin="round" />
       {/* Kalibreringsmerket går rundt halsen */}
       <line x1={cx - hw - 3} y1={mark} x2={cx + hw + 3} y2={mark} stroke={VIZ.ink} strokeWidth={2} />
-      <Txt x={cx + hw + 10} y={mark + 6} anchor="start" size={0.85} weight={700}>
+      <Txt x={labelLeft ? cx - hw - 10 : cx + hw + 10} y={mark + 6} anchor={labelLeft ? 'end' : 'start'} size={0.85} weight={700}>
         {label}
       </Txt>
     </g>
@@ -442,10 +472,10 @@ function Scene({
         </g>
       )}
 
-      <Malekolbe cx={L.cx1} L={L} liquid={liq1} label={`${V} mL`}>
+      <Malekolbe cx={L.cx1} L={L} liquid={liq1} label={`${fmt(V, 0)} mL`}>
         {L.narrow ? undefined : (box) => <Dots box={box} groups={g1} seed={7} />}
       </Malekolbe>
-      <Malekolbe cx={L.cx2} L={L} liquid={liq2} label={`${V2} mL`}>
+      <Malekolbe cx={L.cx2} L={L} liquid={liq2} label={`${fmt(V2, 0)} mL`} labelLeft={L.narrow}>
         {L.narrow ? undefined : (box) => <Dots box={box} groups={g2} seed={9} />}
       </Malekolbe>
       <Pipette x={L.px} y={pipTop} h={pipH} liquid={liq1} volume={V1} f={f} />
@@ -483,11 +513,11 @@ function Scene({
         'Stamløsning',
         L.narrow ? (
           <>
-            {fmtSig(m, 2)} g <TFormel f={s.formula} /> i {V} mL
+            {fmtSig(m, 2)} g <TFormel f={s.formula} /> i {fmt(V, 0)} mL
           </>
         ) : (
           <>
-            {fmtSig(m, 2)} g fylt opp til {V} mL
+            {fmtSig(m, 2)} g fylt opp til {fmt(V, 0)} mL
           </>
         ),
         c1,
@@ -498,11 +528,11 @@ function Scene({
         L.narrow ? 'Fortynnet' : 'Fortynnet løsning',
         L.narrow ? (
           <>
-            {V1} mL til {V2} mL
+            {fmt(V1, 0)} mL til {fmt(V2, 0)} mL
           </>
         ) : (
           <>
-            {V1} mL fylt opp til {V2} mL
+            {fmt(V1, 0)} mL fylt opp til {fmt(V2, 0)} mL
           </>
         ),
         c2,
@@ -533,7 +563,7 @@ function explanation(
           c = n / V = {fmtSig(sol.n)} mol / {fmt(V / 1000, 3)} L = {fmtSig(sol.c)} mol/L.
         </strong>{' '}
         Først regnes massen om til stoffmengde, n = m/M. Konsentrasjonen er stoffmengde per liter <em>løsning</em>, ikke per liter vann: {fmtSig(m, 2)} g {F}{' '}
-        løses i litt vann i målekolben, og så fylles det opp med vann til merket på {V} mL.
+        løses i litt vann i målekolben, og så fylles det opp med vann til merket på {fmt(V, 0)} mL.
       </p>
       <p>
         Samme løsning i andre enheter: {fmtSig(sol.gPerL)} g/L = {fmtSig(sol.mgPerL)} mg/L, og masseprosenten er {fmtSig(sol.massPercent)} %.{' '}
@@ -557,8 +587,8 @@ function explanation(
           </>
         ) : (
           <>
-            Pipetten flytter {V1} mL, altså n = c<Sub>1</Sub> · V<Sub>1</Sub> = {fmtSig(dil.n)} mol, over i den nye kolben. Stoffmengden endres ikke når du
-            fyller opp med vann til {V2} mL, så c<Sub>1</Sub>V<Sub>1</Sub> = c<Sub>2</Sub>V<Sub>2</Sub> gir c<Sub>2</Sub> = {fmtSig(dil.c2)} mol/L (
+            Pipetten flytter {fmt(V1, 0)} mL, altså n = c<Sub>1</Sub> · V<Sub>1</Sub> = {fmtSig(dil.n)} mol, over i den nye kolben. Stoffmengden endres ikke
+            når du fyller opp med vann til {fmt(V2, 0)} mL, så c<Sub>1</Sub>V<Sub>1</Sub> = c<Sub>2</Sub>V<Sub>2</Sub> gir c<Sub>2</Sub> = {fmtSig(dil.c2)} mol/L (
             {fmtSig(sol2.mgPerL)} mg/L). Volumet blir {fmtTrim(dil.factor)} ganger så stort, så konsentrasjonen blir {fmtTrim(dil.factor)} ganger så liten.
           </>
         )}
@@ -566,7 +596,9 @@ function explanation(
       {s.colored && (
         <p>
           Vannfritt <Formel f="CuSO4" /> er et gråhvitt pulver. Den blå fargen kommer fra <Formel f="Cu^2+" state="aq" />, og den blir svakere jo mer løsningen
-          fortynnes. Sammenhengen mellom farge og konsentrasjon er grunnlaget for å måle konsentrasjon med spektrofotometer.
+          fortynnes. Sammenhengen mellom farge og konsentrasjon er grunnlaget for å måle konsentrasjon med spektrofotometer. På skolelaboratoriet veier en ofte
+          ut blå krystaller av <Formel f="CuSO4·5H2O" /> i stedet. Da må krystallvannet regnes med i den molare massen (M = {fmt(molarMass('CuSO4·5H2O'), 2)}{' '}
+          g/mol), ellers regner du ut en for høy konsentrasjon.
         </p>
       )}
     </>

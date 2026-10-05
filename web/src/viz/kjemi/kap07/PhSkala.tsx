@@ -121,7 +121,7 @@ export default function PhSkala() {
         <Figure
           viewBox={`0 0 800 ${layout.H}`}
           label={`pH-skalaen med pH ${fmt(pH, 1)}: [H₃O⁺] = ${fmtSig(s.h3o, 2)} mol/L, [OH⁻] = ${fmtSig(s.oh, 2)} mol/L og pOH ${fmt(s.pOH, 1)}.`}
-          caption="Buene over skalaen viser at [H₃O⁺] blir 10 ganger større for hvert pH-steg mot venstre (eller 10 ganger mindre mot høyre). Stoffene står ved typisk pH (stolpen)."
+          caption="Buene over skalaen viser at [H₃O⁺] blir 10 ganger større når pH synker med 1 (mot venstre), og 10 ganger mindre når pH stiger med 1 (mot høyre). Stoffene står ved typisk pH (stolpen)."
           maxHeight={layout.H}
         >
           <ScaleFigure pH={pH} f={f} layout={layout} highlight={near?.id ?? null} />
@@ -200,7 +200,7 @@ function scaleLayout(f: number): ScaleLayout {
   const rowH = 22 * f;
   const title = 22 * f;
   const labelsTop = title + 8 * f;
-  const arcBase = labelsTop + labelRows * rowH + 8 + 76 * f;
+  const arcBase = labelsTop + labelRows * rowH + 8 + 54 * f;
   const barTop = arcBase;
   const barH = 22 + 10 * f;
   const ticks = barTop + barH + 20 * f;
@@ -227,9 +227,9 @@ function ScaleFigure({ pH, f, layout: L, highlight }: { pH: number; f: number; l
   const strips: ReactNode[] = [];
   for (let p = 0; p < 14; p += 0.25)
     strips.push(<rect key={p} x={sx(p)} y={L.barTop} width={sx(0.25) - sx(0) + 0.6} height={L.barH} fill={phColor(p + 0.125)} />);
-  // Buene: ett og to pH-steg mot venstre (eller mot høyre helt til venstre på skalaen)
-  const dir = pH >= 2 ? -1 : 1;
-  const arcs = [1, 2].map((n) => ({ n, x2: sx(pH + dir * n), h: (n === 1 ? 16 : 56) * f }));
+  // Buene: ett pH-steg mot venstre ([H₃O⁺] · 10) og ett mot høyre ([H₃O⁺] / 10). De ligger på hver sin side av markøren,
+  // så etikettene aldri krysser en annen bue.
+  const arcs = [-1, 1].map((d) => ({ d, x2: sx(pH + d), h: 22 * f }));
   // Verdien står rett til høyre for markøren (eller til venstre helt til høyre), men aldri oppå radtittelen.
   const value = (row: number, text: string) => {
     const titleEnd = X0 + textW(ROW_LABELS[row]!, f, 0.85) + 14 * f;
@@ -273,18 +273,18 @@ function ScaleFigure({ pH, f, layout: L, highlight }: { pH: number; f: number; l
         );
       })}
 
-      {/* Buene ×10 og ×100 */}
+      {/* Buene ×10 (mot venstre) og ÷10 (mot høyre) */}
       {arcs.map((a) => {
         if (a.x2 < X0 - 1 || a.x2 > X1 + 1) return null;
         const y0 = L.arcBase - 2;
         const mid = (xm + a.x2) / 2;
         return (
-          <g key={a.n}>
+          <g key={a.d}>
             <path d={`M${xm},${y0} Q${mid},${y0 - 2 * a.h} ${a.x2},${y0}`} fill="none" stroke={KJEMI.plus} strokeWidth={2} />
             <circle cx={a.x2} cy={y0} r={3.5} fill={KJEMI.plus} />
-            <Txt x={mid} y={y0 - a.h - 5} size={0.8} weight={700} color={KJEMI.plus}>
-              {dir < 0 ? '×' : '÷'}
-              {a.n === 1 ? '10' : '100'}
+            {/* Etiketten står på sin side av markøren, så «×10» og «÷10» aldri møtes (buene er smale på mobil) */}
+            <Txt x={xm + a.d * 6} y={y0 - a.h - 6} anchor={a.d < 0 ? 'end' : 'start'} size={0.8} weight={700} color={KJEMI.plus}>
+              {a.d < 0 ? '×10' : '÷10'}
             </Txt>
           </g>
         );
@@ -477,8 +477,8 @@ function explanation(pH: number, ch: ReturnType<typeof character>, near: string 
         ganger så surt. Både sure og basiske løsninger inneholder begge ionene, for {H3O} · {OH} = K<Sub>w</Sub> = 1,0 · 10⁻¹⁴ ved 25 °C.
       </p>
       <p>
-        Bromtymolblått er {indicatorColorWord(btb, pH)} og fenolftalein {indicatorColorWord(php, pH)} her. En indikator viser bare om pH er
-        over eller under omslagsområdet sitt, så du trenger flere indikatorer (eller universalindikator) for å anslå pH.
+        Med bromtymolblått blir løsningen {indicatorColorWord(btb, pH)}, med fenolftalein {indicatorColorWord(php, pH)}. En indikator viser bare om pH
+        er over eller under omslagsområdet sitt, så du trenger flere indikatorer (eller universalindikator) for å anslå pH.
       </p>
     </>
   );

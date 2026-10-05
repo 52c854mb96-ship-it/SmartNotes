@@ -25,7 +25,7 @@ import {
   useContainerTextScale,
   type Term,
 } from '../kit';
-import { HESS_EXAMPLES, HESS_FACTORS, hessSum, netChange, scaleEquation, staircase, type HessChoice, type HessExample, type StairLevel } from './model';
+import { HESS_EXAMPLES, HESS_FACTORS, hessHint, hessSum, scaleEquation, staircase, type HessChoice, type HessExample, type StairLevel } from './model';
 
 const OK = VIZ.series[2]!;
 const BAD = VIZ.series[1]!;
@@ -357,37 +357,21 @@ function Stairs({ levels, choices, sumDH, matches, L }: { levels: StairLevel[]; 
 /* ---------- Forklaring ---------- */
 
 function hint(ex: HessExample, choices: HessChoice[]): ReactNode {
-  const target = netChange([ex.target]);
-  const scaled = ex.given.map((g, i) => scaleEquation(g, choices[i]!));
-  const current = netChange(scaled);
-  const species = [...new Set([...target.keys(), ...current.keys()])];
-  for (const s of species) {
-    const want = target.get(s) ?? 0;
-    const have = current.get(s) ?? 0;
-    if (Math.abs(want - have) < 1e-9) continue;
-    const inEq = ex.given.map((g, i) => ({ i, a: netChange([g]).get(s) ?? 0 })).filter((x) => Math.abs(x.a) > 1e-9);
-    if (inEq.length !== 1) continue;
-    const { i, a } = inEq[0]!;
-    const c = want / a;
-    const needReverse = c < 0;
-    const factor = Math.abs(c);
-    const where = want > 0 ? 'høyre' : want < 0 ? 'venstre' : '';
-    return (
-      <>
-        <Formel f={s} /> finnes bare i likning ({i + 1}).{' '}
-        {want === 0 ? (
-          <>Den skal ikke være med i målreaksjonen, så den må strykes mot noe på den andre siden.</>
-        ) : (
-          <>
-            I målreaksjonen står {coefText(Math.abs(want)) || '1'} <Formel f={s} state={false} /> på {where} side, så likning ({i + 1}) må{' '}
-            {needReverse ? 'snus' : 'stå som den er'}
-            {factor !== 1 ? ` og ganges med ${coefText(factor)}` : ''}.
-          </>
-        )}
-      </>
-    );
-  }
-  return <>Sjekk at stoffene som ikke er med i målreaksjonen, står like mange ganger på hver side, så de kan strykes.</>;
+  const h = hessHint(ex, choices);
+  if (!h) return <>Sjekk at stoffene som ikke er med i målreaksjonen, står like mange ganger på hver side, så de kan strykes.</>;
+  return (
+    <>
+      <Formel f={h.species} /> finnes bare i likning ({h.eq + 1}).{' '}
+      {h.want === 0 ? (
+        <>Den skal ikke være med i målreaksjonen, så den må strykes mot noe på den andre siden.</>
+      ) : (
+        <>
+          I målreaksjonen står {coefText(Math.abs(h.want)) || '1'} <Formel f={h.species} state={false} /> på {h.want > 0 ? 'høyre' : 'venstre'} side, så likning (
+          {h.eq + 1}) skal {h.reverse ? 'snus' : 'ikke snus'} og ganges med {coefText(h.factor) || '1'}.
+        </>
+      )}
+    </>
+  );
 }
 
 function explanation(ex: HessExample, choices: HessChoice[], sum: ReturnType<typeof hessSum>): ReactNode {

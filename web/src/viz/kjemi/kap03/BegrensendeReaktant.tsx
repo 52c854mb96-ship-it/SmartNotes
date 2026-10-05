@@ -22,11 +22,12 @@ import {
   fmtSig,
   formulaText,
   molarMass,
+  useAtomScale,
   useContainerTextScale,
   type ParticleGroup,
   type Term,
 } from '../kit';
-import { LIMITING_REACTIONS, ceilTo, limitingResult, niceStep, parsedEquation, percentYield, pictureCounts, type LimitingResult } from './model';
+import { LIMITING_REACTIONS, amountStep, ceilTo, limitingResult, niceStep, parsedEquation, percentYield, pictureCounts, type LimitingResult } from './model';
 import { MiniMolecule, miniRadius } from './molekyler';
 
 type Mode = 'n' | 'm';
@@ -59,7 +60,8 @@ export default function BegrensendeReaktant() {
   const theo = res.after[pIdx]! * M[pIdx]!;
   const actual = yieldFrac * theo;
   const pct = percentYield(actual, theo);
-  const rounded = mode === 'm' || n.some((v) => Math.abs(v / UNIT - Math.round(v / UNIT)) > 1e-9);
+  // Bildet er eksakt når mengdene går opp i hele partikler (alltid i mol-modus, se amountStep).
+  const rounded = !pic.exact;
 
   const choose = (next: string) => {
     const nl = LIMITING_REACTIONS.find((x) => x.id === next) ?? L;
@@ -68,7 +70,14 @@ export default function BegrensendeReaktant() {
   };
   const changeMode = (m: Mode) => {
     setMode(m);
-    if (m === 'n') setN((prev) => prev.map((v) => Math.round(v / UNIT) * UNIT));
+    // Tilbake til mol: rund av til stegene på glidebryterne (koeffisient · ½ mol), innenfor området.
+    if (m === 'n')
+      setN((prev) =>
+        prev.map((v, i) => {
+          const step = amountStep(rx.reactants[i]?.coef ?? 1, UNIT);
+          return Math.min(L.nMax[i] ?? 4, Math.round(v / step) * step);
+        }),
+      );
   };
 
   // På mobil tegnes partikkelbildet i en smalere viewBox (420 bred), så molekylene blir store nok å se.
@@ -76,7 +85,8 @@ export default function BegrensendeReaktant() {
   const picW = narrow ? 420 : 800;
   const picF = narrow ? 1 : f;
   const picH = pictureHeight(terms.length, nR, picF, narrow);
-  const tab = tableLayout(mode, f);
+  // Tabellen tegnes også smalere på mobil, så tallene blir store nok.
+  const tab = tableLayout(mode, picF, narrow ? 460 : 800);
 
   return (
     <VizLayout>
@@ -110,7 +120,7 @@ export default function BegrensendeReaktant() {
                 onChange={(v) => setN((prev) => prev.map((x, j) => (j === i ? v : x)))}
                 min={0}
                 max={L.nMax[i] ?? 4}
-                step={UNIT}
+                step={amountStep(t.coef, UNIT)}
                 format={(v) => `${fmt(v, 1)} mol`}
               />
             );
@@ -164,12 +174,12 @@ export default function BegrensendeReaktant() {
       </div>
 
       <Figure
-        viewBox={`0 0 800 ${tab.H}`}
+        viewBox={`0 0 ${tab.W} ${tab.H}`}
         label="Støkiometrisk tabell med stoffmengdene før, endringen og etter reaksjonen."
         caption="Stoffmengder n i mol, masser m i gram og molar masse M i g/mol."
         maxHeight={tab.H}
       >
-        <StoichTable terms={terms} nR={nR} M={M} res={res} layout={tab} f={f} yieldIdx={pIdx} />
+        <StoichTable terms={terms} nR={nR} M={M} res={res} layout={tab} f={picF} yieldIdx={pIdx} />
       </Figure>
 
       <Readouts>
@@ -185,7 +195,12 @@ export default function BegrensendeReaktant() {
           tone={PRODUCT}
         />
         <Readout label="Faktisk utbytte" value={fmtSig(actual)} unit="g" />
-        <Readout label="Prosentvis utbytte" value={Number.isFinite(pct) ? fmt(pct, 0) : '–'} unit="%" tone={pct > 100 ? LEFT_OVER : undefined} />
+        <Readout
+          label="Prosentvis utbytte"
+          value={Number.isFinite(pct) ? fmt(pct, 0) : '–'}
+          unit={Number.isFinite(pct) ? '%' : undefined}
+          tone={pct > 100 ? LEFT_OVER : undefined}
+        />
       </Readouts>
 
       <Formula label="Utregning">
@@ -216,7 +231,13 @@ export default function BegrensendeReaktant() {
           {fmtSig(res.after[pIdx]!)} mol · {fmt(M[pIdx]!, 2)} g/mol = {fmtSig(theo)} g
         </FormulaLine>
         <FormulaLine>
-          Prosentvis utbytte = faktisk / teoretisk · 100 % = {fmtSig(actual)} g / {fmtSig(theo)} g · 100 % = {Number.isFinite(pct) ? `${fmt(pct, 0)} %` : '–'}
+          {Number.isFinite(pct) ? (
+            <>
+              Prosentvis utbytte = faktisk / teoretisk · 100 % = {fmtSig(actual)} g / {fmtSig(theo)} g · 100 % = {fmt(pct, 0)} %
+            </>
+          ) : (
+            <>Prosentvis utbytte = faktisk / teoretisk · 100 % kan ikke regnes ut når det teoretiske utbyttet er 0 g.</>
+          )}
         </FormulaLine>
       </Formula>
 
@@ -269,7 +290,7 @@ function ParticleScene({
   n: number[];
 }) {
   const k = Math.max(1, 0.85 * f);
-  const scale = (narrow ? 1.75 : 2.0) / k;
+  const kAtom = useAtomScale();
   const boxH = BOX_H;
   const top = 34 * f;
   const cx = narrow ? 210 : 400;
@@ -282,6 +303,13 @@ function ParticleScene({
         { x: 16, y: top, w: 350 },
         { x: 434, y: top, w: 350 },
       ];
+  // Gjør molekylene mindre når boksene blir for fulle (mange partikler), så de ikke overlapper. Samme skala i begge boksene.
+  const base = (narrow ? 1.75 : 2.0) / k;
+  const boxArea = (boxes[0]!.w - 16) * (boxH - 16);
+  const need = (counts: number[]) =>
+    terms.reduce((sum, t, i) => sum + (counts[i] ?? 0) * Math.PI * (miniRadius(bare(t.formula)) * base * kAtom + 2) ** 2, 0);
+  const fill = Math.max(need(pic.before), need(pic.after)) / boxArea;
+  const scale = base * (fill > 0.42 ? Math.sqrt(0.42 / fill) : 1);
   const groups = (counts: number[], after: boolean): ParticleGroup[] =>
     terms.map((t, i) => {
       const fx = bare(t.formula);
@@ -299,6 +327,7 @@ function ParticleScene({
       const fx = bare(t.formula);
       const count = (after ? pic.after : pic.before)[i] ?? 0;
       const mol = after ? res.after[i]! : (n[i] ?? 0);
+      const had = (n[i] ?? 0) > 0;
       const y = box.y + boxH + 14 * f + (row + 0.75) * ROW * f;
       const isLim = res.limiting.includes(i) && i < nR && res.extent >= 0 && !res.exact;
       let note = '';
@@ -307,11 +336,12 @@ function ParticleScene({
         note = 'begrensende';
         color = LEFT_OVER;
       } else if (after && i < nR) {
-        note = count > 0 ? 'til overs' : 'brukt opp';
+        // En reaktant som ikke var med fra start, er verken brukt opp eller til overs.
+        note = !had ? '' : count > 0 ? 'til overs' : 'brukt opp';
         color = count > 0 ? LEFT_OVER : undefined;
       } else if (after) {
-        note = 'dannet';
-        color = PRODUCT;
+        note = res.extent > 0 ? 'dannet' : 'ikke dannet';
+        color = res.extent > 0 ? PRODUCT : undefined;
       }
       const s = Math.min(0.9, 9 / miniRadius(fx)) * Math.max(1, 0.85 * f);
       return (
@@ -323,7 +353,7 @@ function ParticleScene({
               ({fmtSig(mol, 2)} mol)
             </tspan>
             {note && (
-              <tspan dx={8} fontWeight={note === 'brukt opp' ? 500 : 650} style={{ fill: color ?? VIZ.muted }}>
+              <tspan dx={8} fontWeight={color ? 650 : 500} style={{ fill: color ?? VIZ.muted }}>
                 {note}
               </tspan>
             )}
@@ -368,6 +398,7 @@ function ParticleScene({
 /* ---------- Figur 2: støkiometrisk tabell ---------- */
 
 interface TabLayout {
+  W: number;
   rows: { key: string; label: string }[];
   headH: number;
   rowH: number;
@@ -375,7 +406,7 @@ interface TabLayout {
   H: number;
 }
 
-function tableLayout(mode: Mode, f: number): TabLayout {
+function tableLayout(mode: Mode, f: number, W: number): TabLayout {
   const rows = [
     { key: 'M', label: 'M' },
     ...(mode === 'm' ? [{ key: 'm0', label: 'm før' }] : []),
@@ -386,7 +417,7 @@ function tableLayout(mode: Mode, f: number): TabLayout {
   ];
   const headH = 54 * f;
   const rowH = 34 * f;
-  return { rows, headH, rowH, labelW: 150 * Math.min(1.25, f), H: Math.round(headH + rows.length * rowH + 10) };
+  return { W, rows, headH, rowH, labelW: W < 600 ? 84 : 150 * Math.min(1.25, f), H: Math.round(headH + rows.length * rowH + 10) };
 }
 
 function StoichTable({
@@ -408,7 +439,8 @@ function StoichTable({
 }) {
   const { rows, headH, rowH, labelW } = layout;
   const x0 = 10;
-  const colW = (790 - x0 - labelW) / terms.length;
+  const x1 = layout.W - 10;
+  const colW = (x1 - x0 - labelW) / terms.length;
   const cx = (i: number) => x0 + labelW + colW * (i + 0.5);
   const signedSig = (v: number) => (Math.abs(v) < 1e-12 ? '0' : `${v > 0 ? '+' : '−'}${fmtSig(Math.abs(v))}`);
   const value = (key: string, i: number): string => {
@@ -449,18 +481,18 @@ function StoichTable({
               {t.coef > 1 ? `${t.coef} ` : ''}
               <TFormel f={bare(t.formula)} />
             </Txt>
-            <Txt x={cx(i)} y={44 * f} size={0.72} muted={!lim && !prod} color={lim ? LEFT_OVER : prod ? PRODUCT : undefined} weight={lim || prod ? 650 : 500}>
+            <Txt x={cx(i)} y={44 * f} size={layout.W < 600 ? 0.64 : 0.72} muted={!lim && !prod} color={lim ? LEFT_OVER : prod ? PRODUCT : undefined} weight={lim || prod ? 650 : 500}>
               {lim ? 'begrensende' : prod ? 'utbytte' : i < nR ? 'reaktant' : 'produkt'}
             </Txt>
           </g>
         );
       })}
-      <line x1={x0} y1={headH} x2={790} y2={headH} stroke={VIZ.grid} strokeWidth={2} />
+      <line x1={x0} y1={headH} x2={x1} y2={headH} stroke={VIZ.grid} strokeWidth={2} />
       {rows.map((r, j) => {
         const y = headH + j * rowH;
         return (
           <g key={r.key}>
-            {j > 0 && <line x1={x0} y1={y} x2={790} y2={y} stroke={VIZ.grid} strokeWidth={1} />}
+            {j > 0 && <line x1={x0} y1={y} x2={x1} y2={y} stroke={VIZ.grid} strokeWidth={1} />}
             <Txt x={x0 + 4} y={y + rowH / 2 + 6 * f} anchor="start" size={0.85} muted={r.key === 'M'} weight={r.key === 'n1' ? 700 : 600}>
               {r.label}
             </Txt>
@@ -502,11 +534,19 @@ function explanation({
   const ratio = `${a.coef} : ${b.coef}`;
   let first: ReactNode;
   const zero = rx.findIndex((_, i) => (n[i] ?? 0) <= 0);
-  if (zero >= 0) {
+  const allZero = rx.every((_, i) => (n[i] ?? 0) <= 0);
+  if (allZero) {
     first = (
       <p>
-        <strong>Ingenting reagerer.</strong> Det er ingen {F(rx[zero]!)}, så reaksjonen kan ikke skje, og det dannes ikke noe {F(product)}. Øk stoffmengden av
-        begge reaktantene.
+        <strong>Ingenting reagerer.</strong> Det er ingen av reaktantene, så det dannes ikke noe {F(product)}. Øk stoffmengden av begge reaktantene.
+      </p>
+    );
+  } else if (zero >= 0) {
+    const other = rx[zero === 0 ? 1 : 0]!;
+    first = (
+      <p>
+        <strong>Ingenting reagerer.</strong> Det er ingen {F(rx[zero]!)}, så reaksjonen kan ikke skje, og det dannes ikke noe {F(product)}. {F(other)} blir{' '}
+        liggende igjen uten å reagere. Øk stoffmengden av {F(rx[zero]!)}.
       </p>
     );
   } else if (res.exact) {
@@ -528,8 +568,8 @@ function explanation({
     first = (
       <p>
         <strong>{F(lim)} er begrensende reaktant.</strong> I likningen er forholdet {F(a)} : {F(b)} = {ratio}, så {fmtSig(n[li] ?? 0)} mol {F(lim)} trenger{' '}
-        {fmtSig(needed)} mol {F(other)}. Det er {fmtSig(n[oi] ?? 0)} mol {F(other)}, så {fmtSig(leftover)} mol {F(other)} blir til overs når all {F(lim)} er
-        brukt opp.
+        {fmtSig(needed)} mol {F(other)}. Det er {fmtSig(n[oi] ?? 0)} mol {F(other)}, så {fmtSig(leftover)} mol {F(other)} blir til overs når {F(lim)} er brukt
+        opp.
         {lessOfLimiting && (
           <>
             {' '}

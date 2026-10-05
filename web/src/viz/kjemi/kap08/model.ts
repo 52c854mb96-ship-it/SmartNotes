@@ -4,6 +4,7 @@
  *
  * Molare masser regnes med kit-ets formelparser (IUPAC-verdier forkortet som i Kjemi 1, se viz/README.md).
  */
+import { fmt } from '../../kit/format';
 import { molarMass } from '../kit/formel';
 import { seededRandom } from '../kit/random';
 
@@ -621,7 +622,7 @@ export const GRAV: Record<GravId, GravAnalysis> = {
     id: 'kalsium',
     analyte: { formula: 'Ca^2+', name: 'kalsium' },
     reagent: { formula: '(NH4)2C2O4', name: 'ammoniumoksalat', c: 0.1 },
-    precipitate: { formula: 'CaC2O4·H2O', name: 'kalsiumoksalat', look: 'hvitt' },
+    precipitate: { formula: 'CaC2O4·H2O', name: 'kalsiumoksalatmonohydrat', look: 'hvitt' },
     equation: 'Ca^2+(aq) + C2O4^2-(aq) + H2O(l) → CaC2O4·H2O(s)',
     ratio: 1,
     dry: 'ca. 105 °C',
@@ -916,6 +917,14 @@ export function airUnits(value: number, unit: NaturalUnit, M: number | null): Ai
 /** Molar masse for et forurensende stoff (null for svevestøv). */
 export function pollutantMolarMass(p: Pollutant): number | null {
   return p.formula ? molarMass(p.formula) : null;
+}
+
+/**
+ * Grenseverdien som tekst slik forskriftene skriver den (125 µg/m³, 0,50 mg/L, 1,5 mg/L), ikke avrundet til to gjeldende
+ * siffer som målingene (fmtSig(125, 2) ville gitt «130»).
+ */
+export function formatLimit(v: number): string {
+  return fmt(v, v >= 10 ? 0 : v >= 1 ? (Number.isInteger(v) ? 0 : 1) : 2);
 }
 
 /** Målt verdi delt på grenseverdien: 1 = akkurat på grensen. */

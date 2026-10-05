@@ -17,6 +17,7 @@ import {
   absorptionMax,
   airUnits,
   atomicLines,
+  formatLimit,
   beerLambert,
   colorWord,
   colorWordNeuter,
@@ -318,6 +319,16 @@ describe('vann- og luftkvalitet', () => {
         expect(l.value).toBeLessThan(p.max);
       }
     }
+  });
+
+  it('grenseverdiene skrives som i forskriftene, ikke avrundet', () => {
+    expect(formatLimit(getPollutant('so2').limits[1]!.value)).toBe('125');
+    expect(formatLimit(getPollutant('nitritt').limits[0]!.value)).toBe('0,50');
+    expect(formatLimit(getPollutant('fluorid').limits[0]!.value)).toBe('1,5');
+    expect(formatLimit(10)).toBe('10');
+    expect(getPollutant('so2').limits.map((l) => l.value)).toEqual([350, 125]);
+    // Den første grensen er den høyeste (kortest midlingstid), den andre den strengeste
+    for (const p of POLLUTANTS) if (p.limits.length > 1) expect(p.limits[0]!.value).toBeGreaterThan(p.limits[1]!.value);
   });
 
   it('forholdet til grenseverdien', () => {

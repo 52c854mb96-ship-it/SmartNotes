@@ -270,7 +270,11 @@ export function distinctGametes(list: readonly (readonly GameteChromatid[])[]): 
 /** Alle 2ⁿ kombinasjoner uten overkrysning, sortert fra «bare fra mor» til «bare fra far». */
 export function allCombinations(n: number): GameteChromatid[][] {
   return Array.from({ length: combinations(n) }, (_, k) =>
-    Array.from({ length: n }, (_, par) => ({ par, opphav: (k >> (n - 1 - par)) & 1 ? ('far' as const) : ('mor' as const), rekombinant: false })),
+    Array.from({ length: n }, (_, par) => ({
+      par,
+      opphav: (k >> (n - 1 - par)) & 1 ? ('far' as const) : ('mor' as const),
+      rekombinant: false,
+    })),
   );
 }
 
@@ -310,12 +314,12 @@ export interface TissueParams extends Mutations {
   damage: boolean;
 }
 
-/** Delingsrate for en celle med vekstsignal og plass (per døgn): ca. én deling hvert annet døgn. */
-export const R0 = 0.3;
+/** Delingsrate for en celle med vekstsignal og plass (per døgn): én deling omtrent hvert tredje døgn. */
+export const R0 = 0.2;
 /** Svakt vekstsignal i fullt, friskt vev (bakgrunn). */
-export const SIGMA = 0.15;
+export const SIGMA = 0.2;
 /** «Gasspedalen henger»: delingssignalet er alltid på, og sterkere enn et vanlig vekstsignal. */
-export const ONCOGENE_DRIVE = 1.6;
+export const ONCOGENE_DRIVE = 1.3;
 /** Celler med DNA-skade og virkende kontrollpunkter bruker tid på reparasjon (eller dør): lavere netto vekst. */
 export const DAMAGE_SLOWDOWN = 0.6;
 /** Andelen celler (av et fullt vev) i den muterte klonen ved start: én liten gruppe celler i kanten av såret. */
@@ -447,7 +451,10 @@ export interface CheckpointResult {
 export function checkpointStatus(id: CheckpointId, m: Mutations, damage: boolean, crowded: boolean): CheckpointResult {
   if (id === 'G1') {
     if (damage && !m.tsg) return { status: 'stopp', reason: 'DNA-skade: stopp til den er reparert' };
-    if (crowded && !m.onkogen && !m.tsg) return { status: 'g0', reason: 'Fullt vev: hvilefase (G0)' };
+    if (crowded && !m.tsg)
+      return m.onkogen
+        ? { status: 'stopp', reason: 'Fullt vev: bremsen stopper cella' }
+        : { status: 'g0', reason: 'Fullt vev: hvilefase (G0)' };
     if (m.onkogen) return { status: 'passer', reason: 'Onkogen: delingssignal hele tida' };
     if (m.tsg && crowded) return { status: 'passer', reason: 'Bremsen virker ikke' };
     return { status: 'passer', reason: damage ? 'Skaden blir ikke oppdaget' : 'Vekstsignal og plass' };

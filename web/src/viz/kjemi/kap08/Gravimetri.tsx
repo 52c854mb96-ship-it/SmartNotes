@@ -152,7 +152,7 @@ export default function Gravimetri() {
           n(<Formel f={a.precipitate.formula} state={false} />) = m / M = {fmt(m, 4)} g / {fmt(res.M, 2)} g/mol = {fmtSig(res.nP, 3)} mol
         </FormulaLine>
         <FormulaLine>
-          n(<Formel f={a.analyte.formula} />) = n(<Formel f={a.precipitate.formula} state={false} />) = {fmtSig(res.nA, 3)} mol (1 : 1 etter likningen)
+          n(<Formel f={a.analyte.formula} />) = n(<Formel f={a.precipitate.formula} state={false} />) = {fmtSig(res.nA, 3)} mol (1 : 1 etter likningen)
         </FormulaLine>
         <FormulaLine>
           c(<Formel f={a.analyte.formula} />) = n / V = {fmtSig(res.nA, 3)} mol / {fmt(V / 1000, 3)} L = {fmtSig(res.c, 3)} mol/L
@@ -307,7 +307,7 @@ function Precipitation({ a, m, err, cx, top, s, k }: StationProps) {
             {err === 'underskudd' &&
               placeParticles({ x: box.x, y: box.y, w: box.w, h: box.h * 0.7 }, [{ n: 5, r: 6 * k }], 9, 4).map((p) => (
                 <g key={p.index}>
-                  <circle cx={p.x} cy={p.y} r={p.r} fill={KJEMI.minus} />
+                  <circle cx={p.x} cy={p.y} r={p.r} fill={a.id === 'kalsium' ? KJEMI.plus : KJEMI.minus} />
                   <text x={p.x} y={p.y + p.r * 0.4} textAnchor="middle" style={{ fill: VIZ.surface, fontSize: p.r * 1.3, fontWeight: 700 }}>
                     {a.id === 'kalsium' ? '+' : '−'}
                   </text>
@@ -454,14 +454,15 @@ function Chain({ a, res, V, m, step, f }: { a: GravAnalysis; res: GravResult; V:
           · M<TSub>a</TSub>
         </>
       ),
-      detail: `${fmt(res.Ma, 2)} g/mol`,
+      // c · M gir g/L, og 1 g = 1000 mg
+      detail: `${fmt(res.Ma, 2)} g/mol, g → mg`,
     },
   ];
   // Hvilke deler av kjeden som hører til steget
   const hot = (i: number) => (step === '4' ? true : step === '3' ? i === 0 : step === '1' ? i === 2 : false);
   const hotOp = (i: number) => step === '4' || (step === '1' && i === 1);
   if (!narrow) {
-    const w = 124;
+    const w = 132;
     const gap = (800 - 5 * w - 8) / 4;
     const y = 30;
     const h = 92;
@@ -472,10 +473,10 @@ function Chain({ a, res, V, m, step, f }: { a: GravAnalysis; res: GravResult; V:
           return (
             <g key={i} opacity={hot(i) ? 1 : 0.55}>
               <rect x={x} y={y} width={w} height={h} rx={12} fill={VIZ.surface} stroke={hot(i) ? VIZ.series[0] : VIZ.muted} strokeWidth={hot(i) ? 2.5 : 1.5} />
-              <Txt x={x + w / 2} y={y + 28} size={0.8} muted>
+              <Txt x={x + w / 2} y={y + 28} size={0.76} muted>
                 {b.title}
               </Txt>
-              <Txt x={x + w / 2} y={y + 64} size={0.82} weight={700} color={i === 4 ? VIZ.series[0] : undefined}>
+              <Txt x={x + w / 2} y={y + 64} size={0.78} weight={700} color={i === 4 ? VIZ.series[0] : undefined}>
                 {b.value}
               </Txt>
             </g>
@@ -489,7 +490,7 @@ function Chain({ a, res, V, m, step, f }: { a: GravAnalysis; res: GravResult; V:
             <g key={i} opacity={hotOp(i) ? 1 : 0.55}>
               <line x1={x1} y1={yy} x2={x2 - 8} y2={yy} stroke={VIZ.ink} strokeWidth={2} />
               <polygon points={`${x2},${yy} ${x2 - 10},${yy - 6} ${x2 - 10},${yy + 6}`} fill={VIZ.ink} />
-              <Txt x={(x1 + x2) / 2} y={yy - 10} size={0.8} weight={700}>
+              <Txt x={(x1 + x2) / 2} y={yy - 10} size={0.72} weight={700}>
                 {o.op}
               </Txt>
               <Txt x={(x1 + x2) / 2} y={y + h + 24} size={0.68} muted>
@@ -548,7 +549,8 @@ function explanation(a: GravAnalysis, res: GravResult, truth: GravResult, V: num
   const P = <Formel f={a.precipitate.formula} />;
   const X = <Formel f={a.analyte.formula} />;
   const R = <Formel f={a.reagent.formula} />;
-  const need = reagentNeeded(a, res.nA);
+  // Reagensmengden må dekke all analytten som faktisk er i prøven (den riktige verdien, også når en feilkilde gir for lav masse)
+  const need = reagentNeeded(a, truth.nA);
   let now: ReactNode;
   if (step === '1')
     now = (
@@ -561,7 +563,8 @@ function explanation(a: GravAnalysis, res: GravResult, truth: GravResult, V: num
   else if (step === '2')
     now = (
       <>
-        <strong>Filtrering og tørking:</strong> Bunnfallet samles på et filter og vaskes med litt vann, så løste salter ikke blir med i massen. Så tørkes det
+        <strong>Filtrering og tørking:</strong> Bunnfallet samles på et filter (filterpapir eller filterdigel) og vaskes med litt vann, så løste salter ikke
+        blir med i massen. Så tørkes det
         ved {a.dry} til massen ikke endrer seg mer (konstant masse). Bunnfallet må være rent og tørt før det veies.
       </>
     );
@@ -569,15 +572,15 @@ function explanation(a: GravAnalysis, res: GravResult, truth: GravResult, V: num
     now = (
       <>
         <strong>Veiing:</strong> Vekta viser {fmt(m, 4)} g {P}. En analysevekt måler med fire desimaler (0,1 mg), så massen er det sikreste tallet i hele
-        analysen. Først veies den tomme filterdigelen, så digelen med bunnfall; forskjellen er massen av bunnfallet.
+        analysen. Først veies det tørre filteret alene, så filteret med bunnfall; forskjellen er massen av bunnfallet.
       </>
     );
   else
     now = (
       <>
-        <strong>Utregning:</strong> Massen gjøres om til stoffmengde med den molare massen, n = m/M = {fmtSig(res.nP, 3)} mol {P}. Molforholdet 1 : 1 gir
-        like mange mol {X}. Delt på volumet gir det c = {fmtSig(res.c, 3)} mol/L, og ganget med den molare massen til {a.analyte.name} ({fmt(res.Ma, 2)} g/mol){' '}
-        {fmtSig(res.mgPerL, 3)} mg/L. Legg merke til at det er M(bunnfall) du deler på, ikke M({a.analyte.name}).
+        <strong>Utregning:</strong> Massen gjøres om til stoffmengde med den molare massen, n = m/M = {fmtSig(res.nP, 3)} mol {P}. Molforholdet 1 : 1 gir
+        like mange mol {X}. Delt på volumet gir det c = {fmtSig(res.c, 3)} mol/L, og ganget med den molare massen til {a.analyte.name} ({fmt(res.Ma, 2)} g/mol) blir
+        det {fmtSig(res.mgPerL, 3)} mg/L. Legg merke til at det er M(bunnfall) du deler på, ikke M({a.analyte.name}).
       </>
     );
   const limit =
@@ -585,7 +588,8 @@ function explanation(a: GravAnalysis, res: GravResult, truth: GravResult, V: num
       <>Kalsium har ingen grenseverdi i drikkevannsforskriften, men mye kalsium gir hardt vann og kalkbelegg.</>
     ) : res.mgPerL > a.limit ? (
       <>
-        Dette er over grenseverdien for drikkevann ({fmt(a.limit, 0)} mg/L), så vannet bør ikke brukes som drikkevann uten videre behandling.
+        Dette er over grenseverdien for drikkevann ({fmt(a.limit, 0)} mg/L). For {a.analyte.name} er grensen en indikatorparameter: så mye gir vond smak
+        og kan tære på rør, og vannverket må finne årsaken og rette det opp.
       </>
     ) : (
       <>
@@ -609,7 +613,7 @@ function explanation(a: GravAnalysis, res: GravResult, truth: GravResult, V: num
     ),
     underskudd: (
       <>
-        <strong>Feilkilde:</strong> Med for lite {R} blir ikke all {a.analyte.name} felt ut (ionene som er igjen i løsningen, ser du i begeret). Massen og
+        <strong>Feilkilde:</strong> Med for lite {R} blir ikke alt {a.analyte.name} felt ut (ionene som er igjen i løsningen, ser du i begeret). Massen og
         resultatet blir for lave: {fmtSig(res.mgPerL, 3)} mg/L i stedet for {fmtSig(truth.mgPerL, 3)} mg/L. Tilsett reagens til det ikke dannes mer bunnfall.
       </>
     ),

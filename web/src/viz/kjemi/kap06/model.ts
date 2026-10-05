@@ -46,6 +46,15 @@ export function extentBounds(nu: readonly number[], c0: readonly number[]): [num
   return [lo, hi];
 }
 
+/**
+ * Kan reaksjonen gå i det hele tatt? Nei når alle reaktantene og alle produktene mangler på hver sin side, f.eks. bare
+ * H₂ og ingen I₂ eller HI (eller ingenting i det hele tatt). Da er Q = 0/0 og verken likevekt eller reaksjon.
+ */
+export function reactionPossible(nu: readonly number[], c0: readonly number[]): boolean {
+  const [lo, hi] = extentBounds(nu, c0);
+  return hi > lo;
+}
+
 export interface EquilibriumResult {
   /** Omsetningen x (mol/L): positiv når reaksjonen går mot høyre, negativ mot venstre. */
   x: number;
@@ -304,8 +313,11 @@ export function simulateAB(a0: number, b0: number, K: number, tMax: number, n = 
   return out;
 }
 
-/** Fartskonstanten mot høyre for H₂ + I₂ → 2 HI i modellen (L/(mol·s)). Tidsskalaen er valgt for visningen. */
-export const HI_KF = 0.6;
+/**
+ * Fartskonstanten mot høyre for H₂ + I₂ → 2 HI i modellen (L/(mol·s)). Tidsskalaen er valgt for visningen: med
+ * 1,0 mol/L av H₂ og I₂ er Q innenfor 1 % av K etter ca. 6 s, godt innenfor de 10 s grafen viser.
+ */
+export const HI_KF = 2;
 /** K for H₂ + I₂ ⇌ 2 HI ved 430 °C. */
 export const HI_K = 54;
 

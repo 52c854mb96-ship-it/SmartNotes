@@ -106,7 +106,7 @@ describe('sterke og svake syrer', () => {
     expect(strongAcid(1e-9).pH).toBeGreaterThan(6.99);
   });
 
-  it('0,10 mol/L eddiksyre: pH 2,87 og protolysegrad 1,3 %', () => {
+  it('0,10 mol/L eddiksyre: pH 2,88 (eksakt; tilnærmingen √(K·c) gir 2,87) og protolysegrad 1,3 %', () => {
     const s = weakAcid(0.1, 1.8e-5);
     expect(s.pH).toBeCloseTo(2.875, 2);
     expect(s.alpha * 100).toBeCloseTo(1.33, 2);
@@ -135,6 +135,28 @@ describe('sterke og svake syrer', () => {
     expect(d).toBeGreaterThan(0.45);
     expect(d).toBeLessThan(0.55);
     expect(weakAcid(0.001, 1.8e-5).alpha).toBeGreaterThan(weakAcid(0.1, 1.8e-5).alpha);
+  });
+
+  it('de svake syrene: balanserte likninger, og løselige nok til 1 mol/L (ingen benzosyre)', () => {
+    for (const a of WEAK_ACIDS) {
+      const eq = `${a.formula}(aq) + H2O(l) ⇌ H3O^+(aq) + ${a.base}(aq)`;
+      expect(checkBalance(eq).balanced, eq).toBe(true);
+    }
+    expect(WEAK_ACIDS.some((a) => a.id === 'benzosyre')).toBe(false);
+  });
+
+  it('hypoklorsyrling (K_a 4,0 · 10⁻⁸): svært svak, og vannets eget bidrag kan fortsatt neglisjeres ved 10⁻⁴ mol/L', () => {
+    const hclo = WEAK_ACIDS.find((a) => a.id === 'hypoklorsyrling')!;
+    expect(pKa(hclo.Ka)).toBeCloseTo(7.4, 2);
+    // 0,10 mol/L: x = √(4,0 · 10⁻⁹) = 6,3 · 10⁻⁵ mol/L, pH 4,20
+    expect(weakAcid(0.1, hclo.Ka).pH).toBeCloseTo(4.2, 2);
+    // Med vannets bidrag: h² = K_a·c + K_w (c ≫ x). Forskjellen i pH er under 0,01 ved den laveste konsentrasjonen.
+    const c = 1e-4;
+    const exactPH = -Math.log10(Math.sqrt(hclo.Ka * c + KW));
+    expect(Math.abs(weakAcid(c, hclo.Ka).pH - exactPH)).toBeLessThan(0.01);
+    // En fortynnet sterk syre kan være surere enn en konsentrert svak syre (og omvendt)
+    expect(weakAcid(1, hclo.Ka).pH).toBeGreaterThan(strongAcid(0.001).pH);
+    expect(weakAcid(1, 1.8e-5).pH).toBeLessThan(strongAcid(0.001).pH);
   });
 
   it('sterkere syre (større K_a) gir lavere pH ved samme konsentrasjon', () => {
@@ -174,7 +196,7 @@ describe('titrering', () => {
     expect(titrationPH(hcl, 30)).toBeCloseTo(14 + Math.log10(0.02), 6);
   });
 
-  it('eddiksyre med NaOH: start 2,87, halvtitrerpunkt pH = pK_a, ekvivalens 8,72', () => {
+  it('eddiksyre med NaOH: start 2,88, halvtitrerpunkt pH = pK_a, ekvivalens 8,72', () => {
     expect(titrationPH(hac, 0)).toBeCloseTo(2.875, 2);
     expect(titrationPH(hac, 10)).toBeCloseTo(4.74, 1);
     expect(Math.abs(titrationPH(hac, 10) - pKa(1.8e-5))).toBeLessThan(0.01);
@@ -221,6 +243,10 @@ describe('titrering', () => {
     expect(titrationPhase(hac, 20)).toBe('ekvivalens');
     expect(titrationPhase(hac, 25)).toBe('etter');
     expect(titrationPhase(hcl, 10)).toBe('før');
+    // Like ved V_e er spranget så bratt at bare det nærmeste glidebrytersteget (0,05 mL) er «ekvivalens»
+    expect(titrationPhase(hcl, 19.95)).toBe('før');
+    expect(titrationPhase(hcl, 20.05)).toBe('etter');
+    expect(titrationPH(hcl, 19.95)).toBeLessThan(4);
   });
 
   it('gir endelige tall for ytterverdiene til glidebryterne', () => {
