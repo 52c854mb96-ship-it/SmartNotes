@@ -1,0 +1,1252 @@
+/* ---------- Flashcards: fargetokens ---------- */
+/*
+ * Farger for vurderingene og effektene (etter originalen). Samme mønster for mørkt tema som base.css:
+ * systemvalg uten data-theme, eller tvunget med data-theme="dark". Verdiene må være like i begge blokkene.
+ */
+:root {
+  --fc-serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  --fc-good: #1e8a52;
+  --fc-great: #13703f;
+  --fc-great-text: #0f5c33;
+  --fc-bad: #c4321f;
+  --fc-mid: #b46a00;
+  --fc-flame: #c77700;
+  --fc-spark-1: #2f6fd6;
+  --fc-spark-2: #9aa5b3;
+  --fc-key: #3d2a00;
+  --fc-kind-concept: #1f5fad;
+  --fc-kind-explain: #0f7f7a;
+  --fc-kind-apply: #a3581a;
+  --fc-overlay: rgb(15 19 24 / 0.9);
+  --fc-overlay-text: #e6eaef;
+  /* Mørkere tekstfarger i lyst tema, så teksten på knappene har nok kontrast (WCAG AA). */
+  --fc-bad-text: #a52a1a;
+  --fc-mid-text: #8a5200;
+  --fc-good-text: #17663d;
+  --fc-flame-text: #8f5300;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --fc-good: #34d17a;
+    --fc-great: #34d17a;
+    --fc-great-text: #9bffc6;
+    --fc-bad: #ff5468;
+    --fc-mid: #ffb648;
+    --fc-flame: #ffb648;
+    --fc-spark-1: #5aa9e6;
+    --fc-spark-2: #ffffff;
+    --fc-key: #fff4d6;
+    --fc-kind-concept: #8ab8f0;
+    --fc-kind-explain: #4fd1b0;
+    --fc-kind-apply: #e0b84a;
+    --fc-overlay: rgb(10 13 19 / 0.94);
+    --fc-overlay-text: #e6eaef;
+    --fc-bad-text: #ff5468;
+    --fc-mid-text: #ffb648;
+    --fc-good-text: #34d17a;
+    --fc-flame-text: #ffb648;
+  }
+}
+
+:root[data-theme='dark'] {
+  --fc-good: #34d17a;
+  --fc-great: #34d17a;
+  --fc-great-text: #9bffc6;
+  --fc-bad: #ff5468;
+  --fc-mid: #ffb648;
+  --fc-flame: #ffb648;
+  --fc-spark-1: #5aa9e6;
+  --fc-spark-2: #ffffff;
+  --fc-key: #fff4d6;
+  --fc-kind-concept: #8ab8f0;
+  --fc-kind-explain: #4fd1b0;
+  --fc-kind-apply: #e0b84a;
+  --fc-overlay: rgb(10 13 19 / 0.94);
+  --fc-overlay-text: #e6eaef;
+  --fc-bad-text: #ff5468;
+  --fc-mid-text: #ffb648;
+  --fc-good-text: #34d17a;
+  --fc-flame-text: #ffb648;
+}
+
+/* ---------- Oversikt over kortstokker ---------- */
+.fc-deck-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fc-deck-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.fc-deck-card:hover {
+  border-color: var(--border-strong);
+  border-left-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+
+.fc-deck-title {
+  font-family: var(--fc-serif);
+  font-size: 1.12rem;
+  line-height: 1.3;
+}
+
+.fc-deck-meta {
+  font-size: 13.5px;
+  color: var(--text-3);
+}
+
+.fc-status-panel {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.fc-status-panel h2 {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+}
+
+.fc-status-panel p {
+  margin: 0 0 12px;
+}
+
+.fc-status-panel.is-error {
+  border-color: var(--danger);
+}
+
+.fc-status-panel.is-error > svg {
+  color: var(--danger);
+  flex: none;
+}
+
+/* ---------- Ny kortstokk ---------- */
+.fc-new {
+  gap: 28px;
+}
+
+.fc-new fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.fc-new legend.section-title {
+  padding: 0;
+}
+
+.fc-pick-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.fc-pick-tree {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.fc-pick-chapter + .fc-pick-chapter {
+  border-top: 1px solid var(--border);
+}
+
+.fc-pick-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--tap);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.fc-pick-row:hover {
+  background: var(--surface-2);
+}
+
+.fc-pick-row.is-chapter {
+  font-weight: 650;
+  background: var(--surface-2);
+}
+
+.fc-pick-row.is-chapter:hover {
+  background: var(--surface-3);
+}
+
+.fc-pick-row.is-section {
+  padding-left: 34px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.fc-pick-row.is-note {
+  padding-left: 34px;
+}
+
+.fc-pick-section .fc-pick-row.is-note {
+  padding-left: 56px;
+}
+
+.fc-pick-label {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.fc-pick-meta {
+  flex: none;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.fc-difficulty {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.fc-new-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ---------- Øving ---------- */
+.fc-practice {
+  position: relative;
+}
+
+.fc-card-skeleton {
+  height: 300px;
+  border-radius: var(--radius);
+}
+
+.fc-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.fc-breakbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--accent-soft);
+  font-size: 14.5px;
+}
+
+.fc-breakbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.fc-repeat-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.fc-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 2px 6px;
+  font-size: 14px;
+  color: var(--text-3);
+}
+
+.fc-pills {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.fc-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-pill.is-hot {
+  border-color: var(--fc-flame);
+  color: var(--fc-flame-text);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--fc-flame) 25%, transparent);
+}
+
+.fc-pill.is-best {
+  color: var(--text-3);
+}
+
+.fc-bump {
+  animation: fc-bump 0.35s ease-out;
+}
+
+@keyframes fc-bump {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.fc-bar {
+  display: block;
+  height: 6px;
+  margin-bottom: 16px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.fc-bar > * {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--fc-good);
+  transition: width 0.35s ease-out;
+}
+
+.fc-bar-sm {
+  height: 4px;
+  margin: 6px 0 0;
+}
+
+/* Kortet */
+.fc-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 300px;
+  padding: 20px 22px 18px;
+  border: 1px solid var(--border);
+  border-left: 5px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: border-color 0.3s;
+}
+
+.fc-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.fc-meta-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.fc-source {
+  min-width: 0;
+  color: var(--accent-text);
+  overflow-wrap: anywhere;
+}
+
+.fc-tag {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.fc-tag-concept {
+  color: var(--fc-kind-concept);
+}
+
+.fc-tag-explain {
+  color: var(--fc-kind-explain);
+}
+
+.fc-tag-apply {
+  color: var(--fc-kind-apply);
+}
+
+.fc-dots {
+  display: inline-flex;
+  gap: 4px;
+  flex: none;
+}
+
+.fc-dots i {
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--fc-good);
+  border-radius: 50%;
+  opacity: 0.55;
+}
+
+.fc-dots i.is-on {
+  background: var(--fc-good);
+  opacity: 1;
+}
+
+.fc-question {
+  margin: auto 0;
+  font-family: var(--fc-serif);
+  font-size: 1.32rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.fc-question:focus,
+.fc-answer:focus {
+  /* Fokus flyttes hit for skjermlesere; elementene er ikke knapper, så ingen fokusring. */
+  outline: none;
+}
+
+.fc-card.is-flipped .fc-question {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  line-height: 1.35;
+  color: var(--text-3);
+}
+
+.fc-answer {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--fc-serif);
+  font-size: 1.12rem;
+  line-height: 1.45;
+}
+
+.fc-answer li {
+  position: relative;
+  padding: 5px 0 5px 16px;
+  overflow-wrap: anywhere;
+}
+
+.fc-answer li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.85em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.fc-answer li.is-label {
+  padding-left: 0;
+  color: var(--text-2);
+  font-weight: 600;
+}
+
+.fc-answer li.is-label::before {
+  display: none;
+}
+
+.fc-answer b,
+.fc-question b {
+  font-weight: 650;
+}
+
+.fc-answer b {
+  background: color-mix(in srgb, var(--mark-bg) 45%, transparent);
+  color: var(--text);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+:root[data-theme='dark'] .fc-answer b {
+  background: none;
+  color: var(--fc-key);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .fc-answer b {
+    background: none;
+    color: var(--fc-key);
+  }
+}
+
+.fc-flip-hint {
+  align-self: center;
+  margin-top: 18px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.fc-flip-hint:hover {
+  color: var(--text-2);
+}
+
+.fc-detail-btn {
+  align-self: flex-start;
+  margin-top: 14px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: none;
+  color: var(--text-2);
+  font-size: 13.5px;
+}
+
+.fc-detail-btn:hover {
+  color: var(--text);
+  border-color: var(--text-3);
+}
+
+.fc-detail {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  cursor: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.fc-detail p {
+  margin: 0 0 0.6em;
+}
+
+.fc-detail p:last-child {
+  margin: 0;
+}
+
+/* Formler */
+.fc-math .katex {
+  font-size: 1.05em;
+}
+
+.fc-math-display {
+  display: block;
+  margin: 4px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.fc-math-raw {
+  font-family: var(--mono);
+  font-size: 0.85em;
+}
+
+/* Effekter (som i originalen) */
+.fc-card.fc-fx-ok {
+  animation: fc-okglow 0.55s ease-out;
+}
+
+.fc-card.fc-fx-ok-big {
+  animation: fc-okglowbig 0.9s ease-out;
+}
+
+.fc-card.fc-fx-bad {
+  animation:
+    fc-badglow 0.5s ease-out,
+    fc-shake 0.32s ease-in-out;
+}
+
+.fc-card.fc-fx-mid {
+  animation: fc-midglow 0.5s ease-out;
+}
+
+@keyframes fc-midglow {
+  0% {
+    border-color: var(--fc-mid);
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--fc-mid) 60%, transparent),
+      0 0 24px color-mix(in srgb, var(--fc-mid) 35%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes fc-okglow {
+  0% {
+    border-color: var(--fc-good);
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--fc-good) 70%, transparent),
+      0 0 30px color-mix(in srgb, var(--fc-good) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes fc-okglowbig {
+  0% {
+    border-color: var(--fc-good);
+    box-shadow:
+      0 0 0 5px color-mix(in srgb, var(--fc-good) 85%, transparent),
+      0 0 60px color-mix(in srgb, var(--fc-good) 60%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes fc-badglow {
+  0% {
+    border-color: var(--fc-bad);
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--fc-bad) 70%, transparent),
+      0 0 26px color-mix(in srgb, var(--fc-bad) 40%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes fc-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-7px);
+  }
+  45% {
+    transform: translateX(6px);
+  }
+  70% {
+    transform: translateX(-4px);
+  }
+  90% {
+    transform: translateX(2px);
+  }
+}
+
+.fc-pop {
+  position: fixed;
+  z-index: 300;
+  pointer-events: none;
+  font-family: var(--font);
+  font-weight: 700;
+  font-variant-emoji: text;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  animation: fc-pop 0.6s ease-out forwards;
+}
+
+.fc-pop-ok {
+  color: var(--fc-good);
+  font-size: 3.2rem;
+  text-shadow: 0 0 24px color-mix(in srgb, var(--fc-good) 60%, transparent);
+}
+
+.fc-pop-ok.fc-pop-word {
+  font-size: 1.8rem;
+}
+
+.fc-pop-mid {
+  color: var(--fc-mid);
+  font-size: 1.7rem;
+  text-shadow: 0 0 18px color-mix(in srgb, var(--fc-mid) 50%, transparent);
+}
+
+.fc-pop-bad {
+  color: var(--fc-bad);
+  font-size: 3rem;
+  text-shadow: 0 0 20px color-mix(in srgb, var(--fc-bad) 50%, transparent);
+}
+
+@keyframes fc-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.12);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -80%) scale(1);
+  }
+}
+
+.fc-particle {
+  position: fixed;
+  z-index: 299;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  pointer-events: none;
+  animation: fc-fly 0.8s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+@keyframes fc-fly {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) rotate(var(--rot));
+  }
+}
+
+.fc-toast {
+  position: fixed;
+  top: calc(18px + var(--safe-top));
+  left: 50%;
+  z-index: 301;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 10px 18px;
+  border: 1px solid var(--fc-good);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow:
+    var(--shadow-md),
+    0 0 24px color-mix(in srgb, var(--fc-good) 25%, transparent);
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation: fc-toast 2.2s ease-out forwards;
+}
+
+.fc-toast-flame {
+  border-color: var(--fc-flame);
+  box-shadow:
+    var(--shadow-md),
+    0 0 24px color-mix(in srgb, var(--fc-flame) 30%, transparent);
+}
+
+@keyframes fc-toast {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -12px);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Vurderingsknappene */
+.fc-rate {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.fc-rate button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 6px 10px;
+  border-radius: 10px;
+  font-size: 1.02rem;
+  font-weight: 650;
+  transition: background 0.15s;
+}
+
+.fc-rate button small {
+  font-size: 0.72rem;
+  font-weight: 400;
+}
+
+.fc-rate .fc-g1 {
+  border: 1px solid color-mix(in srgb, var(--fc-bad) 55%, transparent);
+  background: color-mix(in srgb, var(--fc-bad) 12%, transparent);
+  color: var(--fc-bad-text);
+}
+
+.fc-rate .fc-g2 {
+  border: 1px solid color-mix(in srgb, var(--fc-mid) 50%, transparent);
+  background: color-mix(in srgb, var(--fc-mid) 12%, transparent);
+  color: var(--fc-mid-text);
+}
+
+.fc-rate .fc-g3 {
+  border: 1px solid color-mix(in srgb, var(--fc-good) 55%, transparent);
+  background: color-mix(in srgb, var(--fc-good) 13%, transparent);
+  color: var(--fc-good-text);
+}
+
+.fc-rate .fc-g4 {
+  border: 1px solid var(--fc-great);
+  background: color-mix(in srgb, var(--fc-great) 26%, transparent);
+  color: var(--fc-great-text);
+}
+
+.fc-rate .fc-g1:not(:disabled):hover {
+  background: color-mix(in srgb, var(--fc-bad) 24%, transparent);
+}
+
+.fc-rate .fc-g2:not(:disabled):hover {
+  background: color-mix(in srgb, var(--fc-mid) 24%, transparent);
+}
+
+.fc-rate .fc-g3:not(:disabled):hover {
+  background: color-mix(in srgb, var(--fc-good) 25%, transparent);
+}
+
+.fc-rate .fc-g4:not(:disabled):hover {
+  background: color-mix(in srgb, var(--fc-great) 38%, transparent);
+}
+
+.fc-rate button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.fc-feedback {
+  min-height: 1.4em;
+  margin-top: 8px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-3);
+}
+
+.fc-feedback.is-bad {
+  color: var(--fc-bad-text);
+}
+
+.fc-feedback.is-mid {
+  color: var(--fc-mid-text);
+}
+
+.fc-feedback.is-ok {
+  color: var(--fc-good-text);
+}
+
+.fc-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.fc-sub .link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 36px;
+  color: var(--text-3);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.fc-sub .link-btn:hover:not(:disabled) {
+  color: var(--text-2);
+}
+
+.fc-sub .link-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.fc-keys {
+  margin: 16px 0 0;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-3);
+  word-spacing: 2px;
+}
+
+.fc-keys kbd {
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  font-family: var(--font);
+  font-size: 12px;
+}
+
+.fc-keys > span {
+  display: inline-block;
+  margin: 0 8px;
+}
+
+/* Ferdig med runden */
+.fc-done {
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.fc-done.is-win {
+  border-color: var(--fc-good);
+  box-shadow: 0 0 40px color-mix(in srgb, var(--fc-good) 15%, transparent);
+}
+
+.fc-done h2 {
+  margin: 0 0 8px;
+  font-family: var(--fc-serif);
+  font-size: 1.45rem;
+  font-weight: 400;
+}
+
+.fc-done > p {
+  margin: 0;
+}
+
+.fc-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 14px 0 6px;
+}
+
+.fc-stats > div {
+  padding: 10px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  text-align: center;
+}
+
+.fc-stats b {
+  display: block;
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-stats span {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.fc-repeat-title {
+  margin: 18px 0 8px;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text-2);
+}
+
+.fc-repeat {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.fc-repeat-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: var(--tap);
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  text-align: left;
+}
+
+.fc-repeat-btn:hover {
+  border-color: var(--text-3);
+}
+
+.fc-repeat-btn.is-primary {
+  border-color: var(--fc-good);
+  background: color-mix(in srgb, var(--fc-good) 12%, transparent);
+}
+
+.fc-repeat-label {
+  font-weight: 650;
+}
+
+.fc-repeat-meta {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+/* Pause (modal <dialog> over hele skjermen) */
+.fc-pause {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: var(--fc-overlay);
+  color: var(--fc-overlay-text);
+  text-align: center;
+}
+
+.fc-pause:not([open]) {
+  display: none;
+}
+
+.fc-pause::backdrop {
+  background: transparent;
+}
+
+.fc-pause h2 {
+  margin: 0;
+  font-family: var(--fc-serif);
+  font-size: 1.6rem;
+  font-weight: 400;
+}
+
+.fc-pause-clock {
+  font-size: 2.6rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--fc-spark-1);
+}
+
+.fc-pause p {
+  max-width: 30em;
+  margin: 0;
+  opacity: 0.8;
+}
+
+/* ---------- Alle kort ---------- */
+.fc-list-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.fc-list-toolbar input {
+  flex: 1;
+}
+
+.fc-list-group {
+  margin-bottom: 20px;
+}
+
+.fc-list-title {
+  margin: 18px 0 8px;
+  padding-left: 10px;
+  border-left: 4px solid var(--accent);
+  font-family: var(--fc-serif);
+  font-size: 1.15rem;
+  font-weight: 400;
+}
+
+.fc-item {
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.fc-item summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 11px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.fc-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.fc-item[open] summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.fc-item-front {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--fc-serif);
+  font-size: 1.02rem;
+  overflow-wrap: anywhere;
+}
+
+.fc-item-body {
+  padding: 10px 16px 14px;
+}
+
+.fc-item-body .fc-answer {
+  font-size: 1.02rem;
+}
+
+.fc-item-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* Redigering */
+.fc-editor .fc-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fc-preview-card {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.fc-preview-card .fc-question {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.fc-preview-card .fc-answer {
+  font-size: 1rem;
+}
+
+/* ---------- Mobil ---------- */
+@media (max-width: 600px) {
+  /* Menyknappen blir stående ved tittelen, så kortet kommer høyere opp på skjermen. */
+  .fc-deck-header {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+
+  .fc-deck-header .page-actions {
+    width: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .fc-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* Med tre valg får «Notat» hele bredden, som i originalen. */
+  .fc-controls > :first-child:nth-last-child(3) {
+    grid-column: span 2;
+  }
+
+  .fc-rate {
+    gap: 6px;
+  }
+
+  .fc-rate button {
+    padding: 11px 2px 9px;
+    font-size: 0.92rem;
+  }
+
+  .fc-rate button small {
+    font-size: 0.66rem;
+  }
+
+  .fc-card {
+    min-height: min(280px, 42vh);
+    padding: 16px;
+  }
+
+  .fc-question {
+    margin: 12px 0 auto;
+    font-size: 1.22rem;
+  }
+
+  .fc-keys {
+    display: none;
+  }
+
+  .fc-stats b {
+    font-size: 1.25rem;
+  }
+
+  .fc-list-toolbar {
+    flex-wrap: wrap;
+  }
+}
+
+@media (pointer: coarse) {
+  .fc-keys {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-card.fc-fx-bad {
+    animation: fc-badglow 0.5s ease-out;
+  }
+
+  .fc-bump {
+    animation: none;
+  }
+
+  .fc-bar > * {
+    transition: none;
+  }
+}

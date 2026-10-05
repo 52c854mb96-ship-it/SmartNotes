@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link, useParams } from 'react-router';
-import { ChevronLeft, FileStack, MousePointerClick, NotebookPen, Upload } from 'lucide-react';
+import { ChevronLeft, FileStack, GalleryVerticalEnd, MousePointerClick, NotebookPen, Upload } from 'lucide-react';
 import type { Chapter, Note, Subject } from '@smartnotes/shared';
 import { AimChips } from '../components/AimChips';
 import { EmptyState, PageSkeleton } from '../components/EmptyState';
@@ -72,6 +72,11 @@ export function ChapterPage() {
           {!unsorted && doneCount > 0 && (
             <Link to={`/fag/${subject.id}/kapittel/${chapterId}/pdf`} className="btn">
               <FileStack size={18} aria-hidden /> Kapittel som PDF
+            </Link>
+          )}
+          {doneCount > 0 && (
+            <Link to={`/fag/${subject.id}/flashcards/ny?kapittel=${chapterId}`} className="btn">
+              <GalleryVerticalEnd size={18} aria-hidden /> Lag flashcards
             </Link>
           )}
         </div>

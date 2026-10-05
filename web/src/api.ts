@@ -4,17 +4,25 @@ import type {
   ChapterInput,
   ChapterPreviewResponse,
   CreateChapterRequest,
+  CreateDeckRequest,
+  CreateFlashcardRequest,
   CreateSubjectRequest,
+  Deck,
+  Flashcard,
   HealthResponse,
   MeResponse,
   Note,
   NoteLatexResponse,
   NotePagesResponse,
+  ProgressRequest,
+  ProgressResponse,
   RetryNoteRequest,
   SaveLatexResponse,
   Subject,
   SyncResponse,
   UpdateChapterRequest,
+  UpdateDeckRequest,
+  UpdateFlashcardRequest,
   UpdateNoteRequest,
   UpdateSubjectRequest,
 } from '@smartnotes/shared';
@@ -240,6 +248,17 @@ export const api = {
       timeoutMs: 15_000,
       quiet: true,
     }),
+
+  createDeck: (req: CreateDeckRequest) => json<Deck>('POST', '/decks', { json: req, timeoutMs: 60_000 }),
+  updateDeck: (id: string, req: UpdateDeckRequest) => json<Deck>('PATCH', `/decks/${enc(id)}`, { json: req }),
+  deleteDeck: (id: string) => json<{ ok: boolean }>('DELETE', `/decks/${enc(id)}`),
+  retryDeck: (id: string) => json<Deck>('POST', `/decks/${enc(id)}/retry`),
+  createCard: (deckId: string, req: CreateFlashcardRequest) =>
+    json<Flashcard>('POST', `/decks/${enc(deckId)}/cards`, { json: req }),
+  updateCard: (id: string, req: UpdateFlashcardRequest) => json<Flashcard>('PATCH', `/cards/${enc(id)}`, { json: req }),
+  deleteCard: (id: string) => json<{ ok: boolean }>('DELETE', `/cards/${enc(id)}`),
+  progress: (req: ProgressRequest) =>
+    json<ProgressResponse>('POST', '/flashcards/progress', { json: req, timeoutMs: 30_000 }),
 
   notePdf: (id: string, rev: number, signal?: AbortSignal) =>
     blob(`/notes/${enc(id)}/pdf?v=${rev}`, signal, 120_000),

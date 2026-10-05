@@ -1,5 +1,5 @@
 import { Dexie, type EntityTable } from 'dexie';
-import type { Chapter, Note, Subject } from '@smartnotes/shared';
+import type { Chapter, Deck, Flashcard, FlashcardKind, Note, Subject } from '@smartnotes/shared';
 
 /**
  * Filinnhold slik det lagres i IndexedDB: en Blob der nettleseren kan lagre Blob, ellers rå bytes.
@@ -49,6 +49,44 @@ export interface BundlePdfEntry {
   sig: string;
 }
 
+/**
+ * Fremgang fra øving som ikke er sendt til serveren ennå (også offline). Bare siste verdi per kort/kortstokk teller,
+ * så nøkkelen er `card:<id>` eller `deck:<id>`.
+ */
+export interface ProgressEntry {
+  key: string;
+  type: 'card' | 'deck';
+  id: string;
+  /** Kort: nytt nivå og når det ble satt (ISO). */
+  level?: number;
+  at?: string;
+  /** Kortstokk: ny beste rekke. */
+  best?: number;
+}
+
+/** Rekkefølgen kortene øves i. */
+export type PracticeOrder = 'notes' | 'shuffle';
+
+/** Øktene lagres per kortstokk på denne enheten, så man kan gå fra og fortsette der man slapp. */
+export interface PracticeState {
+  deckId: string;
+  /** Bare kort fra dette notatet (null = alle). */
+  noteId: string | null;
+  /** Bare denne korttypen (null = alle). */
+  kind: FlashcardKind | null;
+  order: PracticeOrder;
+  /** Repetisjon av et utvalg (kort-id-er), eller null = hele utvalget. */
+  subset: string[] | null;
+  /** Køen (kort-id-er). Første kort er det som vises. */
+  queue: string[];
+  /** Dårligste vurdering (1–4) per kort i denne runden – grunnlaget for repetisjonsvalgene. */
+  grades: Record<string, number>;
+  answered: number;
+  correct: number;
+  streak: number;
+  updatedAt: number;
+}
+
 export interface MetaEntry {
   key: string;
   value: unknown;
@@ -62,6 +100,10 @@ export type SmartNotesDB = Dexie & {
   pdfs: EntityTable<PdfCacheEntry, 'noteId'>;
   bundlePdfs: EntityTable<BundlePdfEntry, 'key'>;
   outbox: EntityTable<OutboxEntry, 'clientId'>;
+  decks: EntityTable<Deck, 'id'>;
+  cards: EntityTable<Flashcard, 'id'>;
+  progress: EntityTable<ProgressEntry, 'key'>;
+  practice: EntityTable<PracticeState, 'deckId'>;
 };
 
 export const db = new Dexie('smartnotes') as SmartNotesDB;
@@ -82,8 +124,17 @@ db.version(2).stores(STORES_V2);
 
 // Versjon 3: delkapitler, kompetansemål og søketekst. Lokale rader mangler de nye feltene,
 // så markøren nullstilles – neste synk blir en full synk som henter alt på nytt.
+const STORES_V3 = { ...STORES_V2, notes: 'id, subjectId, chapterId, status, stage, clientId, section' };
 db.version(3)
-  .stores({ ...STORES_V2, notes: 'id, subjectId, chapterId, status, stage, clientId, section' })
+  .stores(STORES_V3)
+  .upgrade(async (tx) => {
+    await tx.table('meta').put({ key: 'syncCursor', value: 0 });
+  });
+
+// Versjon 4: flashcards. Kortstokker laget på en annen enhet før denne versjonen har lavere rev enn markøren,
+// så markøren nullstilles for en full synk.
+db.version(4)
+  .stores({ ...STORES_V3, decks: 'id, subjectId', cards: 'id, deckId', progress: 'key', practice: 'deckId' })
   .upgrade(async (tx) => {
     await tx.table('meta').put({ key: 'syncCursor', value: 0 });
   });

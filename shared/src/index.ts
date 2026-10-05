@@ -96,6 +96,100 @@ export interface Note extends SyncedRow {
   searchText: string;
 }
 
+// ---------- Flashcards ----------
+
+/** Vanskelighetsgrad for en kortstokk. Styrer både hva slags spørsmål Claude lager og hvor mye svaret skal inneholde. */
+export type FlashcardDifficulty = 'easy' | 'medium' | 'hard' | 'mixed';
+
+/**
+ * Korttype:
+ *  concept – begrep, definisjon eller fakta
+ *  explain – forklare en sammenheng eller hvorfor noe skjer
+ *  apply   – bruke stoffet: drøfte, overføre til en ny situasjon eller regne
+ */
+export type FlashcardKind = 'concept' | 'explain' | 'apply';
+
+/** generating = Claude lager kortene, ready = klar til øving, failed = se `error` (kan prøves igjen). */
+export type DeckStatus = 'generating' | 'ready' | 'failed';
+
+/** En kortstokk laget fra ett eller flere notater i et fag. */
+export interface Deck extends SyncedRow {
+  subjectId: string;
+  title: string;
+  difficulty: FlashcardDifficulty;
+  /** Notatene kortene ble laget fra, i rekkefølge. */
+  noteIds: string[];
+  status: DeckStatus;
+  /** Norsk feilmelding når status er `failed`. */
+  error: string | null;
+  /** Lengste rekke svar på rad som var «delvis» eller bedre. Høyeste verdi vinner ved synk. */
+  best: number;
+}
+
+/**
+ * Ett kort. Tekstfeltene bruker en enkel markering: **fet** for nøkkelbegreper og $…$ for formler (LaTeX, med \ce{…}
+ * for kjemi). Et svarpunkt som starter med «!» er en overskriftslinje.
+ */
+export interface Flashcard extends SyncedRow {
+  deckId: string;
+  /** Notatet kortet ble laget fra, eller null for kort brukeren har laget selv. */
+  noteId: string | null;
+  kind: FlashcardKind;
+  /** Spørsmålet (forsiden). */
+  front: string;
+  /** Svaret som korte punkter (baksiden). */
+  back: string[];
+  /** Detaljert forklaring, avsnitt skilt med tom linje. Tom streng hvis ingen. */
+  detail: string;
+  position: number;
+  /** Mestringsnivå 0–3. 3 = mestret. */
+  level: number;
+  /** Når nivået sist ble satt (klientens klokke, ISO). Siste vurdering vinner ved synk mellom enheter. */
+  levelAt: string | null;
+}
+
+/** POST /api/decks – kortene lages i bakgrunnen; følg med på `status` via synk. */
+export interface CreateDeckRequest {
+  subjectId: string;
+  noteIds: string[];
+  difficulty: FlashcardDifficulty;
+  /** Omtrent hvor mange kort. null = Claude velger ut fra hvor mye stoff notatene har. */
+  count: number | null;
+  /** Navn på kortstokken. Tomt = lages fra kapittelet eller notatene. */
+  title?: string | null;
+}
+
+export interface UpdateDeckRequest {
+  title?: string;
+}
+
+export interface FlashcardInput {
+  kind: FlashcardKind;
+  front: string;
+  back: string[];
+  detail: string;
+}
+
+/** POST /api/decks/:id/cards */
+export type CreateFlashcardRequest = FlashcardInput;
+
+/** PATCH /api/cards/:id */
+export type UpdateFlashcardRequest = Partial<FlashcardInput>;
+
+/**
+ * POST /api/flashcards/progress – fremgang fra øving, også det som ble gjort offline. Et kortnivå lagres bare hvis `at`
+ * er nyere enn det serveren har; for `best` vinner den høyeste verdien.
+ */
+export interface ProgressRequest {
+  cards: { id: string; level: number; at: string }[];
+  decks: { id: string; best: number }[];
+}
+
+export interface ProgressResponse {
+  cards: Flashcard[];
+  decks: Deck[];
+}
+
 // ---------- Auth ----------
 
 export interface LoginRequest {
@@ -117,6 +211,8 @@ export interface SyncResponse {
   subjects: Subject[];
   chapters: Chapter[];
   notes: Note[];
+  decks: Deck[];
+  cards: Flashcard[];
 }
 
 // ---------- Fag og kapitler ----------

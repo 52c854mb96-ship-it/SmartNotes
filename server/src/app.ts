@@ -9,12 +9,14 @@ import { registerAuth } from './auth.js';
 import type { Config } from './config.js';
 import { Repo } from './db.js';
 import { HttpError } from './errors.js';
+import { FlashcardGenerator } from './flashcards/generator.js';
 import { MAX_FILE_BYTES, MAX_FILES } from './limits.js';
 import { Bundler } from './pipeline/bundle.js';
 import { createClaude, type ClaudeService } from './pipeline/claude.js';
 import { Converter } from './pipeline/converter.js';
 import { latexAvailable } from './pipeline/latex.js';
 import { Worker } from './pipeline/worker.js';
+import { registerFlashcardRoutes } from './routes/flashcards.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerNoteRoutes } from './routes/notes.js';
 import { Storage } from './storage.js';
@@ -28,6 +30,7 @@ export interface AppContext {
   converter: Converter;
   worker: Worker;
   bundler: Bundler;
+  generator: FlashcardGenerator;
 }
 
 
@@ -48,6 +51,7 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
   const converter = new Converter(repo, storage, claude, config, app.log);
   const worker = new Worker(repo, converter, config.workerConcurrency, app.log);
   const bundler = new Bundler(repo, storage, config, app.log);
+  const generator = new FlashcardGenerator(repo, storage, claude, app.log);
   const latexOk = await latexAvailable();
   if (!latexOk) app.log.warn('latexmk ble ikke funnet – PDF-er kan ikke lages. Installer TeX Live (se README).');
   if (!claude.configured) app.log.warn('ANTHROPIC_API_KEY mangler – notater kan lastes opp, men ikke konverteres.');
@@ -93,6 +97,7 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
 
   registerLibraryRoutes(app, { repo, storage, claude, converter, bundler });
   registerNoteRoutes(app, { repo, storage, converter, worker });
+  registerFlashcardRoutes(app, { repo, storage, claude, generator });
 
   // Ferdigbygd web-app (PWA) med SPA-fallback.
   if (config.webDist && fs.existsSync(path.join(config.webDist, 'index.html'))) {
@@ -126,11 +131,13 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
 
   app.addHook('onClose', async () => {
     await worker.stop();
+    generator.stop();
+    await generator.idle();
     // Rekompileringer i bakgrunnen skriver til databasen – la dem bli ferdige før den lukkes.
     await converter.idle();
     repo.close();
   });
 
   void storage.cleanTmp();
-  return { app, repo, storage, claude, converter, worker, bundler };
+  return { app, repo, storage, claude, converter, worker, bundler, generator };
 }

@@ -5,6 +5,13 @@ import { z } from 'zod';
 import type { ChapterInput, CompetenceAim, SubjectProfile } from '@smartnotes/shared';
 import type { Config, Effort } from '../config.js';
 import { ConversionError } from '../errors.js';
+import {
+  FLASHCARD_SYSTEM_PROMPT,
+  buildFlashcardPrompt,
+  flashcardSchema,
+  type FlashcardRequest,
+  type RawFlashcard,
+} from '../flashcards/prompt.js';
 import type { Profile } from '../profiles/index.js';
 import { aimsForPrompt } from '../toc.js';
 import { extractLatex, parseConversion, type NoteMeta } from './parse.js';
@@ -34,7 +41,7 @@ export interface ConvertRequest {
 }
 
 export interface Usage {
-  kind: 'convert' | 'fix' | 'toc';
+  kind: 'convert' | 'fix' | 'toc' | 'flashcards';
   model: string;
   inputTokens: number;
   outputTokens: number;
@@ -64,6 +71,8 @@ export interface ClaudeService {
   extractToc(profile: Profile, images: { data: Buffer; mediaType: 'image/jpeg' | 'image/png' }[], aims?: CompetenceAim[]): Promise<ChapterInput[]>;
   /** Kobler delkapitlene (fra innlimt tekst) til kompetansemålene. Gir tilbake de samme kapitlene med `aims` fylt inn. */
   mapSectionAims(profile: Profile, chapters: ChapterInput[], aims: CompetenceAim[]): Promise<ChapterInput[]>;
+  /** Lager flashcards fra notatene (LaTeX). */
+  generateFlashcards(req: FlashcardRequest): Promise<{ cards: RawFlashcard[]; usage: Usage }>;
 }
 
 const TOC_AIMS_PROMPT = (aims: CompetenceAim[]) => `
@@ -302,6 +311,56 @@ export class AnthropicClaude implements ClaudeService {
       throw mapApiError(err);
     }
   }
+
+  async generateFlashcards(req: FlashcardRequest): Promise<{ cards: RawFlashcard[]; usage: Usage }> {
+    const client = this.requireClient();
+    // Formatet sendes uten `parse`, så SDK-en ikke tolker svaret selv: et avkuttet eller avslått svar skal gi en norsk
+    // melding (se parseFlashcardMessage), ikke en generell feil.
+    const { schema } = zodOutputFormat(flashcardSchema);
+    let msg: Anthropic.Beta.BetaMessage;
+    try {
+      msg = await client.beta.messages
+        .stream({
+          model: this.config.model,
+          max_tokens: 64_000,
+          thinking: { type: 'adaptive' },
+          output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
+          system: [{ type: 'text', text: FLASHCARD_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+          messages: [{ role: 'user', content: buildFlashcardPrompt(req) }],
+          // Avslår modellens sikkerhetsfiltre feilaktig (f.eks. biologi om virus), prøves en anbefalt reservemodell.
+          ...(this.config.useFallbacks ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
+        })
+        .finalMessage();
+    } catch (err) {
+      throw flashcardError(err);
+    }
+    return { cards: parseFlashcardMessage(msg), usage: usageOf('flashcards', msg) };
+  }
+}
+
+/** Feilmeldingene fra mapApiError handler om notatkonvertering; her gjelder de kortstokker. */
+export function flashcardError(err: unknown): ConversionError {
+  const e = mapApiError(err);
+  if (e.message === 'Uventet feil under konverteringen.') return new ConversionError('Uventet feil da kortene skulle lages. Prøv igjen.');
+  if (e.message.startsWith('Claude kunne ikke behandle notatet')) {
+    return new ConversionError(e.message.replace('Claude kunne ikke behandle notatet', 'Claude kunne ikke lage kort av notatene'));
+  }
+  return e;
+}
+
+/** Kortene i svaret fra Claude. Avslag, avkuttet svar og ugyldig JSON gir norske feilmeldinger. */
+export function parseFlashcardMessage(msg: { stop_reason: string | null; content: Array<{ type: string }> }): RawFlashcard[] {
+  if (msg.stop_reason === 'refusal') throw new ConversionError('Claude avslo å lage kort av disse notatene.');
+  if (msg.stop_reason === 'max_tokens') throw new ConversionError('Utvalget ble for stort. Velg færre notater eller færre kort.');
+  let data: unknown;
+  try {
+    data = JSON.parse(textOf(msg.content));
+  } catch {
+    throw new ConversionError('Claude svarte ikke med kort. Prøv igjen.');
+  }
+  const parsed = flashcardSchema.safeParse(data);
+  if (!parsed.success) throw new ConversionError('Claude svarte ikke med kort. Prøv igjen.');
+  return parsed.data.cards;
 }
 
 // ---------- Falsk Claude (utvikling og tester) ----------
@@ -353,6 +412,48 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
   async extractToc(profile: Profile, _images: unknown, aims: CompetenceAim[] = []): Promise<ChapterInput[]> {
     await new Promise((r) => setTimeout(r, this.delayMs));
     return this.mapSectionAims(profile, FAKE_TOC[profile.id], aims);
+  }
+
+  /**
+   * Tre kort per notat (begrep, forklaring, anvendelse) med formel, fet skrift og overskriftslinje, så visningen kan
+   * testes. Med `count` lages så mange kort (gjentatt over notatene). Et notat med «FEIL» i tittelen gir feil.
+   */
+  async generateFlashcards(req: FlashcardRequest): Promise<{ cards: RawFlashcard[]; usage: Usage }> {
+    await new Promise((r) => setTimeout(r, this.delayMs));
+    if (req.notes.some((n) => /FEIL/.test(n.title))) throw new ConversionError('Testfeil fra falsk Claude.');
+    const formula = req.subjectLabel === 'Kjemi' ? String.raw`$\ce{2H2 + O2 -> 2H2O}$` : String.raw`$F = m \cdot a$`;
+    const perNote = (n: FlashcardRequest['notes'][number]): RawFlashcard[] => [
+      {
+        note: n.alias,
+        kind: 'concept',
+        front: `Hva handler notatet «${n.title}» om?`,
+        back: [`**${n.title}**`, `Formel: ${formula}`],
+        detail: `Dette er et testkort fra falsk Claude.\n\nTenk på det som en huskelapp: ${formula} er en formel.`,
+      },
+      {
+        note: n.alias,
+        kind: 'explain',
+        front: `Forklar hovedideen i «${n.title}».`,
+        back: ['!Tre punkter', 'Første punkt', 'Andre punkt med **nøkkelbegrep**', String.raw`Tredje punkt med $v = \frac{s}{t}$`],
+        detail: '',
+      },
+      {
+        note: n.alias,
+        kind: 'apply',
+        front: String.raw`${n.title}: regn ut $F$ når $m = 2{,}0\ \text{kg}$ og $a = 3{,}0\ \text{m/s}^2$.`,
+        back: [String.raw`$F = m \cdot a$`, String.raw`$F = 2{,}0 \cdot 3{,}0\ \text{N} = 6{,}0\ \text{N}$`],
+        detail: 'Sett inn tallene i Newtons andre lov.',
+      },
+    ];
+    let cards = req.notes.flatMap(perNote);
+    if (req.count) {
+      const all = cards;
+      cards = Array.from({ length: req.count }, (_, i) => {
+        const c = all[i % all.length]!;
+        return i < all.length ? c : { ...c, front: `${c.front} (${Math.floor(i / all.length) + 1})` };
+      });
+    }
+    return { cards, usage: this.usage('flashcards') };
   }
 
   /** Kobler hvert delkapittel til det første målet som ikke går på tvers av kapitlene. */
