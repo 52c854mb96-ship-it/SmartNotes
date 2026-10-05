@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { BookOpen, Camera, FileStack, FolderOpen, ListPlus, ListTree, Settings, Shapes, Upload, X } from 'lucide-react';
+import { BookOpen, Camera, FileStack, FolderOpen, GalleryVerticalEnd, ListPlus, ListTree, Settings, Shapes, Upload, X } from 'lucide-react';
 import type { Chapter, Subject } from '@smartnotes/shared';
 import { AimsBlock } from '../components/AimsBlock';
 import { EmptyState, PageSkeleton } from '../components/EmptyState';
@@ -60,6 +60,9 @@ export function SubjectPage() {
           <button type="button" className="btn btn-primary" onClick={() => openUpload({ subjectId: subject.id })}>
             <Upload size={18} aria-hidden /> Last opp notater
           </button>
+          <Link to={`/fag/${subject.id}/flashcards`} className="btn">
+            <GalleryVerticalEnd size={18} aria-hidden /> Flashcards
+          </Link>
           {hasVisualizations(subject) && (
             <Link to={`/fag/${subject.id}/visualiseringer`} className="btn">
               <Shapes size={18} aria-hidden /> Visualiseringer

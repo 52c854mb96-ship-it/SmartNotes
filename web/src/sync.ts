@@ -1,14 +1,14 @@
 /**
  * Synk-motoren. Dexie er eneste kilde UI-et leser fra; denne modulen
- *  1) sender køen av opplastinger (outbox) til serveren,
+ *  1) sender køen av opplastinger (outbox) og fremgang fra øving (progress) til serveren,
  *  2) henter endringer fra /api/sync og legger dem inn i Dexie,
  *  3) forhåndslaster ferdige PDF-er slik at alt kan leses offline.
  * Tilstanden eksponeres gjennom `syncStore`/`useSyncState()`.
  */
 import type { EntityTable, IDType } from 'dexie';
-import type { Chapter, Note, Subject, SyncResponse, SyncedRow } from '@smartnotes/shared';
+import type { Chapter, Deck, Flashcard, Note, Subject, SyncResponse, SyncedRow } from '@smartnotes/shared';
 import { ApiError, NetworkError, api, errorMessage, isAbortError, isRetryable, uploadNote } from './api';
-import { META, clearAllLocalData, db, getMeta, setMeta, storable, type OutboxEntry } from './db';
+import { META, clearAllLocalData, db, getMeta, setMeta, storable, type OutboxEntry, type ProgressEntry } from './db';
 import { authStore, isOnline, setBrowserOnline } from './lib/connectivity';
 import { createStore } from './lib/store';
 
@@ -63,7 +63,9 @@ export function startSyncEngine(): void {
     void scheduleNext();
   });
   document.addEventListener('visibilitychange', () => {
+    // Også når appen legges bort, så fremgang fra øving kommer fram før fanen eventuelt lukkes.
     if (document.visibilityState === 'visible') void syncNow();
+    else void syncPendingProgress();
   });
 
   void (async () => {
@@ -141,6 +143,16 @@ async function runOnce(): Promise<void> {
     }
     flushError = err;
   }
+  try {
+    await withLock('smartnotes-progress', flushProgress);
+  } catch (err) {
+    if (is401(err)) return;
+    if (err instanceof NetworkError) {
+      fail(err);
+      return;
+    }
+    flushError ??= err;
+  }
 
   // 2) Hent endringer.
   try {
@@ -186,7 +198,10 @@ async function scheduleNext(): Promise<void> {
   } else {
     const outboxPending = await db.outbox.where('state').anyOf('pending', 'uploading').count();
     const converting = await countNotesInProgress();
-    if (outboxPending > 0) delay = FAST_INTERVAL;
+    const generating = await db.decks.filter((d) => d.status === 'generating').count();
+    const progressPending = await db.progress.count();
+    if (outboxPending > 0 || progressPending > 0) delay = FAST_INTERVAL;
+    else if (generating > 0) delay = document.visibilityState === 'hidden' ? SLOW_INTERVAL : FAST_INTERVAL;
     else if (converting > 0) delay = document.visibilityState === 'hidden' ? SLOW_INTERVAL : FAST_INTERVAL;
     else delay = SLOW_INTERVAL;
   }
@@ -284,6 +299,79 @@ export async function deleteOutboxEntry(clientId: string): Promise<void> {
   await db.outbox.delete(clientId);
 }
 
+// ---------- 1b) Fremgang fra øving ----------
+
+let progressTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Sender fremgang fra øving om litt (samler opp flere vurderinger i én forespørsel). */
+export function syncProgressSoon(delayMs = 2_500): void {
+  clearTimeout(progressTimer);
+  progressTimer = setTimeout(() => void syncNow(), delayMs);
+}
+
+/** Sender ventende fremgang med en gang, uten å hente endringer (f.eks. når appen legges bort). */
+async function syncPendingProgress(): Promise<void> {
+  if (authStore.get() !== 'ok' || !navigator.onLine || !(await db.progress.count())) return;
+  try {
+    await withLock('smartnotes-progress', flushProgress);
+  } catch {
+    /* prøves igjen ved neste synk */
+  }
+}
+
+async function flushProgress(): Promise<void> {
+  const entries = await db.progress.toArray();
+  if (!entries.length) return;
+  const cards = entries.flatMap((e) =>
+    e.type === 'card' && e.level !== undefined && e.at ? [{ id: e.id, level: e.level, at: e.at }] : [],
+  );
+  const decks = entries.flatMap((e) => (e.type === 'deck' && e.best !== undefined ? [{ id: e.id, best: e.best }] : []));
+  let res;
+  try {
+    res = await api.progress({ cards, decks });
+  } catch (err) {
+    // En forespørsel serveren avviser (400), blir ikke bedre av å sendes igjen.
+    if (err instanceof ApiError && err.status === 400) {
+      await removeSentProgress(entries);
+      return;
+    }
+    throw err;
+  }
+  await db.transaction('rw', [db.progress, db.cards, db.decks], async () => {
+    await removeSentProgress(entries);
+    await mergeRows(db.cards, res.cards);
+    await mergeRows(db.decks, res.decks);
+    await overlayPendingProgress();
+  });
+}
+
+/** Fjerner det som ble sendt – men ikke en vurdering som er gjort mens forespørselen pågikk. */
+async function removeSentProgress(sent: ProgressEntry[]): Promise<void> {
+  const current = await db.progress.bulkGet(sent.map((e) => e.key));
+  const done = sent.filter((e, i) => {
+    const c = current[i];
+    return !!c && c.type === e.type && c.at === e.at && c.level === e.level && c.best === e.best;
+  });
+  if (done.length) await db.progress.bulkDelete(done.map((e) => e.key));
+}
+
+/**
+ * Fremgang som ikke er sendt ennå, legges oppå radene fra serveren, så en synk ikke tar fra eleven nivåer hen nettopp
+ * har øvd seg opp til.
+ */
+async function overlayPendingProgress(): Promise<void> {
+  const pending = await db.progress.toArray();
+  for (const p of pending) {
+    if (p.type === 'card' && p.level !== undefined && p.at) {
+      const card = await db.cards.get(p.id);
+      if (card && (card.levelAt === null || card.levelAt <= p.at)) await db.cards.update(p.id, { level: p.level, levelAt: p.at });
+    } else if (p.type === 'deck' && p.best !== undefined) {
+      const deck = await db.decks.get(p.id);
+      if (deck && deck.best < p.best) await db.decks.update(p.id, { best: p.best });
+    }
+  }
+}
+
 // ---------- 2) Hent endringer ----------
 
 async function pull(): Promise<void> {
@@ -302,21 +390,35 @@ async function pull(): Promise<void> {
 }
 
 async function applySync(res: SyncResponse): Promise<void> {
-  await db.transaction('rw', [db.subjects, db.chapters, db.notes, db.pdfs, db.meta], async () => {
+  const tables = [db.subjects, db.chapters, db.notes, db.pdfs, db.meta, db.decks, db.cards, db.progress, db.practice];
+  await db.transaction('rw', tables, async () => {
+    // Eldre servere sender ikke kortstokker.
+    const decks = res.decks ?? [];
+    const cards = res.cards ?? [];
     if (res.full) {
       await replaceRows(db.subjects, res.subjects, res.cursor);
       await replaceRows(db.chapters, res.chapters, res.cursor);
       await replaceRows(db.notes, res.notes, res.cursor);
+      await replaceRows(db.decks, decks, res.cursor);
+      await replaceRows(db.cards, cards, res.cursor);
       const noteIds = new Set(await db.notes.toCollection().primaryKeys());
       const cached = await db.pdfs.toCollection().primaryKeys();
       await db.pdfs.bulkDelete(cached.filter((id) => !noteIds.has(id)));
+      const deckIds = new Set(await db.decks.toCollection().primaryKeys());
+      const sessions = await db.practice.toCollection().primaryKeys();
+      await db.practice.bulkDelete(sessions.filter((id) => !deckIds.has(id)));
     } else {
       await mergeRows(db.subjects, res.subjects);
       await mergeRows(db.chapters, res.chapters);
       await mergeRows(db.notes, res.notes);
+      await mergeRows(db.decks, decks);
+      await mergeRows(db.cards, cards);
       const deletedNotes = res.notes.filter((n) => n.deleted).map((n) => n.id);
       if (deletedNotes.length) await db.pdfs.bulkDelete(deletedNotes);
+      const deletedDecks = decks.filter((d) => d.deleted).map((d) => d.id);
+      if (deletedDecks.length) await db.practice.bulkDelete(deletedDecks);
     }
+    if (cards.length || decks.length) await overlayPendingProgress();
     await db.meta.bulkPut([
       { key: META.cursor, value: res.cursor },
       { key: META.lastSyncAt, value: Date.now() },
@@ -358,11 +460,16 @@ export async function applyServerRows(rows: {
   subjects?: Subject[];
   chapters?: Chapter[];
   notes?: Note[];
+  decks?: Deck[];
+  cards?: Flashcard[];
 }): Promise<void> {
-  await db.transaction('rw', db.subjects, db.chapters, db.notes, async () => {
+  await db.transaction('rw', [db.subjects, db.chapters, db.notes, db.decks, db.cards, db.progress], async () => {
     if (rows.subjects) await mergeRows(db.subjects, rows.subjects);
     if (rows.chapters) await mergeRows(db.chapters, rows.chapters);
     if (rows.notes) await mergeRows(db.notes, rows.notes);
+    if (rows.decks) await mergeRows(db.decks, rows.decks);
+    if (rows.cards) await mergeRows(db.cards, rows.cards);
+    if (rows.decks || rows.cards) await overlayPendingProgress();
   });
 }
 
@@ -442,8 +549,11 @@ export async function downloadAllForOffline(): Promise<{ fetched: number; failed
 
 export async function logoutAndClear(): Promise<void> {
   clearTimeout(timer);
+  clearTimeout(progressTimer);
   for (const abort of uploadAborts.values()) abort.abort();
   try {
+    // Fremgang fra øving sendes først, ellers går den tapt når de lokale dataene slettes.
+    if (isOnline()) await syncPendingProgress();
     if (isOnline()) await api.logout();
   } catch {
     /* logger ut lokalt uansett */

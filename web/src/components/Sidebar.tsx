@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router';
-import { ChevronRight, FolderOpen, Plus, Search, Settings, Shapes, Upload, X } from 'lucide-react';
+import { ChevronRight, FolderOpen, GalleryVerticalEnd, Plus, Search, Settings, Shapes, Upload, X } from 'lucide-react';
 import type { Subject } from '@smartnotes/shared';
 import { chapterStats, useChapters, useSubjectNotes, useSubjects } from '../data';
 import { useActiveIds } from '../lib/useActive';
@@ -232,8 +232,14 @@ function ChapterList({
           </NavLink>
         </li>
       )}
+      <li className="chapter-list-extra">
+        <NavLink to={`/fag/${subjectId}/flashcards`} className="chapter-link is-viz">
+          <GalleryVerticalEnd size={15} aria-hidden className="chapter-num-icon" />
+          <span className="chapter-title">Flashcards</span>
+        </NavLink>
+      </li>
       {showViz && (
-        <li className="chapter-list-extra">
+        <li>
           <NavLink to={`/fag/${subjectId}/visualiseringer`} className="chapter-link is-viz">
             <Shapes size={15} aria-hidden className="chapter-num-icon" />
             <span className="chapter-title">Visualiseringer</span>

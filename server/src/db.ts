@@ -1,6 +1,22 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import type { Chapter, ChapterInput, CompetenceAim, Note, NoteStage, NoteStatus, Section, Subject, SubjectProfile } from '@smartnotes/shared';
+import type {
+  Chapter,
+  ChapterInput,
+  CompetenceAim,
+  Deck,
+  DeckStatus,
+  Flashcard,
+  FlashcardDifficulty,
+  FlashcardInput,
+  FlashcardKind,
+  Note,
+  NoteStage,
+  NoteStatus,
+  Section,
+  Subject,
+  SubjectProfile,
+} from '@smartnotes/shared';
 
 type DB = Database.Database;
 
@@ -93,6 +109,47 @@ const MIGRATIONS: string[] = [
   ALTER TABLE notes ADD COLUMN section_auto INTEGER NOT NULL DEFAULT 1;
   ALTER TABLE notes ADD COLUMN search_text TEXT NOT NULL DEFAULT '';
   `,
+  // 3: flashcards – kortstokker og kort med mestringsnivå
+  `
+  CREATE TABLE decks (
+    id TEXT PRIMARY KEY,
+    subject_id TEXT NOT NULL REFERENCES subjects(id),
+    title TEXT NOT NULL,
+    difficulty TEXT NOT NULL,
+    note_ids TEXT NOT NULL DEFAULT '[]',
+    requested_count INTEGER,
+    status TEXT NOT NULL,
+    error TEXT,
+    best INTEGER NOT NULL DEFAULT 0,
+    usage TEXT,
+    rev INTEGER NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX decks_rev ON decks(rev);
+  CREATE INDEX decks_subject ON decks(subject_id);
+  CREATE INDEX decks_status ON decks(status);
+
+  CREATE TABLE cards (
+    id TEXT PRIMARY KEY,
+    deck_id TEXT NOT NULL REFERENCES decks(id),
+    note_id TEXT,
+    kind TEXT NOT NULL,
+    front TEXT NOT NULL,
+    back TEXT NOT NULL DEFAULT '[]',
+    detail TEXT NOT NULL DEFAULT '',
+    position INTEGER NOT NULL DEFAULT 0,
+    level INTEGER NOT NULL DEFAULT 0,
+    level_at TEXT,
+    rev INTEGER NOT NULL,
+    deleted INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+  CREATE INDEX cards_rev ON cards(rev);
+  CREATE INDEX cards_deck ON cards(deck_id);
+  `,
 ];
 
 // ---------- Rad-typer (slik de ligger i SQLite) ----------
@@ -147,6 +204,40 @@ export interface NoteRow {
   not_before: string | null;
   usage: string | null;
   search_text: string;
+  rev: number;
+  deleted: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DeckRow {
+  id: string;
+  subject_id: string;
+  title: string;
+  difficulty: FlashcardDifficulty;
+  note_ids: string;
+  requested_count: number | null;
+  status: DeckStatus;
+  error: string | null;
+  best: number;
+  usage: string | null;
+  rev: number;
+  deleted: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface CardRow {
+  id: string;
+  deck_id: string;
+  note_id: string | null;
+  kind: FlashcardKind;
+  front: string;
+  back: string;
+  detail: string;
+  position: number;
+  level: number;
+  level_at: string | null;
   rev: number;
   deleted: number;
   created_at: string;
@@ -249,6 +340,45 @@ export function toNote(r: NoteRow): Note {
   };
 }
 
+export function toDeck(r: DeckRow): Deck {
+  return {
+    id: r.id,
+    subjectId: r.subject_id,
+    title: r.title,
+    difficulty: r.difficulty,
+    noteIds: parseJsonArray(r.note_ids).filter((x): x is string => typeof x === 'string'),
+    status: r.status,
+    error: r.error,
+    best: r.best,
+    rev: r.rev,
+    deleted: r.deleted === 1,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export function toCard(r: CardRow): Flashcard {
+  return {
+    id: r.id,
+    deckId: r.deck_id,
+    noteId: r.note_id,
+    kind: r.kind,
+    front: r.front,
+    back: parseJsonArray(r.back).filter((x): x is string => typeof x === 'string'),
+    detail: r.detail,
+    position: r.position,
+    level: r.level,
+    levelAt: r.level_at,
+    rev: r.rev,
+    deleted: r.deleted === 1,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+/** Høyeste mestringsnivå (mestret). */
+export const MASTER_LEVEL = 3;
+
 const now = () => new Date().toISOString();
 
 export interface NoteResultUpdate {
@@ -307,7 +437,7 @@ export class Repo {
 
   // ---------- Synk ----------
 
-  sync(since: number): { cursor: number; subjects: Subject[]; chapters: Chapter[]; notes: Note[] } {
+  sync(since: number): { cursor: number; subjects: Subject[]; chapters: Chapter[]; notes: Note[]; decks: Deck[]; cards: Flashcard[] } {
     return this.db.transaction(() => {
       const cursor = this.currentRev();
       const full = since <= 0;
@@ -316,7 +446,9 @@ export class Repo {
       const subjects = (this.db.prepare(`SELECT * FROM subjects WHERE ${where} ORDER BY rev`).all(...args) as SubjectRow[]).map(toSubject);
       const chapters = (this.db.prepare(`SELECT * FROM chapters WHERE ${where} ORDER BY rev`).all(...args) as ChapterRow[]).map(toChapter);
       const notes = (this.db.prepare(`SELECT * FROM notes WHERE ${where} ORDER BY rev`).all(...args) as NoteRow[]).map(toNote);
-      return { cursor, subjects, chapters, notes };
+      const decks = (this.db.prepare(`SELECT * FROM decks WHERE ${where} ORDER BY rev`).all(...args) as DeckRow[]).map(toDeck);
+      const cards = (this.db.prepare(`SELECT * FROM cards WHERE ${where} ORDER BY rev`).all(...args) as CardRow[]).map(toCard);
+      return { cursor, subjects, chapters, notes, decks, cards };
     })();
   }
 
@@ -365,6 +497,8 @@ export class Repo {
       for (const cid of chapterIds) {
         this.db.prepare(`UPDATE chapters SET deleted = 1, rev = ?, updated_at = ? WHERE id = ?`).run(this.nextRev(), t, cid);
       }
+      const deckIds = (this.db.prepare(`SELECT id FROM decks WHERE subject_id = ? AND deleted = 0`).all(id) as { id: string }[]).map((r) => r.id);
+      for (const did of deckIds) this.softDeleteDeck(did, t);
       this.db.prepare(`UPDATE subjects SET deleted = 1, rev = ?, updated_at = ? WHERE id = ?`).run(this.nextRev(), t, id);
       return noteIds;
     })();
@@ -693,6 +827,158 @@ export class Repo {
          ORDER BY CASE WHEN note_date IS NULL THEN 1 ELSE 0 END, note_date, created_at`,
       )
       .all(val) as NoteRow[];
+  }
+
+  // ---------- Flashcards ----------
+
+  getDeckRow(id: string): DeckRow | null {
+    return (this.db.prepare(`SELECT * FROM decks WHERE id = ? AND deleted = 0`).get(id) as DeckRow | undefined) ?? null;
+  }
+
+  getDeck(id: string): Deck | null {
+    const r = this.getDeckRow(id);
+    return r ? toDeck(r) : null;
+  }
+
+  createDeck(input: { subjectId: string; title: string; difficulty: FlashcardDifficulty; noteIds: string[]; count: number | null }): Deck {
+    const id = randomUUID();
+    const t = now();
+    this.db
+      .prepare(
+        `INSERT INTO decks (id, subject_id, title, difficulty, note_ids, requested_count, status, rev, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'generating', ?, ?, ?)`,
+      )
+      .run(id, input.subjectId, input.title, input.difficulty, JSON.stringify(input.noteIds), input.count, this.nextRev(), t, t);
+    return this.getDeck(id)!;
+  }
+
+  renameDeck(id: string, title: string): Deck | null {
+    const res = this.db.prepare(`UPDATE decks SET title = ?, rev = ?, updated_at = ? WHERE id = ? AND deleted = 0`).run(title, this.nextRev(), now(), id);
+    return res.changes > 0 ? this.getDeck(id) : null;
+  }
+
+  /** Kortstokker som var midt i genereringen (f.eks. da serveren stoppet). */
+  generatingDeckIds(): string[] {
+    return (this.db.prepare(`SELECT id FROM decks WHERE status = 'generating' AND deleted = 0 ORDER BY created_at`).all() as { id: string }[]).map(
+      (r) => r.id,
+    );
+  }
+
+  /** Setter kortstokken tilbake til «generating» (ny generering etter feil). */
+  restartDeck(id: string): Deck | null {
+    const res = this.db
+      .prepare(`UPDATE decks SET status = 'generating', error = NULL, rev = ?, updated_at = ? WHERE id = ? AND deleted = 0 AND status = 'failed'`)
+      .run(this.nextRev(), now(), id);
+    return res.changes > 0 ? this.getDeck(id) : null;
+  }
+
+  failDeck(id: string, message: string): void {
+    this.db
+      .prepare(`UPDATE decks SET status = 'failed', error = ?, rev = ?, updated_at = ? WHERE id = ? AND deleted = 0`)
+      .run(message, this.nextRev(), now(), id);
+  }
+
+  /** Lagrer de genererte kortene og gjør kortstokken klar. Gir null hvis kortstokken er slettet i mellomtiden. */
+  completeDeck(id: string, cards: (FlashcardInput & { noteId: string | null })[], usage: unknown): Deck | null {
+    return this.db.transaction(() => {
+      if (!this.getDeckRow(id)) return null;
+      this.insertCards(id, cards);
+      this.db
+        .prepare(`UPDATE decks SET status = 'ready', error = NULL, usage = ?, rev = ?, updated_at = ? WHERE id = ?`)
+        .run(usage === undefined ? null : JSON.stringify(usage), this.nextRev(), now(), id);
+      return this.getDeck(id);
+    })();
+  }
+
+  private insertCards(deckId: string, cards: (FlashcardInput & { noteId: string | null })[]): string[] {
+    let position = (this.db.prepare(`SELECT COALESCE(MAX(position), -1) + 1 AS p FROM cards WHERE deck_id = ? AND deleted = 0`).get(deckId) as { p: number }).p;
+    const ids: string[] = [];
+    const t = now();
+    const insert = this.db.prepare(
+      `INSERT INTO cards (id, deck_id, note_id, kind, front, back, detail, position, rev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    for (const c of cards) {
+      const id = randomUUID();
+      insert.run(id, deckId, c.noteId, c.kind, c.front, JSON.stringify(c.back), c.detail, position++, this.nextRev(), t, t);
+      ids.push(id);
+    }
+    return ids;
+  }
+
+  private softDeleteDeck(id: string, t: string): void {
+    const cardIds = (this.db.prepare(`SELECT id FROM cards WHERE deck_id = ? AND deleted = 0`).all(id) as { id: string }[]).map((r) => r.id);
+    for (const cid of cardIds) {
+      this.db.prepare(`UPDATE cards SET deleted = 1, rev = ?, updated_at = ? WHERE id = ?`).run(this.nextRev(), t, cid);
+    }
+    this.db.prepare(`UPDATE decks SET deleted = 1, rev = ?, updated_at = ? WHERE id = ?`).run(this.nextRev(), t, id);
+  }
+
+  /** Sletter kortstokken med alle kortene (soft delete). */
+  deleteDeck(id: string): boolean {
+    if (!this.getDeckRow(id)) return false;
+    this.db.transaction(() => this.softDeleteDeck(id, now()))();
+    return true;
+  }
+
+  listCards(deckId: string): Flashcard[] {
+    return (this.db.prepare(`SELECT * FROM cards WHERE deck_id = ? AND deleted = 0 ORDER BY position, created_at`).all(deckId) as CardRow[]).map(toCard);
+  }
+
+  getCard(id: string): Flashcard | null {
+    const r = this.db.prepare(`SELECT * FROM cards WHERE id = ? AND deleted = 0`).get(id) as CardRow | undefined;
+    return r ? toCard(r) : null;
+  }
+
+  /** Nytt kort laget av brukeren, sist i kortstokken. */
+  createCard(deckId: string, input: FlashcardInput): Flashcard {
+    const [id] = this.db.transaction(() => this.insertCards(deckId, [{ ...input, noteId: null }]))();
+    return this.getCard(id!)!;
+  }
+
+  /** Endrer innholdet i et kort. Mestringsnivået beholdes. */
+  updateCard(id: string, patch: Partial<FlashcardInput>): Flashcard | null {
+    const c = this.getCard(id);
+    if (!c) return null;
+    this.db
+      .prepare(`UPDATE cards SET kind = ?, front = ?, back = ?, detail = ?, rev = ?, updated_at = ? WHERE id = ?`)
+      .run(patch.kind ?? c.kind, patch.front ?? c.front, JSON.stringify(patch.back ?? c.back), patch.detail ?? c.detail, this.nextRev(), now(), id);
+    return this.getCard(id);
+  }
+
+  deleteCard(id: string): boolean {
+    const res = this.db.prepare(`UPDATE cards SET deleted = 1, rev = ?, updated_at = ? WHERE id = ? AND deleted = 0`).run(this.nextRev(), now(), id);
+    return res.changes > 0;
+  }
+
+  /**
+   * Fremgang fra øving (også offline). Et kortnivå lagres bare når vurderingen er nyere enn den serveren har (siste
+   * vurdering vinner på tvers av enheter); for beste rekke vinner den høyeste verdien. Gir tilbake radene som ble endret.
+   */
+  applyProgress(input: { cards: { id: string; level: number; at: string }[]; decks: { id: string; best: number }[] }): {
+    cards: Flashcard[];
+    decks: Deck[];
+  } {
+    return this.db.transaction(() => {
+      const t = now();
+      const cards: Flashcard[] = [];
+      const decks: Deck[] = [];
+      for (const p of input.cards) {
+        const level = Math.max(0, Math.min(MASTER_LEVEL, Math.round(p.level)));
+        // En klokke som går for fort, skal ikke låse kortet: tidspunkt fram i tid regnes som nå.
+        const at = p.at > t ? t : p.at;
+        const res = this.db
+          .prepare(`UPDATE cards SET level = ?, level_at = ?, rev = ?, updated_at = ? WHERE id = ? AND deleted = 0 AND (level_at IS NULL OR level_at < ?)`)
+          .run(level, at, this.nextRev(), t, p.id, at);
+        if (res.changes > 0) cards.push(this.getCard(p.id)!);
+      }
+      for (const p of input.decks) {
+        const res = this.db
+          .prepare(`UPDATE decks SET best = ?, rev = ?, updated_at = ? WHERE id = ? AND deleted = 0 AND best < ?`)
+          .run(Math.max(0, Math.round(p.best)), this.nextRev(), t, p.id, Math.round(p.best));
+        if (res.changes > 0) decks.push(this.getDeck(p.id)!);
+      }
+      return { cards, decks };
+    })();
   }
 
   // ---------- Innloggingsøkter ----------

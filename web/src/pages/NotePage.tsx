@@ -6,6 +6,7 @@ import {
   Download,
   FileCode2,
   FileText,
+  GalleryVerticalEnd,
   Images,
   MessageSquareWarning,
   Pencil,
@@ -255,6 +256,13 @@ function NoteHeader({
               onSelect: () => downloadUrl(urls.noteTex(note.id), `${slugify(note.title)}.tex`),
               disabled: !online,
               hint: OFFLINE_HINT,
+            },
+            {
+              label: 'Lag flashcards',
+              icon: <GalleryVerticalEnd size={17} />,
+              onSelect: () => navigate(`/fag/${note.subjectId}/flashcards/ny?notat=${note.id}`),
+              disabled: note.status !== 'done',
+              hint: 'Notatet er ikke ferdig konvertert ennå',
             },
             {
               label: 'Konverter på nytt …',
