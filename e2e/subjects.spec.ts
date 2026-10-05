@@ -81,5 +81,12 @@ test('kjemi og biologi: fargetema, forslag om delkapitler og import av innholdsf
   await expect(page.locator('html')).toHaveAttribute('data-subject', 'biology');
   await expect(page.getByRole('complementary', { name: 'Delkapitler mangler' })).toContainText('Kapitlene har ingen delkapitler ennå.');
 
+  // Biologi har egne visualiseringer, ordnet etter kapitlene i Bi 1.
+  await page.goto(`/fag/${bio}/visualiseringer`);
+  await expect(page.getByRole('heading', { name: 'Visualiseringer', level: 1 })).toBeVisible();
+  await page.locator('main').getByRole('link', { name: /Vaksiner og flokkimmunitet/ }).click();
+  await expect(page.getByRole('heading', { name: 'Vaksiner og flokkimmunitet', level: 1 })).toBeVisible();
+  await expect(page.locator('main .viz-figure svg').first()).toBeVisible();
+
   expect(errors).toEqual([]);
 });
