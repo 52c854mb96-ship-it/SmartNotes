@@ -93,18 +93,4 @@ describe('rom: atomkjerner', () => {
     expect(packNucleus(1, 0, 1).list.length).toBe(1);
     expect(packNucleus(0, 0, 1).list.length).toBe(0);
   });
-
-  it('rapport', () => {
-    for (const [Z, N] of [
-      [6, 6],
-      [8, 8],
-      [26, 30],
-      [90, 144],
-      [92, 146],
-    ] as const)
-      for (const seed of [1, 2, 3]) {
-        const p = packNucleus(Z, N, seed);
-        console.log(Z + N, seed, 'n', p.list.length, 'cov', coverage(p).toFixed(3), 'core', p.core.toFixed(2), 'spread', quadrantSpread(p, Z).toFixed(2));
-      }
-  });
 });

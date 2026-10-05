@@ -31,6 +31,11 @@ export interface PackedNucleus {
   core: number;
   /** Radius til hele kjernen (ytterkanten av de ytterste nukleonene). */
   radius: number;
+  /**
+   * Radius til en skive bak nukleonene som dekkes helt i kanten (omrisset er minst så stort i alle retninger), så den
+   * bare synes gjennom hull mellom nukleonene.
+   */
+  inner: number;
   /** Antall nukleoner i kjernen (også de som ikke tegnes). */
   A: number;
 }
@@ -144,8 +149,8 @@ function smallNucleus(A: number, d: number): { pts: Vec3[]; protonOrder: number[
       ],
       protonOrder: [2, 0, 1],
     };
-  // Firflate med kantlengde d sett langs aksen mellom to motsatte kanter: en rombe av fire nukleoner. Protonene
-  // på skrå (ett foran og ett bak), så begge synes og ingen like ligger inntil hverandre foran.
+  // Firflate med kantlengde d sett langs aksen mellom to motsatte kanter: en rombe av fire nukleoner. Protonene i
+  // to motsatte hjørner foran (begge tegnene synes), nøytronene i de to andre bak.
   const t = d / (2 * Math.SQRT2);
   return {
     pts: [
@@ -154,7 +159,7 @@ function smallNucleus(A: number, d: number): { pts: Vec3[]; protonOrder: number[
       [0, -d / 2, -t],
       [0, d / 2, -t],
     ],
-    protonOrder: [1, 2, 0, 3],
+    protonOrder: [0, 1, 2, 3],
   };
 }
 
@@ -197,7 +202,7 @@ const LIGHT: Vec3 = (() => {
  */
 export function packNucleus(Z: number, N: number, seed: number): PackedNucleus {
   const A = Z + N;
-  if (!(A > 0)) return { list: [], core: 0, radius: 0, A: 0 };
+  if (!(A > 0)) return { list: [], core: 0, radius: 0, inner: 0, A: 0 };
   const rnd = sceneRandom(seed * 1013 + A * 31 + Z * 7);
   const d = NUCLEON_SPACING;
   let rot: Vec3[];
@@ -276,7 +281,25 @@ export function packNucleus(Z: number, N: number, seed: number): PackedNucleus {
     spreadProtons(behind, qB, rnd);
     spreadProtons(hidden, qH, rnd);
   }
-  return { list, core, radius: core + 1, A };
+  return { list, core, radius: core + 1, inner: silhouetteRadius(list) - 0.2, A };
+}
+
+/** Minste avstand fra midten ut til omrisset av kulene sett forfra (36 retninger). */
+function silhouetteRadius(list: readonly PackedNucleon[]): number {
+  let min = Infinity;
+  for (let k = 0; k < 36; k++) {
+    const a = (k / 36) * Math.PI * 2;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    let max = 0;
+    for (const q of list) {
+      const perp = -s * q.x + c * q.y;
+      if (Math.abs(perp) >= 1) continue;
+      max = Math.max(max, c * q.x + s * q.y + Math.sqrt(1 - perp * perp));
+    }
+    min = Math.min(min, max);
+  }
+  return Number.isFinite(min) ? min : 0;
 }
 
 /** Kjerner med flere nukleoner enn dette tegnes bare med de ytterste lagene. */

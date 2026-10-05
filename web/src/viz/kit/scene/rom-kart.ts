@@ -344,7 +344,7 @@ const CLOUD_FIELDS: readonly (readonly [number, number, number, number, number])
 ];
 
 /** Skyfeltene som myke flater (bred, svak del) og en mindre, litt tettere kjerne. */
-export const EARTH_CLOUDS_SOFT: readonly Ring[] = CLOUD_FIELDS.map(([lon, lat, a, b, rot], i) => sphereEllipse(lon, lat, a, b, 18, rot, 0.35, i + 1));
+export const EARTH_CLOUDS_SOFT: readonly Ring[] = CLOUD_FIELDS.map(([lon, lat, a, b, rot], i) => sphereEllipse(lon, lat, a, b, 24, rot, 0.35, i + 1));
 export const EARTH_CLOUDS_CORE: readonly Ring[] = CLOUD_FIELDS.map(([lon, lat, a, b, rot], i) =>
   sphereEllipse(lon + a * 0.15, lat + b * 0.1, a * 0.5, b * 0.5, 14, rot, 0.4, i + 9),
 );
@@ -372,8 +372,8 @@ const MARS_DARK_FIELDS: readonly (readonly [number, number, number, number, numb
 ];
 
 /** De mørke områdene som en bred, myk del og en mindre kjerne (to lag, som skyene på jorda). */
-export const MARS_DARK_SOFT: readonly Ring[] = MARS_DARK_FIELDS.map(([lon, lat, a, b, rot], i) => sphereEllipse(lon, lat, a * 1.3, b * 1.35, 16, rot, 0.28, i + 2));
-export const MARS_DARK_CORE: readonly Ring[] = MARS_DARK_FIELDS.map(([lon, lat, a, b, rot], i) => sphereEllipse(lon, lat, a * 0.75, b * 0.7, 14, rot, 0.3, i + 21));
+export const MARS_DARK_SOFT: readonly Ring[] = MARS_DARK_FIELDS.map(([lon, lat, a, b, rot], i) => sphereEllipse(lon, lat, a * 1.3, b * 1.35, 26, rot, 0.28, i + 2));
+export const MARS_DARK_CORE: readonly Ring[] = MARS_DARK_FIELDS.map(([lon, lat, a, b, rot], i) => sphereEllipse(lon, lat, a * 0.75, b * 0.7, 22, rot, 0.3, i + 21));
 
 /** Lyse områder på Mars: Hellas- og Argyre-bassenget og vulkanene på Tharsis. */
 export const MARS_LIGHT: readonly Ring[] = [
@@ -399,31 +399,31 @@ export const MARS_CANYON: readonly Ring[] = [[-95, -7, -80, -9, -66, -11, -52, -
  * Procellarum–Insularum–Nubium–Humorum. Crisium ligger for seg selv.
  */
 const MARIA: readonly (readonly [number, number, number, number, number, number])[] = [
-  [-58, 15, 18, 26, 12, 0.18], // Oceanus Procellarum
-  [-30, 3, 10, 9, 0, 0.2], // Mare Insularum
-  [-22, -10, 7, 6, 0, 0.2], // Mare Cognitum
-  [-16, -21, 12, 9, 0, 0.18], // Mare Nubium
-  [-38, -24, 7, 6.5, 0, 0.12], // Mare Humorum
-  [-17, 34, 18, 14, 0, 0.12], // Mare Imbrium
-  [4, 14, 6, 5, 0, 0.2], // Mare Vaporum
-  [2, 2, 5, 3.5, 0, 0.15], // Sinus Medii
-  [18, 28, 11, 10, 0, 0.1], // Mare Serenitatis
-  [30, 9, 14, 10, 20, 0.18], // Mare Tranquillitatis
-  [27, -5, 4.5, 4.5, 0, 0.2], // Sinus Asperitatis
-  [35, -15, 6, 6, 0, 0.1], // Mare Nectaris
-  [52, -6, 9, 13, 10, 0.18], // Mare Fecunditatis
-  [59, 17, 8, 7, 0, 0.08], // Mare Crisium
+  [-57, 14, 20, 28, 12, 0.16], // Oceanus Procellarum
+  [-31, 3, 12, 10, 0, 0.2], // Mare Insularum
+  [-22, -10, 8.5, 7.5, 0, 0.2], // Mare Cognitum
+  [-16, -21, 13.5, 10, 0, 0.18], // Mare Nubium
+  [-38, -24, 8, 7.5, 0, 0.12], // Mare Humorum
+  [-17, 34, 20, 15.5, 0, 0.12], // Mare Imbrium
+  [4, 14, 7.5, 6.5, 0, 0.2], // Mare Vaporum
+  [2, 2, 6.5, 4.5, 0, 0.15], // Sinus Medii
+  [18, 27, 12.5, 11.5, 0, 0.1], // Mare Serenitatis
+  [31, 8, 16, 11.5, 20, 0.16], // Mare Tranquillitatis
+  [27, -5, 6, 5.5, 0, 0.2], // Sinus Asperitatis
+  [35, -15, 7, 7, 0, 0.1], // Mare Nectaris
+  [52, -6, 10.5, 14.5, 10, 0.16], // Mare Fecunditatis
+  [59, 17, 8.5, 7.5, 0, 0.08], // Mare Crisium
 ];
 
-/** Havene (tett kjerne) og en litt større, myk kant rundt, så kanten ikke blir skarp. */
-export const MOON_MARIA: readonly Ring[] = MARIA.map(([lon, lat, a, b, rot, w], i) => sphereEllipse(lon, lat, a, b, 18, rot, w, i + 1));
-export const MOON_MARIA_SOFT: readonly Ring[] = MARIA.map(([lon, lat, a, b, rot, w], i) => sphereEllipse(lon, lat, a * 1.12 + 1, b * 1.12 + 1, 18, rot, w + 0.05, i + 1));
+/** Havene (tett kjerne) og en smal, myk kant rundt, så kanten ikke blir skarp. */
+export const MOON_MARIA: readonly Ring[] = MARIA.map(([lon, lat, a, b, rot, w], i) => sphereEllipse(lon, lat, a, b, 30, rot, w, i + 1));
+export const MOON_MARIA_SOFT: readonly Ring[] = MARIA.map(([lon, lat, a, b, rot, w], i) => sphereEllipse(lon, lat, a + 1.3, b + 1.3, 30, rot, w, i + 1));
 
 /** Mare Frigoris: et smalt, litt buet bånd nord for Imbrium (Plato ligger mellom), med Sinus Roris mot Procellarum. */
 export const MOON_FRIGORIS: readonly Ring[] = [
-  sphereEllipse(-20, 58.5, 17, 6, 18, -6, 0.25, 12),
-  sphereEllipse(14, 58, 16, 5.5, 18, 7, 0.25, 13),
-  sphereEllipse(-44, 51, 8, 5.5, 14, -28, 0.25, 14),
+  sphereEllipse(-20, 58.5, 17, 6, 26, -6, 0.25, 12),
+  sphereEllipse(14, 58, 16, 5.5, 26, 7, 0.25, 13),
+  sphereEllipse(-44, 51, 8, 5.5, 18, -28, 0.25, 14),
 ];
 
 /** Kratere på Månen: [lon, lat, radius i grader]. De tre første (Tycho, Copernicus, Plato) vises også på små måner. */

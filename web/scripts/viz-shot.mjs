@@ -52,7 +52,7 @@ try {
       for (const width of widths) {
         const page = await browser.newPage({ viewport: { width, height: 900 }, deviceScaleFactor: width < 600 ? 2 : 1 });
         const errors = [];
-        page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+        page.on('console', (m) => m.type() === 'error' && !(m.location().url ?? '').includes('favicon') && errors.push(m.text()));
         page.on('pageerror', (e) => errors.push(String(e)));
         await page.goto(`${base}?fag=${fag}&id=${id}&theme=${theme}`);
         try {

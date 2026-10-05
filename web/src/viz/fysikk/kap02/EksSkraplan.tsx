@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Figure, Sub, TSub, Txt, VIZ, WorkedExample, fmt, useTextScale, type ExampleStep, type FigureState } from '../../kit';
+import { Figure, Sub, TSub, Txt, VIZ, WorkedExample, fmt, type ExampleStep, type FigureState } from '../../kit';
 import {
   Callout,
   Dimension,
@@ -8,6 +8,7 @@ import {
   Kasse,
   Landskap,
   LinearGradient,
+  PAINTS,
   Rampe,
   SCENE,
   Underlag,
@@ -17,6 +18,7 @@ import {
   useSvgId,
 } from '../../kit/scene';
 import { RAMP_TASKS, solveRampTask, type RampSolution, type RampTask } from './model';
+import { useNarrow } from './useNarrow';
 
 const RAD = Math.PI / 180;
 
@@ -189,9 +191,9 @@ export default function EksSkraplan() {
       variants={{ labels: ['Tallsett 1', 'Tallsett 2', 'Tallsett 3'], value: variant, onChange: setVariant }}
       intro={
         <p>
-          På et lager skal en kasse med varer ned fra en lasterampe. En arbeider legger en planke fra kanten av lasterampa ned til bakken og
-          slipper kassen øverst på planken. Kassen har massen {fmt(m, 0)} kg, planken er {fmt(L, 1)} m lang og danner vinkelen {deg} med bakken.
-          Glidefriksjonstallet mellom kassen og planken er {fmt(muK, 2)}, og det statiske friksjonstallet er {fmt(muS, 2)}.
+          På et lager skal en kasse med varer ned fra en lasterampe. En arbeider setter en skrå rampe av tre fra kanten av lasterampa ned til
+          bakken og slipper kassen øverst på rampa. Kassen har massen {fmt(m, 0)} kg, rampa er {fmt(L, 1)} m lang og danner vinkelen {deg} med
+          bakken. Glidefriksjonstallet mellom kassen og rampa er {fmt(muK, 2)}, og det statiske friksjonstallet er {fmt(muS, 2)}.
         </p>
       }
       given={[
@@ -206,10 +208,10 @@ export default function EksSkraplan() {
         </>,
       ]}
       parts={[
-        { id: 'a', text: 'Tegn kreftene som virker på kassen mens den sklir nedover planken.' },
+        { id: 'a', text: 'Tegn kreftene som virker på kassen mens den sklir nedover rampa.' },
         { id: 'b', text: `Vis at akselerasjonen til kassen er ${fmt(s.a, 1)} m/s².` },
         { id: 'c', text: 'Hvor stor fart har kassen når den når bakken?' },
-        { id: 'd', text: 'Hvor bratt må planken minst være for at kassen skal begynne å gli av seg selv?' },
+        { id: 'd', text: 'Hvor bratt må rampa minst være for at kassen skal begynne å gli av seg selv?' },
       ]}
       steps={steps}
       figure={(state) => <RampFigure task={task} s={s} state={state} />}
@@ -227,7 +229,15 @@ const PX_PER_M = 128;
 const G_LEN = 118;
 
 function RampFigure({ task, s, state }: { task: RampTask; s: RampSolution; state: FigureState }) {
-  const f = useTextScale();
+  const [ref, narrow] = useNarrow<HTMLDivElement>();
+  return (
+    <div ref={ref}>
+      <RampScene task={task} s={s} state={state} narrow={narrow} />
+    </div>
+  );
+}
+
+function RampScene({ task, s, state, narrow }: { task: RampTask; s: RampSolution; state: FigureState; narrow: boolean }) {
   const { step, showAll } = state;
   const al = task.alphaDeg * RAD;
   const len = task.L * PX_PER_M;
@@ -239,10 +249,10 @@ function RampFigure({ task, s, state }: { task: RampTask; s: RampSolution; state
 
   // Kassen: øverst mens kreftene finnes (a, b), nederst i c, øverst igjen i d.
   const atBottom = !showAll && step === 5;
-  const sAlong = atBottom ? 0.12 * len : 0.62 * len;
+  const sAlong = atBottom ? 0.14 * len : 0.6 * len;
   const p = rampePunkt(ramp, sAlong);
-  const boxW = 64;
-  const boxH = 50;
+  const boxW = 92;
+  const boxH = 70;
   // Midten av kassen ligger en halv kassehøyde ut fra rampa (normalen peker opp og til venstre).
   const nx = -Math.sin(al);
   const ny = -Math.cos(al);
@@ -259,10 +269,12 @@ function RampFigure({ task, s, state }: { task: RampTask; s: RampSolution; state
   const showVelocity = atBottom;
   const showAngle = showAll || step === 2 || step === 6;
 
+  // På mobil zoomes figuren inn på rampa og kassen, så kreftene blir store nok.
+  const vb = narrow ? `${x0 - 60} ${Math.max(0, topY - 175)} ${topX - x0 + 150} ${GROUND + 40 - Math.max(0, topY - 175)}` : `0 0 ${W} 420`;
   return (
     <Figure
-      viewBox={`0 0 ${W} 420`}
-      label={`En kasse på ${fmt(task.m, 0)} kg på en planke som danner ${fmt(task.alphaDeg, 0)} grader med bakken, fra en lasterampe ned til bakken.`}
+      viewBox={vb}
+      label={`En kasse på ${fmt(task.m, 0)} kg på en rampe som danner ${fmt(task.alphaDeg, 0)} grader med bakken, fra en lasterampe ned til bakken.`}
       maxHeight={440}
     >
       <Himmel x={0} y={0} w={W} h={GROUND} skyer={2} seed={4} />
@@ -270,13 +282,13 @@ function RampFigure({ task, s, state }: { task: RampTask; s: RampSolution; state
       <Underlag x1={0} x2={W} y={GROUND} depth={48} type="betong" />
       <Lasterampe x={topX} y={topY} />
       <Rampe {...ramp} />
-      <Kasse x={p.x} y={p.y} w={boxW} h={boxH} materiale="papp" rotate={p.rotate} label={`${fmt(task.m, 0)} kg`} />
+      <Kasse x={p.x} y={p.y} w={boxW} h={boxH} materiale="papp" rotate={p.rotate} label={`${fmt(task.m, 0)} kg`} labelPlass="oppe-venstre" />
 
       {showAngle && <AngleMark x={x0} y={GROUND} alphaDeg={task.alphaDeg} r={70} strong={step === 6} />}
       {showVelocity && (
         <>
           <ForceArrow x1={cx} y1={cy} x2={cx + dx * 22 * s.v} y2={cy + dy * 22 * s.v} color={VIZ.velocity} label="v" width={6} />
-          <Dimension x1={x0} y1={GROUND} x2={topX} y2={topY} offset={-34} label={`s = ${fmt(task.L, 1)} m`} />
+          <Dimension x1={x0} y1={GROUND} x2={topX} y2={topY} offset={104} label={`s = ${fmt(task.L, 1)} m`} labelOffset={60} />
         </>
       )}
 
@@ -292,21 +304,22 @@ function RampFigure({ task, s, state }: { task: RampTask; s: RampSolution; state
           <ForceArrow x1={cx} y1={cy} x2={cx + nx * s.N * k} y2={cy + ny * s.N * k} color={VIZ.normal} label="N" />
           <ForceArrow x1={cx} y1={cy} x2={cx - dx * s.R * k} y2={cy - dy * s.R * k} color={VIZ.friction} label="R" />
           {showSum && (
+            // Akselerasjonen (egen skala, 40 px per m/s²) foran kassen. Kraftsummen er bare G∥ − R, som er for kort å se.
             <ForceArrow
-              x1={cx + nx * 46}
-              y1={cy + ny * 46}
-              x2={cx + nx * 46 + dx * s.sumF * k}
-              y2={cy + ny * 46 + dy * s.sumF * k}
+              x1={cx + dx * (boxW / 2 + 10) + nx * boxH * 0.62}
+              y1={cy + dy * (boxW / 2 + 10) + ny * boxH * 0.62}
+              x2={cx + dx * (boxW / 2 + 10 + 40 * s.a) + nx * boxH * 0.62}
+              y2={cy + dy * (boxW / 2 + 10 + 40 * s.a) + ny * boxH * 0.62}
               color={VIZ.acceleration}
               width={5}
-              label="ΣF"
+              label="a"
             />
           )}
         </>
       )}
 
       {step === 6 && !showAll && (
-        <Callout x={x0 + 40} y={GROUND - 12} lx={x0 + 120} ly={GROUND + 30 * f}>
+        <Callout x={x0 + 40} y={GROUND - 12} lx={x0 + 120} ly={GROUND + 30}>
           tan α = μ<TSub>s</TSub> ⇒ α = {fmt(s.critDeg, 1)}°
         </Callout>
       )}
@@ -314,13 +327,30 @@ function RampFigure({ task, s, state }: { task: RampTask; s: RampSolution; state
   );
 }
 
-/** Kanten av lasterampa (betong) som planken ligger mot. (x, y) er hjørnet øverst til venstre. */
+/**
+ * Lageret med lasterampa (betong) som rampa ligger mot, og en port i veggen bak. (x, y) er hjørnet øverst til venstre
+ * på lasterampa.
+ */
 function Lasterampe({ x, y }: { x: number; y: number }) {
-  const id = useSvgId('lasterampe');
+  const ramp = useSvgId('lasterampe');
+  const wall = useSvgId('lagervegg');
+  const door = useSvgId('lagerport');
+  const wallX = x + 34;
+  const top = 46;
+  const doorX = wallX + 46;
+  const doorW = Math.max(60, Math.min(150, W - doorX - 30));
   return (
     <g>
-      <LinearGradient id={id} stops={materialStops(SCENE.concrete)} />
-      <rect x={x} y={y} width={W - x + 2} height={GROUND - y} fill={`url(#${id})`} stroke={SCENE.outline} strokeWidth={1} />
+      <LinearGradient id={wall} stops={materialStops(PAINTS.graa, 0.6)} />
+      <LinearGradient id={door} stops={materialStops(shade(SCENE.metal, 0.15), 0.8)} />
+      <rect x={wallX} y={top} width={W - wallX + 2} height={y - top} fill={`url(#${wall})`} stroke={SCENE.outline} strokeWidth={1} />
+      <rect x={wallX - 6} y={top - 10} width={W - wallX + 8} height={12} rx={2} fill={shade(PAINTS.graa, 0.25)} />
+      <rect x={doorX} y={y - 150} width={doorW} height={150} fill={`url(#${door})`} stroke={SCENE.outline} strokeWidth={1} />
+      {Array.from({ length: 9 }, (_, i) => (
+        <line key={i} x1={doorX} x2={doorX + doorW} y1={y - 150 + (i + 1) * 15} y2={y - 150 + (i + 1) * 15} stroke={shade(SCENE.metal, 0.35)} strokeWidth={1} opacity={0.6} />
+      ))}
+      <LinearGradient id={ramp} stops={materialStops(SCENE.concrete)} />
+      <rect x={x} y={y} width={W - x + 2} height={GROUND - y} fill={`url(#${ramp})`} stroke={SCENE.outline} strokeWidth={1} />
       <rect x={x} y={y} width={W - x + 2} height={7} fill={shade(SCENE.concrete, 0.18)} />
     </g>
   );

@@ -16,6 +16,8 @@ import { type ReactNode } from 'react';
 import { seededRandom, type Box } from '../../kjemi/kit/random';
 import { BIO, type BioPaint } from './colors';
 import { DIM_OPACITY, Halo, useLineScale, useSvgId, type MarkProps } from './felles';
+import { mix } from '../../kit/scene/core';
+import { BoksToning, LYS, SylinderToning, VolumToning, kuleStops, lysRetning, lysere, morkere } from './lys';
 import { smoothClosedPath, type Pt } from './kromosomer';
 
 /* ---------- Geometri ---------- */
@@ -101,36 +103,69 @@ export function Cellekjerne({
   dim,
 }: OrganelleProps & { r?: number; ry?: number; kjernelegeme?: boolean; kromatin?: boolean }) {
   const lw = useLineScale();
+  const id = useSvgId('bio-kjerne');
   const RY = ry ?? r * 0.88;
   const c = BIO.kjerne;
   const outline = `M${-r},0 A${r},${RY} 0 1 0 ${r},0 A${r},${RY} 0 1 0 ${-r},0 Z`;
+  const nr = r * 0.26;
+  const ncx = r * 0.24;
+  const ncy = -RY * 0.1;
+  // Kjernehylsteret som et farget bånd mellom de to membranene (porene står rett overfor hverandre, se under)
+  const band = Math.min(3.6, r * 0.12);
   return (
     <Place x={x} y={y} rotate={rotate} dim={dim}>
       {highlight && <Halo d={outline} color={c.line} />}
-      <ellipse rx={r} ry={RY} fill={c.fill} />
-      {kromatin &&
-        [-0.45, -0.05, 0.38].map((v, i) => (
-          <path
-            key={i}
-            d={`M${-r * 0.62},${RY * v} q${r * 0.2},${-RY * 0.22} ${r * 0.4},0 t${r * 0.4},0 t${r * 0.36},${RY * 0.08}`}
-            fill="none"
-            stroke={BIO.dna}
-            strokeOpacity={0.45}
-            strokeWidth={1.2 * lw}
-            strokeLinecap="round"
-          />
-        ))}
-      {kjernelegeme && <circle cx={r * 0.24} cy={-RY * 0.1} r={r * 0.26} fill={BIO.kjernelegeme} />}
-      {/* Dobbel membran med porer: like streklengder på begge ellipsene (pathLength), så porene står rett overfor hverandre */}
-      <ellipse rx={r} ry={RY} fill="none" stroke={c.line} strokeWidth={2 * lw} pathLength={100} strokeDasharray="10.5 2" />
-      <ellipse rx={r - 3.6} ry={RY - 3.6} fill="none" stroke={c.line} strokeWidth={1.1 * lw} pathLength={100} strokeDasharray="10.5 2" />
+      <VolumToning id={`${id}v`} color={c.fill} hue={c.line} rx={r} ry={RY} rotate={rotate} glans={0.8} />
+      <ellipse rx={r} ry={RY} fill={`url(#${id}v)`} />
+      {kromatin && (
+        <g fill="none" stroke={BIO.dna} strokeLinecap="round">
+          {/* Tynne, slyngete kromatintråder */}
+          {CHROMATIN.map(([u, v, a, b], i) => (
+            <path
+              key={i}
+              d={`M${r * u},${RY * v} q${r * a},${-RY * b} ${r * 0.3},${RY * 0.02} t${r * 0.28},${-RY * 0.04} t${r * 0.26},${RY * 0.06}`}
+              strokeOpacity={i < 3 ? 0.42 : 0.26}
+              strokeWidth={(i < 3 ? 1.15 : 0.9) * lw}
+            />
+          ))}
+        </g>
+      )}
+      {kjernelegeme && (
+        <g>
+          <VolumToning id={`${id}n`} color={BIO.kjernelegeme} hue={c.line} rx={nr} ry={nr} cx={ncx} cy={ncy} rotate={rotate} glans={0.7} />
+          <circle cx={ncx} cy={ncy} r={nr} fill={`url(#${id}n)`} />
+        </g>
+      )}
+      {/* Dobbel membran med porer: like streklengder på alle ellipsene (pathLength), så porene står rett overfor hverandre */}
+      <ellipse
+        rx={r - band / 2}
+        ry={RY - band / 2}
+        fill="none"
+        stroke={mix(c.fill, c.line, 0.3)}
+        strokeWidth={band}
+        pathLength={100}
+        strokeDasharray="10.5 2"
+      />
+      <ellipse rx={r} ry={RY} fill="none" stroke={c.line} strokeWidth={1.8 * lw} pathLength={100} strokeDasharray="10.5 2" />
+      <ellipse rx={r - band} ry={RY - band} fill="none" stroke={c.line} strokeOpacity={0.8} strokeWidth={1 * lw} pathLength={100} strokeDasharray="10.5 2" />
     </Place>
   );
 }
 
-/** Mitokondrie: glatt ytre membran og indre membran foldet i cristae. */
+/** Kromatintrådene i kjernen: [start u, start v, kontrollpunkt a, b] i andeler av radiene. */
+const CHROMATIN: readonly (readonly [number, number, number, number])[] = [
+  [-0.64, -0.42, 0.16, 0.2],
+  [-0.66, 0.0, 0.14, -0.16],
+  [-0.58, 0.38, 0.15, 0.18],
+  [-0.4, -0.66, 0.12, -0.12],
+  [-0.48, 0.62, 0.1, 0.14],
+  [-0.2, 0.2, 0.12, 0.22],
+];
+
+/** Mitokondrie: glatt ytre membran og indre membran foldet i cristae rundt matriksen. */
 export function Mitokondrie({ x, y, w = 70, h = 32, rotate, highlight, dim }: OrganelleProps & { w?: number; h?: number }) {
   const lw = useLineScale();
+  const id = useSvgId('bio-mito');
   const c = BIO.mitokondrie;
   const outline = capsulePath(0, 0, w, h);
   const inset = 3.6;
@@ -140,27 +175,25 @@ export function Mitokondrie({ x, y, w = 70, h = 32, rotate, highlight, dim }: Or
   const step = iw / (folds + 1);
   const depth = ih * 0.62;
   const cw = Math.min(5, step * 0.45);
+  const inner = capsulePath(0, 0, iw, ih);
+  const cristae = Array.from({ length: folds }, (_, i) => {
+    const fx = -iw / 2 + step * (i + 1) - cw / 2;
+    const fromTop = i % 2 === 0;
+    const y0 = fromTop ? -ih / 2 : ih / 2;
+    const dir = fromTop ? 1 : -1;
+    return `M${fx},${y0} v${dir * (depth - cw / 2)} a${cw / 2},${cw / 2} 0 0 ${fromTop ? 0 : 1} ${cw},0 v${-dir * (depth - cw / 2)}`;
+  }).join(' ');
+  // Indre membran (med cristae) som et bånd med farge mellom fyll og kant
+  const membrane = mix(c.fill, c.line, 0.42);
   return (
     <Place x={x} y={y} rotate={rotate} dim={dim}>
       {highlight && <Halo d={outline} color={c.line} />}
-      <path d={outline} fill={c.fill} stroke={c.line} strokeWidth={2 * lw} />
-      <path d={capsulePath(0, 0, iw, ih)} fill="none" stroke={c.line} strokeWidth={1.1 * lw} />
-      {Array.from({ length: folds }, (_, i) => {
-        const fx = -iw / 2 + step * (i + 1) - cw / 2;
-        const fromTop = i % 2 === 0;
-        const y0 = fromTop ? -ih / 2 : ih / 2;
-        const dir = fromTop ? 1 : -1;
-        return (
-          <path
-            key={i}
-            d={`M${fx},${y0} v${dir * (depth - cw / 2)} a${cw / 2},${cw / 2} 0 0 ${fromTop ? 0 : 1} ${cw},0 v${-dir * (depth - cw / 2)}`}
-            fill="none"
-            stroke={c.line}
-            strokeWidth={1.1 * lw}
-            strokeLinejoin="round"
-          />
-        );
-      })}
+      <VolumToning id={`${id}v`} color={c.fill} hue={c.line} rx={w / 2} ry={h / 2} rotate={rotate} glans={0.9} />
+      <VolumToning id={`${id}m`} color={mix(c.fill, c.line, 0.14)} hue={c.line} rx={iw / 2} ry={ih / 2} rotate={rotate} glans={0.8} />
+      <path d={outline} fill={`url(#${id}v)`} stroke={c.line} strokeWidth={1.8 * lw} />
+      <path d={inner} fill={`url(#${id}m)`} />
+      <path d={`${inner} ${cristae}`} fill="none" stroke={membrane} strokeWidth={2.6 * lw} strokeLinejoin="round" />
+      <path d={`${inner} ${cristae}`} fill="none" stroke={c.line} strokeWidth={0.95 * lw} strokeLinejoin="round" />
     </Place>
   );
 }
@@ -177,6 +210,7 @@ export function Kloroplast({
   dim,
 }: OrganelleProps & { w?: number; h?: number; grana?: number }) {
   const lw = useLineScale();
+  const id = useSvgId('bio-kloro');
   const c = BIO.kloroplast;
   const rx = w / 2;
   const ry = h / 2;
@@ -186,30 +220,27 @@ export function Kloroplast({
   const tw = Math.min(12, (span / n) * 0.62);
   const th = Math.max(2.4, h * 0.085);
   const stack = Math.max(3, Math.round((h * 0.52) / (th + 1)));
+  const sh = stack * (th + 1) - 1;
+  const top = -sh / 2;
+  const groove = morkere(BIO.klorofyll, 0.38);
   return (
     <Place x={x} y={y} rotate={rotate} dim={dim}>
       {highlight && <Halo d={outline} color={c.line} />}
-      <ellipse rx={rx} ry={ry} fill={c.fill} stroke={c.line} strokeWidth={2 * lw} />
-      <ellipse rx={rx - 3.2} ry={ry - 3.2} fill="none" stroke={c.line} strokeWidth={1 * lw} />
-      <line x1={-span / 2} y1={0} x2={span / 2} y2={0} stroke={c.line} strokeWidth={1 * lw} />
+      <VolumToning id={`${id}v`} color={c.fill} hue={c.line} rx={rx} ry={ry} rotate={rotate} />
+      <SylinderToning id={`${id}g`} color={BIO.klorofyll} hue={c.line} rotate={rotate} akse="loddrett" />
+      <ellipse rx={rx} ry={ry} fill={`url(#${id}v)`} stroke={c.line} strokeWidth={1.8 * lw} />
+      <ellipse rx={rx - 3.2} ry={ry - 3.2} fill="none" stroke={c.line} strokeOpacity={0.75} strokeWidth={1 * lw} />
+      <line x1={-span / 2} y1={0} x2={span / 2} y2={0} stroke={mix(c.line, BIO.klorofyll, 0.4)} strokeWidth={1.1 * lw} strokeLinecap="round" />
       {Array.from({ length: n }, (_, i) => {
         const gx = n === 1 ? 0 : -span / 2 + (span * i) / (n - 1);
-        const top = -((stack * (th + 1) - 1) / 2);
+        // Ett granum = en stabel tylakoider: én avrundet sylinder med fuger mellom skivene
         return (
           <g key={i}>
-            {Array.from({ length: stack }, (_, j) => (
-              <rect
-                key={j}
-                x={gx - tw / 2}
-                y={top + j * (th + 1)}
-                width={tw}
-                height={th}
-                rx={th / 2}
-                fill={BIO.klorofyll}
-                stroke={c.line}
-                strokeWidth={0.6 * lw}
-              />
-            ))}
+            <rect x={gx - tw / 2} y={top} width={tw} height={sh} rx={th / 2} fill={`url(#${id}g)`} stroke={c.line} strokeWidth={0.6 * lw} />
+            {Array.from({ length: stack - 1 }, (_, j) => {
+              const yy = top + (j + 1) * (th + 1) - 0.5;
+              return <line key={j} x1={gx - tw / 2 + 0.4} y1={yy} x2={gx + tw / 2 - 0.4} y2={yy} stroke={groove} strokeWidth={0.8 * lw} />;
+            })}
           </g>
         );
       })}
@@ -265,11 +296,15 @@ export function EndoplasmatiskNettverk({
     return { pts, d: bandPath(pts, t) };
   });
   const outline = roundedRectPath(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8, 14);
+  const L = lysRetning(rotate);
   return (
     <Place x={x} y={y} rotate={rotate} dim={dim}>
       {highlight && <Halo d={outline} color={c.line} width={6} />}
       {bands.map((b, i) => (
-        <path key={i} d={b.d} fill={c.fill} stroke={c.line} strokeWidth={1.3 * lw} strokeLinejoin="round" />
+        <g key={i}>
+          <path d={b.d} fill={c.fill} stroke={c.line} strokeWidth={1.3 * lw} strokeLinejoin="round" />
+          <SacShading pts={b.pts} t={t} L={L} />
+        </g>
       ))}
       {kornet &&
         bands.map((b, i) =>
@@ -313,24 +348,64 @@ export function Golgiapparat({
       const xx = -len / 2 + len * u;
       return { x: xx, y: y0 - bow * (1 - (2 * u - 1) ** 2) };
     });
-    return { d: bandPath(pts, t), len, y0 };
+    return { d: bandPath(pts, t), pts, len, y0 };
   });
   const outline = roundedRectPath(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8, 14);
   const last = sacs[n - 1]!;
+  const L = lysRetning(rotate);
+  const id = useSvgId('bio-golgi');
   return (
     <Place x={x} y={y} rotate={rotate} dim={dim}>
       {highlight && <Halo d={outline} color={c.line} width={6} />}
+      <BoksToning id={id} rotate={rotate} stops={kuleStops(c.fill, c.line)} />
       {sacs.map((s, i) => (
-        <path key={i} d={s.d} fill={c.fill} stroke={c.line} strokeWidth={1.3 * lw} strokeLinejoin="round" />
+        <g key={i}>
+          <path d={s.d} fill={c.fill} stroke={c.line} strokeWidth={1.3 * lw} strokeLinejoin="round" />
+          <SacShading pts={s.pts} t={t} L={L} />
+        </g>
       ))}
       {[
         { x: -last.len / 2 - t * 0.9, y: last.y0 + t * 0.6 },
         { x: last.len / 2 + t * 0.9, y: last.y0 + t * 0.6 },
         { x: last.len * 0.18, y: last.y0 + t * 1.8 },
       ].map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r={t * 0.62} fill={c.fill} stroke={c.line} strokeWidth={1.1 * lw} />
+        <circle key={i} cx={p.x} cy={p.y} r={t * 0.62} fill={`url(#${id})`} stroke={c.line} strokeWidth={1.1 * lw} />
       ))}
     </Place>
+  );
+}
+
+/**
+ * Volum på en flat sekk (ER, golgi): en lys stripe langs siden mot lyset og en mørkere langs skyggesiden, som på et
+ * rør. `pts` er midtlinja til sekken og `t` tykkelsen.
+ */
+function SacShading({ pts, t, L }: { pts: readonly Pt[]; t: number; L: { x: number; y: number } }) {
+  if (pts.length < 4 || !(t > 2)) return null;
+  const inner = pts.slice(1, -1);
+  const line = (k: number) => {
+    // Forskyv på tvers av sekken, mot lyset (k > 0) eller bort fra det (k < 0)
+    const out: string[] = [];
+    inner.forEach((p, i) => {
+      const a = inner[Math.max(0, i - 1)]!;
+      const b = inner[Math.min(inner.length - 1, i + 1)]!;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const l = Math.hypot(dx, dy) || 1;
+      let nx = -dy / l;
+      let ny = dx / l;
+      if (nx * L.x + ny * L.y < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+      out.push(`${(p.x + nx * k * t).toFixed(2)},${(p.y + ny * k * t).toFixed(2)}`);
+    });
+    return `M${out.join(' L')}`;
+  };
+  return (
+    <g fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <path d={line(-0.2)} stroke={LYS.mork} strokeWidth={t * 0.26} />
+      <path d={line(0.17)} stroke={LYS.glans} strokeWidth={t * 0.24} />
+    </g>
   );
 }
 
@@ -368,10 +443,12 @@ export function Lysosom({ x, y, r = 13, highlight, dim }: OrganelleProps & { r?:
   const lw = useLineScale();
   const c = BIO.lysosom;
   const outline = `M${-r},0 A${r},${r} 0 1 0 ${r},0 A${r},${r} 0 1 0 ${-r},0 Z`;
+  const id = useSvgId('bio-lyso');
   return (
     <Place x={x} y={y} dim={dim}>
       {highlight && <Halo d={outline} color={c.line} />}
-      <circle r={r} fill={c.fill} stroke={c.line} strokeWidth={1.6 * lw} />
+      <VolumToning id={id} color={c.fill} hue={c.line} rx={r} ry={r} />
+      <circle r={r} fill={`url(#${id})`} stroke={c.line} strokeWidth={1.5 * lw} />
       {[
         [-0.35, -0.25],
         [0.3, -0.3],
@@ -379,8 +456,9 @@ export function Lysosom({ x, y, r = 13, highlight, dim }: OrganelleProps & { r?:
         [-0.3, 0.35],
         [0.38, 0.3],
       ].map(([u, v], i) => (
-        <circle key={i} cx={u! * r} cy={v! * r} r={Math.max(1.2, r * 0.12)} fill={c.line} />
+        <circle key={i} cx={u! * r} cy={v! * r} r={Math.max(1.2, r * 0.12)} fill={c.line} opacity={0.85} />
       ))}
+      <Gloss r={r} />
     </Place>
   );
 }
@@ -398,11 +476,14 @@ export function Vakuole({
 }: OrganelleProps & { w?: number; h?: number; seed?: number }) {
   const lw = useLineScale();
   const c = BIO.vakuole;
+  const id = useSvgId('bio-vak');
   const d = blobPath(0, 0, w / 2, h / 2, 0.05, seed, 9);
   return (
     <Place x={x} y={y} rotate={rotate} dim={dim}>
       {highlight && <Halo d={d} color={c.line} />}
-      <path d={d} fill={c.fill} stroke={c.line} strokeWidth={1.6 * lw} />
+      <VolumToning id={id} color={c.fill} hue={c.line} rx={w / 2} ry={h / 2} rotate={rotate} glans={0.9} kant={mix(c.fill, c.line, 0.22)} />
+      <path d={d} fill={`url(#${id})`} stroke={c.line} strokeWidth={1.5 * lw} />
+      <Reflex rx={w / 2} ry={h / 2} rotate={rotate} />
     </Place>
   );
 }
@@ -411,10 +492,12 @@ export function Vakuole({
 export function Vesikkel({ x, y, r = 6, paint = BIO.golgi, highlight, dim }: OrganelleProps & { r?: number; paint?: BioPaint }) {
   const lw = useLineScale();
   const outline = `M${-r},0 A${r},${r} 0 1 0 ${r},0 A${r},${r} 0 1 0 ${-r},0 Z`;
+  const id = useSvgId('bio-ves');
   return (
     <Place x={x} y={y} dim={dim}>
       {highlight && <Halo d={outline} color={paint.line} width={8} />}
-      <circle r={r} fill={paint.fill} stroke={paint.line} strokeWidth={1.2 * lw} />
+      <BoksToning id={id} stops={kuleStops(paint.fill, paint.line)} />
+      <circle r={r} fill={`url(#${id})`} stroke={paint.line} strokeWidth={1.2 * lw} />
     </Place>
   );
 }
@@ -444,6 +527,32 @@ export function Cytoskjelett({
         <path key={i} d={d} fill="none" stroke={BIO.cytoskjelett} strokeWidth={(highlight ? 2.4 : 1.2) * lw} strokeLinecap="round" />
       ))}
     </Place>
+  );
+}
+
+/** Liten glansflekk øverst til venstre på en kule med radius r (sentrert i 0, 0). */
+function Gloss({ r }: { r: number }) {
+  if (!(r > 3)) return null;
+  return <ellipse cx={-r * 0.38} cy={-r * 0.42} rx={r * 0.26} ry={r * 0.15} transform={`rotate(-35 ${-r * 0.38} ${-r * 0.42})`} fill={LYS.glans} />;
+}
+
+/** Refleks i en væskefylt blære (vakuole): en lys bue innenfor kanten mot lyset. */
+function Reflex({ rx, ry, rotate = 0, cx = 0, cy = 0 }: { rx: number; ry: number; rotate?: number; cx?: number; cy?: number }) {
+  const lw = useLineScale();
+  if (!(rx > 8 && ry > 8)) return null;
+  const L = lysRetning(rotate);
+  const mid = Math.atan2(L.y * rx, L.x * ry);
+  const pt = (a: number) => `${(cx + Math.cos(a) * rx * 0.8).toFixed(2)},${(cy + Math.sin(a) * ry * 0.8).toFixed(2)}`;
+  const a0 = mid - 0.42;
+  const a1 = mid + 0.42;
+  return (
+    <path
+      d={`M${pt(a0)} A${(rx * 0.8).toFixed(2)},${(ry * 0.8).toFixed(2)} 0 0 1 ${pt(a1)}`}
+      fill="none"
+      stroke={LYS.glans}
+      strokeWidth={Math.min(5, Math.max(1.6, Math.min(rx, ry) * 0.07)) * lw}
+      strokeLinecap="round"
+    />
   );
 }
 
@@ -535,10 +644,44 @@ export function Cellemembran({ d, highlight, dim, inner = BIO.cytoplasma }: Mark
   return (
     <g opacity={dim ? DIM_OPACITY : undefined}>
       {highlight && <Halo d={d} color={BIO.membran} width={12} />}
-      <path d={d} fill="none" stroke={BIO.membran} strokeWidth={4.6 * lw} strokeLinejoin="round" />
-      <path d={d} fill="none" stroke={inner} strokeWidth={1.5 * lw} strokeLinejoin="round" />
+      {/* Myk kant rundt membranen, så den får litt dybde mot det som ligger rundt */}
+      <path d={d} fill="none" stroke={BIO.membran} strokeOpacity={0.16} strokeWidth={8 * lw} strokeLinejoin="round" />
+      <path d={d} fill="none" stroke={BIO.membran} strokeWidth={4.4 * lw} strokeLinejoin="round" />
+      <path d={d} fill="none" stroke={mix(inner, BIO.lipidHode, 0.18)} strokeWidth={1.5 * lw} strokeLinejoin="round" />
     </g>
   );
+}
+
+/**
+ * Cytoplasma med volum: lysere mot øvre venstre og litt varmere inn mot membranen, som en celle som buler ut.
+ * `rx`, `ry` er halvaksene rundt (cx, cy).
+ */
+function Cytoplasma({ id, d, cx, cy, rx, ry, fill = BIO.cytoplasma }: { id: string; d: string; cx: number; cy: number; rx: number; ry: number; fill?: string }) {
+  return (
+    <g>
+      <VolumToning
+        id={id}
+        color={fill}
+        rx={rx}
+        ry={ry}
+        cx={cx}
+        cy={cy}
+        stops={[
+          [0, lysere(fill, 0.5, BIO.lipidHode)],
+          [0.4, lysere(fill, 0.14, BIO.lipidHode)],
+          [0.78, fill],
+          [1, mix(fill, BIO.membran, 0.14)],
+        ]}
+      />
+      <path d={d} fill={`url(#${id})`} />
+    </g>
+  );
+}
+
+/** Mørkere rand innenfor membranen (tegnes inni klippet), så cella ser rund ut og ikke flat. */
+function InnerRim({ d }: { d: string }) {
+  const lw = useLineScale();
+  return <path d={d} fill="none" stroke={LYS.mork} strokeOpacity={0.45} strokeWidth={13 * lw} strokeLinejoin="round" />;
 }
 
 function Dyrecelle({ x, y, w, h, seed = 4, highlight, dim, children }: CelleProps) {
@@ -550,8 +693,11 @@ function Dyrecelle({ x, y, w, h, seed = 4, highlight, dim, children }: CelleProp
         <path d={d} />
       </clipPath>
       {highlight === 'cytoplasma' && <Halo d={d} color={BIO.membran} width={16} />}
-      <path d={d} fill={BIO.cytoplasma} />
-      <g clipPath={`url(#${id})`}>{children}</g>
+      <Cytoplasma id={`${id}c`} d={d} cx={x + w / 2} cy={y + h / 2} rx={w / 2 - 4} ry={h / 2 - 4} />
+      <g clipPath={`url(#${id})`}>
+        <InnerRim d={d} />
+        {children}
+      </g>
       <Cellemembran d={d} highlight={highlight === 'cellemembran'} />
     </g>
   );
@@ -571,25 +717,42 @@ function Plantecelle({ x, y, w, h, protoplast = 1, ytre = BIO.vannFyll, vakuole 
   const vFrac = typeof vakuole === 'number' ? vakuole : 0.62;
   const vw = box.w * vFrac;
   const vh = box.h * vFrac;
-  const vac = roundedRectPath(box.x + (box.w - vw) / 2, box.y + (box.h - vh) / 2 + box.h * 0.03, vw, vh, Math.min(vw, vh) * 0.3);
+  const vx = box.x + box.w / 2;
+  const vy = box.y + box.h / 2 + box.h * 0.03;
+  const vac = roundedRectPath(vx - vw / 2, vy - vh / 2, vw, vh, Math.min(vw, vh) * 0.3);
   const c = BIO.cellevegg;
+  const V = BIO.vakuole;
   return (
     <g opacity={dim ? DIM_OPACITY : undefined}>
       <clipPath id={id}>
         <path d={proto} />
       </clipPath>
       {highlight === 'cellevegg' && <Halo d={outer} color={c.line} width={14} />}
-      {/* Celleveggen som en ramme mellom ytre og indre kant */}
-      <path d={`${outer} ${innerWall}`} fill={c.fill} fillRule="evenodd" />
+      {/* Celleveggen som en ramme mellom ytre og indre kant, med lys mot øvre venstre */}
+      <SylinderToning id={`${id}w`} color={c.fill} hue={c.line} akse="fri" glans={1.1} skygge={0.9} />
+      <path d={`${outer} ${innerWall}`} fill={`url(#${id}w)`} fillRule="evenodd" />
       <path d={outer} fill="none" stroke={c.line} strokeWidth={2 * lw} />
       <path d={innerWall} fill={s < 0.999 ? ytre : 'none'} stroke={c.line} strokeWidth={1 * lw} />
       {highlight === 'cytoplasma' && <Halo d={proto} color={BIO.membran} width={16} />}
-      <path d={proto} fill={BIO.cytoplasma} />
+      <Cytoplasma id={`${id}c`} d={proto} cx={box.x + box.w / 2} cy={box.y + box.h / 2} rx={box.w / 2} ry={box.h / 2} />
       <g clipPath={`url(#${id})`}>
+        <InnerRim d={proto} />
         {vakuole !== false && (
           <g>
-            {highlight === 'vakuole' && <Halo d={vac} color={BIO.vakuole.line} />}
-            <path d={vac} fill={BIO.vakuole.fill} stroke={BIO.vakuole.line} strokeWidth={1.6 * lw} />
+            {highlight === 'vakuole' && <Halo d={vac} color={V.line} />}
+            <VolumToning
+              id={`${id}v`}
+              color={V.fill}
+              hue={V.line}
+              rx={vw / 2}
+              ry={vh / 2}
+              cx={vx}
+              cy={vy}
+              glans={0.9}
+              kant={mix(V.fill, V.line, 0.25)}
+            />
+            <path d={vac} fill={`url(#${id}v)`} stroke={V.line} strokeWidth={1.5 * lw} />
+            <Reflex rx={vw / 2 - 2} ry={vh / 2 - 2} cx={vx} cy={vy} />
           </g>
         )}
         {children}
@@ -625,6 +788,7 @@ function Bakteriecelle({ x, y, w, h, kapsel = true, flageller = 1, innhold = tru
     x: g.cx + (rnd() - 0.5) * (g.w - g.h * 0.7),
     y: g.cy + (rnd() - 0.5) * (g.h - 22),
   }));
+  const plasmidR = Math.max(4, g.h * 0.07);
   return (
     <g opacity={dim ? DIM_OPACITY : undefined}>
       <clipPath id={id}>
@@ -639,20 +803,36 @@ function Bakteriecelle({ x, y, w, h, kapsel = true, flageller = 1, innhold = tru
       {kapsel && (
         <g>
           {highlight === 'kapsel' && <Halo d={caps} color={c.line} width={12} />}
-          <path d={caps} fill={BIO.kapsel} stroke={c.line} strokeOpacity={0.5} strokeWidth={1 * lw} strokeDasharray="5 4" />
+          <path d={caps} fill={BIO.kapsel} stroke={c.line} strokeOpacity={0.45} strokeWidth={1 * lw} strokeDasharray="5 4" />
         </g>
       )}
       {highlight === 'cellevegg' && <Halo d={wall} color={c.line} width={12} />}
-      <path d={wall} fill={c.fill} stroke={c.line} strokeWidth={2.2 * lw} />
-      <path d={mem} fill={BIO.cytoplasma} />
+      {/* Staven er en sylinder: lys langs oversiden, skygge langs undersiden */}
+      <SylinderToning id={`${id}w`} color={c.fill} hue={c.line} akse="vannrett" />
+      <path d={wall} fill={`url(#${id}w)`} stroke={c.line} strokeWidth={2.2 * lw} />
+      <VolumToning
+        id={`${id}c`}
+        color={BIO.cytoplasma}
+        rx={(g.w - 9) / 2}
+        ry={(g.h - 9) / 2}
+        cx={g.cx}
+        cy={g.cy}
+        stops={[
+          [0, lysere(BIO.cytoplasma, 0.5, BIO.lipidHode)],
+          [0.45, BIO.cytoplasma],
+          [1, mix(BIO.cytoplasma, c.fill, 0.5)],
+        ]}
+      />
+      <path d={mem} fill={`url(#${id}c)`} />
       <g clipPath={`url(#${id})`}>
+        <InnerRim d={mem} />
         {innhold && (
           <g>
             {ribos.map((p, i) => (
               <circle key={i} cx={p.x} cy={p.y} r={highlight === 'ribosomer' ? 2.8 : 1.9} fill={BIO.ribosom} />
             ))}
             {highlight === 'nukleoid' && <Halo d={nucleoid} color={BIO.dna} width={10} />}
-            <path d={nucleoid} fill="none" stroke={BIO.dna} strokeWidth={1.7 * lw} />
+            <path d={nucleoid} fill={BIO.dna} fillOpacity={0.07} stroke={BIO.dna} strokeWidth={1.7 * lw} strokeLinejoin="round" />
             <path
               d={blobPath(g.cx - g.w * 0.04, g.cy + 2, g.w * 0.13, g.h * 0.13, 0.3, 22, 9)}
               fill="none"
@@ -660,13 +840,22 @@ function Bakteriecelle({ x, y, w, h, kapsel = true, flageller = 1, innhold = tru
               strokeWidth={1.4 * lw}
               strokeOpacity={0.8}
             />
+            <path
+              d={blobPath(g.cx - g.w * 0.1, g.cy - 3, g.w * 0.09, g.h * 0.16, 0.35, 23, 8)}
+              fill="none"
+              stroke={BIO.dna}
+              strokeWidth={1.1 * lw}
+              strokeOpacity={0.55}
+            />
             {[
               { x: g.cx + g.w * 0.27, y: g.cy - g.h * 0.18 },
               { x: g.cx + g.w * 0.22, y: g.cy + g.h * 0.2 },
             ].map((p, i) => (
               <g key={i}>
                 {highlight === 'plasmid' && <circle cx={p.x} cy={p.y} r={g.h * 0.08 + 6} fill={BIO.dna} opacity={0.2} />}
-                <circle cx={p.x} cy={p.y} r={Math.max(4, g.h * 0.07)} fill="none" stroke={BIO.dna} strokeWidth={1.5 * lw} />
+                {/* Dobbeltrådet DNA-ring */}
+                <circle cx={p.x} cy={p.y} r={plasmidR} fill="none" stroke={BIO.dna} strokeWidth={1.5 * lw} />
+                <circle cx={p.x} cy={p.y} r={plasmidR} fill="none" stroke={BIO.cytoplasma} strokeOpacity={0.7} strokeWidth={0.5 * lw} />
               </g>
             ))}
           </g>

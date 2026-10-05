@@ -110,7 +110,7 @@ Hvert kapittel har eksempeloppgaver: en oppgave i eksamensstil med deloppgaver o
   kind: 'eksempel',
   chapter: '2',
   sections: ['2C', '2E'],
-  title: 'Kasse som sklir ned en planke',
+  title: 'Kasse som sklir ned en rampe',
   summary: 'Krefter, dekomponering av tyngden, Newtons 2. lov, fart nederst og grensevinkelen, steg for steg.',
   keywords: [...],
   load: () => import('./EksSkraplan'),

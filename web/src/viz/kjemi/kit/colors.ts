@@ -100,6 +100,19 @@ export const KJEMI = {
   liquid: v('liquid'),
   /** Væskeoverflaten (menisken). */
   liquidLine: v('liquid-line'),
+  /** Fargen i selve glasset (veggtykkelse og toning), og refleksene. Brukes av Begerglass, Erlenmeyerkolbe og Byrette. */
+  glassTint: v('glass-tint'),
+  glassWall: v('glass-wall'),
+  glassGlint: v('glass-glint'),
+  /** Streker på skalaen (byrette, volummerker). */
+  scaleInk: v('scale-ink'),
+  /** Stativ og klemme (stål), gummi på klemmebakkene og kranen på byretten (PTFE). */
+  stand: v('stand'),
+  rubber: v('rubber'),
+  stopcock: v('ptfe'),
+  /** Myk skygge under utstyr og tynn kontur på metalldeler. */
+  shadow: v('shadow'),
+  outline: v('outline'),
   /** Indikatorer. Fenolftalein er fargeløs i sur og nøytral løsning (bruk `liquid`) og rosa i basisk (pH > ca. 8,2). */
   indicator: {
     btbSur: v('btb-acid'),

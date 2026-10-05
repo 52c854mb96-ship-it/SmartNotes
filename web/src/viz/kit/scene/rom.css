@@ -4,7 +4,8 @@
  * gløder sterkere enn kraftpilene oppå.
  *
  * Proton, nøytron og elektron peker på de samme variablene som fysikk kapittel 7 og 8 (PARTICLE i
- * fysikk/kap07/parts.tsx), så partiklene har samme farge overalt. De følger temaet av seg selv.
+ * fysikk/kap07/parts.tsx), så partiklene har samme farge overalt. Tegnene (+ og −) har flatefargen (VIZ.surface), som i
+ * kapittel 7, så de følger både temaet og fagtemaene (kjemi og biologi).
  *
  * Farger for lys (bølgelengde, stjernetemperatur) er fysiske og regnes ut i rom.tsx, ikke her.
  */
@@ -66,7 +67,7 @@
   --sc-rom-taake-blaa-2: #92d4f2;
   --sc-rom-taake-fiolett: #9b62d8;
   --sc-rom-taake-fiolett-2: #e47cc6;
-  --sc-rom-taake-indre: #a8ece4;
+  --sc-rom-taake-indre: #bdf3ec;
   --sc-rom-taake-kjerne: #fff3e6;
 
   /* Lys */
@@ -122,7 +123,7 @@
     --sc-rom-taake-blaa-2: #80bedb;
     --sc-rom-taake-fiolett: #8a57c2;
     --sc-rom-taake-fiolett-2: #cc6eb1;
-    --sc-rom-taake-indre: #8fd6ce;
+    --sc-rom-taake-indre: #a2e2da;
     --sc-rom-taake-kjerne: #f3e6d8;
 
     --sc-rom-hvitt-lys: #f6f1e2;
@@ -177,7 +178,7 @@
   --sc-rom-taake-blaa-2: #80bedb;
   --sc-rom-taake-fiolett: #8a57c2;
   --sc-rom-taake-fiolett-2: #cc6eb1;
-  --sc-rom-taake-indre: #8fd6ce;
+  --sc-rom-taake-indre: #a2e2da;
   --sc-rom-taake-kjerne: #f3e6d8;
 
   --sc-rom-hvitt-lys: #f6f1e2;

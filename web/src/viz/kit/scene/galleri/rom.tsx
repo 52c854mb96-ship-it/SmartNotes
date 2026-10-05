@@ -2,7 +2,7 @@
 import type { ReactNode } from 'react';
 import { VIZ } from '../../colors';
 import { Txt } from '../../txt';
-import { LinearGradient, alpha, useSvgId } from '../core';
+import { LinearGradient, alpha, useStrokeScale, useSvgId } from '../core';
 import { ForceArrow } from '../overlay';
 import { SCENE } from '../palette';
 import { Atomkjerne, Elektron, Foton, Lysstraale, Nukleon, Planet, Sol, Spektrum, Stjerne, Stjernehimmel, Taake } from '../rom';
@@ -19,6 +19,7 @@ function SpaceLabel({ x, y, children, anchor = 'middle', size = 0.75 }: { x: num
 
 /** Enkelt prisme i glass (bare til galleriet). */
 function Prisme({ x, y, s }: { x: number; y: number; s: number }) {
+  const ss = useStrokeScale();
   const id = useSvgId('prisme');
   const h = s * 0.866;
   return (
@@ -34,7 +35,7 @@ function Prisme({ x, y, s }: { x: number; y: number; s: number }) {
           [1, SCENE.glassEdge, 0.45],
         ]}
       />
-      <polygon points={`${x},${y - h / 2} ${x + s / 2},${y + h / 2} ${x - s / 2},${y + h / 2}`} fill={`url(#${id})`} stroke={SCENE.glassEdge} strokeWidth={1.4} />
+      <polygon points={`${x},${y - h / 2} ${x + s / 2},${y + h / 2} ${x - s / 2},${y + h / 2}`} fill={`url(#${id})`} stroke={SCENE.glassEdge} strokeWidth={1.4 * ss} />
     </g>
   );
 }
@@ -57,8 +58,14 @@ export default function Galleri() {
   return (
     <GalleryGrid>
       <GalleryItem title="Stjernehimmel med melkevei (frø 1 og 4)">
-        <Stjernehimmel x={0} y={0} w={400} h={240} seed={1} />
-        <Stjernehimmel x={250} y={140} w={140} h={90} seed={4} melkevei={1} />
+        <Stjernehimmel x={0} y={0} w={196} h={240} seed={1} />
+        <Stjernehimmel x={204} y={0} w={196} h={240} seed={4} melkevei={1} />
+        <SpaceLabel x={98} y={228} size={0.65}>
+          frø 1
+        </SpaceLabel>
+        <SpaceLabel x={302} y={228} size={0.65}>
+          frø 4, melkevei 1
+        </SpaceLabel>
       </GalleryItem>
 
       <GalleryItem title="Stjerner etter temperatur">
@@ -139,7 +146,7 @@ export default function Galleri() {
         </SpaceLabel>
       </GalleryItem>
 
-      <GalleryItem title="Månefaser (fase 0,05–1) og halv jord (fase 0,5)">
+      <GalleryItem title="Månefaser (fase 0,05–1) og jorda ved fase 0,5 og 0,53">
         <Stjernehimmel x={0} y={0} w={400} h={240} seed={16} melkevei={0} antall={50} />
         {[0.05, 0.25, 0.5, 0.75, 1].map((f, i) => (
           <g key={f}>
@@ -150,7 +157,20 @@ export default function Galleri() {
           </g>
         ))}
         <Planet x={110} y={185} r={46} type="jorda" fase={0.5} />
-        <Planet x={290} y={185} r={46} type="jorda" fase={0.5} lysretning={0} dreining={-60} />
+        <Planet x={290} y={185} r={46} type="jorda" fase={0.53} lysretning={0} dreining={-60} />
+      </GalleryItem>
+
+      <GalleryItem title="Store kloder: Månen og Mars (alle detaljer)">
+        <Stjernehimmel x={0} y={0} w={400} h={240} seed={17} melkevei={0.3} antall={40} />
+        <Planet x={105} y={120} r={92} type="maanen" fase={0.85} />
+        <Planet x={300} y={120} r={84} type="mars" />
+      </GalleryItem>
+
+      <GalleryItem title="Sigd og halv: Mars, Neptun og Jupiter (fase 0,15, 0,35 og 0,5)">
+        <Stjernehimmel x={0} y={0} w={400} h={240} seed={18} melkevei={0} antall={40} />
+        <Planet x={70} y={120} r={52} type="mars" fase={0.15} />
+        <Planet x={200} y={120} r={52} type="neptun" fase={0.35} />
+        <Planet x={330} y={120} r={52} type="jupiter" fase={0.5} />
       </GalleryItem>
 
       <GalleryItem title="Lysretning, aksehelning og nedtonet">
@@ -281,7 +301,7 @@ export default function Galleri() {
         <Spektrum x={20} y={222} w={360} h={26} fra={250} til={1000} skala />
       </GalleryItem>
 
-      <GalleryItem title="Grensetilfeller: små, store og rare verdier">
+      <GalleryItem title="Grensetilfeller: små, store og rare verdier" viewBox="0 0 400 250">
         <Stjernehimmel x={0} y={0} w={400} h={120} seed={30} antall={0} melkevei={1} />
         <Planet x={30} y={40} r={4} type="jorda" />
         <Planet x={60} y={40} r={8} type="jupiter" fase={0} />

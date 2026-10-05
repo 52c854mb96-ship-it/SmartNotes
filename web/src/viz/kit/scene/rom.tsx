@@ -548,7 +548,7 @@ export function Sol({ x, y, r, korona = 0.7, flekker = 2, seed = 7, dim, title }
     for (let i = 0; i < 250; i++) {
       const rho = Math.sqrt(rnd()) * 0.95;
       const a = rnd() * Math.PI * 2;
-      const s = (0.006 + rnd() * 0.006) * Math.sqrt(Math.max(0.1, 1 - rho * rho));
+      const s = (0.007 + rnd() * 0.007) * Math.sqrt(Math.max(0.1, 1 - rho * rho));
       gran += dot(rho * Math.cos(a) * 100, rho * Math.sin(a) * 100, s * 100);
     }
     const sp: { x: number; y: number; rx: number; ry: number; rot: number }[] = [];
@@ -564,7 +564,9 @@ export function Sol({ x, y, r, korona = 0.7, flekker = 2, seed = 7, dim, title }
   // Koronaen er lys: lys og tett inntil skiva, og den faller raskt (ingen dis langt ute).
   const R = rr * (1 + 1.5 * kk);
   const k = rr / R;
+  // Lyse, nesten hvite toner: en varm farge med lav dekkevne over mørkeblått blir grå (som røyk), en lys blir lys.
   const inner = mix(ROM.solKjerne, ROM.solKorona, 0.5);
+  const outer = mix(ROM.solKjerne, ROM.solKorona, 0.3);
   return (
     <g opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
@@ -576,9 +578,9 @@ export function Sol({ x, y, r, korona = 0.7, flekker = 2, seed = 7, dim, title }
               [0, inner, 0.85],
               [k, inner, 0.8],
               [k + (1 - k) * 0.08, inner, 0.42],
-              [k + (1 - k) * 0.25, ROM.solKorona, 0.16],
-              [k + (1 - k) * 0.5, ROM.solKorona, 0.04],
-              [k + (1 - k) * 0.7, ROM.solKorona, 0],
+              [k + (1 - k) * 0.25, outer, 0.16],
+              [k + (1 - k) * 0.5, outer, 0.045],
+              [k + (1 - k) * 0.7, outer, 0],
             ]}
           />
           <circle cx={x} cy={y} r={R} fill={`url(#${gid})`} aria-hidden />
@@ -597,7 +599,7 @@ export function Sol({ x, y, r, korona = 0.7, flekker = 2, seed = 7, dim, title }
       />
       <circle cx={x} cy={y} r={rr} fill={`url(#${did})`} />
       <g transform={`translate(${r2(x)} ${r2(y)}) scale(${r2(rr / 100)})`} aria-hidden>
-        {rr >= 30 && <path d={tex.gran} fill={ROM.solKjerne} opacity={0.09} />}
+        {rr >= 30 && <path d={tex.gran} fill={ROM.solKjerne} opacity={0.16} />}
         {tex.sp.map((s, i) => (
           <g key={i} transform={`translate(${r2(s.x)} ${r2(s.y)}) rotate(${r2(s.rot)})`}>
             <ellipse rx={s.rx} ry={s.ry} fill={mix(ROM.solKant, ROM.solFlekk, 0.45)} opacity={0.75} />
@@ -771,12 +773,12 @@ function planetSurface(type: PlanetType, dreining: number, light: [number, numbe
       // Kraterbunnen er belyst på sida bort fra lyset; skyggen ligger mot lyset.
       const shift = 0.008;
       return [
-        { d: fill(MOON_MARIA_SOFT), fill: ROM.maaneMare, op: 0.32 },
-        { d: fill(MOON_MARIA), fill: ROM.maaneMare, op: 0.72 },
+        { d: fill(MOON_MARIA_SOFT), fill: ROM.maaneMare, op: 0.38 },
+        { d: fill(MOON_MARIA), fill: ROM.maaneMare, op: 0.62 },
         { d: fill(MOON_FRIGORIS), fill: ROM.maaneMare, op: 0.45 },
         ...(detail >= 1 ? [{ d: projectLines(MOON_RAYS, lon0, lat0), stroke: ROM.maaneLys, sw: 0.03, op: 0.15 }] : []),
-        { d: fill(craters), fill: shade(ROM.maaneMare, 0.25), op: 0.22 },
-        { d: fill(craters), fill: ROM.maaneLys, op: 0.45, dx: -light[0] * shift, dy: -light[1] * shift },
+        { d: fill(craters), fill: shade(ROM.maaneMare, 0.25), op: 0.2 },
+        { d: fill(craters), fill: ROM.maaneLys, op: 0.32, dx: -light[0] * shift, dy: -light[1] * shift },
       ];
     }
     case 'neptun':
@@ -1153,8 +1155,8 @@ export function Taake({ x, y, w, h, seed = 1, farge = 'rod', form = 'sky', stjer
           <RadialGradient
             id={ringId}
             stops={[
-              [0, ROM.taakeIndre, 0.55],
-              [0.38, ROM.taakeIndre, 0.42],
+              [0, ROM.taakeIndre, 0.6],
+              [0.38, ROM.taakeIndre, 0.4],
               [0.5, mix(ROM.taakeIndre, main, 0.6), 0.5],
               [0.58, main, 0.85],
               [0.68, main, 0.55],
@@ -1348,7 +1350,7 @@ export function Atomkjerne({ x, y, Z, N, r = 7, seed = 1, tegn, dim, title }: At
       {[ROM.noytron, ROM.proton].map((c, k) =>
         [0, 0.14, 0.3].map((dark, j) => <RadialGradient key={`${k}${j}`} id={ids[k * 3 + j]!} fx={0.36} fy={0.32} stops={ballStops(c, dark)} />),
       )}
-      {A > 4 && (
+      {A > 4 && pack.inner > 0.5 && (
         <>
           <RadialGradient
             id={bgId}
@@ -1360,7 +1362,7 @@ export function Atomkjerne({ x, y, Z, N, r = 7, seed = 1, tegn, dim, title }: At
               [1, shade(inner, 0.4)],
             ]}
           />
-          <circle cx={x} cy={y} r={r2((pack.core + 0.6) * rr)} fill={`url(#${bgId})`} aria-hidden />
+          <circle cx={x} cy={y} r={r2(Math.max(0, pack.inner) * rr)} fill={`url(#${bgId})`} aria-hidden />
         </>
       )}
       {pack.list.map((p, i) => (
@@ -1500,6 +1502,7 @@ export interface LysstraaleProps {
  */
 export function Lysstraale({ x1, y1, x2, y2, bolgelengde, hvit, bredde = 4, pil = true, styrke = 1, dim, title }: LysstraaleProps) {
   const ss = useStrokeScale();
+  const gid = useSvgId('rom-straale');
   const dx = x2 - x1;
   const dy = y2 - y1;
   const len = Math.hypot(dx, dy);
@@ -1511,6 +1514,8 @@ export function Lysstraale({ x1, y1, x2, y2, bolgelengde, hvit, bredde = 4, pil 
   const white = hvit || bolgelengde === undefined;
   const c = white ? ROM.hvittLys : bolgelengdeFarge(bolgelengde, false);
   const g = white ? ROM.hvittGlod : c;
+  // Gløden i en lys tone (hvitt lys: nesten hvit), så den leses som lys og ikke som en grå kant på mørk bunn.
+  const halo = white ? mix(ROM.hvittLys, ROM.hvittGlod, 0.35) : c;
   const k = clamp(styrke, 0, 1);
   const b = Math.max(0.8, Number.isFinite(bredde) ? bredde : 4) * Math.max(1, ss * 0.9);
   const W = b * 3.4 + 2 * ss;
@@ -1520,12 +1525,29 @@ export function Lysstraale({ x1, y1, x2, y2, bolgelengde, hvit, bredde = 4, pil 
   const tip = [mx + ux * a * 0.6, my + uy * a * 0.6];
   const arrow = `M${r2(tip[0]!)} ${r2(tip[1]!)}L${r2(mx - ux * a * 0.4 + nx * a * 0.55)} ${r2(my - uy * a * 0.4 + ny * a * 0.55)}L${r2(mx - ux * a * 0.4 - nx * a * 0.55)} ${r2(my - uy * a * 0.4 - ny * a * 0.55)}Z`;
   const line = { x1, y1, x2, y2 };
+  // Gløden kortes inn med halve bredden i hver ende, så de runde endene slutter der strålen slutter.
+  const cut = Math.min(W / 2, len / 2 - 0.01);
+  const glowLine = { x1: r2(x1 + ux * cut), y1: r2(y1 + uy * cut), x2: r2(x2 - ux * cut), y2: r2(y2 - uy * cut) };
   return (
     <g opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
-      {/* Gløden: to brede, svake streker med runde ender (myk kant og ingen firkantet slutt) */}
-      <line {...line} stroke={g} strokeWidth={r2(W)} strokeLinecap="round" opacity={0.12 * k} aria-hidden />
-      <line {...line} stroke={g} strokeWidth={r2(W * 0.58)} strokeLinecap="round" opacity={0.2 * k} aria-hidden />
+      {/* Gløden: en bred strek med runde ender og en toning på tvers (myk kant, ingen firkantet slutt) */}
+      <LinearGradient
+        id={gid}
+        userSpace
+        x1={mx + (nx * W) / 2}
+        y1={my + (ny * W) / 2}
+        x2={mx - (nx * W) / 2}
+        y2={my - (ny * W) / 2}
+        stops={[
+          [0, halo, 0],
+          [0.3, halo, 0.1 * k],
+          [0.5, halo, 0.36 * k],
+          [0.7, halo, 0.1 * k],
+          [1, halo, 0],
+        ]}
+      />
+      <line {...glowLine} stroke={`url(#${gid})`} strokeWidth={r2(W)} strokeLinecap="round" aria-hidden />
       <line {...line} stroke={white ? g : shade(c, 0.18)} strokeWidth={b + 1.4 * ss} opacity={(white ? 0.55 : 0.6) * k} />
       <line {...line} stroke={c} strokeWidth={b} opacity={0.35 + 0.65 * k} />
       <line {...line} stroke={tint(c, 0.55)} strokeWidth={b * 0.32} opacity={0.75 * k} aria-hidden />
