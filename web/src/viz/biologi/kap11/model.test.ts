@@ -8,6 +8,7 @@ import {
   airWaterPotential,
   atpSupply,
   boundaryConductance,
+  canBeSource,
   deficiency,
   gramsPerHour,
   growth,
@@ -21,6 +22,7 @@ import {
   saturationVaporPressure,
   soilWaterPotential,
   stemDirection,
+  totalConductance,
   transpirationAt,
   vpd,
   type Roles,
@@ -53,6 +55,12 @@ describe('fysikk for vann', () => {
   it('grenselaget blir tynnere (større konduktans) med vind', () => {
     expect(boundaryConductance(5)).toBeGreaterThan(boundaryConductance(1));
     expect(boundaryConductance(0)).toBe(boundaryConductance(0.1));
+    // Samlet konduktans: spalteåpninger og grenselag i serie, alltid mindre enn hver av dem
+    const g = totalConductance(0.2, 2);
+    expect(g).toBeLessThan(0.2 + 0.008);
+    expect(g).toBeLessThan(boundaryConductance(2));
+    // E = g · VPD / p
+    expect(transpirationAt(0.2, { ...DAY, wind: 2 })).toBeCloseTo((g * vpd(DAY.T, DAY.rh) * 1000) / 101.3, 9);
   });
 });
 
@@ -173,6 +181,18 @@ describe('floemtransport', () => {
   it('forhåndsvalgene kjennes igjen', () => {
     for (const s of SEASONS) expect(matchSeason(s.roles)).toBe(s.id);
     expect(matchSeason({ ...season('var'), rot: 'av' })).toBeNull();
+  });
+
+  it('skuddspissen, blomstene og røttene kan bare være sluk', () => {
+    expect(canBeSource('skudd')).toBe(false);
+    expect(canBeSource('blomster')).toBe(false);
+    expect(canBeSource('rot')).toBe(false);
+    expect(canBeSource('blader')).toBe(true);
+    expect(canBeSource('knoll')).toBe(true);
+    // Satt som «kilde» likevel: de laster ikke noe sukker inn
+    const r = phloem({ skudd: 'kilde', blomster: 'av', blader: 'av', knoll: 'sluk', rot: 'kilde' });
+    expect(r.total).toBe(0);
+    expect(r.net.skudd).toBe(0);
   });
 
   it('mindre lys gir mindre sukker fra bladene', () => {

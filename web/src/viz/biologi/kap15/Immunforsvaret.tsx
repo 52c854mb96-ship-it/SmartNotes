@@ -99,7 +99,7 @@ export default function Immunforsvaret() {
       />
 
       <div ref={flowRef}>
-        <FlowFigure stage={stage} vaccine={first === 'vaksine' && t < second} f={ff} />
+        <FlowFigure stage={stage} vaccine={first === 'vaksine' && t < second} memoryResponse={!noMemory && t >= second} f={ff} />
       </div>
 
       <Readouts>
@@ -155,6 +155,7 @@ function ResponseFigure({ run, s, t, f }: { run: ImmuneRun; s: ImmuneScenario; t
   const ticks = f > 1.3 ? [0, 50, 100, 150, 200] : [0, 25, 50, 75, 100, 125, 150, 175, 200];
   const p1 = run.peaks[0];
   const p2 = run.peaks[1];
+  const short = f > 1.3 || sx(s.second + p2.day) - sx(p1.day) < 170;
   return (
     <Figure
       viewBox={`0 0 800 ${H}`}
@@ -184,7 +185,9 @@ function ResponseFigure({ run, s, t, f }: { run: ImmuneRun; s: ImmuneScenario; t
         const left = m.d > 110;
         return (
           <g key={m.d}>
-            <line x1={sx(m.d)} x2={sx(m.d)} y1={f > 1.3 ? yPT : yPT - 22 * f} y2={yAxis} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="5 4" />
+            {/* Gjennom begge panelene, men ikke gjennom tittelen «Antistoffer i blodet» mellom dem */}
+            <line x1={sx(m.d)} x2={sx(m.d)} y1={f > 1.3 ? yPT : yPT - 22 * f} y2={yPT + pathH} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="5 4" />
+            <line x1={sx(m.d)} x2={sx(m.d)} y1={yAT} y2={yAxis} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="5 4" />
             <Txt x={left ? sx(m.d) - 6 : sx(m.d) + 6} y={f > 1.3 ? yPT + 20 * f : yPT - 8} anchor={left ? 'end' : 'start'} size={0.75} weight={650}>
               {m.label}
             </Txt>
@@ -206,8 +209,15 @@ function ResponseFigure({ run, s, t, f }: { run: ImmuneRun; s: ImmuneScenario; t
       ))}
       <path d={`${linePath(aPts, sx, ay)} L${sx(IMMUNE_DAYS)},${ay(0)} L${sx(0)},${ay(0)} Z`} fill={mixColor(VIZ.surface, AB, 0.22)} />
       <path d={linePath(aPts, sx, ay)} fill="none" stroke={AB} strokeWidth={3.2} />
-      <PeakLabel x={sx(p1.day)} y={ay(p1.level)} text={f > 1.3 ? 'primær' : 'primærrespons'} right={false} f={f} />
-      <PeakLabel x={sx(s.second + p2.day)} y={ay(p2.level)} text={s.memory ? (f > 1.3 ? 'sekundær' : 'sekundærrespons') : f > 1.3 ? 'ny primær' : 'ny primærrespons'} right={sx(s.second + p2.day) > 600} f={f} />
+      {/* Korte etiketter når toppene ligger nær hverandre (tidlig andre møte), så de ikke overlapper */}
+      <PeakLabel x={sx(p1.day)} y={ay(p1.level)} text={short ? 'primær' : 'primærrespons'} right={false} f={f} />
+      <PeakLabel
+        x={sx(s.second + p2.day)}
+        y={ay(p2.level)}
+        text={s.memory ? (short ? 'sekundær' : 'sekundærrespons') : short ? 'ny primær' : 'ny primærrespons'}
+        right={sx(s.second + p2.day) > 600}
+        f={f}
+      />
       {/* Akse */}
       <line x1={X0} x2={X1} y1={yAxis} y2={yAxis} className="viz-axis" />
       {ticks.map((d) => (
@@ -222,7 +232,8 @@ function ResponseFigure({ run, s, t, f }: { run: ImmuneRun; s: ImmuneScenario; t
         Tid (døgn)
       </Txt>
       {/* Valgt tid */}
-      <line x1={sx(t)} x2={sx(t)} y1={yPT} y2={yAxis} stroke={VIZ.ink} strokeWidth={1.6} strokeDasharray="4 4" />
+      <line x1={sx(t)} x2={sx(t)} y1={yPT} y2={yPT + pathH} stroke={VIZ.ink} strokeWidth={1.6} strokeDasharray="4 4" />
+      <line x1={sx(t)} x2={sx(t)} y1={yAT} y2={yAxis} stroke={VIZ.ink} strokeWidth={1.6} strokeDasharray="4 4" />
       <circle cx={sx(t)} cy={py(run.pathogen[idx] ?? 0)} r={5.5} fill={PATH} stroke={VIZ.surface} strokeWidth={2.2} />
       <circle cx={sx(t)} cy={ay(run.antibodies[idx] ?? 0)} r={6} fill={AB} stroke={VIZ.surface} strokeWidth={2.2} />
     </Figure>
@@ -252,7 +263,7 @@ const ACTIVE: Record<DefenseStage, NodeId[]> = {
   hukommelse: ['hukommelse'],
 };
 
-function FlowFigure({ stage, vaccine, f }: { stage: DefenseStage; vaccine: boolean; f: number }) {
+function FlowFigure({ stage, vaccine, memoryResponse, f }: { stage: DefenseStage; vaccine: boolean; memoryResponse: boolean; f: number }) {
   const narrow = f > 1.3;
   const k = Math.max(1, 0.85 * f);
   const size = 54 * k;
@@ -274,8 +285,11 @@ function FlowFigure({ stage, vaccine, f }: { stage: DefenseStage; vaccine: boole
         hukommelse: [715, 150],
       };
   const H = narrow ? 1150 : 330;
-  const active = ACTIVE[stage];
+  // I sekundærresponsen er det hukommelsescellene som kjenner igjen antigenet og raskt blir effektorceller
+  const recall = memoryResponse && (stage === 'aktivering' || stage === 'effekt');
+  const active: NodeId[] = recall ? [...ACTIVE[stage], 'hukommelse'] : ACTIVE[stage];
   const on = (id: NodeId) => stage === 'ingen' || active.includes(id);
+  const nowText = (recall ? RECALL_TEXT[stage] : undefined) ?? STAGE_TEXT[stage];
   const labels: Record<NodeId, [string, string]> = {
     smitte: vaccine ? ['Vaksine', '(antigen)'] : ['Smittestoff', 'kommer inn'],
     fagocytt: ['Fagocytter', narrow ? 'spiser' : 'spiser og viser fram'],
@@ -328,8 +342,8 @@ function FlowFigure({ stage, vaccine, f }: { stage: DefenseStage; vaccine: boole
     <Figure
       viewBox={`0 0 800 ${H}`}
       maxHeight={Math.round(H * 1.25)}
-      label={`Immunforsvaret steg for steg. Nå: ${STAGE_TEXT[stage]}.`}
-      caption={`Nå: ${STAGE_TEXT[stage]}.`}
+      label={`Immunforsvaret steg for steg. Nå: ${nowText}.`}
+      caption={`Nå: ${nowText}.`}
     >
       {/* Uspesifikt og spesifikt forsvar */}
       {narrow ? (
@@ -393,6 +407,12 @@ function FlowFigure({ stage, vaccine, f }: { stage: DefenseStage; vaccine: boole
   );
 }
 
+/** Teksten i sekundærresponsen, når hukommelsescellene er med fra starten. */
+const RECALL_TEXT: Partial<Record<DefenseStage, string>> = {
+  aktivering: 'hukommelsescellene kjenner igjen antigenet og aktiveres med en gang',
+  effekt: 'hukommelsescellene blir raskt til plasmaceller og drepe-T-celler, og det lages mange antistoffer',
+};
+
 const STAGE_TEXT: Record<DefenseStage, string> = {
   ingen: 'ingen infeksjon',
   uspesifikt: 'det uspesifikke forsvaret (fagocytter) tar imot smittestoffet',
@@ -432,7 +452,9 @@ function explanation(s: ImmuneScenario, run: ImmuneRun, t: number, stage: Defens
         <>
           T-hjelpecellene aktiverer B-celler som deler seg og blir <strong>plasmaceller</strong> som lager antistoffer, og{' '}
           <strong>drepe-T-celler</strong> som dreper celler som er infisert.
-          {vaccine ? ' Med vaksinen skjer dette uten at du blir syk, fordi antigenet ikke kan formere seg.' : ` Primærresponsen er på topp ca. ${fmt(run.peaks[0].day, 0)} døgn etter smitten, og du har vært syk i ca. ${fmt(run.sickDays[0], 0)} døgn.`}
+          {vaccine
+            ? ' Med vaksinen skjer dette uten at du blir syk: vaksinen inneholder drepte eller svekkede smittestoffer, eller bare deler av dem (antigenene).'
+            : ` Primærresponsen er på topp ca. ${fmt(run.peaks[0].day, 0)} døgn etter smitten, og du har vært syk i ca. ${fmt(run.sickDays[0], 0)} døgn.`}
         </>
       ),
       hukommelse: (
@@ -455,9 +477,11 @@ function explanation(s: ImmuneScenario, run: ImmuneRun, t: number, stage: Defens
     return (
       <>
         <p>
-          <strong>Uten hukommelsesceller.</strong> Kroppen må starte helt på nytt: en ny primærrespons som kommer etter ca. en uke, og du er
-          syk i ca. {fmt(run.sickDays[1], 0)} døgn igjen. Det er hukommelsescellene som gjør at vi blir immune etter sykdom og etter
-          vaksinasjon.
+          <strong>Uten hukommelsesceller.</strong> Kroppen må starte helt på nytt: en ny primærrespons som kommer etter ca. en uke.{' '}
+          {run.sickDays[1] > 0
+            ? `Du er syk i ca. ${fmt(run.sickDays[1], 0)} døgn igjen.`
+            : 'Denne gangen var det fortsatt nok antistoffer igjen fra første møte til å holde smittestoffet nede, men de forsvinner etter hvert. Flytt det andre møtet senere, så blir du syk igjen.'}{' '}
+          Det er hukommelsescellene som gjør at vi blir immune i mange år etter sykdom og etter vaksinasjon.
         </p>
         {antibodies}
       </>

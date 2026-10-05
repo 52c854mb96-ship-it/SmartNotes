@@ -139,7 +139,7 @@ export default function Smittespredning() {
               R<Sub>0</Sub> uten tiltak
             </>
           }
-          value={fmt(R0, 1)}
+          value={fmt(R0, R0 < 1 ? 2 : 1)}
           tone={R0 > 1 ? C.I : C.R}
         />
         <Readout label="R med tiltak" value={fmt(R, R < 10 ? 2 : 1)} tone={R > 1 ? C.I : C.R} />
@@ -158,7 +158,7 @@ export default function Smittespredning() {
         )}
         <FormulaLine>
           Dag {fmt(t, 0)}: R<Sub>t</Sub> = R · S = {fmt(R, 2)} · {fmt(S, 2)} = {fmt(currentR(R, S), 2)}{' '}
-          {currentR(R, S) > 1 ? '> 1: flere blir smittet' : '≤ 1: færre blir smittet'}
+          {rtText(currentR(R, S))}
         </FormulaLine>
       </Formula>
 
@@ -181,7 +181,9 @@ function ContactFigure({ contacts, p, days, m, R, f }: { contacts: number; p: nu
   const gx0 = narrow ? 30 : 170;
   const gx1 = 780;
   const gridH = Math.round(200 + 260 * (k - 1));
-  const gy0 = head + 16 + (narrow ? 0 : 0);
+  // Plass til «symptomer: holder seg hjemme» over rutenettet når isolasjon er slått på (PC)
+  const isoLabel = m.isolasjon && D > SYMPTOM_DAY && !narrow;
+  const gy0 = head + 16 + (isoLabel ? 20 : 0);
   const gy1 = gy0 + gridH;
   const H = Math.round(gy1 + 30 * f + 12);
   const dx = (gx1 - gx0) / D;
@@ -193,11 +195,13 @@ function ContactFigure({ contacts, p, days, m, R, f }: { contacts: number; p: nu
     <Figure
       viewBox={`0 0 800 ${H}`}
       maxHeight={Math.round(H * 1.25)}
-      label={`Kontaktene til én smittet person: ${c} kontakter per dag i ${D} dager. ${infected} av dem blir smittet.`}
+      label={`Kontaktene til én smittet person: ${c} ${c === 1 ? 'kontakt' : 'kontakter'} per dag i ${D} døgn. ${infected} av dem blir smittet.`}
       caption={`Hver prikk er én kontakt. Med disse tallene smitter én syk i snitt R = ${fmt(R, 1)} andre; tilfeldighetene gjør at akkurat denne personen smittet ${infected}.`}
     >
       <Txt x={narrow ? 30 : 30} y={head - 6} anchor="start" size={0.9} weight={700}>
-        {narrow ? `${c * D} kontakter, ${infected} smittet` : `Én smittet person: ${c} kontakter per dag i ${D} døgn = ${c * D} kontakter, ${infected} blir smittet`}
+        {narrow
+          ? `${c * D} kontakter, ${infected} smittet`
+          : `Én smittet person: ${c} ${c === 1 ? 'kontakt' : 'kontakter'} per dag i ${D} døgn = ${c * D} kontakter, ${infected} blir smittet`}
       </Txt>
       {!narrow && (
         <g>
@@ -210,9 +214,9 @@ function ContactFigure({ contacts, p, days, m, R, f }: { contacts: number; p: nu
       {m.isolasjon && D > SYMPTOM_DAY && (
         <g>
           <rect x={gx0 + SYMPTOM_DAY * dx} y={gy0} width={gx1 - gx0 - SYMPTOM_DAY * dx} height={gy1 - gy0} fill={mixColor(VIZ.surface, VIZ.muted, 0.1)} />
-          <line x1={gx0 + SYMPTOM_DAY * dx} x2={gx0 + SYMPTOM_DAY * dx} y1={gy0 - 4} y2={gy1 + 4} stroke={VIZ.muted} strokeWidth={2} strokeDasharray="5 4" />
-          {!narrow && (
-            <Txt x={gx0 + SYMPTOM_DAY * dx + 8} y={gy0 + 16} anchor="start" size={0.75} muted>
+          <line x1={gx0 + SYMPTOM_DAY * dx} x2={gx0 + SYMPTOM_DAY * dx} y1={gy0 - (isoLabel ? 20 : 4)} y2={gy1 + 4} stroke={VIZ.muted} strokeWidth={2} strokeDasharray="5 4" />
+          {isoLabel && (
+            <Txt x={gx0 + SYMPTOM_DAY * dx + 8} y={gy0 - 8} anchor="start" size={0.75} muted>
               symptomer: holder seg hjemme
             </Txt>
           )}
@@ -306,6 +310,14 @@ function EpidemicPlot({ base, ob, t, measures, height, R }: { base: Outbreak; ob
 
 /* ---------- Forklaring ---------- */
 
+/** Hvor nær 1 R_t må være for å regnes som «omtrent 1» (toppen av kurven). */
+const PEAK_BAND = 0.03;
+
+function rtText(Rt: number): string {
+  if (Math.abs(Rt - 1) <= PEAK_BAND) return '≈ 1: toppen, like mange blir smittet som blir friske';
+  return Rt > 1 ? '> 1: flere blir smittet' : '< 1: færre blir smittet';
+}
+
 /** Små tall i forklaringen: 0,8 · 0,05 · < 0,01. */
 function small(v: number): string {
   if (v >= 0.1) return fmt(v, 1);
@@ -344,7 +356,7 @@ function explanation({
         <p>
           <strong>R = {fmt(R, 2)} ≤ 1: utbruddet dør ut.</strong> Hver smittet smitter i snitt færre enn én ny, så hver «smittegenerasjon»
           blir mindre enn den forrige: 1, {small(R)}, {small(R * R)} … Det er dette som er målet med smittevern.
-          {anyMeasure && R0 > 1 ? ` Uten tiltakene ville R₀ vært ${fmt(R0, 1)}, og ${fmtPct(base.total / TOWN)} av byen ville blitt smittet.` : ''}
+          {anyMeasure && R0 > 1 ? ` Uten tiltakene er R₀ = ${fmt(R0, 1)}, og da ville ${fmtPct(base.total / TOWN)} av byen blitt smittet.` : ''}
         </p>
         {model}
       </>
@@ -363,9 +375,11 @@ function explanation({
       <p>
         <strong>R = {fmt(R, 1)} &gt; 1: utbruddet vokser.</strong> Hver smittet smitter i snitt flere enn én, så tallet på smittede øker
         raskt i starten. På dag {fmt(t, 0)} kan {fmtPct(S)} av byen fortsatt smittes, så hver syk smitter nå R · S = {fmt(Rt, 2)}.{' '}
-        {Rt > 1
-          ? 'Det er over 1, så kurven stiger fortsatt.'
-          : 'Det er under 1, så kurven synker. Smitten stopper ikke fordi viruset forsvinner, men fordi så mange er blitt immune at hver syk møter for få som kan smittes.'}
+        {Math.abs(Rt - 1) <= PEAK_BAND
+          ? 'Det er omtrent 1: kurven er på toppen. Fra nå av smitter hver syk færre enn én ny, fordi mange allerede er immune.'
+          : Rt > 1
+            ? 'Det er over 1, så kurven stiger fortsatt.'
+            : 'Det er under 1, så kurven synker. Smitten stopper ikke fordi smittestoffet forsvinner, men fordi så mange er blitt immune at hver syk møter for få som kan smittes.'}
       </p>
       {flattened ? (
         <p>

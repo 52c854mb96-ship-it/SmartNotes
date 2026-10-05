@@ -547,19 +547,22 @@ function OrganFuglelunger({ box }: { box: Box }) {
       <Txt x={X(0.4)} y={Y(0.82) + 20 * f} size={0.78} weight={700} color={BIO.vann}>
         1 inn
       </Txt>
-      {/* Gjennom lungen bakfra og fram, én vei */}
+      {/* 2: gjennom lungen bakfra og fram, én vei (utånding) */}
       <Arrow x1={X(0.76)} y1={midY} x2={lung.x + 10} y2={midY} color={BIO.vann} width={4} head={12} />
-      {/* 2: ut via de fremre sekkene */}
+      {/* 3: fra lungen til de fremre sekkene (neste innånding), 4: ut gjennom luftrøret (neste utånding) */}
       <Arrow x1={lung.x + 6} y1={lung.y - 4} x2={X(0.3)} y2={Y(0.27)} color={BIO.vann} width={2.8} head={10} />
       <Arrow x1={X(0.12)} y1={Y(0.29)} x2={X(0.08)} y2={midY - 10} color={BIO.vann} width={2.8} head={10} />
       <Txt x={X(0.03)} y={Y(0.36) + 6 * f} anchor="start" size={0.78} weight={700} color={BIO.vann}>
-        2 ut
+        4 ut
       </Txt>
       <Txt x={X(0.52)} y={lung.y - 10} size={0.78} weight={650}>
         lunge
       </Txt>
-      <Txt x={X(0.52)} y={lung.y + lung.h + 18 * f} size={0.72} weight={650} color={BIO.vann}>
-        én vei
+      <Txt x={X(0.52)} y={lung.y + lung.h + 18 * f} size={0.72} weight={700} color={BIO.vann}>
+        2 ut · én vei
+      </Txt>
+      <Txt x={X(0.335)} y={Y(0.375)} anchor="end" size={0.78} weight={700} color={BIO.vann}>
+        3 inn
       </Txt>
       <Txt x={X(0.2)} y={Y(0.2) + 5 * f} size={0.72} weight={650}>
         fremre
@@ -766,9 +769,10 @@ function explanation(s: GasStrategy, d: number, cov: number): ReactNode {
       return (
         <>
           <p>
-            <strong>Luftsekker og én vei gjennom lungene.</strong> Fugler har stive lunger og flere luftsekker som virker som belger. Når
-            fuglen puster inn (1), går frisk luft til de bakre luftsekkene; når den puster ut (2), presses den gjennom lungene og ut via de
-            fremre sekkene. Lufta strømmer derfor én vei gjennom de tynne rørene i lungene (parabronkiene) både når fuglen puster inn og ut, og
+            <strong>Luftsekker og én vei gjennom lungene.</strong> Fugler har stive lunger og flere luftsekker som virker som belger. Én porsjon
+            luft bruker to pust på veien: ved innånding (1) går frisk luft til de bakre luftsekkene, ved utånding (2) presses den fra de bakre
+            sekkene gjennom lungene, ved neste innånding (3) går den videre til de fremre sekkene, og ved neste utånding (4) går den ut gjennom
+            luftrøret. Lufta strømmer derfor én vei gjennom de tynne rørene i lungene (parabronkiene) både når fuglen puster inn og ut, og
             lungene får hele tida frisk luft.
           </p>
           <p>

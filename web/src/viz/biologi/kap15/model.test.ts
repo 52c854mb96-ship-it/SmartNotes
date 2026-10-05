@@ -140,6 +140,9 @@ describe('immunforsvaret: primær og sekundær respons', () => {
       expect(run.sickDays[1]).toBeGreaterThan(2);
       expect(run.peaks[1].level).toBeCloseTo(run.peaks[0].level / (first === 'vaksine' ? 0.7 : 1), 0);
     }
+    // Kort tid etter første møte er det fortsatt antistoffer igjen som beskytter (forklaringen sier det)
+    expect(immuneRun({ first: 'sykdom', second: 30, memory: false }).sickDays[1]).toBe(0);
+    expect(immuneRun({ first: 'sykdom', second: 140, memory: false }).sickDays[1]).toBeCloseTo(immuneRun({ first: 'sykdom', second: 60, memory: true }).sickDays[0], 0);
   });
 
   it('nivåene er endelige og ikke negative', () => {

@@ -109,11 +109,15 @@ export function hydraulicResistance(theta: number): number {
   return 0.15 + 0.03 / clamp(theta, 0.05, 1) ** 2;
 }
 
+/** Samlet konduktans for vanndamp (mol/(m² · s)): spalteåpninger og kutikula i serie med grenselaget. */
+export function totalConductance(gs: number, wind: number): number {
+  const gb = boundaryConductance(wind);
+  return 1 / (1 / (gs + G_CUTICLE) + 1 / gb);
+}
+
 /** Transpirasjon (mmol vann per m² bladflate per s) gjennom spalteåpninger med konduktans gs: E = g · VPD / p. */
 export function transpirationAt(gs: number, w: Weather): number {
-  const gb = boundaryConductance(w.wind);
-  const g = 1 / (1 / (gs + G_CUTICLE) + 1 / gb);
-  return (g * vpd(w.T, w.rh) * 1000) / P_AIR;
+  return (totalConductance(gs, w.wind) * vpd(w.T, w.rh) * 1000) / P_AIR;
 }
 
 /**
@@ -218,17 +222,22 @@ export interface Organ {
   sink: number;
 }
 
-/** Organene i potetplanten (Solanum tuberosum). Styrkene er anslag (relative), ikke målte verdier. */
+/**
+ * Organene i potetplanten (Solanum tuberosum). Styrkene er anslag (relative), ikke målte verdier. Skuddspissen med de
+ * unge bladene, blomstene og de fine røttene hos poteten bruker alltid mer sukker enn de lager, så de kan bare være sluk
+ * (source = 0). Bladene er sluk mens de vokser og kilder når de er utvokst; knollene er kilde om våren og sluk ellers.
+ */
 export const ORGANS: readonly Organ[] = [
-  { id: 'skudd', name: 'Skuddspiss og unge blader', source: 0.2, sink: 0.6 },
+  { id: 'skudd', name: 'Skuddspiss og unge blader', source: 0, sink: 0.6 },
   { id: 'blomster', name: 'Blomster og bær', source: 0, sink: 0.5 },
   { id: 'blader', name: 'Fullt utvokste blader', source: 1, sink: 0.4 },
   { id: 'knoll', name: 'Knoller', source: 0.8, sink: 1 },
-  { id: 'rot', name: 'Røtter', source: 0.15, sink: 0.35 },
+  { id: 'rot', name: 'Røtter', source: 0, sink: 0.35 },
 ];
 
-export function getOrgan(id: OrganId): Organ {
-  return ORGANS.find((o) => o.id === id)!;
+/** Organene som kan være kilder (de andre kan bare være sluk eller ingen ting). */
+export function canBeSource(id: OrganId): boolean {
+  return (ORGANS.find((o) => o.id === id)?.source ?? 0) > 0;
 }
 
 /**

@@ -100,7 +100,6 @@ function sciText(n: number): string {
   return `${fmt(m, 1)} · 10${superscript(exp)}`;
 }
 
-
 export default function Bakterievekst() {
   const [T, setT] = useState(20);
   const [logN0, setLogN0] = useState(2);
@@ -198,8 +197,8 @@ export default function Bakterievekst() {
             N = N<Sub>0</Sub> · 2<Sup>n</Sup>, der n er antall generasjoner (delinger)
           </FormulaLine>
           <FormulaLine>
-            Etter {fmt(t, 1)} timer: n = {fmt(generationsAfter(T, N0, t), 1)} generasjoner, N = {fmtCount(N0)} · 2
-            <Sup>{fmt(generationsAfter(T, N0, t), 1)}</Sup> = {countText(N)} per gram
+            Etter {fmt(t, 1)} timer: n = {fmt(generationsAfter(T, N0, t), 2)} generasjoner, N = {fmtCount(N0)} · 2
+            <Sup>{fmt(generationsAfter(T, N0, t), 2)}</Sup> = {countText(N)} per gram
             {phase === 'stasjonaer' || phase === 'dod' ? ' (taket er nådd)' : ''}
           </FormulaLine>
         </Formula>
@@ -288,8 +287,8 @@ function GrowthPlot({
             {GHOSTS.filter((G) => G !== T).map((G) => {
               const pts = sample((h) => val(countAt(G, N0, h)), 0, GROWTH_HOURS, 240);
               const last = pts[pts.length - 1]!;
-              // Etiketten står til høyre for den stigende delen, midt i grafen (ellers ved slutten av kurven)
-              const labelAt = pts.find(([, v]) => v >= (logScale ? 5 : 0.5));
+              // Etiketten står til høyre for den stigende delen, over millionlinja så den ikke treffer markeringen der (ellers ved slutten)
+              const labelAt = pts.find(([, v]) => v >= (logScale ? 7 : 0.5));
               const [lxh, lyv] = labelAt ?? last;
               return (
                 <g key={G}>
@@ -362,7 +361,6 @@ function FissionFigure({ T, N0, t, f }: { T: number; N0: number; t: number; f: n
                   x={cx + (c - (cols - 1) / 2) * sp * (i % 2 ? 1 : 1.05)}
                   y={cy + (r - (rows - 1) / 2) * sp * 0.7}
                   size={size}
-                  rotate={i % 2 ? 0 : 0}
                 />
               );
             })}
@@ -395,16 +393,18 @@ function Thermometer({ x, top, bottom, T, f }: { x: number; top: number; bottom:
       <rect x={x - w / 2} y={y0 - 4} width={w} height={yb - y0 + 4} rx={w / 2} fill={VIZ.surface} stroke={VIZ.muted} strokeWidth={2} />
       <rect x={x - w / 2 + 4} y={scale(T)} width={w - 8} height={Math.max(0, yb - scale(T))} rx={(w - 8) / 2} fill={color} />
       <circle cx={x} cy={yb + bulb * 0.4} r={bulb} fill={color} stroke={VIZ.muted} strokeWidth={2} />
-      {[
-        [T_MIN, 'min'],
-        [37, 'best'],
-        [T_MAX, 'maks'],
-      ].map(([v, l]) => (
-        <g key={String(l)}>
-          <line x1={x + w / 2} x2={x + w / 2 + 8} y1={scale(Number(v))} y2={scale(Number(v))} stroke={VIZ.muted} strokeWidth={1.5} />
+      {(
+        [
+          [T_MIN, 'minimum'],
+          [37, 'optimum'],
+          [T_MAX, 'maksimum'],
+        ] as const
+      ).map(([v, l]) => (
+        <g key={l}>
+          <line x1={x + w / 2} x2={x + w / 2 + 8} y1={scale(v)} y2={scale(v)} stroke={VIZ.muted} strokeWidth={1.5} />
           {f <= 1.3 && (
-            <Txt x={x + w / 2 + 12} y={scale(Number(v)) + 5} anchor="start" size={0.7} muted>
-              {String(v)} °C
+            <Txt x={x + w / 2 + 12} y={scale(v) + 5} anchor="start" size={0.7} muted>
+              {v} °C {l}
             </Txt>
           )}
         </g>
@@ -467,6 +467,9 @@ function explanation(T: number, t: number, phase: Phase, tDanger: number | null)
       <p>
         <strong>Lagfasen.</strong> Bakteriene tilpasser seg den nye maten: de lager enzymer og vokser i størrelse, men deler seg nesten
         ikke ennå. Lagfasen er lengre jo kaldere det er. {dangerText}
+        {T <= 10
+          ? ' Kulde dreper ikke bakteriene, men bremser dem: i et for varmt kjøleskap vokser de sakte, og derfor holder maten seg lenger ved 4 °C.'
+          : ''}
       </p>
     ),
     log: (

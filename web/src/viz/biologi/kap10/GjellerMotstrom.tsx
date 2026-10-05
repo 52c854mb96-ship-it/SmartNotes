@@ -73,7 +73,7 @@ export default function GjellerMotstrom() {
         <Slider label="O₂-metning i blodet som kommer inn" value={bloodIn} onChange={setBloodIn} min={0} max={60} step={5} unit="%" />
       </Controls>
       <Toolbar>
-        <PlayBar clock={clock} time={`${fmt(clock.t, 1)} s`} />
+        <PlayBar clock={clock} time="sakte film" />
       </Toolbar>
 
       <div ref={ref}>
@@ -111,7 +111,8 @@ export default function GjellerMotstrom() {
               {fmt((100 - bloodIn) / (1 + ntu), 1)} prosentpoeng
             </FormulaLine>
             <FormulaLine>
-              Blodet ut = 100 % − Δ = {fmtPct(p.bloodOut / 100)} (blodet møter hele tida vann med litt mer O₂)
+              Blodet ut = 100 % − Δ = {fmtPct(p.bloodOut / 100)} (blodet møter hele tida vann med {(100 - bloodIn) / (1 + ntu) < 20 ? 'litt ' : ''}mer
+              O₂)
             </FormulaLine>
           </>
         ) : (
@@ -120,7 +121,10 @@ export default function GjellerMotstrom() {
               Medstrøm: forskjellen forsvinner langs lamellen. Blodet når høyst snittet: (100 + {fmt(bloodIn, 0)}) / 2 ={' '}
               {fmtPct(concurrentLimit(100, bloodIn) / 100)}
             </FormulaLine>
-            <FormulaLine>Her: {fmtPct(p.bloodOut / 100)} i blodet ut, og vannet går ut med like mye O₂ som blodet</FormulaLine>
+            <FormulaLine>
+              Her: {fmtPct(p.bloodOut / 100)} i blodet ut og {fmtPct(p.waterOut / 100)} i vannet ut
+              {p.waterOut - p.bloodOut < 1 ? ': vann og blod har nådd like mye O₂' : ': lamellen er for kort til at de rekker å bli like'}
+            </FormulaLine>
           </>
         )}
         <FormulaLine>
@@ -349,7 +353,7 @@ function explanation(flow: Flow, p: GillProfile, q: GillProfile, bloodIn: number
       O₂ diffunderer alltid fra høy til lav konsentrasjon, og jo større forskjellen er, jo raskere går det. Vann har omtrent 30 ganger mindre
       O₂ enn luft, så fisken må få mest mulig ut av vannet som strømmer over gjellene. Samme motstrømsprinsipp finnes også andre steder, for
       eksempel i beina til fugler, der varmt blod på vei ut varmer opp kaldt blod på vei tilbake. Modellen er forenklet: blodets O₂-metning
-      følger O₂-innholdet i vannet som en rett linje, og vann og blod frakter like mye O₂ per tid.
+      øker som en rett linje med O₂-trykket (hemoglobinets bindingskurve er S-formet), og vann og blod frakter like mye O₂ per tid.
     </p>
   );
   if (flow === 'motstrom')

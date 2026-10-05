@@ -739,6 +739,8 @@ function graviText(tilt: number, angle: number): ReactNode {
 /* ====================================================================== */
 
 const OUTCOME_TEXT: Record<Outcome, string> = { venstre: 'bøyer seg mot venstre', rett: 'vokser rett opp', hoyre: 'bøyer seg mot høyre' };
+/** Resultatet slik det vises: uten spiss (eller med tom agar) vokser koleoptilen nesten ikke, så den bøyer seg bare ikke. */
+const resultText = (r: { outcome: Outcome; grows: boolean }) => (r.outcome === 'rett' && !r.grows ? 'bøyer seg ikke' : OUTCOME_TEXT[r.outcome]);
 
 function Forsok() {
   const [id, setId] = useState(EXPERIMENTS[0]!.id);
@@ -796,7 +798,7 @@ function Forsok() {
       <Readouts>
         <Readout label="Auksin på venstre side" value={shown ? fmtPct(r.left) : '?'} tone={C_AUXIN} />
         <Readout label="Auksin på høyre side" value={shown ? fmtPct(r.right) : '?'} tone={C_AUXIN} />
-        <Readout label="Resultat" value={shown ? capitalize(OUTCOME_TEXT[r.outcome]) : 'Ikke vist ennå'} />
+        <Readout label="Resultat" value={shown ? capitalize(resultText(r)) : 'Ikke vist ennå'} />
         <Readout
           label="Ditt svar"
           value={guess === null ? 'Ikke valgt' : shown ? (guess === r.outcome ? 'Riktig' : 'Feil') : capitalize(OUTCOME_TEXT[guess])}
@@ -863,7 +865,7 @@ function ExperimentScene({
     );
   };
   return (
-    <Figure viewBox={`0 0 800 ${H}`} maxHeight={narrow ? 900 : H} label={`${e.who}: ${e.name}. ${shown ? `Resultat: koleoptilen ${OUTCOME_TEXT[r.outcome]}.` : 'Resultatet er ikke vist ennå.'}`}>
+    <Figure viewBox={`0 0 800 ${H}`} maxHeight={narrow ? 900 : H} label={`${e.who}: ${e.name}. ${shown ? `Resultat: koleoptilen ${resultText(r)}.` : 'Resultatet er ikke vist ennå.'}`}>
       {!e.light && <rect x={20} y={10} width={760} height={groundY - 10} rx={14} fill={VIZ.bodyStrong} opacity={0.35} />}
       {e.light && <Lamp cx={cx} cy={groundY - L0 * 0.8} R={narrow ? 320 : 300} angle={90} intensity={90} k={k} />}
       <Txt x={40} y={30 * f} anchor="start" weight={700} size={0.85}>
@@ -937,7 +939,7 @@ function ExperimentScene({
       )}
       {shown && (
         <Txt x={760} y={groundY - 14} anchor="end" weight={700} size={0.85} color={BIO.plante.line}>
-          {capitalize(OUTCOME_TEXT[r.outcome])}
+          {capitalize(resultText(r))}
         </Txt>
       )}
     </Figure>

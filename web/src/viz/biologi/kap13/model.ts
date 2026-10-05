@@ -354,10 +354,16 @@ function normalHormones(day: number): Hormones {
   };
 }
 
-/** hCG stiger etter innfestingen (dobles omtrent annenhver dag) og flater ut. */
+/** Døgn det tar før hCG-nivået er doblet de første ukene av svangerskapet. */
+export const HCG_DOUBLING_DAYS = 2;
+
+/**
+ * hCG fra embryoet (relativt, 1 = nivået på dag 42): fra innfestingen dobles det omtrent annenhver dag. Det flater ikke
+ * ut i figuren, fordi hCG først er høyest i uke 8–10 av svangerskapet.
+ */
 export function hcgLevel(day: number): number {
   if (day < IMPLANTATION_DAY) return 0;
-  return 1 / (1 + Math.exp(-(day - 33) / 2));
+  return Math.min(1, 2 ** ((day - lastDay('graviditet')) / HCG_DOUBLING_DAYS));
 }
 
 /** Hormonnivåene (relative, skjematiske) på dag `day` (1 ≤ day ≤ lastDay). */

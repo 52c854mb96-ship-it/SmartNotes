@@ -27,9 +27,15 @@ export function fmtUnit(value: number, decimals: number, unit: string): string {
 export function fmtSci(value: number, decimals = 2): string {
   if (!Number.isFinite(value)) return '–';
   if (value === 0) return '0';
-  const exp = Math.floor(Math.log10(Math.abs(value)));
+  let exp = Math.floor(Math.log10(Math.abs(value)));
   if (exp >= -2 && exp <= 4) return fmt(value, decimals);
-  const mantissa = value / 10 ** exp;
+  let mantissa = value / 10 ** exp;
+  // 9,996 · 10³ med to desimaler skal bli 1,00 · 10⁴, ikke 10,00 · 10³
+  const f = 10 ** decimals;
+  if (Math.abs(Math.round(mantissa * f) / f) >= 10) {
+    mantissa /= 10;
+    exp += 1;
+  }
   return `${fmt(mantissa, decimals)} · 10${superscript(exp)}`;
 }
 

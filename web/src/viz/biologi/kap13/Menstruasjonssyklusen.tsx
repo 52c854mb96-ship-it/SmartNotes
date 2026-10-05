@@ -36,6 +36,7 @@ import {
   hormonesAt,
   lastDay,
   ovaryAt,
+  peakDay,
   phaseAt,
   phaseBands,
   type CycleScenario,
@@ -80,6 +81,9 @@ const FEEDBACK_TEXT: Record<Feedback, string> = {
   hcg: 'Negativ',
   pille: 'Negativ',
 };
+
+/** Toppen i østrogenkurven (for «… % av toppen» i forklaringen). */
+const OSTROGEN_PEAK = hormonesAt(peakDay('ostrogen', 'vanlig', 1, OVULATION_DAY + 2), 'vanlig').ostrogen;
 
 /** Myk bindestrek i lange ord, så de kan deles i de smale avlesningsboksene på mobil. */
 function hyphenate(s: string): string {
@@ -466,7 +470,8 @@ function FeedbackFigure({
     const bw = 380;
     const bh = 150 * k;
     const gap = 150 * k;
-    const left = 300;
+    // Boksene litt til venstre, så hCG-buen på høyre side får plass ved siden av etiketten «progesteron»
+    const left = 260;
     pit = { x: left, y: 30 * f + 40, w: bw, h: bh * 0.8 };
     ovary = { x: left, y: pit.y + pit.h + gap, w: bw, h: bh };
     uterus = { x: left, y: ovary.y + ovary.h + gap, w: bw, h: bh };
@@ -535,13 +540,21 @@ function FeedbackFigure({
     const y2 = to.y - 6;
     return (
       <g>
+        {/* Etiketten til den venstre pilen står til venstre for den, den høyre til høyre, så de ikke møter den andre pilen */}
         {[
-          { ...a, x: from.x + from.w * 0.3 },
-          { ...b, x: from.x + from.w * 0.7 },
+          { ...a, x: from.x + from.w * 0.3, side: -1 },
+          { ...b, x: from.x + from.w * 0.7, side: 1 },
         ].map((p) => (
           <g key={p.label}>
             <Arrow x1={p.x} y1={y1} x2={p.x} y2={y2} color={p.c} width={width(p.v)} head={10 + width(p.v)} />
-            <Txt x={p.x + width(p.v) / 2 + 8} y={(y1 + y2) / 2 + 6} anchor="start" size={0.8} color={p.c} weight={650}>
+            <Txt
+              x={p.x + p.side * (width(p.v) / 2 + 8)}
+              y={(y1 + y2) / 2 + 6}
+              anchor={p.side < 0 ? 'end' : 'start'}
+              size={0.8}
+              color={p.c}
+              weight={650}
+            >
               {p.label}
             </Txt>
           </g>
@@ -630,7 +643,15 @@ function FeedbackFigure({
           ) : (
             <polygon points={`${ovary.x + ovary.w + 2},${O.y} ${ovary.x + ovary.w + 18},${O.y - 10} ${ovary.x + ovary.w + 18},${O.y + 10}`} fill={COL.hcg} />
           )}
-          <Txt x={!narrow ? (U.x + O.x) / 2 + 20 : uterus.x + uterus.w + 74} y={!narrow ? ovary.y - 34 : U.y - 6} size={0.8} color={COL.hcg} weight={700} anchor={narrow ? 'end' : 'middle'}>
+          {/* Etiketten ved starten av pilen (fra livmoren), ved siden av buen og ikke oppå den */}
+          <Txt
+            x={!narrow ? U.x + 12 : uterus.x + uterus.w + 10}
+            y={!narrow ? uterus.y - 16 : U.y + 12 + 22 * f}
+            size={0.8}
+            color={COL.hcg}
+            weight={700}
+            anchor="start"
+          >
             hCG
           </Txt>
         </g>
@@ -669,9 +690,9 @@ function FbHead({ path, color, narrow, pit }: { path: string; color: string; nar
 
 /** P-pillen som egen kilde til hormoner som hemmer hypofysen. */
 function PillNode({ pit, narrow, on, f }: { pit: Node; narrow: boolean; on: boolean; f: number }) {
-  const w = narrow ? 230 : 160;
+  const w = narrow ? 180 : 160;
   const h = 46 * Math.min(f, 1.5);
-  const x = narrow ? 40 : pit.x + pit.w / 2 - w / 2;
+  const x = narrow ? 24 : pit.x + pit.w / 2 - w / 2;
   const y = narrow ? pit.y + pit.h / 2 - h / 2 : pit.y + pit.h + 50;
   const c = on ? PILL : mixColor(VIZ.surface, PILL, 0.5);
   return (
@@ -766,7 +787,8 @@ function explanation(s: CycleScenario, day: number, h: Hormones): ReactNode {
         <p>
           <strong>Graviditet (dag {day}).</strong> Embryoet (og senere morkaken) lager hormonet hCG. hCG holder gulelegemet i live, så
           progesteron og østrogen forblir høye. Da støtes ikke slimhinnen ut, og menstruasjonen uteblir. Høyt progesteron gir negativ
-          tilbakekobling, så FSH og LH holder seg lave, og ingen nye egg modnes. En graviditetstest påviser hCG i urinen.
+          tilbakekobling, så FSH og LH holder seg lave, og ingen nye egg modnes. Det trengs bare litt hCG i starten. Nivået dobles omtrent
+          annenhver dag og er høyest i uke 8–10 av svangerskapet, etter tiden i figuren. En graviditetstest påviser hCG i urinen.
         </p>
         {schematic}
       </>
@@ -793,7 +815,7 @@ function explanation(s: CycleScenario, day: number, h: Hormones): ReactNode {
   else if (t < OVULATION_DAY)
     main = (
       <p>
-        <strong>Positiv tilbakekobling.</strong> Østrogenet er nå høyt ({fmt(h.ostrogen * 100, 0)} % av toppen). Når mye østrogen har vært i
+        <strong>Positiv tilbakekobling.</strong> Østrogenet er nå høyt ({fmt((h.ostrogen / OSTROGEN_PEAK) * 100, 0)} % av toppen). Når mye østrogen har vært i
         blodet en stund, snur virkningen: hypofysen skiller ut mye LH i løpet av kort tid. Denne LH-toppen er signalet som utløser eggløsningen
         omtrent et døgn senere. Positiv tilbakekobling forsterker en endring, mens negativ tilbakekobling motvirker den.
       </p>

@@ -29,6 +29,7 @@ import {
   seededRandom,
   useContainerTextScale,
   useSimClock,
+  useTextScale,
 } from '../kit';
 import { CYCLES, antibioticWorks, afterRounds, stepAt, type Agent, type Cycle } from './model';
 
@@ -180,7 +181,11 @@ function Scene({ agent, index, u, f, antibiotic }: SceneProps) {
       viewBox={`0 0 800 ${H}`}
       maxHeight={Math.round(H * 1.25)}
       label={`${agent === 'bakterie' ? 'En bakterie som deler seg' : agent === 'bakteriofag' ? 'En bakteriofag som formerer seg i en bakterie' : 'Et kappekledd virus som formerer seg i en menneskecelle'}. Trinn ${index + 1} av 5: ${c.steps[index]!.name}.`}
-      caption="Skjematisk tegning, ikke i målestokk: et virus er omtrent hundre ganger mindre enn en bakterie."
+      caption={
+        agent === 'kappekledd'
+          ? 'Skjematisk tegning, ikke i målestokk: et influensavirus er ca. 100 nm, mens en menneskecelle er 10–30 µm, over hundre ganger større.'
+          : 'Skjematisk tegning, ikke i målestokk: de fleste virus er 10–100 ganger mindre enn en bakterie.'
+      }
     >
       {/* Trinnene */}
       {c.steps.map((s, i) => {
@@ -209,7 +214,7 @@ function Scene({ agent, index, u, f, antibiotic }: SceneProps) {
       <g transform={`translate(${cx} ${cy}) scale(${g})`}>
         {agent === 'bakteriofag' && <PhageScene index={index} u={u} />}
         {agent === 'kappekledd' && <EnvelopedScene index={index} u={u} />}
-        {agent === 'bakterie' && <FissionScene index={index} u={u} antibiotic={antibiotic} />}
+        {agent === 'bakterie' && <FissionScene index={index} u={u} antibiotic={antibiotic} narrow={narrow} />}
       </g>
       {antibiotic && agent === 'kappekledd' && (
         <g>
@@ -361,7 +366,7 @@ function PhageScene({ index, u }: { index: number; u: number }) {
         return <Virus key={i} type="bakteriofag" x={lerp(ix, ox, k)} y={lerp(cell.y + iy, oy, k)} size={30} rotate={lysed ? (i * 37) % 360 * k : 0} />;
       })}
       {/* Fagen som infiserer (tomt hode etter inntrengningen) */}
-      <g opacity={1 - 0.55 * emptied * (lysed ? 1 : 1)}>
+      <g opacity={1 - 0.55 * emptied}>
         <Virus type="bakteriofag" x={0} y={phageY} size={PHAGE_SIZE} />
       </g>
       {index === 0 && <Virus type="bakteriofag" x={-260} y={-120} size={44} rotate={-25} dim />}
@@ -381,7 +386,8 @@ function EnvelopedScene({ index, u }: { index: number; u: number }) {
   const cell = { x: 0, y: 40, rx: 280, ry: 130 };
   const d = blobPath(cell.x, cell.y, cell.rx, cell.ry, 0.03, 6, 12);
   const memTop = cell.y - cell.ry;
-  const receptorXs = [-120, -40, 40, 120];
+  // Viruset fester seg til reseptoren i midten, og den blir med inn i cella (endocytose)
+  const receptorXs = index === 0 ? [-130, -55, 0, 55, 130] : [-130, -55, 55, 130];
   // Feste og inntrengning
   const vy0 = memTop - 120;
   const vAttach = memTop - 26;
@@ -393,16 +399,23 @@ function EnvelopedScene({ index, u }: { index: number; u: number }) {
   const assembled = index === 3 ? 1 + Math.floor(u * 3) : index === 4 ? 3 : 0;
   const nucleus = { x: -90, y: 60 };
   const rnaSpots = spots(10, 180, 90, 12);
-  const budX = [-150, 0, 150];
+  const budX = [-185, 0, 185];
   return (
     <g>
       <path d={d} fill={BIO.cytoplasma} stroke={BIO.membran} strokeWidth={4.5} />
       <path d={d} fill="none" stroke={BIO.cytoplasma} strokeWidth={1.5} />
       <Cellekjerne x={nucleus.x} y={nucleus.y} r={62} ry={52} />
       <EndoplasmatiskNettverk x={130} y={70} w={120} h={70} kornet />
-      {/* Reseptorer i cellemembranen */}
+      {/* Reseptorer i cellemembranen: et protein med en «skål» ytterst (ikke Y-formet, så de ikke forveksles med antistoffer) */}
       {receptorXs.map((x) => (
-        <path key={x} d={`M${x},${memTop + 2} L${x},${memTop - 10} M${x},${memTop - 10} L${x - 6},${memTop - 18} M${x},${memTop - 10} L${x + 6},${memTop - 18}`} stroke={BIO.protein.line} strokeWidth={2.4} strokeLinecap="round" fill="none" />
+        <path
+          key={x}
+          d={`M${x},${memTop + 4} L${x},${memTop - 8} M${x - 8},${memTop - 20} Q${x - 8},${memTop - 8} ${x},${memTop - 8} Q${x + 8},${memTop - 8} ${x + 8},${memTop - 20}`}
+          stroke={BIO.protein.line}
+          strokeWidth={3}
+          strokeLinecap="round"
+          fill="none"
+        />
       ))}
       {/* Piggproteiner fra viruset settes inn i membranen */}
       {Array.from({ length: spikes }, (_, i) => {
@@ -454,7 +467,27 @@ function EnvelopedScene({ index, u }: { index: number; u: number }) {
 
 /* ---------- Bakterie som deler seg ---------- */
 
-function FissionScene({ index, u, antibiotic }: { index: number; u: number; antibiotic: boolean }) {
+/** Tekst under bakterien: én linje på PC, to linjer på mobil (ellers klippes den i kantene). */
+function NoteLines({ y, lines, narrow, ...rest }: { y: number; lines: [string, string]; narrow: boolean; size: number; weight?: number; color?: string; muted?: boolean }) {
+  const f = useTextScale();
+  if (!narrow)
+    return (
+      <Txt x={0} y={y} {...rest}>
+        {lines.join(' ')}
+      </Txt>
+    );
+  return (
+    <g>
+      {lines.map((l, i) => (
+        <Txt key={i} x={0} y={y + i * 22 * f} {...rest}>
+          {l}
+        </Txt>
+      ))}
+    </g>
+  );
+}
+
+function FissionScene({ index, u, antibiotic, narrow }: { index: number; u: number; antibiotic: boolean; narrow: boolean }) {
   const h = 150;
   const w = index === 0 ? lerp(300, 440, ease(u)) : 440;
   const copies = index === 0 ? 1 : index === 1 ? (u > 0.15 ? 2 : 1) : 2;
@@ -469,9 +502,7 @@ function FissionScene({ index, u, antibiotic }: { index: number; u: number; anti
         {leak.map(([x, y], i) => (
           <circle key={i} cx={x * (0.6 + k)} cy={40 - h / 2 - 10 - Math.abs(y) * k} r={3} fill={BIO.ribosom} opacity={0.7 * k} />
         ))}
-        <Txt x={0} y={40 + h / 2 + 46} size={0.9} weight={700} color={ANTIBIOTIC}>
-          Celleveggen ble ikke ferdig: bakterien sprekker
-        </Txt>
+        <NoteLines y={40 + h / 2 + (narrow ? 32 : 46)} lines={['Celleveggen ble ikke ferdig:', 'bakterien sprekker']} narrow={narrow} size={0.9} weight={700} color={ANTIBIOTIC} />
       </g>
     );
   }
@@ -485,9 +516,7 @@ function FissionScene({ index, u, antibiotic }: { index: number; u: number; anti
         )}
         {antibiotic && index === 3 && <AntibioticDots x={0} y={40} />}
         {antibiotic && index < 3 && (
-          <Txt x={0} y={40 + h / 2 + 46} size={0.85} muted>
-            Penicillin virker når bakterien skal bygge ny cellevegg
-          </Txt>
+          <NoteLines y={40 + h / 2 + (narrow ? 32 : 46)} lines={['Penicillin virker når bakterien', 'skal bygge ny cellevegg']} narrow={narrow} size={0.85} muted />
         )}
       </g>
     );
@@ -542,7 +571,7 @@ function explanation(agent: Agent, index: number, antibiotic: boolean): ReactNod
   const env: ReactNode[] = [
     <>
       <strong>Feste.</strong> Piggproteinene på viruskappa passer til reseptorer på cellemembranen, som en nøkkel i en lås. Influensavirus
-      fester seg til celler i luftveiene; derfor blir det luftveiene som blir syke.
+      fester seg til celler i luftveiene, og derfor er det luftveiene som blir infisert.
     </>,
     <>
       <strong>Inntrengning.</strong> Cella tar viruset inn i en blære (endocytose). Kappa smelter sammen med blæremembranen, og arvestoffet

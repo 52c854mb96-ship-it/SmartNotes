@@ -402,7 +402,8 @@ function explanation(s: Schedule, dark: number, blooming: PhotoPlant[]): ReactNo
         <p>
           <strong>Et rødt lysglimt deler natta i to.</strong> Natta er {hoursText(night)}, men et glimt på bare noen minutter midt i natta gjør
           den lengste mørkeperioden til {hoursText(dark)}. Rødt lys gjør fytokrom om til den aktive formen Pfr, og plantene reagerer som om
-          natta var kort: kortdagsplantene blomstrer ikke, mens langdagsplantene gjør det. Derfor kan gatelys og drivhuslys forstyrre blomstringen.
+          natta var kort. Kortdagsplanter som blomstrer: {names(sdp)}. Langdagsplanter som blomstrer: {names(ldp)}. Derfor kan gatelys og
+          drivhuslys forstyrre blomstringen.
         </p>
       ) : (
         <p>

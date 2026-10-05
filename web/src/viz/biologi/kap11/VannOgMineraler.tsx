@@ -30,6 +30,7 @@ import {
 import {
   DEFICIENCY_LIMIT,
   NUTRIENTS,
+  ROOT_PRESSURE_MAX,
   RT_L_MPA,
   deficiency,
   growth,
@@ -95,7 +96,7 @@ function Opptak() {
         <Slider label="Salt (NaCl) i jordvannet" value={p.salt} onChange={set('salt')} min={0} max={300} step={10} unit="mmol/L" />
       </Controls>
       <Toolbar>
-        <PlayBar clock={clock} time={`${fmt(clock.t, 0)} s`} />
+        <PlayBar clock={clock} time="ikke i sanntid" />
       </Toolbar>
       <div ref={ref}>
         <RootScene r={r} p={p} f={f} t={clock.t} />
@@ -147,16 +148,23 @@ function RootScene({ r, p, f, t }: { r: RootResult; p: RootParams; f: number; t:
   const soilFill = mixColor(BIO.vannFyll, BIO.opplost, 0.1 + 0.25 * salt);
   const waterSpeed = Math.max(-0.12, Math.min(0.12, r.water * 0.08));
   const ionSpeed = 0.08 * r.uptake;
-  // Vannets vei (gjennom celleveggene og så gjennom endodermiscellene) som en brutt linje fra jorda til xylemet
+  // Endodermiscellene ligger i fire rader med Casparys bånd mellom seg. Alt som skal inn i xylemet, går gjennom midten av
+  // en endodermiscelle (gjennom cellemembranen), aldri gjennom båndet.
+  const endoRow = bandH / 4;
+  const endoCentre = (y: number) => y0 + (Math.min(3, Math.max(0, Math.floor((y - y0) / endoRow))) + 0.5) * endoRow;
+  // Vannets vei (gjennom barken og så gjennom en endodermiscelle) som en brutt linje fra jorda til xylemet
   const lanes = [0.25, 0.5, 0.75].map((v) => y0 + bandH * v);
-  const waterPath = (y: number): [number, number][] => [
-    [z.soil[0] + 10, y],
-    [z.hair[0] - 60, midY + (y - midY) * 0.25],
-    [z.hair[1], y],
-    [z.endo[0] - 4, y],
-    [z.endo[0] + 30, midY + (y - midY) * 0.3],
-    [z.xyl[0] + 50, y],
-  ];
+  const waterPath = (y: number): [number, number][] => {
+    const c = endoCentre(y + endoRow / 2);
+    return [
+      [z.soil[0] + 10, y],
+      [z.hair[0] - 60, midY + (y - midY) * 0.25],
+      [z.hair[1], y],
+      [z.endo[0] - 4, c],
+      [z.endo[0] + 30, c],
+      [z.xyl[0] + 50, y],
+    ];
+  };
   const along = (pts: [number, number][], u: number): [number, number] => {
     const seg = pts.slice(1).map((q, i) => Math.hypot(q[0] - pts[i]![0], q[1] - pts[i]![1]));
     const tot = seg.reduce((a, b) => a + b, 0);
@@ -255,7 +263,7 @@ function RootScene({ r, p, f, t }: { r: RootResult; p: RootParams; f: number; t:
         />
       ))}
       {[1, 2, 3].map((rr) => (
-        <rect key={`c${rr}`} x={z.endo[0] + 8} y={y0 + rr * (bandH / 4) - 4} width={z.endo[1] - z.endo[0] - 16} height={8} fill={VIZ.ink} opacity={0.75} />
+        <rect key={`c${rr}`} x={z.endo[0] + 8} y={y0 + rr * endoRow - 4} width={z.endo[1] - z.endo[0] - 16} height={8} fill={VIZ.ink} opacity={0.75} />
       ))}
       {/* Xylem */}
       <rect x={z.xyl[0] + 10} y={y0} width={z.xyl[1] - z.xyl[0] - 10} height={bandH} rx={14} fill={BIO.vannFyll} stroke={C_WATER} strokeWidth={2.5} />
@@ -286,11 +294,14 @@ function RootScene({ r, p, f, t }: { r: RootResult; p: RootParams; f: number; t:
         if (!inside) {
           return <circle key={`i${i}`} cx={z.soil[0] + 14 + d.u * 180} cy={y0 + 10 + d.v * (bandH - 20)} r={3 * k} fill={C_ION} opacity={0.85} />;
         }
+        const yy = y0 + 20 + d.v * (bandH - 40);
         const pts: [number, number][] = [
           [z.soil[0] + 14 + d.u * 150, y0 + 10 + d.v * (bandH - 20)],
           [z.hair[0] - 59, midY],
-          [z.hair[1], y0 + 20 + d.v * (bandH - 40)],
-          [z.xyl[0] + 40, y0 + 20 + d.v * (bandH - 40)],
+          [z.hair[1], yy],
+          [z.endo[0] - 4, endoCentre(yy)],
+          [z.endo[0] + 30, endoCentre(yy)],
+          [z.xyl[0] + 40, yy],
         ];
         const u = (d.u + ionSpeed * t) % 1;
         const [x, y] = along(pts, u);
@@ -539,7 +550,7 @@ function GuttationScene({ g, f, night }: { g: GuttationResult; f: number; night:
 
       {/* Marikåpe ovenfra */}
       <Txt x={B.x + 4} y={B.y - 10} anchor="start" weight={700}>
-        Marikåpe (<tspan fontStyle="italic">Alchemilla</tspan>) om morgenen
+        Marikåpe (<tspan fontStyle="italic">Alchemilla</tspan>) {night ? 'om morgenen' : 'om dagen'}
       </Txt>
       <rect x={B.x} y={B.y} width={B.w} height={B.h} rx={14} fill="none" stroke={VIZ.grid} strokeWidth={1.5} />
       <path d={leaf.d} fill={BIO.plante.fill} stroke={BIO.plante.line} strokeWidth={2} strokeLinejoin="round" />
@@ -550,7 +561,7 @@ function GuttationScene({ g, f, night }: { g: GuttationResult; f: number; night:
         const R = Math.min(B.w, B.h) * 0.38;
         return <line key={i} x1={cx} y1={cy + R * 0.25} x2={cx + Math.cos(a) * R * 0.85} y2={cy + Math.sin(a) * R * 0.85} stroke={BIO.plante.line} strokeWidth={1.4} opacity={0.6} />;
       })}
-      <line x1={B.x + B.w / 2} x2={B.x + B.w / 2} y1={B.y + B.h * 0.48 + Math.min(B.w, B.h) * 0.1} y2={B.y + B.h - 10} stroke={BIO.plante.line} strokeWidth={4} />
+      <line x1={B.x + B.w / 2} x2={B.x + B.w / 2} y1={B.y + B.h * 0.48 + Math.min(B.w, B.h) * 0.1} y2={B.y + B.h - 22 - 20 * f} stroke={BIO.plante.line} strokeWidth={4} strokeLinecap="round" />
       {leaf.tips.slice(0, leaf.tips.length).map(([x, y], i) => {
         // Dråpene kommer først på noen tenner, så på alle (jevnt fordelt)
         const show = i % 2 === 0 && drops > 0 && (i * 7) % leaf.tips.length < drops;
@@ -571,7 +582,7 @@ function guttationText(g: GuttationResult, night: boolean, rh: number, soil: num
   const how = (
     <p>
       <strong>Rottrykk.</strong> Cellene i rota pumper ioner inn i xylemet med aktiv transport. Da blir det høy konsentrasjon av oppløste stoffer
-      der, og vann går inn ved osmose og presser vannsøylen oppover med et trykk på opptil ca. {fmt(0.15, 2)} MPa. Om våren, før bjørka har fått
+      der, og vann går inn ved osmose og presser vannsøylen oppover med et trykk på opptil ca. {fmt(ROOT_PRESSURE_MAX, 2)} MPa. Om våren, før bjørka har fått
       blader, er det rottrykket som presser opp bjørkesevja folk tapper.
     </p>
   );

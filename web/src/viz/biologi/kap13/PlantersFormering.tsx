@@ -111,8 +111,8 @@ export default function PlantersFormering() {
       {mode === 'kjonnet' ? (
         <Legend
           items={[
-            { color: MALE, label: 'Hannlig: støvbærer, pollen og sædceller (n)' },
-            { color: FEMALE, label: 'Hunnlig: pistill, frøemne og eggcelle (n)' },
+            { color: MALE, label: 'Hannlige deler: støvbærer, pollen og sædceller' },
+            { color: FEMALE, label: 'Hunnlige deler: pistill, frøemne og eggcelle' },
             { color: MIXED, label: 'Etter befruktning: zygote og kim (2n)' },
           ]}
         />
@@ -430,7 +430,8 @@ function PollinationStep({ fr, p }: { fr: Frame; p: number }) {
       {(() => {
         const [px, py] = P(from[0], from[1]);
         return (
-          <Etikett x={px} y={py} lx={px - 34 * g} ly={py - 56 * g} anchor="middle" color={MALE} strong>
+          // Teksten er sentrert over punktet, men aldri så langt til venstre at den klippes (mobil)
+          <Etikett x={px} y={py} lx={Math.max(px - 34 * g, fr.L + 30 * f)} ly={py - 56 * g} anchor="middle" color={MALE} strong>
             Pollen
           </Etikett>
         );
@@ -988,7 +989,7 @@ function readouts(step: Step, p: number): ReactNode {
         <>
           <Readout label="Kim" value={ploidyText(PLOIDY.kim)} unit="fra zygoten" tone={MIXED} />
           <Readout label="Frøhvite" value={ploidyText(PLOIDY.frohvite)} unit="næring til kimen" />
-          <Readout label="Gener felles med morplanta" value={fmtPct(sharedWithMother('fro'))} />
+          <Readout label="Kimens gener fra morplanta" value={fmtPct(sharedWithMother('fro'))} />
         </>
       );
     case 'utlopere':
@@ -996,7 +997,7 @@ function readouts(step: Step, p: number): ReactNode {
       return (
         <>
           <Readout label="Antall foreldre" value="1" />
-          <Readout label="Gener felles med morplanta" value={fmtPct(sharedWithMother('klon'))} tone={GREEN.line} />
+          <Readout label="Klonens gener fra morplanta" value={fmtPct(sharedWithMother('klon'))} tone={GREEN.line} />
           <Readout label="Kromosomtall" value={ploidyText(PLOIDY.klon)} unit="som morplanta" />
         </>
       );
@@ -1010,15 +1011,17 @@ function explanation(step: Step, p: number): ReactNode {
         <p>
           <strong>Blomsten er planteorganet for kjønnet formering.</strong> Støvbærerne er de hannlige delene: i støvknappene lages pollenkorn
           ved meiose. Pistillen er den hunnlige delen: arret fanger pollen, griffelen fører ned til fruktknuten, og inne i fruktknuten ligger
-          frøemnene med hver sin eggcelle. Kronbladene lokker til seg insekter med farge, duft og nektar.
+          frøemnene med hver sin eggcelle. Kronbladene lokker til seg insekter med farge og duft, og mange blomster har nektar som
+          belønning. Selve blomsten er en del av morplanta og har to kromosomsett (2n); bare pollenkornene, sædcellene og eggcellene er
+          haploide (n).
           {p < 2 / 3 ? ' Trykk «Spill av» for å se de hannlige og de hunnlige delene hver for seg.' : ''}
         </p>
       );
     case 'pollinering':
       return (
         <p>
-          <strong>Pollinering</strong> er at pollen kommer fra en støvknapp til et arr. Her bærer en humle pollen fra én blomst til en annen
-          (krysspollinering), så avkommet får gener fra to planter. Gress og mange trær blir pollinert av vinden og lager enorme mengder lett
+          <strong>Pollinering</strong> er at pollen kommer fra en støvknapp til et arr. Her bærer et insekt, f.eks. en humle, pollen fra én blomst
+          til en annen (krysspollinering), så avkommet får gener fra to planter. Gress og mange trær blir pollinert av vinden og lager enorme mengder lett
           pollen. Pollinering er ikke det samme som befruktning: kjønnscellene har ennå ikke møttes.
         </p>
       );
@@ -1044,15 +1047,16 @@ function explanation(step: Step, p: number): ReactNode {
           <strong>Frø og frukt.</strong> Etter befruktningen blir frøemnet til et frø: zygoten deler seg ved mitose og blir kimen med
           kimrot og kimblad, frøhviten fyller frøet med næring, og integumentene blir frøskallet. Fruktknuten vokser og blir frukten rundt
           frøene, mens kronbladene og støvbærerne visner. Frukten hjelper frøene å spre seg, f.eks. når dyr spiser bær og legger igjen
-          frøene et annet sted. Frøet har halvparten av genene fra hver forelder.
+          frøene et annet sted. Kimen i frøet har halvparten av genene fra hver forelder, mens frøskallet og fruktveggen er morplantas
+          eget vev (2n).
         </p>
       );
     case 'utlopere':
       return (
         <p>
           <strong>Utløpere</strong> er stengler som vokser bortover bakken. Der de berører jorda, slår de røtter og lager en ny plante.
-          Datterplantene lages ved mitose, så de er kloner med nøyaktig de samme genene som morplanta. Jordbær formerer seg både slik og med
-          frø (bærene). Ukjønnet formering er rask og trenger ingen pollinering, men alle klonene er like utsatt for de samme sykdommene og
+          Datterplantene lages ved mitose, så de er kloner med nøyaktig de samme genene som morplanta. Jordbær formerer seg både slik og
+          kjønnet, med frø. Ukjønnet formering er rask og trenger ingen pollinering, men alle klonene er like utsatt for de samme sykdommene og
           endringene i miljøet.
         </p>
       );
@@ -1061,8 +1065,8 @@ function explanation(step: Step, p: number): ReactNode {
         <p>
           <strong>Knoller.</strong> Potetknollen er ikke en rot, men en fortykket stengel under jorda som lagrer stivelse. «Øynene» er knopper
           som kan spire til nye planter neste vår, og derfor setter bonden poteter, ikke potetfrø. Alle plantene i åkeren blir kloner av
-          samme sort. Det er praktisk, men gjør åkeren sårbar: på 1840-tallet ødela tørråte (<em>Phytophthora infestans</em>) nesten alle
-          potetene i Irland, fordi plantene var genetisk like.
+          samme sort. Det er praktisk, men gjør åkeren sårbar: på 1840-tallet ødela tørråte (<em>Phytophthora infestans</em>)
+          potetavlingene i Irland flere år på rad, blant annet fordi nesten alle plantene var av samme sort og genetisk like.
         </p>
       );
   }

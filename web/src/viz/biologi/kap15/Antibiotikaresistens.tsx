@@ -54,13 +54,14 @@ const SLOTS = 120;
 /** Andel som prosent med nok desimaler til å se små andeler: 0,001 %, 0,35 %, 4 %, 99,7 %. */
 function shareText(share: number): string {
   if (!Number.isFinite(share)) return 'ingen bakterier';
+  // Hardt mellomrom før «%», så tallet og prosenttegnet ikke deles på to linjer
   const pct = share * 100;
-  if (pct === 0) return '0 %';
-  if (pct < 0.01) return `${fmt(pct, 3)} %`;
-  if (pct < 1) return `${fmt(pct, 2)} %`;
-  if (pct >= 99.95 && pct < 100) return '> 99,9 %';
-  if (pct > 99 && pct < 100) return `${fmt(pct, 1)} %`;
-  return `${fmt(pct, 0)} %`;
+  if (pct === 0) return '0\u00a0%';
+  if (pct < 0.01) return `${fmt(pct, 3)}\u00a0%`;
+  if (pct < 1) return `${fmt(pct, 2)}\u00a0%`;
+  if (pct >= 99.95 && pct < 100) return '>\u00a099,9\u00a0%';
+  if (pct > 99 && pct < 100) return `${fmt(pct, 1)}\u00a0%`;
+  return `${fmt(pct, 0)}\u00a0%`;
 }
 
 function countText(n: number): string {
@@ -79,7 +80,6 @@ function sciText(n: number): string {
   }
   return `${fmt(m, 1)} · 10${superscript(exp)}`;
 }
-
 
 export default function Antibiotikaresistens() {
   const [kind, setKind] = useState<CourseKind>('avbrutt');
@@ -138,7 +138,7 @@ export default function Antibiotikaresistens() {
         <Figure
           viewBox={`0 0 800 ${plotH}`}
           label={`Antall følsomme og resistente bakterier over ${tMax} døgn med ${courses} kurer. Dag ${fmt(t, 0)}: ${shareText(now.share)} resistente.`}
-          caption="Logaritmisk skala: hvert steg oppover er hundre ganger flere bakterier."
+          caption="Logaritmisk skala: hver hjelpelinje oppover er hundre ganger flere bakterier."
         >
           <CountsPlot run={run} t={t} height={plotH} />
         </Figure>
@@ -148,6 +148,7 @@ export default function Antibiotikaresistens() {
           { color: SENS.line, label: 'Følsomme' },
           { color: RES.line, label: 'Resistente' },
           { color: mixColor(VIZ.surface, AB, 0.6), label: 'Dager med antibiotika' },
+          { color: BIO.baereevne, label: 'Største mulige antall', dashed: true },
         ]}
       />
 
@@ -247,7 +248,7 @@ function CountsPlot({ run, t, height }: { run: ResistanceRun; t: number; height:
   const pts = (arr: number[]) => run.t.filter((_, i) => i % step === 0).map((d, i): [number, number] => [d, lg(arr[i * step]!)]);
   const xt = Array.from({ length: run.courses * 2 + 1 }, (_, i) => i * 7);
   return (
-    <Plot x={{ min: 0, max: tMax, label: 'Tid (døgn)', ticks: xt }} y={{ min: 0, max: 10.6, label: 'Antall bakterier (log-skala)', ticks: [] }} width={800} height={height}>
+    <Plot x={{ min: 0, max: tMax, label: 'Tid (døgn)', ticks: xt }} y={{ min: 0, max: 11, label: 'Antall bakterier (log-skala)', ticks: [] }} width={800} height={height}>
       {({ sx, sy, x0, x1, y0, y1 }) => (
         <g>
           {run.doses.map(([a, b], i) => (
@@ -262,7 +263,8 @@ function CountsPlot({ run, t, height }: { run: ResistanceRun; t: number; height:
             </g>
           ))}
           {run.shareAtStart.map((share, i) => (
-            <Txt key={i} x={sx(i * COURSE_PERIOD) + 6} y={y0 - 8} anchor="start" size={0.72} weight={650} color={AB}>
+            // Øverst, over linja for største mulige antall: der går ingen kurver
+            <Txt key={i} x={sx(i * COURSE_PERIOD) + 6} y={y1 + 16 * f} anchor="start" size={0.72} weight={650} color={AB}>
               {f > 1.3 ? `kur ${i + 1}` : `kur ${i + 1}: ${shareText(share)} res.`}
             </Txt>
           ))}
@@ -309,8 +311,10 @@ function explanation(run: ResistanceRun, course: number, share: number, N: numbe
         <p>
           <strong>Hele kuren.</strong> Antibiotikaen dreper de følsomme bakteriene raskt, og de få resistente drepes langsommere. Når
           bakteriebestanden er blitt liten, klarer immunforsvaret resten, også de resistente. Infeksjonen er borte, og det blir ingen
-          resistente bakterier igjen som kan formere seg. Neste infeksjon (kur {Math.min(course + 1, run.courses)}) starter like følsom som
-          den første.
+          resistente bakterier igjen som kan formere seg.{' '}
+          {course < run.courses
+            ? `Neste infeksjon (kur ${course + 1}) starter like følsom som den første.`
+            : 'En ny infeksjon vil starte like følsom som den første.'}
         </p>
         <p>
           Men all bruk av antibiotika gir seleksjon, også i normalfloraen. Derfor skal antibiotika bare brukes når det trengs, med riktig
@@ -330,7 +334,9 @@ function explanation(run: ResistanceRun, course: number, share: number, N: numbe
           ikke så mange, og infeksjonen blusser opp igjen.{' '}
           {course < run.courses
             ? `Ved neste kur er ${shareText(next ?? share)} av bakteriene resistente.`
-            : `Nå er ${shareText(share)} av bakteriene resistente, og antibiotikaen virker nesten ikke lenger.`}
+            : share > 0.5
+              ? `Nå er ${shareText(share)} av bakteriene resistente, og antibiotikaen virker nesten ikke lenger.`
+              : `Nå er ${shareText(share)} av bakteriene resistente. Velg flere kurer for å se hva som skjer neste gang infeksjonen behandles.`}
         </p>
         {misconception}
         {model}
@@ -341,14 +347,15 @@ function explanation(run: ResistanceRun, course: number, share: number, N: numbe
     <>
       <p>
         <strong>Unødvendig bruk.</strong> Personen har en virusinfeksjon, f.eks. forkjølelse, og antibiotika virker ikke på virus (se kapittel
-        14). Antibiotikaen treffer i stedet de vennlige bakteriene i tarmfloraen. De følsomme dør, og de resistente får plass til å formere
+        14). Antibiotikaen treffer i stedet de nyttige bakteriene i tarmfloraen (normalfloraen). De følsomme dør, og de resistente får plass til å formere
         seg. {N > 1e9 ? `Etter ${course} ${course === 1 ? 'kur' : 'kurer'} er ${shareText(share)} av bakteriene i tarmfloraen resistente.` : 'Tarmfloraen er kraftig redusert mens kuren pågår, og det kan gi diaré.'}{' '}
         Ingen nytte, bare ulemper: resistensgenene kan senere overføres til sykdomsbakterier.
       </p>
       {misconception}
       <p>
-        Modellen er forenklet: normalfloraen har ca. 10<sup>10</sup> bakterier i utvalget, og 1 av {fmt(1 / RES_F0, 0)} er resistent ved
-        start. Antibiotikaen virker svakere i tarmen enn i blodet, og kroppen fjerner ikke normalfloraen.
+        Modellen er forenklet: den følger 10<sup>10</sup> av bakteriene i tarmen (i virkeligheten er det mange flere), og 1 av{' '}
+        {fmt(1 / RES_F0, 0)} er resistent ved start. Vi antar at antibiotikaen virker svakere på tarmfloraen enn på en infeksjon, og
+        immunforsvaret angriper ikke normalfloraen.
       </p>
     </>
   );

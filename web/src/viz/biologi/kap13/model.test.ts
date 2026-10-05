@@ -19,6 +19,7 @@ import {
   feedbackAt,
   fuse,
   generationsToCapacity,
+  hcgLevel,
   hormonesAt,
   lastDay,
   minimumAfterChange,
@@ -240,7 +241,10 @@ describe('menstruasjonssyklusen', () => {
   it('graviditet: hCG holder progesteronet høyt, ingen menstruasjon', () => {
     expect(hormonesAt(18, 'graviditet').hcg).toBe(0);
     expect(hormonesAt(28, 'graviditet').hcg).toBeGreaterThan(hormonesAt(24, 'graviditet').hcg);
-    expect(hormonesAt(40, 'graviditet').hcg).toBeGreaterThan(0.9);
+    // hCG dobles omtrent annenhver dag og stiger fortsatt på dag 42 (toppen kommer først i uke 8–10)
+    expect(hcgLevel(30) / hcgLevel(28)).toBeCloseTo(2, 6);
+    expect(hcgLevel(42)).toBeCloseTo(1, 9);
+    expect(hcgLevel(42)).toBeGreaterThan(1.3 * hcgLevel(41));
     for (let d = 20; d <= 42; d += 1) {
       expect(hormonesAt(d, 'graviditet').progesteron).toBeGreaterThan(0.8);
       expect(hormonesAt(d, 'graviditet').lh).toBeLessThan(0.2);

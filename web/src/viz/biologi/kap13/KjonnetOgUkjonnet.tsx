@@ -24,7 +24,6 @@ import {
   mixColor,
   useContainerTextScale,
   useSimClock,
-  useTextScale,
 } from '../kit';
 import {
   CAPACITY,
@@ -136,6 +135,7 @@ export default function KjonnetOgUkjonnet() {
           { color: ASEX, label: 'Ukjønnet' },
           { color: SEX, label: 'Kjønnet' },
           { color: BIO.baereevne, label: `Bæreevne K = ${fmtCount(CAPACITY)}`, dashed: true },
+          ...(dT > 0 ? [{ color: mixColor(VIZ.surface, BIO.atp, 0.45), label: 'Felt: varmere miljø' }] : []),
         ]}
       />
 
@@ -155,7 +155,7 @@ export default function KjonnetOgUkjonnet() {
         <FormulaLine>
           {a.N > 0 ? (
             <>
-              Ukjønnet: λ = {OFFSPRING_ASEX} · {fmt(a.wbar, 2)} = {fmt(a.lambda, 2)}
+              Ukjønnet: λ = {OFFSPRING_ASEX} · {fmt(a.wbar, 3)} = {fmt(a.lambda, 2)}
               {a.lambda < 1 ? ' (minker)' : ''}
             </>
           ) : (
@@ -165,8 +165,8 @@ export default function KjonnetOgUkjonnet() {
         <FormulaLine>
           {s.N > 0 ? (
             <>
-              Kjønnet: λ = {OFFSPRING_SEX} · {fmt(s.wbar, 2)} = {fmt(s.lambda, 2)}
-              {s.lambda < 1 ? ' (minker)' : ''} · bare hunnene føder, derfor {OFFSPRING_SEX} og ikke {OFFSPRING_ASEX}
+              Kjønnet: λ = {OFFSPRING_SEX} · {fmt(s.wbar, 3)} = {fmt(s.lambda, 2)}
+              {s.lambda < 1 ? ' (minker)' : ''} · bare hunnene får avkom, derfor {OFFSPRING_SEX} og ikke {OFFSPRING_ASEX}
             </>
           ) : (
             'Kjønnet: utdødd'
@@ -350,7 +350,6 @@ function GrowthLines({
   y0: number;
   y1: number;
 }) {
-  const f = useTextScale();
   const ptsA = run.asex.map((st, g): [number, number] => [g, st.N]);
   const ptsS = run.sex.map((st, g): [number, number] => [g, st.N]);
   const changeEnd = kind === 'bra' ? CHANGE_START : CHANGE_START + GRADUAL_GENERATIONS;
@@ -369,7 +368,8 @@ function GrowthLines({
           />
           <rect x={sx(changeEnd)} y={y1} width={Math.max(0, x1 - sx(changeEnd))} height={y0 - y1} fill={mixColor(VIZ.surface, BIO.atp, 0.18)} />
           <line x1={sx(CHANGE_START)} x2={sx(CHANGE_START)} y1={y0} y2={y1} className="viz-guide" />
-          <Txt x={sx(CHANGE_START) + 8} y={sy(CAPACITY) + 24 * f} anchor="start" size={0.8} color={BIO.atp} weight={650}>
+          {/* Over K-linja: der går ingen av kurvene (bestandene er aldri over K) */}
+          <Txt x={sx(CHANGE_START) + 8} y={sy(CAPACITY) - 7} anchor="start" size={0.8} color={BIO.atp} weight={650}>
             {kind === 'bra' ? `+${fmt(dT, 1)} °C` : `+${fmt(dT, 1)} °C over ${GRADUAL_GENERATIONS} generasjoner`}
           </Txt>
         </g>
@@ -426,7 +426,7 @@ function explanation({
     <p>
       <strong>Fordeler og ulemper.</strong> Ukjønnet formering (deling, knopping, utløpere, jomfrufødsel hos bladlus) er rask og billig:
       én forelder er nok, og alt avkommet kan få nye avkom. Kjønnet formering koster mer: det trengs to foreldre, partneren må finnes, og
-      halvparten av avkommet er hanner som ikke føder selv. Til gjengjeld gir meiose og befruktning nye kombinasjoner av gener, så
+      halvparten av avkommet blir hanner, som ikke selv kan legge egg eller føde unger. Til gjengjeld gir meiose og befruktning nye kombinasjoner av gener, så
       bestanden har variasjon når miljøet endrer seg, f.eks. når klimaet blir varmere eller en ny parasitt eller sykdom dukker opp.
     </p>
   );
@@ -456,7 +456,7 @@ function explanation({
     else
       main = (
         <p>
-          <strong>Stabilt miljø ({fmt(T, 0)} °C).</strong> Klonene nådde bæreevnen etter {toKa} generasjoner, den kjønnede bestanden etter{' '}
+          <strong>Stabilt miljø ({fmt(T, 0)} °C).</strong> Klonene når bæreevnen etter {toKa} generasjoner, den kjønnede bestanden etter{' '}
           {toKs}. Alle klonene er like og godt tilpasset, så i et miljø som ikke endrer seg, er ukjønnet formering best. I den kjønnede
           bestanden gir hver ny generasjon variasjon, og noen avkom blir alltid litt dårligere tilpasset.
           {dT === 0 ? ' Flytt glidebryteren for å la temperaturen stige.' : ` Om ${CHANGE_START - gen} generasjoner blir det varmere.`}
@@ -477,9 +477,9 @@ function explanation({
   if (!aliveA && !aliveS)
     main = (
       <p>
-        <strong>Begge bestandene døde ut.</strong> Temperaturen steg med {fmt(dT, 1)} °C på én gang. Det var for mye og for fort: selv de best
-        tilpassede i den kjønnede bestanden fikk for få avkom til at bestanden kunne følge med. Variasjon gir bare en sjanse, ingen garanti.
-        Prøv en gradvis endring med samme temperaturøkning.
+        <strong>Begge bestandene døde ut.</strong> Temperaturen steg med {fmt(dT, 1)} °C{kind === 'bra' ? ' på én gang' : ''}. Det var for
+        mye og for fort: selv de best tilpassede i den kjønnede bestanden fikk for få avkom til at bestanden kunne følge med. Variasjon gir
+        bare en sjanse, ingen garanti.{kind === 'bra' ? ' Prøv en gradvis endring med samme temperaturøkning.' : ''}
       </p>
     );
   else if (!aliveA)
@@ -504,15 +504,27 @@ function explanation({
         <strong>Klonene er i ferd med å dø ut.</strong> Temperaturen er nå {fmt(T, 1)} °C. Alle klonene er like og har samme lave sjanse til
         å overleve, så hvert individ får i snitt bare λ = {fmt(a.lambda, 2)} voksne avkom, færre enn ett. I den kjønnede bestanden er det
         variasjon: noen individer tåler varmen bedre (dyrene inne i det grønne feltet), og de får flest avkom.
+        {s.lambda < 1
+          ? ` Også den kjønnede bestanden minker nå (λ = ${fmt(s.lambda, 2)}), men for hver generasjon flytter gjennomsnittet seg nærmere den nye temperaturen.`
+          : ''}
+      </p>
+    );
+  else if (extA !== null)
+    main = (
+      <p>
+        <strong>{changing ? 'Miljøet blir gradvis varmere.' : `Temperaturen steg med ${fmt(dT, 1)} °C.`}</strong> Begge bestandene lever ennå. Klonene kan ikke endre seg: alle er fortsatt best
+        tilpasset {fmt(START_TEMP, 0)} °C, så for hver generasjon blir de dårligere tilpasset (λ = {fmt(a.lambda, 2)}), og de vil dø ut. Den
+        kjønnede bestanden har variasjon: de som tåler varmen best, får flest avkom, så gjennomsnittet har flyttet seg {fmt(shift, 1)} °C
+        mot den nye temperaturen.{kind === 'gradvis' ? ' Når endringen skjer gradvis, rekker den kjønnede bestanden å følge med.' : ''}
       </p>
     );
   else
     main = (
       <p>
         <strong>{changing ? 'Miljøet blir gradvis varmere.' : `Temperaturen steg med ${fmt(dT, 1)} °C.`}</strong> Begge bestandene lever.
-        Klonene kan ikke endre seg, så de er like dårlig tilpasset som før endringen og blir varig færre ({fmtCount(a.N)} individer). Den
-        kjønnede bestanden har variasjon: de som tåler varmen best, får flest avkom, så gjennomsnittet har flyttet seg {fmt(shift, 1)} °C
-        mot den nye temperaturen.
+        Klonene kan ikke endre seg: alle er fortsatt best tilpasset {fmt(START_TEMP, 0)} °C, så nå er de dårligere tilpasset enn før og
+        blir varig færre ({fmtCount(a.N)} individer). Den kjønnede bestanden har variasjon: de som tåler varmen best, får flest avkom, så
+        gjennomsnittet har flyttet seg {fmt(shift, 1)} °C mot den nye temperaturen.
         {changing ? ' Når endringen skjer gradvis, rekker den kjønnede bestanden å følge med.' : ''}
       </p>
     );

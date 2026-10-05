@@ -9,6 +9,9 @@ import {
   O2_WATER,
   RC_SKIN,
   RC_TRACHEA,
+  SIZE_MAX_EXP,
+  SIZE_MIN_EXP,
+  SIZE_REFERENCES,
   anoxicCore,
   chamberText,
   circuit,
@@ -287,6 +290,20 @@ describe('gassutveksling og kroppsstørrelse', () => {
     expect(surfacePerVolume(0)).toBe(Infinity);
     // Lungene gir mennesket rundt 40 ganger så stor flate som huden
     expect(HUMAN_LUNG_AREA / HUMAN_SKIN_AREA).toBeGreaterThan(30);
+  });
+
+  it('forhåndsvalgene er tykkelser, ikke lengder: humla trenger trakeer, ikke laksen', () => {
+    const d = (name: string) => SIZE_REFERENCES.find((r) => r.name === name)!.d;
+    // Et insekt på noen millimeter er for tykt for hudånding, men greit med trakeer
+    expect(o2Coverage(getStrategy('hud'), d('humle'))).toBeLessThan(1);
+    expect(o2Coverage(getStrategy('trakeer'), d('humle'))).toBe(1);
+    // De største billene ligger rundt grensen for trakeer; en laks er langt over
+    expect(d('stor bille')).toBeLessThan(maxDiameter(getStrategy('trakeer')));
+    expect(o2Coverage(getStrategy('trakeer'), d('laks'))).toBeLessThan(1);
+    for (const r of SIZE_REFERENCES) {
+      expect(Math.log10(r.d)).toBeGreaterThanOrEqual(SIZE_MIN_EXP);
+      expect(Math.log10(r.d)).toBeLessThanOrEqual(SIZE_MAX_EXP);
+    }
   });
 
   it('formater lengder og tider', () => {

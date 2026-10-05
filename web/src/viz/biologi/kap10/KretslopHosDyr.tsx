@@ -337,12 +337,14 @@ function circuitGeometry(animal: Animal, f: number, sat: Saturations): CircuitGe
       { id: 'kammerV', box: { x: right, y: vTop, w: cw, h: vh }, lines: ['venstre', 'hjertekammer'], tx: laC, ty: vText, sat: sat.arterial },
     );
   } else {
+    // Med delvis skillevegg (krypdyr) står navnet over skilleveggen, i midten der blodet ikke går
+    const partial = animal.septum === 'delvis';
     chambers.push({
       id: 'kammer',
       box: { x: left, y: vTop, w: 2 * cw + gap, h: vh },
-      lines: ['hjertekammer'],
+      lines: partial ? ['hjerte-', 'kammer'] : ['hjertekammer'],
       tx: 400,
-      ty: vText,
+      ty: partial ? vTop + 0.27 * vh : vText,
       sat: [sat.toGas, sat.arterial],
     });
   }
@@ -351,7 +353,7 @@ function circuitGeometry(animal: Animal, f: number, sat: Saturations): CircuitGe
     gas,
     body,
     chambers,
-    septum: animal.septum === 'delvis' ? { x: 400, y1: vBot, y2: vBot - vh * 0.5 } : undefined,
+    septum: animal.septum === 'delvis' ? { x: 400, y1: vBot, y2: vBot - vh * 0.42 } : undefined,
     paths: [
       // kammerV: fra venstre forkammer ned i (venstre del av) hjertekammeret og ut til høyre
       [
@@ -942,13 +944,17 @@ function explanation(a: Animal, s: Saturations, activity: number): ReactNode {
           <p>
             <strong>Dobbelt kretsløp, men bare ett hjertekammer.</strong> Frosken har to forkamre: det høyre får oksygenfattig blod fra
             kroppen og det venstre oksygenrikt blod fra lungene. I det felles hjertekammeret blandes de delvis, så blodet ut til kroppen er
-            bare {fmtPct(s.arterial)} mettet, mens blodet fra lungene og huden er {fmtPct(s.gasOut)} mettet.
+            bare {fmtPct(s.arterial)} mettet, mens blodet fra lungene er {fmtPct(s.gasOut)} mettet.
           </p>
           <p>
             Fordelen med to kretsløp er at blodet pumpes på nytt etter lungene, så det får høyere trykk ut til kroppen enn hos fisk. Blandingen
             er ikke så dum som den høres ut: frosken tar også opp O₂ gjennom den fuktige huden, og når den dykker, kan blodet sendes forbi
             lungene. Et ektotermt dyr med lavt stoffskifte klarer seg godt med litt blandet blod.
             {high ? ` Ved høy aktivitet blir veneblodet mer oksygenfattig (${fmtPct(s.venous)}), og da drar blandingen ned O₂-innholdet til kroppen enda mer.` : ''}
+          </p>
+          <p>
+            Forenkling: blodet som har tatt opp O₂ i huden, går egentlig tilbake til høyre forkammer sammen med blodet fra kroppen. Her er
+            huden tegnet sammen med lungene, og blandingen m = {fmtPct(a.mixing)} er en typisk verdi som varierer med aktivitet og dykking.
           </p>
           {colours}
         </>
@@ -982,7 +988,7 @@ function explanation(a: Animal, s: Saturations, activity: number): ReactNode {
             <strong>Hvorfor trenger endoterme dyr dette?</strong> Fugler og pattedyr lager kroppsvarmen sin selv ved celleånding, og bruker i
             hvile 5–10 ganger så mye O₂ som et krypdyr av samme størrelse. Da må mye blod med full O₂-metning fram til cellene raskt, og det
             krever høyt trykk og ingen blanding. Fugler og pattedyr har utviklet firedelt hjerte hver for seg (konvergent evolusjon).
-            {high ? ` Nå arbeider dyret hardt: kroppen tar ut ${fmtPct(s.extracted)} av O₂-et, og hjertet slår raskere.` : ''}
+            {high ? ` Nå arbeider dyret hardt: kroppen tar ut ${fmtPct(s.extracted / s.arterial)} av O₂-et i blodet, og hjertet slår raskere.` : ''}
           </p>
           {colours}
         </>

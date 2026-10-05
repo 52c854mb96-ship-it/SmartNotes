@@ -35,6 +35,7 @@ import {
   photosynthesisAt,
   plantState,
   saturationVaporPressure,
+  totalConductance,
   transpirationAt,
   vpd,
   type PlantState,
@@ -83,7 +84,7 @@ export default function Transpirasjon() {
         <Slider label="Vann i jorda" value={w.soil} onChange={set('soil')} min={10} max={100} step={5} unit="% av feltkapasitet" />
       </Controls>
       <Toolbar>
-        <PlayBar clock={clock} time={`${fmt(clock.t, 0)} s`} />
+        <PlayBar clock={clock} time="hurtigfilm" />
       </Toolbar>
 
       <div ref={ref}>
@@ -124,7 +125,7 @@ export default function Transpirasjon() {
           Vannpotensial: jord {fmt(s.psi.soil, 2)} → rot {fmt(s.psi.root, 2)} → blad {fmt(s.psi.leaf, 2)} → luft {fmt(s.psi.air, 0)} MPa
         </FormulaLine>
         <FormulaLine>
-          Transpirasjon: E = g · VPD / p = {fmt((s.E * P_AIR) / 1000 / Math.max(D, 1e-9), 3)} mol/(m² · s) · {fmt(D, 2)} kPa / {fmt(P_AIR, 1)} kPa ={' '}
+          Transpirasjon: E = g · VPD / p = {fmt(totalConductance(s.gs, w.wind), 3)} mol/(m² · s) · {fmt(D, 2)} kPa / {fmt(P_AIR, 1)} kPa ={' '}
           {fmt(s.E, 1)} mmol/(m² · s)
         </FormulaLine>
       </Formula>
@@ -631,8 +632,10 @@ function explanation(w: Weather, s: PlantState): ReactNode {
   const tradeoff = (
     <p>
       <strong>Et bytte.</strong> Spalteåpningene er ikke til for å slippe ut vann: planten åpner dem for å få CO₂ til fotosyntesen, og
-      vanntapet er prisen. Grafen viser at CO₂-opptaket flater ut når spalteåpningene er godt åpne, mens vanntapet fortsetter å øke. Halvt
-      åpne spalteåpninger gir derfor mye CO₂ for lite vann.
+      vanntapet er prisen.{' '}
+      {w.light > 0
+        ? 'Grafen viser at CO₂-opptaket flater ut når spalteåpningene er godt åpne, mens vanntapet fortsetter å øke. Halvt åpne spalteåpninger gir derfor mye CO₂ for lite vann.'
+        : 'I mørket gir åpne spalteåpninger ingen CO₂ til fotosyntesen, bare vanntap (grafen), så det lønner seg å holde dem lukket.'}
     </p>
   );
   let now: ReactNode;

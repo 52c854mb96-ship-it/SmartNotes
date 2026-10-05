@@ -571,13 +571,17 @@ export const HUMAN_SKIN_AREA = 1.8;
 export const SIZE_MIN_EXP = -4;
 export const SIZE_MAX_EXP = 0;
 
-/** Kjente dyr langs størrelsesaksen (diameter/tykkelse i m). */
+/**
+ * Kjente dyr langs størrelsesaksen: tykkelsen på kroppen (ikke lengden) i m. Hjuldyr ca. 0,2 mm, flatormer ca. 1 mm,
+ * brystet på en humle ca. 6 mm, de største billene (goliatbiller) ca. 3 cm, en voksen laks ca. 10 cm og
+ * overkroppen på et menneske ca. 30 cm.
+ */
 export const SIZE_REFERENCES: readonly { d: number; name: string }[] = [
   { d: 2e-4, name: 'hjuldyr' },
-  { d: 1e-3, name: 'flatorm (tykkelse)' },
-  { d: 5e-3, name: 'maur' },
+  { d: 1e-3, name: 'flatorm' },
+  { d: 6e-3, name: 'humle' },
   { d: 3e-2, name: 'stor bille' },
-  { d: 0.1, name: 'sild' },
+  { d: 0.1, name: 'laks' },
   { d: 0.3, name: 'menneske' },
 ];
 
