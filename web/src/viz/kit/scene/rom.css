@@ -13,7 +13,7 @@
   --sc-rom-proton: var(--viz-s2);
   --sc-rom-noytron: var(--viz-tension);
   --sc-rom-elektron: var(--viz-s1);
-  --sc-rom-tegn: #ffffff;
+  --sc-rom-tegn: var(--viz-surface);
 
   /* Himmel */
   --sc-rom-melkevei: #8d9dc4;
@@ -66,7 +66,7 @@
   --sc-rom-taake-blaa-2: #92d4f2;
   --sc-rom-taake-fiolett: #9b62d8;
   --sc-rom-taake-fiolett-2: #e47cc6;
-  --sc-rom-taake-indre: #7fd6d0;
+  --sc-rom-taake-indre: #a8ece4;
   --sc-rom-taake-kjerne: #fff3e6;
 
   /* Lys */
@@ -77,7 +77,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --sc-rom-tegn: #161b22;
+    --sc-rom-tegn: var(--viz-surface);
 
     --sc-rom-melkevei: #6f7fa6;
     --sc-rom-melkevei-kjerne: #a8987c;
@@ -122,7 +122,7 @@
     --sc-rom-taake-blaa-2: #80bedb;
     --sc-rom-taake-fiolett: #8a57c2;
     --sc-rom-taake-fiolett-2: #cc6eb1;
-    --sc-rom-taake-indre: #6cbfba;
+    --sc-rom-taake-indre: #8fd6ce;
     --sc-rom-taake-kjerne: #f3e6d8;
 
     --sc-rom-hvitt-lys: #f6f1e2;
@@ -132,7 +132,7 @@
 }
 
 :root[data-theme='dark'] {
-  --sc-rom-tegn: #161b22;
+  --sc-rom-tegn: var(--viz-surface);
 
   --sc-rom-melkevei: #6f7fa6;
   --sc-rom-melkevei-kjerne: #a8987c;
@@ -177,7 +177,7 @@
   --sc-rom-taake-blaa-2: #80bedb;
   --sc-rom-taake-fiolett: #8a57c2;
   --sc-rom-taake-fiolett-2: #cc6eb1;
-  --sc-rom-taake-indre: #6cbfba;
+  --sc-rom-taake-indre: #8fd6ce;
   --sc-rom-taake-kjerne: #f3e6d8;
 
   --sc-rom-hvitt-lys: #f6f1e2;

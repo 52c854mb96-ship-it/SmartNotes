@@ -584,7 +584,7 @@ export function multimeterPunkter({ x, y, size, modus, rotate }: MultimeterProps
 /**
  * Digitalt multimeter med vindu, dreiebryter (AV, V, Ω, A) og tre innganger. Vinduet viser `visning`.
  * (x, y) er midten. Koble ledningene til `multimeterPunkter(samme props)`.
- *   const s = useSceneScale();
+ *   const s = useSceneScale(); // i en komponent inne i <Figure>
  *   <Multimeter x={620} y={170} size={140 * s} visning={`${fmt(I, 2)} A`} modus="A" />
  */
 export function Multimeter({ x, y, size = 140, visning, modus, lakk = 'gul', plugger = true, rotate, dim, title }: MultimeterProps) {

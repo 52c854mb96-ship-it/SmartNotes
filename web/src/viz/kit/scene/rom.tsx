@@ -448,7 +448,7 @@ export interface StjerneProps {
   glod?: number;
   /** Fargemetning (1 = slik øyet ser det, standard 1,15; se stjerneFarge). */
   metning?: number;
-  /** Firtakket glimt rundt stjerna (for klare stjerner). */
+  /** Glimt: to smale, kryssende stråler som blir svakere ut mot spissene (for klare stjerner). */
   glimt?: boolean;
   dim?: boolean;
   title?: string;
@@ -530,8 +530,8 @@ export interface SolProps {
 }
 
 /**
- * Sola: gul skive som blir mørkere og mer oransje mot kanten (randfordunkling), antydet granulering, solflekker og en
- * myk korona rundt. Ankerpunkt: sentrum.
+ * Sola: gul skive som blir mørkere og mer oransje mot kanten (randfordunkling), antydet granulering (fine korn, bare
+ * når r ≥ 30), solflekker og en lys korona tett rundt. Ankerpunkt: sentrum.
  *   <Sol x={120} y={200} r={80} />
  *   <Sol x={60} y={60} r={24} korona={0.4} flekker={0} />
  */
@@ -543,11 +543,12 @@ export function Sol({ x, y, r, korona = 0.7, flekker = 2, seed = 7, dim, title }
   const spots = Math.round(clamp(flekker, 0, 6));
   const tex = useMemo(() => {
     const rnd = sceneRandom(seed * 92821 + 5);
+    // Granulering: mange små, svake korn (0,6–1,2 % av radien), mindre mot randen der de sees på skrå.
     let gran = '';
-    for (let i = 0; i < 120; i++) {
-      const rho = Math.sqrt(rnd()) * 0.93;
+    for (let i = 0; i < 250; i++) {
+      const rho = Math.sqrt(rnd()) * 0.95;
       const a = rnd() * Math.PI * 2;
-      const s = (0.022 + rnd() * 0.022) * Math.sqrt(Math.max(0.05, 1 - rho * rho));
+      const s = (0.006 + rnd() * 0.006) * Math.sqrt(Math.max(0.1, 1 - rho * rho));
       gran += dot(rho * Math.cos(a) * 100, rho * Math.sin(a) * 100, s * 100);
     }
     const sp: { x: number; y: number; rx: number; ry: number; rot: number }[] = [];
@@ -560,8 +561,10 @@ export function Sol({ x, y, r, korona = 0.7, flekker = 2, seed = 7, dim, title }
     }
     return { gran, sp };
   }, [seed, spots]);
-  const R = rr * (1 + 1.7 * kk);
+  // Koronaen er lys: lys og tett inntil skiva, og den faller raskt (ingen dis langt ute).
+  const R = rr * (1 + 1.5 * kk);
   const k = rr / R;
+  const inner = mix(ROM.solKjerne, ROM.solKorona, 0.5);
   return (
     <g opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
@@ -570,11 +573,12 @@ export function Sol({ x, y, r, korona = 0.7, flekker = 2, seed = 7, dim, title }
           <RadialGradient
             id={gid}
             stops={[
-              [0, ROM.solKorona, 0.9],
-              [k, ROM.solKorona, 0.6],
-              [k + (1 - k) * 0.12, ROM.solKorona, 0.32],
-              [k + (1 - k) * 0.4, ROM.solKorona, 0.1],
-              [1, ROM.solKorona, 0],
+              [0, inner, 0.85],
+              [k, inner, 0.8],
+              [k + (1 - k) * 0.08, inner, 0.42],
+              [k + (1 - k) * 0.25, ROM.solKorona, 0.16],
+              [k + (1 - k) * 0.5, ROM.solKorona, 0.04],
+              [k + (1 - k) * 0.7, ROM.solKorona, 0],
             ]}
           />
           <circle cx={x} cy={y} r={R} fill={`url(#${gid})`} aria-hidden />
@@ -593,7 +597,7 @@ export function Sol({ x, y, r, korona = 0.7, flekker = 2, seed = 7, dim, title }
       />
       <circle cx={x} cy={y} r={rr} fill={`url(#${did})`} />
       <g transform={`translate(${r2(x)} ${r2(y)}) scale(${r2(rr / 100)})`} aria-hidden>
-        {rr >= 20 && <path d={tex.gran} fill={ROM.solKjerne} opacity={0.17} />}
+        {rr >= 30 && <path d={tex.gran} fill={ROM.solKjerne} opacity={0.09} />}
         {tex.sp.map((s, i) => (
           <g key={i} transform={`translate(${r2(s.x)} ${r2(s.y)}) rotate(${r2(s.rot)})`}>
             <ellipse rx={s.rx} ry={s.ry} fill={mix(ROM.solKant, ROM.solFlekk, 0.45)} opacity={0.75} />
@@ -633,9 +637,6 @@ export interface PlanetProps {
   title?: string;
 }
 
-const RIGHT_HALF = 'M0 -1A1 1 0 0 1 0 1Z';
-const LEFT_HALF = 'M0 1A1 1 0 0 1 0 -1Z';
-
 interface PlanetLayer {
   d: string;
   fill?: string;
@@ -650,7 +651,7 @@ interface PlanetSpec {
   lon0: number;
   lat0: number;
   flat: number;
-  /** Mykheten i overgangen dag–natt (andel av diameteren). */
+  /** Halve bredden på den myke overgangen dag–natt (skumringen), i radier, ved ekvator med lyset fra siden. */
   soft: number;
   /** Tynn atmosfære som lyser i kanten på dagsida. */
   atm?: string;
@@ -664,7 +665,7 @@ const PLANETS: Record<PlanetType, PlanetSpec> = {
     lon0: 15,
     lat0: 14,
     flat: 1,
-    soft: 0.08,
+    soft: 0.12,
     atm: ROM.atmosfaere,
     haze: [ROM.atmosfaere, 0.55],
     base: [
@@ -677,7 +678,7 @@ const PLANETS: Record<PlanetType, PlanetSpec> = {
     lon0: 40,
     lat0: 16,
     flat: 1,
-    soft: 0.06,
+    soft: 0.08,
     atm: ROM.marsLys,
     haze: [ROM.mars, 0.6],
     base: [
@@ -690,7 +691,7 @@ const PLANETS: Record<PlanetType, PlanetSpec> = {
     lon0: 0,
     lat0: 3,
     flat: 0.935,
-    soft: 0.08,
+    soft: 0.1,
     haze: [ROM.jupiterBelte, 0.45],
     base: [
       [0, tint(ROM.jupiterSone, 0.1)],
@@ -702,7 +703,7 @@ const PLANETS: Record<PlanetType, PlanetSpec> = {
     lon0: 0,
     lat0: 0,
     flat: 1,
-    soft: 0.025,
+    soft: 0.045,
     base: [
       [0, ROM.maaneLys],
       [0.6, ROM.maane],
@@ -713,7 +714,7 @@ const PLANETS: Record<PlanetType, PlanetSpec> = {
     lon0: 0,
     lat0: 12,
     flat: 0.983,
-    soft: 0.08,
+    soft: 0.1,
     atm: ROM.neptunLys,
     haze: [ROM.neptunLys, 0.35],
     base: [
@@ -724,8 +725,11 @@ const PLANETS: Record<PlanetType, PlanetSpec> = {
   },
 };
 
-/** Overflaten (kontinenter, bånd, hav) projisert for en gitt dreining. Alt i enhetskoordinater (radius 1). */
-function planetSurface(type: PlanetType, dreining: number, light: [number, number]): PlanetLayer[] {
+/**
+ * Overflaten (kontinenter, bånd, hav) projisert for en gitt dreining. Alt i enhetskoordinater (radius 1).
+ * `detail` styrer småting etter størrelsen: 0 = liten (under 30), 1 = middels, 2 = stor (40 og mer).
+ */
+function planetSurface(type: PlanetType, dreining: number, light: [number, number], detail: 0 | 1 | 2): PlanetLayer[] {
   const spec = PLANETS[type];
   const lon0 = spec.lon0 - dreining;
   const lat0 = spec.lat0;
@@ -737,15 +741,16 @@ function planetSurface(type: PlanetType, dreining: number, light: [number, numbe
         { d: fill(EARTH_DESERT), fill: ROM.orken, op: 0.92 },
         { d: fill(EARTH_WATER), fill: ROM.hav },
         { d: fill(EARTH_ICE), fill: ROM.is, op: 0.95 },
-        // Skyfelt: en svak, bred del og en tettere kjerne
-        { d: fill(EARTH_CLOUDS_SOFT), fill: ROM.sky, op: 0.26 },
-        { d: fill(EARTH_CLOUDS_CORE), fill: ROM.sky, op: 0.34 },
+        // Skyfelt: en bred, myk del og en svak, mindre kjerne
+        { d: fill(EARTH_CLOUDS_SOFT), fill: ROM.sky, op: 0.24 },
+        { d: fill(EARTH_CLOUDS_CORE), fill: ROM.sky, op: 0.2 },
       ];
     case 'mars':
       return [
-        { d: fill(MARS_DARK), fill: ROM.marsMork, op: 0.6 },
-        { d: fill(MARS_LIGHT), fill: ROM.marsLys, op: 0.65 },
-        { d: projectLines(MARS_CANYON, lon0, lat0), stroke: ROM.marsMork, sw: 0.022, op: 0.75 },
+        { d: fill(MARS_DARK_SOFT), fill: ROM.marsMork, op: 0.3 },
+        { d: fill(MARS_DARK_CORE), fill: ROM.marsMork, op: 0.45 },
+        { d: fill(MARS_LIGHT), fill: ROM.marsLys, op: 0.35 },
+        { d: projectLines(MARS_CANYON, lon0, lat0), stroke: ROM.marsMork, sw: 0.014, op: 0.5 },
         { d: fill(MARS_CAPS), fill: ROM.is, op: 0.92 },
       ];
     case 'jupiter': {
@@ -761,14 +766,17 @@ function planetSurface(type: PlanetType, dreining: number, light: [number, numbe
       ];
     }
     case 'maanen': {
-      const craters = MOON_CRATERS.map(([lon, lat, rad]) => sphereEllipse(lon, lat, rad, rad, 12));
+      // Små måner viser bare de tre kjente kraterne (Tycho, Copernicus, Plato), og strålene bare fra middels størrelse.
+      const craters = (detail >= 2 ? MOON_CRATERS : MOON_CRATERS.slice(0, 3)).map(([lon, lat, rad]) => sphereEllipse(lon, lat, rad, rad, 12));
       // Kraterbunnen er belyst på sida bort fra lyset; skyggen ligger mot lyset.
-      const shift = 0.009;
+      const shift = 0.008;
       return [
-        { d: fill(MOON_MARIA), fill: ROM.maaneMare, op: 0.85 },
-        { d: projectLines(MOON_RAYS, lon0, lat0), stroke: ROM.maaneLys, sw: 0.016, op: 0.3 },
-        { d: fill(craters), fill: shade(ROM.maaneMare, 0.2), op: 0.32 },
-        { d: fill(craters), fill: ROM.maane, op: 0.75, dx: -light[0] * shift, dy: -light[1] * shift },
+        { d: fill(MOON_MARIA_SOFT), fill: ROM.maaneMare, op: 0.32 },
+        { d: fill(MOON_MARIA), fill: ROM.maaneMare, op: 0.72 },
+        { d: fill(MOON_FRIGORIS), fill: ROM.maaneMare, op: 0.45 },
+        ...(detail >= 1 ? [{ d: projectLines(MOON_RAYS, lon0, lat0), stroke: ROM.maaneLys, sw: 0.03, op: 0.15 }] : []),
+        { d: fill(craters), fill: shade(ROM.maaneMare, 0.25), op: 0.22 },
+        { d: fill(craters), fill: ROM.maaneLys, op: 0.45, dx: -light[0] * shift, dy: -light[1] * shift },
       ];
     }
     case 'neptun':
@@ -807,18 +815,18 @@ export function Planet({ x, y, r, type, rotate = 0, dreining = 0, lysretning = 1
   // Avrundet lysretning, så små endringer i lyset ikke regner kartet på nytt.
   const lxr = r2(lx);
   const lyr = r2(ly);
-  const layers = useMemo(() => planetSurface(kind, Number.isFinite(dreining) ? dreining : 0, [lxr, lyr]), [kind, dreining, lxr, lyr]);
+  const detail: 0 | 1 | 2 = rr >= 40 ? 2 : rr >= 30 ? 1 : 0;
+  const layers = useMemo(
+    () => planetSurface(kind, Number.isFinite(dreining) ? dreining : 0, [lxr, lyr], detail),
+    [kind, dreining, lxr, lyr, detail],
+  );
   const nt = clamp(natt, 0, 1);
-  // Nattsida med lyset fra venstre (dreies etterpå mot lysretningen). Skillelinja dag–natt er en halv ellipse med
-  // halvakse e = |2 · fase − 1|. En radiell toning skalert med e følger den buede linja, så overgangen blir myk
-  // (bredde ca. 2 · soft) uten filter. Den myke sonen ligger utenfor ellipsen (ρ > 1), så det blir ingen skjøt
-  // mellom halvdelene ved polene.
   const fs = clamp(fase, 0, 1);
-  const gibbous = fs >= 0.5;
-  const e = Math.max(0.002, Math.abs(2 * fs - 1));
-  const rho1 = 1 + (2 * spec.soft) / e;
-  const eR = Math.round(e * 1000) / 1000;
-  const o1 = Math.round((1 / rho1) * 10000) / 10000;
+  const night = nightShade(fs, spec.soft);
+  // Atmosfæren lyser i kanten på dagsida: ringen er flyttet mot lyset, så den ligger skjult bak skiva på nattsida.
+  // Ved full fase (lyset bakfra) lyser den hele veien rundt.
+  const shift = 0.03 + 0.07 * clamp((1 - fs) / 0.2, 0, 1) * clamp(nt / 0.3, 0, 1);
+  const peak = 1.02 - shift;
   const u = 1 / rr; // én enhet i figuren, målt i planetens enhetskoordinater
   return (
     <g
@@ -836,13 +844,13 @@ export function Planet({ x, y, r, type, rotate = 0, dreining = 0, lysretning = 1
           <RadialGradient
             id={atmId}
             stops={[
-              [0.86, spec.atm, 0],
-              [0.935, spec.atm, 0.6],
-              [0.965, spec.atm, 0.25],
+              [r4((peak - 0.07) / 1.1), spec.atm, 0],
+              [r4(peak / 1.1), spec.atm, 0.6],
+              [r4((peak + 0.05) / 1.1), spec.atm, 0.25],
               [1, spec.atm, 0],
             ]}
           />
-          <circle cx={lx * 0.04} cy={ly * 0.04} r={1.07} fill={`url(#${atmId})`} opacity={kind === 'mars' ? 0.45 : 1} aria-hidden />
+          <circle cx={r4(lx * shift)} cy={r4(ly * shift)} r={1.1} fill={`url(#${atmId})`} opacity={kind === 'mars' ? 0.45 : 1} aria-hidden />
         </>
       )}
       <RadialGradient id={baseId} fx={0.5 + 0.22 * lx} fy={0.5 + 0.22 * ly} stops={spec.base} />
@@ -893,37 +901,32 @@ export function Planet({ x, y, r, type, rotate = 0, dreining = 0, lysretning = 1
         ]}
       />
       <circle r={1} fill={`url(#${shadeId})`} aria-hidden />
-      {nt > 0 && fs < 0.995 && (
+      {nt > 0 && night.kind !== 'none' && (
         <g transform={`rotate(${r2((th * 180) / Math.PI - 180)})`} aria-hidden>
-          {fs <= 0.005 ? (
+          {night.kind === 'full' ? (
             <circle r={1} fill={ROM.natt} opacity={nt} />
           ) : (
             <>
               <defs>
-                <radialGradient id={nightId} gradientUnits="userSpaceOnUse" cx={0} cy={0} r={Math.round(rho1 * 1000) / 1000} gradientTransform={`scale(${eR} 1)`}>
-                  {gibbous ? (
-                    <>
-                      <stop offset={o1} style={{ stopColor: ROM.natt, stopOpacity: 0 }} />
-                      <stop offset={1} style={{ stopColor: ROM.natt, stopOpacity: nt }} />
-                    </>
-                  ) : (
-                    <>
-                      <stop offset={o1} style={{ stopColor: ROM.natt, stopOpacity: 0 }} />
-                      <stop offset={o1} style={{ stopColor: ROM.natt, stopOpacity: nt }} />
-                      <stop offset={1} style={{ stopColor: ROM.natt, stopOpacity: 0 }} />
-                    </>
-                  )}
-                </radialGradient>
+                {night.kind === 'linear' ? (
+                  <linearGradient id={nightId} gradientUnits="userSpaceOnUse" x1={r4(night.x - night.w)} y1={0} x2={r4(night.x + night.w)} y2={0}>
+                    {TWILIGHT.map(([t, k]) => (
+                      <stop key={t} offset={(t + 1) / 2} style={{ stopColor: ROM.natt, stopOpacity: r4(nt * k) }} />
+                    ))}
+                  </linearGradient>
+                ) : (
+                  <radialGradient id={nightId} gradientUnits="userSpaceOnUse" cx={r4(night.cx)} cy={0} r={r4(night.R + night.w)}>
+                    {TWILIGHT.map(([t, k]) => (
+                      <stop
+                        key={t}
+                        offset={r4((night.R + t * night.w) / (night.R + night.w))}
+                        style={{ stopColor: ROM.natt, stopOpacity: r4(nt * (night.inside ? 1 - k : k)) }}
+                      />
+                    ))}
+                  </radialGradient>
+                )}
               </defs>
-              {gibbous ? (
-                <path d={RIGHT_HALF} fill={`url(#${nightId})`} />
-              ) : (
-                <>
-                  {/* Nattsida i ett stykke (ingen skjøt), og den myke overgangen som et bånd på dagsida */}
-                  <path d={`M0 -1A1 1 0 0 1 0 1A${eR} 1 0 0 1 0 -1Z`} fill={ROM.natt} opacity={nt} />
-                  <path d={LEFT_HALF} fill={`url(#${nightId})`} />
-                </>
-              )}
+              <circle r={1} fill={`url(#${nightId})`} />
             </>
           )}
         </g>
@@ -931,6 +934,44 @@ export function Planet({ x, y, r, type, rotate = 0, dreining = 0, lysretning = 1
       <circle r={1} fill="none" stroke={SCENE.outline} strokeWidth={0.9 * u * ss} opacity={0.65} />
     </g>
   );
+}
+
+const r4 = (v: number) => Math.round(v * 10000) / 10000;
+
+/** Skumringen: [t, mørke] fra dagsida (t = −1) til nattsida (t = 1), en myk S-kurve. */
+const TWILIGHT: readonly (readonly [number, number])[] = [
+  [-1, 0],
+  [-0.5, 0.16],
+  [0, 0.5],
+  [0.5, 0.84],
+  [1, 1],
+];
+
+type NightShade =
+  | { kind: 'none' }
+  | { kind: 'full' }
+  /** Rett skillelinje i x (halv fase). */
+  | { kind: 'linear'; x: number; w: number }
+  /** Skillelinja som en sirkel med sentrum (cx, 0) og radius R; natt utenfor (mer enn halv) eller innenfor (sigd). */
+  | { kind: 'radial'; cx: number; R: number; w: number; inside: boolean };
+
+/**
+ * Nattsida med lyset fra venstre (dreies etterpå mot lysretningen). Skillelinja dag–natt er en halv ellipse gjennom
+ * polene (0, ±1) og (±e, 0) med e = |2 · fase − 1|. Den tilnærmes med sirkelen gjennom de samme tre punktene (avvik
+ * under 3 % av diameteren), så hele nattsida blir én radiell toning over skiva: ingen skjøt ved polene, og den myke
+ * sonen ligger midt på linja (±w), som skumring. Ved nesten halv fase er linja rett (lineær toning).
+ */
+function nightShade(fs: number, soft: number): NightShade {
+  if (fs >= 0.995) return { kind: 'none' };
+  if (fs <= 0.005) return { kind: 'full' };
+  const gib = fs >= 0.5;
+  const e = Math.abs(2 * fs - 1);
+  // Skumringssonen er smalere når skillelinja ligger nær randen (sett på skrå).
+  const w = soft * Math.max(0.35, Math.sqrt(1 - e * e));
+  if (e < 0.03) return { kind: 'linear', x: gib ? e : -e, w };
+  const c = (1 - e * e) / (2 * e);
+  const R = (1 + e * e) / (2 * e);
+  return gib ? { kind: 'radial', cx: -c, R, w, inside: false } : { kind: 'radial', cx: c, R, w, inside: true };
 }
 
 /* ---------- Tåke ---------- */
@@ -970,18 +1011,19 @@ function makeNebula(w: number, h: number, seed: number, form: 'sky' | 'ring'): {
   const blobs: NebulaBlob[] = [];
   const stars: { x: number; y: number; r: number }[] = [];
   if (form === 'ring') {
-    // Klumper langs ringen
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2 + rnd() * 0.5;
-      const rad = 0.3 + rnd() * 0.05;
+    // Klumper av ulik størrelse langs den indre kanten av ringen (der den er sterkest)
+    for (let i = 0; i < 11; i++) {
+      const a = (i / 11) * Math.PI * 2 + rnd() * 0.45;
+      const rad = 0.215 + rnd() * 0.05;
+      const big = rnd();
       blobs.push({
         cx: w * (0.5 + Math.cos(a) * rad),
         cy: h * (0.5 + Math.sin(a) * rad * 0.92),
-        rx: w * (0.07 + rnd() * 0.05),
-        ry: h * (0.05 + rnd() * 0.04),
+        rx: w * (0.035 + big * 0.075),
+        ry: h * (0.03 + big * 0.045 + rnd() * 0.02),
         rot: (a * 180) / Math.PI + 90,
-        tone: i % 3 === 0 ? 1 : 0,
-        op: 0.3 + rnd() * 0.25,
+        tone: i % 4 === 1 ? 1 : 0,
+        op: 0.22 + rnd() * 0.3,
       });
     }
     stars.push({ x: w / 2, y: h / 2, r: 1 });
@@ -1102,18 +1144,21 @@ export function Taake({ x, y, w, h, seed = 1, farge = 'rod', form = 'sky', stjer
             id={haloId}
             stops={[
               [0, second, 0],
-              [0.62, second, 0.1],
-              [0.82, second, 0.2],
+              [0.55, second, 0.08],
+              [0.75, second, 0.16],
               [1, second, 0],
             ]}
           />
+          {/* Lysende, blågrønn midte; ringen er smal og sterkest ved den indre kanten, og faller mykt utover. */}
           <RadialGradient
             id={ringId}
             stops={[
-              [0, ROM.taakeIndre, 0.4],
-              [0.42, ROM.taakeIndre, 0.3],
-              [0.6, main, 0.75],
-              [0.78, main, 0.6],
+              [0, ROM.taakeIndre, 0.55],
+              [0.38, ROM.taakeIndre, 0.42],
+              [0.5, mix(ROM.taakeIndre, main, 0.6), 0.5],
+              [0.58, main, 0.85],
+              [0.68, main, 0.55],
+              [0.82, main, 0.2],
               [1, main, 0],
             ]}
           />
@@ -1156,21 +1201,26 @@ export interface NukleonProps {
   /** Sentrum. */
   x: number;
   y: number;
-  /** Radius i figurens enheter (standard 10). */
+  /** Radius i figurens enheter (standard 10). I en figur 800 enheter bred bør r være minst 10, så plusstegnet kan leses på mobil. */
   r?: number;
   type: NukleonType;
-  /** Plusstegn på protonet (standard når r ≥ 5). */
+  /** Plusstegn på protonet (standard når kula er stor nok til at tegnet kan leses, se Ball). */
   tegn?: boolean;
   dim?: boolean;
   title?: string;
 }
 
+/**
+ * Blank kule med lys fra øvre venstre og eventuelt et tegn (+ eller −). Tegnet vises når kula er minst ca. 3,5 enheter
+ * etter skaleringen for mobil (useSceneScale), og streken er aldri tynnere enn 1,4 · strekskala, så det ikke forsvinner.
+ */
 function Ball({ x, y, r, color, sign, dim, title }: { x: number; y: number; r: number; color: string; sign: '+' | '−' | null; dim?: boolean; title?: string }) {
   const ss = useStrokeScale();
+  const sc = useSceneScale();
   const id = useSvgId('rom-kule');
   const rr = Math.max(0.5, Number.isFinite(r) ? r : 0.5);
-  const s = rr * 0.48;
-  const sw = Math.max(1.1 * ss, rr * 0.2);
+  const s = rr * 0.5;
+  const sw = Math.min(rr * 0.42, Math.max(1.4 * ss, rr * 0.2));
   return (
     <g opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
@@ -1187,11 +1237,11 @@ function Ball({ x, y, r, color, sign, dim, title }: { x: number; y: number; r: n
           aria-hidden
         />
       )}
-      {sign && (
+      {sign && rr * sc >= 3.5 && (
         <path
           d={sign === '+' ? `M${r2(x - s)} ${r2(y)}h${r2(2 * s)}M${r2(x)} ${r2(y - s)}v${r2(2 * s)}` : `M${r2(x - s)} ${r2(y)}h${r2(2 * s)}`}
           stroke={ROM.tegn}
-          strokeWidth={sw}
+          strokeWidth={r2(sw)}
           strokeLinecap="round"
           aria-hidden
         />
@@ -1208,16 +1258,19 @@ function Ball({ x, y, r, color, sign, dim, title }: { x: number; y: number; r: n
  */
 export function Nukleon({ x, y, r = 10, type, tegn, dim, title }: NukleonProps) {
   const proton = type === 'proton';
-  return <Ball x={x} y={y} r={r} color={proton ? ROM.proton : ROM.noytron} sign={proton && (tegn ?? r >= 5) ? '+' : null} dim={dim} title={title} />;
+  return <Ball x={x} y={y} r={r} color={proton ? ROM.proton : ROM.noytron} sign={proton && (tegn ?? true) ? '+' : null} dim={dim} title={title} />;
 }
 
 export interface ElektronProps {
   /** Sentrum. */
   x: number;
   y: number;
-  /** Radius i figurens enheter (standard 6). Tegnes mindre enn nukleonene, selv om elektronet egentlig er et punkt. */
+  /**
+   * Radius i figurens enheter (standard 6). Tegnes mindre enn nukleonene, selv om elektronet egentlig er et punkt.
+   * I en figur 800 enheter bred bør r være minst 8, så minustegnet kan leses på mobil.
+   */
   r?: number;
-  /** Minustegn (standard når r ≥ 4). */
+  /** Minustegn (standard når kula er stor nok til at tegnet kan leses, se Ball). */
   tegn?: boolean;
   dim?: boolean;
   title?: string;
@@ -1225,172 +1278,10 @@ export interface ElektronProps {
 
 /**
  * Elektron: liten blå kule med minustegn, samme farge som i fysikk kapittel 7–8. Ankerpunkt: sentrum.
- *   <Elektron x={320} y={80} r={6} />
+ *   <Elektron x={320} y={80} r={8} />
  */
 export function Elektron({ x, y, r = 6, tegn, dim, title }: ElektronProps) {
-  return <Ball x={x} y={y} r={r} color={ROM.elektron} sign={(tegn ?? r >= 4) ? '−' : null} dim={dim} title={title} />;
-}
-
-interface PackedNucleon {
-  x: number;
-  y: number;
-  proton: boolean;
-  /** 0 = belyst, 1 = halvskygge, 2 = skygge (etter hvor på kula nukleonet sitter). */
-  light: 0 | 1 | 2;
-  /** Midten er synlig (ingen foran dekker den), så tegnet kan stå der. */
-  front: boolean;
-}
-
-type Vec3 = [number, number, number];
-
-/**
- * Tilfeldig tett kulepakking: A punkter spredt i en kule, så skjøvet fra hverandre (ingen overlapper mer enn litt) og
- * trukket inn mot midten, til de ligger tett som druer i en klase. Uregelmessig, men alltid rund.
- */
-function relaxedPacking(A: number, d: number, rnd: () => number): Vec3[] {
-  const R0 = (d / 2) * Math.cbrt(A / 0.5);
-  const xs = new Float64Array(A);
-  const ys = new Float64Array(A);
-  const zs = new Float64Array(A);
-  for (let i = 0; i < A; i++) {
-    let x = 0;
-    let y = 0;
-    let z = 0;
-    do {
-      x = rnd() * 2 - 1;
-      y = rnd() * 2 - 1;
-      z = rnd() * 2 - 1;
-    } while (x * x + y * y + z * z > 1);
-    xs[i] = x * R0;
-    ys[i] = y * R0;
-    zs[i] = z * R0;
-  }
-  const d2 = d * d;
-  const iters = A > 150 ? 40 : 50;
-  for (let it = 0; it < iters; it++) {
-    // Trekk inn mot midten (svakere mot slutten, så overlappene rekker å løses)
-    const pull = it < iters - 12 ? 0.965 : 1;
-    for (let i = 0; i < A; i++) {
-      xs[i] = xs[i]! * pull;
-      ys[i] = ys[i]! * pull;
-      zs[i] = zs[i]! * pull;
-    }
-    for (let i = 0; i < A; i++) {
-      for (let j = i + 1; j < A; j++) {
-        const dx = xs[j]! - xs[i]!;
-        const dy = ys[j]! - ys[i]!;
-        const dz = zs[j]! - zs[i]!;
-        const q = dx * dx + dy * dy + dz * dz;
-        if (q >= d2) continue;
-        const dist = Math.sqrt(q) || 1e-3;
-        const push = ((d - dist) / dist) * 0.5;
-        xs[i] = xs[i]! - dx * push;
-        ys[i] = ys[i]! - dy * push;
-        zs[i] = zs[i]! - dz * push;
-        xs[j] = xs[j]! + dx * push;
-        ys[j] = ys[j]! + dy * push;
-        zs[j] = zs[j]! + dz * push;
-      }
-    }
-  }
-  return Array.from({ length: A }, (_, i): Vec3 => [xs[i]!, ys[i]!, zs[i]!]);
-}
-
-/**
- * Tett pakket kjerne (A ≤ 4: faste former, ellers relaxedPacking), dreid tilfeldig (med frø) og sett forfra.
- * Radien blir ∝ A^(1/3).
- */
-function packNucleus(Z: number, N: number, seed: number): { list: PackedNucleon[]; radius: number } {
-  const A = Z + N;
-  if (A <= 0) return { list: [], radius: 0 };
-  const rnd = sceneRandom(seed * 1013 + A * 31 + Z * 7);
-  const d = 1.9; // avstand mellom sentrene, nukleonradius 1 (litt overlapp = tett pakket)
-  let pts: Vec3[];
-  // Små kjerner får en fast, lettlest stilling (alle nukleonene synes); større dreies tilfeldig med frøet.
-  const small = A <= 4;
-  if (A === 1) pts = [[0, 0, 0]];
-  else if (A === 2)
-    pts = [
-      [-d * 0.48, 0.08, 0.3],
-      [d * 0.48, -0.08, -0.3],
-    ];
-  else if (A === 3)
-    pts = [
-      [0, -d * 0.55, -0.25],
-      [-d / 2, d * 0.3, 0.2],
-      [d / 2, d * 0.26, 0.05],
-    ];
-  else if (A === 4) {
-    // Firflate med kantlengde d sett langs aksen mellom to motsatte kanter: en rombe av fire nukleoner
-    const t = d / (2 * Math.SQRT2);
-    pts = [
-      [-d / 2, 0, t],
-      [d / 2, 0, t],
-      [0, -d / 2, -t],
-      [0, d / 2, -t],
-    ];
-  } else pts = relaxedPacking(A, d, rnd);
-  const [al, be, ga] = small ? [0.18, 0.32, 0.1] : [rnd() * Math.PI * 2, Math.acos(2 * rnd() - 1), rnd() * Math.PI * 2];
-  const [ca, sa, cb, sb, cg, sg] = [Math.cos(al), Math.sin(al), Math.cos(be), Math.sin(be), Math.cos(ga), Math.sin(ga)];
-  let mx = 0;
-  let my = 0;
-  let mz = 0;
-  const rot = pts.map(([px, py, pz]) => {
-    const x1 = ca * px - sa * py;
-    const y1 = sa * px + ca * py;
-    const y2 = cb * y1 - sb * pz;
-    const z2 = sb * y1 + cb * pz;
-    const x3 = cg * x1 - sg * y2;
-    const y3 = sg * x1 + cg * y2;
-    const q: Vec3 = [x3, y3, z2];
-    mx += q[0];
-    my += q[1];
-    mz += q[2];
-    return q;
-  });
-  mx /= A;
-  my /= A;
-  mz /= A;
-  for (const q of rot) {
-    q[0] -= mx;
-    q[1] -= my;
-    q[2] -= mz;
-  }
-  // Protonene spredt jevnt (stokket med frøet).
-  const kinds = Array.from({ length: A }, (_, i) => i < Z);
-  for (let i = A - 1; i > 0; i--) {
-    const j = Math.floor(rnd() * (i + 1));
-    const tmp = kinds[i]!;
-    kinds[i] = kinds[j]!;
-    kinds[j] = tmp;
-  }
-  let Rb = 0;
-  for (const q of rot) Rb = Math.max(Rb, Math.hypot(q[0], q[1], q[2]));
-  const L = [-0.5, -0.6, 0.62];
-  const Ln = Math.hypot(L[0]!, L[1]!, L[2]!);
-  const list: (PackedNucleon & { z: number })[] = [];
-  rot.forEach((q, i) => {
-    const m = Math.hypot(q[0], q[1], q[2]);
-    const dotL = m < 0.3 ? 1 : (q[0] * L[0]! + q[1] * L[1]! + q[2] * L[2]!) / (m * Ln);
-    const zf = Math.sqrt(Math.max(0, Rb * Rb - q[0] * q[0] - q[1] * q[1]));
-    // Bare de som kan synes: ytterste lag og litt til (de inne i kjernen dekkes helt).
-    if (A > 30 && q[2] < zf - 2.3) return;
-    const outer = m > Rb * 0.55 ? (dotL > 0.3 ? 0 : dotL > -0.25 ? 1 : 2) : dotL > -0.1 ? 0 : 1;
-    list.push({ x: q[0], y: q[1], z: q[2], proton: kinds[i]!, light: outer as 0 | 1 | 2, front: true });
-  });
-  list.sort((u, v) => u.z - v.z);
-  // Tegnet (+) bare der ingen nukleon foran dekker midten av kula (sentrum nærmere enn 1 + tegnets halve lengde).
-  for (let i = 0; i < list.length; i++) {
-    const p = list[i]!;
-    for (let j = i + 1; j < list.length; j++) {
-      const o = list[j]!;
-      if (o.z > p.z && (o.x - p.x) ** 2 + (o.y - p.y) ** 2 < 1.46 * 1.46) {
-        p.front = false;
-        break;
-      }
-    }
-  }
-  return { list, radius: Rb + 1 };
+  return <Ball x={x} y={y} r={r} color={ROM.elektron} sign={(tegn ?? true) ? '−' : null} dim={dim} title={title} />;
 }
 
 export interface AtomkjerneProps {
@@ -1403,10 +1294,10 @@ export interface AtomkjerneProps {
   N: number;
   /**
    * Radius til ett nukleon i figurens enheter (standard 7). Hele kjernen får radius ca. r · (1 + 1,1 · ∛A):
-   * 2,2 r for helium-4, 3,4 r for karbon-12, 5,2 r for jern-56 og 8 r for uran-238.
+   * ca. 3,3 r for karbon-12, 5,1 r for jern-56 og 7,6 r for uran-238 (helium-4 er en rombe på ca. 2 r).
    */
   r?: number;
-  /** Frø: annen plassering av protonene og nøytronene. */
+  /** Frø: annen dreining og plassering av protonene og nøytronene (kjerner med A ≤ 4 har en fast, lettlest form). */
   seed?: number;
   /** Plusstegn på protonene i det fremste laget (standard når r ≥ 7 og A ≤ 60). */
   tegn?: boolean;
@@ -1416,8 +1307,9 @@ export interface AtomkjerneProps {
 
 /**
  * Atomkjerne: tett pakket kule av protoner (rødoransje) og nøytroner (gråblå) med 3D-skygge. Plasseringen er fast for
- * samme Z, N og frø, og størrelsen vokser som A^(1/3) (som ekte kjerner). Bare nukleonene som kan synes tegnes, så
- * også uran holder seg under ca. 100 elementer. Ankerpunkt: sentrum.
+ * samme Z, N og frø, protonene er spredt jevnt (ingen klynger), og størrelsen vokser som A^(1/3) (som ekte kjerner).
+ * En mørk kule bak nukleonene gjør at mellomrommene ser ut som innsiden av kjernen. Bare nukleonene som kan synes,
+ * tegnes, så også uran holder seg under ca. 95 elementer. Ankerpunkt: sentrum.
  *   <Atomkjerne x={200} y={150} Z={2} N={2} r={10} />       // alfapartikkel
  *   <Atomkjerne x={420} y={150} Z={92} N={146} r={5} />     // uran-238
  */
@@ -1431,11 +1323,14 @@ export function Atomkjerne({ x, y, Z, N, r = 7, seed = 1, tegn, dim, title }: At
     useSvgId('rom-p1'),
     useSvgId('rom-p2'),
   ];
+  const bgId = useSvgId('rom-kjerne-indre');
   const z = Math.round(clamp(Z, 0, 120));
   const n = Math.round(clamp(N, 0, 180));
-  const pack = useMemo(() => packNucleus(z, n, Math.round(seed)), [z, n, seed]);
+  const sd = Math.round(Number.isFinite(seed) ? seed : 1);
+  const pack = useMemo(() => packNucleus(z, n, sd), [z, n, sd]);
   const rr = Math.max(0.5, Number.isFinite(r) ? r : 0.5);
-  const showSign = tegn ?? (rr >= 7 && z + n <= 60);
+  const A = z + n;
+  const showSign = tegn ?? (rr >= 7 && A <= 60);
   const signs = useMemo(() => {
     if (!showSign) return '';
     const s = 0.46;
@@ -1445,11 +1340,28 @@ export function Atomkjerne({ x, y, Z, N, r = 7, seed = 1, tegn, dim, title }: At
     return d;
   }, [pack, showSign, rr, x, y]);
   if (pack.list.length === 0) return null;
+  // Innsiden av kjernen: en mørk blanding av proton- og nøytronfargen etter andelen protoner.
+  const inner = shade(mix(ROM.noytron, ROM.proton, A > 0 ? z / A : 0), 0.45);
   return (
     <g opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
       {[ROM.noytron, ROM.proton].map((c, k) =>
         [0, 0.14, 0.3].map((dark, j) => <RadialGradient key={`${k}${j}`} id={ids[k * 3 + j]!} fx={0.36} fy={0.32} stops={ballStops(c, dark)} />),
+      )}
+      {A > 4 && (
+        <>
+          <RadialGradient
+            id={bgId}
+            fx={0.38}
+            fy={0.34}
+            stops={[
+              [0, inner],
+              [0.6, shade(inner, 0.15)],
+              [1, shade(inner, 0.4)],
+            ]}
+          />
+          <circle cx={x} cy={y} r={r2((pack.core + 0.6) * rr)} fill={`url(#${bgId})`} aria-hidden />
+        </>
       )}
       {pack.list.map((p, i) => (
         <circle
@@ -1462,7 +1374,7 @@ export function Atomkjerne({ x, y, Z, N, r = 7, seed = 1, tegn, dim, title }: At
           strokeWidth={0.6 * ss}
         />
       ))}
-      {signs && <path d={signs} stroke={ROM.tegn} strokeWidth={Math.max(1.1 * ss, rr * 0.18)} strokeLinecap="round" opacity={0.9} aria-hidden />}
+      {signs && <path d={signs} stroke={ROM.tegn} strokeWidth={Math.max(1.2 * ss, rr * 0.18)} strokeLinecap="round" opacity={0.9} aria-hidden />}
     </g>
   );
 }
@@ -1508,12 +1420,17 @@ export function Foton({ x1, y1, x2, y2, bolgelengde = 550, amplitude = 8, label,
   if (!Number.isFinite(len) || len < 16) return null;
   const ux = dx / len;
   const uy = dy / len;
-  const color = farge ?? bolgelengdeFarge(bolgelengde, false);
+  // Ugyldig bølgelengde gir 550 nm både for fargen og for antall svingninger.
+  const nm = Number.isFinite(bolgelengde) && bolgelengde > 0 ? bolgelengde : 550;
+  const color = farge ?? bolgelengdeFarge(nm, false);
+  // Lyse farger (gult, grønt, cyan) får en tydeligere, mørk kant i samme fargetone, så de synes på lys bunn.
+  const bright = farge === undefined && lightness(wavelengthRgb(nm, 0.8)) > 0.6;
+  const edge = bright ? shade(color, 0.45) : SCENE.outline;
+  const edgeOp = bright ? 0.8 : 0.45;
   const hl = Math.min(len * 0.3, 11 * ss);
   const hw = 5.5 * ss;
   const body = len - hl;
-  const amp = Math.max(1, amplitude);
-  const nm = bolgelengde > 0 ? bolgelengde : 550;
+  const amp = Math.max(1, Number.isFinite(amplitude) ? amplitude : 8);
   const cyc = clamp(svingninger ?? 3000 / nm, 1.5, Math.max(1.5, Math.min(14, body / (7 * ss))));
   const lam = body / cyc;
   const step = Math.max(1, Math.min(2.5, lam / 10));
@@ -1542,9 +1459,9 @@ export function Foton({ x1, y1, x2, y2, bolgelengde = 550, amplitude = 8, label,
     <g opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
       <path d={d} fill="none" stroke={color} strokeWidth={7 * ss} strokeLinecap="round" strokeLinejoin="round" opacity={0.18} aria-hidden />
-      <path d={d} fill="none" stroke={SCENE.outline} strokeWidth={3.8 * ss} strokeLinecap="round" strokeLinejoin="round" opacity={0.45} aria-hidden />
+      <path d={d} fill="none" stroke={edge} strokeWidth={3.8 * ss} strokeLinecap="round" strokeLinejoin="round" opacity={edgeOp} aria-hidden />
       <path d={d} fill="none" stroke={color} strokeWidth={2.4 * ss} strokeLinecap="round" strokeLinejoin="round" />
-      <path d={head} fill={color} stroke={SCENE.outline} strokeWidth={0.8 * ss} strokeLinejoin="round" />
+      <path d={head} fill={color} stroke={edge} strokeWidth={(bright ? 1 : 0.8) * ss} strokeLinejoin="round" />
       {label !== undefined && (
         <Txt x={mx + nx * off} y={my + ny * off + (ny < -0.5 ? 0 : 6 * f)} anchor={Math.abs(nx) > 0.5 ? (nx > 0 ? 'start' : 'end') : 'middle'} weight={700}>
           {label}
@@ -1583,7 +1500,6 @@ export interface LysstraaleProps {
  */
 export function Lysstraale({ x1, y1, x2, y2, bolgelengde, hvit, bredde = 4, pil = true, styrke = 1, dim, title }: LysstraaleProps) {
   const ss = useStrokeScale();
-  const gid = useSvgId('rom-straale');
   const dx = x2 - x1;
   const dy = y2 - y1;
   const len = Math.hypot(dx, dy);
@@ -1596,41 +1512,23 @@ export function Lysstraale({ x1, y1, x2, y2, bolgelengde, hvit, bredde = 4, pil 
   const c = white ? ROM.hvittLys : bolgelengdeFarge(bolgelengde, false);
   const g = white ? ROM.hvittGlod : c;
   const k = clamp(styrke, 0, 1);
-  const b = Math.max(0.8, bredde) * Math.max(1, ss * 0.9);
+  const b = Math.max(0.8, Number.isFinite(bredde) ? bredde : 4) * Math.max(1, ss * 0.9);
   const W = b * 3.4 + 2 * ss;
   const mx = (x1 + x2) / 2;
   const my = (y1 + y2) / 2;
-  const quad = [
-    [x1 + (nx * W) / 2, y1 + (ny * W) / 2],
-    [x2 + (nx * W) / 2, y2 + (ny * W) / 2],
-    [x2 - (nx * W) / 2, y2 - (ny * W) / 2],
-    [x1 - (nx * W) / 2, y1 - (ny * W) / 2],
-  ]
-    .map(([px, py]) => `${r2(px!)},${r2(py!)}`)
-    .join(' ');
   const a = b * 1.5 + 5 * ss;
   const tip = [mx + ux * a * 0.6, my + uy * a * 0.6];
   const arrow = `M${r2(tip[0]!)} ${r2(tip[1]!)}L${r2(mx - ux * a * 0.4 + nx * a * 0.55)} ${r2(my - uy * a * 0.4 + ny * a * 0.55)}L${r2(mx - ux * a * 0.4 - nx * a * 0.55)} ${r2(my - uy * a * 0.4 - ny * a * 0.55)}Z`;
+  const line = { x1, y1, x2, y2 };
   return (
     <g opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
-      <LinearGradient
-        id={gid}
-        userSpace
-        x1={mx + (nx * W) / 2}
-        y1={my + (ny * W) / 2}
-        x2={mx - (nx * W) / 2}
-        y2={my - (ny * W) / 2}
-        stops={[
-          [0, g, 0],
-          [0.5, g, 0.5 * k],
-          [1, g, 0],
-        ]}
-      />
-      <polygon points={quad} fill={`url(#${gid})`} aria-hidden />
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={white ? g : shade(c, 0.18)} strokeWidth={b + 1.4 * ss} opacity={(white ? 0.55 : 0.6) * k} />
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={c} strokeWidth={b} opacity={0.35 + 0.65 * k} />
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={tint(c, 0.55)} strokeWidth={b * 0.32} opacity={0.75 * k} aria-hidden />
+      {/* Gløden: to brede, svake streker med runde ender (myk kant og ingen firkantet slutt) */}
+      <line {...line} stroke={g} strokeWidth={r2(W)} strokeLinecap="round" opacity={0.12 * k} aria-hidden />
+      <line {...line} stroke={g} strokeWidth={r2(W * 0.58)} strokeLinecap="round" opacity={0.2 * k} aria-hidden />
+      <line {...line} stroke={white ? g : shade(c, 0.18)} strokeWidth={b + 1.4 * ss} opacity={(white ? 0.55 : 0.6) * k} />
+      <line {...line} stroke={c} strokeWidth={b} opacity={0.35 + 0.65 * k} />
+      <line {...line} stroke={tint(c, 0.55)} strokeWidth={b * 0.32} opacity={0.75 * k} aria-hidden />
       {pil && len > a * 3 && <path d={arrow} fill={white ? g : c} stroke={shade(white ? g : c, 0.55)} strokeWidth={1.1 * ss} strokeLinejoin="round" />}
     </g>
   );
@@ -1657,7 +1555,10 @@ export interface SpektrumProps {
   fra?: number;
   /** Bølgelengden ved høyre kant i nm (standard 750). Over 750 nm tones det ut (IR). */
   til?: number;
-  /** Tall i nm under spekteret (tar ca. 8 + 16 · tekstskala ekstra høyde). */
+  /**
+   * Tall i nm under spekteret. Tar ca. 6 · strekskala + 17 · tekstskala ekstra høyde under stripa: ca. 23 enheter på
+   * PC, og opptil ca. 40 i en figur 800 enheter bred på mobil. Sett av plass i viewBox.
+   */
   skala?: boolean;
   dim?: boolean;
   title?: string;
@@ -1696,7 +1597,7 @@ export function Spektrum({ x, y, w, h, type = 'kontinuerlig', linjer = [], fra =
   const lines = linjer
     .map((l) => (typeof l === 'number' ? { nm: l, styrke: 1 } : { nm: l.nm, styrke: l.styrke ?? 1 }))
     .filter((l) => Number.isFinite(l.nm) && l.nm >= lo && l.nm <= hi);
-  const lw = type === 'emisjon' ? Math.max(1.6 * ss, W / 260) : Math.max(1.8 * ss, W / 220);
+  const lw = type === 'emisjon' ? Math.max(2 * ss, W / 170) : Math.max(1.8 * ss, W / 220);
   const ticks = useMemo(() => {
     if (!skala) return [];
     const minGap = 46 * f;

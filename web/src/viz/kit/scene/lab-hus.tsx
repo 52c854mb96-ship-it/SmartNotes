@@ -242,7 +242,7 @@ export function Sikringsskap({ x, y, w, h, kurser, dim, title }: SikringsskapPro
   // Én skriftstørrelse for alle navnene: den største som alle får plass med (på én eller to linjer), men ikke under
   // NAME_FLOOR. Navn som ikke får plass da, forkortes.
   const labelH = rowH * 0.3;
-  const room = colW * 0.92;
+  const room = colW * 0.86;
   const oneMax = labelH * 0.6;
   const twoMax = (labelH * 0.86) / 2.25;
   const fits: NameFit[] = list.map((k) => {

@@ -287,9 +287,9 @@ export default function Galleri() {
       <GalleryItem title="Sikringsskap med tolv kurser (to rader, lange navn på to linjer) og et lite skap (langt navn forkortet)" viewBox="0 0 400 260">
         <Room h={260} floor={252} />
         <Sikringsskap
-          x={140}
+          x={152}
           y={128}
-          w={260}
+          w={290}
           h={230}
           kurser={['Kjøkken', 'Stue', 'Bad', 'Soverom 1', 'Soverom 2', 'Gang', 'Vaske\u00adrom', 'Bod', 'Garasje', 'Lys', 'Varme\u00adkabler', 'Elbil'].map((navn, i) => ({
             navn,
@@ -297,7 +297,7 @@ export default function Galleri() {
             gaatt: i === 4,
           }))}
         />
-        <Sikringsskap x={340} y={110} w={90} h={110} kurser={[{ navn: 'Ovn', merking: '10 A' }, { navn: 'Utebelysning', merking: '10 A', gaatt: true }]} />
+        <Sikringsskap x={350} y={110} w={84} h={110} kurser={[{ navn: 'Ovn', merking: '10 A' }, { navn: 'Utebelysning', merking: '10 A', gaatt: true }]} />
       </GalleryItem>
 
       <GalleryItem title="Solcellepanel: 15°, 40° og 60° på stolpe, 90° på en fasade og 30° på taket" viewBox="0 0 400 240">
@@ -354,31 +354,43 @@ export default function Galleri() {
 /**
  * Slik en strømkrets kan se ut i et kapittel (viewBox 800 bred, så teksten vokser på mobil som i kapitlene).
  * Tallene henger sammen: 9 V-batteri, I = 0,30 A, R = 10 Ω gir 3,0 V over motstanden og 6,0 V over lab-pæra.
- * Multimeterne er ganget med useSceneScale(), så avlesningen kan leses på mobil, og strømmen står også i et skilt.
  */
 function KapittelKrets() {
+  return (
+    <GalleryItem title="I et kapittel: amperemeter i serie, voltmeter over motstanden" viewBox="0 0 800 420">
+      <KretsScene />
+    </GalleryItem>
+  );
+}
+
+/**
+ * Innholdet i figuren. useSceneScale() virker bare inne i <Figure>, så scenen er en egen komponent. Multimeterne
+ * vokser på mobil, så avlesningen kan leses, og strømmen står også i et skilt ved amperemeteret.
+ */
+function KretsScene() {
   const s = useSceneScale();
-  const batt = { x: 120, y: 322, size: 100, type: '9v' as const };
+  const bench = 390;
+  const top = 200;
+  const batt = { x: 120, y: bench + 2 - 50, size: 100, type: '9v' as const };
   const b = batteriPoler(batt);
-  const brt = { x: 300, y: 372, size: 130, lukket: true };
+  const brt = { x: 300, y: bench + 2, size: 130, lukket: true };
   const sw = bryterPoler(brt);
-  const lamp = { x: 660, y: 372, size: 110, fatning: true, lysstyrke: 0.8 };
+  const lamp = { x: 660, y: bench + 2, size: 110, fatning: true, lysstyrke: 0.8 };
   const l = lyspaerePoler(lamp);
-  // Amperemeteret står på benken, voltmeteret henger øverst; begge vokser på mobil.
-  const amSize = 120 * s;
-  const am = { x: 470, y: 368 - amSize / 2, size: amSize, visning: '0,30 A', modus: 'A' as const };
+  // Amperemeteret står på benken, voltmeteret henger øverst over motstanden.
+  const amSize = 110 * s;
+  const am = { x: 470, y: bench - 2 - amSize / 2, size: amSize, visning: '0,30 A', modus: 'A' as const };
   const a = multimeterPunkter(am);
-  const vmSize = 110 * s;
+  const vmSize = 100 * s;
   const vm = { x: 270, y: 10 + vmSize / 2, size: vmSize, visning: '3,0 V', modus: 'V' as const };
   const v = multimeterPunkter(vm);
   const vBottom = 10 + vmSize;
   const bus = a.com.y + 14;
-  const top = 200;
   const strom = { fase: 0.35 };
   return (
-    <GalleryItem title="I et kapittel: amperemeter i serie, voltmeter over motstanden" viewBox="0 0 800 400">
-      <Lab w={800} h={400} bench={370} />
-      <Ledning points={[[b.pluss.x, b.pluss.y], [b.pluss.x, 240], [sw.a.x, 240], [sw.a.x, sw.a.y]]} strom={strom} />
+    <>
+      <Lab w={800} h={420} bench={bench} />
+      <Ledning points={[[b.pluss.x, b.pluss.y], [sw.a.x, b.pluss.y], [sw.a.x, sw.a.y]]} strom={strom} />
       <Ledning points={[[sw.b.x, sw.b.y], [400, sw.b.y], [400, bus], [a.inn.x, bus], [a.inn.x, a.inn.y]]} strom={strom} />
       <Ledning points={[[a.com.x, a.com.y], [a.com.x, bus], [600, bus], [600, l.a.y], [l.a.x, l.a.y]]} farge="svart" strom={strom} />
       <Ledning points={[[l.b.x, l.b.y], [745, l.b.y], [745, top], [340, top]]} farge="svart" strom={strom} />
@@ -391,9 +403,9 @@ function KapittelKrets() {
       <Multimeter {...vm} />
       <Ledning points={[[v.inn.x, v.inn.y], [v.inn.x, vBottom + 10], [326, vBottom + 10], [326, top]]} farge="rod" bredde={4} />
       <Ledning points={[[v.com.x, v.com.y], [v.com.x, vBottom + 18], [214, vBottom + 18], [214, top]]} farge="svart" bredde={4} />
-      <ValueTag x={am.x - am.size * 0.28 - 12} y={am.y} text="0,30 A" color={VIZ.series[0]} anchor="end" />
+      <ValueTag x={am.x - am.size * 0.28 - 12} y={am.y - 8} text="0,30 A" color={VIZ.series[0]} anchor="end" />
       <ForceArrow x1={700} y1={172} x2={600} y2={172} color={VIZ.series[0]} width={5} label="I" />
-    </GalleryItem>
+    </>
   );
 }
 
