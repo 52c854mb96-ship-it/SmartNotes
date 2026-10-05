@@ -18,11 +18,12 @@ import { GalleryGrid, GalleryItem } from './felles';
 
 const rad = (deg: number) => (deg * Math.PI) / 180;
 
-/** Punktet (lx, ly) i en gjenstand som står i (x, y) dreid `deg` grader og skalert med k. */
-function at(x: number, y: number, deg: number, k: number, lx: number, ly: number) {
+/** Punktet (lx, ly) i en gjenstand som står i (x, y) dreid `deg` grader, skalert med k og eventuelt speilvendt. */
+function at(x: number, y: number, deg: number, k: number, lx: number, ly: number, flip = false) {
   const c = Math.cos(rad(deg));
   const s = Math.sin(rad(deg));
-  return { x: x + (lx * c - ly * s) * k, y: y + (lx * s + ly * c) * k };
+  const fx = flip ? -lx : lx;
+  return { x: x + (fx * c - ly * s) * k, y: y + (fx * s + ly * c) * k };
 }
 
 /** Sykkel med en rytter på 1,75 m: setet, styret og pedalene fra sykkelPunkter. */
@@ -119,12 +120,12 @@ export default function Galleri() {
   // Sykkel i motbakke (speilvendt, 10°)
   const climbY = (x: number) => 150 + Math.tan(rad(10)) * x;
 
-  // Sitte på kjelke (flat snø) og akebrett (20° ned mot høyre). Samme skala for person og gjenstand.
-  const kjelke = { x: 100, y: 206, size: 80 };
+  // Sitte på kjelke (flat snø) og akebrett (speilvendt, i en bakke som stiger 20° mot høyre). Samme skala for person og gjenstand.
+  const kjelke = { x: 92, y: 204, size: 80 };
   const kjK = kjelke.size / 90;
   const kjM = kjelke.size / 0.9;
   const sitSlope = 20;
-  const sitY = (x: number) => 96 + Math.tan(rad(sitSlope)) * (x - 220);
+  const sitY = (x: number) => (x < 190 ? kjelke.y : kjelke.y - Math.tan(rad(sitSlope)) * (x - 190));
   const brett = { x: 300, y: sitY(300), size: 72 };
   const brK = brett.size / 80;
   const brM = brett.size / 0.8;
@@ -266,13 +267,10 @@ export default function Galleri() {
         <ForceArrow x1={kjc.x} y1={kjc.y} x2={kjc.x - tx * 46} y2={kjc.y - ty * 46} color={VIZ.friction} label="R" />
       </GalleryItem>
 
-      <GalleryItem title="Sitter på kjelken (flat snø) og akebrettet (20°), samme skala">
-        <Backdrop ground={150} floor={SCENE.snow} />
-        <polygon points={`220,${sitY(220)} 400,${sitY(400)} 400,240 220,240`} fill={SCENE.snow} />
-        <line x1={0} y1={150} x2={220} y2={150} stroke={SCENE.snowShade} strokeWidth={2} />
-        <rect x={0} y={150} width={220} height={90} fill={SCENE.snow} />
-        <line x1={0} y1={kjelke.y} x2={210} y2={kjelke.y} stroke={SCENE.snowShade} strokeWidth={2} />
-        <line x1={220} y1={sitY(220)} x2={400} y2={sitY(400)} stroke={SCENE.snowShade} strokeWidth={2} />
+      <GalleryItem title="Sitter på kjelken (flat snø) og akebrettet (speilvendt, 20°), samme skala">
+        <Backdrop ground={240} />
+        <polygon points={`0,${kjelke.y} 190,${kjelke.y} 400,${sitY(400)} 400,240 0,240`} fill={SCENE.snow} />
+        <polyline points={`0,${kjelke.y} 190,${kjelke.y} 400,${sitY(400)}`} fill="none" stroke={SCENE.snowShade} strokeWidth={2.5} />
         <Kjelke x={kjelke.x} y={kjelke.y} size={kjelke.size} />
         <Person
           x={kjelke.x - 16 * kjK}
@@ -283,17 +281,26 @@ export default function Galleri() {
           lue="rod"
           fest={{ hoyreFot: at(kjelke.x, kjelke.y, 0, kjK, 47, -27), venstreFot: at(kjelke.x, kjelke.y, 0, kjK, 45, -28) }}
         />
-        <Akebrett x={brett.x} y={brett.y} size={brett.size} rotate={sitSlope} lakk="blaa" />
+        <Akebrett x={brett.x} y={brett.y} size={brett.size} rotate={-sitSlope} flip lakk="blaa" />
         <Person
-          {...at(brett.x, brett.y, sitSlope, brK, -10, -3.5)}
+          {...at(brett.x, brett.y, -sitSlope, brK, -10, -3.5, true)}
           size={1.75 * brM}
-          rotate={sitSlope}
+          rotate={-sitSlope}
+          flip
           pose="sitte"
           jakke="oransje"
           lue="blaa"
-          fest={{ hoyreFot: at(brett.x, brett.y, sitSlope, brK, 38, -16), venstreFot: at(brett.x, brett.y, sitSlope, brK, 36, -17) }}
+          fest={{ hoyreFot: at(brett.x, brett.y, -sitSlope, brK, 38, -16, true), venstreFot: at(brett.x, brett.y, -sitSlope, brK, 36, -17, true) }}
         />
-        <ForceArrow x1={kjelke.x} y1={kjelke.y} x2={kjelke.x} y2={kjelke.y - 60} color={VIZ.normal} label="N" />
+        <ForceArrow
+          x1={brett.x - 40}
+          y1={brett.y - 74}
+          x2={brett.x - 40 - Math.cos(rad(sitSlope)) * 70}
+          y2={brett.y - 74 + Math.sin(rad(sitSlope)) * 70}
+          color={VIZ.velocity}
+          label="v"
+          width={5}
+        />
       </GalleryItem>
 
       <GalleryItem title="Akebrett og kjelke store, på flat snø (blått brett nedtonet)">
@@ -301,8 +308,8 @@ export default function Galleri() {
         <rect x={0} y={96} width={400} height={4} fill={SCENE.snowShade} />
         <Akebrett x={86} y={140} size={110} lakk="gul" tau={false} />
         <Kjelke x={290} y={140} size={70} flip tau={false} />
-        <Akebrett x={96} y={222} size={150} lakk="blaa" dim />
-        <Kjelke x={290} y={222} size={170} />
+        <Akebrett x={84} y={222} size={150} lakk="blaa" dim />
+        <Kjelke x={282} y={222} size={170} />
       </GalleryItem>
 
       <GalleryItem title="Støtforsøk: to vogner med fjær mot hverandre">

@@ -198,27 +198,31 @@ export default function Galleri() {
       </GalleryItem>
 
       <GalleryItem title="Atomkjerner: radius ∝ A^(1/3)" viewBox="0 0 400 240">
-        <Atomkjerne x={40} y={100} Z={2} N={2} r={8} />
-        <Atomkjerne x={105} y={100} Z={6} N={6} r={8} />
-        <Atomkjerne x={190} y={100} Z={26} N={30} r={6} />
-        <Atomkjerne x={310} y={100} Z={92} N={146} r={6} />
-        <Txt x={40} y={185} size={0.7}>
-          ⁴He
+        <Atomkjerne x={40} y={78} Z={2} N={2} r={8} />
+        <Atomkjerne x={105} y={78} Z={6} N={6} r={8} />
+        <Atomkjerne x={190} y={78} Z={26} N={30} r={6} />
+        <Atomkjerne x={315} y={78} Z={92} N={146} r={6} />
+        {[
+          [40, '⁴He'],
+          [105, '¹²C'],
+          [190, '⁵⁶Fe'],
+          [315, '²³⁸U'],
+        ].map(([x, t]) => (
+          <Txt key={t} x={x as number} y={152} size={0.7}>
+            {t}
+          </Txt>
+        ))}
+        <Atomkjerne x={40} y={200} Z={1} N={0} r={7} />
+        <Atomkjerne x={80} y={200} Z={1} N={1} r={7} />
+        <Atomkjerne x={130} y={200} Z={1} N={2} r={7} />
+        <Atomkjerne x={205} y={200} Z={8} N={8} r={4.5} seed={2} />
+        <Atomkjerne x={255} y={200} Z={8} N={8} r={4.5} seed={3} />
+        <Txt x={85} y={234} size={0.6}>
+          ¹H, ²H, ³H
         </Txt>
-        <Txt x={105} y={185} size={0.7}>
-          ¹²C
+        <Txt x={230} y={234} size={0.6}>
+          ¹⁶O med frø 2 og 3
         </Txt>
-        <Txt x={190} y={185} size={0.7}>
-          ⁵⁶Fe
-        </Txt>
-        <Txt x={310} y={185} size={0.7}>
-          ²³⁸U
-        </Txt>
-        <Atomkjerne x={40} y={215} Z={1} N={0} r={7} />
-        <Atomkjerne x={80} y={215} Z={1} N={1} r={7} />
-        <Atomkjerne x={130} y={215} Z={1} N={2} r={7} />
-        <Atomkjerne x={205} y={215} Z={8} N={8} r={4.5} seed={2} />
-        <Atomkjerne x={250} y={215} Z={8} N={8} r={4.5} seed={3} />
       </GalleryItem>
 
       <GalleryItem title="Alfahenfall med fart og γ-foton">

@@ -53,6 +53,16 @@ function Chair({ x, y, k, floor }: { x: number; y: number; k: number; floor: num
   );
 }
 
+/** Krakk med setet i (x, y) og beina ned til gulvet. */
+function Stool({ x, y, floor, w }: { x: number; y: number; floor: number; w: number }) {
+  return (
+    <g stroke={SCENE.outline} strokeWidth={0.8}>
+      <path d={`M${x - w * 0.42},${y + 1} L${x - w * 0.5},${floor} M${x + w * 0.42},${y + 1} L${x + w * 0.5},${floor}`} stroke={SCENE.woodDark} strokeWidth={Math.max(1.6, w * 0.09)} strokeLinecap="round" />
+      <rect x={x - w / 2} y={y - 0.5} width={w} height={Math.max(2.4, w * 0.12)} rx={1} fill={SCENE.wood} />
+    </g>
+  );
+}
+
 /** Enkel sykkel som passer standardsykkelen til 'sykle' (setet i x, y; k = size / 100). */
 function SimpleBike({ x, y, k, fase }: { x: number; y: number; k: number; fase: number }) {
   const P = (a: number, b: number) => ({ x: x + a * k, y: y + b * k });
@@ -60,7 +70,7 @@ function SimpleBike({ x, y, k, fase }: { x: number; y: number; k: number; fase: 
   const rear = P(-10.6, 34);
   const front = P(47.4, 34);
   const head = P(37, 6);
-  const bar = P(41, -3);
+  const bar = P(35.3, -2.9);
   const r = 19.4 * k;
   const th = fase * Math.PI * 2;
   const pedal = (a: number) => ({ x: crank.x + Math.cos(a) * 10 * k, y: crank.y + Math.sin(a) * 10 * k });
@@ -111,9 +121,15 @@ export default function Galleri() {
 
       <GalleryItem title="Alle positurer (pose)">
         <Backdrop />
-        {POSES.map((p, i) => (
-          <Person key={p} x={24 + (i % 6) * 66} y={i < 6 ? 100 : 212} size={62} pose={p} skygge={false} />
-        ))}
+        <rect x={0} y={100} width={400} height={6} fill={SCENE.grass} />
+        <Stool x={354} y={100 - 0.23 * 62} floor={100} w={15} />
+        <SimpleBike x={288} y={212 - 53.4 * 0.62} k={0.62} fase={0} />
+        {POSES.map((p, i) => {
+          const px = 24 + (i % 6) * 66;
+          const ground = i < 6 ? 100 : 212;
+          const py = p === 'sitte' ? ground - 0.23 * 62 : p === 'sykle' ? ground - 53.4 * 0.62 : p === 'falle' ? ground - 26 : ground;
+          return <Person key={p} x={px} y={py} size={62} pose={p} />;
+        })}
       </GalleryItem>
 
       <GalleryItem title="Gangsyklus og løpesyklus (fase 0 – 0,875)">
@@ -182,7 +198,7 @@ export default function Galleri() {
         <Person x={120} y={110} size={100} pose="falle" anker="tyngdepunkt" rotate={90} jakke="oransje" sekk="svart" />
         <ForceArrow x1={diver.tyngdepunkt.x} y1={diver.tyngdepunkt.y} x2={diver.tyngdepunkt.x} y2={diver.tyngdepunkt.y + 90} color={VIZ.gravity} label="G" origin />
         <ForceArrow x1={diver.tyngdepunkt.x} y1={diver.tyngdepunkt.y - 18} x2={diver.tyngdepunkt.x} y2={diver.tyngdepunkt.y - 80} color={VIZ.friction} label="L" />
-        <line x1={300} y1={0} x2={bungee.hoyreAnkel.x} y2={bungee.hoyreAnkel.y} stroke={SCENE.rubber} strokeWidth={2.5} />
+        <line x1={300} y1={0} x2={bungee.hoyreAnkel.x} y2={bungee.hoyreAnkel.y} stroke="var(--sc-figurer-line)" strokeWidth={2.5} />
         <Person x={300} y={62} size={100} pose="falle" rotate={180} jakke="gul" ledd={bungeeLedd} />
       </GalleryItem>
 
@@ -282,7 +298,7 @@ function Incline() {
         ledd={hang}
         jakke="gul"
       />
-      <ForceArrow x1={bar.x + 16} y1={bar.y + 30} x2={bar.x + 16} y2={bar.y - 22} color={VIZ.tension} label="S" />
+      <ForceArrow x1={bar.x + 34} y1={bar.y + 30} x2={bar.x + 34} y2={bar.y - 22} color={VIZ.tension} label="S" />
     </>
   );
 }

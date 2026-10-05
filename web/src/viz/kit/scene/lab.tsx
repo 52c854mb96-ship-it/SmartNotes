@@ -12,10 +12,16 @@
  * Ledning (med strømprikker), Bryter (+ bryterPoler).
  * I huset: Stikkontakt, Sikring, Sikringsskap, Solcellepanel.
  *
- * Ankerpunkt: det som står på noe, har (x, y) midt på bunnen (laveste punkt), og `rotate` dreier om det.
- * Det som henger på veggen eller ligger i en krets (stikkontakt, sikring, sikringsskap, batteri, multimeter), har
- * (x, y) i midten. `size` er alltid i figurens enheter; JSDoc for hver gjenstand sier hva den måler.
- * Gjenstandene vokser ikke på mobil av seg selv: gang size med useSceneScale() der de skal kunne leses.
+ * Ankerpunkt: det som står på noe, har (x, y) midt på bunnen (laveste punkt), og `rotate` dreier om det:
+ * termometer (bunnen av kula), vannkoker, kokeplate, kasserolle, isbit, lyspære (sokkelen eller fatningen), bryter
+ * (bunnen av sokkelen, ikke midten: knivbryteren står på bordet), panelovn og solcellepanel (foten av stolpen).
+ * Det som henger på veggen eller ligger i en krets, har (x, y) i midten: stikkontakt, sikring, sikringsskap, batteri
+ * og multimeter. Motstand og ledning går mellom punkter. Koble ledninger til batteriPoler, lyspaerePoler,
+ * bryterPoler og multimeterPunkter (samme props som gjenstanden), ikke til egne anslag.
+ * `size` er alltid i figurens enheter; JSDoc for hver gjenstand sier hva den måler. Gjenstandene vokser ikke på mobil
+ * av seg selv: gang size med useSceneScale() der de skal kunne leses (f.eks. tallene i et multimeter).
+ * Fysikken skal stemme i det som vises: spenningen på batteriet passer typen (AA 1,5 V, flatbatteri 4,5 V, 9 V,
+ * bilbatteri 12 V), og i kretser med batterier brukes den lille lab-pæra i fatning (standard med `fatning`).
  */
 import './lab.css';
 
@@ -26,6 +32,7 @@ export type {
   BatteriProps,
   BatteriType,
   LyspaereProps,
+  LyspaereModell,
   MotstandProps,
   MultimeterProps,
   MultimeterModus,

@@ -98,6 +98,11 @@ export default function Galleri() {
   const pb = rampePunkt(metall, 150, 17);
   const steep = { x: 30, y: 212, vinkel: 40 };
   const pk = rampePunkt(steep, 70);
+  const metallKloss = rampePunkt({ x: 20, y: 210, vinkel: 32 }, 110);
+  const mk = rampePunkt({ x: 20, y: 210, vinkel: 32 }, 110, 14);
+  const lavKloss = rampePunkt({ x: 220, y: 210, vinkel: 8 }, 70);
+  const lavBall = rampePunkt({ x: 220, y: 210, vinkel: 8 }, 140, 9);
+  const rampeBall = { x: lavBall.x, y: lavBall.y };
 
   return (
     <GalleryGrid>
@@ -119,14 +124,24 @@ export default function Galleri() {
         <ForceArrow x1={c.x} y1={c.y} x2={c.x + Math.cos(th) * 30} y2={c.y - Math.sin(th) * 30} color={VIZ.friction} label="R" />
       </GalleryItem>
 
-      <GalleryItem title="Metallrampe mot venstre, ball og iskloss på bratt rampe">
+      <GalleryItem title="Metallrampe mot venstre med stålkule, iskloss på bratt rampe">
         <Ute ground={212} under={SCENE.concrete} />
         <Rampe {...steep} lengde={150} />
         <Kloss {...pk} w={46} h={32} materiale="is" />
         <Rampe {...metall} lengde={250} materiale="metall" />
-        <Ball x={pb.x} y={pb.y} r={17} type="gummi" spinn={40} />
+        <Ball x={pb.x} y={pb.y} r={17} type="staal" />
         <ForceArrow x1={pb.x} y1={pb.y} x2={pb.x} y2={pb.y + 55} color={VIZ.gravity} label="G" origin />
         <ForceArrow x1={pb.x} y1={pb.y} x2={pb.x - 70} y2={pb.y + 20} color={VIZ.velocity} label="v" width={5} />
+      </GalleryItem>
+
+      <GalleryItem title="Metallrampe opp mot høyre (32°) og lav trerampe (8°)">
+        <Inne floor={210} />
+        <Rampe x={20} y={210} lengde={190} vinkel={32} materiale="metall" />
+        <Kloss {...metallKloss} w={44} h={28} materiale="metall" label="m" labelPlass="oppe-venstre" />
+        <ForceArrow x1={mk.x} y1={mk.y} x2={mk.x} y2={mk.y + 60} color={VIZ.gravity} label="G" origin />
+        <Rampe x={220} y={210} lengde={170} vinkel={8} />
+        <Kloss {...lavKloss} w={50} h={30} materiale="gummi" />
+        <Ball {...rampeBall} r={9} type="golf" />
       </GalleryItem>
 
       <GalleryItem title="Klosser i seks materialer">
@@ -147,12 +162,13 @@ export default function Galleri() {
       <GalleryItem title="Koblet system: lab-bord, snor, bordtrinse og lodd" viewBox="0 0 400 260">
         <Inne floor={245} h={260} />
         <Bord x={170} y={120} w={300} h={125} type="lab" />
+        {/* Kroken på klossen: h = 45 gir rr = 4,5, så snora ender i 150 + 30 + 2,9 · 4,5 og går 22,5 over bordet */}
+        <Trinse x={320 + 1.5 * 13} y={120 - 22.5 + 13} r={13} feste="bordkant" snorHoyde={22.5} hjulvinkel={35} bordtykkelse={5} />
+        <Snor points={[[193, 97.5], [339.5, 97.5], ...bue(339.5, 110.5, 13, -90, 0, 6), [352.5, 170]]} />
         <Kloss x={150} y={120} w={60} h={45} materiale="tre" krok="hoyre" label="A" />
-        <Trinse x={344} y={113.6} r={16} feste="bordkant" hjulvinkel={35} bordtykkelse={5} />
-        <Snor points={[[180, 97.6], [344, 97.6], ...bue(344, 113.6, 16, -90, 0, 6), [360, 170]]} />
-        <Lodd x={360} y={170} size={20} label="200 g" />
-        <ForceArrow x1={180} y1={97.6} x2={240} y2={97.6} color={VIZ.tension} label="S" />
-        <ForceArrow x1={360} y1={200} x2={360} y2={250} color={VIZ.gravity} label="G" origin />
+        <Lodd x={352.5} y={170} size={20} label="200 g" />
+        <ForceArrow x1={193} y1={97.5} x2={253} y2={97.5} color={VIZ.tension} label="S" />
+        <ForceArrow x1={352.5} y1={197} x2={352.5} y2={247} color={VIZ.gravity} label="G" origin />
       </GalleryItem>
 
       <GalleryItem title="Baller i ekte størrelsesforhold">
@@ -189,17 +205,18 @@ export default function Galleri() {
         <Curlingstein x={200} y={225} size={40} lakk="blaa" />
       </GalleryItem>
 
-      <GalleryItem title="Trinser: fast i taket, løs trinse med krok, plast" viewBox="0 0 400 260">
+      <GalleryItem title="Trinser: fast i taket (metall), løs trinse i plast med krok" viewBox="0 0 400 260">
         <Inne floor={250} h={260} ceiling={12} />
         <Trinse x={100} y={70} r={22} feste="tak" festeLengde={58} hjulvinkel={20} />
         <Tau points={[[78, 196], [78, 70], ...bue(100, 70, 22, 180, 360, 10), [122, 70], [122, 150]]} tykkelse={5} />
         <Kasse x={78} y={240} w={50} h={44} skygge={false} />
         <ForceArrow x1={122} y1={150} x2={122} y2={205} color={VIZ.applied} label="F" />
-        <Trinse x={280} y={150} r={18} feste="krok" festeLengde={44} hjulvinkel={-40} />
+        <Trinse x={280} y={150} r={18} feste="krok" festeLengde={44} hjulvinkel={-40} materiale="plast" />
         <Tau points={[[262, 12], [262, 150], ...bue(280, 150, 18, 180, 0, 10), [298, 150], [298, 40]]} tykkelse={4} type="nylon" />
         <Lodd x={280} y={194} size={22} label="1 kg" />
         <ForceArrow x1={298} y1={60} x2={298} y2={20} color={VIZ.tension} label="S" />
-        <Trinse x={365} y={60} r={13} feste="ingen" materiale="plast" />
+        <Trinse x={365} y={60} r={14} feste="ingen" materiale="plast" farge="rod" hjulvinkel={60} />
+        <Trinse x={365} y={110} r={14} feste="ingen" />
       </GalleryItem>
 
       <GalleryItem title="Tau i hamp, nylon og stål, og snor">
@@ -212,12 +229,13 @@ export default function Galleri() {
         <ForceArrow x1={380} y1={40} x2={350} y2={40} color={VIZ.tension} label="S" labelY={30} />
       </GalleryItem>
 
-      <GalleryItem title="Fjær: hvilelengde, strukket og presset" viewBox="0 0 400 250">
-        <Inne floor={250} h={250} />
+      <GalleryItem title="Fjær: hvilelengde, strukket, presset og helt sammenpresset" viewBox="0 0 400 300">
+        <Inne floor={300} h={300} />
         {[
-          { y: 70, l: 150 },
-          { y: 150, l: 230 },
-          { y: 230, l: 95 },
+          { y: 60, l: 150 },
+          { y: 135, l: 230 },
+          { y: 210, l: 95 },
+          { y: 285, l: 18 },
         ].map((r) => (
           <g key={r.y}>
             <rect x={0} y={r.y} width={400} height={8} fill={SCENE.bench} />
@@ -226,18 +244,28 @@ export default function Galleri() {
             <Kloss x={22 + r.l + 26} y={r.y} w={52} h={30} materiale="metall" />
           </g>
         ))}
-        <rect x={0} y={0} width={22} height={250} fill={SCENE.concrete} stroke={SCENE.concreteDark} strokeWidth={1} />
-        <ForceArrow x1={252} y1={135} x2={200} y2={135} color={VIZ.tension} label="F" />
-        <ForceArrow x1={117} y1={215} x2={172} y2={215} color={VIZ.tension} label="F" />
+        <rect x={0} y={0} width={22} height={300} fill={SCENE.concrete} stroke={SCENE.concreteDark} strokeWidth={1} />
+        <ForceArrow x1={252} y1={120} x2={200} y2={120} color={VIZ.tension} label="F" labelY={100} />
+        <ForceArrow x1={117} y1={195} x2={172} y2={195} color={VIZ.tension} label="F" />
       </GalleryItem>
 
       <GalleryItem title="Strikk: slakk, stram og strukket" viewBox="0 0 400 260">
         <Ute ground={250} h={260} />
         <rect x={0} y={0} width={400} height={22} fill={SCENE.concrete} />
         <line x1={0} y1={22} x2={400} y2={22} stroke={SCENE.concreteDark} strokeWidth={2} />
-        <Strikk x1={90} y1={22} x2={90} y2={110} slakk={0.7} />
-        <Strikk x1={210} y1={22} x2={210} y2={150} hvilelengde={128} />
+        <Strikk x1={70} y1={22} x2={70} y2={110} slakk={0.7} />
+        <Strikk x1={130} y1={22} x2={175} y2={95} slakk={0.5} farge="oransje" />
+        <Strikk x1={230} y1={22} x2={230} y2={150} hvilelengde={128} />
         <Strikk x1={320} y1={22} x2={320} y2={235} hvilelengde={128} />
+        <Txt x={70} y={180} size={0.72} muted>
+          slakk
+        </Txt>
+        <Txt x={230} y={170} size={0.72} muted>
+          hvilelengde
+        </Txt>
+        <Txt x={330} y={130} size={0.72} muted anchor="start">
+          strukket
+        </Txt>
         <ForceArrow x1={320} y1={235} x2={320} y2={175} color={VIZ.tension} label="S" />
         <Strikk x1={20} y1={215} x2={200} y2={215} slakk={0.25} farge="rod" tykkelse={4} />
       </GalleryItem>
@@ -265,25 +293,25 @@ export default function Galleri() {
         <Inne floor={225} />
         <Bord x={120} y={120} w={210} h={105} type="lab" />
         <Kloss x={80} y={120} w={50} h={30} materiale="metall" />
-        <Stoppeklokke x={160} y={92} r={20} t={4.27} />
+        <Stoppeklokke x={160} y={100} r={20} t={4.27} />
         <Bord x={315} y={150} w={140} h={75} type="tre" />
         <Kasse x={300} y={150} w={60} h={46} materiale="papp" />
         <Ball x={352} y={141} r={9} type="tennis" />
       </GalleryItem>
 
-      <GalleryItem title="Målebånd langs bakken" viewBox="0 0 400 260">
+      <GalleryItem title="Målebånd langs bakken (det nederste går helt ut til kanten)" viewBox="0 0 400 260">
         <Ute ground={80} h={260} under={SCENE.asphalt} />
         <Kasse x={60} y={80} w={50} h={40} />
         <Maalebaand x1={30} x2={350} y={80} til={40} />
         <Maalebaand x1={30} x2={330} y={150} til={1.2} merker={6} />
-        <Maalebaand x1={30} x2={370} y={210} fra={10} til={15.5} enhet="cm" />
+        <Maalebaand x1={30} x2={396} y={210} fra={10} til={15} enhet="cm" />
       </GalleryItem>
 
       <GalleryItem title="Stoppeklokker">
         <Inne floor={200} />
         <Stoppeklokke x={70} y={110} r={48} t={0} />
-        <Stoppeklokke x={195} y={110} r={48} t={12.34} />
-        <Stoppeklokke x={315} y={115} r={40} t={83.2} desimaler={1} />
+        <Stoppeklokke x={195} y={110} r={48} t={32.15} />
+        <Stoppeklokke x={315} y={115} r={40} t={119.996} />
         <Stoppeklokke x={372} y={200} r={16} t={47.5} digital={false} />
       </GalleryItem>
 
@@ -341,10 +369,10 @@ function FullBredde() {
       <Rampe {...rampe} />
       <Kasse {...p} w={80} h={60} label="12 kg" labelPlass="oppe-venstre" />
       <Kraftmaaler x={side.x + ux * len} y={side.y + uy * len} lengde={len} kraft={62} maks={100} rotate={68} />
+      <Maalebaand x1={80} x2={562} y={300} til={4.8} />
       <ForceArrow x1={c.x} y1={c.y} x2={c.x} y2={c.y + 118} color={VIZ.gravity} label="G" origin />
       <ForceArrow x1={c.x} y1={c.y} x2={c.x - Math.sin(a) * 109} y2={c.y - Math.cos(a) * 109} color={VIZ.normal} label="N" />
       <ForceArrow x1={side.x + ux * len} y1={side.y + uy * len} x2={side.x + ux * (len + 70)} y2={side.y + uy * (len + 70)} color={VIZ.applied} label="F" />
-      <Maalebaand x1={80} x2={562} y={300} til={4.8} />
       <Stoppeklokke x={720} y={80} r={46} t={3.6} />
       <Ball x={700} y={276} r={24} type="fotball" bakke={300} spinn={30} />
     </GalleryItem>

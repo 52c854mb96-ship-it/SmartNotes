@@ -89,15 +89,27 @@ const LANDSKAP: { type: LandskapType; tittel: string; underlag: UnderlagType; so
   { type: 'kyst', tittel: 'Landskap: kyst og fjord med speilbilde', underlag: 'betong', sol: true },
 ];
 
+/** Overflaten i berg-og-dal-banen (y for x mellom 0 og 520). */
+function bakke(x: number): number {
+  return 190 - 60 * Math.cos((x / 520) * Math.PI * 2.2) * (1 - x / 900);
+}
+
 /** Bakkeprofil for berg-og-dal-banen: mange punkter og en bratt kant. */
 function bergOgDal(): [number, number][] {
   const pts: [number, number][] = [];
   for (let i = 0; i <= 60; i++) {
     const x = (i / 60) * 520;
-    pts.push([x, 190 - 60 * Math.cos((x / 520) * Math.PI * 2.2) * (1 - x / 900)]);
+    pts.push([x, bakke(x)]);
   }
   pts.push([540, 150], [548, 240], [600, 252], [680, 238], [800, 230]);
   return pts;
+}
+
+/** Midten av en kule med radius r som ligger på bakken i x (langs normalen), og retningen langs bakken. */
+function paaBakken(x: number, r: number) {
+  const d = bakke(x + 0.5) - bakke(x - 0.5);
+  const n = Math.hypot(d, 1);
+  return { cx: x + (r * d) / n, cy: bakke(x) - r / n, tx: 1 / n, ty: d / n };
 }
 
 export default function Galleri() {
@@ -144,7 +156,8 @@ export default function Galleri() {
 
       <GalleryItem title="Kasse på is (horisont: underlaget fyller opp til åsene)" viewBox="0 0 800 280">
         <Himmel w={800} h={280} skyer={2} seed={7} />
-        <Landskap x={0} y={168} w={800} h={110} type="aaser" />
+        {/* Frøet legger gården til venstre, så den ikke titter fram bak kassa og pilene. */}
+        <Landskap x={0} y={168} w={800} h={110} type="aaser" seed={13} />
         <Underlag x1={0} x2={800} y={222} depth={58} type="is" horisont={168} />
         <Boks x={360} y={222} w={96} h={70} />
         <ForceArrow x1={360} y1={187} x2={360} y2={262} color={VIZ.gravity} label="G" origin />
@@ -153,7 +166,7 @@ export default function Galleri() {
         <ForceArrow x1={312} y1={217} x2={290} y2={217} color={VIZ.friction} label="R" />
       </GalleryItem>
 
-      <GalleryItem title="Terreng: akebakke i snø med kraftpiler langs bakken" viewBox="0 0 800 320">
+      <GalleryItem title="Terreng: akebakke i snø (glatt, 8 punkter) med kraftpiler langs bakken" viewBox="0 0 800 320">
         <Himmel w={800} h={320} skyer={2} seed={4} />
         <Landskap x={0} y={170} w={800} h={120} type="skog" seed={2} />
         <Underlag x1={0} x2={800} y={300} depth={20} type="sno" horisont={170} />
@@ -162,6 +175,7 @@ export default function Galleri() {
             [0, 112],
             [130, 116],
             [260, 150],
+            [340, 186],
             [420, 222],
             [560, 268],
             [680, 284],
@@ -169,6 +183,7 @@ export default function Galleri() {
           ]}
           bottom={320}
           type="sno"
+          glatt
         />
         <Gran x={60} y={118} size={92} sno seed={5} />
         <Gran x={112} y={120} size={70} sno seed={6} />
@@ -183,8 +198,16 @@ export default function Galleri() {
         <Landskap x={0} y={262} w={800} h={170} type="aaser" seed={4} />
         <Terreng points={bergOgDal()} bottom={300} type="gress" />
         <Lauvtre x={640} y={250} size={120} sesong="host" />
-        <Ball x={130} y={159} r={15} />
-        <ForceArrow x1={130} y1={159} x2={210} y2={140} color={VIZ.velocity} label="v" width={6} />
+        {(() => {
+          const b = paaBakken(130, 15);
+          return (
+            <>
+              <ContactShadow cx={130} cy={bakke(130)} rx={12} ry={2.5} />
+              <Ball x={b.cx} y={b.cy} r={15} />
+              <ForceArrow x1={b.cx} y1={b.cy} x2={b.cx + 85 * b.tx} y2={b.cy + 85 * b.ty} color={VIZ.velocity} label="v" width={6} />
+            </>
+          );
+        })()}
       </GalleryItem>
 
       <GalleryItem title="Terreng som skråplan: tre, grus, asfalt, våt asfalt, jord og labbenk" viewBox="0 0 800 380">
@@ -232,13 +255,13 @@ export default function Galleri() {
         <ForceArrow x1={360} y1={110 + 60} x2={470} y2={110 + 60} color={VIZ.velocity} label="v" width={6} />
       </GalleryItem>
 
-      <GalleryItem title="Forskyvning: veien og landskapet ruller (0, 60 og 120)" viewBox="0 0 800 390">
-        {[0, 60, 120].map((s, i) => {
+      <GalleryItem title="Forskyvning: veien og landskapet ruller (0, 300 og 600)" viewBox="0 0 800 390">
+        {[0, 300, 600].map((s, i) => {
           const cy = i * 130;
           return (
             <g key={s}>
               <Himmel y={cy} w={800} h={130} skyer={2} seed={5} forskyvning={s} />
-              <Landskap x={0} y={cy + 70} w={800} h={70} type="kyst" seed={2} forskyvning={s * 40} />
+              <Landskap x={0} y={cy + 70} w={800} h={70} type="kyst" seed={2} forskyvning={s} />
               <Vei x1={0} x2={800} y={cy + 100} type="asfalt" bredde={30} horisont={cy + 70} depth={30} forskyvning={s} />
               <Bilskisse x={400} y={cy + 100} s={0.7} />
               <ValueTag x={400} y={cy + 26} text={`forskyvning ${s}`} />
@@ -261,11 +284,13 @@ export default function Galleri() {
       </GalleryItem>
 
       <GalleryItem title="Laboratorium: betonggulv og labbenk foran" viewBox="0 0 800 320">
-        <Rom x={0} y={0} w={800} h={320} gulvY={200} gulv="betong" />
-        <Underlag x1={60} x2={740} y={210} depth={110} type="labbenk" />
-        <Boks x={300} y={210} w={70} h={56} />
-        <Ball x={480} y={196} r={14} />
-        <ForceArrow x1={480} y1={196} x2={480} y2={150} color={VIZ.normal} label="N" />
+        {/* Benkeplata ligger godt over gulvlinja, så overgangen mellom vegg og gulv skjules bak benken. */}
+        <Rom x={0} y={0} w={800} h={320} gulvY={296} gulv="betong" />
+        <Underlag x1={60} x2={740} y={190} depth={130} type="labbenk" />
+        <Boks x={300} y={190} w={70} h={56} />
+        <ContactShadow cx={480} cy={190} rx={11} ry={2.5} />
+        <Ball x={480} y={176} r={14} />
+        <ForceArrow x1={480} y1={176} x2={480} y2={120} color={VIZ.normal} label="N" />
       </GalleryItem>
 
       <GalleryItem title="Vann: stille basseng med kasse under vann (gjennomsiktig)" viewBox="0 0 800 300">
@@ -282,7 +307,8 @@ export default function Galleri() {
           const cy = i * 120;
           return (
             <g key={i}>
-              <Himmel y={cy} w={800} h={60} />
+              {/* Himmelen går ned under bølgedalene (likevektslinja + amplituden). */}
+              <Himmel y={cy} w={800} h={60 + 12} />
               <Vann x={0} y={cy + 60} w={800} h={60} bolge={{ amplitude: 12, bolgelengde: 260, fase }} />
               <path d={`M0,${cy + 60}H800`} stroke={VIZ.muted} strokeDasharray="5 5" strokeWidth={1} />
               <Txt x={14} y={cy + 26} anchor="start" size={0.8}>

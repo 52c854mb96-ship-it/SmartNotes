@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alongPolyline, edgeNoise, hash01, peakAt, periodicNoise, periodicSteps, profile, shiftPath, wavePoints } from './bakgrunn-geo';
+import { alongPolyline, edgeNoise, hash01, peakAt, periodicNoise, periodicSteps, profile, shiftPath, smoothPolyline, wavePoints } from './bakgrunn-geo';
 import { buildLandscape, type LandskapType } from './bakgrunn-landskap';
 import { sceneRandom } from './core';
 
@@ -70,6 +70,39 @@ describe('bakgrunn: geometri', () => {
       expect(Math.hypot(p.tx, p.ty)).toBeCloseTo(1, 6);
     }
     expect(pts.some((p) => p.tx === 0 && p.ty === 1)).toBe(true);
+  });
+
+  it('glatt kurve går gjennom punktene med retningen fra forrige til neste punkt, uten sløyfer', () => {
+    const pts: [number, number][] = [
+      [0, 112],
+      [130, 116],
+      [260, 150],
+      [340, 186],
+      [420, 222],
+      [560, 268],
+      [800, 286],
+    ];
+    const c = smoothPolyline(pts);
+    expect(c.length).toBeGreaterThan(100);
+    for (const p of pts) expect(c.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 1e-6)).toBe(true);
+    // x øker hele veien (en bakke fra venstre til høyre får ingen sløyfer)
+    for (let i = 1; i < c.length; i++) expect(c[i]![0]).toBeGreaterThan(c[i - 1]![0]);
+    // Retningen i (340, 186) er retningen fra (260, 150) til (420, 222)
+    const i = c.findIndex((q) => Math.abs(q[0] - 340) < 1e-6);
+    const dir = Math.atan2(c[i + 1]![1] - c[i - 1]![1], c[i + 1]![0] - c[i - 1]![0]);
+    expect(dir).toBeCloseTo(Math.atan2(72, 160), 2);
+    // Et kort stykke ved siden av et langt og like punkter gir ikke NaN eller sløyfer
+    const odd = smoothPolyline([
+      [0, 0],
+      [400, 0],
+      [402, 60],
+      [402, 60],
+      [800, 60],
+    ]);
+    for (const q of odd) expect(Number.isFinite(q[0]) && Number.isFinite(q[1])).toBe(true);
+    expect(Math.min(...odd.map((q) => q[0]))).toBeGreaterThanOrEqual(-1);
+    expect(Math.max(...odd.map((q) => q[0]))).toBeLessThanOrEqual(801);
+    expect(smoothPolyline([[1, 2], [3, 4]])).toEqual([[1, 2], [3, 4]]);
   });
 
   it('hash og myk støy er faste og i [0, 1)', () => {

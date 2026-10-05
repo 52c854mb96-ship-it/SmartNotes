@@ -36,6 +36,7 @@ import {
   circle,
   clamp,
   cleanPoints,
+  edgeNoise,
   fillDown,
   lerp,
   mod,
@@ -45,6 +46,7 @@ import {
   r2,
   seedFor,
   shiftPath,
+  smoothPolyline,
   wavePoints,
   alongPolyline,
 } from './bakgrunn-geo';
@@ -55,6 +57,9 @@ export type { UnderlagType } from './bakgrunn-flater';
 export type { LandskapType } from './bakgrunn-landskap';
 
 const STJERNER = 'var(--sc-bakgrunn-stjerner)';
+const SOL = 'var(--sc-bakgrunn-sol)';
+const SOLGLOD = 'var(--sc-bakgrunn-solglod)';
+const SOLGLOD_STYRKE = 'var(--sc-bakgrunn-solglod-styrke)';
 const MIDTLINJE = 'var(--sc-bakgrunn-midtlinje)';
 const LIST = 'var(--sc-bakgrunn-list)';
 const FLIS = 'var(--sc-bakgrunn-flis)';
@@ -142,17 +147,25 @@ function planClouds(w: number, h: number, n: number, seed: number, sun?: { x: nu
   return out;
 }
 
-function starPath(w: number, h: number, seed: number): string {
+/** Et par svake stjerner øverst på himmelen, men ikke nær sola (da ser skumringen ut som natt med måne). */
+function starPath(w: number, h: number, seed: number, sun?: { x: number; y: number; r: number }): string {
   const rand = sceneRandom(seedFor(seed, 'stjerner'));
   let d = '';
   const n = Math.round(clamp(w / 45, 6, 22));
-  for (let i = 0; i < n; i++) d += circle(rand() * w, rand() * h * 0.42, 0.5 + rand() * 0.8);
+  const free = sun ? (6 * sun.r) ** 2 : 0;
+  for (let i = 0; i < n; i++) {
+    const sx = rand() * w;
+    const sy = rand() * h * 0.42;
+    const r = 0.5 + rand() * 0.8;
+    if (sun && (sx - sun.x) ** 2 + (sy - sun.y) ** 2 < free) continue;
+    d += circle(sx, sy, r);
+  }
   return d;
 }
 
 /**
  * Himmel med toning fra SCENE.skyTop øverst til skyBottom ved horisonten, valgfri sol med glød og noen få
- * haugskyer. I mørkt tema er det skumring, med et par svake stjerner.
+ * haugskyer. I mørkt tema er det skumring: et par svake stjerner (ikke nær sola) og en ravgul kveldssol med svak glød.
  *   <Himmel w={800} h={260} sol={{ x: 140, y: 70 }} skyer={2} />
  * Tegnes først; landskap og underlag legges oppå.
  */
@@ -168,7 +181,7 @@ export const Himmel = memo(function Himmel({ x = 0, y = 0, w, h, sol, skyer = 0,
   const sy = sol ? sol.y - y : 0;
   const hasSun = !!sol;
   const clouds = useMemo(() => planClouds(w, h, n, seed, hasSun ? { x: sx, y: sy, r: R } : undefined), [w, h, n, seed, hasSun, sx, sy, R]);
-  const stars = useMemo(() => starPath(w, h, seed), [w, h, seed]);
+  const stars = useMemo(() => starPath(w, h, seed, hasSun ? { x: sx, y: sy, r: R } : undefined), [w, h, seed, hasSun, sx, sy, R]);
   if (!(w > 0) || !(h > 0)) return null;
   const drift = (Number.isFinite(forskyvning) ? forskyvning : 0) * SKY_PARALLAKSE;
   return (
@@ -197,20 +210,20 @@ export const Himmel = memo(function Himmel({ x = 0, y = 0, w, h, sol, skyer = 0,
             <RadialGradient
               id={glow}
               stops={[
-                [0, SCENE.sunGlow, 0.95],
-                [0.28, SCENE.sunGlow, 0.55],
-                [1, SCENE.sunGlow, 0],
+                [0, SOLGLOD, 0.95],
+                [0.28, SOLGLOD, 0.55],
+                [1, SOLGLOD, 0],
               ]}
             />
-            <circle cx={sol.x} cy={sol.y} r={R * 4.2} fill={`url(#${glow})`} />
+            <circle cx={sol.x} cy={sol.y} r={R * 4.2} fill={`url(#${glow})`} style={{ opacity: SOLGLOD_STYRKE }} />
             <RadialGradient
               id={disc}
               fx={0.4}
               fy={0.38}
               stops={[
-                [0, tint(SCENE.sun, 0.55)],
-                [0.7, SCENE.sun],
-                [1, shade(SCENE.sun, 0.04)],
+                [0, tint(SOL, 0.5)],
+                [0.7, SOL],
+                [1, shade(SOL, 0.04)],
               ]}
             />
             <circle cx={sol.x} cy={sol.y} r={R} fill={`url(#${disc})`} />
@@ -539,7 +552,7 @@ function lauvGeometry(H: number, seed: number) {
     const c = front[k % front.length]!;
     const a = rand() * Math.PI * 2;
     const rr = c.r * (0.25 + rand() * 0.45);
-    apples.push({ cx: c.cx + Math.cos(a) * rr, cy: c.cy + Math.sin(a) * rr, r: 0.03 * H });
+    apples.push({ cx: c.cx + Math.cos(a) * rr, cy: c.cy + Math.sin(a) * rr, r: 0.022 * H });
   }
   // Stamme som deler seg i greiner inn i krona
   const bw = 0.04 * H;
@@ -615,8 +628,10 @@ export const Lauvtre = memo(function Lauvtre({ x, y, size = 110, rotate, flip, d
         />
         {winter ? (
           <>
-            <path d={g.twigs[2]} fill="none" stroke={SCENE.trunk} strokeWidth={Math.max(0.7 * ss, 0.008 * H)} strokeLinecap="round" />
-            <path d={g.twigs[1]} fill="none" stroke={SCENE.trunk} strokeWidth={Math.max(0.9 * ss, 0.016 * H)} strokeLinecap="round" />
+            {/* De tynne greinene er litt lysere og har en tynn kontur, så de synes også mot skumringshimmelen. */}
+            <path d={g.twigs[1]} fill="none" stroke={SCENE.outline} strokeWidth={Math.max(0.9 * ss, 0.016 * H) + 0.8 * ss} strokeLinecap="round" />
+            <path d={g.twigs[2]} fill="none" stroke={tint(SCENE.trunk, 0.15)} strokeWidth={Math.max(0.9 * ss, 0.008 * H)} strokeLinecap="round" />
+            <path d={g.twigs[1]} fill="none" stroke={tint(SCENE.trunk, 0.15)} strokeWidth={Math.max(0.9 * ss, 0.016 * H)} strokeLinecap="round" />
             <path d={g.twigs[0]} fill="none" stroke={SCENE.outline} strokeWidth={0.028 * H + 1.6 * ss} strokeLinecap="round" />
             <path d={g.twigs[0]} fill="none" stroke={shade(SCENE.trunk, 0.1)} strokeWidth={0.028 * H} strokeLinecap="round" />
             <path d={g.trunk} fill={`url(#${bark})`} stroke={SCENE.outline} strokeWidth={0.9 * ss} />
@@ -717,7 +732,8 @@ export const Underlag = memo(function Underlag({ x1, x2, y, depth = 40, type, se
       {edge && edge.length > 2 && (
         <path d={`${polyline(edge)}L${r1(right)},${r1(top + 1.5)}L${r1(left)},${r1(top + 1.5)}Z`} fill={type === 'sno' ? tint(SCENE.snow, 0.3) : tint(TOP_COLOR[type], 0.08)} />
       )}
-      <path d={`M${r1(left)},${r1(front)}H${r1(right)}`} stroke={shiny ? GLITTER : SCENE.highlight} strokeWidth={1.2 * ss} opacity={shiny ? 0.5 : 0.6} />
+      {/* Kanten mellom toppflaten og snittet: blank kant på is, våt asfalt og labbenk, ellers en myk, lysere kant. */}
+      <path d={`M${r1(left)},${r1(front)}H${r1(right)}`} stroke={shiny ? GLITTER : tint(TOP_COLOR[type], 0.3)} strokeWidth={1.2 * ss} opacity={shiny ? 0.5 : 0.7} />
       <path d={`M${r1(left)},${r1(front + 1.1 * ss)}H${r1(right)}`} stroke={SCENE.outline} strokeWidth={0.7 * ss} opacity={0.35} />
       <path
         d={edge ? `M${r1(left)},${r1(bottom)}V${r1(edge[0]![1])}${polyline(edge).replace(/^M/, 'L')}V${r1(bottom)}` : `M${r1(left)},${r1(top)}V${r1(bottom)}M${r1(right)},${r1(top)}V${r1(bottom)}`}
@@ -738,6 +754,11 @@ interface TerrengProps {
   /** y for bunnen (fyllet går rett ned hit fra endepunktene). */
   bottom: number;
   type: UnderlagType;
+  /**
+   * Myk kurve gjennom punktene i stedet for rette stykker (standard av, så et skråplan blir helt rett). Kurven går
+   * gjennom hvert punkt med retningen fra forrige til neste punkt.
+   */
+  glatt?: boolean;
   seed?: number;
   title?: string;
 }
@@ -895,14 +916,20 @@ function terrainMarks(pts: Pt[], type: UnderlagType, seed: number, k: number) {
  * overflaten: strå i gress, glitter i snø, glans på is, et lag asfalt på en vei over en bakke, gulvbord på en rampe.
  *   <Terreng points={[[0, 120], [300, 120], [560, 250], [800, 250]]} bottom={300} type="sno" />
  * Et skråplan er to punkter: <Terreng points={[[100, 260], [600, 110]]} bottom={300} type="tregulv" />.
- * Ankerpunkt: punktene er selve overflaten. Gjenstander settes på den og dreies med helningen.
+ * En bakke med få punkter blir myk med `glatt`: <Terreng points={bakke} bottom={320} type="sno" glatt />.
+ * Ankerpunkt: punktene er selve overflaten. Gjenstander settes på den og dreies med helningen. Med `glatt` står en
+ * gjenstand riktig på et av punktene, dreid med vinkelen atan2(y[i+1] − y[i−1], x[i+1] − x[i−1]); trenger du
+ * flere plasser, legg til punkter der.
  */
-export const Terreng = memo(function Terreng({ points, bottom, type, seed = 1, title }: TerrengProps) {
+export const Terreng = memo(function Terreng({ points, bottom, type, glatt = false, seed = 1, title }: TerrengProps) {
   const ss = useStrokeScale();
   const k = useSceneScale();
   const clip = useSvgId('sc-terreng');
   const grad = useSvgId('sc-terrengfyll');
-  const pts = cleanPoints(points);
+  const raw = cleanPoints(points);
+  const rawKey = polyline(raw);
+  // Den myke kurven regnes ut bare når punktene endres (rawKey er punktene som tekst).
+  const pts = useMemo(() => (glatt ? smoothPolyline(raw) : raw), [rawKey, glatt]);
   const surface = polyline(pts);
   // Teksturen regnes ut på nytt bare når overflaten, typen, frøet eller mobilskaleringen endres.
   // (`surface` er punktene som tekst, så en ny matrise med samme punkter gir ikke ny tekstur.)
@@ -1008,7 +1035,8 @@ interface VeiProps {
 
 /**
  * Vei sett fra siden med litt perspektiv: veibanen er et bånd med hvite kantlinjer og gul, stiplet midtlinje
- * (som på norske veier), hjulspor og veikant foran og bak. Bilen kjører i det nærmeste feltet.
+ * (som på norske veier), hjulspor og veikant foran og bak. Bilen kjører i det nærmeste feltet. På snø er veibanen
+ * hardpakket og gråere enn veikanten, med brungrå hjulspor og brøytekanter på begge sider.
  *   <Vei x1={0} x2={800} y={250} type="vaat-asfalt" horisont={205} forskyvning={kameraX} />
  * Ankerpunkt: y er der hjulene står. Med `forskyvning` ruller midtlinja, så en bil som står stille i bildet
  * ser ut til å kjøre.
@@ -1030,6 +1058,8 @@ export const Vei = memo(function Vei({
   const k = useSceneScale();
   const gid = useSvgId('sc-vei');
   const cid = useSvgId('sc-veiklipp');
+  const sid = useSvgId('sc-veispor');
+  const bid = useSvgId('sc-veibank');
   const left = Math.min(x1, x2);
   const right = Math.max(x1, x2);
   if (!(right > left) || !Number.isFinite(y)) return null;
@@ -1063,8 +1093,9 @@ export const Vei = memo(function Vei({
           ]
         : type === 'sno'
           ? [
-              [0, tint(SCENE.snow, 0.15)],
-              [1, mix(SCENE.snow, SCENE.snowShade, 0.5)],
+              // Hardpakket snø: en tone mørkere og gråere enn den løse snøen i veikanten, så veibanen leses som vei.
+              [0, mix(SCENE.snow, SCENE.snowShade, 0.8)],
+              [1, mix(SCENE.snowShade, SCENE.asphalt, 0.14)],
             ]
           : [
               [0, mix(ice, SCENE.iceShine, 0.35)],
@@ -1087,8 +1118,8 @@ export const Vei = memo(function Vei({
       [left, y + (ty + th) * B],
     ]);
   const trackColor =
-    type === 'asfalt' ? shade(SCENE.asphalt, 0.3) : type === 'vaat-asfalt' ? SCENE.skyBottom : type === 'sno' ? mix(SCENE.snowShade, SCENE.asphalt, 0.5) : GLITTER;
-  const trackOpacity = type === 'asfalt' ? 0.22 : type === 'vaat-asfalt' ? 0.2 : type === 'sno' ? 0.62 : 0.3;
+    type === 'asfalt' ? shade(SCENE.asphalt, 0.3) : type === 'vaat-asfalt' ? SCENE.skyBottom : type === 'sno' ? mix(SCENE.snowShade, SCENE.soilDark, 0.4) : GLITTER;
+  const trackOpacity = type === 'asfalt' ? 0.22 : type === 'vaat-asfalt' ? 0.2 : type === 'sno' ? 0.9 : 0.3;
 
   // Tekstur på veibanen
   let tex = '';
@@ -1112,12 +1143,17 @@ export const Vei = memo(function Vei({
     }
   }
   const lineOpacity = type === 'is' ? 0.55 : type === 'vaat-asfalt' ? 0.85 : 1;
+  // Oppmerkingen følger perspektivet, men blir aldri tynnere enn ca. en halv skjermpiksel på mobil.
+  const backLine = Math.max(0.035 * B, 0.6 * ss);
+  const midLine = Math.max(0.05 * B, 0.8 * ss);
+  const frontLine = Math.max(0.065 * B, 1 * ss);
   const dash = `${r1(1.5 * B)} ${r1(3.5 * B)}`;
+  /** Brøytekant: ujevne hauger av snø (myk støy i to skalaer) som ruller med forskyvningen. */
   const bumps = (base: number, height: number, sp: number, s: number) => {
     const pts: Pt[] = [[left, base + 1]];
-    for (let xx = left; xx <= right + 0.01; xx += 4) {
-      const t = (1 - Math.cos(Math.PI * mod((xx + shift) / sp, 1) * 2)) / 2;
-      const hgt = height * (0.55 + 0.45 * t) * (0.8 + 0.4 * Math.sin((xx + shift) / (sp * 1.7) + s));
+    for (let xx = left; xx <= right + 0.01; xx += 3) {
+      const u = xx + shift;
+      const hgt = height * (0.35 + 0.65 * edgeNoise(u, sp, seed + s)) * (0.8 + 0.4 * edgeNoise(u, sp * 0.3, seed + s + 7));
       pts.push([Math.min(xx, right), base - hgt]);
     }
     pts.push([right, base + 1]);
@@ -1131,37 +1167,75 @@ export const Vei = memo(function Vei({
       <TopFace {...face} seed={seed + 7} type={kant} top={roadBot - 0.5} bottom={nearBot} />
       <FrontFace {...face} type={kant} top={nearBot} bottom={bottom} />
       <LinearGradient id={gid} userSpace x1={0} y1={roadTop} x2={0} y2={roadBot} stops={stops} />
+      {type === 'sno' && (
+        <LinearGradient
+          id={`${bid}s`}
+          stops={[
+            [0, SCENE.shadow, 1],
+            [1, SCENE.shadow, 0],
+          ]}
+        />
+      )}
       <rect x={left} y={roadTop} width={L} height={roadBot - roadTop} fill={`url(#${gid})`} />
       <clipPath id={cid}>
         <rect x={left} y={roadTop} width={L} height={roadBot - roadTop} />
       </clipPath>
       <g clipPath={`url(#${cid})`}>
-        <path d={trackD} fill={trackColor} opacity={trackOpacity} />
+        {type === 'sno' ? (
+          <>
+            {/* Hjulspor i snøen: brungrå med myk kant, ett par i hvert felt */}
+            <LinearGradient
+              id={sid}
+              stops={[
+                [0, trackColor, 0],
+                [0.35, trackColor, 1],
+                [0.65, trackColor, 1],
+                [1, trackColor, 0],
+              ]}
+            />
+            {tracks.map(([ty, th], i) => (
+              <rect key={i} x={left} y={y + (ty - 0.03) * B} width={L} height={(th + 0.06) * B} fill={`url(#${sid})`} opacity={trackOpacity} />
+            ))}
+            {/* Skyggen fra brøytekanten bak faller på veibanen */}
+            <rect x={left} y={roadTop} width={L} height={0.1 * B} fill={`url(#${bid}s)`} />
+          </>
+        ) : (
+          <path d={trackD} fill={trackColor} opacity={trackOpacity} />
+        )}
         {type === 'asfalt' && <path d={tex} fill={tint(SCENE.asphalt, 0.35)} opacity={0.7} />}
         {type === 'asfalt' && <path d={tex2} fill={SCENE.asphaltDark} opacity={0.85} />}
         {(type === 'vaat-asfalt' || type === 'is') && <path d={tex} fill={type === 'is' ? GLITTER : SCENE.skyBottom} opacity={type === 'is' ? 0.55 : 0.32} />}
         {type === 'sno' && <path d={tex} fill={GLITTER} opacity={0.9} />}
         {type !== 'sno' && (
           <g opacity={lineOpacity}>
-            <path d={`M${r1(left)},${r1(y - 0.625 * B)}H${r1(right)}`} stroke={SCENE.roadLine} strokeWidth={0.035 * B} />
-            <path d={`M${r1(left)},${r1(y + 0.215 * B)}H${r1(right)}`} stroke={SCENE.roadLine} strokeWidth={0.065 * B} />
+            <path d={`M${r1(left)},${r1(y - 0.625 * B)}H${r1(right)}`} stroke={SCENE.roadLine} strokeWidth={backLine} />
+            <path d={`M${r1(left)},${r1(y + 0.215 * B)}H${r1(right)}`} stroke={SCENE.roadLine} strokeWidth={frontLine} />
             <path
               d={`M${r1(left)},${r1(y - 0.24 * B)}H${r1(right)}`}
               stroke={MIDTLINJE}
-              strokeWidth={0.05 * B}
+              strokeWidth={midLine}
               strokeDasharray={dash}
               strokeDashoffset={r1(mod(shift + 0.6 * B, 5 * B))}
             />
           </g>
         )}
         {type === 'vaat-asfalt' && (
-          <path d={`M${r1(left)},${r1(y + 0.215 * B + 0.06 * B)}H${r1(right)}`} stroke={SCENE.roadLine} strokeWidth={0.03 * B} opacity={0.25} />
+          <path d={`M${r1(left)},${r1(y + 0.215 * B + 0.06 * B)}H${r1(right)}`} stroke={SCENE.roadLine} strokeWidth={Math.max(0.03 * B, 0.5 * ss)} opacity={0.25} />
         )}
       </g>
       {type === 'sno' && (
         <>
-          <path d={bumps(roadTop + 0.5, 0.1 * B, 31, 0.3)} fill={tint(SCENE.snow, 0.2)} stroke={shade(SCENE.snowShade, 0.1)} strokeWidth={0.6 * ss} />
-          <path d={bumps(roadBot + 0.6, 0.08 * B, 27, 1.7)} fill={tint(SCENE.snow, 0.25)} stroke={shade(SCENE.snowShade, 0.1)} strokeWidth={0.6 * ss} />
+          {/* Brøytekanter langs begge sider: lys overside og skyggeside nederst */}
+          <LinearGradient
+            id={bid}
+            stops={[
+              [0, tint(SCENE.snow, 0.4)],
+              [0.4, SCENE.snow],
+              [1, shade(SCENE.snowShade, 0.06)],
+            ]}
+          />
+          <path d={bumps(roadTop + 0.5, 0.22 * B, 34, 1)} fill={`url(#${bid})`} stroke={shade(SCENE.snowShade, 0.25)} strokeWidth={0.7 * ss} strokeLinejoin="round" />
+          <path d={bumps(roadBot + 0.6, 0.17 * B, 29, 2)} fill={`url(#${bid})`} stroke={shade(SCENE.snowShade, 0.25)} strokeWidth={0.7 * ss} strokeLinejoin="round" />
         </>
       )}
       {!winter && (
@@ -1206,11 +1280,15 @@ interface RomProps {
 }
 
 /**
- * Innendørs bakgrunn for laboratorie- og hjemmescener: vegg med myk skygge i taket, hvit fotlist og gulv i
- * perspektiv (tregulv med bord mot betrakteren, fliser eller slipt betong), eventuelt med vindu.
+ * Innendørs bakgrunn for laboratorie- og hjemmescener: vegg med myk skygge i taket, hvit fotlist og gulv i svakt
+ * perspektiv (tregulv med bord parallelt med veggen, fliser eller slipt betong), eventuelt med vindu.
  *   <Rom x={0} y={0} w={800} h={320} gulvY={230} gulv="tre" vindu />
  * Ankerpunkt: (x, y) er øverste venstre hjørne. Gjenstander på gulvet står mellom gulvY og y + h
- * (f.eks. gulvY + 0,5 · (y + h − gulvY)); en labbenk legges foran med <Underlag type="labbenk" />.
+ * (f.eks. gulvY + 0,5 · (y + h − gulvY)).
+ * Labbenk: en labbenk (ca. 90 cm) står foran veggen. Benkeplata (Underlag y) skal ligge godt over gulvY, f.eks.
+ * gulvY ≈ y + 0,8 · depth, så overgangen mellom vegg og gulv skjules bak benken:
+ *   <Rom x={0} y={0} w={800} h={320} gulvY={296} gulv="betong" />
+ *   <Underlag x1={60} x2={740} y={190} depth={130} type="labbenk" />
  */
 export const Rom = memo(function Rom({ x, y, w, h, gulvY, gulv, vindu = false, vinduX, title }: RomProps) {
   const ss = useStrokeScale();
@@ -1222,52 +1300,63 @@ export const Rom = memo(function Rom({ x, y, w, h, gulvY, gulv, vindu = false, v
   const bh = clamp(wallH * 0.055, 4, 12);
   const cx = x + w / 2;
 
-  // Gulv i perspektiv: forsvinningspunktet over gulvet, midt i rommet.
-  const vy = fy - Math.max(floorH, 1) * 2;
+  // Gulv i svakt perspektiv: forsvinningspunktet høyt over gulvet, midt i rommet, så gulvet passer til gjenstander
+  // som er tegnet rett fra siden. Like dype rader blir høyere jo nærmere de er (1/z).
+  const vy = fy - Math.max(floorH, 1) * 5;
   const s = floorH > 0 ? (y + h - vy) / (fy - vy) : 1;
   const toFront = (xb: number) => cx + (xb - cx) * s;
+  /** y for dybden d (0 = veggen, 1 = forkanten av figuren). */
+  const depthY = (d: number) => vy + (fy - vy) / (1 + (1 / s - 1) * d);
+  /** Hvor mye bredere ting er ved y enn ved veggen. */
+  const widen = (yy: number) => (yy - vy) / (fy - vy);
   let floorLines = '';
   let floorAlt = '';
   let floorJoints = '';
+  let floorGrain = '';
   const floorFill = gulv === 'tre' ? SCENE.floor : gulv === 'fliser' ? FLIS : SCENE.concrete;
   if (floorH > 2) {
-    if (gulv === 'tre' || gulv === 'fliser') {
-      const pw = gulv === 'tre' ? clamp(w * 0.05, 14, 40) : clamp(w * 0.075, 22, 64);
+    if (gulv === 'tre') {
+      // Tregulv med bord parallelt med veggen (roligere bak vannrette kraftpiler) og forskjøvne skjøter.
+      const nb = Math.round(clamp(floorH / 9, 2, 16));
+      const rand = sceneRandom(seedFor(Math.round(w + h), 'gulv'));
+      for (let j = 0; j < nb; j++) {
+        const ya = depthY(j / nb);
+        const yb = depthY((j + 1) / nb);
+        if (j > 0) floorLines += `M${r1(x)},${r1(ya)}H${r1(x + w)}`;
+        if (j % 2 === 1)
+          floorAlt += polygon([
+            [x, ya],
+            [x + w, ya],
+            [x + w, yb],
+            [x, yb],
+          ]);
+        // Skjøtene peker mot forsvinningspunktet; bordlengden (ca. 1,5–2,5 m) følger perspektivet.
+        const sp = clamp(w * 0.28, 90, 260) * (0.8 + 0.4 * rand());
+        const wa = widen(ya);
+        const wb = widen(yb);
+        for (let xb = cx + (x - cx) / wa - sp * rand(); xb < cx + (x + w - cx) / wa; xb += sp) {
+          floorJoints += `M${r1(cx + (xb - cx) * wa)},${r1(ya)}L${r1(cx + (xb - cx) * wb)},${r1(yb)}`;
+        }
+        // Et par svake årer i noen av bordene
+        if (rand() < 0.6) {
+          const gx = x + rand() * w * 0.8;
+          const gy = ya + (yb - ya) * (0.35 + rand() * 0.3);
+          floorGrain += `M${r1(gx)},${r1(gy)}h${r1((40 + rand() * 80) * wa)}`;
+        }
+      }
+    } else if (gulv === 'fliser') {
+      const pw = clamp(w * 0.075, 22, 64);
       const xbMin = cx + (x - cx) / s - pw;
       const xbMax = cx + (x + w - cx) / s + pw;
       const i0 = Math.floor((xbMin - cx) / pw);
       const i1 = Math.ceil((xbMax - cx) / pw);
-      const rand = sceneRandom(seedFor(Math.round(w + h), 'gulv'));
       for (let i = i0; i <= i1; i++) {
         const xa = cx + i * pw;
-        const xb = xa + pw;
         floorLines += `M${r1(xa)},${r1(fy)}L${r1(toFront(xa))},${r1(y + h)}`;
-        if (gulv === 'tre') {
-          if (i % 2 === 0)
-            floorAlt += polygon([
-              [xa, fy],
-              [xb, fy],
-              [toFront(xb), y + h],
-              [toFront(xa), y + h],
-            ]);
-          // Skjøter i bordene, forskjøvet fra bord til bord
-          for (let d = rand() * 0.5; d < 1; d += 0.45 + rand() * 0.35) {
-            const yy = fy + floorH * d;
-            const t = (yy - fy) / floorH;
-            const sc = 1 + (s - 1) * t;
-            floorJoints += `M${r1(cx + (xa - cx) * sc)},${r1(yy)}L${r1(cx + (xb - cx) * sc)},${r1(yy)}`;
-          }
-        }
       }
-      if (gulv === 'fliser') {
-        // Rader med lik dybde blir høyere jo nærmere de er (1/z).
-        const rows = Math.max(2, Math.round(floorH / (pw * 0.42)));
-        for (let j = 1; j < rows; j++) {
-          const z = 1 + (1 / s - 1) * (j / rows);
-          const yy = vy + (fy - vy) / z;
-          floorLines += `M${r1(x)},${r1(yy)}H${r1(x + w)}`;
-        }
-      }
+      // Kvadratiske fliser sett litt ovenfra: radene er lavere enn flisene er brede.
+      const rows = Math.max(2, Math.round(floorH / (pw * 0.42)));
+      for (let j = 1; j < rows; j++) floorLines += `M${r1(x)},${r1(depthY(j / rows))}H${r1(x + w)}`;
     } else {
       // Betong: noen store, svake flekker og ett sagspor
       const rand = sceneRandom(seedFor(Math.round(w + h), 'betong'));
@@ -1421,6 +1510,7 @@ export const Rom = memo(function Rom({ x, y, w, h, gulvY, gulv, vindu = false, v
         )}
         <rect x={x} y={fy} width={w} height={floorH} fill={`url(#${ids}g)`} />
         {floorAlt && <path d={floorAlt} fill={gulv === 'betong' ? SCENE.concreteDark : SCENE.floorDark} opacity={gulv === 'betong' ? 0.12 : 0.1} />}
+        {floorGrain && <path d={floorGrain} fill="none" stroke={SCENE.floorDark} strokeWidth={0.6 * ss} opacity={0.35} strokeLinecap="round" />}
         {floorJoints && <path d={floorJoints} fill="none" stroke={SCENE.floorDark} strokeWidth={0.8 * ss} opacity={0.7} />}
         {floorLines && (
           <path
@@ -1476,7 +1566,9 @@ interface VannProps {
  *   <Vann x={100} y={180} w={600} h={120} />
  *   <Vann x={0} y={150} w={800} h={150} bolge={{ amplitude: 12, bolgelengde: 200, fase: 2 * Math.PI * t / T }} />
  * Ankerpunkt: venstre ende av overflaten (likevektslinja). Tegn gjenstander som skal ligge under vann før
- * <Vann gjennomsiktig />.
+ * <Vann gjennomsiktig />. Med bølger går overflaten fra y − amplitude til y + amplitude: bakgrunnen bak vannet
+ * (himmel, vegg) må gå ned til minst y + amplitude, ellers synes en glipe i bølgedalene, f.eks.
+ *   <Himmel y={0} w={800} h={150 + 12} />  <Vann x={0} y={150} w={800} h={150} bolge={{ amplitude: 12, … }} />
  */
 export const Vann = memo(function Vann({ x, y, w, h, bolge, gjennomsiktig = false, title }: VannProps) {
   const ss = useStrokeScale();

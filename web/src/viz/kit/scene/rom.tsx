@@ -11,6 +11,10 @@
  * Verdensrommet er mørkt i begge temaer (SCENE.space). Gjenstandsfargene ligger i rom.css (--sc-rom-*); fargene på
  * lys (bølgelengde og stjernetemperatur) er fysiske og regnes ut her som rgb-tekst, like i begge temaer.
  * Proton, nøytron og elektron har samme farger som i fysikk kapittel 7–8.
+ *
+ * Planetene har grove, men ekte kart (rom-kart.ts) som projiseres på kula, så `dreining` gir døgnrotasjon og
+ * `fase` månefaser. Alle tilfeldige teksturer (stjerner, tåker, granulering, kjerner) kommer fra sceneRandom med frø.
+ * Gjenstandene vokser ikke på mobil (kapittelet styrer størrelsen), men strekene og de minste stjernene gjør det.
  */
 import './rom.css';
 import { useMemo, type ReactNode } from 'react';
@@ -193,9 +197,10 @@ export function stjerneFarge(temperatur: number, metning = 1): string {
  * spektrene i fysikk kapittel 7. Synlig lys er 380–750 nm; ultrafiolett gir den fiolette grensefargen og infrarødt den
  * mørkerøde. Fargen blir svakere mot kantene, der øyet er lite følsomt. Med `svekk = false` holder den seg nesten full
  * styrke helt ut (til piler og stråler som må synes).
- *   bolgelengdeFarge(656)          // rød (Hα)
- *   bolgelengdeFarge(486)          // blågrønn (Hβ)
- *   bolgelengdeFarge(1200, false)  // infrarødt: mørkerød grense
+ *   bolgelengdeFarge(656)         // rød (Hα)
+ *   bolgelengdeFarge(486)         // blågrønn (Hβ)
+ *   bolgelengdeFarge(1200)        // infrarødt: mørkerød grense
+ *   bolgelengdeFarge(400, false)  // fiolett med nesten full styrke (til en pil)
  */
 export function bolgelengdeFarge(nm: number, svekk = true): string {
   return rgbText(wavelengthRgb(nm, svekk ? 0.3 : 0.8));
@@ -1195,7 +1200,7 @@ interface PackedNucleon {
   proton: boolean;
   /** 0 = belyst, 1 = halvskygge, 2 = skygge (etter hvor på kula nukleonet sitter). */
   light: 0 | 1 | 2;
-  /** Ytterst mot betrakteren (helt synlig, får tegn). */
+  /** Midten er synlig (ingen foran dekker den), så tegnet kan stå der. */
   front: boolean;
 }
 
@@ -1334,9 +1339,20 @@ function packNucleus(Z: number, N: number, seed: number): { list: PackedNucleon[
     // Bare de som kan synes: ytterste lag og litt til (de inne i kjernen dekkes helt).
     if (A > 30 && q[2] < zf - 2.3) return;
     const outer = m > Rb * 0.55 ? (dotL > 0.3 ? 0 : dotL > -0.25 ? 1 : 2) : dotL > -0.1 ? 0 : 1;
-    list.push({ x: q[0], y: q[1], z: q[2], proton: kinds[i]!, light: outer as 0 | 1 | 2, front: q[2] > zf - 0.7 });
+    list.push({ x: q[0], y: q[1], z: q[2], proton: kinds[i]!, light: outer as 0 | 1 | 2, front: true });
   });
   list.sort((u, v) => u.z - v.z);
+  // Tegnet (+) bare der ingen nukleon foran dekker midten av kula (sentrum nærmere enn 1 + tegnets halve lengde).
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i]!;
+    for (let j = i + 1; j < list.length; j++) {
+      const o = list[j]!;
+      if (o.z > p.z && (o.x - p.x) ** 2 + (o.y - p.y) ** 2 < 1.46 * 1.46) {
+        p.front = false;
+        break;
+      }
+    }
+  }
   return { list, radius: Rb + 1 };
 }
 

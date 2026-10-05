@@ -11,7 +11,7 @@ import { LAB, ObjectFrame, ObjText, boxStops, circlePath, clamp01, cylinderStops
 
 /* ------------------------------------------------------------------ Batteri */
 
-export type BatteriType = 'aa' | '9v' | 'bil';
+export type BatteriType = 'aa' | '9v' | 'flat' | 'bil';
 
 export interface BatteriProps {
   /** Midten av batteriet (ankerpunktet; `rotate` dreier om dette punktet). */
@@ -19,29 +19,35 @@ export interface BatteriProps {
   y: number;
   /**
    * Lengden i figurens enheter. AA og bilbatteri ligger vannrett (size = bredden), 9 V-batteriet står med polene
-   * opp (size = høyden). Standard 70 (AA, 9 V) og 170 (bil).
+   * opp (size = høyden), og flatbatteriet står med messingtungene opp (size = bredden; med tungene er det ca.
+   * 1,4 · size høyt). Standard 70 (AA, 9 V, flat) og 170 (bil).
    */
   size?: number;
-  /** AA (1,5 V, standard), 9 V-batteri eller bilbatteri (12 V). */
+  /** AA (1,5 V, standard), 9 V-batteri, flatbatteri (4,5 V, det klassiske i skolelaben) eller bilbatteri (12 V). */
   type?: BatteriType;
-  /** Teksten på batteriet (standard «1,5 V», «9 V» eller «12 V»). */
+  /**
+   * Teksten på batteriet (standard «1,5 V», «9 V», «4,5 V» eller «12 V»). Bruk en spenning som passer typen:
+   * AA 1,2–1,5 V, 9 V-batteri 9 V, flatbatteri 4,5 V, bilbatteri 12 V. Trenger kretsen en annen spenning, tegn flere
+   * batterier i serie eller velg en annen type.
+   */
   spenning?: string;
   rotate?: number;
   dim?: boolean;
   title?: string;
 }
 
-const BATTERY_SIZE: Record<BatteriType, number> = { aa: 70, '9v': 70, bil: 170 };
-const BATTERY_VOLTAGE: Record<BatteriType, string> = { aa: '1,5 V', '9v': '9 V', bil: '12 V' };
-/** Polene i lokale enheter (lengden = 100). */
+const BATTERY_SIZE: Record<BatteriType, number> = { aa: 70, '9v': 70, flat: 70, bil: 170 };
+const BATTERY_VOLTAGE: Record<BatteriType, string> = { aa: '1,5 V', '9v': '9 V', flat: '4,5 V', bil: '12 V' };
+/** Polene i lokale enheter (lengden = 100). Flatbatteriet: tuppen av den korte (pluss) og den lange tunga (minus). */
 const BATTERY_POLES: Record<BatteriType, { pluss: [number, number]; minus: [number, number] }> = {
   aa: { pluss: [50, 0], minus: [-50, 0] },
   '9v': { pluss: [13, -50], minus: [-13, -50] },
+  flat: { pluss: [22, -63], minus: [-22, -83] },
   bil: { pluss: [36, -37.5], minus: [-36, -37.5] },
 };
 
 function batteryType(t: string | undefined): BatteriType {
-  return t === '9v' || t === 'bil' ? t : 'aa';
+  return t === '9v' || t === 'flat' || t === 'bil' ? t : 'aa';
 }
 
 /**
@@ -60,9 +66,11 @@ export function batteriPoler({ x, y, size, type, rotate }: BatteriProps): { plus
 }
 
 /**
- * Batteri: AA-celle (liggende, pluss til høyre), 9 V-batteri (stående, polene oppe, pluss til høyre) eller
- * bilbatteri (polene oppe, pluss til høyre med rød krage). (x, y) er midten.
+ * Batteri: AA-celle (liggende, pluss til høyre), 9 V-batteri (stående, polene oppe, pluss til høyre), flatbatteri
+ * på 4,5 V (stående, to messingtunger oppe: den korte til høyre er pluss, den lange til venstre er minus) eller
+ * bilbatteri (polene oppe, pluss til høyre med rød krage). (x, y) er midten (av selve batteriet, uten tungene).
  *   <Batteri x={160} y={200} size={90} />
+ *   <Batteri x={160} y={200} size={80} type="flat" />
  *   <Batteri x={160} y={200} size={180} type="bil" />
  * Koble ledninger til `batteriPoler(samme props)`.
  */
@@ -126,6 +134,33 @@ export function Batteri({ x, y, size, type, spenning, rotate, dim, title }: Batt
       </ObjectFrame>
     );
   }
+  if (t === 'flat') {
+    const jacket = PAINTS.blaa;
+    return (
+      <ObjectFrame x={x} y={y} k={k} rotate={rotate} dim={dim} title={title}>
+        <LinearGradient id={`${id}-b`} x2={1} y2={0} stops={boxStops(jacket, 1.4)} />
+        <LinearGradient id={`${id}-m`} x2={1} y2={0} stops={cylinderStops(SCENE.gold)} />
+        {/* Messingtunger: kort pluss til høyre, lang minus til venstre (bøyd litt i tuppen) */}
+        <path d="M17.6,-52V-63.6Q17.6,-65.4 19.4,-65.4H24.6Q26.4,-65.4 26.4,-63.6V-52Z" fill={`url(#${id}-m)`} {...ol} />
+        <path d="M-26.4,-52V-80.5Q-26.4,-84.4 -23.2,-85.6L-19.6,-86.8Q-17.6,-87.2 -17.6,-85V-52Z" fill={`url(#${id}-m)`} {...ol} strokeLinejoin="round" />
+        <path d="M-24.4,-55V-80M19.6,-55V-62.5" stroke={SCENE.highlight} strokeWidth={1.2} strokeLinecap="round" opacity={0.8} />
+        {/* Kropp med pappomslag og svart forsegling oppe */}
+        <path d="M-50,-49H50V51Q50,54 47,54H-47Q-50,54 -50,51Z" fill={`url(#${id}-b)`} {...ol} />
+        <path d="M-50,-49V-51.5Q-50,-54 -47.5,-54H47.5Q50,-54 50,-51.5V-49Z" fill={SCENE.rubber} {...ol} />
+        <rect x={-50} y={-6} width={100} height={30} fill={PAINTS.gul} {...ol} />
+        <path d="M-45,-44V48" stroke={SCENE.highlight} strokeWidth={2.2} strokeLinecap="round" opacity={0.75} />
+        <ObjText x={0} y={16.6} size={fitText(22, 74)} fill={shade(PAINTS.svart, 0.2)} weight={800}>
+          {text}
+        </ObjText>
+        <ObjText x={22} y={-30} size={16} fill={PAINTS.hvit} weight={800}>
+          +
+        </ObjText>
+        <ObjText x={-22} y={-30.5} size={16} fill={PAINTS.hvit} weight={800}>
+          −
+        </ObjText>
+      </ObjectFrame>
+    );
+  }
   const caseColor = SCENE.rubberLight;
   return (
     <ObjectFrame x={x} y={y} k={k} rotate={rotate} dim={dim} title={title}>
@@ -157,6 +192,8 @@ export function Batteri({ x, y, size, type, spenning, rotate, dim, title }: Batt
 
 /* ------------------------------------------------------------------ Lyspære */
 
+export type LyspaereModell = 'e27' | 'liten';
+
 export interface LyspaereProps {
   /** Bunnen av sokkelen (fotkontakten), eller bunnen av fatningen med `fatning` (ankerpunktet). */
   x: number;
@@ -167,6 +204,11 @@ export interface LyspaereProps {
   lysstyrke?: number;
   /** Pæra står i en fatning på en liten sokkel med to skruklemmer (som i skolelaben). */
   fatning?: boolean;
+  /**
+   * «liten»: liten lab-pære med rund kolbe og kort E10-gjenge, som i skolelaben (standard med `fatning`, passer til
+   * batterier og lave spenninger). «e27»: vanlig glødelampe for 230 V med pæreform og E27-sokkel (standard uten fatning).
+   */
+  modell?: LyspaereModell;
   rotate?: number;
   dim?: boolean;
   title?: string;
@@ -179,15 +221,52 @@ const BULB_H = 108;
  * Uten: fotkontakten nederst (a) og gjengene på venstre side (b).
  *   const p = lyspaerePoler({ x: 400, y: 200, size: 90, fatning: true });
  */
-export function lyspaerePoler({ x, y, size, fatning, rotate }: LyspaereProps): { a: Pt; b: Pt } {
+export function lyspaerePoler({ x, y, size, fatning, modell, rotate }: LyspaereProps): { a: Pt; b: Pt } {
   const k = Math.max(4, fin(size, 90)) / BULB_H;
   if (fatning) return { a: localToFigure(-28, -19.5, x, y, k, rotate), b: localToFigure(28, -19.5, x, y, k, rotate) };
-  return { a: localToFigure(0, 0, x, y, k, rotate), b: localToFigure(-13.6, -17, x, y, k, rotate) };
+  const small = bulbModel(modell, fatning) === 'liten';
+  return { a: localToFigure(0, 0, x, y, k, rotate), b: small ? localToFigure(-19.6, -28, x, y, k, rotate) : localToFigure(-13.6, -17, x, y, k, rotate) };
 }
 
-const GLOBE = 'M-13.5,-27C-13.5,-38 -19,-51.8 -25.4,-62A30,30 0 1,1 25.4,-62C19,-51.8 13.5,-38 13.5,-27Z';
-const THREAD =
-  'M-13,-27H13Q14.7,-24.8 13,-22.6Q14.7,-20.4 13,-18.2Q14.7,-16 13,-13.8Q14.7,-11.6 13,-9.4L11.4,-8H-11.4L-13,-9.4Q-14.7,-11.6 -13,-13.8Q-14.7,-16 -13,-18.2Q-14.7,-20.4 -13,-22.6Q-14.7,-24.8 -13,-27Z';
+function bulbModel(modell: string | undefined, fatning: boolean | undefined): LyspaereModell {
+  return modell === 'e27' || modell === 'liten' ? modell : fatning ? 'liten' : 'e27';
+}
+
+/** Geometrien til de to pæremodellene (lokale enheter, høyden = 108, bunnen av sokkelen i y = 0). */
+const BULBS: Record<
+  LyspaereModell,
+  { globe: string; stem: string; supports: string; thread: string; ridges: string; insulator: string; foot: string; glowY: number; rayR: number; shine: string; dot: [number, number] }
+> = {
+  e27: {
+    globe: 'M-13.5,-27C-13.5,-38 -19,-51.8 -25.4,-62A30,30 0 1,1 25.4,-62C19,-51.8 13.5,-38 13.5,-27Z',
+    stem: 'M-6.5,-27C-5,-35 -4,-44 -3.6,-49.5H3.6C4,-44 5,-35 6.5,-27Z',
+    supports: 'M-3.2,-49L-9.5,-74M3.2,-49L9.5,-74',
+    thread:
+      'M-13,-27H13Q14.7,-24.8 13,-22.6Q14.7,-20.4 13,-18.2Q14.7,-16 13,-13.8Q14.7,-11.6 13,-9.4L11.4,-8H-11.4L-13,-9.4Q-14.7,-11.6 -13,-13.8Q-14.7,-16 -13,-18.2Q-14.7,-20.4 -13,-22.6Q-14.7,-24.8 -13,-27Z',
+    ridges: 'M-13,-24.4L13,-22.8M-13,-20L13,-18.4M-13,-15.6L13,-14M-13,-11.2L13,-9.6',
+    insulator: 'M-11.4,-8H11.4L8,-4H-8Z',
+    foot: 'M-5,-4H5Q4.6,0 0,0Q-4.6,0 -5,-4Z',
+    glowY: -76,
+    rayR: 37,
+    shine: 'M-19,-95Q-25,-87 -24.6,-76',
+    dot: [-12, -99],
+  },
+  // Rund kolbe (ca. 1,4 · gjengebredden) rett på en kort, bred E10-gjenge.
+  liten: {
+    globe: 'M-14,-49V-57.9A27,27 0 1,1 14,-57.9V-49Z',
+    stem: 'M-5,-49C-4,-52 -3.6,-55 -3.6,-58H3.6C3.6,-55 4,-52 5,-49Z',
+    supports: 'M-3.2,-57.5L-9.5,-74M3.2,-57.5L9.5,-74',
+    thread:
+      'M-19,-50H19Q21.2,-46.6 19,-43.2Q21.2,-39.8 19,-36.4Q21.2,-33 19,-29.6Q21.2,-26.2 19,-22.8Q21.2,-19.4 19,-16L16.6,-13H-16.6L-19,-16Q-21.2,-19.4 -19,-22.8Q-21.2,-26.2 -19,-29.6Q-21.2,-33 -19,-36.4Q-21.2,-39.8 -19,-43.2Q-21.2,-46.6 -19,-50Z',
+    ridges: 'M-19,-46.6L19,-44.6M-19,-39.8L19,-37.8M-19,-33L19,-31M-19,-26.2L19,-24.2M-19,-19.4L19,-17.4',
+    insulator: 'M-16.6,-13H16.6L11,-5H-11Z',
+    foot: 'M-6.5,-5H6.5Q6,0 0,0Q-6,0 -6.5,-5Z',
+    glowY: -80,
+    rayR: 33,
+    shine: 'M-15,-97Q-21.5,-90 -21.4,-79',
+    dot: [-8.5, -100.5],
+  },
+};
 const COIL = `M-9.5,-74${'a1.357,2.1 0 1,1 2.714,0'.repeat(7)}`;
 /** Retningene til lysstrålene rundt en pære som lyser godt (radianer, 0 = mot høyre, ikke ned mot sokkelen). */
 const RAYS = [-168, -138, -110, -90, -70, -42, -12, 18, 162].map((d) => (d * Math.PI) / 180);
@@ -201,11 +280,13 @@ function filamentColor(l: number): string {
 }
 
 /**
- * Glødelampe med glass, glødetråd og E27-sokkel. `lysstyrke` (0–1) får glødetråden til å gløde og lyset til å spre
- * seg rundt pæra. (x, y) er bunnen av sokkelen, eller bunnen av fatningen med `fatning`.
+ * Glødelampe med glass og glødetråd: den lille lab-pæra (rund kolbe, E10) eller en vanlig 230 V-pære (E27).
+ * `lysstyrke` (0–1) får glødetråden til å gløde og lyset til å spre seg rundt pæra. (x, y) er bunnen av sokkelen,
+ * eller bunnen av fatningen med `fatning`. I en krets med batterier: bruk fatning (den lille pæra er standard da).
  *   <Lyspaere x={400} y={220} size={100} lysstyrke={P / Pmaks} fatning />
+ *   <Lyspaere x={200} y={60} size={110} lysstyrke={1} rotate={180} />  // taklampe (E27)
  */
-export function Lyspaere({ x, y, size = 90, lysstyrke = 0, fatning = false, rotate, dim, title }: LyspaereProps) {
+export function Lyspaere({ x, y, size = 90, lysstyrke = 0, fatning = false, modell, rotate, dim, title }: LyspaereProps) {
   const S = Math.max(4, fin(size, 90));
   const k = S / BULB_H;
   const sw = useLocalStroke(k);
@@ -215,6 +296,8 @@ export function Lyspaere({ x, y, size = 90, lysstyrke = 0, fatning = false, rota
   const off = fatning ? -8 : 0;
   const fil = filamentColor(L);
   const black = PAINTS.svart;
+  const small = bulbModel(modell, fatning) === 'liten';
+  const B = BULBS[small ? 'liten' : 'e27'];
   return (
     <ObjectFrame x={x} y={y} k={k} rotate={rotate} dim={dim} title={title}>
       {fatning && <ContactShadow cx={0} cy={0} rx={40} ry={4} />}
@@ -229,15 +312,16 @@ export function Lyspaere({ x, y, size = 90, lysstyrke = 0, fatning = false, rota
               [1, SCENE.warm, 0],
             ]}
           />
-          <circle cx={0} cy={-76 + off} r={r2(36 + 56 * L)} fill={`url(#${id}-h)`} />
+          <circle cx={0} cy={B.glowY + off} r={r2(36 + 56 * L)} fill={`url(#${id}-h)`} />
           {L > 0.3 && (
             <path
               d={RAYS.map((a) => {
                 const c = Math.cos(a);
                 const s = Math.sin(a);
-                const r0 = 37;
-                const r1 = 37 + 15 * Math.min(1, (L - 0.3) / 0.6);
-                return `M${r2(c * r0)},${r2(-78 + off + s * r0)}L${r2(c * r1)},${r2(-78 + off + s * r1)}`;
+                const r0 = B.rayR;
+                const r1 = B.rayR + 15 * Math.min(1, (L - 0.3) / 0.6);
+                const cy = B.glowY - 2 + off;
+                return `M${r2(c * r0)},${r2(cy + s * r0)}L${r2(c * r1)},${r2(cy + s * r1)}`;
               }).join('')}
               stroke={mix(SCENE.warm, SCENE.glow, 0.25)}
               strokeWidth={r2(Math.max(sw(2), 2.2))}
@@ -260,9 +344,9 @@ export function Lyspaere({ x, y, size = 90, lysstyrke = 0, fatning = false, rota
           ]}
         />
         <LinearGradient id={`${id}-m`} x2={1} y2={0} stops={cylinderStops(SCENE.metal)} />
-        <path d={GLOBE} fill={`url(#${id}-g)`} />
-        <path d="M-6.5,-27C-5,-35 -4,-44 -3.6,-49.5H3.6C4,-44 5,-35 6.5,-27Z" fill={alpha(SCENE.glassEdge, 0.4)} stroke={alpha(SCENE.glassEdge, 0.8)} strokeWidth={sw(0.6)} />
-        <path d="M-3.2,-49L-9.5,-74M3.2,-49L9.5,-74" stroke={SCENE.metalDark} strokeWidth={sw(1.1)} strokeLinecap="round" />
+        <path d={B.globe} fill={`url(#${id}-g)`} />
+        <path d={B.stem} fill={alpha(SCENE.glassEdge, 0.4)} stroke={alpha(SCENE.glassEdge, 0.8)} strokeWidth={sw(0.6)} />
+        <path d={B.supports} stroke={SCENE.metalDark} strokeWidth={sw(1.1)} strokeLinecap="round" />
         {lit && <path d={COIL} fill="none" stroke={SCENE.glow} strokeWidth={r2(3 + 5 * L)} strokeLinecap="round" opacity={r2(0.35 + 0.45 * L)} />}
         <path d={COIL} fill="none" stroke={fil} strokeWidth={r2(Math.max(sw(1.2), 1.1))} strokeLinecap="round" />
         {lit && (
@@ -278,21 +362,16 @@ export function Lyspaere({ x, y, size = 90, lysstyrke = 0, fatning = false, rota
                 [1, SCENE.warm, 0.2 * L],
               ]}
             />
-            <path d={GLOBE} fill={`url(#${id}-i)`} />
+            <path d={B.globe} fill={`url(#${id}-i)`} />
           </>
         )}
-        <path d="M-19,-95Q-25,-87 -24.6,-76" fill="none" stroke={SCENE.highlight} strokeWidth={3} strokeLinecap="round" />
-        <circle cx={-12} cy={-99} r={1.8} fill={SCENE.highlight} />
-        <path d={GLOBE} fill="none" stroke={mix(SCENE.glassEdge, SCENE.outline, 0.55)} strokeWidth={sw(1)} />
-        <path d={THREAD} fill={`url(#${id}-m)`} stroke={SCENE.outline} strokeWidth={sw(0.8)} strokeLinejoin="round" />
-        <path
-          d="M-13,-24.4L13,-22.8M-13,-20L13,-18.4M-13,-15.6L13,-14M-13,-11.2L13,-9.6"
-          stroke={shade(SCENE.metal, 0.35)}
-          strokeWidth={sw(0.8)}
-          opacity={0.75}
-        />
-        <path d="M-11.4,-8H11.4L8,-4H-8Z" fill={SCENE.rubber} />
-        <path d="M-5,-4H5Q4.6,0 0,0Q-4.6,0 -5,-4Z" fill={SCENE.gold} stroke={SCENE.outline} strokeWidth={sw(0.7)} />
+        <path d={B.shine} fill="none" stroke={SCENE.highlight} strokeWidth={3} strokeLinecap="round" />
+        <circle cx={B.dot[0]} cy={B.dot[1]} r={1.8} fill={SCENE.highlight} />
+        <path d={B.globe} fill="none" stroke={mix(SCENE.glassEdge, SCENE.outline, 0.55)} strokeWidth={sw(1)} />
+        <path d={B.thread} fill={`url(#${id}-m)`} stroke={SCENE.outline} strokeWidth={sw(0.8)} strokeLinejoin="round" />
+        <path d={B.ridges} stroke={shade(SCENE.metal, 0.35)} strokeWidth={sw(0.8)} opacity={0.75} />
+        <path d={B.insulator} fill={SCENE.rubber} />
+        <path d={B.foot} fill={SCENE.gold} stroke={SCENE.outline} strokeWidth={sw(0.7)} />
       </g>
       {fatning && (
         <g>
@@ -307,8 +386,18 @@ export function Lyspaere({ x, y, size = 90, lysstyrke = 0, fatning = false, rota
       {fatning && (
         <g>
           <LinearGradient id={`${id}-s`} x2={1} y2={0} stops={cylinderStops(black, 1.4)} />
-          <path d="M-16,-12V-31Q-16,-34 -13,-34H13Q16,-34 16,-31V-12Z" fill={`url(#${id}-s)`} stroke={SCENE.outline} strokeWidth={sw(0.9)} />
-          <path d="M-14.4,-32.6H14.4" stroke={SCENE.highlight} strokeWidth={1} strokeLinecap="round" />
+          {small ? (
+            <>
+              <path d="M-22,-12V-52Q-22,-55 -19,-55H19Q22,-55 22,-52V-12Z" fill={`url(#${id}-s)`} stroke={SCENE.outline} strokeWidth={sw(0.9)} />
+              <path d="M-22,-49.5H22" stroke={shade(black, 0.35)} strokeWidth={sw(0.9)} />
+              <path d="M-20,-53.6H20" stroke={SCENE.highlight} strokeWidth={1} strokeLinecap="round" />
+            </>
+          ) : (
+            <>
+              <path d="M-16,-12V-31Q-16,-34 -13,-34H13Q16,-34 16,-31V-12Z" fill={`url(#${id}-s)`} stroke={SCENE.outline} strokeWidth={sw(0.9)} />
+              <path d="M-14.4,-32.6H14.4" stroke={SCENE.highlight} strokeWidth={1} strokeLinecap="round" />
+            </>
+          )}
         </g>
       )}
     </ObjectFrame>
@@ -445,9 +534,12 @@ export interface MultimeterProps {
   /** Midten av multimeteret (ankerpunktet). */
   x: number;
   y: number;
-  /** Høyden (standard 140). Bredden er 0,56 · size. Teksten i vinduet følger size, så gjør den større på mobil. */
+  /**
+   * Høyden (standard 140). Bredden er 0,56 · size. Teksten i vinduet følger size og vokser ikke av seg selv, så gang
+   * med useSceneScale() der avlesningen skal kunne leses på mobil, og vis gjerne verdien i en <ValueTag> ved siden av.
+   */
   size?: number;
-  /** Teksten i vinduet, f.eks. «0,52 A» eller «12,0 V». Enheten etter siste mellomrom skrives mindre. */
+  /** Teksten i vinduet, f.eks. «0,52 A» eller «12,0 V». Enheten etter siste mellomrom skrives litt mindre. */
   visning: string;
   /** Hva bryteren står på: amperemeter (A), voltmeter (V) eller ohmmeter (Ω). Velger også inngangen. */
   modus: MultimeterModus;
@@ -492,7 +584,8 @@ export function multimeterPunkter({ x, y, size, modus, rotate }: MultimeterProps
 /**
  * Digitalt multimeter med vindu, dreiebryter (AV, V, Ω, A) og tre innganger. Vinduet viser `visning`.
  * (x, y) er midten. Koble ledningene til `multimeterPunkter(samme props)`.
- *   <Multimeter x={620} y={170} size={150} visning={`${fmt(I, 2)} A`} modus="A" />
+ *   const s = useSceneScale();
+ *   <Multimeter x={620} y={170} size={140 * s} visning={`${fmt(I, 2)} A`} modus="A" />
  */
 export function Multimeter({ x, y, size = 140, visning, modus, lakk = 'gul', plugger = true, rotate, dim, title }: MultimeterProps) {
   const S = Math.max(10, fin(size, 140));
@@ -506,12 +599,11 @@ export function Multimeter({ x, y, size = 140, visning, modus, lakk = 'gul', plu
   const cut = raw.lastIndexOf(' ');
   const num = cut > 0 ? raw.slice(0, cut) : raw;
   const unit = cut > 0 ? raw.slice(cut + 1) : '';
-  const right = 25;
+  // Tall og enhet i samme skrift (mono, 0,6 em per tegn); enheten er 0,82 så stor, med et lite mellomrom foran.
+  const right = 25.5;
   const fsMax = 18;
-  const unitFs = fsMax * 0.72;
-  const unitW = unit.length * unitFs * 0.62;
-  const numRoom = right - (unit ? unitW + 2.5 : 0) + 25;
-  const fs = Math.min(fsMax, numRoom / Math.max(1, num.length * 0.61));
+  const units = num.length + (unit ? 0.4 + unit.length * 0.82 : 0);
+  const fs = Math.min(fsMax, 51 / Math.max(1, units * 0.61));
   const inn = modus === 'A' ? -22 : 22;
   const ol = { stroke: SCENE.outline, strokeWidth: sw(0.9) };
   return (
@@ -526,14 +618,14 @@ export function Multimeter({ x, y, size = 140, visning, modus, lakk = 'gul', plu
       {/* Vindu */}
       <rect x={-29} y={-61} width={58} height={30} rx={3.5} fill={`url(#${id}-d)`} stroke={shade(face, 0.4)} strokeWidth={sw(1)} />
       <path d="M-26,-58.5L-6,-58.5L-16,-33.5L-26,-33.5Z" fill={SCENE.highlight} opacity={0.18} />
-      {num && (
-        <ObjText x={unit ? right - unitW - 2.5 : right} y={-39.5} size={r2(fs)} fill={SCENE.displayText} anchor="end" weight={700} mono>
+      {(num || unit) && (
+        <ObjText x={right} y={r2(-46 + fs * 0.36)} size={r2(fs)} fill={SCENE.displayText} anchor="end" weight={700} mono>
           {num}
-        </ObjText>
-      )}
-      {unit && (
-        <ObjText x={right} y={-39.5} size={unitFs} fill={SCENE.displayText} anchor="end" weight={700}>
-          {unit}
+          {unit && (
+            <tspan dx={r2(fs * 0.24)} style={{ fontSize: r2(fs * 0.82) }}>
+              {unit}
+            </tspan>
+          )}
         </ObjText>
       )}
       <path d="M-23,-24h9M14,-24h9" stroke={shade(face, 0.35)} strokeWidth={4.2} strokeLinecap="round" />
@@ -543,7 +635,7 @@ export function Multimeter({ x, y, size = 140, visning, modus, lakk = 'gul', plu
       <path
         d={DIAL.map((d) => {
           const t = (d.ang * Math.PI) / 180;
-          return `M${r2(Math.sin(t) * 24.5)},${r2(8 - Math.cos(t) * 24.5)}L${r2(Math.sin(t) * 27.5)},${r2(8 - Math.cos(t) * 27.5)}`;
+          return `M${r2(Math.sin(t) * 24.5)},${r2(8 - Math.cos(t) * 24.5)}L${r2(Math.sin(t) * 26.3)},${r2(8 - Math.cos(t) * 26.3)}`;
         }).join('')}
         stroke={tint(face, 0.5)}
         strokeWidth={sw(1)}
@@ -551,12 +643,13 @@ export function Multimeter({ x, y, size = 140, visning, modus, lakk = 'gul', plu
       {DIAL.map((d) => {
         const t = (d.ang * Math.PI) / 180;
         const on = d === active;
+        const fsL = d.label.length > 1 ? 6.5 : 8.5;
         return (
           <ObjText
             key={d.label}
-            x={Math.sin(t) * 31}
-            y={8 - Math.cos(t) * 31 + 3}
-            size={d.label.length > 1 ? 6.5 : 8.5}
+            x={Math.sin(t) * 32.4}
+            y={8 - Math.cos(t) * 32.4 + fsL * 0.36}
+            size={fsL}
             fill={on ? SCENE.plastic : alpha(SCENE.plastic, 0.62)}
             weight={on ? 800 : 600}
           >

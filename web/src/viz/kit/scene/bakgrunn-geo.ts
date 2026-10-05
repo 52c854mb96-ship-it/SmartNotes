@@ -246,6 +246,52 @@ export function cleanPoints(points: readonly (readonly [number, number])[]): Pt[
 }
 
 /**
+ * Myk kurve gjennom punktene (Catmull-Rom med lengdevekt), som en tett brutt linje med ca. `step` mellom punktene.
+ * Kurven går gjennom hvert punkt med retningen fra forrige til neste punkt (endepunktene: langs første og siste
+ * stykke). Tangentene skaleres med lengden på stykkene, så et kort stykke ved siden av et langt ikke gir sløyfer.
+ */
+export function smoothPolyline(pts: readonly Pt[], step = 3, max = 1200): Pt[] {
+  const n = pts.length;
+  if (n < 3) return pts.map((p): Pt => [p[0], p[1]]);
+  const len: number[] = [];
+  let total = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const l = Math.hypot(pts[i + 1]![0] - pts[i]![0], pts[i + 1]![1] - pts[i]![1]);
+    len.push(l);
+    total += l;
+  }
+  // Retningen i hvert punkt per lengdeenhet: (neste − forrige) / (lengden av de to stykkene).
+  const tan: Pt[] = pts.map((_, i) => {
+    const a = pts[Math.max(0, i - 1)]!;
+    const b = pts[Math.min(n - 1, i + 1)]!;
+    const d = (i > 0 ? len[i - 1]! : 0) + (i < n - 1 ? len[i]! : 0);
+    return d > 0 ? [(b[0] - a[0]) / d, (b[1] - a[1]) / d] : [0, 0];
+  });
+  const st = Math.max(step, total / max);
+  const out: Pt[] = [[pts[0]![0], pts[0]![1]]];
+  for (let i = 0; i < n - 1; i++) {
+    const L = len[i]!;
+    if (!(L > 0)) continue;
+    const [x0, y0] = pts[i]!;
+    const [x1, y1] = pts[i + 1]!;
+    const [ax, ay] = [tan[i]![0] * L, tan[i]![1] * L];
+    const [bx, by] = [tan[i + 1]![0] * L, tan[i + 1]![1] * L];
+    const k = Math.max(1, Math.ceil(L / st));
+    for (let j = 1; j <= k; j++) {
+      const t = j / k;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const h00 = 2 * t3 - 3 * t2 + 1;
+      const h10 = t3 - 2 * t2 + t;
+      const h01 = -2 * t3 + 3 * t2;
+      const h11 = t3 - t2;
+      out.push([h00 * x0 + h10 * ax + h01 * x1 + h11 * bx, h00 * y0 + h10 * ay + h01 * y1 + h11 * by]);
+    }
+  }
+  return out;
+}
+
+/**
  * Overflaten til vann med en sinusbølge: η(x) = A · sin(2π (x − x0) / λ − fase), y = y0 − η.
  * Når fasen øker, flytter bølgen seg mot høyre.
  */

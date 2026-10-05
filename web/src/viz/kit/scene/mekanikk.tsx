@@ -10,6 +10,7 @@
  * Alle mål er i figurens enheter. Gjenstandene vokser ikke på mobil (kapittelet styrer størrelsen), men streker og
  * tekst på dem gjør det.
  */
+import './mekanikk.css';
 import { useTextScale } from '../controls';
 import {
   ContactShadow,
@@ -35,7 +36,10 @@ export type { TrinseProps, TauProps, FjaerProps, StrikkProps } from './mekanikk-
 export { Kraftmaaler, Badevekt, Maalebaand, Stoppeklokke } from './mekanikk-maal';
 export type { KraftmaalerProps, BadevektProps, MaalebaandProps, StoppeklokkeProps } from './mekanikk-maal';
 
-/** Lys venstre side og mørkere høyre side (lys fra øvre venstre), lagt oppå en flate. */
+/**
+ * Lys venstre kant og litt mørkere høyre kant (lys fra øvre venstre), lagt oppå en flate. Midten er uendret, så
+ * flaten ser flat ut. Tegnes alltid utenfor `flip`, så lyset ikke speilvendes.
+ */
 function SideShade({ id, x, y, w, h, rx = 0, strength = 1 }: { id: string; x: number; y: number; w: number; h: number; rx?: number; strength?: number }) {
   return (
     <>
@@ -44,10 +48,10 @@ function SideShade({ id, x, y, w, h, rx = 0, strength = 1 }: { id: string; x: nu
         x2={1}
         y2={0}
         stops={[
-          [0, SCENE.highlight, 0.55 * strength],
-          [0.3, SCENE.highlight, 0],
-          [0.68, SCENE.shadow, 0],
-          [1, SCENE.shadow, 0.95 * strength],
+          [0, SCENE.highlight, 0.4 * strength],
+          [0.25, SCENE.highlight, 0],
+          [0.8, SCENE.shadow, 0],
+          [1, SCENE.shadow, 0.5 * strength],
         ]}
       />
       <rect x={x} y={y} width={w} height={h} rx={rx} fill={`url(#${id})`} />
@@ -77,7 +81,8 @@ export interface KasseProps extends Omit<SceneObjectProps, 'size'> {
 
 /**
  * Kasse i tre (planker, ramme og skråstag) eller papp (med teip). Ankerpunkt: (x, y) midt på bunnen, så den kan
- * settes rett på et underlag og dreies med en rampe.
+ * settes rett på et underlag og dreies med en rampe. `flip` speilvender skråstaget; lyset kommer alltid fra øvre
+ * venstre, og lappen blir der `labelPlass` sier.
  *   <Kasse x={300} y={260} w={110} h={80} label="20 kg" />
  *   <Kasse {...rampePunkt(rampe, 180)} w={70} h={56} materiale="papp" />
  */
@@ -90,6 +95,8 @@ export function Kasse({ x, y, w, h, materiale = 'tre', label, labelPlass = 'midt
   const L = -W / 2;
   const T = -H;
   const rx = Math.min(2, W * 0.03);
+  // Bare skråstaget og årringene speilvendes; lys, skygge og lapp står fast.
+  const mirror = flip ? 'scale(-1 1)' : undefined;
 
   let body;
   if (materiale === 'papp') {
@@ -125,10 +132,9 @@ export function Kasse({ x, y, w, h, materiale = 'tre', label, labelPlass = 'midt
         <path
           d={`M${pt(-tw * 0.28, T + 1)} V${r2(T + top - jag * 1.5)} M${pt(-tw * 0.28, -1)} V${r2(-bot + jag * 1.5)}`}
           stroke={SCENE.highlight}
-          strokeWidth={Math.max(1, tw * 0.12)}
+          strokeWidth={Math.max(0.8 * ss, tw * 0.12)}
           strokeLinecap="round"
         />
-        <SideShade id={`${id}s`} x={L} y={T} w={W} h={H} rx={rx} strength={0.8} />
       </>
     );
   } else {
@@ -161,6 +167,7 @@ export function Kasse({ x, y, w, h, materiale = 'tre', label, labelPlass = 'midt
             fill={`url(#${id}b)`}
             stroke={seam}
             strokeWidth={0.7 * ss}
+            transform={mirror}
           />
         )}
         <g fill={`url(#${id}b)`} stroke={seam} strokeWidth={0.7 * ss}>
@@ -169,14 +176,13 @@ export function Kasse({ x, y, w, h, materiale = 'tre', label, labelPlass = 'midt
           <rect x={L} y={iT} width={b} height={ih} />
           <rect x={iR} y={iT} width={b} height={ih} />
         </g>
-        <path d={`${grain(T + b * 0.5)} ${grain(-b * 0.45)}`} fill="none" stroke={seam} strokeWidth={0.6 * ss} opacity={0.45} />
+        <path d={`${grain(T + b * 0.5)} ${grain(-b * 0.45)}`} fill="none" stroke={seam} strokeWidth={0.6 * ss} opacity={0.45} transform={mirror} />
         <g fill={SCENE.metalDark}>
           <circle cx={L + b / 2} cy={T + b / 2} r={nail} />
           <circle cx={-L - b / 2} cy={T + b / 2} r={nail} />
           <circle cx={L + b / 2} cy={-b / 2} r={nail} />
           <circle cx={-L - b / 2} cy={-b / 2} r={nail} />
         </g>
-        <SideShade id={`${id}s`} x={L} y={T} w={W} h={H} rx={rx} />
       </>
     );
   }
@@ -194,16 +200,17 @@ export function Kasse({ x, y, w, h, materiale = 'tre', label, labelPlass = 'midt
     tag = (
       <g>
         <rect x={cx - pw / 2} y={cy - ph / 2} width={pw} height={ph} rx={Math.min(2, ph * 0.15)} fill={MEK.paper} stroke={shade(MEK.paper, 0.35)} strokeWidth={0.7 * ss} />
-        <ObjectText x={cx} y={cy} w={pw * 0.88} h={ph * 0.82} text={label} color={MEK.print} mirror={flip} />
+        <ObjectText x={cx} y={cy} w={pw * 0.88} h={ph * 0.82} text={label} color={MEK.print} />
       </g>
     );
   }
 
   return (
-    <Place x={x} y={y} rotate={rotate} flip={flip} opacity={dim ? SCENE_DIM : undefined}>
+    <Place x={x} y={y} rotate={rotate} opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
       {skygge && <ContactShadow cx={0} cy={0} rx={W * 0.6} />}
       {body}
+      <SideShade id={`${id}s`} x={L} y={T} w={W} h={H} rx={rx} strength={materiale === 'papp' ? 0.8 : 1} />
       {tag}
       <rect x={L} y={T} width={W} height={H} rx={rx} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} />
       <line x1={L + 1.5} y1={T + 0.9 * ss} x2={-L - 1.5} y2={T + 0.9 * ss} stroke={SCENE.highlight} strokeWidth={1.2 * ss} strokeLinecap="round" />
@@ -228,8 +235,9 @@ export interface KlossProps extends Omit<SceneObjectProps, 'size'> {
   /** Fargen på en plastkloss (navn fra PAINTS eller en CSS-farge). Standard «gul». */
   farge?: PaintName | string;
   /**
-   * Øyeskrue midt på siden, til en snor. La snora ende i (x ± w/2, y − h/2) (før `rotate`), så ser den ut som den er
-   * knyttet i øyet.
+   * Øyeskrue midt på siden, til en snor. Øyet har radius rr = min(6, max(2,5, 0,1 · h)) og sentrum i
+   * (x ± (w/2 + 1,9 · rr), y − h/2). La snora ende i ytterkanten av øyet, (x ± (w/2 + 2,9 · rr), y − h/2) (før
+   * `rotate`), så ser den ut som den er knyttet i det. Sidene følger navnet, også med `flip`.
    */
   krok?: 'venstre' | 'hoyre' | 'begge';
   /** Myk skygge under klossen (standard på). */
@@ -238,8 +246,9 @@ export interface KlossProps extends Omit<SceneObjectProps, 'size'> {
 
 /**
  * Kloss som i fysikkoppgaver, men i ekte materiale: tre, metall, stein, gummi, is eller plast. Ankerpunkt: (x, y)
- * midt på bunnen.
+ * midt på bunnen. `flip` speilvender bare teksturen (årringer, korn, sprekk); lyset kommer alltid fra øvre venstre.
  *   <Kloss x={240} y={300} w={80} h={50} materiale="tre" label="A" krok="hoyre" />
+ *   <Snor points={[[240 + 40 + 2.9 * 5, 275], [520, 275]]} />  // h = 50 gir rr = 5
  *   <Kloss {...rampePunkt(rampe, 150)} w={60} h={40} materiale="is" />
  */
 export function Kloss({ x, y, w, h, materiale, label, labelPlass = 'midt', farge, krok, rotate, flip, dim, title, skygge = true }: KlossProps) {
@@ -250,6 +259,7 @@ export function Kloss({ x, y, w, h, materiale, label, labelPlass = 'midt', farge
   const L = -W / 2;
   const T = -H;
   const m = Math.min(W, H);
+  const mirror = flip ? 'scale(-1 1)' : undefined;
 
   let base: string = SCENE.wood;
   let rx = Math.min(2, m * 0.05);
@@ -264,7 +274,7 @@ export function Kloss({ x, y, w, h, materiale, label, labelPlass = 'midt', farge
       const line = (fy: number, k: number) =>
         `M${pt(L + W * 0.05, T + H * fy)} q${r2(W * 0.22)},${r2(-H * 0.05 * k)} ${r2(W * 0.45)},${r2(H * 0.01)} t${r2(W * 0.45)},${r2(-H * 0.01)}`;
       details = (
-        <path d={`${line(0.28, 1)} ${line(0.52, -1)} ${line(0.77, 0.7)}`} fill="none" stroke={shade(base, 0.35)} strokeWidth={0.7 * ss} opacity={0.5} />
+        <path d={`${line(0.28, 1)} ${line(0.52, -1)} ${line(0.77, 0.7)}`} fill="none" stroke={shade(base, 0.35)} strokeWidth={0.7 * ss} opacity={0.5} transform={mirror} />
       );
       break;
     }
@@ -301,7 +311,7 @@ export function Kloss({ x, y, w, h, materiale, label, labelPlass = 'midt', farge
         light: i % 3 === 0,
       }));
       details = (
-        <g>
+        <g transform={mirror}>
           {dots.map((d, i) => (
             <circle key={i} cx={r2(d.cx)} cy={r2(d.cy)} r={r2(d.r)} fill={d.light ? tint(SCENE.stone, 0.35) : SCENE.stoneDark} opacity={0.75} />
           ))}
@@ -343,6 +353,7 @@ export function Kloss({ x, y, w, h, materiale, label, labelPlass = 'midt', farge
             stroke={SCENE.iceShine}
             strokeWidth={0.8 * ss}
             opacity={0.85}
+            transform={mirror}
           />
           <rect x={L + 2} y={T + 2} width={W - 4} height={H - 4} rx={Math.max(0, rx - 2)} fill="none" stroke={SCENE.iceShine} strokeWidth={0.9 * ss} opacity={0.6} />
         </g>
@@ -366,7 +377,7 @@ export function Kloss({ x, y, w, h, materiale, label, labelPlass = 'midt', farge
   const sides = krok === 'begge' ? [-1, 1] : krok === 'venstre' ? [-1] : krok === 'hoyre' ? [1] : [];
 
   return (
-    <Place x={x} y={y} rotate={rotate} flip={flip} opacity={dim ? SCENE_DIM : undefined}>
+    <Place x={x} y={y} rotate={rotate} opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
       {skygge && <ContactShadow cx={0} cy={0} rx={W * 0.6} />}
       {sides.map((s) => (
@@ -393,9 +404,9 @@ export function Kloss({ x, y, w, h, materiale, label, labelPlass = 'midt', farge
       <line x1={L + Math.max(1.5, rx * 0.7)} y1={T + 0.9 * ss} x2={-L - Math.max(1.5, rx * 0.7)} y2={T + 0.9 * ss} stroke={SCENE.highlight} strokeWidth={1.2 * ss} strokeLinecap="round" />
       {label &&
         (labelPlass === 'oppe-venstre' ? (
-          <ObjectText x={-W / 4} y={-H * 0.74} w={W * 0.42} h={H * 0.4} text={label} color={ink} mirror={flip} max={16} />
+          <ObjectText x={-W / 4} y={-H * 0.74} w={W * 0.42} h={H * 0.4} text={label} color={ink} max={16} />
         ) : (
-          <ObjectText x={0} y={-H / 2} w={W * 0.84} h={H * 0.62} text={label} color={ink} mirror={flip} max={16} />
+          <ObjectText x={0} y={-H / 2} w={W * 0.84} h={H * 0.62} text={label} color={ink} max={16} />
         ))}
     </Place>
   );
@@ -566,18 +577,26 @@ export function Ball({ x, y, r, type, spinn = 0, farge, bakke, dim, title }: Bal
       {shadow}
       <g transform={`translate(${r2(X)} ${r2(Y)})`}>
         {metal ? (
-          <RadialGradient
-            id={`${id}a`}
-            fx={0.34}
-            fy={0.3}
-            stops={[
-              [0, tint(SCENE.metalLight, 0.6)],
-              [0.22, SCENE.metalLight],
-              [0.55, SCENE.metal],
-              [0.85, SCENE.metalDark],
-              [1, shade(SCENE.metalDark, 0.25)],
-            ]}
-          />
+          <>
+            {/* Polert stål speiler omgivelsene: lys himmel øverst, mørk horisont litt under midten, bakken nederst */}
+            <LinearGradient
+              id={`${id}a`}
+              stops={[
+                [0, mix(SCENE.metalLight, SCENE.metal, 0.5)],
+                [0.3, SCENE.metalLight],
+                [0.52, tint(SCENE.metalLight, 0.45)],
+              ]}
+            />
+            <LinearGradient
+              id={`${id}g`}
+              stops={[
+                [0, shade(SCENE.metalDark, 0.35)],
+                [0.18, SCENE.metalDark],
+                [0.65, SCENE.metal],
+                [1, mix(SCENE.metal, SCENE.metalLight, 0.5)],
+              ]}
+            />
+          </>
         ) : (
           <RadialGradient id={`${id}a`} fx={0.36} fy={0.32} stops={sphereStops(base)} />
         )}
@@ -600,17 +619,26 @@ export function Ball({ x, y, r, type, spinn = 0, farge, bakke, dim, title }: Bal
             <g transform={spinn ? `rotate(${r2(spinn)})` : undefined}>{pattern}</g>
           </g>
         )}
-        {metal && <ellipse cx={0} cy={R * 0.58} rx={R * 0.62} ry={R * 0.24} fill={SCENE.metalLight} opacity={0.35} clipPath={`url(#${id}c)`} />}
-        {!metal && <circle r={R} fill={`url(#${id}o)`} />}
+        {metal && (
+          <g clipPath={`url(#${id}c)`}>
+            <path
+              d={`M${pt(-R * 1.05, -R * 0.03)} Q${pt(0, R * 0.32)} ${pt(R * 1.05, -R * 0.03)} V${r2(R * 1.05)} H${r2(-R * 1.05)} Z`}
+              fill={`url(#${id}g)`}
+            />
+            <ellipse cx={0} cy={R * 0.66} rx={R * 0.6} ry={R * 0.22} fill={SCENE.metalLight} opacity={0.3} />
+          </g>
+        )}
+        <circle r={R} fill={`url(#${id}o)`} />
         <ellipse
           cx={-R * 0.36}
           cy={-R * 0.4}
-          rx={R * (metal ? 0.2 : 0.24)}
-          ry={R * (metal ? 0.12 : 0.15)}
+          rx={R * (metal ? 0.22 : 0.24)}
+          ry={R * (metal ? 0.13 : 0.15)}
           transform={`rotate(-35 ${r2(-R * 0.36)} ${r2(-R * 0.4)})`}
-          fill={metal ? tint(SCENE.metalLight, 0.7) : SCENE.highlight}
-          opacity={GLOSS[type]}
+          fill={metal ? tint(SCENE.metalLight, 0.6) : SCENE.highlight}
+          opacity={metal ? 0.55 : GLOSS[type]}
         />
+        {metal && <circle cx={-R * 0.38} cy={-R * 0.42} r={Math.max(0.6 * ss, R * 0.085)} fill={tint(SCENE.metalLight, 0.9)} />}
         <circle r={R} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} />
       </g>
     </g>
@@ -630,7 +658,7 @@ export interface CurlingsteinProps extends Omit<SceneObjectProps, 'size'> {
 
 /**
  * Curlingstein i granitt med polert slagbånd og farget håndtak. Ankerpunkt: (x, y) midt på bunnen. Håndtaket peker
- * mot høyre; bruk `flip` for en stein som glir mot venstre.
+ * mot høyre; bruk `flip` for en stein som glir mot venstre (bare håndtaket speilvendes, lyset står fast).
  *   <Curlingstein x={sx} y={isY} size={70} lakk="gul" />
  */
 export function Curlingstein({ x, y, size = 60, lakk = 'rod', skygge = true, rotate, flip, dim, title }: CurlingsteinProps) {
@@ -650,7 +678,7 @@ export function Curlingstein({ x, y, size = 60, lakk = 'rod', skygge = true, rot
   const capY = -Hb - D * 0.03;
   const handle = `M${pt(-D * 0.1, capY)} V${r2(capY - D * 0.08)} Q${pt(-D * 0.1, capY - D * 0.13)} ${pt(-D * 0.03, capY - D * 0.13)} L${pt(D * 0.28, capY - D * 0.115)}`;
   return (
-    <Place x={x} y={y} rotate={rotate} flip={flip} opacity={dim ? SCENE_DIM : undefined}>
+    <Place x={x} y={y} rotate={rotate} opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
       {skygge && <ContactShadow cx={0} cy={0} rx={D * 0.46} />}
       <LinearGradient
@@ -673,16 +701,18 @@ export function Curlingstein({ x, y, size = 60, lakk = 'rod', skygge = true, rot
       <rect x={-D * 0.497} y={-Hb * 0.62} width={D * 0.994} height={Hb * 0.2} fill={SCENE.highlight} opacity={0.55} />
       <path d={`M${pt(-D * 0.497, -Hb * 0.62)} H${r2(D * 0.497)} M${pt(-D * 0.497, -Hb * 0.42)} H${r2(D * 0.497)}`} stroke={SCENE.stoneDark} strokeWidth={0.6 * ss} opacity={0.6} />
       <path d={body} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} />
-      {/* Lokk og håndtak */}
+      {/* Lokk og håndtak (det eneste som speilvendes) */}
       <rect x={-D * 0.24} y={capY} width={D * 0.48} height={D * 0.035} rx={D * 0.012} fill={shade(color, 0.1)} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
-      <path d={handle} fill="none" stroke={SCENE.outline} strokeWidth={D * 0.075 + 1.6 * ss} strokeLinecap="round" strokeLinejoin="round" />
-      <path d={handle} fill="none" stroke={color} strokeWidth={D * 0.075} strokeLinecap="round" strokeLinejoin="round" />
-      <path
-        d={`M${pt(-D * 0.03, capY - D * 0.14)} L${pt(D * 0.27, capY - D * 0.125)}`}
-        stroke={SCENE.highlight}
-        strokeWidth={Math.max(0.8, D * 0.016)}
-        strokeLinecap="round"
-      />
+      <g transform={flip ? 'scale(-1 1)' : undefined}>
+        <path d={handle} fill="none" stroke={SCENE.outline} strokeWidth={D * 0.075 + 1.6 * ss} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={handle} fill="none" stroke={color} strokeWidth={D * 0.075} strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d={`M${pt(-D * 0.03, capY - D * 0.14)} L${pt(D * 0.27, capY - D * 0.125)}`}
+          stroke={SCENE.highlight}
+          strokeWidth={Math.max(0.8 * ss, D * 0.016)}
+          strokeLinecap="round"
+        />
+      </g>
     </Place>
   );
 }
@@ -799,7 +829,7 @@ export interface RampeProps {
   vinkel: number;
   /** Hvilken vei rampa stiger. Standard «opp-hoyre». */
   retning?: 'opp-hoyre' | 'opp-venstre';
-  /** Massiv kile i tre, eller metallplate på et stativ. Standard «tre». */
+  /** Massiv kile i tre, eller metallplate med sideskinne på et stativ (stolpe, stag og bunnskinne). Standard «tre». */
   materiale?: 'tre' | 'metall';
   dim?: boolean;
   title?: string;
@@ -816,7 +846,8 @@ export function Rampe({ x, y, lengde, vinkel, retning = 'opp-hoyre', materiale =
   const id = useSvgId('sc-rampe');
   const ss = useStrokeScale();
   const L = Math.max(4, num(lengde, 300));
-  const th = clamp(num(vinkel, 20), 0, 80) * DEG;
+  const deg = clamp(num(vinkel, 20), 0, 80);
+  const th = deg * DEG;
   const c = Math.cos(th);
   const s = Math.sin(th);
   const tx = L * c;
@@ -824,74 +855,96 @@ export function Rampe({ x, y, lengde, vinkel, retning = 'opp-hoyre', materiale =
   const wood = materiale === 'tre';
   const t = wood ? clamp(L * 0.025, 3, 9) : clamp(L * 0.02, 3, 7);
   const flat = s < 0.01;
+  const shadow = (
+    <ContactShadow cx={(flat ? L : tx) * 0.5} cy={0} rx={(flat ? L : tx) * 0.56} ry={Math.max(3, Math.min(8, tx * 0.03))} opacity={0.7} />
+  );
 
-  // Planken/platen langs skråflaten: flaten øverst, undersiden parallelt med avstand t.
+  if (!wood) {
+    // Metallrampe: plate med sideskinne (C-profil) langs skråflaten, gummitupp mot bakken, stolpe, stag og bunnskinne.
+    const railH = t * 2.2;
+    const rb = clamp(L * 0.016, 2.5, 6);
+    const pw = clamp(L * 0.024, 3.5, 9);
+    const sw = clamp(L * 0.016, 2.5, 6);
+    const tip = clamp(railH / Math.max(s, 0.05), railH * 1.5, L * 0.1);
+    // Stag fra undersiden av skinna (42 % opp) til foten av stolpen
+    const sx = tx * 0.42 + s * railH * 0.9;
+    const sy = ty * 0.42 + c * railH * 0.9;
+    const ex = tx - pw;
+    const ey = -rb;
+    const strutLen = Math.hypot(ex - sx, ey - sy);
+    const strutDeg = (Math.atan2(ey - sy, ex - sx) * 180) / Math.PI;
+    const tf = t / railH;
+    return (
+      <Place x={x} y={y} flip={retning === 'opp-venstre'} opacity={dim ? SCENE_DIM : undefined}>
+        {title && <title>{title}</title>}
+        {shadow}
+        <LinearGradient id={`${id}v`} stops={[[0, SCENE.metalLight], [0.45, SCENE.metal], [1, SCENE.metalDark]]} />
+        <LinearGradient id={`${id}h`} x2={1} y2={0} stops={[[0, SCENE.metalLight], [0.4, SCENE.metal], [1, SCENE.metalDark]]} />
+        <LinearGradient
+          id={`${id}p`}
+          stops={[
+            [0, SCENE.metalLight],
+            [tf * 0.85, SCENE.metal],
+            [tf, shade(SCENE.metalDark, 0.1)],
+            [tf + 0.07, tint(SCENE.metal, 0.25)],
+            [1, SCENE.metalDark],
+          ]}
+        />
+        {!flat && (
+          <g stroke={SCENE.outline} strokeWidth={0.8 * ss}>
+            <rect x={0} y={-rb} width={tx} height={rb} rx={Math.min(1, rb * 0.3)} fill={`url(#${id}v)`} />
+            <rect x={tx - pw} y={ty + t} width={pw} height={Math.max(0, -ty - t - rb)} fill={`url(#${id}h)`} />
+            <g transform={`translate(${r2(sx)} ${r2(sy)}) rotate(${r2(strutDeg)})`}>
+              <rect x={0} y={-sw / 2} width={strutLen} height={sw} rx={sw * 0.3} fill={`url(#${id}v)`} />
+            </g>
+          </g>
+        )}
+        <clipPath id={`${id}k`}>
+          <rect x={-L} y={-2 * L} width={3 * L} height={2 * L} />
+        </clipPath>
+        <g clipPath={flat ? undefined : `url(#${id}k)`}>
+          <g transform={flat ? undefined : `rotate(${r2(-deg)})`}>
+            <rect x={0} y={0} width={L} height={railH} fill={`url(#${id}p)`} />
+            {!flat && <rect x={0} y={0} width={tip} height={railH} rx={Math.min(2, railH * 0.2)} fill={SCENE.rubber} />}
+            <rect x={0} y={0} width={L} height={railH} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} />
+            <line x1={3} y1={0.9 * ss} x2={L - 3} y2={0.9 * ss} stroke={SCENE.highlight} strokeWidth={1.3 * ss} strokeLinecap="round" />
+          </g>
+        </g>
+      </Place>
+    );
+  }
+
+  // Trekile: planken langs skråflaten (flaten øverst, undersiden parallelt med avstand t) oppå en massiv kile.
   const lowToe = flat ? 0 : Math.min(tx, t / s);
   const lowBack = flat ? t : Math.min(-ty, t / Math.max(0.01, c));
   const plank = flat
     ? `M0,0 H${r2(L)} V${r2(t)} H0 Z`
     : `M0,0 L${pt(tx, ty)} L${pt(tx, ty + lowBack)} L${pt(lowToe, 0)} Z`;
-
-  let under = null;
-  if (!flat) {
-    if (wood) {
-      const hp = L * s * c;
-      const grain = [0.38, 0.66]
+  const hp = L * s * c;
+  const grain = flat
+    ? ''
+    : [0.38, 0.66]
         .map((k) => k * hp)
         .filter((d) => d > t * 1.2)
         .map((d) => `M${pt(d / s, 0)} L${pt(tx, ty + d / c)}`)
         .join(' ');
-      under = (
-        <>
-          <LinearGradient id={`${id}a`} stops={materialStops(SCENE.wood, 0.8)} />
-          <path d={`M0,0 L${pt(tx, ty)} V0 Z`} fill={`url(#${id}a)`} />
-          {grain && <path d={grain} stroke={shade(SCENE.wood, 0.35)} strokeWidth={0.7 * ss} opacity={0.5} />}
-          <path d={`M${pt(tx - Math.max(2, t * 0.6) / 2, ty + Math.max(2, t * 0.6))} V0`} stroke={shade(SCENE.wood, 0.3)} strokeWidth={Math.max(2, t * 0.6)} opacity={0.5} />
-        </>
-      );
-    } else {
-      const pw = clamp(L * 0.025, 3, 8);
-      // Punkt på undersiden av platen midt på (normalen inn i rampa er (sin, cos))
-      const midX = tx * 0.42 + s * t;
-      const midY = ty * 0.42 + c * t;
-      under = (
-        <g stroke={SCENE.outline} strokeWidth={0.8 * ss}>
-          <rect x={0} y={-pw * 0.6} width={tx} height={pw * 0.6} fill={SCENE.metalDark} />
-          <path
-            d={`M${pt(tx - pw, ty + lowBack * 0.8)} H${r2(tx)} V${r2(-pw * 0.6)} H${r2(tx - pw)} Z`}
-            fill={SCENE.metal}
-          />
-          <path
-            d={`M${pt(midX, midY)} L${pt(tx - pw * 0.9, -pw * 0.6)}`}
-            stroke={SCENE.metalDark}
-            strokeWidth={pw * 0.55}
-            strokeLinecap="round"
-          />
-          <rect x={tx - pw * 1.4} y={-pw * 0.35} width={pw * 1.8} height={pw * 0.35} rx={pw * 0.1} fill={SCENE.rubber} />
-        </g>
-      );
-    }
-  }
+  const post = Math.max(2, t * 0.6);
 
   return (
     <Place x={x} y={y} flip={retning === 'opp-venstre'} opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
-      <ContactShadow cx={(flat ? L : tx) * 0.5} cy={0} rx={(flat ? L : tx) * 0.56} ry={Math.max(3, Math.min(8, tx * 0.03))} opacity={0.7} />
-      {under}
-      <LinearGradient
-        id={`${id}p`}
-        stops={
-          wood
-            ? materialStops(SCENE.woodLight, 0.6)
-            : [
-                [0, SCENE.metalLight],
-                [0.5, SCENE.metal],
-                [1, SCENE.metalDark],
-              ]
-        }
-      />
+      {shadow}
+      <LinearGradient id={`${id}p`} stops={materialStops(SCENE.woodLight, 0.6)} />
+      {!flat && (
+        <>
+          <LinearGradient id={`${id}a`} stops={materialStops(SCENE.wood, 0.8)} />
+          <path d={`M0,0 L${pt(tx, ty)} V0 Z`} fill={`url(#${id}a)`} />
+          {grain && <path d={grain} stroke={shade(SCENE.wood, 0.35)} strokeWidth={0.7 * ss} opacity={0.5} />}
+          <path d={`M${pt(tx - post / 2, ty + post)} V0`} stroke={shade(SCENE.wood, 0.3)} strokeWidth={post} opacity={0.5} />
+        </>
+      )}
       <path d={plank} fill={`url(#${id}p)`} />
-      {wood && !flat && <path d={`M${pt(0, 0)} L${pt(tx, ty)} V0 Z`} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} strokeLinejoin="round" />}
+      {!flat && <path d={`M${pt(0, 0)} L${pt(tx, ty)} V0 Z`} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} strokeLinejoin="round" />}
       <path d={plank} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} strokeLinejoin="round" />
       <line
         x1={c * 3}
@@ -987,7 +1040,7 @@ export function Lodd({ x, y, size = 30, label, materiale = 'messing', rotate, di
       <ellipse cx={0} cy={bTop + e} rx={nw * 0.62} ry={e * 0.5} fill={shade(base, 0.3)} opacity={0.55} />
       <path d={neck} fill={`url(#${id}a)`} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
       <ellipse cx={0} cy={neck0} rx={nw / 2} ry={e * 0.4} fill={tint(base, 0.35)} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
-      <line x1={-D * 0.3} y1={bTop + e * 2.2} x2={-D * 0.3} y2={bBot - e * 1.8} stroke={SCENE.highlight} strokeWidth={Math.max(1, D * 0.05)} strokeLinecap="round" />
+      <line x1={-D * 0.3} y1={bTop + e * 2.2} x2={-D * 0.3} y2={bBot - e * 1.8} stroke={SCENE.highlight} strokeWidth={Math.max(0.8 * ss, D * 0.05)} strokeLinecap="round" />
       {label && (
         <ObjectText x={D * 0.04} y={bTop + e * 2 + D * 0.16} w={D * 0.86} h={D * 0.34} text={label} color={shade(base, 0.6)} weight={760} max={14} />
       )}

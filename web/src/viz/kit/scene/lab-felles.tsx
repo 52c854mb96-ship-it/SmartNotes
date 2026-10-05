@@ -3,8 +3,7 @@
  * kan ikke kollidere med de andre familiene.
  */
 import type { ReactNode } from 'react';
-import { RadialGradient, SCENE_DIM, alpha, shade, tint, useStrokeScale, type GradientStop } from './core';
-import { SCENE } from './palette';
+import { LinearGradient, RadialGradient, SCENE_DIM, shade, tint, useStrokeScale, type GradientStop } from './core';
 
 /** Farger som bare familien «lab» bruker (lab.css). */
 export const LAB = {
@@ -161,8 +160,10 @@ export function roundedPolygon(pts: [number, number][], r: number): string {
 }
 
 /**
- * Damp som stiger fra (x, y): tre myke skyer. `mengde` 0–1 styrer størrelse og tetthet; med `tid` (sekunder) stiger
- * skyene og løses opp, ellers står de stille. Alle mål i lokale enheter.
+ * Damp som stiger fra (x, y): en tynn, bølgete damptråd nederst og tre myke dotter som vokser, brer seg ut og blir
+ * mykere mens de stiger. Ingen kontur: hver dott er en radiell toning fra nesten hvit i midten til gjennomsiktig i
+ * kanten, så dampen ser lys ut både på lys vegg og i skumring (ikke som røyk). `mengde` 0–1 styrer størrelse og
+ * tetthet; med `tid` (sekunder) stiger dottene og tråden bølger, ellers står de stille. Alle mål i lokale enheter.
  */
 export function Damp({
   id,
@@ -180,9 +181,9 @@ export function Damp({
   y: number;
   mengde: number;
   tid?: number;
-  /** Omtrentlig bredde på en sky. */
+  /** Omtrentlig bredde på en dott høyt oppe. */
   bredde: number;
-  /** Hvor høyt skyene stiger. */
+  /** Hvor høyt dampen stiger. */
   hoyde: number;
   sw: (w: number) => number;
   /** Sidelengs drift (lokale enheter over hele høyden, negativ = mot venstre). */
@@ -190,43 +191,75 @@ export function Damp({
 }) {
   const m = clamp01(mengde);
   if (m <= 0.02) return null;
+  const animated = tid !== undefined && Number.isFinite(tid);
+  const t = animated ? tid : 0;
   const n = 3;
-  const puffs: { d: string; op: number }[] = [];
+  const grow = 0.55 + 0.45 * m;
+  const dens = 0.45 + 0.55 * m;
+  const blobs: { cx: number; cy: number; rx: number; ry: number; rot: number; op: number }[] = [];
   for (let i = 0; i < n; i++) {
-    const p = tid === undefined || !Number.isFinite(tid) ? (i + 0.45) / n : (((tid * 0.4 + i / n) % 1) + 1) % 1;
-    const cx = x + drift * p + Math.sin(p * 6 + i * 2.3) * bredde * 0.16;
-    const cy = y - p * hoyde;
-    const rr = bredde * (0.2 + 0.32 * p) * (0.55 + 0.45 * m);
-    const op = m * (p < 0.15 ? 0.3 + (p / 0.15) * 0.7 : 1 - ((p - 0.15) / 0.85) ** 3.5);
-    const d = [
-      circlePath(cx, cy, rr),
-      circlePath(cx - rr * 0.72, cy + rr * 0.28, rr * 0.7),
-      circlePath(cx + rr * 0.74, cy + rr * 0.22, rr * 0.66),
-      circlePath(cx + rr * 0.1, cy - rr * 0.55, rr * 0.62),
-    ].join('');
-    puffs.push({ d, op: Math.max(0, op) });
+    const p = animated ? (((t * 0.4 + i / n) % 1) + 1) % 1 : (i + 0.5) / n;
+    // Smal og avlang nederst, bred og flat høyere opp. Kjernen holder seg tett til p ≈ 0,72 og tones så raskt ut.
+    const rx = bredde * (0.15 + 0.4 * p) * grow;
+    const ry = rx * (1.5 - 0.75 * p);
+    const sway = Math.sin(p * 5.2 + i * 2.1) * bredde * 0.14;
+    const cx = x + drift * p + sway;
+    const cy = y - p * hoyde - ry * 0.35;
+    const env = p < 0.1 ? p / 0.1 : p < 0.72 ? 1 : Math.max(0, 1 - ((p - 0.72) / 0.28) ** 1.6);
+    const op = dens * env;
+    if (op <= 0.02) continue;
+    const rot = Math.sin(p * 4 + i) * 14 + (drift < 0 ? -8 : drift > 0 ? 8 : 0) * p;
+    const side = i % 2 ? 1 : -1;
+    blobs.push({ cx, cy, rx, ry, rot, op });
+    blobs.push({ cx: cx + side * rx * 0.58, cy: cy + ry * 0.28, rx: rx * 0.66, ry: ry * 0.62, rot: -rot, op: op * 0.9 });
+  }
+  // Damptråden: en bølgete stripe fra kilden og opp til der dottene tar over.
+  const wispH = hoyde * 0.42;
+  let wisp = '';
+  for (let j = 0; j <= 8; j++) {
+    const u = j / 8;
+    const wx = x + drift * u * 0.42 + Math.sin(u * Math.PI * 2.2 - t * 4.2) * bredde * 0.12 * (0.35 + u);
+    wisp += `${j ? 'L' : 'M'}${r2(wx)},${r2(y - u * wispH)}`;
   }
   return (
     <g aria-hidden>
       <RadialGradient
         id={id}
-        cx={0.45}
-        cy={0.42}
-        r={0.6}
+        fx={0.42}
+        fy={0.38}
         stops={[
-          [0, LAB.steam],
-          [0.6, LAB.steam],
-          [1, LAB.steamEdge],
+          [0, LAB.steam, 0.95],
+          [0.45, LAB.steam, 0.82],
+          [0.75, LAB.steamEdge, 0.42],
+          [1, LAB.steamEdge, 0],
         ]}
       />
-      {puffs.map((p, i) =>
-        p.op > 0.02 ? (
-          <g key={i} opacity={r2(p.op)}>
-            <path d={p.d} fill="none" stroke={alpha(SCENE.outline, 0.35)} strokeWidth={sw(1.6)} />
-            <path d={p.d} fill={`url(#${id})`} />
-          </g>
-        ) : null,
-      )}
+      <LinearGradient
+        id={`${id}-t`}
+        userSpace
+        x1={r2(x)}
+        y1={r2(y)}
+        x2={r2(x)}
+        y2={r2(y - wispH)}
+        stops={[
+          [0, LAB.steam, 0],
+          [0.3, LAB.steam, 0.8 * dens],
+          [1, LAB.steam, 0.15 * dens],
+        ]}
+      />
+      <path d={wisp} fill="none" stroke={`url(#${id}-t)`} strokeWidth={r2(Math.max(sw(1.4), bredde * 0.09 * grow))} strokeLinecap="round" strokeLinejoin="round" />
+      {blobs.map((b, i) => (
+        <ellipse
+          key={i}
+          cx={r2(b.cx)}
+          cy={r2(b.cy)}
+          rx={r2(b.rx)}
+          ry={r2(b.ry)}
+          transform={`rotate(${r2(b.rot)} ${r2(b.cx)} ${r2(b.cy)})`}
+          fill={`url(#${id})`}
+          opacity={r2(b.op)}
+        />
+      ))}
     </g>
   );
 }

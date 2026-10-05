@@ -11,6 +11,7 @@ import {
   clamp,
   fillDown,
   lerp,
+  mod,
   peakAt,
   peakShape,
   periodicNoise,
@@ -59,6 +60,9 @@ const MARGIN = 3;
 
 type Rand = () => number;
 
+/** Nærmeste partall (minst 2), så en sagtann med annenhver topp passer sammen når landskapet ruller. */
+const even = (n: number): number => Math.max(2, 2 * Math.round(n / 2));
+
 /** Fjellkjede: topper med snø over snøgrensa, skyggeside til høyre og skog i liene. */
 function mountains(
   rand: Rand,
@@ -91,21 +95,6 @@ function mountains(
   const top = topOf(pts);
   const parts: LandPart[] = [];
 
-  if (o.forest) {
-    // Skogkanten: en tagget linje (tretoppene) som følger foten av fjellet.
-    const fn = periodicNoise(rand, [
-      [3, 0.5],
-      [8, 0.3],
-    ]);
-    const f = o.forest;
-    const edge = periodicSteps(w, Math.max(12, Math.round(w / 3.4)), (i) => (i % 2 === 0 ? 0.3 + rand() * 0.3 : 0)).map(
-      ([x, tip]): Pt => [x, o.base - f * (0.75 + 0.35 * fn(x / w)) - tip * f * 0.45],
-    );
-    const first = edge[0]!;
-    const last = edge[edge.length - 1]!;
-    parts.push({ d: polygon([[first[0], o.base + 1], ...edge, [last[0], o.base + 1]]), fill: mix(SCENE.foliageDark, SCENE.mountainShade, 0.35) });
-  }
-
   if (o.snow !== undefined) {
     // Alt over snøgrensa er snø; tunger av snø går ned i søkkene (ujevnt, de lange er sjeldne).
     const sn = o.snow;
@@ -117,11 +106,12 @@ function mountains(
     parts.push({ d: polygon([[first[0], top - 8], [last[0], top - 8], ...line.reverse()]), fill: SCENE.snowcap });
   }
 
-  // Skyggesiden: fra en ujevn rygg ned fra toppen og ut til høyre fot (lyset kommer fra øvre venstre).
+  // Skyggesiden: fra en rygg ned fra toppen og ut til høyre fot (lyset kommer fra øvre venstre). Ryggen går jevnt
+  // nedover mot høyre (litt ujevn), så skyggesiden blir én sammenhengende fjellside og ikke brettede fasetter.
   // Ryggen trekkes én gang per topp, så kopiene ved kantene (±w) blir like.
   let sd = '';
   for (const p of peaks) {
-    const jit = [0, 0, 0].map(() => (rand() - 0.5) * p.s * 0.08);
+    const jit = [0, 0, 0].map(() => (rand() - 0.5) * p.s * 0.04);
     for (const off of [-w, 0, w]) {
       const c = p.c + off;
       if (c + p.s < -MARGIN - 2 || c - p.s * 0.2 > w + MARGIN + 2) continue;
@@ -130,10 +120,10 @@ function mountains(
       const ridge: Pt[] = [
         [c, b - H - 8],
         [c + p.s * 0.02, b - H * 0.97],
-        [c + p.s * 0.1 + jit[0]!, b - H * 0.68],
-        [c - p.s * 0.03 + jit[1]!, b - H * 0.42],
-        [c + p.s * 0.14 + jit[2]!, b - H * 0.16],
-        [c + p.s * 0.1, b + 1],
+        [c + p.s * 0.07 + jit[0]!, b - H * 0.72],
+        [c + p.s * 0.12 + jit[1]!, b - H * 0.48],
+        [c + p.s * 0.17 + jit[2]!, b - H * 0.24],
+        [c + p.s * 0.2, b + 1],
       ];
       const flank: Pt[] = [];
       for (let i = 10; i >= 0; i--) {
@@ -144,6 +134,42 @@ function mountains(
     }
   }
   parts.push({ d: sd, fill: shade(SCENE.mountainShade, 0.3), opacity: o.shadeOpacity ?? 0.42 });
+
+  if (o.forest) {
+    // Skogen i liene tegnes sist, så den dekker fjellets skyggeside nederst. Kanten er tretoppene: ujevne spisser
+    // med ujevn avstand. Skogen har sin egen skygge (høyre side av hver krone, som et lite fall nedover), og
+    // arver ikke fjellets.
+    const fn = periodicNoise(rand, [
+      [3, 0.5],
+      [8, 0.3],
+    ]);
+    const f = o.forest;
+    const m = even(Math.max(12, w / 3.4));
+    const tipH: number[] = [];
+    const tipX: number[] = [];
+    for (let i = 0; i < m; i++) {
+      const tip = i % 2 === 0;
+      tipH.push(tip ? 0.2 + 0.6 * Math.pow(rand(), 0.8) : 0.04 * rand());
+      tipX.push(tip ? (rand() - 0.5) * 0.6 : 0);
+    }
+    const edge: Pt[] = [];
+    for (let i = -1; i <= m + 1; i++) {
+      const j = mod(i, m);
+      const x = ((i + tipX[j]!) / m) * w;
+      edge.push([x, o.base - f * (0.75 + 0.35 * fn(x / w)) - tipH[j]! * f * 0.45]);
+    }
+    const first = edge[0]!;
+    const last = edge[edge.length - 1]!;
+    const fill = mix(SCENE.foliageDark, SCENE.mountainShade, 0.35);
+    parts.push({ d: polygon([[first[0], o.base + 1], ...edge, [last[0], o.base + 1]]), fill });
+    let fs = '';
+    for (let i = 0; i < edge.length - 1; i++) {
+      const a = edge[i]!;
+      const b = edge[i + 1]!;
+      if (a[1] < b[1] - 0.3) fs += polygon([a, b, [a[0] + (b[0] - a[0]) * 0.3, b[1] + f * 0.22]]);
+    }
+    parts.push({ d: fs, fill: shade(fill, 0.4), opacity: 0.5 });
+  }
 
   return { d: fillDown(pts, 1), fill: SCENE.mountain, parts, haze: o.haze, top, parallax: o.parallax };
 }
@@ -216,6 +242,26 @@ function forest(
     top,
     parallax: o.parallax,
   };
+}
+
+/**
+ * Fjern skogås: en myk ås med lav sagtann langs toppen (tretoppene), uten enkelttrær. Brukes når trærne ellers ville
+ * blitt så små at kanten ser ut som pels.
+ */
+function woodedRidge(
+  rand: Rand,
+  w: number,
+  o: { base: number; ground: number; groundVar: number; tooth: number; fill: string; haze: [number, number]; parallax: number },
+): LandLayer {
+  const noise = periodicNoise(rand, [
+    [1, 0.5],
+    [3, 0.33],
+    [7, 0.17],
+  ]);
+  const G = (x: number) => Math.max(0, o.ground + o.groundVar * noise(x / w));
+  const tips = periodicSteps(w, even(w / (o.tooth * 1.1)), (i) => (i % 2 === 0 ? o.tooth * (0.45 + 0.55 * rand()) : 0));
+  const pts = tips.map(([x, t]): Pt => [x, o.base - G(x) - t]);
+  return { d: fillDown(pts, 1), fill: o.fill, parts: [], haze: o.haze, top: topOf(pts), parallax: o.parallax };
 }
 
 /** Åsrygg: myk bølgende profil, eventuelt med små klynger av graner og en gård. */
@@ -567,19 +613,33 @@ export function buildLandscape(type: LandskapType, w: number, h: number, seed: n
       ];
     }
     case 'skog': {
+      // Det fjerneste laget: store, glisne trær når det er plass, ellers en myk ås med lav sagtann (ikke «pels»).
+      const tFar = h * 0.065;
+      const far =
+        tFar >= 8
+          ? forest(rand, w, {
+              base: 0,
+              ground: h * 0.42,
+              groundVar: h * 0.12,
+              tree: [Math.max(9, tFar), Math.max(11.5, tFar * 1.3)],
+              spacing: Math.max(9, tFar) * 0.5,
+              fill: SCENE.hillFar,
+              haze: [0.42, 0.6],
+              parallax: 0.2,
+              shadeOpacity: 0.3,
+              wide: 0.26,
+            })
+          : woodedRidge(rand, w, {
+              base: 0,
+              ground: h * 0.42,
+              groundVar: h * 0.12,
+              tooth: Math.max(1.5, h * 0.03),
+              fill: SCENE.hillFar,
+              haze: [0.42, 0.6],
+              parallax: 0.2,
+            });
       return [
-        forest(rand, w, {
-          base: 0,
-          ground: h * 0.42,
-          groundVar: h * 0.12,
-          tree: [h * 0.045, h * 0.06],
-          spacing: Math.max(1.5, h * 0.012),
-          fill: SCENE.hillFar,
-          haze: [0.42, 0.6],
-          parallax: 0.2,
-          shadeOpacity: 0.3,
-          wide: 0.3,
-        }),
+        far,
         forest(rand, w, {
           base: 0,
           ground: h * 0.2,

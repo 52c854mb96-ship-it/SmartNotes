@@ -861,7 +861,7 @@ export function Bergbanevogn({ x, y, size = 160, lakk = 'gul', skinne, hjulvinke
             <path d={COASTER_SEAT_SEAM} fill="none" stroke={shade(seat, 0.4)} strokeWidth={sw(0.8)} strokeLinecap="round" />
             <path d={COASTER_SEAT_SHINE} fill="none" stroke={SCENE.highlight} strokeWidth={sw(1.1)} strokeLinecap="round" />
             <path d={COASTER_BAR} fill="none" stroke={SCENE.outline} strokeWidth={2.8 + sw(1)} strokeLinecap="round" strokeLinejoin="round" />
-            <path d={COASTER_BAR} fill="none" stroke={SCENE.metalDark} strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" />
+            <path d={COASTER_BAR} fill="none" stroke={mix(SCENE.metal, SCENE.metalDark, 0.5)} strokeWidth={2.8} strokeLinecap="round" strokeLinejoin="round" />
             <path d={COASTER_PAD} stroke={SCENE.outline} strokeWidth={6.4 + sw(1)} strokeLinecap="round" />
             <path d={COASTER_PAD} stroke={tint(seat, 0.08)} strokeWidth={6.4} strokeLinecap="round" />
           </g>

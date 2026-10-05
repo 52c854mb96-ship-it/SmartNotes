@@ -75,7 +75,10 @@ export interface SikringProps {
   y: number;
   /** Høyden (standard 90). Bredden er 0,21 · size, som en ekte automatsikring (18 × 85 mm). */
   size?: number;
-  /** Sikringen har gått (løst ut): vippen står nede. Vippen glir mykt mellom stillingene. */
+  /**
+   * Sikringen har gått (løst ut): vippen står nede og er litt mørkere, og vinduet over vippen viser grønt i stedet for
+   * rødt. Vippen glir mykt mellom stillingene.
+   */
   gaatt?: boolean;
   /** Merkingen under vippen, f.eks. «16 A». */
   merking?: string;
@@ -84,9 +87,23 @@ export interface SikringProps {
   title?: string;
 }
 
+/** Fargen i indikatorvinduet: rødt når sikringen er på (kontaktene sluttet), grønt når den har gått. */
+function indicatorColor(gaatt: boolean | undefined): string {
+  return gaatt ? PAINTS.gronn : PAINTS.rod;
+}
+
+/** Toningen på vippen: mørk plast, litt mørkere når sikringen har gått. */
+function leverStops(gaatt: boolean | undefined): [number, string][] {
+  const c = gaatt ? shade(SCENE.rubberLight, 0.22) : SCENE.rubberLight;
+  return [
+    [0, tint(c, 0.3)],
+    [1, c],
+  ];
+}
+
 /**
- * Automatsikring for en kurs, sett forfra: hvitt hus med skruer oppe og nede og en vippe som står oppe (på) eller
- * nede (gått). (x, y) er midten.
+ * Automatsikring for en kurs, sett forfra: hvitt hus med skruer oppe og nede, et lite vindu som viser rødt (på) eller
+ * grønt (gått), og en vippe som står oppe (på) eller nede (gått). (x, y) er midten.
  *   <Sikring x={200} y={160} size={120} gaatt={I > 16} merking="16 A" />
  */
 export function Sikring({ x, y, size = 90, gaatt = false, merking, rotate, dim, title }: SikringProps) {
@@ -101,12 +118,14 @@ export function Sikring({ x, y, size = 90, gaatt = false, merking, rotate, dim, 
   return (
     <ObjectFrame x={x} y={y} k={k} rotate={rotate} dim={dim} title={title}>
       <LinearGradient id={`${id}-b`} x2={1} y2={0} stops={boxStops(pl, 1.2)} />
-      <LinearGradient id={`${id}-v`} stops={[[0, tint(SCENE.rubberLight, 0.3)], [1, SCENE.rubberLight]]} />
+      <LinearGradient id={`${id}-v`} stops={leverStops(gaatt)} />
       <RadialGradient id={`${id}-s`} fx={0.36} fy={0.32} stops={sphereStops(SCENE.metal)} />
       <rect x={-10.5} y={-50} width={21} height={100} rx={2.5} fill={`url(#${id}-b)`} {...ol} />
-      <path d="M-6.5,-45h13v12h-13ZM-6.5,33h13v12h-13Z" fill={shade(pl, 0.42)} />
-      <path d={`${circlePath(0, -39, 4.2)}${circlePath(0, 39, 4.2)}`} fill={`url(#${id}-s)`} {...ol} />
-      <path d="M-2.6,-39H2.6M-2.6,39H2.6" stroke={shade(SCENE.metal, 0.5)} strokeWidth={1.1} />
+      <path d="M-6.5,-45h13v10.5h-13ZM-6.5,34.5h13v10.5h-13Z" fill={shade(pl, 0.42)} />
+      <path d={`${circlePath(0, -39.8, 4)}${circlePath(0, 39.8, 4)}`} fill={`url(#${id}-s)`} {...ol} />
+      <path d="M-2.5,-39.8H2.5M-2.5,39.8H2.5" stroke={shade(SCENE.metal, 0.5)} strokeWidth={1.1} />
+      {/* Indikatorvindu */}
+      <rect x={-4.6} y={-31.6} width={9.2} height={4.6} rx={1} fill={indicatorColor(gaatt)} stroke={shade(pl, 0.55)} strokeWidth={sw(0.8)} />
       <rect x={-10.5} y={-25} width={21} height={50} rx={1.5} fill={tint(pl, 0.2)} {...ol} />
       <rect x={-4.6} y={-16} width={9.2} height={32} rx={2} fill={shade(pl, 0.55)} />
       <ObjText x={7.6} y={-12} size={4.6} fill={print} weight={700}>
@@ -117,7 +136,7 @@ export function Sikring({ x, y, size = 90, gaatt = false, merking, rotate, dim, 
       </ObjText>
       <g className="sc-ease" style={{ transform: `translateY(${gaatt ? 17 : 0}px)` }}>
         <rect x={-5.6} y={-17.5} width={11.2} height={17} rx={2.6} fill={`url(#${id}-v)`} {...ol} />
-        <path d="M-3.4,-15.6H3.4" stroke={SCENE.highlight} strokeWidth={1} strokeLinecap="round" />
+        <path d="M-3.4,-15.6H3.4" stroke={SCENE.highlight} strokeWidth={1} strokeLinecap="round" opacity={gaatt ? 0.6 : 1} />
       </g>
       {label && (
         <ObjText x={0} y={22.2} size={Math.min(6, 18 / Math.max(1, label.length * 0.6))} fill={print} weight={750}>
@@ -130,13 +149,52 @@ export function Sikring({ x, y, size = 90, gaatt = false, merking, rotate, dim, 
 
 /* ------------------------------------------------------------------ Sikringsskap */
 
-/** Omtrentlig bredde på et tegn i halvfet skrift, som andel av skriftstørrelsen. */
-const CHAR_W = 0.66;
+/** Omtrentlig bredde på et tegn i halvfet skrift, som andel av skriftstørrelsen (målt: 0,57 SF, 0,66 DejaVu). */
+const CHAR_W = 0.62;
+/** Minste skriftstørrelse for navnene (figurens enheter, vokser ikke på mobil): 0,65 av vanlig etikettstørrelse. */
+const NAME_FLOOR = 17 * 0.72 * 0.65;
+
+/** Mulige linjeskift i et navn: ved mellomrom, bindestrek eller myk bindestrek (U+00AD). Det beste skiftet først. */
+function splitName(navn: string): [string, string] | null {
+  let best: [string, string] | null = null;
+  let bestLen = Infinity;
+  for (let i = 1; i < navn.length - 1; i++) {
+    const ch = navn[i];
+    let a: string;
+    let b: string;
+    if (ch === ' ') {
+      a = navn.slice(0, i);
+      b = navn.slice(i + 1);
+    } else if (ch === '-' || ch === '­') {
+      a = `${navn.slice(0, i)}-`;
+      b = navn.slice(i + 1);
+    } else continue;
+    a = a.replace(/­/g, '').trim();
+    b = b.replace(/­/g, '').trim();
+    const len = Math.max(a.length, b.length);
+    if (a && b && len < bestLen) {
+      best = [a, b];
+      bestLen = len;
+    }
+  }
+  return best;
+}
+
+interface NameFit {
+  /** Navnet uten myke bindestreker. */
+  full: string;
+  split: [string, string] | null;
+  /** Største størrelse navnet får plass med (på én eller to linjer). */
+  best: number;
+}
 
 export interface SikringsKurs {
-  /** Navnet på kursen, f.eks. «Kjøkken». */
+  /**
+   * Navnet på kursen, f.eks. «Kjøkken». Lange navn brytes til to linjer ved mellomrom eller bindestrek; skriv en myk
+   * bindestrek (­) der et langt ord kan deles: 'Varme­kabler'. Passer det fortsatt ikke, forkortes det med «…».
+   */
   navn: string;
-  /** Sikringen har gått (vippen nede). */
+  /** Sikringen har gått (vippen nede, grønt i vinduet). */
   gaatt?: boolean;
   /** Merkingen under sikringen, f.eks. «16 A». */
   merking?: string;
@@ -155,9 +213,10 @@ export interface SikringsskapProps {
 }
 
 /**
- * Sikringsskap uten dør, sett forfra: én automatsikring per kurs med navnet over og merkingen under. Navnene er like
- * store og vokser på mobil så langt kolonnene har plass (lange navn krymper). Gjør skapet bredt eller bruk få kurser
- * når navnene skal kunne leses på mobil, eller pek på én kurs med <Callout>. (x, y) er midten.
+ * Sikringsskap uten dør, sett forfra: én automatsikring per kurs med navnet over og merkingen under. Den som har gått,
+ * har vippen nede og grønt i vinduet (de andre rødt). Alle navnene har samme størrelse; lange navn brytes til to linjer
+ * og forkortes med «…» bare når de fortsatt ikke får plass (hele navnet står da i <title>). Gjør skapet bredt eller
+ * bruk få kurser når navnene skal kunne leses på mobil, eller pek på én kurs med <Callout>. (x, y) er midten.
  *   <Sikringsskap x={400} y={170} w={360} h={220} kurser={[{ navn: 'Kjøkken', merking: '16 A' }, { navn: 'Bad', gaatt: true }]} />
  */
 export function Sikringsskap({ x, y, w, h, kurser, dim, title }: SikringsskapProps) {
@@ -180,12 +239,30 @@ export function Sikringsskap({ x, y, w, h, kurser, dim, title }: SikringsskapPro
   const pl = SCENE.plastic;
   const print = shade(pl, 0.76);
   const want = 17 * f * 0.72;
-  // Like store navn i hele skapet så langt det går; lange navn krymper så de passer i kolonnen.
+  // Én skriftstørrelse for alle navnene: den største som alle får plass med (på én eller to linjer), men ikke under
+  // NAME_FLOOR. Navn som ikke får plass da, forkortes.
   const labelH = rowH * 0.3;
-  const fitted = list.map((k) => Math.min(want, (colW * 0.86) / (Math.max(1, (k.navn ?? '').length) * CHAR_W), labelH * 0.6));
-  const sorted = [...fitted].sort((a, b) => a - b);
-  const median = sorted[Math.floor(sorted.length / 2)] ?? want;
-  const nameFs = Math.max(sorted[0] ?? want, median * 0.72);
+  const room = colW * 0.92;
+  const oneMax = labelH * 0.6;
+  const twoMax = (labelH * 0.86) / 2.25;
+  const fits: NameFit[] = list.map((k) => {
+    const full = (k.navn ?? '').replace(/­/g, '');
+    const one = Math.min(want, oneMax, room / (Math.max(1, full.length) * CHAR_W));
+    const split = splitName(k.navn ?? '');
+    const two = split ? Math.min(want, twoMax, room / (Math.max(split[0].length, split[1].length) * CHAR_W)) : 0;
+    return { full, split, best: Math.max(one, two) };
+  });
+  const smallest = Math.min(...fits.map((t) => (t.full ? t.best : want)));
+  const nameFs = Math.min(want, oneMax, Math.max(smallest, NAME_FLOOR));
+  const layout = fits.map((t) => {
+    if (!t.full) return null;
+    if (t.full.length * CHAR_W * nameFs <= room + 0.01) return { lines: [t.full], cut: false };
+    if (t.split && nameFs <= twoMax + 0.01 && Math.max(t.split[0].length, t.split[1].length) * CHAR_W * nameFs <= room + 0.01) {
+      return { lines: t.split, cut: false };
+    }
+    const keep = Math.max(1, Math.floor(room / (CHAR_W * nameFs)) - 1);
+    return { lines: [`${t.full.slice(0, keep).trimEnd()}…`], cut: true };
+  });
   const marks = list.map((k) => Math.min(want * 0.92, (colW * 0.9) / (Math.max(1, (k.merking ?? '').length) * CHAR_W), rowH * 0.14));
   const markFs = Math.min(nameFs, ...marks);
   const ol = r2(1 * ss);
@@ -193,7 +270,8 @@ export function Sikringsskap({ x, y, w, h, kurser, dim, title }: SikringsskapPro
     <ObjectFrame x={x} y={y} dim={dim} title={title}>
       <LinearGradient id={`${id}-c`} x2={1} y2={1} stops={[[0, tint(pl, 0.25)], [0.6, pl], [1, shade(pl, 0.1)]]} />
       <LinearGradient id={`${id}-b`} x2={1} y2={0} stops={boxStops(tint(pl, 0.25), 1.2)} />
-      <LinearGradient id={`${id}-v`} stops={[[0, tint(SCENE.rubberLight, 0.3)], [1, SCENE.rubberLight]]} />
+      <LinearGradient id={`${id}-v`} stops={leverStops(false)} />
+      <LinearGradient id={`${id}-g`} stops={leverStops(true)} />
       <rect x={r2(left + W * 0.02)} y={r2(top + H * 0.03)} width={r2(W)} height={r2(H)} rx={r2(Math.min(W, H) * 0.035)} fill={SCENE.shadow} opacity={0.5} />
       <rect x={r2(left)} y={r2(top)} width={r2(W)} height={r2(H)} rx={r2(Math.min(W, H) * 0.035)} fill={`url(#${id}-c)`} stroke={SCENE.outline} strokeWidth={ol} />
       <rect
@@ -216,9 +294,22 @@ export function Sikringsskap({ x, y, w, h, kurser, dim, title }: SikringsskapPro
         const cy = zoneTop + zoneH / 2;
         const items = list.slice(row * cols, row * cols + cols);
         const x0 = left + pad;
+        const stripTop = rowTop + labelH * 0.08;
+        const stripMid = stripTop + labelH * 0.45;
+        // Indikatorvinduene: rødt for kursene som er på, grønt for dem som har gått (én sti per farge).
+        const windows = (tripped: boolean) =>
+          items
+            .map((kurs, j) => {
+              if (Boolean(kurs.gaatt) !== tripped) return '';
+              const cx = x0 + colW * (j + 0.5);
+              return `M${r2(cx - bw * 0.24)},${r2(cy - bh * 0.455)}h${r2(bw * 0.48)}v${r2(bh * 0.075)}h${r2(-bw * 0.48)}Z`;
+            })
+            .join('');
+        const onWin = windows(false);
+        const offWin = windows(true);
         return (
           <g key={row}>
-            <rect x={r2(x0)} y={r2(rowTop + labelH * 0.08)} width={r2(iw)} height={r2(labelH * 0.9)} rx={r2(Math.min(4, labelH * 0.1))} fill={tint(pl, 0.55)} stroke={shade(pl, 0.2)} strokeWidth={r2(0.7 * ss)} />
+            <rect x={r2(x0)} y={r2(stripTop)} width={r2(iw)} height={r2(labelH * 0.9)} rx={r2(Math.min(4, labelH * 0.1))} fill={tint(pl, 0.55)} stroke={shade(pl, 0.2)} strokeWidth={r2(0.7 * ss)} />
             <rect x={r2(x0 + colW * 0.06)} y={r2(cy - bh * 0.56)} width={r2(colW * (items.length - 0.12))} height={r2(bh * 1.12)} rx={r2(bw * 0.08)} fill={shade(pl, 0.5)} />
             {items.map((_, j) => {
               const cx = x0 + colW * (j + 0.5);
@@ -228,37 +319,58 @@ export function Sikringsskap({ x, y, w, h, kurser, dim, title }: SikringsskapPro
               d={items
                 .map((_, j) => {
                   const cx = x0 + colW * (j + 0.5);
-                  return `M${r2(cx - bw * 0.22)},${r2(cy - bh * 0.32)}h${r2(bw * 0.44)}v${r2(bh * 0.64)}h${r2(-bw * 0.44)}Z`;
+                  return `M${r2(cx - bw * 0.22)},${r2(cy - bh * 0.3)}h${r2(bw * 0.44)}v${r2(bh * 0.64)}h${r2(-bw * 0.44)}Z`;
                 })
                 .join('')}
               fill={shade(pl, 0.55)}
             />
+            {onWin && <path d={onWin} fill={indicatorColor(false)} stroke={shade(pl, 0.55)} strokeWidth={r2(0.6 * ss)} />}
+            {offWin && <path d={offWin} fill={indicatorColor(true)} stroke={shade(pl, 0.55)} strokeWidth={r2(0.6 * ss)} />}
             {items.map((kurs, j) => {
               const cx = x0 + colW * (j + 0.5);
               return (
                 <rect
                   key={j}
                   className="sc-ease"
-                  style={{ transform: `translateY(${r2(kurs.gaatt ? bh * 0.34 : 0)}px)` }}
+                  style={{ transform: `translateY(${r2(kurs.gaatt ? bh * 0.33 : 0)}px)` }}
                   x={r2(cx - bw * 0.27)}
-                  y={r2(cy - bh * 0.35)}
+                  y={r2(cy - bh * 0.33)}
                   width={r2(bw * 0.54)}
                   height={r2(bh * 0.34)}
                   rx={r2(bw * 0.12)}
-                  fill={`url(#${id}-v)`}
+                  fill={`url(#${id}-${kurs.gaatt ? 'g' : 'v'})`}
                   stroke={SCENE.outline}
                   strokeWidth={ol}
                 />
               );
             })}
-            {items.map((kurs, j) => {
+            {items.map((_, j) => {
+              const lay = layout[row * cols + j];
+              if (!lay) return null;
               const cx = x0 + colW * (j + 0.5);
-              const fsN = Math.min(nameFs, fitted[row * cols + j] ?? nameFs);
-              return kurs.navn ? (
-                <ObjText key={j} x={cx} y={rowTop + labelH * 0.53 + fsN * 0.35} size={fsN} fill={print} weight={650}>
-                  {kurs.navn}
+              const two = lay.lines.length === 2;
+              const text = (key?: number) => (
+                <ObjText key={key} x={cx} y={stripMid + nameFs * (two ? -0.575 + 0.35 : 0.35)} size={nameFs} fill={print} weight={650}>
+                  {two ? (
+                    <>
+                      <tspan x={r2(cx)}>{lay.lines[0]}</tspan>
+                      <tspan x={r2(cx)} dy={r2(nameFs * 1.15)}>
+                        {lay.lines[1]}
+                      </tspan>
+                    </>
+                  ) : (
+                    lay.lines[0]
+                  )}
                 </ObjText>
-              ) : null;
+              );
+              return lay.cut ? (
+                <g key={j}>
+                  <title>{fits[row * cols + j]!.full}</title>
+                  {text()}
+                </g>
+              ) : (
+                text(j)
+              );
             })}
             {items.map((kurs, j) =>
               kurs.merking ? (
@@ -284,7 +396,10 @@ export interface SolcellepanelProps {
   w?: number;
   /** Vinkelen fra vannrett i grader (0–90). Panelet dreier om toppen av stolpen. */
   vinkel?: number;
-  /** På en stolpe (standard, panelet dreier om toppen av stolpen 0,55 · w over bakken) eller rett på et tak med samme helning. */
+  /**
+   * På en stolpe (standard: toppen av stolpen er minst 0,55 · w over bakken, høyere når panelet er bratt) eller rett på
+   * en flate med samme helning: et tak, eller en fasade med `vinkel={90}` (panelet sitter på venstre side av veggen).
+   */
   montering?: 'stolpe' | 'tak';
   /** Standard: panelet stiger mot høyre og vender mot øvre venstre. `flip` speilvender. */
   flip?: boolean;
@@ -293,10 +408,11 @@ export interface SolcellepanelProps {
 }
 
 /**
- * Solcellepanel med blå celler i aluminiumsramme, sett litt ovenfra. Nærmeste kant følger `vinkel` nøyaktig, så du
- * kan tegne innstrålingsvinkelen mot den.
+ * Solcellepanel med blå celler i aluminiumsramme, sett litt ovenfra og fra venstre, så cellene synes fra 0° (flatt)
+ * til 90° (loddrett fasade). Nærmeste kant følger `vinkel` nøyaktig, så du kan tegne innstrålingsvinkelen mot den.
  *   <Solcellepanel x={300} y={300} w={220} vinkel={40} />
  *   <Solcellepanel x={120} y={180} w={160} vinkel={30} montering="tak" />
+ *   <Solcellepanel x={260} y={290} w={80} vinkel={90} montering="tak" />  // på en fasade (vegg i x = 260)
  */
 export function Solcellepanel({ x, y, w = 200, vinkel = 35, montering = 'stolpe', flip, dim, title }: SolcellepanelProps) {
   const ss = useStrokeScale();
@@ -307,12 +423,17 @@ export function Solcellepanel({ x, y, w = 200, vinkel = 35, montering = 'stolpe'
   const s = Math.sin(th);
   const ax = Wp * c;
   const ay = -Wp * s;
+  // Dybden (bakover i bildet) dreier med panelet: rett opp når det ligger flatt, mot venstre når det står loddrett.
+  // Da har flaten synlig areal og celler fra 0° til 90°, mens nærmeste kant følger vinkelen nøyaktig.
   const dd = Wp * 0.2;
+  const dx = -dd * 0.6 * s;
+  const dy = -dd * (0.2 + 0.8 * c);
   const thick = Math.max(2.6 * ss, Wp * 0.03);
   const tx = s * thick;
   const ty = c * thick;
   const roof = montering === 'tak';
-  const postH = Wp * 0.55;
+  // Stolpen blir høyere når panelet er bratt, så nederste hjørne alltid er minst 0,1 · w over bakken.
+  const postH = Math.max(Wp * 0.55, (Wp * s) / 2 - dy / 2 + ty + Wp * 0.1);
   let n0x: number;
   let n0y: number;
   if (roof) {
@@ -320,22 +441,23 @@ export function Solcellepanel({ x, y, w = 200, vinkel = 35, montering = 'stolpe'
     n0x = Wp * 0.02 * c - s * (so + thick);
     n0y = -Wp * 0.02 * s - c * (so + thick);
   } else {
-    n0x = -ax / 2;
-    n0y = -postH + dd / 2 - ay / 2;
+    // Midten av flaten ligger på toppen av stolpen; nærmeste kant er en halv dybde foran.
+    n0x = -ax / 2 - dx / 2;
+    n0y = -postH - dy / 2 - ay / 2;
   }
   const n1x = n0x + ax;
   const n1y = n0y + ay;
   const P = (px: number, py: number) => `${r2(px)},${r2(py)}`;
-  const face = `M${P(n0x, n0y)}L${P(n1x, n1y)}L${P(n1x, n1y - dd)}L${P(n0x, n0y - dd)}Z`;
+  const face = `M${P(n0x, n0y)}L${P(n1x, n1y)}L${P(n1x + dx, n1y + dy)}L${P(n0x + dx, n0y + dy)}Z`;
   const band = `M${P(n0x, n0y)}L${P(n1x, n1y)}L${P(n1x + tx, n1y + ty)}L${P(n0x + tx, n0y + ty)}Z`;
-  const sil = `M${P(n0x, n0y - dd)}L${P(n1x, n1y - dd)}L${P(n1x, n1y)}L${P(n1x + tx, n1y + ty)}L${P(n0x + tx, n0y + ty)}L${P(n0x, n0y)}Z`;
+  const sil = `M${P(n0x + dx, n0y + dy)}L${P(n1x + dx, n1y + dy)}L${P(n1x, n1y)}L${P(n1x + tx, n1y + ty)}L${P(n0x + tx, n0y + ty)}L${P(n0x, n0y)}Z`;
   let grid = '';
   for (let i = 1; i < 10; i++) {
     const px = n0x + (ax * i) / 10;
     const py = n0y + (ay * i) / 10;
-    grid += `M${P(px, py)}L${P(px, py - dd)}`;
+    grid += `M${P(px, py)}L${P(px + dx, py + dy)}`;
   }
-  for (let j = 1; j < 4; j++) grid += `M${P(n0x, n0y - (dd * j) / 4)}L${P(n1x, n1y - (dd * j) / 4)}`;
+  for (let j = 1; j < 4; j++) grid += `M${P(n0x + (dx * j) / 4, n0y + (dy * j) / 4)}L${P(n1x + (dx * j) / 4, n1y + (dy * j) / 4)}`;
   // Brakett under midten av panelet
   const mx = (n0x + n1x) / 2 + tx;
   const my = (n0y + n1y) / 2 + ty;
@@ -420,8 +542,8 @@ export interface PanelovnProps {
 }
 
 /**
- * Panelovn i hvit lakk, sett forfra: rist oppe og nede, termostat med lampe til høyre. Når den er på, stiger varm
- * luft fra risten. (x, y) er midt på bunnen.
+ * Panelovn i hvit lakk, sett forfra: rist for varm luft oppe, luftinntak nede og termostat med lampe til høyre. Når
+ * den er på, stiger varm luft fra risten. (x, y) er midt på bunnen.
  *   <Panelovn x={400} y={300} w={240} paa={on} tid={clock.t} />
  */
 export function Panelovn({ x, y, w = 220, h, paa = false, fotter = true, tid, dim, title }: PanelovnProps) {
@@ -439,8 +561,12 @@ export function Panelovn({ x, y, w = 220, h, paa = false, fotter = true, tid, di
   let slots = '';
   const sx0 = -W / 2 + W * 0.05;
   const sx1 = W / 2 - W * 0.17;
+  // Rist for varm luft oppe og luftinntak nede (samme sti, så det ikke blir flere elementer).
   for (let sx = sx0; sx <= sx1; sx += gap) {
     slots += `M${r2(sx)},${r2(top + Hh * 0.09)}V${r2(top + Hh * 0.2)}`;
+  }
+  for (let sx = sx0; sx <= W / 2 - W * 0.05; sx += gap) {
+    slots += `M${r2(sx)},${r2(top + Hh * 0.83)}V${r2(top + Hh * 0.9)}`;
   }
   const tx0 = W / 2 - W * 0.13;
   const tw = W * 0.095;

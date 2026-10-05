@@ -23,9 +23,9 @@
   /* Solcellepanel: mørkeblått glass og sølvstriper */
   --sc-lab-solar: #26487f;
   --sc-lab-solar-line: #c9d6e6;
-  /* Damp: hvit, litt blågrå i kanten (lys også i skumring, så den ikke ser ut som røyk) */
+  /* Damp: hvit kjerne, lys blågrå myk kant (lys også i skumring, så den ikke ser ut som røyk) */
   --sc-lab-steam: #ffffff;
-  --sc-lab-steam-edge: #d3dee8;
+  --sc-lab-steam-edge: #c6d4e2;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -45,8 +45,8 @@
     --sc-lab-band-9: #bcbeba;
     --sc-lab-solar: #1c3765;
     --sc-lab-solar-line: #8195ad;
-    --sc-lab-steam: #dfe7ef;
-    --sc-lab-steam-edge: #a9b8c8;
+    --sc-lab-steam: #eef3f8;
+    --sc-lab-steam-edge: #c9d6e4;
   }
 }
 
@@ -66,6 +66,6 @@
   --sc-lab-band-9: #bcbeba;
   --sc-lab-solar: #1c3765;
   --sc-lab-solar-line: #8195ad;
-  --sc-lab-steam: #dfe7ef;
-  --sc-lab-steam-edge: #a9b8c8;
+  --sc-lab-steam: #eef3f8;
+  --sc-lab-steam-edge: #c9d6e4;
 }

@@ -89,6 +89,7 @@ function tuft(x: number, y: number, s: number): string {
 export function TopFace({ type, left, right, top, bottom, seed, shift, k, ss, haze }: FaceProps & { haze?: boolean }) {
   const gid = useSvgId('sc-toppflate');
   const cid = useSvgId('sc-toppklipp');
+  const sid = useSvgId('sc-toppdrag');
   const t = useTable(seed, `${type}:topp`);
   const L = right - left;
   const span = bottom - top;
@@ -220,22 +221,53 @@ export function TopFace({ type, left, right, top, bottom, seed, shift, k, ss, ha
       );
       break;
     }
-    case 'gress':
-      add('d', scatter(t, 0, cnt(75), (u, v, a) => tuft(X(u), Y(v), (0.9 + 0.9 * a) * k * P(v))), {
+    case 'gress': {
+      // På en dyp flate blir tustene færre og mindre bakover (b avgjør hvilke som tegnes), og svake lyse og mørke
+      // drag i dybden gjør enga rolig. På en smal flate er tustene jevnt fordelt.
+      const keep = (v: number, b: number) => !deep || b < 0.12 + 0.88 * v * v;
+      add('d', scatter(t, 0, cnt(deep ? 60 : 75), (u, v, a, b) => (keep(v, b) ? tuft(X(u), Y(v), (0.9 + 0.9 * a) * k * P(v)) : '')), {
         fill: 'none',
         stroke: SCENE.grassDark,
         strokeWidth: 0.7 * ss,
         strokeLinejoin: 'round',
         opacity: 0.9,
       });
-      add('l', scatter(t, 200, cnt(120), (u, v, a) => tuft(X(u), Y(v), (0.8 + 0.8 * a) * k * P(v))), {
+      add('l', scatter(t, 200, cnt(deep ? 100 : 120), (u, v, a, b) => (keep(v, b) ? tuft(X(u), Y(v), (0.8 + 0.8 * a) * k * P(v)) : '')), {
         fill: 'none',
         stroke: tint(SCENE.grass, 0.28),
         strokeWidth: 0.6 * ss,
         strokeLinejoin: 'round',
         opacity: 0.7,
       });
+      if (deep) {
+        const lys = tint(SCENE.grass, 0.3);
+        const mork = shade(SCENE.grassDark, 0.15);
+        tex.unshift(
+          <LinearGradient
+            key="dg"
+            id={sid}
+            userSpace
+            x1={0}
+            y1={top}
+            x2={0}
+            y2={bottom}
+            stops={[
+              [0, lys, 0],
+              [0.1, lys, 0.32],
+              [0.22, lys, 0],
+              [0.22, mork, 0],
+              [0.36, mork, 0.2],
+              [0.5, mork, 0],
+              [0.5, lys, 0],
+              [0.68, lys, 0.22],
+              [0.86, lys, 0],
+            ]}
+          />,
+          <rect key="dr" x={left} y={top} width={L} height={span} fill={`url(#${sid})`} />,
+        );
+      }
       break;
+    }
     case 'grus':
       add(
         'd',
@@ -575,13 +607,18 @@ export function FrontFace({ type, left, right, top, bottom, seed, shift, k, ss }
           [0, mix(SCENE.bench, SCENE.benchEdge, 0.55)],
           [1, shade(SCENE.benchEdge, 0.12)],
         ]);
+        // Skapdører fordelt jevnt mellom endene (ca. 110 brede), med håndtaket midt på hver dør. Med forskyvning
+        // ruller dørene med teksturen (perioden er hele bredden, så de passer sammen).
         let seams = '';
         let handles = '';
-        const hw = 6 * k;
+        const hw = Math.min(6 * k, L * 0.2);
         const hh = 1.1 * k;
-        for (let xx = left + mod(55 - shift, 110); xx < right + 55; xx += 110) {
-          if (xx < right) seams += `M${r1(xx)},${r1(cab + 1.5)}V${r1(bottom)}`;
-          const hx = xx - 55;
+        const nd = Math.max(1, Math.round(L / 110));
+        const dw = L / nd;
+        for (let i = 0; i < nd; i++) {
+          const sx = left + mod(i * dw - shift, L);
+          if (sx > left + 1 && sx < right - 1) seams += `M${r1(sx)},${r1(cab + 1.5)}V${r1(bottom)}`;
+          const hx = left + mod((i + 0.5) * dw - shift, L);
           if (bottom - cab > 8)
             handles += polygon([
               [hx - hw, cab + 4],

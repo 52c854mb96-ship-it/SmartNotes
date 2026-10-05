@@ -250,7 +250,22 @@ export function Vannkoker({ x, y, size = 120, paa = false, vann = 0.6, damp = 0,
   return (
     <ObjectFrame x={x} y={y} k={k} rotate={rotate} flip={flip} dim={dim} title={title}>
       <ContactShadow cx={0} cy={0} rx={42} ry={4.5} />
-      <LinearGradient id={`${id}-b`} x2={1} y2={0} stops={cylinderStops(body, lakk ? 0.5 : 1)} />
+      <LinearGradient
+        id={`${id}-b`}
+        x2={1}
+        y2={0}
+        stops={
+          lakk
+            ? // Lakkert plast: myk toning uten den skarpe metallglansen.
+              [
+                [0, shade(body, 0.1)],
+                [0.24, tint(body, 0.16)],
+                [0.62, body],
+                [1, shade(body, 0.2)],
+              ]
+            : cylinderStops(body)
+        }
+      />
       <LinearGradient id={`${id}-p`} stops={materialStops(plast, 1.4)} />
       <LinearGradient id={`${id}-w`} x2={1} y2={0} stops={[[0, SCENE.waterLight], [0.6, SCENE.water], [1, SCENE.waterDeep]]} />
       {/* Sokkel */}
@@ -265,7 +280,11 @@ export function Vannkoker({ x, y, size = 120, paa = false, vann = 0.6, damp = 0,
       <path d={KETTLE_BODY} fill={`url(#${id}-b)`} stroke={SCENE.outline} strokeWidth={sw(1)} strokeLinejoin="round" />
       <path d={KETTLE_SKIRT} fill={`url(#${id}-p)`} />
       <path d="M-25.9,-81.2L25.9,-81.2L26.2,-84.8L-26.2,-84.8Z" fill={tint(SCENE.metal, 0.3)} stroke={SCENE.outline} strokeWidth={sw(0.8)} />
-      <path d="M-21.4,-78L-25.6,-20" stroke={SCENE.highlight} strokeWidth={2.4} strokeLinecap="round" />
+      {lakk ? (
+        <path d="M-21.2,-76.5L-25.4,-22" stroke={SCENE.highlight} strokeWidth={5.6} strokeLinecap="round" opacity={0.32} />
+      ) : (
+        <path d="M-21.4,-78L-25.6,-20" stroke={SCENE.highlight} strokeWidth={2.4} strokeLinecap="round" />
+      )}
       {/* Vindu med vannstand */}
       <rect x={-17} y={wTop} width={8} height={wBot - wTop} rx={4} fill={shade(SCENE.glassEdge, 0.42)} />
       {v > 0 && (
@@ -450,7 +469,8 @@ export function Kasserolle({ x, y, w = 110, vann = 0.7, damp = 0, lokk = false, 
       <path d="M53,-51.4L118,-60.6" stroke={SCENE.highlight} strokeWidth={1.1} strokeLinecap="round" />
     </g>
   );
-  const steamY = lokk ? -80 : snitt ? Math.min(-62, yw - 6) : -62;
+  // Med lokk slipper dampen ut mellom lokket og kanten (på siden uten skaft), ellers stiger den fra vannflata.
+  const steamY = lokk ? -62 : snitt ? Math.min(-62, yw - 6) : -62;
   return (
     <ObjectFrame x={x} y={y} k={k} rotate={rotate} flip={flip} dim={dim} title={title}>
       <ContactShadow cx={4} cy={-7} rx={58} ry={9.5} />
@@ -528,7 +548,11 @@ export function Kasserolle({ x, y, w = 110, vann = 0.7, damp = 0, lokk = false, 
           )}
         </>
       )}
-      <Damp id={`${id}-d`} x={lokk ? 6 : 0} y={steamY} mengde={dm} tid={tid} bredde={30} hoyde={46} drift={8} sw={sw} />
+      {lokk ? (
+        <Damp id={`${id}-d`} x={-46} y={steamY} mengde={dm} tid={tid} bredde={22} hoyde={40} drift={-10} sw={sw} />
+      ) : (
+        <Damp id={`${id}-d`} x={0} y={steamY} mengde={dm} tid={tid} bredde={30} hoyde={46} drift={8} sw={sw} />
+      )}
     </ObjectFrame>
   );
 }
@@ -581,8 +605,16 @@ export function Isbit({ x, y, size = 40, smeltet = 0, rotate, dim, title }: Isbi
     <ObjectFrame x={x} y={y} k={k} rotate={rotate} dim={dim} title={title}>
       {m > 0 && (
         <g>
-          <ellipse cx={4} cy={r2(-puddleRy * 0.7)} rx={r2(puddleRx)} ry={r2(puddleRy)} fill={alpha(SCENE.water, 0.3 + 0.2 * m)} stroke={alpha(SCENE.waterDeep, 0.5)} strokeWidth={sw(0.8)} />
-          <ellipse cx={r2(4 - puddleRx * 0.3)} cy={r2(-puddleRy * 1.05)} rx={r2(puddleRx * 0.38)} ry={r2(puddleRy * 0.3)} fill={SCENE.highlight} opacity={0.7} />
+          <ellipse
+            cx={4}
+            cy={r2(-puddleRy * 0.7)}
+            rx={r2(puddleRx)}
+            ry={r2(puddleRy)}
+            fill={mix(alpha(SCENE.water, 0.32 + 0.2 * m), alpha(SCENE.waterLight, 0.4), 0.45)}
+            stroke={alpha(SCENE.waterLight, 0.75)}
+            strokeWidth={sw(1.1)}
+          />
+          <ellipse cx={r2(4 - puddleRx * 0.3)} cy={r2(-puddleRy * 1.05)} rx={r2(puddleRx * 0.4)} ry={r2(Math.max(puddleRy * 0.3, sw(1)))} fill={SCENE.highlight} opacity={0.85} />
         </g>
       )}
       {E > 2 && (

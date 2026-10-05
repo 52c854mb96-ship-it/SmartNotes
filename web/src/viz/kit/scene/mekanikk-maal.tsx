@@ -164,13 +164,13 @@ export function Kraftmaaler({ x, y, lengde, kraft, maks, enhet = 'N', farge = 'r
         strokeWidth={0.6 * ss}
         strokeLinejoin="round"
       />
-      <line x1={-W * 0.42} y1={tubeT + W * 0.1} x2={-W * 0.42} y2={tubeB - W * 0.1} stroke={SCENE.highlight} strokeWidth={Math.max(1, W * 0.04)} strokeLinecap="round" />
+      <line x1={-W * 0.42} y1={tubeT + W * 0.1} x2={-W * 0.42} y2={tubeB - W * 0.1} stroke={SCENE.highlight} strokeWidth={Math.max(0.8 * ss, W * 0.04)} strokeLinecap="round" />
       <rect x={-W / 2} y={tubeT} width={W} height={tubeB - tubeT} fill="none" stroke={SCENE.glassEdge} strokeWidth={1 * ss} />
       <rect x={-W / 2} y={tubeT} width={W} height={tubeB - tubeT} fill="none" stroke={SCENE.outline} strokeWidth={0.6 * ss} opacity={0.6} />
       {/* Lokk */}
       <rect x={-W * 0.56} y={capT} width={W * 1.12} height={capH} rx={W * 0.08} fill={`url(#${id}c)`} stroke={SCENE.outline} strokeWidth={0.9 * ss} />
       <rect x={-W * 0.56} y={tubeB} width={W * 1.12} height={botCapH} rx={W * 0.08} fill={`url(#${id}c)`} stroke={SCENE.outline} strokeWidth={0.9 * ss} />
-      <line x1={-W * 0.44} y1={capT + capH * 0.28} x2={W * 0.3} y2={capT + capH * 0.28} stroke={SCENE.highlight} strokeWidth={Math.max(0.8, W * 0.05)} strokeLinecap="round" />
+      <line x1={-W * 0.44} y1={capT + capH * 0.28} x2={W * 0.3} y2={capT + capH * 0.28} stroke={SCENE.highlight} strokeWidth={Math.max(0.8 * ss, W * 0.05)} strokeLinecap="round" />
     </Place>
   );
 }
@@ -234,9 +234,12 @@ export function Badevekt({ x, y, w, visning, skygge = true, dim, title }: Badeve
 /* ---------------------------------------------------------------- Målebånd */
 
 export interface MaalebaandProps {
-  /** Der skalaen begynner (verdien `fra`). */
+  /** Der skalaen begynner (verdien `fra`). Haken i enden av båndet stikker høyst 4 enheter ut forbi x1. */
   x1: number;
-  /** Der skalaen slutter (verdien `til`). Båndet fortsetter litt forbi, med plass til enheten. */
+  /**
+   * Der skalaen slutter (verdien `til`). Båndet slutter 3 enheter etter, så x2 kan ligge helt ut mot kanten av
+   * figuren uten at noe klippes.
+   */
   x2: number;
   /** Overkanten av båndet. Båndet går nedover herfra, så det kan ligge langs bakkekanten foran gjenstandene. */
   y: number;
@@ -244,7 +247,9 @@ export interface MaalebaandProps {
   fra?: number;
   /** Verdien ved x2. */
   til: number;
-  /** Enheten, skrevet etter det siste tallet. Standard «m». */
+  /**
+   * Enheten. Den står etter det siste tallet når det er plass, ellers etter det første («0 m»). Standard «m».
+   */
   enhet?: string;
   /** Omtrent hvor mange intervaller med tall (standard: så mange som får plass). Tallene kommer i fine steg. */
   merker?: number;
@@ -252,10 +257,18 @@ export interface MaalebaandProps {
   title?: string;
 }
 
+/** Omtrentlig bredde på tekst i fet skrift (tall er ca. 0,64 em, smale tegn mindre, «m» og «w» mer). */
+function textWidth(text: string, px: number): number {
+  let em = 0;
+  for (const ch of text) em += /[0-9]/.test(ch) ? 0.64 : /[,.:; ]/.test(ch) ? 0.36 : /[mwMW]/.test(ch) ? 1.02 : 0.66;
+  return em * px;
+}
+
 /**
- * Målebånd langs bakken med streker og tall. Ankerpunkt: overkanten (y) fra x1 til x2. Båndet blir litt høyere på
- * mobil, så tallene kan leses.
- *   <Maalebaand x1={80} x2={720} y={bakke} til={40} />      // 0, 5, 10 … 40 m
+ * Målebånd langs bakken med streker og tall. Ankerpunkt: overkanten (y) fra x1 til x2. Alt holder seg innenfor
+ * x1 − 4 … x2 + 3 (haken sitter i x1-enden). Båndet blir litt høyere på mobil, så tallene kan leses.
+ *   <Maalebaand x1={80} x2={720} y={bakke} til={40} />      // 0 m, 5, 10 … 40
+ *   <Maalebaand x1={80} x2={560} y={bakke} til={4.8} />     // 0, 1, 2, 3, 4 m
  */
 export function Maalebaand({ x1, x2, y, fra = 0, til, enhet = 'm', merker, dim, title }: MaalebaandProps) {
   const id = useSvgId('sc-maal');
@@ -268,18 +281,30 @@ export function Maalebaand({ x1, x2, y, fra = 0, til, enhet = 'm', merker, dim, 
   const width = b - a;
   const range = v1 - v0;
   if (!(Math.abs(width) > 4) || !(Math.abs(range) > 0)) return null;
+  const dir = width > 0 ? 1 : -1;
   const px = 11.5 * f;
   const hb = px * 1.75;
   const upv = width / range;
   const longest = Math.max(fmt(v0, 1).length, fmt(v1, 1).length);
-  const fit = Math.max(1, Math.floor(Math.abs(width) / (longest * px * 0.62 + 12 * f)));
+  const fit = Math.max(1, Math.floor(Math.abs(width) / (longest * px * 0.64 + 12 * f)));
   const want = merker !== undefined && merker > 0 ? Math.min(merker, fit) : Math.min(fit, Math.max(1, Math.round(Math.abs(width) / (75 * f))));
   const steps = scaleSteps(range, want, upv, 4 * ss);
   const dec = decimalsFor(steps.major);
+
+  // Båndet går fra x1 til x2 pluss en fast ende; haken sitter utenfor x1.
+  const END = 3;
+  const left = dir > 0 ? a : b - END;
+  const right = dir > 0 ? b + END : a;
+  const inL = left + 2;
+  const inR = right - 2;
+
   let ticks = '';
-  const labels: { x: number; text: string }[] = [];
-  const first = Math.ceil(v0 / steps.minor - 1e-9);
-  const last = Math.floor(v1 / steps.minor + 1e-9);
+  type Label = { text: string; x: number; l: number; r: number; anchor: 'start' | 'middle' | 'end' };
+  const labels: Label[] = [];
+  const lo = Math.min(v0, v1);
+  const hi = Math.max(v0, v1);
+  const first = Math.ceil(lo / steps.minor - 1e-9);
+  const last = Math.floor(hi / steps.minor + 1e-9);
   for (let i = first; i <= last && i - first <= 400; i++) {
     const v = i * steps.minor;
     const tx = a + (v - v0) * upv;
@@ -287,14 +312,35 @@ export function Maalebaand({ x1, x2, y, fra = 0, til, enhet = 'm', merker, dim, 
     const half = !major && Math.abs((2 * v) / steps.major - Math.round((2 * v) / steps.major)) < 1e-6;
     const len = major ? hb * 0.4 : half ? hb * 0.28 : hb * 0.17;
     ticks += `M${pt(tx, y)} V${r2(y + len)}`;
-    if (major) labels.push({ x: tx, text: fmt(v, dec) });
+    if (!major) continue;
+    // Null skrives «0», som på en ekte linjal. Tall som ville stikke ut av båndet, skyves inn (start/slutt).
+    const text = Math.abs(v) < 1e-9 ? '0' : fmt(v, dec);
+    const tw = textWidth(text, px);
+    if (tx - tw / 2 < inL) labels.push({ text, x: inL, l: inL, r: inL + tw, anchor: 'start' });
+    else if (tx + tw / 2 > inR) labels.push({ text, x: inR, l: inR - tw, r: inR, anchor: 'end' });
+    else labels.push({ text, x: tx, l: tx - tw / 2, r: tx + tw / 2, anchor: 'middle' });
   }
-  const unitW = enhet ? enhet.length * px * 0.72 + px * 0.9 : 0;
-  const lastLabel = labels[labels.length - 1];
-  const tail = (lastLabel ? (lastLabel.text.length * px * 0.6) / 2 : 0) + unitW + 6;
-  const left = Math.min(a, b);
-  const right = Math.max(a, b) + tail;
+  labels.sort((p, q) => p.x - q.x);
+
+  // Enheten: etter det siste tallet, ellers etter det første, ellers helt til høyre (og tall som kolliderer, hoppes over).
+  let unit: { x: number; anchor: 'start' | 'end' } | null = null;
+  let shown = labels;
+  if (enhet) {
+    const uw = textWidth(enhet, px);
+    const gap = px * 0.35;
+    const lastL = labels[labels.length - 1];
+    const firstL = labels[0];
+    if (lastL && lastL.r + gap + uw <= inR) unit = { x: lastL.r + gap, anchor: 'start' };
+    else if (firstL && firstL.r + gap + uw + gap <= (labels[1]?.l ?? inR + gap)) unit = { x: firstL.r + gap, anchor: 'start' };
+    else {
+      unit = { x: inR, anchor: 'end' };
+      shown = labels.filter((l) => l.r <= inR - uw - gap);
+    }
+  }
+
   const tab = Math.max(4, hb * 0.28);
+  const hook = Math.min(3.5, tab * 0.5);
+  const hx = dir > 0 ? left : right;
   return (
     <g opacity={dim ? SCENE_DIM : undefined}>
       {title && <title>{title}</title>}
@@ -303,23 +349,20 @@ export function Maalebaand({ x1, x2, y, fra = 0, til, enhet = 'm', merker, dim, 
       <line x1={left + 1} y1={y + 0.8 * ss} x2={right - 1} y2={y + 0.8 * ss} stroke={SCENE.highlight} strokeWidth={1.1 * ss} />
       <path d={ticks} stroke={MEK.print} strokeWidth={0.9 * ss} />
       <g fill={MEK.print} fontWeight={650} fontSize={r2(px)} style={{ fontVariantNumeric: 'tabular-nums' }}>
-        {labels.map((l, i) => {
-          const atStart = i === 0 && Math.abs(l.x - left) < px;
-          return (
-            <text key={i} x={r2(atStart ? l.x + 2 : l.x)} y={r2(y + hb - px * 0.3)} textAnchor={atStart ? 'start' : 'middle'}>
-              {l.text}
-            </text>
-          );
-        })}
-        {enhet && (
-          <text x={r2(right - 4)} y={r2(y + hb - px * 0.3)} textAnchor="end" fontWeight={600}>
+        {shown.map((l, i) => (
+          <text key={i} x={r2(l.x)} y={r2(y + hb - px * 0.3)} textAnchor={l.anchor}>
+            {l.text}
+          </text>
+        ))}
+        {unit && (
+          <text x={r2(unit.x)} y={r2(y + hb - px * 0.3)} textAnchor={unit.anchor} fontWeight={600}>
             {enhet}
           </text>
         )}
       </g>
-      {/* Metallhaken i starten av båndet */}
+      {/* Metallhaken i x1-enden av båndet */}
       <path
-        d={`M${pt(left - tab * 0.5, y - tab * 0.6)} H${r2(left + 0.5)} V${r2(y + hb)} H${r2(left - tab * 0.5)} Z`}
+        d={`M${pt(hx - dir * hook, y - tab * 0.6)} H${r2(hx + dir * 0.5)} V${r2(y + hb)} H${r2(hx - dir * hook)} Z`}
         fill={SCENE.metal}
         stroke={SCENE.outline}
         strokeWidth={0.8 * ss}
@@ -357,11 +400,13 @@ export function Stoppeklokke({ x, y, r, t, digital = true, desimaler = 2, dim, t
   const time = Math.max(0, num(t, 0));
   const dec = clamp(Math.round(num(desimaler, 2)), 0, 3);
   const angle = ((time % 60) / 60) * 360;
+  // Rund av først, så 59,996 s blir «1:00,00» og ikke «60,00 s».
+  const tr = Math.round(time * 10 ** dec) / 10 ** dec;
   let text: string;
-  if (time < 60) text = `${fmt(time, dec)} s`;
+  if (tr < 60) text = `${fmt(tr, dec)} s`;
   else {
-    const min = Math.floor(time / 60);
-    const sec = fmt(time - min * 60, dec);
+    const min = Math.floor(tr / 60);
+    const sec = fmt(tr - min * 60, dec);
     text = `${min}:${sec.length < (dec ? dec + 3 : 2) ? `0${sec}` : sec}`;
   }
   const dial = R * 0.86;
@@ -380,13 +425,14 @@ export function Stoppeklokke({ x, y, r, t, digital = true, desimaler = 2, dim, t
   const nums: [string, number, number][] = [
     ['60', 0, -dial * 0.62],
     ['15', dial * 0.62, 0],
-    ['30', 0, dial * 0.62],
+    // «30» flyttes litt ned når vinduet er der, så det ikke rører vinduet
+    ['30', 0, dial * (digital ? 0.68 : 0.62)],
     ['45', -dial * 0.62, 0],
   ];
-  const hand = `M${pt(-R * 0.025, R * 0.2)} L${pt(-R * 0.012, -dial * 0.9)} L${pt(R * 0.012, -dial * 0.9)} L${pt(R * 0.025, R * 0.2)} Z`;
-  const dW = dial * 0.95;
-  const dH = R * 0.26;
-  const dY = R * 0.3;
+  const hand = `M${pt(-R * 0.025, R * 0.12)} L${pt(-R * 0.012, -dial * 0.9)} L${pt(R * 0.012, -dial * 0.9)} L${pt(R * 0.025, R * 0.12)} Z`;
+  const dW = dial * 1.12;
+  const dH = R * 0.32;
+  const dY = R * 0.32;
   const hand2 = PAINTS.rod;
   return (
     <g transform={`translate(${r2(num(x, 0))} ${r2(num(y, 0))})`} opacity={dim ? SCENE_DIM : undefined}>
@@ -429,23 +475,24 @@ export function Stoppeklokke({ x, y, r, t, digital = true, desimaler = 2, dim, t
             </text>
           ))}
       </g>
-      {digital && (
-        <>
-          <rect x={-dW / 2} y={dY - dH / 2} width={dW} height={dH} rx={dH * 0.18} fill={SCENE.display} />
-          <ObjectText x={0} y={dY} w={dW * 0.9} h={dH * 0.95} text={text} color={SCENE.displayText} weight={650} max={14} />
-        </>
-      )}
       <g transform={`rotate(${r2(angle)})`}>
         <path d={hand} fill={hand2} stroke={shade(hand2, 0.35)} strokeWidth={0.5 * ss} strokeLinejoin="round" />
       </g>
       <circle r={R * 0.07} fill={hand2} stroke={shade(hand2, 0.35)} strokeWidth={0.6 * ss} />
       <circle r={R * 0.025} fill={SCENE.metalLight} />
+      {/* Vinduet ligger over viseren, så tiden alltid kan leses (spissen synes utenfor) */}
+      {digital && (
+        <>
+          <rect x={-dW / 2} y={dY - dH / 2} width={dW} height={dH} rx={dH * 0.18} fill={SCENE.display} stroke={shade(SCENE.metal, 0.35)} strokeWidth={0.7 * ss} />
+          <ObjectText x={0} y={dY} w={dW * 0.9} h={dH * 0.95} text={text} color={SCENE.displayText} weight={650} max={14} />
+        </>
+      )}
       {/* Glasset */}
       <path
         d={`M${pt(Math.cos(195 * DEG) * dial * 0.86, Math.sin(195 * DEG) * dial * 0.86)} A${r2(dial * 0.86)},${r2(dial * 0.86)} 0 0 1 ${pt(Math.cos(250 * DEG) * dial * 0.86, Math.sin(250 * DEG) * dial * 0.86)}`}
         fill="none"
         stroke={alpha(SCENE.metalLight, 0.9)}
-        strokeWidth={Math.max(1, R * 0.05)}
+        strokeWidth={Math.max(0.8 * ss, R * 0.05)}
         strokeLinecap="round"
         opacity={0.7}
       />
