@@ -59,6 +59,16 @@ const viz: VizMeta[] = [
     keywords: ['terminalfart', 'luftmotstand', 'kv²', 'fallskjermhopper', 'Eulers metode', 'numerisk', 'andre lov'],
     load: () => import('./Luftmotstand'),
   },
+  {
+    id: 'eks-skraplan',
+    kind: 'eksempel',
+    chapter: '2',
+    sections: ['2C', '2E'],
+    title: 'Kasse som sklir ned en planke',
+    summary: 'Krefter, dekomponering av tyngden, Newtons 2. lov, fart nederst og grensevinkelen, steg for steg.',
+    keywords: ['skråplan', 'rampe', 'friksjonstall', 'dekomponering', 'andre lov', 'grensevinkel', 'tidløs likning'],
+    load: () => import('./EksSkraplan'),
+  },
 ];
 
 export default viz;

@@ -1,0 +1,69 @@
+/*
+ * Ekstra farger for familien «mekanikk» i scene-kit-et (mekanikk.tsx): papp, tau, baller, målebånd og trykk på
+ * instrumenter. Bruk SCENE-fargene først; disse dekker bare det SCENE ikke har.
+ *
+ * Mørkt tema er skumring: samme materialer, mindre lys. Verdiene må være like i de to mørke blokkene.
+ * «ink-*» er tekst og streker som står på en flate (etikett på en kloss, tall på en skala); de bytter til lys
+ * tekst i mørkt tema der flaten blir mørk.
+ */
+:root {
+  --sc-mekanikk-papp: #c9a06b;
+  --sc-mekanikk-papp-dark: #a47d4e;
+  --sc-mekanikk-teip: #b58b55;
+  --sc-mekanikk-paper: #f4efe3;
+  --sc-mekanikk-print: #2a2e34;
+  --sc-mekanikk-dial: #fbfbf8;
+  --sc-mekanikk-hamp: #c8aa74;
+  --sc-mekanikk-nylon: #ebe8e0;
+  --sc-mekanikk-strikk: #3b3f45;
+  --sc-mekanikk-tennis: #cdd94f;
+  --sc-mekanikk-basket: #c46a3a;
+  --sc-mekanikk-maalebaand: #ebc84e;
+  --sc-mekanikk-ink-tre: #4a2f1a;
+  --sc-mekanikk-ink-metall: #2b3137;
+  --sc-mekanikk-ink-stein: #262624;
+  --sc-mekanikk-ink-gummi: #e4e6e9;
+  --sc-mekanikk-ink-is: #1f4a66;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --sc-mekanikk-papp: #8c6e48;
+    --sc-mekanikk-papp-dark: #6b5236;
+    --sc-mekanikk-teip: #7a5d39;
+    --sc-mekanikk-paper: #bdb5a4;
+    --sc-mekanikk-print: #17191d;
+    --sc-mekanikk-dial: #b8bcc1;
+    --sc-mekanikk-hamp: #8e7853;
+    --sc-mekanikk-nylon: #a3a6aa;
+    --sc-mekanikk-strikk: #1f2226;
+    --sc-mekanikk-tennis: #97a23c;
+    --sc-mekanikk-basket: #95522f;
+    --sc-mekanikk-maalebaand: #ab9137;
+    --sc-mekanikk-ink-tre: #f1e3cd;
+    --sc-mekanikk-ink-metall: #f0f3f6;
+    --sc-mekanikk-ink-stein: #eeeeea;
+    --sc-mekanikk-ink-gummi: #d2d5d9;
+    --sc-mekanikk-ink-is: #eef8fd;
+  }
+}
+
+:root[data-theme='dark'] {
+  --sc-mekanikk-papp: #8c6e48;
+  --sc-mekanikk-papp-dark: #6b5236;
+  --sc-mekanikk-teip: #7a5d39;
+  --sc-mekanikk-paper: #bdb5a4;
+  --sc-mekanikk-print: #17191d;
+  --sc-mekanikk-dial: #b8bcc1;
+  --sc-mekanikk-hamp: #8e7853;
+  --sc-mekanikk-nylon: #a3a6aa;
+  --sc-mekanikk-strikk: #1f2226;
+  --sc-mekanikk-tennis: #97a23c;
+  --sc-mekanikk-basket: #95522f;
+  --sc-mekanikk-maalebaand: #ab9137;
+  --sc-mekanikk-ink-tre: #f1e3cd;
+  --sc-mekanikk-ink-metall: #f0f3f6;
+  --sc-mekanikk-ink-stein: #eeeeea;
+  --sc-mekanikk-ink-gummi: #d2d5d9;
+  --sc-mekanikk-ink-is: #eef8fd;
+}
