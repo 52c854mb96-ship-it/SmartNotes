@@ -153,17 +153,24 @@ for (const [name, delay] of [
     await startServer(path.join(work, 'B'));
     const other = await page.context().newPage();
     await other.goto(`http://localhost:${PROXY}/api/health`);
+    // Følg den nye service workeren fra installasjonen starter (WebKit gir et nytt objekt for `registration.active`
+    // hver gang, så det kan ikke sammenlignes).
     await other.evaluate(async () => {
+      const w = window as unknown as { newWorker?: string };
+      w.newWorker = 'ikke startet';
       const r = await navigator.serviceWorker.getRegistration();
-      (window as unknown as { oldWorker?: ServiceWorker | null }).oldWorker = r?.active;
+      r?.addEventListener('updatefound', () => {
+        const worker = r.installing;
+        w.newWorker = worker?.state ?? 'ukjent';
+        worker?.addEventListener('statechange', () => (w.newWorker = worker.state));
+      });
       void r?.update();
     });
     // «underveis»: vent til installasjonen er i gang. «ferdig»: vent til den er ferdig (venter eller har tatt over).
     await other.waitForFunction(
-      async (underway) => {
-        const r = await navigator.serviceWorker.getRegistration();
-        const replaced = r?.active !== (window as unknown as { oldWorker?: ServiceWorker | null }).oldWorker;
-        return Boolean((underway && r?.installing) || r?.waiting || replaced);
+      (underway) => {
+        const state = (window as unknown as { newWorker?: string }).newWorker;
+        return underway ? state !== 'ikke startet' : state !== 'ikke startet' && state !== 'installing';
       },
       delay > 0,
       { timeout: 30_000 },
