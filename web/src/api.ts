@@ -28,6 +28,7 @@ import type {
 } from '@smartnotes/shared';
 import { asBlob, type StoredBytes } from './db';
 import { authStore, markReachable } from './lib/connectivity';
+import { serverBuildStore } from './lib/build';
 
 const BASE = '/api';
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -156,6 +157,8 @@ async function request(method: string, path: string, opts: RequestOptions = {}):
     throw new NetworkError(t.timedOut() ? 'Serveren svarte ikke i tide.' : 'Får ikke kontakt med serveren.');
   }
   t.cleanup();
+  const build = res.headers.get('X-SmartNotes-Build');
+  if (build) serverBuildStore.set(build);
   if (res.ok) {
     if (!opts.quiet) markReachable(true);
     return res;

@@ -1,14 +1,35 @@
-import { defineConfig } from 'vite';
+import { createHash } from 'node:crypto';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 const ACCENT = '#1F5FAD';
+
+/**
+ * Byggnummer i index.html (`<meta name="smartnotes-build">`). Serveren sender det med API-svarene, og appen ser
+ * dermed at en nyere versjon finnes, også når service workeren ikke sa fra i tide (se src/lib/pwa.ts).
+ * Nummeret er en hash av index.html med de ferdige filnavnene, så det endres bare når appen endres.
+ */
+function buildVersion(): Plugin {
+  return {
+    name: 'smartnotes-build-version',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html) {
+        const build = createHash('sha256').update(html).digest('hex').slice(0, 16);
+        return html.replace('</head>', `  <meta name="smartnotes-build" content="${build}" />\n  </head>`);
+      },
+    },
+  };
+}
 
 export default defineConfig({
   // Egen cache per utviklingsserver når flere kjører samtidig (f.eks. VITE_CACHE_DIR=node_modules/.vite-5311).
   cacheDir: process.env.VITE_CACHE_DIR || 'node_modules/.vite',
   plugins: [
     react(),
+    buildVersion(),
     VitePWA({
       strategies: 'generateSW',
       registerType: 'autoUpdate',
@@ -37,6 +58,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Lar siden be en ventende service worker ta over (public/sw-skip-waiting.js, src/lib/pwa.ts).
+        importScripts: ['sw-skip-waiting.js'],
         // .mjs er med slik at pdf.js-workeren blir precachet.
         globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,woff2}'],
         // pdf.js-workeren er ~1,3 MB.

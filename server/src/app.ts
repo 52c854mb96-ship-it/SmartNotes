@@ -34,6 +34,17 @@ export interface AppContext {
 }
 
 
+/** Byggnummeret Vite skriver i index.html (`<meta name="smartnotes-build">`), eller null uten ferdigbygd web-app. */
+function readWebBuild(webDist: string | null): string | null {
+  if (!webDist) return null;
+  try {
+    const html = fs.readFileSync(path.join(webDist, 'index.html'), 'utf8');
+    return /<meta name="smartnotes-build" content="([^"]+)"/.exec(html)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function buildApp(config: Config, opts: { claude?: ClaudeService; logger?: boolean } = {}): Promise<AppContext> {
   const app = Fastify({
     logger: opts.logger === false ? false : { level: process.env.LOG_LEVEL ?? 'info' },
@@ -84,6 +95,15 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
     return reply.code(status).send({ error: code ?? 'bad_request', message: 'Ugyldig forespørsel.' });
   });
 
+  // Byggnummeret til web-appen følger med hvert API-svar. Da ser appen at serveren har en nyere versjon, også når
+  // service workeren ikke sa fra i tide (web/src/lib/pwa.ts).
+  const webBuild = readWebBuild(config.webDist);
+  if (webBuild) {
+    app.addHook('onRequest', async (req, reply) => {
+      if (req.url.startsWith('/api/')) reply.header('X-SmartNotes-Build', webBuild);
+    });
+  }
+
   registerAuth(app, repo, config);
 
   app.get('/api/health', async (): Promise<HealthResponse> => ({
@@ -110,7 +130,7 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
       setHeaders(res, filePath) {
         const name = path.basename(filePath);
         if (filePath.includes(`${path.sep}assets${path.sep}`)) res.header('Cache-Control', 'public, max-age=31536000, immutable');
-        else if (name === 'sw.js' || name.startsWith('workbox-') || name.endsWith('.webmanifest') || name === 'index.html')
+        else if (name.startsWith('sw') || name.startsWith('workbox-') || name.endsWith('.webmanifest') || name === 'index.html')
           res.header('Cache-Control', 'no-cache');
         else res.header('Cache-Control', 'public, max-age=86400');
       },

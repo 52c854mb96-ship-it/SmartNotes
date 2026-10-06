@@ -22,9 +22,9 @@ export default defineConfig({
   },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 } }, testIgnore: /safari\.spec\.ts/ },
-    { name: 'mobil', use: { ...devices['Pixel 7'] }, testIgnore: /safari\.spec\.ts/ },
+    { name: 'mobil', use: { ...devices['Pixel 7'] }, testIgnore: /(safari|oppdatering)\.spec\.ts/ },
     // Safari (WebKit): krever `npx playwright install webkit`. Kjøres i en egen CI-jobb (npm run test:e2e:webkit).
-    { name: 'safari', use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } }, testMatch: /safari\.spec\.ts/ },
+    { name: 'safari', use: { ...devices['Desktop Safari'], viewport: { width: 1440, height: 900 } }, testMatch: /(safari|oppdatering)\.spec\.ts/ },
     { name: 'ipad', use: { ...devices['iPad (gen 11) landscape'] }, testMatch: /safari\.spec\.ts/ },
   ],
   webServer: {
