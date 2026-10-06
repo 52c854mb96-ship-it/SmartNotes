@@ -24,7 +24,17 @@ import { EksPanel, barDecimals, type EGroup } from './eksplosjon-diagram';
 import { RIFLE } from './eksplosjon-deler';
 import { RifleScene, rifleLayout, rifleTimeline } from './eksplosjon-gevaer';
 import { CartScene, SPRING_TRAVEL, cartLayout, cartTimeline } from './eksplosjon-lab';
-import { ARM_PUSH, SkaterScene, phaseAt, phaseTime, skaterLayout, skaterTimeline, useSceneFrame, type Timeline } from './eksplosjon-scene';
+import {
+  ARM_PUSH,
+  SkaterScene,
+  forceText,
+  phaseAt,
+  phaseTime,
+  skaterLayout,
+  skaterTimeline,
+  useSceneFrame,
+  type Timeline,
+} from './eksplosjon-scene';
 import { pushApart, type PushPhase, type PushResult } from './model';
 import { useNarrow } from './useNarrow';
 
@@ -240,7 +250,8 @@ export default function Eksplosjon() {
             unit="g"
           />
           <Slider
-            label="Energi fra kruttet"
+            label="Kinetisk energi i skuddet"
+            ariaLabel="Kinetisk energi som kula og geværet får til sammen"
             value={rifle.E / 1000}
             onChange={(kJ) => setRifle((p) => ({ ...p, E: kJ * 1000 }))}
             min={0.5}
@@ -336,8 +347,8 @@ export default function Eksplosjon() {
         )}
         {id === 'gevaer' && (
           <FormulaLine>
-            Gjennomsnittskraften fra kruttgassen: F = E/s = {fmt(r.E, 0)} J / {fmt(RIFLE.barrel, 2)} m = {fmt(r.F, 0)} N, i Δt = p/F ={' '}
-            {fmt(r.dt * 1000, 2)} ms
+            Gjennomsnittskraften fra kruttgassen: F = E/s = {fmt(r.E, 0)} J / {fmt(RIFLE.barrel, 2)} m = {forceText(r.F)}, i Δt = p/F ={' '}
+            {fmt(r.dt * 1000, 1)} ms
           </FormulaLine>
         )}
         <FormulaLine>
@@ -491,14 +502,14 @@ function explanation(
       <p>
         <strong>Under {id === 'gevaer' ? 'skuddet' : 'dyttet'}.</strong>{' '}
         {id === 'skoyter'
-          ? 'Skøyteløper 1 dytter på skøyteløper 2, og skøyteløper 2 dytter like hardt tilbake på skøyteløper 1'
+          ? 'Skøyteløper 1 dytter på skøyteløper 2, og skøyteløper 2 dytter tilbake på skøyteløper 1'
           : id === 'fjaer'
             ? 'Fjæra dytter vogn 2 mot høyre og vogn 1 mot venstre'
             : 'Kruttgassen dytter kula framover og geværet bakover'}{' '}
-        med like store krefter (Newtons 3. lov), F = {fmt(r.F, 0)} N. Kreftene virker like lenge, Δt ={' '}
-        {id === 'gevaer' ? `${fmt(r.dt * 1000, 2)} ms` : `${fmt(r.dt, 3)} s`}, så begge får like stor impuls, I = F · Δt = {fmt(r.I, 2)}{' '}
-        N·s, men i hver sin retning. I modellen er kraften konstant, så farten øker jevnt: halvveis i dyttet har begge halvparten av
-        sluttfarten. Σp er 0 hele tiden, også nå.
+        med like store krefter (Newtons 3. lov), F = {forceText(r.F)}. Kreftene virker like lenge, Δt ={' '}
+        {id === 'gevaer' ? `${fmt(r.dt * 1000, 1)} ms` : `${fmt(r.dt, 3)} s`}, så begge får like stor impuls, I = F · Δt = {fmt(r.I, 2)}{' '}
+        N·s, men i hver sin retning. I modellen er kraften konstant, så farten øker jevnt med tiden: halvveis i tiden (etter Δt/2) har
+        begge halvparten av sluttfarten. Σp er 0 hele tiden, også nå.
       </p>
     ) : null;
 

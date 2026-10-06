@@ -150,13 +150,23 @@ export function VelocityPair({
   );
 }
 
+/**
+ * En kraft i et skilt eller en utregning: i newton under 1 000 N, ellers i kilonewton med to gjeldende siffer
+ * («5,8 kN»), så kraften ikke får flere siffer enn energien den er regnet ut fra.
+ */
+export function forceText(F: number): string {
+  const a = Math.abs(F);
+  if (a < 1000) return `${fmt(F, 0)} N`;
+  return `${fmt(F / 1000, a < 10000 ? 1 : 0)} kN`;
+}
+
 /** Masse (eller kraften under dyttet) rett over en gjenstand. */
 export function BodyLabel({ x, y, name, mass, force }: { x: number; y: number; name: '1' | '2'; mass: string; force: number | null }) {
   return (
     <Txt x={x} y={y} size={0.85} weight={force !== null ? 700 : 650} color={force !== null ? VIZ.applied : undefined}>
       {force !== null ? (
         <>
-          F<TSub>{name}</TSub> = {fmt(force, 0)} N
+          F<TSub>{name}</TSub> = {forceText(force)}
         </>
       ) : (
         <>
@@ -190,7 +200,7 @@ export function BodyLabels({
   force: number | null;
 }) {
   const f = useTextScale();
-  const text = (name: string, m: string, F: number | null) => (F !== null ? `F${name} = ${fmt(F, 0)} N` : `m${name} = ${m}`);
+  const text = (name: string, m: string, F: number | null) => (F !== null ? `F${name} = ${forceText(F)}` : `m${name} = ${m}`);
   // Omtrentlig bredde på fet tekst (sifre og mellomrom er ca. 0,62 em)
   const w = (t: string) => t.length * 17 * 0.85 * f * 0.64 + 12;
   const t1 = text('1', mass1, force !== null ? -force : null);
@@ -323,9 +333,13 @@ export function skaterFrame(spec: SkaterSpec, layout: SkaterLayout, ts: number) 
   // Skulderen og hodet i forhold til ankerpunktet (personen lener seg fram). Personen står BLADE_H over isen.
   const rel1 = personPunkter(pose, size1, ledd, { x: 0, y: -BLADE_H * (size1 / 100) });
   const rel2 = personPunkter(pose, size2, ledd, { x: 0, y: -BLADE_H * (size2 / 100) });
-  // Ankerpunktene ved start (hendene møtes i xc), flyttet med bevegelsen fra modellen
-  const base1 = xc - g.r1 * P - rel1.skulder.x;
-  const base2 = xc + g.r2 * P + rel2.skulder.x;
+  // Ankerpunktene ved start (hendene møtes i xc i dyttestillingen), flyttet med bevegelsen fra modellen. De regnes fra
+  // startstillingen, ikke fra stillingen nå, så skinnene står der personen sto og flytter seg nøyaktig st.x · P: sporene
+  // og mållinjene begynner der, også mens personen retter seg opp etter dyttet.
+  const start1 = contact ? rel1 : personPunkter('skyve', size1, skaterLedd(1, 0, true), { x: 0, y: -BLADE_H * (size1 / 100) });
+  const start2 = contact ? rel2 : personPunkter('skyve', size2, skaterLedd(1, 0, true), { x: 0, y: -BLADE_H * (size2 / 100) });
+  const base1 = xc - g.r1 * P - start1.skulder.x;
+  const base2 = xc + g.r2 * P + start2.skulder.x;
   const x1 = base1 + st.x1 * P;
   const x2 = base2 + st.x2 * P;
   // Kontaktpunktet: skulder 1 pluss armen til person 1, som strekkes med sin del av økningen i avstand
@@ -371,7 +385,7 @@ export function SkaterScene({
   const f = useTextScale();
   const ss = useStrokeScale();
   const { m1, m2, r } = spec;
-  const { P, iceY, rows, xc, H } = layout;
+  const { P, iceY, rows, H } = layout;
   const fr = skaterFrame(spec, layout, t - tl.release);
   const { st, size1, size2, ledd, contact, base1, base2, x1, x2, cx, cy } = fr;
 
@@ -395,7 +409,7 @@ export function SkaterScene({
     [layout.horizon, P, iceY, H],
   );
 
-  // Skøytesporene: fra der skinnene sto ved start til der de er nå (to spor per person, litt forskjøvet i dybden)
+  // Skøytesporene: fra der skinnene sto før dyttet til der de er nå (to spor per person, litt forskjøvet i dybden)
   const tracks = (base: number, x: number) =>
     Math.abs(x - base) > 2 && (
       <g strokeLinecap="round" fill="none" aria-hidden>
@@ -425,16 +439,25 @@ export function SkaterScene({
     <>
       {backdrop}
 
-      {/* Startstreken på isen og sporene */}
-      <line
-        x1={xc}
-        y1={iceY - 6}
-        x2={xc}
-        y2={iceY + 10}
-        stroke={alpha(VIZ.ink, 0.45)}
-        strokeWidth={1.4 * ss}
-        strokeDasharray={`${4 * ss} ${3 * ss}`}
-      />
+      {/* Der hver skøyteløper sto (en kort strek på isen), og sporene derfra */}
+      {[
+        [base1, x1],
+        [base2, x2],
+      ].map(([base, x]) =>
+        Math.abs(x! - base!) > 4 ? (
+          <line
+            key={base}
+            x1={base}
+            y1={iceY - 7}
+            x2={base}
+            y2={iceY + 11}
+            stroke={alpha(VIZ.ink, 0.55)}
+            strokeWidth={1.5 * ss}
+            strokeDasharray={`${4 * ss} ${3 * ss}`}
+            aria-hidden
+          />
+        ) : null,
+      )}
       {tracks(base1, x1)}
       {tracks(base2, x2)}
 
@@ -481,13 +504,13 @@ export function SkaterScene({
 
       <VelocityPair rows={rows} c1={x1} c2={x2} v1={st.v1} v2={st.v2} S={S} d1={2} d2={2} />
 
-      {/* Hvor langt hver har glidd fra startstreken */}
+      {/* Hvor langt hver har glidd fra der den selv sto (startstreken og begynnelsen av sporene) */}
       {showDims && (
         <>
-          <Dimension x1={x1} y1={layout.dimY} x2={xc} y2={layout.dimY} />
-          <Dimension x1={xc} y1={layout.dimY} x2={x2} y2={layout.dimY} />
-          {dimLabel('1', x1, xc, s1)}
-          {dimLabel('2', xc, x2, s2)}
+          <Dimension x1={x1} y1={layout.dimY} x2={base1} y2={layout.dimY} />
+          <Dimension x1={base2} y1={layout.dimY} x2={x2} y2={layout.dimY} />
+          {dimLabel('1', x1, base1, s1)}
+          {dimLabel('2', base2, x2, s2)}
         </>
       )}
 

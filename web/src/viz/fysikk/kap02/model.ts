@@ -316,6 +316,16 @@ export function scaleForce(m: number, a: number): number {
 
 /* ---------- 2C/2F Fall med luftmotstand L = kv² ---------- */
 
+/** Fallskjermhopperen i k2-luftmotstand: glidebryterne (masse og luftmotstandstall), hopphøyden og hvor lenge vi følger fallet. */
+export const DRAG_RANGES = {
+  m: { min: 40, max: 120, start: 80 },
+  k: { min: 0.12, max: 1, start: 0.25 },
+  /** Høyden over bakken der hopperen forlater flyet (m). */
+  jumpHeight: 4000,
+  /** Lengden på fallet vi følger (s), godt før skjermen må løses ut. */
+  tEnd: 20,
+} as const;
+
 /** Terminalfarten der L = G: k·v² = mg ⇒ v = √(mg/k). */
 export function terminalVelocity(m: number, k: number): number {
   return k > 0 ? Math.sqrt((m * G_EARTH) / k) : Infinity;
@@ -345,6 +355,16 @@ export function dragFall(m: number, k: number, t: number): FallState {
   const lnCosh = x + Math.log1p(Math.exp(-2 * x)) - Math.LN2;
   const L = k * v * v;
   return { v, a: (m * G_EARTH - L) / m, s: ((vT * vT) / G_EARTH) * lnCosh, L };
+}
+
+/**
+ * Tiden fra utspranget til farten er en andel `frac` (0–1) av terminalfarten: v = v_T·tanh(gt/v_T) gir
+ * t = (v_T/g)·artanh(frac). Terminalfarten nås aldri helt (frac ≥ 1 gir uendelig), og uten luftmotstand heller ikke.
+ */
+export function dragTimeToFraction(m: number, k: number, frac: number): number {
+  if (!(frac > 0)) return 0;
+  if (frac >= 1 || !(k > 0)) return Infinity;
+  return (terminalVelocity(m, k) / G_EARTH) * Math.atanh(frac);
 }
 
 /**

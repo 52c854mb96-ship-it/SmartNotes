@@ -36,7 +36,7 @@ import { runAt, type Bumper, type Run, type RunSpec, type RunState } from './mod
 const W = 800;
 const X0 = 20;
 /** Banebiten som vises (m): på mobil en kortere bit, så vognene blir store nok. */
-export const TRACK_WIDE = 1.2;
+export const TRACK_WIDE = 1.0;
 export const TRACK_NARROW = 0.8;
 /** Vogna (scene-kit-et): 0,2 m lang, endestykkene til ±0,101 m, hjulradius 0,014 m. */
 const CART_LEN = 0.2;
@@ -53,6 +53,11 @@ const SPRING_TRAVEL = 0.72 * BUMPER_LEN.fjaer;
 /** Fra tuppen av støtfangeren til bakenden av vogna (m). */
 export function cartReach(bumper: Bumper): number {
   return BUMPER_LEN[bumper] + 2 * CART_END;
+}
+
+/** Høyden på vogna (m) fra banen til toppen, med `lodd` lodd oppå (0–3). */
+function cartHeight(lodd: number): number {
+  return lodd > 0 ? 0.074 + 0.0124 * (lodd - 1) : 0.062;
 }
 
 /** Antall lodd oppå vogna (0–3), så tunge vogner ser tunge ut. Den tomme vogna er 0,5 kg. */
@@ -97,23 +102,32 @@ export interface SceneLayout {
   /** Banebiten (m). */
   length: number;
   H: number;
-  /** Midten av skiltene øverst til høyre (Σp og ΣE_k). */
+  /** Midten av skiltene øverst til høyre (Σp og ΣE_k). På PC står alt øverst på én rad (info1 = info2). */
   info1: number;
   info2: number;
-  /** Fartsskiltene (midten), og nedre kant av rommet for fartspilene. */
+  /** Overskriften og summene på én rad (PC), eller på to rader (mobil). */
+  oneRow: boolean;
+  /** Fartsskiltene (midten). */
   tagY: number;
+  /** Fartspilene like over vognene, og raden over når to piler ellers ville ligge oppå hverandre. */
   arrowLow: number;
-  /** Avstanden mellom to rader med fartspiler. */
-  rowGap: number;
+  arrowHigh: number;
   /** Banens overkant (der hjulene ruller), profilhøyden, benkeplata. */
   trackY: number;
   trackH: number;
   benchY: number;
 }
 
+/** Grunnlinja til masseetiketten over en pilrad i høyde `arrowY` (pila er ca. 9 · ss høy på hver side av midten). */
+export function massBaseAbove(arrowY: number, f: number): number {
+  const ss = Math.max(1, f * 0.75);
+  return arrowY - 9 * ss - labelGap(f);
+}
+
 /**
  * Plasseringen i høyden. `f` er tekstskaleringen, `ss` strekskaleringen. Radene ovenfra: Σp og ΣE_k, fartsskilt,
- * fartspiler (én eller to rader), massene, vognene, banen med målebånd og benken.
+ * massene, fartspilene (én rad like over vognene, eller to rader) og vognene, banen med målebånd og benken. Fartspila
+ * står rett over vogna den hører til, under masseetiketten.
  */
 export function sceneLayout(f: number, narrow: boolean): SceneLayout {
   const ss = Math.max(1, f * 0.75);
@@ -122,18 +136,19 @@ export function sceneLayout(f: number, narrow: boolean): SceneLayout {
   const ti = tagHeight(f, INFO_SIZE);
   const tv = tagHeight(f, TAG_SIZE);
   const info1 = 8 + ti / 2;
-  const info2 = info1 + ti + 5;
-  const tagY = info2 + ti / 2 + 10 + tv / 2;
-  const rowGap = 26 * ss;
-  const arrowHigh = tagY + tv / 2 + 10 + 7 * ss;
-  const arrowLow = arrowHigh + rowGap;
-  const massBase = arrowLow + 9 * ss + 8 + 12 * f;
-  const trackY = massBase + labelGap(f) + CART_TALL * P;
+  const oneRow = !narrow;
+  const info2 = oneRow ? info1 : info1 + ti + 5;
+  const tagY = info2 + ti / 2 + 9 + tv / 2;
+  // Masseetiketten (ca. 12 · f høy over grunnlinja) under skiltene, så to pilrader, så vogna med tre lodd.
+  const massTop = tagY + tv / 2 + 6 + 12 * f;
+  const arrowHigh = massTop + labelGap(f) + 9 * ss;
+  const arrowLow = arrowHigh + 20 * ss;
+  const trackY = arrowLow + 9 * ss + 4 + CART_TALL * P;
   const tapeH = 11.5 * f * 1.75;
   const trackH = Math.max(0.03 * P, tapeH + 7);
   const benchY = trackY + trackH + 5 + 0.008 * P;
-  const H = Math.round(benchY + 44 + 6 * f);
-  return { P, length, H, info1, info2, tagY, arrowLow, rowGap, trackY, trackH, benchY };
+  const H = Math.round(benchY + 40 + 6 * f);
+  return { P, length, H, info1, info2, oneRow, tagY, arrowLow, arrowHigh, trackY, trackH, benchY };
 }
 
 /* ================================================================================================
@@ -306,7 +321,6 @@ export function StotScene({ spec, run, t, layout, showForces, slowFactor }: Scen
   const c2 = px(st.tip2 + bl + CART_END);
   const lodd1 = loddFor(spec.m1);
   const lodd2 = loddFor(spec.m2);
-  const top = (lodd: number) => trackY - (lodd > 0 ? 0.074 + 0.0124 * (lodd - 1) : 0.062) * P;
   const half = st.squeeze / 2;
 
   // Skalaen for fartspilene (ingen pil går ut av figuren), og to rader med fartspiler når pilene ellers ville ligge
@@ -335,9 +349,15 @@ export function StotScene({ spec, run, t, layout, showForces, slowFactor }: Scen
     // px avhenger bare av P
   }, [spec, run, bumper, bl, P, f, r.u1, r.u2]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Én rad midt i rommet for pilene, eller to rader.
-  const y1 = twoRows ? layout.arrowLow : layout.arrowLow - layout.rowGap / 2;
-  const y2 = twoRows ? layout.arrowLow - layout.rowGap : y1;
+  // Fartspilene like over den høyeste vogna, og pila til vogn 2 en rad høyere når pilene ellers ville ligge oppå
+  // hverandre en gang i løpet av forsøket. Massene står over pilene.
+  const ss = Math.max(1, f * 0.75);
+  const cartTop = trackY - Math.max(cartHeight(lodd1), cartHeight(lodd2)) * P;
+  const y1 = Math.max(layout.arrowLow, cartTop - 9 * ss - 4);
+  const y2 = twoRows ? y1 - (layout.arrowLow - layout.arrowHigh) : y1;
+  const massY = massBaseAbove(y2, f);
+  // Fartsskiltene rett over massene, så skilt, masse, pil og vogn står i en søyle.
+  const tagY = Math.max(layout.tagY, massY - 12 * f - 6 - tagHeight(f, TAG_SIZE) / 2);
 
   // Fartsskiltene: over hver vogn, skjøvet fra hverandre så de ikke overlapper, og innenfor figuren.
   const prime = st.phase === 'etter' ? '′' : '';
@@ -382,6 +402,12 @@ export function StotScene({ spec, run, t, layout, showForces, slowFactor }: Scen
   const ek = 0.5 * spec.m1 * st.v1 ** 2 + 0.5 * spec.m2 * st.v2 ** 2;
   const eDec = r.EkBefore < 0.1 ? 3 : 2;
   const pText = `Σp = ${fmt(p, 2)} kg·m/s`;
+  const subtitle =
+    slowFactor !== null
+      ? `Sakte film, ${fmt(slowFactor, 0)} ganger saktere`
+      : showForces && run.collides && st.phase !== 'under'
+        ? 'Kraftparet virker bare under støtet'
+        : null;
   const ekText = `ΣEk = ${fmt(ek, eDec)} J`;
 
   const backdrop = useMemo(
@@ -444,8 +470,8 @@ export function StotScene({ spec, run, t, layout, showForces, slowFactor }: Scen
         </>
       )}
 
-      {/* Massene rett over vognene (under støtet: kraften på hver vogn, med fortegn: mot venstre er negativ) */}
-      <Txt x={c1} y={top(lodd1) - labelGap(f)} size={0.85} weight={forcesNow ? 700 : 650} color={forcesNow ? VIZ.applied : undefined}>
+      {/* Massene over vognene og fartspilene (under støtet: kraften på hver vogn, med fortegn: mot venstre er negativ) */}
+      <Txt x={c1} y={massY} size={0.85} weight={forcesNow ? 700 : 650} color={forcesNow ? VIZ.applied : undefined}>
         {forcesNow ? (
           <>
             F<TSub>1</TSub> = {fmt(st.F >= 0.5 ? -st.F : 0, 0)} N
@@ -456,7 +482,7 @@ export function StotScene({ spec, run, t, layout, showForces, slowFactor }: Scen
           </>
         )}
       </Txt>
-      <Txt x={c2} y={top(lodd2) - labelGap(f)} size={0.85} weight={forcesNow ? 700 : 650} color={forcesNow ? VIZ.applied : undefined}>
+      <Txt x={c2} y={massY} size={0.85} weight={forcesNow ? 700 : 650} color={forcesNow ? VIZ.applied : undefined}>
         {forcesNow ? (
           <>
             F<TSub>2</TSub> = {fmt(st.F, 0)} N
@@ -468,46 +494,61 @@ export function StotScene({ spec, run, t, layout, showForces, slowFactor }: Scen
         )}
       </Txt>
 
-      {/* Fartspiler */}
+      {/* Fartspiler (bare prikken når pila er kortere enn spissen; skiltet viser farten) */}
       {stuck ? (
-        <ForceArrow x1={joint} y1={y1} x2={joint + st.v1 * S} y2={y1} color={VIZ.velocity} width={6} origin />
+        <VelocityArrow x={joint} y={y1} len={st.v1 * S} />
       ) : (
         <>
-          <ForceArrow x1={c1} y1={y1} x2={c1 + st.v1 * S} y2={y1} color={VIZ.velocity} width={6} origin />
-          <ForceArrow x1={c2} y1={y2} x2={c2 + st.v2 * S} y2={y2} color={VIZ.velocity} width={6} origin />
+          <VelocityArrow x={c1} y={y1} len={st.v1 * S} />
+          <VelocityArrow x={c2} y={y2} len={st.v2 * S} />
         </>
       )}
       {tags.map((tg, i) => (
-        <Skilt key={i} x={tg.x} y={layout.tagY} measure={tg.text} color={VIZ.velocity}>
+        <Skilt key={i} x={tg.x} y={tagY} measure={tg.text} color={VIZ.velocity}>
           {tg.text}
         </Skilt>
       ))}
 
-      {/* Overskrift og summene */}
+      {/* Overskrift og summene: på én rad på PC (undertittelen etter overskriften, ΣE_k til venstre for Σp) */}
       <Txt x={X0} y={layout.info1 + 6 * f} anchor="start" size={1} weight={700}>
         {phaseText}
       </Txt>
-      {slowFactor !== null ? (
-        <Txt x={X0} y={layout.info2 + 6 * f} anchor="start" size={0.8} muted>
-          Sakte film, {fmt(slowFactor, 0)} ganger saktere
+      {subtitle && (
+        <Txt
+          x={layout.oneRow ? X0 + phaseText.length * 17 * f * 0.6 + 14 : X0}
+          y={layout.info2 + 6 * f}
+          anchor="start"
+          size={0.8}
+          muted
+        >
+          {subtitle}
         </Txt>
-      ) : (
-        showForces &&
-        run.collides &&
-        st.phase !== 'under' && (
-          <Txt x={X0} y={layout.info2 + 6 * f} anchor="start" size={0.8} muted>
-            Kraftparet virker bare under støtet
-          </Txt>
-        )
       )}
       <Skilt x={W - 10} y={layout.info1} anchor="end" measure={pText} size={INFO_SIZE}>
         Σp = {fmt(p, 2)} kg·m/s
       </Skilt>
-      <Skilt x={W - 10} y={layout.info2} anchor="end" measure={ekText} size={INFO_SIZE}>
+      <Skilt
+        x={layout.oneRow ? W - 10 - tagWidth(pText, f, INFO_SIZE) - 8 : W - 10}
+        y={layout.info2}
+        anchor="end"
+        measure={ekText}
+        size={INFO_SIZE}
+      >
         ΣE<TSub>k</TSub> = {fmt(ek, eDec)} J
       </Skilt>
     </>
   );
+}
+
+/**
+ * Fartspil fra (x, y) med lengden `len` (negativ mot venstre). Er den kortere enn pilspissen, ville den sett ut som en
+ * knekt vinkel: da tegnes bare prikken i angrepspunktet, og skiltet over viser farten.
+ */
+function VelocityArrow({ x, y, len }: { x: number; y: number; len: number }) {
+  const ss = useStrokeScale();
+  const min = 15 * ss;
+  if (Math.abs(len) >= min) return <ForceArrow x1={x} y1={y} x2={x + len} y2={y} color={VIZ.velocity} width={6} origin />;
+  return <circle cx={x} cy={y} r={3.6 * ss} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.6 * ss} />;
 }
 
 function clampX(x: number, w: number): number {

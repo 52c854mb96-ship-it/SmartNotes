@@ -5,7 +5,9 @@ import {
   TEXTBOOK,
   coupled,
   criticalAngleDeg,
+  DRAG_RANGES,
   dragFall,
+  dragTimeToFraction,
   eulerFall,
   friction,
   FRICTION_FLOORS,
@@ -437,6 +439,67 @@ describe('fall med luftmotstand', () => {
     expect(Math.abs(coarse - exact)).toBeGreaterThan(Math.abs(fine - exact));
     // Første steg: v = g·Δt
     expect(eulerFall(80, 0.25, 1, 2)[1]).toEqual([1, 9.81]);
+  });
+
+  it('Eulers metode med Δt = 1 s skyter aldri over terminalfarten for noen verdier på glidebryterne', () => {
+    const R = DRAG_RANGES;
+    for (const m of [R.m.min, R.m.start, R.m.max]) {
+      for (const k of [R.k.min, R.k.start, R.k.max]) {
+        const vT = terminalVelocity(m, k);
+        const pts = eulerFall(m, k, 1, R.tEnd);
+        for (let i = 1; i < pts.length; i++) {
+          expect(pts[i]![1]).toBeGreaterThanOrEqual(pts[i - 1]![1]);
+          expect(pts[i]![1]).toBeLessThanOrEqual(vT + 1e-9);
+          // Prikkene ligger over (eller på) den eksakte kurven fordi a er størst i starten av hvert steg.
+          expect(pts[i]![1]).toBeGreaterThanOrEqual(dragFall(m, k, pts[i]![0]).v - 1e-9);
+        }
+      }
+    }
+  });
+
+  it('fallhøyden s vokser med farten: ds/dt = v', () => {
+    for (const t of [0.5, 3, 8, 15]) {
+      const h = 1e-4;
+      const ds = (dragFall(80, 0.25, t + h).s - dragFall(80, 0.25, t - h).s) / (2 * h);
+      expect(ds).toBeCloseTo(dragFall(80, 0.25, t).v, 5);
+    }
+    // Ved terminalfart faller hopperen v_T meter hvert sekund.
+    const late = dragFall(80, 0.25, 60).s - dragFall(80, 0.25, 59).s;
+    expect(late).toBeCloseTo(terminalVelocity(80, 0.25), 3);
+  });
+
+  it('tiden til 95 % av terminalfarten: t = (v_T/g)·artanh(0,95), ca. 10,5 s for 80 kg og k = 0,25 kg/m', () => {
+    const t95 = dragTimeToFraction(80, 0.25, 0.95);
+    expect(t95).toBeCloseTo(10.46, 2);
+    expect(dragFall(80, 0.25, t95).v).toBeCloseTo(0.95 * terminalVelocity(80, 0.25), 9);
+    expect(dragTimeToFraction(80, 0.25, 0)).toBe(0);
+    expect(dragTimeToFraction(80, 0.25, 1)).toBe(Infinity);
+    expect(dragTimeToFraction(80, 0, 0.5)).toBe(Infinity);
+    // Større k gir lavere terminalfart, som nås raskere.
+    expect(dragTimeToFraction(80, 1, 0.95)).toBeLessThan(t95);
+  });
+
+  it('kjente fallposisjoner: hodet først ca. 290 km/h, magen ned ca. 200 km/h, vingedrakt ca. 100 km/h (80 kg)', () => {
+    expect(terminalVelocity(80, 0.12) * 3.6).toBeCloseTo(291, 0);
+    expect(terminalVelocity(80, 0.25) * 3.6).toBeCloseTo(202, 0);
+    expect(terminalVelocity(80, 1) * 3.6).toBeCloseTo(101, 0);
+  });
+
+  it('hopperen er godt over bakken etter hele fallet, også med raskeste kombinasjon', () => {
+    const R = DRAG_RANGES;
+    const worst = dragFall(R.m.max, R.k.min, R.tEnd);
+    expect(worst.s).toBeCloseTo(1307, 0);
+    expect(R.jumpHeight - worst.s).toBeGreaterThan(2500);
+    // Og alle kombinasjoner gir endelige tall.
+    for (const m of [R.m.min, R.m.max]) {
+      for (const k of [R.k.min, R.k.max]) {
+        for (const t of [0, R.tEnd / 2, R.tEnd]) {
+          const r = dragFall(m, k, t);
+          for (const v of [r.v, r.a, r.s, r.L]) expect(Number.isFinite(v)).toBe(true);
+          expect(r.L).toBeLessThanOrEqual(m * 9.81 + 1e-9);
+        }
+      }
+    }
   });
 });
 

@@ -339,6 +339,8 @@ export function VognScene({
   );
 
   const zoom = vis.innfelt?.type === 'zoom' && inset;
+  /** Impulsene står side om side; litt mindre på mobil, så de ikke møtes. */
+  const iSize = narrow ? 0.85 : 0.95;
   const sumLen = s.p * S_P;
 
   return (
@@ -417,7 +419,7 @@ export function VognScene({
           {wagonArrow('vA', 'A', vY(topA), task.vA * S_V, VIZ.velocity, <>v<TSub>A</TSub> = {fmt(task.vA, 1)} m/s</>, 14)}
           {vB === 0
             ? restText('vB', anchor('B', 0), vY(topB) + 4, <>v<TSub>B</TSub> = 0 (i ro)</>, 14)
-            : wagonArrow('vB', 'B', vY(topB), vB * S_V, VIZ.velocity, <>v<TSub>B</TSub> = {fmt(vB, 1)} m/s</>, 15)}
+            : wagonArrow('vB', 'B', vY(topB), vB * S_V, VIZ.velocity, <>v<TSub>B</TSub> = {fmt(Math.abs(vB), 1)} m/s</>, 15)}
         </g>
       )}
 
@@ -450,10 +452,10 @@ export function VognScene({
       )}
       {vis.impulser && (
         <g>
-          <Txt x={labelX(anchor('A', 0), 20, 0.95)} y={topMin - 26} size={0.95} weight={700} color={VIZ.applied}>
+          <Txt x={labelX(anchor('A', 0), 20, iSize)} y={topMin - 26} size={iSize} weight={700} color={VIZ.applied}>
             I<TSub>A</TSub> = {fmtPot(s.IA, 2)} N·s
           </Txt>
-          <Txt x={labelX(anchor('B', 0), 20, 0.95)} y={topMin - 26} size={0.95} weight={700} color={VIZ.applied}>
+          <Txt x={labelX(anchor('B', 0), 20, iSize)} y={topMin - 26} size={iSize} weight={700} color={VIZ.applied}>
             I<TSub>B</TSub> = +{fmtPot(s.IB, 2)} N·s
           </Txt>
         </g>

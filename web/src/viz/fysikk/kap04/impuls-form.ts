@@ -98,3 +98,28 @@ export function layerY(x: number, d: Dent, bottom: number, f: number): number {
 export function r2(v: number): number {
   return Math.round(v * 100) / 100;
 }
+
+/* ---------- Ta imot en fotball ---------- */
+
+/**
+ * Fotballen i «impuls»: masse (kg), radius (m) og hvor stiv den er (N/m). En fotball med vanlig trykk presses ca.
+ * 2 cm flat av en kraft på 1,2 kN.
+ */
+export const FOOTBALL = { m: 0.43, r: 0.11, stiffness: 60000 } as const;
+
+/** Hvor mye ballen presses flat (m) av kraften F (N): δ = F/k, men aldri mer enn 40 % av radien. */
+export function ballSquash(F: number, r: number = FOOTBALL.r, k: number = FOOTBALL.stiffness): number {
+  return Math.min(0.4 * r, Math.max(0, F) / k);
+}
+
+/**
+ * Hvordan keeperen tar imot ballen ved tiden t etter at den treffer hendene. `cx` er hvor langt ballens sentrum har
+ * flyttet seg siden den traff hendene (m, positivt i fartsretningen, s fra impactAt), `squash` hvor mye ballen er
+ * presset flat (m). Hendene ligger mot baksiden av ballen, så de flytter seg s − squash; overkroppen lener seg bakover
+ * i takt med hendene, fra `ready` til `back` grader når hendene har flyttet seg `sRef` meter.
+ */
+export function catchPose(s: number, squash: number, ready: number, back: number, sRef: number): { hands: number; rygg: number } {
+  const hands = Math.max(0, s - squash);
+  const k = sRef > 0 ? Math.min(1, hands / sRef) : 0;
+  return { hands, rygg: ready + (back - ready) * k };
+}

@@ -27,15 +27,22 @@ import {
   useTextScale,
   type SimClock,
 } from '../../kit';
-import { CarScene, carViewBox, restraintFor, RESTRAINTS } from './impuls-bil';
+import { BallScene, CATCHES, ballViewBox, catchFor } from './impuls-ball';
 import { EggScene, SURFACES, eggViewBox, surfaceFor } from './impuls-egg';
+import { FOOTBALL } from './impuls-form';
 import { dtForFmax, impact, impactAt, pulseForce, type ImpactResult } from './model';
 import { useNarrow } from './useNarrow';
 
-type ScenarioId = 'egg' | 'bil';
+type ScenarioId = 'egg' | 'ball';
 
 interface Scenario {
   label: string;
+  /** Hva som gir kraften (graf og formel): «underlaget», «hendene». */
+  source: string;
+  /** Retningen til impulsen og kraften, motsatt av farten: «oppover», «bakover mot keeperen». */
+  against: string;
+  /** Fartsretningen (positiv retning i utregningen): «nedover». */
+  along: string;
   /** Masse (kg) og fart rett før støtet (m/s). */
   m: number;
   v: number;
@@ -58,6 +65,9 @@ interface Scenario {
 const SCENARIOS: Record<ScenarioId, Scenario> = {
   egg: {
     label: 'Egg som faller 1 m',
+    source: 'underlaget',
+    against: 'oppover',
+    along: 'nedover',
     m: 0.06,
     v: Math.sqrt(2 * 9.81 * 1),
     dtMin: 3,
@@ -70,29 +80,28 @@ const SCENARIOS: Record<ScenarioId, Scenario> = {
     limit: 35,
     slowmo: 0.005,
   },
-  bil: {
-    label: 'Bilkollisjon i 50 km/h',
-    m: 75,
-    v: 50 / 3.6,
-    dtMin: 10,
-    dtMax: 150,
+  ball: {
+    label: 'Keeper tar imot en fotball',
+    source: 'hendene',
+    against: 'motsatt vei av farten',
+    along: 'i fartsretningen til ballen',
+    m: FOOTBALL.m,
+    v: 15,
+    dtMin: 8,
+    dtMax: 60,
     dtStep: 1,
-    dtDefault: 20,
-    unit: 'kN',
-    yMax: 175,
-    yTicks: [0, 50, 100, 150],
-    slowmo: 0.025,
+    dtDefault: 10,
+    unit: 'N',
+    yMax: 1400,
+    yTicks: [0, 500, 1000],
+    slowmo: 0.012,
   },
 };
 
 const OPTIONS: { value: ScenarioId; label: string }[] = [
   { value: 'egg', label: SCENARIOS.egg.label },
-  { value: 'bil', label: SCENARIOS.bil.label },
+  { value: 'ball', label: SCENARIOS.ball.label },
 ];
-
-function surfaceName(id: ScenarioId, dtMs: number): string {
-  return id === 'egg' ? SURFACES[surfaceFor(dtMs)].name : RESTRAINTS[restraintFor(dtMs)].name;
-}
 
 /** Kraft i enheten scenariet viser (N eller kN). */
 const inUnit = (sc: Scenario, F: number) => (sc.unit === 'kN' ? F / 1000 : F);
@@ -100,13 +109,13 @@ const forceText = (sc: Scenario, F: number) => {
   const v = inUnit(sc, F);
   return `${fmt(v, v < 10 ? 1 : 0)} ${sc.unit}`;
 };
-const impulseText = (I: number) => `${fmt(I, I < 10 ? 3 : 0)} N·s`;
+const impulseText = (I: number) => `${fmt(I, I < 1 ? 3 : 2)} N·s`;
 
 export default function Impuls() {
   const [id, setId] = useState<ScenarioId>('egg');
   const [dts, setDts] = useState<Record<ScenarioId, number>>({
     egg: SCENARIOS.egg.dtDefault,
-    bil: SCENARIOS.bil.dtDefault,
+    ball: SCENARIOS.ball.dtDefault,
   });
   const [showForces, setShowForces] = useState(true);
   // Øyeblikksbildet viser toppen av kraften; «Spill av» viser hele støtet i sakte film.
@@ -138,7 +147,7 @@ export default function Impuls() {
   const label =
     id === 'egg'
       ? `Et egg på 60 gram treffer ${SURFACES[surfaceFor(dtMs)].indefinite} på gulvet med ${fmt(sc.v, 1)} meter per sekund. Støttiden er ${fmt(dtMs, 1)} millisekunder og bremselengden ${fmt(r.stopDist * 100, 1)} centimeter.`
-      : `En bil kjører rett inn i en fjellvegg i 50 kilometer i timen. ${surfaceName(id, dtMs)}. Føreren stopper på ${fmt(dtMs, 0)} millisekunder over ${fmt(r.stopDist * 100, 0)} centimeter.`;
+      : `En keeper på en fotballbane tar imot en fotball på 430 gram som kommer med ${fmt(sc.v, 0)} meter per sekund, ${CATCHES[catchFor(dtMs)].phrase}. Støttiden er ${fmt(dtMs, 0)} millisekunder, og ballen stopper over ${fmt(r.stopDist * 100, 1)} centimeter.`;
 
   return (
     <VizLayout>
@@ -201,8 +210,17 @@ export default function Impuls() {
             />
           </Figure>
         ) : (
-          <Figure viewBox={carViewBox(narrowScene)} label={label} maxHeight={380}>
-            <CarScene r={r} m={sc.m} v0={sc.v} dtMs={dtMs} tMs={tMs} showForces={showForces} narrow={narrowScene} />
+          <Figure viewBox={ballViewBox(narrowScene)} label={label} maxHeight={380}>
+            <BallScene
+              r={r}
+              m={sc.m}
+              v0={sc.v}
+              dtMs={dtMs}
+              tMs={tMs}
+              dtMinMs={sc.dtMin}
+              showForces={showForces}
+              narrow={narrowScene}
+            />
           </Figure>
         )}
       </div>
@@ -216,7 +234,7 @@ export default function Impuls() {
         items={[
           {
             color: VIZ.applied,
-            label: 'Kraft F under støtet (arealet er impulsen I)',
+            label: `Kraften F fra ${sc.source} (arealet er impulsen |I|)`,
           },
           {
             color: VIZ.applied,
@@ -232,7 +250,7 @@ export default function Impuls() {
       />
 
       <Readouts>
-        <Readout label="Impuls I = Δp" value={fmt(r.dp, r.dp < 10 ? 3 : 0)} unit="N·s" tone={VIZ.applied} />
+        <Readout label="Impuls |I| = |Δp|" value={fmt(r.dp, r.dp < 1 ? 3 : 2)} unit="N·s" tone={VIZ.applied} />
         <Readout
           label={
             <span>
@@ -255,20 +273,23 @@ export default function Impuls() {
         <Readout
           label={
             <span>
-              F<Sub>maks</Sub> i forhold til tyngden
+              F<Sub>maks</Sub> tilsvarer tyngden av
             </span>
           }
-          value={fmt(r.Gs, 0)}
-          unit="· mg"
+          value={fmt(r.Fmax / G_EARTH, r.Fmax / G_EARTH < 10 ? 1 : 0)}
+          unit="kg"
         />
       </Readouts>
 
-      <Formula label="Impulsloven">
+      <Formula label={`Impulsloven (positiv retning ${sc.along})`}>
         <FormulaLine>
-          I = Δp = m · v = {fmt(sc.m, sc.m < 1 ? 3 : 0)} kg · {fmt(sc.v, 2)} m/s = {impulseText(r.dp)}
+          I = Δp = m · v − m · v<Sub>0</Sub> = 0 − {fmt(sc.m, sc.m < 0.1 ? 3 : 2)} kg · {fmt(sc.v, 2)} m/s = −{impulseText(r.dp)}
         </FormulaLine>
         <FormulaLine>
-          F<Sub>gj</Sub> = I/Δt = {impulseText(r.dp)} / {fmt(dtMs / 1000, 4)} s = {forceText(sc, r.Favg)}
+          Minus betyr at impulsen fra {sc.source} er rettet {sc.against}: |I| = {impulseText(r.dp)}
+        </FormulaLine>
+        <FormulaLine>
+          F<Sub>gj</Sub> = |I|/Δt = {impulseText(r.dp)} / {fmt(dtMs / 1000, 4)} s = {forceText(sc, r.Favg)}
         </FormulaLine>
         <FormulaLine>
           F<Sub>maks</Sub> = (π/2) · F<Sub>gj</Sub> = {forceText(sc, r.Fmax)}
@@ -349,7 +370,7 @@ function ForceGraph({
       y={{
         min: 0,
         max: sc.yMax,
-        label: `Kraft F (${sc.unit})`,
+        label: `Kraft F fra ${sc.source} (${sc.unit})`,
         ticks: sc.yTicks,
       }}
       width={800}
@@ -410,7 +431,7 @@ function ForceGraph({
               anchor="end"
               weight={650}
             >
-              {snapshot || tMs >= dtMs ? <>arealet = I = {impulseText(r.dp)}</> : <>arealet så langt = {impulseText(st.I)}</>}
+              {snapshot || tMs >= dtMs ? <>arealet = |I| = {impulseText(r.dp)}</> : <>arealet så langt = {impulseText(st.I)}</>}
             </Txt>
           </g>
         );
@@ -424,9 +445,15 @@ function explanation(id: ScenarioId, sc: Scenario, r: ImpactResult, dtMs: number
   const area = (
     <p>
       Kraften er ikke konstant, men bygges opp og avtar. Det stiplete rektangelet har samme areal, og høyden er gjennomsnittskraften F
-      <Sub>gj</Sub> = Δp/Δt; toppen av kurven (en halv sinusbue) er π/2 ≈ 1,6 ganger så høy. Spill av støtet i sakte film: arealet under
-      grafen fylles opp mens farten avtar, for impulsen så langt er hele tiden lik endringen i bevegelsesmengde.
+      <Sub>gj</Sub> = |Δp|/Δt; toppen av kurven (en halv sinusbue) er π/2 ≈ 1,6 ganger så høy. Spill av støtet i sakte film: arealet
+      under grafen fylles opp mens farten avtar, for impulsen så langt er hele tiden lik endringen i bevegelsesmengde.
     </p>
+  );
+  const sign = (
+    <>
+      Impulsen er en vektor med samme retning som kraften, altså {sc.against}. Velger vi fartsretningen som positiv, blir Δp = 0 − m · v
+      <Sub>0</Sub> = −{I}: minustegnet viser at bevegelsesmengden blir mindre.
+    </>
   );
   if (id === 'egg') {
     const surface = SURFACES[surfaceFor(dtMs)];
@@ -434,38 +461,46 @@ function explanation(id: ScenarioId, sc: Scenario, r: ImpactResult, dtMs: number
       <>
         <p>
           <strong>{broken ? 'Egget knuses.' : 'Egget holder.'}</strong> Egget treffer {surface.indefinite} med {fmt(sc.v, 1)} m/s og stoppes
-          helt, så impulsen er den samme uansett underlag: I = Δp = m · v = {I}. Det er arealet under F-t-grafen. På {surface.definite}{' '}
-          stopper egget på {fmt(dtMs, 1)} ms over s = {fmt(r.stopDist * 100, 1)} cm, og den største kraften blir {forceText(sc, r.Fmax)}
+          helt, så impulsen fra underlaget er like stor uansett underlag: |I| = |Δp| = m · v<Sub>0</Sub> = {I}. Det er arealet under
+          F-t-grafen. På {surface.definite} stopper egget på {fmt(dtMs, 1)} ms over s = {fmt(r.stopDist * 100, 1)} cm, og den største
+          kraften blir {forceText(sc, r.Fmax)}
           {broken
             ? ` – mer enn egget tåler.${dtMs < 7 ? ' På et hardt gulv er støttiden under 1 ms, og kraften blir enda større.' : ''} Gjør støttiden lengre, så blir kraften mindre for samme areal: med denne modellen holder egget når støttiden er over ca. ${fmt(1000 * dtForFmax(r.dp, sc.limit ?? Infinity), 0)} ms.`
             : '. Et mykt underlag presses lenger sammen, så støttiden blir lang og kraften liten.'}
         </p>
         <p>
+          {sign} Tyngden av egget ({fmt(sc.m * G_EARTH, 2)} N) er så liten mot kraften fra underlaget at vi ser bort fra den under
+          støtet.
+        </p>
+        <p>
           Det er derfor du bøyer i knærne når du hopper ned fra noe høyt, og derfor sykkelhjelmer har skum som presses sammen: begge deler
-          forlenger støttiden, så den samme impulsen gir mindre kraft. Tyngden av egget ({fmt(sc.m * G_EARTH, 2)} N) er så liten mot kraften
-          fra underlaget at vi ser bort fra den under støtet.
+          forlenger støttiden, så den samme impulsen gir mindre kraft.
         </p>
         {area}
       </>
     );
   }
-  const rid = restraintFor(dtMs);
+  const cid = catchFor(dtMs);
   return (
     <>
       <p>
-        <strong>{surfaceName('bil', dtMs)}.</strong> Føreren på {fmt(sc.m, 0)} kg skal fra 50 km/h til ro, så I = Δp = {I} uansett. Med en
-        støttid på {fmt(dtMs, 0)} ms stopper føreren over s = {fmt(r.stopDist * 100, 0)} cm, og den største kraften blir{' '}
-        {forceText(sc, r.Fmax)}, {fmt(r.Gs, 0)} ganger tyngden.{' '}
-        {rid === 'ingen'
-          ? 'Uten belte fortsetter føreren framover i 50 km/h etter at bilen har stoppet, og stopper brått mot rattet og frontruta.'
-          : rid === 'belte'
-            ? 'Beltet holder føreren fast i setet, så føreren bremses sammen med bilen mens knusesonen foran presses sammen, og beltet gir litt etter.'
-            : 'Kollisjonsputa tar imot hodet og brystet og gir etter, så støttiden blir enda lengre og kraften fordeles over en større flate.'}
+        <strong>{CATCHES[cid].name}.</strong> Ballen på {fmt(sc.m * 1000, 0)} g kommer med {fmt(sc.v, 0)} m/s og stoppes helt i
+        hendene, så impulsen fra hendene er like stor uansett hvordan keeperen tar imot: |I| = |Δp| = m · v<Sub>0</Sub> = {I}. Med en
+        støttid på {fmt(dtMs, 0)} ms bremses ballen over s = {fmt(r.stopDist * 100, 1)} cm, og den største kraften blir{' '}
+        {forceText(sc, r.Fmax)}, like stor som tyngden av {fmt(r.Fmax / G_EARTH, 0)} kg.{' '}
+        {cid === 'stiv'
+          ? 'Med stive armer er det nesten bare ballen og hendene som gir etter, så ballen stopper på en kort strekning. Kraften blir stor, og det svir i hendene.'
+          : cid === 'litt'
+            ? 'Armene gir litt etter, så ballen bremses over en lengre strekning, og kraften blir mindre.'
+            : 'Keeperen møter ballen med strake armer og følger den inn mot brystet, så ballen bremses over en lang strekning, og kraften blir liten.'}
       </p>
       <p>
-        Det er derfor biler har knusesoner, og derfor bilbelte er påbudt: den samme impulsen fordelt over lengre tid gir mange ganger mindre
-        kraft på kroppen. Scenen viser holdningen til føreren; bremselengden s er hvor langt føreren flytter seg langs veien mens farten går
-        til null.
+        {sign} Hendene får like stor kraft fra ballen, motsatt rettet (Newtons 3. lov), og det er den keeperen kjenner. Tyngden av
+        ballen virker loddrett, så den endrer ikke den vannrette farten.
+      </p>
+      <p>
+        Det er derfor keepere demper ballen, og derfor du tar imot en hard pasning med myke hender: lengre støttid gir mindre kraft for
+        den samme impulsen. Bilbeltet, knusesonen og kollisjonsputa i en bil virker på samme måte (se visualiseringen «Krasjtest»).
       </p>
       {area}
     </>

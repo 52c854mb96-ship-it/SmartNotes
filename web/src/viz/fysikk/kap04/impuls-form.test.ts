@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { EGG_SIZE, dentDepth, eggAt, eggLowerY, eggPath, layerY, surfacePoints, surfaceY } from './impuls-form';
+import {
+  EGG_SIZE,
+  FOOTBALL,
+  ballSquash,
+  catchPose,
+  dentDepth,
+  eggAt,
+  eggLowerY,
+  eggPath,
+  layerY,
+  surfacePoints,
+  surfaceY,
+} from './impuls-form';
 
 describe('egget og bulken i underlaget', () => {
   const k = 1500;
@@ -50,5 +62,25 @@ describe('egget og bulken i underlaget', () => {
     expect(layerY(300, d, bottom, 0)).toBeCloseTo(top + 30, 9);
     expect(layerY(300, d, bottom, 1)).toBeCloseTo(bottom, 9);
     expect(layerY(300, d, bottom, 0.5) - (top + 40)).toBeCloseTo(15, 9);
+  });
+});
+
+describe('fotballen som tas imot', () => {
+  it('presses flat i takt med kraften, men høyst 40 % av radien', () => {
+    expect(ballSquash(0)).toBe(0);
+    expect(ballSquash(-5)).toBe(0);
+    expect(ballSquash(1200)).toBeCloseTo(0.02, 9);
+    expect(ballSquash(1e6)).toBeCloseTo(0.4 * FOOTBALL.r, 9);
+  });
+
+  it('hendene flytter seg s − sammentrykket, og keeperen lener seg bakover i takt med hendene', () => {
+    expect(catchPose(0, 0, 8, -12, 0.45)).toEqual({ hands: 0, rygg: 8 });
+    const mid = catchPose(0.1, 0.02, 8, -12, 0.45);
+    expect(mid.hands).toBeCloseTo(0.08, 9);
+    expect(mid.rygg).toBeCloseTo(8 - (20 * 0.08) / 0.45, 9);
+    // Lenger enn sRef: lener seg ikke mer enn `back`
+    expect(catchPose(0.6, 0, 8, -12, 0.45).rygg).toBe(-12);
+    // Før ballen treffer (s < 0) står hendene stille
+    expect(catchPose(-0.2, 0, 8, -12, 0.45)).toEqual({ hands: 0, rygg: 8 });
   });
 });

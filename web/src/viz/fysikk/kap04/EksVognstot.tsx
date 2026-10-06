@@ -21,7 +21,7 @@ export default function EksVognstot() {
   const t = (m: number) => `${fmt(m / 1000, 0)} t`;
   const kg = (m: number) => `${fmt(m, 0)} kg`;
   const ms = (v: number) => `${fmt(v, 1)} m/s`;
-  const msPar = (v: number) => (v < 0 ? `(${ms(v)})` : ms(v));
+  const msPar = (v: number) => (v < 0 ? `(${ms(v)})` : v === 0 ? '0 m/s' : ms(v));
   const V3 = `${fmt(s.V, 3)} m/s`;
   const VShown = fmt(s.VShown, sigDecimals(s.V, 2));
   const J = (e: number) => `${fmt(e, 0)} J`;
@@ -402,7 +402,7 @@ export default function EksVognstot() {
             v<Sub>B</Sub> = {ms(vB)} samme vei
           </>
         ),
-        <>Δt = {dtS} (i e)</>,
+        <>Δt = {dtS}</>,
       ]}
       parts={[
         { id: 'a', text: `Vis at vognene har en fart på om lag ${VShown} m/s like etter støtet.` },

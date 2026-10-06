@@ -5,7 +5,7 @@
  * samme stil (toninger fra core, SCENE- og PAINTS-farger, tynn kontur og myke skygger).
  */
 import { memo } from 'react';
-import { Txt, VIZ, fmt } from '../../kit';
+import { Txt, VIZ, fmt, useTextScale } from '../../kit';
 import {
   Callout,
   ContactShadow,
@@ -29,7 +29,7 @@ import { impactAt, timeToForce, type ImpactResult } from './model';
 /** Piksler per meter i eggescenen. */
 export const EGG_PX_PER_M = 2000;
 /** Kraftpilene: piksler per newton (fast i hele scenen, så pila er like lang som kraften). */
-const F_PX_PER_N = 1.6;
+const F_PX_PER_N = 1.8;
 /** Fartspila: piksler per m/s. */
 const V_PX_PER_MS = 16;
 
@@ -121,6 +121,7 @@ export interface EggSceneProps {
 
 export function EggScene({ r, m, v0, dtMs, tMs, limit, showForces, snapshot, narrow }: EggSceneProps) {
   const K = EGG_PX_PER_M;
+  const f = useTextScale();
   const sid = surfaceFor(dtMs);
   const spec = SURFACES[sid];
   const T = Math.max(spec.minT, r.stopDist / 0.7) * K;
@@ -144,6 +145,7 @@ export function EggScene({ r, m, v0, dtMs, tMs, limit, showForces, snapshot, nar
   const status = cracked ? 'Egget knuses' : snapshot || st.v <= 0 ? 'Egget holder' : 'Egget bremses';
 
   const stopY = top + r.stopDist * K;
+  const eggBottom = egg.mid + egg.down;
   const fLen = st.F * F_PX_PER_N;
   const vLen = st.v * V_PX_PER_MS;
   const dimX = EGG_CX + egg.w + 46;
@@ -194,14 +196,15 @@ export function EggScene({ r, m, v0, dtMs, tMs, limit, showForces, snapshot, nar
             />
           </>
         )}
+        {/* Kraften fra underlaget virker der egget ligger mot det (nederst), og peker oppover. Skiltet står over pila og
+            egget, og over toppen av mållinja for s. */}
         {showForces && (
           <>
-            <ForceArrow x1={EGG_CX} y1={egg.mid} x2={EGG_CX} y2={egg.mid - fLen} color={VIZ.applied} origin minLength={6} />
+            <ForceArrow x1={EGG_CX} y1={eggBottom} x2={EGG_CX} y2={eggBottom - fLen} color={VIZ.applied} origin minLength={6} />
             {st.F > 0.5 && (
               <ValueTag
-                x={EGG_CX + 30}
-                y={Math.min(egg.mid - fLen, egg.mid - egg.up) + 14}
-                anchor="start"
+                x={EGG_CX}
+                y={Math.max(34 + 17 * f, Math.min(eggBottom - fLen, egg.mid - egg.up, top) - 14 * f - 4)}
                 text={`F = ${fmt(st.F, st.F < 10 ? 1 : 0)} N`}
                 color={VIZ.applied}
                 size={0.85}

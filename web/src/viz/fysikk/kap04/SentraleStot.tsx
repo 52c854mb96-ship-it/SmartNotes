@@ -38,6 +38,12 @@ const KINDS: { value: Kind; label: string }[] = [
 /** Støtfangeren som gir hver type støt: fjær, gummidemper eller borrelås. */
 const BUMPER: Record<Kind, Bumper> = { elastisk: 'fjaer', uelastisk: 'gummi', fullstendig: 'borrelaas' };
 const BUMPER_TEXT: Record<Kind, string> = { elastisk: 'fjær', uelastisk: 'gummidempere', fullstendig: 'borrelås' };
+/** Når kraften mellom vognene virker, med støtfangeren i hver type støt. */
+const CONTACT_TEXT: Record<Kind, string> = {
+  elastisk: 'Mens fjærene er presset sammen',
+  uelastisk: 'Mens gummidemperne er presset sammen',
+  fullstendig: 'Mens borrelåsen griper',
+};
 
 /** Fargene til vogn 1 og 2 i diagrammet (samme fargetone som lakken på vognene i scenen). */
 const C1 = VIZ.series[0] ?? VIZ.velocity;
@@ -270,13 +276,13 @@ export default function SentraleStot() {
         {explanation(s, r, lossPct)}
         {r.collides && showForces && (
           <p>
-            <strong>Kraftparet under støtet.</strong> Mens støtfangerne er presset sammen, dytter vogn 2 på vogn 1 med kraften F
+            <strong>Kraftparet under støtet.</strong> {CONTACT_TEXT[s.kind]}, dytter vogn 2 på vogn 1 med kraften F
             <Sub>1</Sub>, og vogn 1 dytter like hardt tilbake på vogn 2 med F<Sub>2</Sub> = −F<Sub>1</Sub> (Newtons 3. lov). Kreftene virker
             like lenge, så impulsene er like store og motsatt rettet: Δp<Sub>1</Sub> = −Δp<Sub>2</Sub>. Det vogn 1 mister av
             bevegelsesmengde, får vogn 2, og Σp endrer seg ikke, heller ikke midt i støtet. Dra «Tidspunkt» sakte gjennom støtet (eller
-            spill av) og se på Σp øverst i figuren. I modellen varer støtet ca. {fmt(run.tau * 1000, 0)} ms, og den største kraften blir ca.{' '}
-            {fmt(Fpeak, 0)} N
-            {Fpeak > 2 * Gsum ? `, mye større enn tyngden av begge vognene til sammen (${fmt(Gsum, 0)} N)` : ''}.
+            spill av) og se på Σp øverst i figuren. I modellen varer støtet ca. {fmt(roundSig(run.tau * 1000, 2), run.tau < 0.01 ? 1 : 0)} ms, og den største
+            kraften blir ca. {aboutForce(Fpeak)}
+            {Fpeak > 2 * Gsum ? `, mye større enn tyngden av begge vognene til sammen (${aboutForce(Gsum)})` : ''}.
           </p>
         )}
       </Explain>
@@ -292,6 +298,20 @@ const BARS_STACKED = 380;
 function peakForce(spec: RunSpec, run: { tau: number; result: CollisionResult }): number {
   if (!run.result.collides || !(run.tau > 0)) return 0;
   return (Math.PI / 2) * ((spec.m1 * (spec.v1 - run.result.u1)) / run.tau);
+}
+
+/** Avrunder til `n` gjeldende siffer: 2 142 → 2 100, 0,0473 → 0,047. */
+function roundSig(x: number, n: number): number {
+  if (!(x !== 0) || !Number.isFinite(x)) return x;
+  const k = 10 ** (n - 1 - Math.floor(Math.log10(Math.abs(x))));
+  return Math.round(x * k) / k;
+}
+
+/** Et anslag på en kraft med to gjeldende siffer: «89 N», «2,1 kN», «4,5 N». */
+function aboutForce(F: number): string {
+  const r = roundSig(F, 2);
+  if (Math.abs(r) >= 1000) return `${fmt(r / 1000, Math.abs(r) >= 10000 ? 0 : 1)} kN`;
+  return `${fmt(r, Math.abs(r) >= 10 ? 0 : 1)} N`;
 }
 
 /** Fart i en utregning: negative tall i parentes, «1,0 kg · (−0,67 m/s)». */
