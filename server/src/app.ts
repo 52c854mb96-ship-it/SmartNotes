@@ -130,7 +130,7 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
       setHeaders(res, filePath) {
         const name = path.basename(filePath);
         if (filePath.includes(`${path.sep}assets${path.sep}`)) res.header('Cache-Control', 'public, max-age=31536000, immutable');
-        else if (name === 'sw.js' || name.startsWith('workbox-') || name.endsWith('.webmanifest') || name === 'index.html')
+        else if (name.startsWith('sw') || name.startsWith('workbox-') || name.endsWith('.webmanifest') || name === 'index.html')
           res.header('Cache-Control', 'no-cache');
         else res.header('Cache-Control', 'public, max-age=86400');
       },

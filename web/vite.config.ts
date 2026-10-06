@@ -58,6 +58,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Lar siden be en ventende service worker ta over (public/sw-skip-waiting.js, src/lib/pwa.ts).
+        importScripts: ['sw-skip-waiting.js'],
         // .mjs er med slik at pdf.js-workeren blir precachet.
         globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,woff2}'],
         // pdf.js-workeren er ~1,3 MB.

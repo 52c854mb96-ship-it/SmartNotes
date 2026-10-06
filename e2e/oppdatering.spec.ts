@@ -61,6 +61,18 @@ async function stopServer(): Promise<void> {
   await exited;
 }
 
+/** Tilstanden til service workerne, til feilsøking når testen feiler. */
+const swState = (page: Page) =>
+  page.evaluate(async () => {
+    const r = await navigator.serviceWorker.getRegistration();
+    return {
+      installing: r?.installing?.state ?? null,
+      waiting: r?.waiting?.state ?? null,
+      active: r?.active?.state ?? null,
+      controlled: navigator.serviceWorker.controller !== null,
+    };
+  });
+
 const build = (page: Page) => page.evaluate(() => document.querySelector('meta[name="smartnotes-build"]')?.getAttribute('content'));
 
 test.beforeAll(async () => {
@@ -110,6 +122,13 @@ for (const [name, delay] of [
 ] as const) {
   test(`ny versjon tas i bruk selv om installasjonen startet før siden: ${name}`, async ({ page }) => {
     test.setTimeout(120_000);
+    const log: string[] = [];
+    const t0 = Date.now();
+    page.on('console', (m) => log.push(`${Date.now() - t0} ms konsoll: ${m.text()}`));
+    page.on('response', (r) => {
+      const header = r.headers()['x-smartnotes-build'];
+      if (r.url().includes('/api/')) log.push(`${Date.now() - t0} ms ${r.status()} ${new URL(r.url()).pathname} build=${header ?? '–'}`);
+    });
     installDelay = 0;
     await stopServer();
     await startServer(path.join(work, 'A'));
@@ -142,8 +161,10 @@ for (const [name, delay] of [
       null,
       { timeout: 30_000 },
     );
+    log.push(`${Date.now() - t0} ms før omlasting: ${JSON.stringify(await swState(page))}`);
     await page.reload();
     const afterReload = await build(page);
+    log.push(`${Date.now() - t0} ms etter omlasting (${afterReload}): ${JSON.stringify(await swState(page))}`);
     // Ved rask installasjon kan B allerede ha tatt over før siden lastes på nytt; da er det ingenting å oppdatere.
     if (delay > 0) expect(afterReload).toBe(buildA);
     if (afterReload === BUILD_B) return;
@@ -151,7 +172,17 @@ for (const [name, delay] of [
 
     // Når B har tatt over, skal appen si fra, og «Oppdater» skal gi den nye versjonen.
     const notice = page.getByRole('status').filter({ hasText: 'En ny versjon av SmartNotes er klar.' });
-    await expect(notice).toBeVisible();
+    try {
+      await expect(notice).toBeVisible();
+    } catch (err) {
+      // Skriv ut hva som skjedde, så feilen kan forstås fra CI-loggen (WebKit kan ikke kjøres lokalt overalt).
+      for (let i = 0; i < 3; i++) {
+        log.push(`${Date.now() - t0} ms tilstand: ${JSON.stringify(await swState(page))}`);
+        await page.waitForTimeout(1000);
+      }
+      console.log(`Feilsøking (${test.info().project.name}, ${name}):\n${log.join('\n')}`);
+      throw err;
+    }
     await notice.getByRole('button', { name: 'Oppdater' }).click();
     await expect.poll(() => build(page).catch(() => 'laster'), { timeout: 30_000 }).toBe(BUILD_B);
   });

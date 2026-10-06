@@ -21,6 +21,21 @@ function needReload(): void {
   });
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Ber en ventende service worker ta over, hvert sekund til den har gjort det (eller i maks `seconds` sekunder).
+ * Den kaller skipWaiting() selv når den installeres, men nettleseren utsetter byttet så lenge den gamle er opptatt
+ * med en forespørsel, og prøver ikke alltid igjen etterpå: Safari kan la den stå og vente til alle faner er lukket
+ * (public/sw-skip-waiting.js).
+ */
+async function activateWaiting(registration: ServiceWorkerRegistration, seconds = 60): Promise<void> {
+  for (let i = 0; i < seconds && registration.waiting; i++) {
+    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+    await sleep(1000);
+  }
+}
+
 function session(key: string, value?: string): string | null {
   try {
     if (value !== undefined) sessionStorage.setItem(key, value);
@@ -38,9 +53,11 @@ async function adoptServerBuild(registration: ServiceWorkerRegistration, build: 
   // Lastet vi allerede inn på nytt for denne versjonen uten å få den (f.eks. fordi installasjonen feilet), går vi ikke
   // i ring. Service workeren sier uansett fra når den tar over.
   if (reloadPendingStore.get() || session(RELOADED_FOR_KEY) === build) return;
+  console.info(`SmartNotes: serveren har en annen versjon (${build}) enn denne (${RUNNING_BUILD}).`);
   await registration.update().catch(() => {});
   for (let i = 0; i < 120 && (registration.installing || registration.waiting); i++) {
-    await new Promise((r) => setTimeout(r, 1000));
+    if (registration.waiting) await activateWaiting(registration, 1);
+    else await sleep(1000);
   }
   if (registration.installing || registration.waiting || serverBuildStore.get() !== build) return;
   session(RELOADED_FOR_KEY, build);
@@ -76,6 +93,15 @@ export function registerPwa(): void {
       };
       serverBuildStore.subscribe(onServerBuild);
       onServerBuild();
+
+      // En ny versjon som er installert, skal ta over med en gang, også når nettleseren lar den stå og vente.
+      registration.addEventListener('updatefound', () => {
+        const worker = registration.installing;
+        worker?.addEventListener('statechange', () => {
+          if (worker.state === 'installed') void activateWaiting(registration);
+        });
+      });
+      void activateWaiting(registration);
 
       let lastCheck = Date.now();
       const check = (minGap: number) => {
