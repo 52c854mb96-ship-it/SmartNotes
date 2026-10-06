@@ -29,8 +29,9 @@ export const ONCOMING_KMH = 80;
 export const SPEED_LIMIT_KMH = 80;
 /** Under så mange sekunder fra bilen er tilbake i feltet sitt til bilene møtes, kaller vi forbikjøringen knepen. */
 export const TIGHT_MARGIN = 2;
-/** Animasjonen slutter når den møtende bilen er så langt forbi bakenden av lastebilen (m). */
-export const PASS_EXTRA = 10;
+/** Animasjonen fortsetter så lenge etter at bilene har passert hverandre (s), og minst så lenge etter T. */
+export const AFTER_MEET = 1;
+export const AFTER_DONE = 1.5;
 
 export type TruckId = 'lastebil' | 'vogntog';
 
@@ -84,7 +85,7 @@ export interface Overtake {
   /** tMeet − T (s): tid fra bilen er tilbake i feltet sitt til bilene møtes. Negativ ved kollisjon. */
   timeMargin: number;
   verdict: Verdict;
-  /** Slutten av animasjonen (s): kollisjonen, eller når den møtende bilen er forbi lastebilen. */
+  /** Slutten av animasjonen (s): kollisjonen, eller litt etter at bilene har passert hverandre. */
   tEnd: number;
 }
 
@@ -131,8 +132,7 @@ export function solveOvertake(input: OvertakeInput): Overtake {
   const timeMargin = tMeet - T;
   const verdict: Verdict = margin < 0 ? 'kollisjon' : timeMargin < TIGHT_MARGIN ? 'knepent' : 'trygt';
 
-  const tPass = u + v0 > 0 ? (D - GAP_BEHIND + PASS_EXTRA) / (u + v0) : Infinity;
-  const tEnd = verdict === 'kollisjon' ? tMeet : Math.max(T, tPass);
+  const tEnd = verdict === 'kollisjon' ? tMeet : Math.max(T + AFTER_DONE, tMeet + AFTER_MEET);
 
   return { v0, a, D, u, truckLength, rel, T, sTruck, s, vEnd, sOncoming, needed, margin, tMeet, xMeet, timeMargin, verdict, tEnd };
 }

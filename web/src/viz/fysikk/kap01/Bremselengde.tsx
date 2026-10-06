@@ -194,8 +194,10 @@ export default function Bremselengde() {
           s<Sub>r</Sub> = v<Sub>0</Sub> · t<Sub>r</Sub> = {fmt(main.v0, 1)} m/s · {fmt(tr, 1)} s = {fmt(r.sr, 1)} m
         </FormulaLine>
         <FormulaLine>
-          Bremsing: v² − v<Sub>0</Sub>² = 2 · (−a) · s<Sub>b</Sub> med v = 0 gir s<Sub>b</Sub> = v<Sub>0</Sub>² / (2a) = ({fmt(main.v0, 1)} m/s)² / (2 ·{' '}
-          {fmt(a, 1)} m/s²) = {fmt(r.sb, 1)} m
+          Bremsing: v² − v<Sub>0</Sub>² = 2 · (−a) · s<Sub>b</Sub> med v = 0 gir s<Sub>b</Sub> = v<Sub>0</Sub>² / (2a)
+        </FormulaLine>
+        <FormulaLine>
+          s<Sub>b</Sub> = ({fmt(main.v0, 1)} m/s)² / (2 · {fmt(a, 1)} m/s²) = {fmt(r.sb, 1)} m
         </FormulaLine>
         <ElkFormula input={main} r={r} o={o} D={D} />
       </Formula>
@@ -219,10 +221,15 @@ function ElkFormula({ input, r, o, D }: { input: StopInput; r: StopResult; o: Ob
       </FormulaLine>
     );
   return (
-    <FormulaLine>
-      Elgen: bremser s = {fmt(D, 0)} m − {fmt(r.sr, 1)} m = {fmt(o.braked, 1)} m, så v = √(v<Sub>0</Sub>² − 2as) = √(({fmt(input.v0, 1)} m/s)² − 2 ·{' '}
-      {fmt(input.a, 1)} m/s² · {fmt(o.braked, 1)} m) = {fmt(o.vHit, 1)} m/s = {kmhText(o.vHit)}
-    </FormulaLine>
+    <>
+      <FormulaLine>
+        Elgen: bilen bremser bare s = {fmt(D, 0)} m − {fmt(r.sr, 1)} m = {fmt(o.braked, 1)} m før den treffer
+      </FormulaLine>
+      <FormulaLine>
+        v = √(v<Sub>0</Sub>² − 2as) = √(({fmt(input.v0, 1)} m/s)² − 2 · {fmt(input.a, 1)} m/s² · {fmt(o.braked, 1)} m) = {fmt(o.vHit, 1)} m/s ={' '}
+        {kmhText(o.vHit)}
+      </FormulaLine>
+    </>
   );
 }
 
@@ -262,7 +269,7 @@ function stripLayout(f: number, p: number, opts: { titled: boolean; tape: boolea
   const obj = k;
   let y = 6;
   const titleY = y + 17 * f;
-  if (opts.titled) y += 24 * f;
+  y += opts.titled ? 24 * f : 8 * f;
   const tagH = 17 * f * 0.9 * 1.55;
   const tagY = y + 2 + tagH / 2;
   y += tagH + 6;
@@ -469,7 +476,7 @@ function Strip({
         />
 
         {titled && (
-          <Txt x={PAD + 4} y={L.titleY} anchor="start" weight={700} size={0.95}>
+          <Txt x={PAD + 4} y={L.titleY} anchor="start" weight={700} size={0.9}>
             {lane.title}
           </Txt>
         )}
@@ -545,6 +552,9 @@ function MeasureRow({
   const open = xe > edge;
   const xbEnd = Math.min(xe, edge);
   const dimY = laneY - offset;
+  // Reaksjonslengden går ut av bildet: da er hele bremselengden utenfor også.
+  if (xr >= edge - 0.5)
+    return <OpenDimension x1={x0} x2={edge} y={dimY} laneY={laneY} color={C_REACT} label={label(edge - x0, 'r', srTxt)} f={f} ss={ss} />;
   return (
     <g>
       <Dimension x1={x0} y1={laneY} x2={xr} y2={laneY} offset={offset} color={C_REACT} label={label(xr - x0, 'r', srTxt)} />
@@ -588,7 +598,8 @@ function SpeedGraph({ lanes, D, t, height }: { lanes: Lane[]; D: number; t: numb
   const h = lanes[1];
   const { input: main, res: r, obs: o } = m;
   const [, tMax] = niceRange(0, r.tStop, 5, 1);
-  const [, vMax] = niceRange(0, main.v0 * 1.12, 4, 5);
+  // Luft over v₀ til etiketten «Treffer elgen …» øverst i grafen
+  const [, vMax] = niceRange(0, main.v0 * 1.25, 5, 5);
   return (
     <Plot
       x={{ min: 0, max: tMax, label: 'Tid t etter at sjåføren ser elgen (s)', decimals: tMax < 4 ? 1 : 0 }}
@@ -597,7 +608,7 @@ function SpeedGraph({ lanes, D, t, height }: { lanes: Lane[]; D: number; t: numb
       height={height}
       margin={{ top: 46 * f, right: 24 * f, bottom: 56 * f, left: 72 * f }}
     >
-      {({ sx, sy, x0, y0, y1 }) => {
+      {({ sx, sy, x0, x1, y0, y1 }) => {
         const rectW = sx(main.tr) - sx(0);
         const rectH = sy(0) - sy(main.v0);
         const triW = sx(r.tStop) - sx(main.tr);
@@ -619,7 +630,9 @@ function SpeedGraph({ lanes, D, t, height }: { lanes: Lane[]; D: number; t: numb
         const rectCut = o.hits && o.beforeBraking ? sx(o.tEnd) : sx(main.tr);
         // Stigningstallet på bremselinja er −a: etiketten står over midten av den delen bilen kjører.
         const slopeT = main.tr + (tc - main.tr) * 0.5;
-        const slopeOk = sx(tc) - sx(main.tr) > 120 * f;
+        const segLen = Math.hypot(sx(tc) - sx(main.tr), sy(vc) - sy(main.v0));
+        const aTxt = `−${fmt(main.a, 1)} m/s²`;
+        const slopeText = [`stigningstall = −a = ${aTxt}`, `stigningstall ${aTxt}`, aTxt].find((txt) => txt.length * 15 * f * 0.6 + 24 * f < segLen);
         const ang = (Math.atan2(sy(0) - sy(main.v0), sx(r.tStop) - sx(main.tr)) * 180) / Math.PI;
         const sxp = sx(slopeT);
         const syp = sy(stopVelocity(main, slopeT));
@@ -659,7 +672,7 @@ function SpeedGraph({ lanes, D, t, height }: { lanes: Lane[]; D: number; t: numb
             )}
             <AreaLabel x={sx(0) + rectW / 2} y={sy(main.v0 * 0.75) + 6} w={rectW} h={rectH / 2} color={C_REACT} sub="r" value={r.sr} f={f} />
             <AreaLabel {...brake} color={C_BRAKE} sub="b" value={r.sb} f={f} />
-            {slopeOk && !(o.hits && o.beforeBraking) && (
+            {slopeText && !(o.hits && o.beforeBraking) && (
               <text
                 x={lx}
                 y={ly}
@@ -668,17 +681,10 @@ function SpeedGraph({ lanes, D, t, height }: { lanes: Lane[]; D: number; t: numb
                 transform={`rotate(${ang} ${lx} ${ly})`}
                 style={{ fill: VIZ.acceleration, fontSize: 15 * f, fontWeight: 700 }}
               >
-                stigningstall = −a = −{fmt(main.a, 1)} m/s²
+                {slopeText}
               </text>
             )}
-            {o.hits && (
-              <g>
-                <line x1={sx(o.tEnd)} x2={sx(o.tEnd)} y1={sy(vMax)} y2={y0} stroke={VIZ.ink} strokeWidth={1.2} strokeDasharray="2 4" opacity={0.6} />
-                <Label x={sx(o.tEnd) + 8} y={sy(vMax) + 16 * f} anchor={sx(o.tEnd) > 560 ? 'end' : 'start'}>
-                  Treffer elgen
-                </Label>
-              </g>
-            )}
+            {o.hits && <HitMarker x={sx(o.tEnd)} y={sy(vMax) + 16 * f} y0={y0} yTop={sy(vMax)} xMin={x0} xMax={x1} vHit={o.vHit} f={f} />}
             {h && (
               <polyline
                 points={h.obs.hits ? actualPoints(h.input, h.obs, sx, sy) : `${sx(0)},${sy(h.input.v0)} ${sx(h.input.tr)},${sy(h.input.v0)} ${sx(h.res.tStop)},${sy(0)}`}
@@ -696,6 +702,33 @@ function SpeedGraph({ lanes, D, t, height }: { lanes: Lane[]; D: number; t: numb
         );
       }}
     </Plot>
+  );
+}
+
+/**
+ * Loddrett strek der bilen treffer elgen, med etikett på den siden det er plass (helst til høyre). Får ikke hele
+ * teksten plass, brukes en kortere.
+ */
+function HitMarker({ x, y, y0, yTop, xMin, xMax, vHit, f }: { x: number; y: number; y0: number; yTop: number; xMin: number; xMax: number; vHit: number; f: number }) {
+  const texts = [`Treffer elgen i ${kmhText(vHit)}`, `Treff i ${kmhText(vHit)}`, 'Treff'];
+  const width = (txt: string) => txt.length * 17 * f * 0.58;
+  const right = xMax - (x + 8);
+  const left = x - 8 - (xMin + 6);
+  let pick: { text: string; side: 'start' | 'end' } | null = null;
+  for (const text of texts) {
+    if (width(text) <= right) pick = { text, side: 'start' };
+    else if (width(text) <= left) pick = { text, side: 'end' };
+    if (pick) break;
+  }
+  return (
+    <g>
+      <line x1={x} x2={x} y1={yTop} y2={y0} stroke={VIZ.ink} strokeWidth={1.2} strokeDasharray="2 4" opacity={0.6} />
+      {pick && (
+        <Label x={pick.side === 'start' ? x + 8 : x - 8} y={y} anchor={pick.side}>
+          {pick.text}
+        </Label>
+      )}
+    </g>
   );
 }
 
@@ -744,6 +777,8 @@ function explanation(kmh: number, tr: number, a: number, D: number, r: StopResul
   const dry = stopping({ v0: kmhToMs(kmh), tr, a: BRAKE_PRESETS.torr });
   const safeKmh = msToKmh(speedForStoppingDistance(dry.total, tr, a));
   const safeD = msToKmh(speedForStoppingDistance(D, tr, a));
+  const s30 = stopping({ v0: kmhToMs(30), tr, a }).total;
+  const s50 = stopping({ v0: kmhToMs(50), tr, a }).total;
   return (
     <>
       <p>
@@ -752,7 +787,9 @@ function explanation(kmh: number, tr: number, a: number, D: number, r: StopResul
         {fmt(rh.sr, 1)} m), men bremselengden bare en fjerdedel ({fmt(rh.sb, 1)} m).{' '}
         {compare
           ? 'I v-t-grafen ser du hvorfor: trekanten blir både halvparten så høy og halvparten så bred, så arealet blir en fjerdedel.'
-          : 'Slå på sammenligningen med halv fart for å se hvorfor i v-t-grafen.'}
+          : 'Slå på sammenligningen med halv fart for å se hvorfor i v-t-grafen.'}{' '}
+        Under bremsingen peker akselerasjonen motsatt vei av farten, så farten avtar med {fmt(a, 1)} m/s hvert sekund: stigningstallet i v-t-grafen
+        er −a.
       </p>
       <p>
         {o.hits ? (
@@ -779,7 +816,7 @@ function explanation(kmh: number, tr: number, a: number, D: number, r: StopResul
             : o.hits
               ? `Med halv fart ville bilen ha stoppet ${fmt(oh.margin, 1)} m foran elgen.`
               : `Med halv fart stopper bilen allerede etter ${fmt(rh.total, 1)} m.`)}{' '}
-        {o.hits && safeD > 0 && `For å stoppe før elgen måtte farten ha vært under ${fmt(Math.floor(safeD), 0)} km/h.`}
+        {o.hits && safeD >= 1 && `For å stoppe før elgen måtte farten ha vært høyst ${fmt(Math.floor(safeD), 0)} km/h.`}
       </p>
       <p>
         {a < BRAKE_PRESETS.torr
@@ -787,6 +824,9 @@ function explanation(kmh: number, tr: number, a: number, D: number, r: StopResul
           : reactionShare > 0.5
             ? `Her er reaksjonslengden mer enn halvparten av stopplengden.${kmh <= 50 && tr < 1.8 ? ' Ved lav fart betyr reaksjonstiden mest.' : ''}`
             : `Her er bremselengden ${fmt(r.sb / r.sr, 1)} ganger så lang som reaksjonslengden.`}
+        {a >= BRAKE_PRESETS.torr &&
+          tr < 1.8 &&
+          ` Det er derfor fartsgrensen ofte er 30 km/h ved skoler: med samme reaksjonstid og bremser stopper bilen på ${fmt(s30, 1)} m fra 30 km/h, men trenger ${fmt(s50, 1)} m fra 50 km/h.`}
         {tr >= 1.8
           ? ` En reaksjonstid på ${fmt(tr, 1)} s er lang, og typisk når sjåføren er uoppmerksom, for eksempel ser på mobilen. Det er derfor det er farlig å bruke mobilen når du kjører: bilen kjører ${fmt(r.sr, 0)} m før du i det hele tatt begynner å bremse.`
           : ''}

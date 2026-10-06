@@ -45,8 +45,9 @@ const viz: VizMeta[] = [
     chapter: '2',
     sections: ['2D'],
     title: 'Kraftpar: bok, bord og jord',
-    summary: 'Se hvilke krefter som hører sammen etter Newtons 3. lov, og hvorfor G og N ikke er et kraftpar.',
-    keywords: ['tredje lov', 'motkraft', 'frilegemediagram', 'gravitasjon', 'normalkraft'],
+    summary:
+      'En lærebok ligger på et hagebord på plenen. Se hvilke krefter som hører sammen etter Newtons 3. lov, dytt på boka med hånda, og se hvorfor G og N ikke er et kraftpar.',
+    keywords: ['tredje lov', 'Newtons 3. lov', 'kraftpar', 'motkraft', 'frilegemediagram', 'gravitasjon', 'normalkraft', 'dytt', 'kraftsum', 'første lov', 'bok på bord'],
     load: () => import('./KraftparTredjeLov'),
   },
   {

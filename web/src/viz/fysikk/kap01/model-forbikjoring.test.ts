@@ -4,7 +4,8 @@ import {
   GAP_AHEAD,
   GAP_BEHIND,
   ONCOMING_KMH,
-  PASS_EXTRA,
+  AFTER_DONE,
+  AFTER_MEET,
   PULL_IN_START,
   SPEED_LIMIT_KMH,
   TIGHT_MARGIN,
@@ -114,9 +115,9 @@ describe('standardverdiene (regnet for hånd)', () => {
     expect(o.xMeet).toBeCloseTo(carFront(o, o.tMeet), 9);
   });
 
-  it('animasjonen slutter når den møtende bilen er forbi lastebilen', () => {
-    expect(o.tEnd).toBeCloseTo((450 - GAP_BEHIND + PASS_EXTRA) / (kmhToMs(80) + kmhToMs(60)), 12);
-    expect(oncomingFront(o, o.tEnd)).toBeCloseTo(truckRear(o, o.tEnd) - PASS_EXTRA, 9);
+  it('animasjonen slutter litt etter at bilene har passert hverandre', () => {
+    expect(o.tEnd).toBeCloseTo(o.tMeet + AFTER_MEET, 12);
+    expect(o.tEnd).toBeGreaterThanOrEqual(o.T + AFTER_DONE);
   });
 });
 

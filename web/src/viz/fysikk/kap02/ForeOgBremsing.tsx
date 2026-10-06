@@ -27,19 +27,20 @@ import {
 import {
   BIL_MAAL,
   Bil,
+  Callout,
   ForceArrow,
   Gran,
   Himmel,
   Landskap,
   Lauvtre,
-  PAINTS,
   Underlag,
   ValueTag,
   Vei,
   hjulvinkelFraStrekning,
+  useSvgId,
   type LandskapType,
 } from '../../kit/scene';
-import { Bremsespor, HjulSpinn, Kantstolpe, Regn, Snofall, Trafikkjegle } from './fore-og-bremsing-deler';
+import { Bremsespor, DekkLupe, HjulSpinn, Kantstolpe, Regn, Snofall, Trafikkjegle } from './fore-og-bremsing-deler';
 import {
   BRAKE_RANGES,
   BREMSER,
@@ -146,8 +147,7 @@ export default function ForeOgBremsing() {
           min={0}
           max={tSliderMax}
           step={tStep}
-          unit="s"
-          decimals={tStep < 0.1 ? 2 : 1}
+          format={() => `${fmt(t, tStep < 0.1 ? 2 : 1)} s`}
         />
       </Controls>
       <Toolbar>
@@ -162,7 +162,7 @@ export default function ForeOgBremsing() {
       </Toolbar>
 
       <div ref={ref}>
-        <BrakeScene fore={fore} bremser={bremser} res={res} st={st} showForces={showForces} narrow={narrow} />
+        <BrakeScene fore={fore} dekk={dekk} bremser={bremser} res={res} st={st} showForces={showForces} narrow={narrow} />
         <DistanceChart v0={v0} vKmh={vKmh} fore={fore} dekk={dekk} bremser={bremser} s={st.s} narrow={narrow} />
       </div>
       <Legend
@@ -183,7 +183,7 @@ export default function ForeOgBremsing() {
           value={fmt(mu, 2)}
         />
         <Readout label="Bremsekraft R = μmg" value={fmt(res.R, 0)} unit="N" tone={VIZ.friction} />
-        <Readout label="Akselerasjon a = μg" value={fmt(res.a, 2)} unit="m/s²" tone={VIZ.acceleration} />
+        <Readout label="Bremseakselerasjon a = μg" value={fmt(res.a, 2)} unit="m/s²" tone={VIZ.acceleration} />
         <Readout label="Bremselengde s" value={fmtLen(res.s)} unit="m" />
       </Readouts>
 
@@ -198,7 +198,7 @@ export default function ForeOgBremsing() {
           ΣF = R = μ<Sub>{muSym}</Sub>N = {fmt(mu, 2)} · {fmt(res.N, 0)} N = {fmt(res.R, 0)} N
         </FormulaLine>
         <FormulaLine>
-          a = ΣF/m = {fmt(res.R, 0)} N/{fmt(m, 0)} kg = {fmt(res.a, 2)} m/s² (= μg)
+          a = ΣF/m = {fmt(res.R, 0)} N/{fmt(m, 0)} kg = {fmt(res.a, 2)} m/s² bakover (= μg)
         </FormulaLine>
         <FormulaLine>
           s = v<Sub>0</Sub>
@@ -231,7 +231,7 @@ function fmtLen(s: number): string {
 /* ---------- Scenen: bilen på veien, kameraet følger bilen ---------- */
 
 const W = 800;
-const H = 440;
+const H = 460;
 const HORIZON = 222;
 /** Der hjulene står (midt i det nærmeste kjørefeltet), og hvor bred veibanen ser ut i perspektiv. */
 const ROAD_Y = 334;
@@ -261,12 +261,15 @@ const WHEEL_R = BIL_MAAL.hjulradius * PX_PER_M;
 const RIM_R = (20.5 / 440) * CAR_SIZE;
 
 /** Utsnittet på mobil: bilen, pilene og skiltene blir større. */
-const NARROW_VIEW = { x: 140, y: 118, w: 500, h: H - 118 };
+const NARROW_VIEW = { x: 160, y: 118, w: 500, h: H - 118 };
+/** Lupen som forstørrer kontaktflaten under forhjulet (nede til høyre, i veikanten foran veien). */
+const LUPE = { x: 596, y: 398, r: 58 };
 
 const LANDSKAP: Record<Fore, LandskapType> = { torr: 'aaser', vaat: 'kyst', sno: 'skog', is: 'fjell' };
 
 interface SceneProps {
   fore: Fore;
+  dekk: Dekk;
   bremser: Bremser;
   res: BrakeResult;
   st: BrakeState;
@@ -274,19 +277,28 @@ interface SceneProps {
   narrow: boolean;
 }
 
-function BrakeScene({ fore, bremser, res, st, showForces, narrow }: SceneProps) {
+function BrakeScene({ fore, dekk, bremser, res, st, showForces, narrow }: SceneProps) {
   const view = narrow ? NARROW_VIEW : { x: 0, y: 0, w: W, h: H };
   const kmh = msToKmh(st.v);
+  const clip = useSvgId('fore-utsnitt');
   return (
     <Figure
       viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
       label={`En bil bremser fullt på ${FORE_TEKST[fore]} ${bremser === 'abs' ? 'med ABS' : 'med låste hjul'}. ${
         st.stopped ? `Den står stille etter ${fmtLen(st.s)} m.` : `Etter ${fmtLen(st.s)} m er farten ${fmt(kmh, 0)} km/h.`
       }`}
-      maxHeight={470}
+      maxHeight={500}
     >
-      <Backdrop fore={fore} camera={st.s * PX_PER_M} />
-      <RoadContent fore={fore} bremser={bremser} res={res} st={st} showForces={showForces} view={view} />
+      {/* Alt klippes til utsnittet, så trær og bremsespor utenfor ikke synes ved siden av figuren. */}
+      <defs>
+        <clipPath id={clip}>
+          <rect x={view.x} y={view.y} width={view.w} height={view.h} />
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${clip})`}>
+        <Backdrop fore={fore} camera={st.s * PX_PER_M} />
+        <RoadContent fore={fore} dekk={dekk} bremser={bremser} res={res} st={st} showForces={showForces} view={view} />
+      </g>
     </Figure>
   );
 }
@@ -345,7 +357,7 @@ function tagWidth(text: string, f: number, size = 0.9): number {
   return Math.max(fs * 1.6, text.length * fs * 0.6 + 16 * f);
 }
 
-function RoadContent({ fore, bremser, res, st, showForces, view }: Omit<SceneProps, 'narrow'> & { view: { x: number; y: number; w: number; h: number } }) {
+function RoadContent({ fore, dekk, bremser, res, st, showForces, view }: Omit<SceneProps, 'narrow'> & { view: { x: number; y: number; w: number; h: number } }) {
   const f = useTextScale();
   const s = st.s;
   // Verdenskoordinat w (m): 0 er der fronten av bilen var da bremsingen startet.
@@ -353,7 +365,6 @@ function RoadContent({ fore, bremser, res, st, showForces, view }: Omit<ScenePro
   const left = view.x - 20;
   const right = view.x + view.w + 20;
   const locked = bremser === 'laast';
-  const asphalt = fore === 'torr' || fore === 'vaat';
 
   // Kantstolper hver 10. meter på den bakre veikanten.
   const posts: number[] = [];
@@ -366,6 +377,11 @@ function RoadContent({ fore, bremser, res, st, showForces, view }: Omit<ScenePro
   // Hjulene: der de var da bremsingen startet, og der de er nå (verdenskoordinater).
   const front0 = -BIL_MAAL.foran + BIL_MAAL.akselavstand / 2;
   const rear0 = -BIL_MAAL.foran - BIL_MAAL.akselavstand / 2;
+
+  // Punktet streken fra «Bremsespor» peker på: på sporet bak bakhjulet, når det er langt nok til å synes.
+  const skidStart = Math.max(view.x + 30, X(rear0));
+  const skidEnd = CAR_X - WHEEL_DX - WHEEL_R - 6;
+  const skidCallout = skidEnd - skidStart > 60 ? Math.max(skidStart + 12, Math.min(skidEnd - 12, view.x + 70)) : null;
 
   const kmh = msToKmh(st.v);
   const speedText = st.stopped ? 'Står stille' : `${fmt(kmh, 0)} km/h`;
@@ -385,25 +401,14 @@ function RoadContent({ fore, bremser, res, st, showForces, view }: Omit<ScenePro
         <Kantstolpe key={Math.round(x * 10)} x={x} y={ROAD_TOP - 1} h={0.95 * PX_PER_M * 0.82} />
       ))}
 
-      {/* Startstreken (bare på asfalt, i snø og is synes ikke oppmerkingen) og en kjegle på hver side */}
-      {startX > left && startX < right && (
-        <g>
-          {asphalt && (
-            <path
-              d={`M${startX + 2},${ROAD_TOP + 1}L${startX + 7},${ROAD_TOP + 1}L${startX + 4},${ROAD_BOT - 1}L${startX - 2},${ROAD_BOT - 1}Z`}
-              fill={PAINTS.hvit}
-              opacity={0.85}
-            />
-          )}
-          <Trafikkjegle x={startX + 3} y={ROAD_TOP - 2} h={0.5 * PX_PER_M * 0.85} />
-        </g>
-      )}
+      {/* Kjeglene der bremsingen startet (den bakre står i veikanten bak veien) */}
+      {startX > left && startX < right && <Trafikkjegle x={startX + 3} y={ROAD_TOP - 2} h={0.5 * PX_PER_M * 0.85} />}
 
       {/* Bremsespor fra låste hjul: fra der hjulene låste seg til der de er nå (bakhjulet går i sporet til forhjulet) */}
       {locked && s > 0.02 && (
         <g>
-          <Bremsespor x1={Math.max(left, X(rear0))} x2={X(rear0 + s)} y={ROAD_Y - 1} w={5} type={FORE_VEI[fore]} />
-          <Bremsespor x1={Math.max(left, X(front0))} x2={X(front0 + s)} y={ROAD_Y - 1} w={5} type={FORE_VEI[fore]} />
+          <Bremsespor x1={Math.max(left, X(rear0))} x2={X(rear0 + s)} y={ROAD_Y - 1} w={6} type={FORE_VEI[fore]} />
+          <Bremsespor x1={Math.max(left, X(front0))} x2={X(front0 + s)} y={ROAD_Y - 1} w={6} type={FORE_VEI[fore]} />
         </g>
       )}
 
@@ -422,6 +427,21 @@ function RoadContent({ fore, bremser, res, st, showForces, view }: Omit<ScenePro
         ))}
 
       {startX > left && startX < right && <Trafikkjegle x={startX - 2} y={ROAD_BOT + 8} h={0.5 * PX_PER_M} />}
+
+      <DekkLupe
+        cx={LUPE.x}
+        cy={LUPE.y}
+        r={LUPE.r}
+        tx={CAR_X + WHEEL_DX}
+        ty={ROAD_Y - 1}
+        tr={9}
+        type={FORE_VEI[fore]}
+        dekk={dekk}
+        ruller={!locked}
+        stille={st.stopped}
+        vinkel={locked ? 0 : hjulvinkelFraStrekning(s)}
+        tekst={st.stopped ? 'I ro' : locked ? 'Sklir' : 'Ruller'}
+      />
 
       {showForces && (
         <g>
@@ -468,6 +488,13 @@ function RoadContent({ fore, bremser, res, st, showForces, view }: Omit<ScenePro
             />
           )}
         </g>
+      )}
+
+      {/* Navn på bremsesporet, når en del av det synes bak bilen */}
+      {locked && skidCallout !== null && (
+        <Callout x={skidCallout} y={ROAD_Y - 1} lx={view.x + 14} ly={view.y + view.h - 14} anchor="start" size={0.8}>
+          Bremsespor
+        </Callout>
       )}
 
       <ValueTag x={tagX} y={tagY} anchor="start" text={speedText} color={st.stopped ? undefined : VIZ.velocity} />
@@ -637,8 +664,8 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther }: Expl
           Etter {fmt(st.t, 1)} s har bilen bremset {fmtLen(st.s)} m, og farten er {fmt(msToKmh(st.v), 0)} km/h.
         </strong>{' '}
         Kraftsummen er friksjonen R = μN, som er like stor hele tiden, så akselerasjonen er konstant og farten avtar like mye hvert sekund.
-        Men den avtar ikke like mye per meter: halvveis i bremselengden er farten fortsatt {fmt(vKmh / Math.SQRT2, 0)} km/h, fordi
-        bilen kjører fortest i starten.
+        Men den avtar ikke like mye per meter: halvveis i bremselengden er farten fortsatt {fmt(vKmh / Math.SQRT2, 0)} km/h (71 %),
+        fordi bilen bruker kort tid på de første metrene mens den kjører fort.
       </p>
     );
   }
@@ -646,8 +673,8 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther }: Expl
   const brakes =
     bremser === 'abs' ? (
       <p>
-        <strong>Med ABS ruller hjulene hele tiden.</strong> Den delen av dekket som er nede mot veien, står et øyeblikk stille mot veien, så
-        friksjonen er statisk og kan bli opptil μ<Sub>s</Sub>N. ABS letter litt på bremsen akkurat før hjulene låser seg, så friksjonen
+        <strong>Med ABS ruller hjulene hele tiden.</strong> Den delen av dekket som er nede mot veien, står et øyeblikk stille mot veien (se
+        lupen), så friksjonen er statisk og kan bli opptil μ<Sub>s</Sub>N. ABS letter litt på bremsen akkurat før hjulene låser seg, så friksjonen
         holder seg nær den største verdien, og du kan styre unna. Med låste hjul (μ<Sub>k</Sub> = {fmt(muK, 2)}) ville bremselengden
         blitt {fmtLen(sOther)} m, {fmtLen(sOther - res.s)} m lenger.
       </p>
@@ -657,8 +684,8 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther }: Expl
         {' '}
         {fmt(res.R, 0)} N. Den er mindre enn den største statiske friksjonen μ<Sub>s</Sub>N = {fmt(muS * res.N, 0)} N, så bremselengden blir
         {' '}
-        {fmtLen(res.s - sOther)} m lenger enn med ABS ({fmtLen(sOther)} m). Og du kan ikke styre: et hjul som sklir, kan ikke gi kraft til
-        siden, så bilen sklir rett fram.
+        {fmtLen(res.s - sOther)} m lenger enn med ABS ({fmtLen(sOther)} m). Og du kan ikke styre: friksjonen på et dekk som sklir, virker
+        alltid mot glideretningen, så det hjelper ikke å vri på rattet. Bilen sklir rett fram.
       </p>
     );
 
@@ -668,14 +695,15 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther }: Expl
       <>
         <strong>Sommerdekk på {FORE_TEKST[fore]} er farlig.</strong> Friksjonstallet er bare {fmt(mu, 2)}, så bremselengden blir{' '}
         {fmtLen(res.s)} m. Med vinterdekk ville den blitt {fmtLen(sOtherTyre)} m, omtrent halvparten. Vinterdekk har mykere gummi og mange
-        små spalter (lameller) som griper i {fore === 'sno' ? 'snøen' : 'isen'}.
+        små spalter (lameller, se lupen) som griper i {fore === 'sno' ? 'snøen' : 'isen'}.
       </>
     );
   } else if (winter) {
     tyres = (
       <>
         <strong>Vinterdekk griper omtrent dobbelt så godt som sommerdekk på {FORE_TEKST[fore]}:</strong> med sommerdekk ville bremselengden
-        blitt {fmtLen(sOtherTyre)} m. {fore === 'is' ? 'Piggdekk griper enda bedre på blank is.' : 'Mykere gummi og mange små spalter (lameller) griper i snøen.'}
+        blitt {fmtLen(sOtherTyre)} m.{' '}
+        {fore === 'is' ? 'Piggdekk griper enda bedre på blank is.' : 'Mykere gummi og mange små spalter (lameller, se lupen) griper i snøen.'}
       </>
     );
   } else if (dekk === 'vinter') {
@@ -714,7 +742,7 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther }: Expl
         )}
       </p>
       <p>
-        <strong>Farten betyr mest.</strong> Bremselengden s = v<Sub>0</Sub>
+        <strong>Farten betyr mye, og den bestemmer du selv.</strong> Bremselengden s = v<Sub>0</Sub>
         <Sup>2</Sup>/(2μg) vokser med kvadratet av farten
         {vLow >= 20 ? (
           <>
@@ -724,8 +752,8 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther }: Expl
         ) : (
           <>, så dobbel fart gir fire ganger så lang bremselengde.</>
         )}{' '}
-        Massen spiller ingen rolle: a = μmg/m = μg. En bil på {fmt(m, 0)} kg trenger større bremsekraft enn en lett bil, men den får også
-        større normalkraft og dermed større friksjon. (Vi ser bort fra reaksjonstiden og luftmotstanden.)
+        <strong>Massen betyr ingenting:</strong> a = μmg/m = μg. En bil på {fmt(m, 0)} kg trenger større bremsekraft enn en lettere bil, men den
+        får også større normalkraft og dermed større friksjon. (Vi ser bort fra luftmotstanden. Reaksjonslengden kommer i tillegg.)
       </p>
     </>
   );

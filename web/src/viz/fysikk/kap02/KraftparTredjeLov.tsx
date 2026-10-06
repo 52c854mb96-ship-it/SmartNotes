@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 import {
   Controls,
   Explain,
@@ -19,8 +19,8 @@ import {
   fmtSci,
   useTextScale,
 } from '../../kit';
-import { Bord, ForceArrow, Rom, Stikkontakt, ValueTag } from '../../kit/scene';
-import { Bok, Grunnsnitt, Hand } from './kraftpar-deler';
+import { Bord, ForceArrow, Himmel, Landskap, Lauvtre, Underlag, ValueTag, useSvgId } from '../../kit/scene';
+import { Bok, Hand } from './kraftpar-deler';
 import { EARTH_MASS, TEXTBOOK, bookOnTable, bookThickness, type BookResult } from './model';
 import { useNarrow } from './useNarrow';
 
@@ -37,38 +37,42 @@ const MODES: { value: Mode; label: string }[] = [
 /** Kreftene i figuren: G og N på boka, G′ på jorda, N′ på bordet, F på boka og F′ på hånda. */
 type ForceId = 'G' | 'G2' | 'N' | 'N2' | 'F' | 'F2';
 
+/** Hardt mellomrom mellom tall og enhet, så de ikke deles over to linjer. */
+const NB = '\u00a0';
+
 /** Nedtonede krefter når ett kraftpar vises. */
 const FADED = 0.13;
 
 /* ---------- Scenen: én fast skala for lengder og én for krefter ---------- */
 
 const W = 800;
-const H = 520;
-/** Piksler per meter: boka er 26 cm lang, salongbordet 90 cm bredt og 45 cm høyt, hånda ca. 19 cm. */
-const PX_PER_M = 480;
-/** Piksler per newton for alle kreftene (N er høyst 2,5 kg · 9,81 m/s² + 10 N = 34,5 N, altså 124 px). */
-const PX_PER_N = 3.6;
+const H = 550;
+/** Piksler per meter: boka er 26 cm lang, hagebordet 75 cm bredt og 45 cm høyt, hånda ca. 19 cm lang. */
+const PX_PER_M = 600;
+/** Piksler per newton for alle kreftene (N er høyst 2,5 kg · 9,81 m/s² + 10 N = 34,5 N, altså 138 px). */
+const PX_PER_N = 4;
 /** Overflaten av bordplata, der boka ligger. */
-const TABLE_TOP = 176;
-const TABLE_W = 0.9 * PX_PER_M;
+const TABLE_TOP = 160;
+const TABLE_W = 0.75 * PX_PER_M;
 const TABLE_H = 0.45 * PX_PER_M;
-/** Der veggen møter gulvet, og forkanten av gulvet (snittet av grunnen begynner der). */
-const WALL_FOOT = 345;
-const GROUND = 420;
+/** Gressplenen der bordbeina står. Under plenen er et snitt av jorda. */
+const LAWN = TABLE_TOP + TABLE_H;
+/** Horisonten: vi ser bordet rett fra siden, så øyehøyden (og horisonten) er omtrent ved bordplata. */
+const HORIZON = TABLE_TOP + 10;
 const BOOK_X = 400;
 const BOOK_W = TEXTBOOK.length * PX_PER_M;
 /** Hvor kreftene angriper (x): N og N′ til venstre på boka, G og G′ midt på, F og F′ under håndflata. */
-const X_N = 351;
+const X_N = 333;
 const X_G = 400;
-const X_F = 418;
-const X_F2 = 447;
+const X_F = 424;
+const X_F2 = 457;
 /** Hælen på håndflata. */
-const HAND_X = 452;
+const HAND_X = 468;
 /** Avstanden mellom de to tekstlinjene i en kraftetikett (ganges med tekstskaleringen). */
 const LINE = 16;
 
 /** Utsnittet på mobil: bordet, boka, hånda og kreftene, så de blir store nok. */
-const NARROW_VIEW = { x: 172, y: 8, w: 456, h: H - 8 };
+const NARROW_VIEW = { x: 170, y: 8, w: 460, h: H - 8 };
 
 export default function KraftparTredjeLov() {
   const [mode, setMode] = useState<Mode>('alle');
@@ -116,16 +120,19 @@ export default function KraftparTredjeLov() {
 
       <Formula label="Utregning">
         <FormulaLine>
-          G = mg = {fmt(m, 1)} kg · 9,81 m/s² = {fmt(r.G, 1)} N
+          G = mg = {fmt(m, 1)}{NB}kg · 9,81{NB}m/s² = {fmt(r.G, 1)}{NB}N
         </FormulaLine>
         {mode === 'gravitasjon' ? (
           <FormulaLine>
-            a = G′/M = {fmt(r.G, 1)} N / ({fmtSci(EARTH_MASS, 2)} kg) = {fmtSci(r.earthAccel, 1)} m/s²
+            a = G′/M = {fmt(r.G, 1)}{NB}N / ({fmtSci(EARTH_MASS, 2)}{NB}kg) = {fmtSci(r.earthAccel, 1)}{NB}m/s²
           </FormulaLine>
         ) : (
-          <FormulaLine>
-            ΣF = N − G − F = 0 gir N = G + F = {fmt(r.G, 1)} N + {fmt(r.F, 1)} N = {fmt(r.N, 1)} N
-          </FormulaLine>
+          <>
+            <FormulaLine>ΣF = N − G − F = 0 (boka ligger i ro)</FormulaLine>
+            <FormulaLine>
+              N = G + F = {fmt(r.G, 1)}{NB}N + {fmt(r.F, 1)}{NB}N = {fmt(r.N, 1)}{NB}N
+            </FormulaLine>
+          </>
         )}
         <FormulaLine>Newtons 3. lov: G′ = G, N′ = N{push > 0 ? ' og F′ = F' : ''}</FormulaLine>
       </Formula>
@@ -152,7 +159,7 @@ function BookScene(props: SceneProps) {
     <div ref={ref}>
       <Figure
         viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
-        label={`En lærebok på ${fmt(m, 1)} kg ligger på et salongbord i stua${r.F > 0 ? `, og en hånd presser den ned med ${fmt(r.F, 1)} N` : ''}. Under gulvet er jorda. Kraftparene etter Newtons 3. lov er tegnet som piler.`}
+        label={`En lærebok på ${fmt(m, 1)} kg ligger på et hagebord som står på plenen${r.F > 0 ? `, og en hånd presser den ned med ${fmt(r.F, 1)} N` : ''}. Under plenen er et snitt av jorda. Kraftparene etter Newtons 3. lov er tegnet som piler.`}
         maxHeight={520}
       >
         <SceneContent {...props} view={view} />
@@ -177,19 +184,19 @@ function forceOpacity(mode: Mode, id: ForceId): number {
   }
 }
 
-/** Hvilke gjenstander som er med i det som vises (de andre tones ned). */
-function involved(mode: Mode): { book: boolean; table: boolean; earth: boolean; hand: boolean; room: boolean } {
+/** Hvilke gjenstander som er med i det som vises (de andre tones ned). Jorda er bakgrunnen, og tones bare ned i frilegemediagrammet. */
+function involved(mode: Mode): { table: boolean; hand: boolean; earth: boolean } {
   switch (mode) {
     case 'alle':
-      return { book: true, table: true, earth: true, hand: true, room: true };
+      return { table: true, hand: true, earth: true };
     case 'gravitasjon':
-      return { book: true, table: false, earth: true, hand: false, room: true };
+      return { table: false, hand: false, earth: true };
     case 'normal':
-      return { book: true, table: true, earth: false, hand: false, room: true };
+      return { table: true, hand: false, earth: true };
     case 'dytt':
-      return { book: true, table: false, earth: false, hand: true, room: true };
+      return { table: false, hand: true, earth: true };
     case 'frilegeme':
-      return { book: true, table: false, earth: false, hand: false, room: false };
+      return { table: false, hand: false, earth: false };
   }
 }
 
@@ -227,22 +234,13 @@ function SceneContent({ mode, m, r, showForces, view }: SceneProps & { view: { x
 
   return (
     <g>
-      {/* Stua: vegg, tregulv og en stikkontakt, med snitt av grunnen under huset */}
-      <g opacity={on.room ? 1 : 0.55}>
-        <Rom x={0} y={0} w={W} h={GROUND} gulvY={WALL_FOOT} gulv="tre" />
-        <Stikkontakt x={110} y={WALL_FOOT - 0.3 * PX_PER_M * 0.94} size={0.08 * PX_PER_M} />
-      </g>
+      {/* Hagen: himmel, åser, et epletre og plenen, med et snitt av jorda under */}
       <g opacity={on.earth ? 1 : 0.5}>
-        <Grunnsnitt x={0} y={GROUND} w={W} h={H - GROUND} />
-        <Txt x={view.x + 16} y={GROUND + 36 + 6 * f} anchor="start" weight={720} size={1.05}>
-          jorda
-        </Txt>
-        <Txt x={view.x + 16} y={GROUND + 36 + 6 * f + 17 * f} anchor="start" size={0.74} muted>
-          6 370 km ned til sentrum
-        </Txt>
+        <Garden />
+        <ValueTag x={view.x + 16} y={LAWN + 40 * Math.max(1, f * 0.9)} anchor="start" text="Jorda: radius 6 370 km" size={0.8} />
       </g>
       <Bord x={BOOK_X} y={TABLE_TOP} w={TABLE_W} h={TABLE_H} type="tre" dim={!on.table} />
-      <Bok x={BOOK_X} y={TABLE_TOP} w={BOOK_W} t={t} perm="rod" dim={!on.book} />
+      <Bok x={BOOK_X} y={TABLE_TOP} w={BOOK_W} t={t} perm="rod" />
       {showHand && <Hand x={HAND_X} y={bookTop} k={PX_PER_M} top={view.y} loft={pushing ? 0 : 0.035 * PX_PER_M} genser="gul" dim={!on.hand} />}
 
       {/* Frilegemediagram: systemgrensen rundt boka */}
@@ -303,10 +301,30 @@ function SceneContent({ mode, m, r, showForces, view }: SceneProps & { view: { x
         </g>
       )}
 
-      <ValueTag x={view.x + 16} y={view.y + 24 * Math.max(1, f * 0.9)} anchor="start" text={tag.text} color={tag.color} />
+      {/* Hva som vises nå: på plenen under bordet, der ingen piler kommer */}
+      {showForces && <ValueTag x={BOOK_X} y={LAWN - 34} anchor="middle" text={tag.text} color={tag.color} />}
     </g>
   );
 }
+
+/** Bakgrunnen endres ikke, så den tegnes én gang (memo). */
+const Garden = memo(function Garden() {
+  const clip = useSvgId('kp-hage');
+  return (
+    <g clipPath={`url(#${clip})`}>
+      {/* Landskapet er bredere enn figuren; klipp det, så det ikke synes ved siden av figuren på brede skjermer. */}
+      <clipPath id={clip}>
+        <rect x={0} y={0} width={W} height={H} />
+      </clipPath>
+      <Himmel w={W} h={HORIZON + 2} sol={{ x: 700, y: 64, r: 24 }} skyer={2} seed={5} />
+      {/* Gården i åsen havner til høyre for bordet (x ≈ 730), ikke bak bordplata der den kunne se ut som en ting på bordet */}
+      <Landskap x={-100} y={HORIZON} w={1000} h={90} type="aaser" seed={3} />
+      <Underlag x1={0} x2={W} y={LAWN} depth={H - LAWN} type="gress" horisont={HORIZON} />
+      {/* Epletreet står noen meter unna, så det er mindre enn i samme skala som bordet */}
+      <Lauvtre x={74} y={HORIZON + 20} size={128} epler seed={3} />
+    </g>
+  );
+});
 
 /** Etikett ved en kraftpil: symbol og verdi på første linje, og hvem som virker på hvem under. */
 function ForceText({
@@ -349,7 +367,7 @@ function modeTag(mode: Mode, r: BookResult): { text: string; color?: string } {
     case 'normal':
       return { text: `N = N′ = ${fmt(r.N, 1)} N`, color: VIZ.normal };
     case 'dytt':
-      return r.F > 0 ? { text: `F = F′ = ${fmt(r.F, 1)} N`, color: VIZ.applied } : { text: 'Ingen kontakt, ingen krefter' };
+      return r.F > 0 ? { text: `F = F′ = ${fmt(r.F, 1)} N`, color: VIZ.applied } : { text: 'Ingen kontakt, ingen dytt' };
     case 'frilegeme':
       return { text: 'Kraftsum på boka: 0 N' };
   }
@@ -378,8 +396,9 @@ function explanation(mode: Mode, r: BookResult): ReactNode {
       return (
         <p>
           Jorda trekker boka nedover med G = {fmt(G, 1)} N. Samtidig trekker boka jorda oppover med like stor kraft, G′ = {fmt(G, 1)} N.
-          Paret finnes enten boka ligger på bordet eller faller. Det er derfor vi aldri merker at jorda trekkes mot boka: massen til jorda er
-          enorm, så G′ alene ville gitt jorda akselerasjonen a = G′/M ≈ {fmtSci(earthAccel, 1)} m/s². Slipper du boka, er det boka som faller.
+          Paret finnes enten boka ligger på bordet eller faller. Hvorfor merker vi ikke at jorda trekkes mot boka? Massen til jorda er enorm,
+          så G′ alene ville gitt jorda akselerasjonen a = G′/M ≈ {fmtSci(earthAccel, 1)} m/s². Det er derfor det er boka som faller når du
+          slipper den, og ikke jorda som kommer opp til boka.
         </p>
       );
     case 'normal':
@@ -403,8 +422,9 @@ function explanation(mode: Mode, r: BookResult): ReactNode {
         </p>
       ) : (
         <p>
-          Nå holder du hånda like over boka uten å røre den. Da virker ingen krefter mellom hånda og boka, og det finnes ikke noe kraftpar her.
-          Krefter oppstår alltid i par når to gjenstander virker på hverandre. Dra i «Dytt fra hånda» for å presse boka ned.
+          Nå holder du hånda like over boka uten å røre den. Da dytter ikke hånda på boka, og boka dytter ikke på hånda: uten kontakt finnes ikke
+          dette kraftparet. Kontaktkrefter oppstår alltid i par når to gjenstander presser mot hverandre. Dra i «Dytt fra hånda» for å presse
+          boka ned.
         </p>
       );
     case 'frilegeme':

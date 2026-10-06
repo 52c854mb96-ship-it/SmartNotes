@@ -336,3 +336,28 @@ export function pace(vertical: number): Pace {
 
 /** Hvor lenge et apparat med effekt P må gå for å bruke energien W. */
 export const timeForEnergy = (W: number, P: number): number => W / P;
+
+export interface StairProgress {
+  /** Andelen av trappa du har løpt (0–1). */
+  u: number;
+  /** Høyden du har løftet deg så langt (m). */
+  climbed: number;
+  /** Arbeidet så langt, mg · høyden (J). Med jevn fart er det P · τ. */
+  W: number;
+}
+
+/** Hvor langt du er kommet etter tiden τ (s) når du løper opp trappa med jevn fart på tiden t. */
+export function stairProgress({ m, h, t }: StairInput, tau: number, g = G_EARTH): StairProgress {
+  const u = t > 0 && Number.isFinite(tau) ? Math.min(1, Math.max(0, tau / t)) : 1;
+  const climbed = u * h;
+  return { u, climbed, W: m * g * climbed };
+}
+
+/** Virkningsgraden til musklene: omtrent en firedel av energien blir til arbeid, resten blir varme. */
+export const MUSCLE_EFFICIENCY = 0.25;
+
+/** Energien kroppen bruker for å gjøre arbeidet W (J) med virkningsgraden η. */
+export const bodyEnergy = (W: number, eta = MUSCLE_EFFICIENCY): number => W / eta;
+
+/** Omtrent hvor mye energi en brødskive med ost gir (J), til sammenligning. */
+export const BREAD_SLICE_ENERGY = 700e3;

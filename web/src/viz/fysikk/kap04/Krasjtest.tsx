@@ -153,7 +153,7 @@ export default function Krasjtest() {
               s = d + Δx = {fmt(crush, 2)} m + {fmt(spec.stroke, 2)} m = {fmt(r.sBrake, 2)} m
             </>
           ) : (
-            <>s = {fmt(r.sBrake, 2)} m (bare hodet, brystet og dashbordet gir etter)</>
+            <>s = {fmt(r.sBrake, 2)} m (bare hodet, ruta og dashbordet gir etter)</>
           )}
         </FormulaLine>
         <FormulaLine>
@@ -246,6 +246,8 @@ function ForceGraph({ r, others, t, height, showCursor }: { r: CrashResult; othe
           const right = sx(c.tStop * 1000) + 6;
           const left = sx(c.tStart * 1000) + 10;
           const yTop = fy(c);
+          // Til høyre for alle toppene uten belte, hvis de står i veien
+          const clear = Math.max(right, ...[...spikes.values(), ...(over(r) ? [spike(r)] : [])].map((b) => b.x1 + 4));
           const candidates: [number, number][] = over(c)
             ? [0, 1, 2, 3].map((i) => [right, y1 + 16 * f + i * lineH])
             : [
@@ -253,7 +255,9 @@ function ForceGraph({ r, others, t, height, showCursor }: { r: CrashResult; othe
                 [right, yTop - 7],
                 [left, yTop + 17 * f],
                 [right, yTop + 17 * f],
-                [right, yTop + 17 * f + lineH],
+                [clear, yTop - 7],
+                [clear, yTop + 17 * f],
+                [clear, yTop + 17 * f + lineH],
               ];
           const own = spikes.get(c);
           const ok = (x: number, y: number) =>
@@ -358,17 +362,19 @@ function explanation(r: CrashResult, speed: number): ReactNode {
           {r.restraint === 'pute' ? 'Med belte og kollisjonspute' : 'Med bilbelte'} bremses passasjeren over {fmt(r.sBrake, 2)} m:
         </strong>{' '}
         {fmt(r.d, 2)} m fordi fronten på bilen presses sammen, og {fmt(spec.stroke, 2)} m fordi beltet strekkes
-        {r.restraint === 'pute' ? ' og puta presses sammen' : ''} mens passasjeren glir fram i bilen (den stiplede sirkelen viser hvor hodet
-        hadde vært om passasjeren hadde fulgt bilen). Det tar {ms(r.dt)} ms, og
+        {r.restraint === 'pute' ? ' og puta presses sammen' : ''} (den stiplede sirkelen viser hvor hodet hadde vært om passasjeren hadde fulgt
+        bilen). Det tar {ms(r.dt)} ms, og
         gjennomsnittskraften blir {kN(r.F)}, like mye som tyngden av {weight}. «{g} g» betyr at bremsingen er {g} ganger
         tyngdeakselerasjonen, så beltet må dra i deg med {g} ganger tyngden din. En «g-kraft» er altså ikke en egen kraft.
       </p>
     );
 
+  const [gIngen, gBelte, gPute] = RESTRAINT_ORDER.map((x) => sig(crash(r.v0, r.d, x).g, 3));
   const impulse = (
     <p>
       Δp = m · v = {fmt(r.dp, 0)} N·s er den samme uansett bil og sikring, for farten skal fra {speed} km/h til null. Arealet under F–t-grafen
-      er derfor like stort for alle tre. Det eneste vi kan påvirke, er stoppetiden: F<Sub>gj</Sub> = Δp/Δt, så lang tid gir liten kraft.
+      er derfor like stort for alle tre. Det eneste vi kan påvirke, er stoppetiden: F<Sub>gj</Sub> = Δp/Δt, så lang tid gir liten kraft. I
+      denne bilen og farten gir det {gIngen} g uten belte og pute, {gBelte} g med bilbelte og {gPute} g med belte og pute.
       {r.restraint === 'belte'
         ? ' Kollisjonsputa gir noen centimeter til å bremse på, og den fordeler kraften på hodet og brystet.'
         : r.restraint === 'ingen'

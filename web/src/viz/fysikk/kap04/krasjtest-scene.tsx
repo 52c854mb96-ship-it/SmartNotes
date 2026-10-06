@@ -6,8 +6,9 @@
  * `Maalemerke` (gult og svart merke som på krasjtestbiler).
  *
  * Bilen tegnes med `Bil` fra scene-kit-et i fast skala (PX_PER_M). Fronten klippes bort der den er presset sammen,
- * og den knuste delen tegnes i stedet. Alt i bilen regnes i bilens egne centimeter med ankerpunktet midt mellom
- * hjulene på bakken (som i kjoretoy.tsx), og gjøres om til figurens koordinater med `P`.
+ * og den knuste delen tegnes i stedet. Alt i bilen regnes i bilens egne enheter (440 fra støtfanger til støtfanger,
+ * som i kjoretoy.tsx) med ankerpunktet midt mellom hjulene på bakken, og gjøres om til figurens koordinater med `P`.
+ * Dukken, beltet og målene regnes i ekte centimeter (PXR).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Txt, TSub, VIZ, fmt } from '../../kit';
@@ -118,7 +119,7 @@ const poly = (pts: [number, number][]) => `M${pts.map(([x, y]) => `${r2(x)},${r2
 const line = (pts: [number, number][]) => `M${pts.map(([x, y]) => `${r2(x)},${r2(y)}`).join('L')}`;
 
 /* ================================================================================================
- * Bilens profil (cm, samme mål som Bil i kjoretoy.tsx)
+ * Bilens profil (bilens enheter, samme mål som Bil i kjoretoy.tsx)
  * ============================================================================================== */
 
 function cubicPts(p0: Pt, p1: Pt, p2: Pt, p3: Pt, n: number): Pt[] {
@@ -140,7 +141,7 @@ const TOP_PROFILE: Pt[] = [
   ...cubicPts({ x: 212, y: -77 }, { x: 222, y: -72 }, { x: 226, y: -64 }, { x: 226, y: -50 }, 12).slice(1),
 ].sort((a, b) => a.x - b.x);
 
-/** Høyden (y, negativ oppover) til overkanten av bilen ved x (cm). */
+/** Høyden (y, negativ oppover) til overkanten av bilen ved x (bilens enheter). */
 function topY(x: number): number {
   const p = TOP_PROFILE;
   if (x <= p[0]!.x) return p[0]!.y;
@@ -152,15 +153,15 @@ function topY(x: number): number {
   return p[p.length - 1]!.y;
 }
 
-/** Hvor tykt laget av sammenpresset metall blir (cm) når fronten er presset sammen C cm. */
+/** Hvor tykt laget av sammenpresset metall blir når fronten er presset sammen C (bilens enheter). */
 const crumpleWidth = (C: number) => (C > 0.5 ? 5 + 0.42 * C : 0);
 
 /**
- * Åpningen der døra og A-stolpen er skåret bort (cm): fra B-stolpen langs taket, ned langs innsiden av frontruta og
+ * Åpningen der døra og A-stolpen er skåret bort (bilens enheter): fra B-stolpen langs taket, ned langs innsiden av frontruta og
  * dørkanten til dørterskelen.
  */
 const CABIN = 'M-22,-143C-12,-142.7 -6,-142.6 -2,-142.5C20,-136 44,-114 66,-99L74,-96C86,-82 94,-62 95,-30L-24,-30L-23.5,-99Z';
-/** Innsiden av frontruta (cm), der ruta er skåret over. */
+/** Innsiden av frontruta (bilens enheter), der ruta er skåret over. */
 const WINDSHIELD = 'M-2,-142.5C20,-136 44,-114 66,-99';
 
 /** Sittebeina til dukken og føttene på gulvet (bilens enheter). */
@@ -456,7 +457,7 @@ function Rusk({ G, C, sw }: { G: number; C: number; sw: number }) {
  * Kupeen: interiør, dukke, belte og kollisjonspute
  * ============================================================================================== */
 
-/** Interiøret bak dukken (cm-koordinater, klippet til åpningen). */
+/** Interiøret bak dukken (bilens enheter, klippet til åpningen). */
 function Interior({ sw }: { sw: number }) {
   const id = useSvgId('kupe');
   const trim = mix(SCENE.rubberLight, SCENE.plasticShade, 0.28);
@@ -503,8 +504,8 @@ function Interior({ sw }: { sw: number }) {
 }
 
 /**
- * Kollisjonsputa (cm-koordinater): blåses opp fra dashbordet og presses flat av dukken mot frontruta. `fill` er hvor
- * full den er (0–1), `rear` er hvor langt bak den kan bre seg før den møter dukken (x i cm).
+ * Kollisjonsputa (bilens enheter): blåses opp fra dashbordet og presses flat av dukken mot frontruta. `fill` er hvor
+ * full den er (0–1), `rear` er hvor langt bak den kan bre seg før den møter dukken (x).
  */
 function Kollisjonspute({ fill, rear, sw }: { fill: number; rear: number; sw: number }) {
   const id = useSvgId('pute');

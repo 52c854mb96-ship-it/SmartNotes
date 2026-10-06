@@ -12,6 +12,10 @@ import {
   stairRun,
   startPosition,
   timeForEnergy,
+  BREAD_SLICE_ENERGY,
+  MUSCLE_EFFICIENCY,
+  bodyEnergy,
+  stairProgress,
 } from './model';
 
 describe('akser', () => {
@@ -194,5 +198,30 @@ describe('trappeløp', () => {
     expect(pace(3)).toBe('urealistisk');
     expect(timeForEnergy(4000, 2000)).toBe(2);
     expect(POWER_REFS.map((r) => r.P)).toEqual([...POWER_REFS.map((r) => r.P)].sort((a, b) => a - b));
+  });
+
+  it('arbeidet så langt vokser jevnt: W(τ) = P · τ, og hele arbeidet når du er oppe', () => {
+    const input = { m: 60, h: 9, t: 10 };
+    const r = stairRun(input);
+    const half = stairProgress(input, 5);
+    expect(half.u).toBe(0.5);
+    expect(half.climbed).toBeCloseTo(4.5, 12);
+    expect(half.W).toBeCloseTo(r.P * 5, 9);
+    expect(stairProgress(input, 0)).toEqual({ u: 0, climbed: 0, W: 0 });
+    expect(stairProgress(input, 10).W).toBeCloseTo(r.W, 9);
+    // Klokka kan stå forbi slutten (kortere tid valgt): da er du oppe, ikke lenger.
+    expect(stairProgress(input, 25).climbed).toBe(9);
+    expect(stairProgress(input, -1).u).toBe(0);
+    for (const tau of [0, 1.3, 4, 7.7, 10]) {
+      const p = stairProgress(input, tau);
+      expect(p.W).toBeCloseTo(60 * 9.81 * p.climbed, 9);
+    }
+  });
+
+  it('kroppen bruker omtrent fire ganger arbeidet', () => {
+    expect(MUSCLE_EFFICIENCY).toBe(0.25);
+    expect(bodyEnergy(5297.4)).toBeCloseTo(21189.6, 6);
+    // Én brødskive med ost holder til omtrent 33 turer opp 9 m for en elev på 60 kg.
+    expect(BREAD_SLICE_ENERGY / bodyEnergy(stairRun({ m: 60, h: 9, t: 10 }).W)).toBeCloseTo(33, 0);
   });
 });

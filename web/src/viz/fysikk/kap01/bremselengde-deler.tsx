@@ -1,16 +1,15 @@
 /**
  * Egne gjenstander til «Reaksjonslengde og bremselengde» (k1-bremselengde), i samme stil som scene-kit-et:
- * toninger fra core.tsx, SCENE- og PAINTS-farger, kontur og myk skygge. Bare denne visualiseringen trenger dem.
+ * toninger fra core.tsx, SCENE-farger, kontur og myk skygge. Bare denne visualiseringen trenger dem.
  *
  *   <Elg x={x} y={y} m={12} flip />            elgokse sett fra siden (flip: ser mot venstre, mot bilen)
- *   <Elgskilt x={x} y={y} m={12} />             fareskilt «Elg» på stolpe
  *   <Veikant y={y} h={40} w={800} type="sno" />  veikanten foran veien (gress eller snø)
  *   <Smell x={x} y={y} r={14} />                 stjerne der bilen treffer elgen
  *
  * `m` er piksler per meter (samme skala som bilen), og (x, y) er på bakken. Gjenstandene har ekte mål.
  */
-import { useMemo } from 'react';
-import { ContactShadow, LinearGradient, PAINTS, Place, SCENE, SCENE_DIM, materialStops, mix, sceneRandom, shade, tint, useSceneScale, useStrokeScale, useSvgId } from '../../kit/scene';
+import { memo, useMemo } from 'react';
+import { ContactShadow, LinearGradient, Place, SCENE, SCENE_DIM, materialStops, mix, sceneRandom, shade, tint, useSceneScale, useStrokeScale, useSvgId } from '../../kit/scene';
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const fin = (v: number, fallback: number) => (Number.isFinite(v) ? v : fallback);
@@ -125,7 +124,7 @@ function hoof(x: number): string {
  * overhengende mule og «bjelle» under halsen, og skovlgevir. Ser mot høyre; `flip` speilvender (ser mot venstre).
  * Ankerpunkt: på bakken midt mellom hovene. `m` er piksler per meter (elgen er 2,0 m til manken og 2,5 m med gevir).
  */
-export function Elg({ x, y, m, flip = false, dim, title }: { x: number; y: number; m: number; flip?: boolean; dim?: boolean; title?: string }) {
+export const Elg = memo(function Elg({ x, y, m, flip = false, dim, title }: { x: number; y: number; m: number; flip?: boolean; dim?: boolean; title?: string }) {
   const ss = useStrokeScale();
   const id = useSvgId('elg');
   const k = Math.max(0.05, fin(m, 12)) / 100;
@@ -179,58 +178,7 @@ export function Elg({ x, y, m, flip = false, dim, title }: { x: number; y: numbe
       </g>
     </Place>
   );
-}
-
-/* ------------------------------------------------------------------ Fareskilt «Elg» */
-
-/** Elg i silhuett i skiltet (enhetsboks ca. −50…50 bredt, −60…0 høyt, ser mot venstre som på skiltet). */
-const SIGN_ELK =
-  'M44,-30C40,-34 30,-35 18,-34L-18,-34C-24,-40 -28,-44 -30,-50L-34,-54L-36,-48C-38,-46 -42,-44 -46,-43L-48,-38' +
-  'C-44,-36 -40,-37 -36,-38C-33,-33 -30,-28 -26,-24L-26,-6L-22,-6L-21,-20L-15,-18L-14,-6L-10,-6L-9,-18L22,-18' +
-  'L24,-6L28,-6L29,-18L33,-20L34,-6L38,-6L39,-22C44,-24 46,-27 44,-30Z' +
-  'M-30,-52C-34,-58 -40,-62 -46,-62C-44,-58 -40,-55 -36,-54C-40,-58 -38,-62 -34,-62C-32,-58 -31,-55 -30,-52Z';
-
-/**
- * Fareskilt «Elg» på stolpe: trekant med rød kant og gul bunn og en elg i svart, vendt mot leseren slik
- * lærebokillustrasjoner gjør. Siden i trekanten er 0,9 m, og underkanten 2,0 m over bakken. Ankerpunkt: foten av stolpen.
- */
-export function Elgskilt({ x, y, m }: { x: number; y: number; m: number }) {
-  const ss = useStrokeScale();
-  const id = useSvgId('elgskilt');
-  const k = Math.max(0.5, fin(m, 12));
-  const side = 0.9 * k;
-  const h = (side * Math.sqrt(3)) / 2;
-  const base = y - 2.0 * k;
-  const top = base - h;
-  const tri = (inset: number) => {
-    const s = side - 2 * inset * Math.sqrt(3);
-    const hh = (s * Math.sqrt(3)) / 2;
-    const b = base - inset;
-    return `M${r2(x - s / 2)},${r2(b)}L${r2(x + s / 2)},${r2(b)}L${r2(x)},${r2(b - hh)}Z`;
-  };
-  const postW = Math.max(1.4, 0.07 * k);
-  return (
-    <g aria-hidden>
-      <ContactShadow cx={x} cy={y} rx={Math.max(2, 0.25 * k)} ry={Math.max(1, 0.06 * k)} />
-      <LinearGradient
-        id={`${id}-p`}
-        x2={1}
-        y2={0}
-        stops={[
-          [0, shade(SCENE.metal, 0.2)],
-          [0.3, tint(SCENE.metal, 0.3)],
-          [1, shade(SCENE.metal, 0.25)],
-        ]}
-      />
-      <rect x={x - postW / 2} y={top + h * 0.5} width={postW} height={y - top - h * 0.5} fill={`url(#${id}-p)`} stroke={SCENE.outline} strokeWidth={0.5 * ss} />
-      <path d={tri(0)} fill={PAINTS.rod} stroke={SCENE.outline} strokeWidth={0.6 * ss} strokeLinejoin="round" />
-      <path d={tri(side * 0.075)} fill={tint(PAINTS.gul, 0.25)} />
-      <g transform={`translate(${r2(x)} ${r2(base - side * 0.2)}) scale(${r2(side / 160)})`}>
-        <path d={SIGN_ELK} fill={PAINTS.svart} />
-      </g>
-    </g>
-  );
-}
+});
 
 /* ------------------------------------------------------------------ Veikant */
 
@@ -238,7 +186,7 @@ export function Elgskilt({ x, y, m }: { x: number; y: number; m: number }) {
  * Veikanten foran veien, sett litt ovenfra: gress (toning og små gresstuster) eller snø (toning og glitter).
  * Tegnes under `Vei` fra `y` og `h` nedover, over hele bredden `w`.
  */
-export function Veikant({ y, h, w, type, seed = 41 }: { y: number; h: number; w: number; type: 'gress' | 'sno'; seed?: number }) {
+export const Veikant = memo(function Veikant({ y, h, w, type, seed = 41 }: { y: number; h: number; w: number; type: 'gress' | 'sno'; seed?: number }) {
   const id = useSvgId('veikant');
   const ss = useStrokeScale();
   const k = useSceneScale();
@@ -296,7 +244,7 @@ export function Veikant({ y, h, w, type, seed = 41 }: { y: number; h: number; w:
       )}
     </g>
   );
-}
+});
 
 /* ------------------------------------------------------------------ Smell */
 

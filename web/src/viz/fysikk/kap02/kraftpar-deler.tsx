@@ -1,10 +1,8 @@
 /**
  * Egne gjenstander til kraftparscenen (k2-kraftpar, 2D) som scene-kit-et ikke har: en lærebok sett fra snittkanten
- * (sidene mellom to permer), en hånd som presser flatt ned på noe (underarm med genserermet) og et snitt av grunnen
- * under huset (gulvbord, betongplate, pukk, jord og berg). Samme stil som scene-kit-et: toninger fra core,
- * SCENE-farger, tynn kontur og myke skygger. Alle mål er i figurens enheter.
+ * (sidene mellom to permer) og en hånd som presser flatt ned på noe (underarm med genserermet). Samme stil som
+ * scene-kit-et: toninger fra core, SCENE-farger, tynn kontur og myke skygger. Alle mål er i figurens enheter.
  */
-import { memo, useMemo } from 'react';
 import {
   ContactShadow,
   LinearGradient,
@@ -14,7 +12,6 @@ import {
   materialStops,
   mix,
   paint,
-  sceneRandom,
   shade,
   tint,
   useStrokeScale,
@@ -134,8 +131,8 @@ export function Hand({ x, y, k, top, vinkel = 14, loft = 0, genser = 'gul', dim 
   const th = (vinkel * Math.PI) / 180;
   const u: Pt = [Math.sin(th), -Math.cos(th)];
   const nrm: Pt = [Math.cos(th), Math.sin(th)];
-  const wl: Pt = [-0.018, -0.046];
-  const wr: Pt = [0.036, -0.026];
+  const wl: Pt = [-0.022, -0.052];
+  const wr: Pt = [0.036, -0.028];
   const widen = (s: number) => 0.0055 * clamp(s / 0.1, 0, 1);
   const edge = (side: -1 | 1, s: number, extra = 0): Pt => {
     const b = side < 0 ? wl : wr;
@@ -151,7 +148,7 @@ export function Hand({ x, y, k, top, vinkel = 14, loft = 0, genser = 'gul', dim 
   const skin = SCENE.skin;
   const cloth = paint(genser);
   const skinPath =
-    `M${p(P(-0.176, 0))}L${p(P(0.016, 0))}Q${p(P(0.036, 0))} ${p(P(0.036, -0.02))}L${p(edge(1, 0))}` +
+    `M${p(P(-0.088, 0))}L${p(P(0.016, 0))}Q${p(P(0.036, 0))} ${p(P(0.036, -0.02))}L${p(edge(1, 0))}` +
     steps.map((s) => `L${p(edge(1, s))}`).join('') +
     `L${p(edge(-1, sSkin))}` +
     steps
@@ -160,20 +157,24 @@ export function Hand({ x, y, k, top, vinkel = 14, loft = 0, genser = 'gul', dim 
       .map((s) => `L${p(edge(-1, s))}`)
       .join('') +
     `L${p(edge(-1, 0))}` +
-    `C${p(P(-0.036, -0.045))} ${p(P(-0.066, -0.035))} ${p(P(-0.094, -0.028))}` +
-    `C${p(P(-0.12, -0.022))} ${p(P(-0.15, -0.019))} ${p(P(-0.172, -0.0145))}` +
-    `Q${p(P(-0.188, -0.012))} ${p(P(-0.187, -0.005))}Q${p(P(-0.186, 0))} ${p(P(-0.176, 0))}Z`;
-  // Tommelen ligger langs siden av håndflata, med en negl ytterst.
-  const thumbA = P(-0.014, -0.017);
-  const thumbB = P(-0.086, -0.0105);
-  const tr = 0.0085 * k;
-  const tdx = thumbB[0] - thumbA[0];
-  const tdy = thumbB[1] - thumbA[1];
-  const tl = Math.hypot(tdx, tdy);
-  const tn: Pt = [(-tdy / tl) * tr, (tdx / tl) * tr];
-  const thumb = `M${p([thumbA[0] + tn[0], thumbA[1] + tn[1]])}L${p([thumbB[0] + tn[0] * 0.8, thumbB[1] + tn[1] * 0.8])}A${r1(tr * 0.8)},${r1(tr * 0.8)} 0 0 0 ${p([thumbB[0] - tn[0] * 0.8, thumbB[1] - tn[1] * 0.8])}L${p([thumbA[0] - tn[0], thumbA[1] - tn[1]])}Z`;
-  const nail = P(-0.079, -0.0135);
-  const tipNail = P(-0.174, -0.0128);
+    // Håndryggen ned til knokene, og pekefingeren som bøyer seg svakt ned mot flaten (avslappet hånd som presser
+    // med håndflata), så det blir en liten glipe under fingeren.
+    `C${p(P(-0.042, -0.051))} ${p(P(-0.07, -0.045))} ${p(P(-0.097, -0.037))}` +
+    `C${p(P(-0.122, -0.033))} ${p(P(-0.14, -0.031))} ${p(P(-0.153, -0.025))}` +
+    `C${p(P(-0.167, -0.018))} ${p(P(-0.177, -0.012))} ${p(P(-0.182, -0.006))}` +
+    `Q${p(P(-0.185, 0))} ${p(P(-0.176, 0))}` +
+    `Q${p(P(-0.16, -0.002))} ${p(P(-0.138, -0.008))}Q${p(P(-0.108, -0.012))} ${p(P(-0.088, 0))}Z`;
+  // Langfingeren bak stikker litt lenger fram enn pekefingeren.
+  const backFinger =
+    `M${p(P(-0.138, -0.022))}C${p(P(-0.162, -0.022))} ${p(P(-0.182, -0.016))} ${p(P(-0.19, -0.007))}` +
+    `Q${p(P(-0.193, 0))} ${p(P(-0.184, 0))}Q${p(P(-0.164, -0.002))} ${p(P(-0.138, -0.008))}Z`;
+  // Tommelen ligger langs siden av håndflata: bred ved roten og smalere mot tuppen, med en negl.
+  const thumb =
+    `M${p(P(-0.016, -0.037))}C${p(P(-0.04, -0.035))} ${p(P(-0.066, -0.028))} ${p(P(-0.085, -0.02))}` +
+    `Q${p(P(-0.097, -0.014))} ${p(P(-0.094, -0.0075))}Q${p(P(-0.09, -0.003))} ${p(P(-0.08, -0.0045))}` +
+    `C${p(P(-0.058, -0.009))} ${p(P(-0.036, -0.011))} ${p(P(-0.014, -0.012))}Z`;
+  const nail = P(-0.084, -0.0168);
+  const tipNail = P(-0.1795, -0.0095);
 
   const sleeve = (() => {
     const pts: Pt[] = [];
@@ -218,24 +219,25 @@ export function Hand({ x, y, k, top, vinkel = 14, loft = 0, genser = 'gul', dim 
         ]}
       />
       {loft > 0.5 && <ContactShadow cx={x - 0.08 * k} cy={y} rx={0.09 * k} ry={Math.max(2, 0.008 * k)} opacity={0.6} />}
+      <path d={backFinger} fill={shade(skin, 0.16)} stroke={SCENE.outline} strokeWidth={0.8 * ss} strokeLinejoin="round" />
       <path d={skinPath} fill={`url(#${id}h)`} stroke={SCENE.outline} strokeWidth={0.9 * ss} strokeLinejoin="round" />
-      {/* Knoker og ledd: svake streker over fingrene */}
+      {/* Ledd på pekefingeren: svake buer */}
       <path
-        d={`M${p(P(-0.098, -0.027))}q${r1(0.004 * k)},${r1(0.006 * k)} ${r1(0.002 * k)},${r1(0.012 * k)}M${p(P(-0.138, -0.0195))}q${r1(0.003 * k)},${r1(0.004 * k)} ${r1(0.001 * k)},${r1(0.009 * k)}`}
+        d={`M${p(P(-0.15, -0.026))}q${r1(-0.004 * k)},${r1(0.006 * k)} ${r1(-0.002 * k)},${r1(0.013 * k)}M${p(P(-0.171, -0.015))}q${r1(-0.004 * k)},${r1(0.003 * k)} ${r1(-0.003 * k)},${r1(0.009 * k)}`}
         fill="none"
         stroke={SCENE.skinShade}
         strokeWidth={0.8 * ss}
         strokeLinecap="round"
-        opacity={0.8}
+        opacity={0.85}
       />
-      <ellipse cx={tipNail[0]} cy={tipNail[1]} rx={0.007 * k} ry={0.0022 * k} fill={tint(skin, 0.4)} stroke={SCENE.skinShade} strokeWidth={0.5 * ss} />
-      <path d={thumb} fill={shade(skin, 0.05)} stroke={SCENE.outline} strokeWidth={0.75 * ss} strokeLinejoin="round" />
-      <ellipse cx={nail[0]} cy={nail[1]} rx={0.0065 * k} ry={0.0024 * k} fill={tint(skin, 0.4)} stroke={SCENE.skinShade} strokeWidth={0.5 * ss} />
+      <ellipse cx={tipNail[0]} cy={tipNail[1]} rx={0.0075 * k} ry={0.0022 * k} transform={`rotate(-55 ${r1(tipNail[0])} ${r1(tipNail[1])})`} fill={tint(skin, 0.4)} stroke={SCENE.skinShade} strokeWidth={0.5 * ss} />
+      <path d={thumb} fill={tint(skin, 0.06)} stroke={SCENE.outline} strokeWidth={0.75 * ss} strokeLinejoin="round" />
+      <ellipse cx={nail[0]} cy={nail[1]} rx={0.0068 * k} ry={0.0024 * k} transform={`rotate(-22 ${r1(nail[0])} ${r1(nail[1])})`} fill={tint(skin, 0.4)} stroke={SCENE.skinShade} strokeWidth={0.5 * ss} />
       <path
-        d={`M${p(P(-0.04, -0.04))}Q${p(P(-0.07, -0.034))} ${p(P(-0.1, -0.026))}`}
+        d={`M${p(P(-0.034, -0.047))}Q${p(P(-0.066, -0.043))} ${p(P(-0.097, -0.034))}`}
         fill="none"
         stroke={SCENE.highlight}
-        strokeWidth={1.2 * ss}
+        strokeWidth={1.3 * ss}
         strokeLinecap="round"
       />
       {/* Genserermet */}
@@ -250,116 +252,3 @@ export function Hand({ x, y, k, top, vinkel = 14, loft = 0, genser = 'gul', dim 
 function mixPt(a: Pt, b: Pt, t: number): Pt {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
 }
-
-/* ---------------------------------------------------------------- Grunnsnitt */
-
-/**
- * Snitt av grunnen under et hus, rett under gulvet i et <Rom>: gulvbord, betongplate, pukk, jord med stein og berg
- * nederst. Ikke i målestokk (lagene er tegnet tynnere enn de er), men viser at huset står på jorda.
- * Ankerpunkt: (x, y) er øverste venstre hjørne (forkanten av gulvet), og snittet fyller w × h.
- *   <Rom x={0} y={0} w={800} h={420} gulvY={345} gulv="tre" />
- *   <Grunnsnitt x={0} y={420} w={800} h={100} />
- */
-export const Grunnsnitt = memo(function Grunnsnitt({ x, y, w, h, seed = 3 }: { x: number; y: number; w: number; h: number; seed?: number }) {
-  const ss = useStrokeScale();
-  const id = useSvgId('kp-grunn');
-  const geo = useMemo(() => {
-    const rand = sceneRandom(seed * 7919 + Math.round(w) * 31 + Math.round(h));
-    const board = clamp(h * 0.07, 4, 8);
-    const slab = clamp(h * 0.13, 6, 16);
-    const gravel = clamp(h * 0.11, 5, 14);
-    const yB = y + board;
-    const yS = yB + slab;
-    const yG = yS + gravel;
-    // Skjøter i gulvbordene
-    let joints = '';
-    for (let jx = x + 40 + rand() * 80; jx < x + w; jx += 110 + rand() * 90) joints += `M${r1(jx)},${r1(y + 0.6)}V${r1(yB - 0.6)}`;
-    // Tilslag i betongen: små prikker
-    let aggregate = '';
-    for (let i = 0; i < w / 9; i++) {
-      const ax = x + rand() * w;
-      const ay = yB + 2 + rand() * (slab - 4);
-      const ar = 0.6 + rand() * 0.9;
-      aggregate += `M${r1(ax - ar)},${r1(ay)}a${r1(ar)},${r1(ar)} 0 1,0 ${r1(2 * ar)},0a${r1(ar)},${r1(ar)} 0 1,0 ${r1(-2 * ar)},0Z`;
-    }
-    // Pukk: tett med kantete steiner
-    let pebbles = '';
-    for (let i = 0; i < w / 6; i++) {
-      const cx = x + rand() * w;
-      const cy = yS + 1.5 + rand() * (gravel - 3);
-      const rr = 1.4 + rand() * 2;
-      const a = rand() * Math.PI;
-      const pts: Pt[] = [0, 1, 2, 3, 4].map((j) => {
-        const ang = a + (j * 2 * Math.PI) / 5 + (rand() - 0.5) * 0.6;
-        const rad = rr * (0.75 + rand() * 0.4);
-        return [cx + Math.cos(ang) * rad, cy + Math.sin(ang) * rad * 0.8];
-      });
-      pebbles += `M${pts.map(p).join('L')}Z`;
-    }
-    // Berget nederst: ujevn overkant
-    const rockBase = y + h - clamp(h * 0.24, 14, 34);
-    const rock: Pt[] = [];
-    const nR = Math.max(6, Math.round(w / 55));
-    for (let i = 0; i <= nR; i++) rock.push([x + (w * i) / nR, rockBase - rand() * h * 0.12 + (i % 3 === 1 ? h * 0.05 : 0)]);
-    let rockPath = `M${r1(x)},${r1(y + h + 1)}L${p(rock[0]!)}`;
-    for (let i = 1; i < rock.length; i++) {
-      const a = rock[i - 1]!;
-      const b = rock[i]!;
-      rockPath += `Q${p(a)} ${p([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2])}`;
-    }
-    rockPath += `L${p(rock[rock.length - 1]!)}L${r1(x + w)},${r1(y + h + 1)}Z`;
-    // Sprekker i berget
-    let cracks = '';
-    for (let i = 0; i < w / 120; i++) {
-      const cx = x + rand() * w;
-      const cy = rockBase + 4 + rand() * (y + h - rockBase - 6);
-      cracks += `M${r1(cx)},${r1(cy)}l${r1(6 + rand() * 10)},${r1(-2 + rand() * 5)}l${r1(5 + rand() * 9)},${r1(rand() * 4)}`;
-    }
-    // Stein i jorda: noen få, avrundede
-    const stones: { cx: number; cy: number; rx: number; ry: number }[] = [];
-    for (let i = 0; i < w / 95; i++) {
-      const rx = 3 + rand() * 6;
-      stones.push({ cx: x + rand() * w, cy: yG + 6 + rand() * Math.max(4, rockBase - yG - 14), rx, ry: rx * (0.55 + rand() * 0.25) });
-    }
-    // Små røtter og korn i jorda
-    let grains = '';
-    for (let i = 0; i < w / 7; i++) {
-      const gx = x + rand() * w;
-      const gy = yG + 2 + rand() * Math.max(2, rockBase - yG);
-      grains += `M${r1(gx)},${r1(gy)}h${r1(0.8 + rand() * 1.4)}`;
-    }
-    return { yB, yS, yG, joints, aggregate, pebbles, rockPath, cracks, stones, grains, rockBase };
-  }, [x, y, w, h, seed]);
-  if (!(w > 0) || !(h > 10)) return null;
-  const { yB, yS, yG } = geo;
-  return (
-    <g aria-hidden>
-      <LinearGradient id={`${id}j`} userSpace x1={0} y1={yG} x2={0} y2={y + h} stops={[[0, SCENE.soil], [1, shade(SCENE.soilDark, 0.15)]]} />
-      <LinearGradient id={`${id}b`} userSpace x1={0} y1={yB} x2={0} y2={yS} stops={materialStops(SCENE.concrete, 0.8)} />
-      <LinearGradient id={`${id}f`} userSpace x1={0} y1={y} x2={0} y2={yB} stops={materialStops(shade(SCENE.floor, 0.06), 1)} />
-      <LinearGradient id={`${id}r`} userSpace x1={0} y1={geo.rockBase - h * 0.12} x2={0} y2={y + h} stops={materialStops(SCENE.stone, 1)} />
-      {/* Jord, med korn og stein */}
-      <rect x={x} y={yG} width={w} height={y + h - yG} fill={`url(#${id}j)`} />
-      <path d={geo.grains} stroke={SCENE.soilDark} strokeWidth={1.1 * ss} strokeLinecap="round" opacity={0.7} />
-      {geo.stones.map((s, i) => (
-        <ellipse key={i} cx={s.cx} cy={s.cy} rx={s.rx} ry={s.ry} fill={mix(SCENE.stone, SCENE.soil, 0.25)} stroke={SCENE.outline} strokeWidth={0.6 * ss} opacity={0.9} />
-      ))}
-      {/* Berg */}
-      <path d={geo.rockPath} fill={`url(#${id}r)`} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
-      <path d={geo.cracks} fill="none" stroke={SCENE.stoneDark} strokeWidth={0.9 * ss} strokeLinecap="round" opacity={0.8} />
-      {/* Pukk */}
-      <rect x={x} y={yS} width={w} height={yG - yS} fill={SCENE.gravel} />
-      <path d={geo.pebbles} fill={SCENE.gravelDark} stroke={shade(SCENE.gravelDark, 0.25)} strokeWidth={0.4 * ss} opacity={0.85} />
-      <line x1={x} x2={x + w} y1={yG} y2={yG} stroke={SCENE.outline} strokeWidth={0.6 * ss} opacity={0.5} />
-      {/* Betongplate */}
-      <rect x={x} y={yB} width={w} height={yS - yB} fill={`url(#${id}b)`} />
-      <path d={geo.aggregate} fill={SCENE.concreteDark} opacity={0.6} />
-      <line x1={x} x2={x + w} y1={yS} y2={yS} stroke={SCENE.outline} strokeWidth={0.7 * ss} opacity={0.6} />
-      {/* Gulvbordene (forkanten av gulvet) */}
-      <rect x={x} y={y} width={w} height={yB - y} fill={`url(#${id}f)`} />
-      <path d={geo.joints} stroke={SCENE.floorDark} strokeWidth={0.8 * ss} />
-      <line x1={x} x2={x + w} y1={yB} y2={yB} stroke={SCENE.outline} strokeWidth={0.7 * ss} opacity={0.6} />
-      <line x1={x} x2={x + w} y1={y} y2={y} stroke={SCENE.outline} strokeWidth={0.9 * ss} />
-    </g>
-  );
-});

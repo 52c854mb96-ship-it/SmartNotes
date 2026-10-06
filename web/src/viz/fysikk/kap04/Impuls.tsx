@@ -310,9 +310,12 @@ function PlayBar({
       <span className="viz-play-time" aria-live="off">
         {time}
       </span>
+      {reducedMotion() && <span className="viz-play-note">Animasjoner er redusert i systeminnstillingene.</span>}
     </div>
   );
 }
+
+const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 function ForceGraph({
   sc,
@@ -353,7 +356,9 @@ function ForceGraph({
       height={height}
     >
       {({ sx, sy, x1, y1 }) => {
-        const gjRight = sx(dtMs) + 130 * f < x1;
+        const gjRight = f < 1.3 && sx(dtMs) + 130 * f < x1;
+        const nearLimit = limit !== undefined && Math.abs(sy(Favg) - sy(limit)) < 16 * f;
+        const gjY = !nearLimit ? sy(Favg) + 6 : Favg < (limit ?? 0) ? sy(Favg) + 18 * f : sy(Favg) - 7;
         return (
           <g>
             <path
@@ -384,9 +389,10 @@ function ForceGraph({
               </>
             )}
             <path d={linePath(pts, sx, sy)} fill="none" stroke={VIZ.applied} strokeWidth={3.5} strokeLinejoin="round" />
-            {/* F_gj til høyre for det stiplete rektangelet (når det er plass; ellers står den i forklaringen under grafen) */}
+            {/* F_gj til høyre for det stiplete rektangelet når det er plass (ellers står den i forklaringen under grafen), og
+                på motsatt side av grenselinja når de to linjene ligger tett */}
             {gjRight && (
-              <Txt x={sx(dtMs) + 8} y={sy(Favg) + 6} anchor="start" size={0.85} color={VIZ.applied} weight={650}>
+              <Txt x={sx(dtMs) + 8} y={gjY} anchor="start" size={0.85} color={VIZ.applied} weight={650}>
                 F<TSub>gj</TSub> = {fmt(Favg, dec(Favg))} {sc.unit}
               </Txt>
             )}
