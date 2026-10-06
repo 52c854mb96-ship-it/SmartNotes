@@ -9,7 +9,18 @@ import { Fjaer, Maalebaand, Rom, SCENE, Snor, Underlag, Vogn, hjulvinkelFraStrek
 import { Labbane } from './eksplosjon-deler';
 import { exitTime } from './eksplosjon-form';
 import { pushAt, type PushResult } from './model';
-import { BodyLabels, ForcePair, HeadRow, VelocityPair, W, arrowScale, sumText, topRows, type Timeline, type TopRows } from './eksplosjon-scene';
+import {
+  BodyLabels,
+  ForcePair,
+  HeadRow,
+  VelocityPair,
+  W,
+  arrowScale,
+  sumText,
+  topRows,
+  type Timeline,
+  type TopRows,
+} from './eksplosjon-scene';
 
 /** Banebiten som vises (m): på mobil en kortere bit, så vognene blir store nok. */
 const TRACK_WIDE = 1.2;
@@ -148,11 +159,34 @@ export function CartScene({
   const tie = 0.05 * P;
   const thread =
     st.phase === 'for' ? (
-      <Snor points={[[face1 - tie, ty], [face2 + tie, ty]]} tykkelse={1.8} type="hamp" />
+      <Snor
+        points={[
+          [face1 - tie, ty],
+          [face2 + tie, ty],
+        ]}
+        tykkelse={1.8}
+        type="hamp"
+      />
     ) : (
       <>
-        <Snor points={[[face1 - tie, ty], [face1 - 0.002 * P, ty], [face1 + 0.003 * P, ty + 0.016 * P]]} tykkelse={1.8} type="hamp" />
-        <Snor points={[[face2 + tie, ty], [face2 + 0.002 * P, ty], [face2 - 0.003 * P, ty + 0.016 * P]]} tykkelse={1.8} type="hamp" />
+        <Snor
+          points={[
+            [face1 - tie, ty],
+            [face1 - 0.002 * P, ty],
+            [face1 + 0.003 * P, ty + 0.016 * P],
+          ]}
+          tykkelse={1.8}
+          type="hamp"
+        />
+        <Snor
+          points={[
+            [face2 + tie, ty],
+            [face2 + 0.002 * P, ty],
+            [face2 - 0.003 * P, ty + 0.016 * P],
+          ]}
+          tykkelse={1.8}
+          type="hamp"
+        />
       </>
     );
 

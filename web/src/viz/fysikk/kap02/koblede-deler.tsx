@@ -5,7 +5,7 @@
  * skygge. Ingen filtre og ingen bilder.
  */
 import type { ReactNode } from 'react';
-import { Txt, VIZ, useTextScale } from '../../kit';
+import { VIZ } from '../../kit';
 import {
   ContactShadow,
   ForceArrow,
@@ -371,24 +371,6 @@ export function BruttPil({
   );
 }
 
-/** Etikett med navnet på kraften og verdien under: «F = 3 300 N» over «veien på bilen». */
-export function KraftTekst({ x, y, anchor, color, name, value, what }: { x: number; y: number; anchor: 'start' | 'middle' | 'end'; color: string; name: ReactNode; value?: string; what?: string }) {
-  const f = useTextScale();
-  return (
-    <g>
-      <Txt x={x} y={y} anchor={anchor} color={color} weight={720}>
-        {name}
-        {value !== undefined && <> = {value}</>}
-      </Txt>
-      {what && (
-        <Txt x={x} y={y + 15 * f} anchor={anchor} color={color} size={0.75} weight={600}>
-          {what}
-        </Txt>
-      )}
-    </g>
-  );
-}
-
 /* ================================================================================================
  * Lupe på hengerfestet
  * ============================================================================================== */
@@ -423,17 +405,20 @@ export function HengerLupe({ cx, cy, r, tx, ty, tr, lakk, withH, withB, showForc
   const paintId = useSvgId('kulelupe-lakk');
   const steelId = useSvgId('kulelupe-stal');
   const ballId = useSvgId('kulelupe-kule');
+  const bgId = useSvgId('kulelupe-vei');
   if (!(r > 8) || ![cx, cy, tx, ty, tr].every(Number.isFinite)) return null;
-  // Lupen viser ca. 42 cm: 1 cm = r/21. Kula ligger litt over midten, så støtfangerkanten og bøylen synes.
-  const z = r / 21;
-  const bx = cx;
-  const by = cy - 4 * z;
+  // Lupen viser ca. 36 cm: 1 cm = r/18. Kula ligger litt over midten, så støtfangerkanten og bøylen synes.
+  const z = r / 18;
+  const bx = cx - 2 * z;
+  const by = cy - 5 * z;
   const P = (x: number, y: number) => `${r2(bx + x * z)},${r2(by + y * z)}`;
   const w = (cm: number) => cm * z;
   const car = { opacity: withB ? 1 : SCENE_DIM };
   const trailer = { opacity: withH ? 1 : SCENE_DIM };
   const internal = withH && withB;
-  const L = 0.66 * r;
+  const L = 0.62 * r;
+  // Bøylen på hengerfestet: rett ned fra kula og fram under støtfangeren.
+  const neck = `M${P(0, 2)}L${P(0, 9)}Q${P(0, 21)} ${P(12, 22.5)}L${P(40, 24)}`;
 
   // Streken fra ringen rundt kula ut til lupen
   const dx = cx - tx;
@@ -469,47 +454,47 @@ export function HengerLupe({ cx, cy, r, tx, ty, tr, lakk, withH, withB, showForc
       <LinearGradient id={paintId} stops={[[0, tint(lakk, 0.18)], [0.6, lakk], [1, shade(lakk, 0.3)]]} />
       <LinearGradient id={steelId} stops={[[0, SCENE.metalLight], [0.5, SCENE.metal], [1, SCENE.metalDark]]} />
       <RadialGradient id={ballId} fx={0.35} fy={0.3} stops={[[0, SCENE.metalLight], [0.5, SCENE.metal], [1, SCENE.metalDark]]} />
+      <LinearGradient id={bgId} stops={[[0, mix(SCENE.asphalt, SCENE.skyBottom, 0.32)], [1, mix(SCENE.asphalt, SCENE.skyBottom, 0.08)]]} />
       <circle cx={cx + 2} cy={cy + 3} r={r + 1} fill={alpha(SCENE.shadow, 0.35)} />
       <g clipPath={`url(#${clip})`}>
-        {/* Bak hengerfestet: veibanen i det andre feltet */}
-        <rect x={cx - r} y={cy - r} width={2 * r} height={2 * r} fill={mix(SCENE.asphalt, SCENE.skyBottom, 0.12)} />
-        <path d={grains} fill={tint(SCENE.asphalt, 0.3)} opacity={0.7} />
+        {/* Bak hengerfestet: veibanen i det andre feltet, lysere innover */}
+        <rect x={cx - r} y={cy - r} width={2 * r} height={2 * r} fill={`url(#${bgId})`} />
+        <path d={grains} fill={tint(SCENE.asphalt, 0.35)} opacity={0.6} />
 
-        {/* Bilen: støtfangeren bak (lakk), diffusor i svart plast og en refleks */}
+        {/* Bilen: støtfangeren bak (lakk) med diffusor i svart plast og refleks, bøylen ned under støtfangeren og kula */}
         <g {...car}>
           <path d={`M${P(12, -40)}L${P(12, 15)}Q${P(12, 21)} ${P(18, 21)}L${P(40, 21)}L${P(40, -40)}Z`} fill={`url(#${paintId})`} stroke={SCENE.outline} strokeWidth={1 * ss} />
-          <path d={`M${P(13, 13)}L${P(40, 13)}L${P(40, 21)}L${P(18, 21)}Q${P(13, 21)} ${P(13, 16)}Z`} fill={TRIM} />
-          <rect x={bx + w(13.2)} y={by + w(-2)} width={w(2.6)} height={w(9)} rx={w(0.8)} fill={TAIL} />
-          <path d={`M${P(12.8, -40)}L${P(12.8, 10)}`} stroke={SCENE.highlight} strokeWidth={1.2 * ss} />
-          {/* Bøylen fra under støtfangeren opp til kula, og stikkontakten for lysene */}
-          <path d={`M${P(24, 27)}C${P(10, 26)} ${P(1, 20)} ${P(0, 8)}L${P(0, 2)}`} fill="none" stroke={SCENE.outline} strokeWidth={w(4.4)} strokeLinecap="round" />
-          <path d={`M${P(24, 27)}C${P(10, 26)} ${P(1, 20)} ${P(0, 8)}L${P(0, 2)}`} fill="none" stroke={TRIM} strokeWidth={w(3.4)} strokeLinecap="round" />
-          <rect x={bx + w(4.5)} y={by + w(13)} width={w(6)} height={w(6)} rx={w(1.2)} fill={TRIM} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
-          <circle cx={bx + w(7.5)} cy={by + w(16)} r={w(1.6)} fill={tint(TRIM, 0.2)} />
+          <path d={`M${P(12.6, 14)}L${P(40, 14)}L${P(40, 21)}L${P(18, 21)}Q${P(12.6, 21)} ${P(12.6, 16)}Z`} fill={TRIM} />
+          <rect x={bx + w(13.4)} y={by + w(-3)} width={w(2.4)} height={w(9)} rx={w(0.8)} fill={TAIL} />
+          <path d={`M${P(13, -40)}L${P(13, 11)}`} stroke={SCENE.highlight} strokeWidth={1.2 * ss} />
+          <path d={neck} fill="none" stroke={SCENE.outline} strokeWidth={w(4.2)} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={neck} fill="none" stroke={TRIM} strokeWidth={w(3.2)} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={`M${P(-1, 4)}L${P(-1, 10)}`} stroke={SCENE.highlight} strokeWidth={0.9 * ss} strokeLinecap="round" />
+          <rect x={bx + w(1.8)} y={by + w(12)} width={w(5.4)} height={w(5.4)} rx={w(1)} fill={TRIM} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+          <circle cx={bx + w(4.5)} cy={by + w(14.7)} r={w(1.4)} fill={tint(TRIM, 0.25)} />
           <circle cx={bx} cy={by} r={w(2.5)} fill={`url(#${ballId})`} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
         </g>
 
-        {/* Hengeren: dragstanga, kulekoblingen over kula, håndtaket, bruddwiren og ledningen */}
+        {/* Hengeren: dragstanga og kulekoblingen som griper over den øvre halvdelen av kula, med håndtak og bruddwire */}
         <g {...trailer}>
-          <path d={`M${P(-40, -5.5)}L${P(-24, -6.5)}L${P(-24, 1)}L${P(-40, 1)}Z`} fill={`url(#${steelId})`} stroke={SCENE.outline} strokeWidth={0.9 * ss} />
+          <path d={`M${P(-40, -5)}L${P(-22, -5.6)}L${P(-22, 1.4)}L${P(-40, 1.4)}Z`} fill={`url(#${steelId})`} stroke={SCENE.outline} strokeWidth={0.9 * ss} />
           <path
-            d={`M${P(-26, -7.5)}L${P(-9, -9)}C${P(-3, -9.5)} ${P(3, -7)} ${P(3.8, -1.5)}C${P(4.1, 1.4)} ${P(3, 3)} ${P(1, 3)}L${P(-1.6, 3)}C${P(-3, 3)} ${P(-4, 1.6)} ${P(-6, 1.6)}L${P(-26, 2)}Z`}
+            d={`M${P(-24, -6.4)}L${P(-7, -7.6)}C${P(-1.5, -8)} ${P(3.6, -5)} ${P(3.6, 0.4)}L${P(2.6, 0.4)}C${P(2.2, -2.2)} ${P(-2.2, -2.2)} ${P(-2.6, 0.4)}L${P(-5, 1.6)}L${P(-24, 1.6)}Z`}
             fill={`url(#${steelId})`}
             stroke={SCENE.outline}
             strokeWidth={1 * ss}
             strokeLinejoin="round"
           />
-          <path d={`M${P(-24, -6.4)}L${P(-9, -7.8)}C${P(-4, -8.2)} ${P(0, -6.6)} ${P(1.8, -4)}`} fill="none" stroke={SCENE.highlight} strokeWidth={1.2 * ss} strokeLinecap="round" />
-          <path d={`M${P(-20, -8.2)}L${P(-6, -13)}`} stroke={SCENE.outline} strokeWidth={w(3)} strokeLinecap="round" />
-          <path d={`M${P(-20, -8.2)}L${P(-6, -13)}`} stroke={PAINTS.rod} strokeWidth={w(2.2)} strokeLinecap="round" />
-          <path d={`M${P(-14, 2)}C${P(-15, 13)} ${P(-5, 18)} ${P(1, 13)}`} fill="none" stroke={SCENE.metalDark} strokeWidth={w(0.7)} />
-          <path d={`M${P(-30, 2)}C${P(-22, 22)} ${P(0, 24)} ${P(6, 17)}`} fill="none" stroke={TRIM} strokeWidth={w(1.3)} strokeLinecap="round" />
+          <path d={`M${P(-22, -5.2)}L${P(-7, -6.4)}C${P(-3, -6.7)} ${P(0.5, -5.2)} ${P(1.8, -3.2)}`} fill="none" stroke={SCENE.highlight} strokeWidth={1.3 * ss} strokeLinecap="round" />
+          <path d={`M${P(-17, -7)}L${P(-6, -11.5)}`} stroke={SCENE.outline} strokeWidth={w(2.8)} strokeLinecap="round" />
+          <path d={`M${P(-17, -7)}L${P(-6, -11.5)}`} stroke={PAINTS.rod} strokeWidth={w(2)} strokeLinecap="round" />
+          <path d={`M${P(-12, 1.6)}C${P(-12.5, 9)} ${P(-5, 12)} ${P(-0.4, 9)}`} fill="none" stroke={SCENE.metalDark} strokeWidth={w(0.6)} strokeLinecap="round" />
         </g>
 
         {showForces && (
           <g>
-            {withH && <ForceArrow x1={bx} y1={by} x2={bx + L} y2={by} color={VIZ.tension} width={6} dashed={internal} minLength={0.5} />}
-            {withB && <ForceArrow x1={bx} y1={by} x2={bx - L} y2={by} color={VIZ.tension} width={6} dashed={internal} minLength={0.5} />}
+            {withH && <ForceArrow x1={bx} y1={by} x2={bx + L} y2={by} color={VIZ.tension} width={5} dashed={internal} minLength={0.5} />}
+            {withB && <ForceArrow x1={bx} y1={by} x2={bx - L} y2={by} color={VIZ.tension} width={5} dashed={internal} minLength={0.5} />}
             <circle cx={bx} cy={by} r={3.2 * ss} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.5 * ss} />
           </g>
         )}

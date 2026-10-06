@@ -11,18 +11,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { TSub, Txt, VIZ, fmt, useTextScale } from '../../kit';
-import {
-  Dimension,
-  ForceArrow,
-  Himmel,
-  Landskap,
-  SCENE,
-  Underlag,
-  alpha,
-  personPunkter,
-  shade,
-  useStrokeScale,
-} from '../../kit/scene';
+import { Dimension, ForceArrow, Himmel, Landskap, SCENE, Underlag, alpha, personPunkter, shade, useStrokeScale } from '../../kit/scene';
 import { BLADE_H, Skilt, Skoyteloper, skaterLedd, tagHeight, tagWidth } from './eksplosjon-deler';
 import { exitTime, skaterHeight } from './eksplosjon-form';
 import { pushAt, type PushPhase, type PushResult, type PushState } from './model';
@@ -202,7 +191,8 @@ export function BodyLabels({
 }) {
   const f = useTextScale();
   const text = (name: string, m: string, F: number | null) => (F !== null ? `F${name} = ${fmt(F, 0)} N` : `m${name} = ${m}`);
-  const w = (t: string) => t.length * 17 * 0.85 * f * 0.58 + 8;
+  // Omtrentlig bredde på fet tekst (sifre og mellomrom er ca. 0,62 em)
+  const w = (t: string) => t.length * 17 * 0.85 * f * 0.64 + 12;
   const t1 = text('1', mass1, force !== null ? -force : null);
   const t2 = text('2', mass2, force);
   // Skyv fra hverandre når de står tett (også når de står i ulik høyde, så etiketten ikke havner over den andre)
@@ -415,16 +405,36 @@ export function SkaterScene({
       </g>
     );
 
-  const showDims = st.phase === 'etter' && Math.abs(x2 - x1 - (base2 - base1)) > 30;
+  const showDims = st.phase === 'etter' && Math.min(Math.abs(x1 - base1), Math.abs(x2 - base2)) > 4;
   const s1 = Math.abs(x1 - base1) / P;
   const s2 = Math.abs(x2 - base2) / P;
+  // Etiketten midt på mållinja når den får plass, ellers utenfor enden (på yttersiden)
+  const dimText = (s: number) => `s₁ = ${fmt(s, 2)} m`;
+  const labelW = (s: number) => dimText(s).length * 17 * 0.8 * f * 0.58 + 10;
+  const dimLabel = (name: '1' | '2', a: number, b: number, s: number) => {
+    const fits = Math.abs(b - a) > labelW(s);
+    const x = fits ? (a + b) / 2 : name === '1' ? Math.min(a, b) - 6 : Math.max(a, b) + 6;
+    return (
+      <Txt x={x} y={layout.dimY - 9 * f} anchor={fits ? 'middle' : name === '1' ? 'end' : 'start'} size={0.8} weight={650}>
+        <DimLabel name={name} s={s} />
+      </Txt>
+    );
+  };
 
   return (
     <>
       {backdrop}
 
       {/* Startstreken på isen og sporene */}
-      <line x1={xc} y1={iceY - 6} x2={xc} y2={iceY + 10} stroke={alpha(VIZ.ink, 0.45)} strokeWidth={1.4 * ss} strokeDasharray={`${4 * ss} ${3 * ss}`} />
+      <line
+        x1={xc}
+        y1={iceY - 6}
+        x2={xc}
+        y2={iceY + 10}
+        stroke={alpha(VIZ.ink, 0.45)}
+        strokeWidth={1.4 * ss}
+        strokeDasharray={`${4 * ss} ${3 * ss}`}
+      />
       {tracks(base1, x1)}
       {tracks(base2, x2)}
 
@@ -474,8 +484,10 @@ export function SkaterScene({
       {/* Hvor langt hver har glidd fra startstreken */}
       {showDims && (
         <>
-          <Dimension x1={x1} y1={layout.dimY} x2={xc} y2={layout.dimY} label={<DimLabel name="1" s={s1} />} labelSize={0.8} />
-          <Dimension x1={xc} y1={layout.dimY} x2={x2} y2={layout.dimY} label={<DimLabel name="2" s={s2} />} labelSize={0.8} />
+          <Dimension x1={x1} y1={layout.dimY} x2={xc} y2={layout.dimY} />
+          <Dimension x1={xc} y1={layout.dimY} x2={x2} y2={layout.dimY} />
+          {dimLabel('1', x1, xc, s1)}
+          {dimLabel('2', xc, x2, s2)}
         </>
       )}
 
@@ -487,7 +499,7 @@ export function SkaterScene({
 function DimLabel({ name, s }: { name: '1' | '2'; s: number }): ReactNode {
   return (
     <>
-      s<TSub>{name}</TSub> = {fmt(s, s < 10 ? 2 : 1)} m
+      s<TSub>{name}</TSub> = {fmt(s, 2)} m
     </>
   );
 }

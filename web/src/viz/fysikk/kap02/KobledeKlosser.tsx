@@ -24,6 +24,7 @@ import {
 } from '../../kit';
 import { BIL_MAAL, Bil, ForceArrow, Gran, Himmel, Landskap, Lauvtre, Underlag, ValueTag, Vei, hjulvinkelFraStrekning, paint, useSvgId } from '../../kit/scene';
 import { BOUNDARY, BruttPil, HENGER_MAAL, HengerLupe, Hengerfeste, KULE, Systemgrense, Tilhenger, hengerTopp } from './koblede-deler';
+import { useNarrow } from './useNarrow';
 import { TOW_RANGES, towDuration, towMotion, towSystem, trailerLoad, type TowSystem, type TowView } from './model-koblede-klosser';
 
 const VIEWS: { value: TowView; label: string }[] = [
@@ -52,6 +53,8 @@ export default function KobledeKlosser() {
   const tEnd = towDuration(sys.a);
   const clock = useSimClock({ tMax: tEnd });
   const motion = towMotion(sys.a, clock.t);
+  const [ref, narrow] = useNarrow<HTMLDivElement>();
+  const box = narrow ? NARROW_VIEW : WIDE_VIEW;
 
   return (
     <VizLayout>
@@ -95,9 +98,11 @@ export default function KobledeKlosser() {
         <Toggle label="Vis tyngde og normalkraft" checked={vertical} onChange={setVertical} />
       </Toolbar>
 
-      <Figure viewBox={`0 ${VIEW_Y} ${W} ${H - VIEW_Y}`} label={sceneLabel(sys, mH, mB, F, motion.v)} maxHeight={480}>
-        <TowScene sys={sys} mH={mH} mB={mB} F={F} v={motion.v} s={motion.s} showForces={showForces} vertical={vertical} />
-      </Figure>
+      <div ref={ref}>
+        <Figure viewBox={`${box.x} ${box.y} ${box.w} ${box.h}`} label={sceneLabel(sys, mH, mB, F, motion.v)} maxHeight={500}>
+          <TowScene sys={sys} mH={mH} mB={mB} F={F} v={motion.v} s={motion.s} showForces={showForces} vertical={vertical} box={box} narrowView={narrow} />
+        </Figure>
+      </div>
 
       {showForces && <Legend items={legendItems(view, vertical)} />}
 
@@ -118,10 +123,16 @@ export default function KobledeKlosser() {
 /* ---------- Scenen: vogntoget på en landevei, kameraet følger med ---------- */
 
 const W = 800;
-const H = 440;
-/** Utsnittet starter litt ned på himmelen (den øverste, tomme delen er skåret bort). */
-const VIEW_Y = 60;
+/**
+ * Utsnittet på PC (uten den øverste, tomme delen av himmelen) og på mobil (smalere, så vogntoget blir større, og
+ * høyere, så skiltene, pilene og lupen får plass når teksten vokser).
+ */
+type Box = { x: number; y: number; w: number; h: number };
+const WIDE_VIEW: Box = { x: 0, y: 60, w: W, h: 392 };
+const NARROW_VIEW: Box = { x: 32, y: 36, w: 672, h: 452 };
 const HORIZON = 212;
+/** Himmelen tegnes fra like over utsnittet, så skyene havner i den synlige delen. */
+const SKY_Y = 30;
 /** Der hjulene står (midt i det nærmeste feltet), og hvor bred veibanen ser ut i perspektiv (som i Vei). */
 const ROAD_Y = 318;
 const ROAD_W = 56;
@@ -131,29 +142,31 @@ const NEAR_EDGE = ROAD_BOT + 0.18 * ROAD_W;
 const PX_PER_M = 60;
 const CAR_SIZE = BIL_MAAL.lengde * PX_PER_M;
 /** Akslingen på hengeren, kula i hengerfestet og midten av bilen (ankerpunktene). */
-const TRAILER_X = 34 + (HENGER_MAAL.kasse / 2) * PX_PER_M;
+const TRAILER_X = 48 + (HENGER_MAAL.kasse / 2) * PX_PER_M;
 const HITCH_X = TRAILER_X + HENGER_MAAL.kobling * PX_PER_M;
 const HITCH_Y = ROAD_Y - KULE.hoyde * PX_PER_M;
 const CAR_X = HITCH_X + KULE.bak * PX_PER_M;
 const TRAILER_REAR = TRAILER_X - (HENGER_MAAL.kasse / 2) * PX_PER_M;
 const CAR_FRONT = CAR_X + BIL_MAAL.foran * PX_PER_M;
 const CAR_TOP = ROAD_Y - BIL_MAAL.hoyde * PX_PER_M;
-/** Drivhjulene (forhjulsdrift): der drivkraften fra veien virker. */
+/** Drivhjulene (forhjulsdrift): der drivkraften fra veien virker, langs veibanen like under kontaktflaten. */
 const DRIVE_X = CAR_X + (BIL_MAAL.akselavstand / 2) * PX_PER_M;
+const F_Y = ROAD_Y + 4;
 /** Tyngdepunktene, der G og N tegnes fra. */
 const CG_CAR = ROAD_Y - BIL_MAAL.tyngdepunkt * PX_PER_M;
 const CG_TRAILER = ROAD_Y - HENGER_MAAL.tyngdepunkt * PX_PER_M;
 /** Én skala for F og S: den største drivkraften (5 000 N) blir 180 px. */
 const PX_PER_N = 180 / TOW_RANGES.F.max;
-/** G og N er mye større (ca. 2 000–25 000 N) og tegnes forkortet, med brudd i pila. */
+/** G og N er større (ca. 2 000–25 000 N) og tegnes forkortet, med brudd i pila. */
 const GN_LEN = 62;
 /** Fart og akselerasjon (egne skalaer): 5 px per m/s og 24 px per m/s². */
 const PX_PER_V = 5;
 const PX_PER_A = 24;
 const TRAILER_WHEEL_R = HENGER_MAAL.hjulradius;
 const LAKK = 'rod';
-/** Lupen på hengerfestet, i gresset rett under kula. */
-const LUPE = { x: HITCH_X, y: 393, r: 44 };
+/** Lupen på hengerfestet, i gresset rett under kula (større på mobil). */
+const LUPE_WIDE = { x: HITCH_X, y: 398, r: 50 };
+const LUPE_NARROW = { x: HITCH_X, y: 424, r: 60 };
 
 function sceneLabel(sys: TowSystem, mH: number, mB: number, F: number, v: number): string {
   const what = `En bil på ${fmt(mB, 0)} kg trekker en tilhenger med ved på ${fmt(mH, 0)} kg. Drivkraften fra veien er ${fmt(F, 0)} N, og kraften i hengerfestet er ${fmt(sys.S, 0)} N.`;
@@ -161,9 +174,25 @@ function sceneLabel(sys: TowSystem, mH: number, mB: number, F: number, v: number
   return `${what} Valgt system: ${VIEW_TEXT[sys.view]}.${now}`;
 }
 
-function TowScene({ sys, mH, mB, F, v, s, showForces, vertical }: { sys: TowSystem; mH: number; mB: number; F: number; v: number; s: number; showForces: boolean; vertical: boolean }) {
+interface SceneProps {
+  sys: TowSystem;
+  mH: number;
+  mB: number;
+  F: number;
+  v: number;
+  s: number;
+  showForces: boolean;
+  vertical: boolean;
+  box: Box;
+  /** Mobilutsnittet (smal beholder). */
+  narrowView: boolean;
+}
+
+function TowScene({ sys, mH, mB, F, v, s, showForces, vertical, box, narrowView }: SceneProps) {
   const f = useTextScale();
+  // Store tekster (mobil): bare symbolene på pilene, verdiene står under figuren.
   const narrow = f > 1.3;
+  const lupe = narrowView ? LUPE_NARROW : LUPE_WIDE;
   const clip = useSvgId('vogntog-utsnitt');
   const camera = s * PX_PER_M;
   const fill = trailerLoad(mH).fill;
@@ -179,20 +208,25 @@ function TowScene({ sys, mH, mB, F, v, s, showForces, vertical }: { sys: TowSyst
   const top = Math.min(withH ? loadTop : Infinity, withB ? CAR_TOP : Infinity) - pad - 2;
   const bottom = ROAD_Y + 12;
 
-  const tagY = VIEW_Y + 24 * Math.max(1, f * 0.9);
+  const tagY = box.y + 24 * Math.max(1, f * 0.9);
+  const boxRight = box.x + box.w;
   const speedText = `${fmt(v * 3.6, 0)} km/h`;
   const distText = `s = ${fmt(s, s < 100 ? 1 : 0)} m`;
-  const sysText = `Systemet: ${VIEW_TEXT[sys.view]}`;
+  const sysText = narrow ? `System: ${sys.view === 'system' ? 'vogntoget' : VIEW_TEXT[sys.view]}` : `Systemet: ${VIEW_TEXT[sys.view]}`;
+  // Drivkraften virker der forhjulet står på veien. Etiketten står bak spissen, men aldri utenfor figuren.
+  const fTip = DRIVE_X + F * PX_PER_N;
+  const fText = narrow ? 'F' : `F = ${fmt(F, 0)} N`;
+  const fLabelX = Math.min(fTip + 8, boxRight - 10 - fText.length * 17 * f * 0.62);
 
   return (
     <g>
       <defs>
         <clipPath id={clip}>
-          <rect x={0} y={VIEW_Y} width={W} height={H - VIEW_Y} />
+          <rect x={box.x} y={box.y} width={box.w} height={box.h} />
         </clipPath>
       </defs>
       <g clipPath={`url(#${clip})`}>
-        <Backdrop camera={camera} />
+        <Backdrop camera={camera} bottom={box.y + box.h} />
 
         <Hengerfeste x={CAR_X} y={ROAD_Y} pxPerM={PX_PER_M} dim={!withB} />
         <Bil
@@ -225,15 +259,15 @@ function TowScene({ sys, mH, mB, F, v, s, showForces, vertical }: { sys: TowSyst
             {withB && F > 0 && (
               <ForceArrow
                 x1={DRIVE_X}
-                y1={ROAD_Y + 8}
-                x2={DRIVE_X + F * PX_PER_N}
-                y2={ROAD_Y + 8}
+                y1={F_Y}
+                x2={fTip}
+                y2={F_Y}
                 color={VIZ.applied}
                 minLength={0.5}
-                label={narrow ? 'F' : `F = ${fmt(F, 0)} N`}
+                label={fText}
                 labelAnchor="start"
-                labelX={DRIVE_X + F * PX_PER_N + 8}
-                labelY={ROAD_Y + 14 * f}
+                labelX={fLabelX}
+                labelY={fLabelX > fTip ? F_Y + 6 * f : F_Y - 9 * f}
               />
             )}
             <Kinematics a={sys.a} v={v} x={kinX(sys.view)} y={top} narrow={narrow} />
@@ -241,9 +275,9 @@ function TowScene({ sys, mH, mB, F, v, s, showForces, vertical }: { sys: TowSyst
         )}
 
         <HengerLupe
-          cx={LUPE.x}
-          cy={LUPE.y}
-          r={LUPE.r}
+          cx={lupe.x}
+          cy={lupe.y}
+          r={lupe.r}
           tx={HITCH_X}
           ty={HITCH_Y}
           tr={9}
@@ -252,30 +286,38 @@ function TowScene({ sys, mH, mB, F, v, s, showForces, vertical }: { sys: TowSyst
           withB={withB}
           showForces={showForces && sys.S > 0}
         />
-        <LupeText view={sys.view} S={sys.S} />
+        <LupeText view={sys.view} S={sys.S} lupe={lupe} />
 
-        <ValueTag x={14} y={tagY} anchor="start" text={speedText} color={v > 0.05 ? VIZ.velocity : undefined} />
-        <ValueTag x={14 + tagWidth(speedText, f) + 8 * f} y={tagY} anchor="start" text={distText} />
-        <ValueTag x={W - 14} y={tagY} anchor="end" text={sysText} color={BOUNDARY} />
+        <ValueTag x={box.x + 14} y={tagY} anchor="start" text={speedText} color={v > 0.05 ? VIZ.velocity : undefined} />
+        <ValueTag x={box.x + 14 + tagWidth(speedText, f) + 8 * f} y={tagY} anchor="start" text={distText} />
+        <ValueTag x={boxRight - 14} y={tagY} anchor="end" text={sysText} color={BOUNDARY} />
       </g>
     </g>
   );
 }
 
 /** Teksten ved lupen: hva den viser, og hva kraften i hengerfestet er for det valgte systemet. */
-function LupeText({ view, S }: { view: TowView; S: number }) {
+function LupeText({ view, S, lupe }: { view: TowView; S: number; lupe: { x: number; y: number; r: number } }) {
   const f = useTextScale();
-  const x = LUPE.x + LUPE.r + 12;
-  const y = LUPE.y - 4 * f;
-  const line =
-    !(S > 0) ? 'ingen kraft når F = 0' : view === 'system' ? 'indre krefter: opphever hverandre' : view === 'henger' ? 'bilen drar hengeren fremover' : 'hengeren drar bilen bakover';
+  const x = lupe.x + lupe.r + 12;
+  const y = lupe.y - 10 * f;
+  const [l1, l2] = !(S > 0)
+    ? ['ingen kraft', 'når F = 0']
+    : view === 'system'
+      ? ['indre krefter som', 'opphever hverandre']
+      : view === 'henger'
+        ? ['bilen drar hengeren', 'fremover med S']
+        : ['hengeren drar bilen', 'bakover med S'];
   return (
     <g>
       <Txt x={x} y={y} anchor="start" size={0.85} weight={720}>
         Hengerfestet
       </Txt>
-      <Txt x={x} y={y + 18 * f} anchor="start" size={0.8} weight={600} color={VIZ.tension}>
-        {line}
+      <Txt x={x} y={y + 17 * f} anchor="start" size={0.8} weight={600}>
+        {l1}
+      </Txt>
+      <Txt x={x} y={y + 33 * f} anchor="start" size={0.8} weight={600}>
+        {l2}
       </Txt>
     </g>
   );
@@ -295,30 +337,29 @@ function tagWidth(text: string, f: number, size = 0.9): number {
 }
 
 /** Himmel, åser, landeveien og noen trær. Alt ruller med kameraet (forskyvning i piksler). */
-function Backdrop({ camera }: { camera: number }) {
+function Backdrop({ camera, bottom }: { camera: number; bottom: number }) {
   // Kameraet flytter seg bare synlig når bilen kjører; runder av så bakgrunnen ikke tegnes på nytt for småting.
   const cam = Math.round(camera * 4) / 4;
   return useMemo(
     () => (
       <g>
-        <Himmel w={W} h={HORIZON + 2} sol={{ x: 660, y: 78, r: 24 }} skyer={2} seed={5} forskyvning={cam} />
+        <Himmel y={SKY_Y} w={W} h={HORIZON + 2 - SKY_Y} sol={{ x: 640, y: 122, r: 22 }} skyer={2} seed={7} forskyvning={cam} />
         <Landskap x={0} y={HORIZON} w={W} h={104} type="aaser" seed={3} forskyvning={cam} />
         <Vei x1={0} x2={W} y={ROAD_Y} bredde={ROAD_W} type="asfalt" horisont={HORIZON} depth={0.5 * ROAD_W} forskyvning={cam} seed={4} />
-        <Underlag x1={0} x2={W} y={H - 1} depth={2} type="gress" horisont={NEAR_EDGE} forskyvning={cam} seed={5} />
+        <Underlag x1={0} x2={W} y={bottom - 1} depth={2} type="gress" horisont={NEAR_EDGE} forskyvning={cam} seed={5} />
         <Trees camera={cam} />
       </g>
     ),
-    [cam],
+    [cam, bottom],
   );
 }
 
 /** Trær på den bakre veikanten. De står lenger unna enn veien, så de ruller saktere (parallakse). */
 const TREES = [
-  { u: 30, y: 250, size: 92, kind: 'gran' },
-  { u: 560, y: 246, size: 70, kind: 'lauv' },
-  { u: 760, y: 252, size: 100, kind: 'gran' },
-  { u: 1060, y: 248, size: 84, kind: 'gran' },
-  { u: 1300, y: 246, size: 76, kind: 'lauv' },
+  { u: 700, y: 250, size: 86, kind: 'gran' },
+  { u: 790, y: 246, size: 70, kind: 'lauv' },
+  { u: 1180, y: 252, size: 96, kind: 'gran' },
+  { u: 1420, y: 246, size: 76, kind: 'lauv' },
 ] as const;
 const TREE_PERIOD = 1500;
 const TREE_PARALLAX = 0.65;
@@ -510,10 +551,15 @@ function formula(sys: TowSystem, mH: number, mB: number, F: number): ReactNode {
 }
 
 function explanation(sys: TowSystem, mH: number, mB: number, F: number, vertical: boolean): ReactNode {
+  // G og N for delen eleven ser på: hengeren når den er systemet, ellers bilen. Sammenlignes med F (eller S).
+  const onTrailer = sys.view === 'henger';
+  const G = (onTrailer ? mH : mB) * G_EARTH;
+  const other = onTrailer ? sys.S : F;
   const vert = vertical ? (
     <p>
-      Tyngden G og normalkraften N er like store og opphever hverandre, så de påvirker ikke bevegelsen. De er mye større enn F og S (for
-      bilen er G = {fmt(mB * G_EARTH, 0)} N), så de er tegnet forkortet, med brudd i pila.
+      Tyngden G og normalkraften N er like store og opphever hverandre, så de påvirker ikke bevegelsen. De er tegnet forkortet, med brudd
+      i pila, så de får plass i figuren: for {onTrailer ? 'hengeren' : 'bilen'} er G = {fmt(G, 0)} N
+      {other > 0 ? `, ${fmt(G / other, 1)} ganger så stor som ${onTrailer ? 'S' : 'F'}.` : '.'}
     </p>
   ) : null;
   if (!(F > 0))
@@ -541,8 +587,9 @@ function explanation(sys: TowSystem, mH: number, mB: number, F: number, vertical
         return (
           <p>
             For <strong>hengeren</strong> alene er S en ytre kraft, og den eneste vannrette kraften. Hengerfestet må gi hengeren den
-            samme akselerasjonen som bilen, så S = m<Sub>H</Sub> · a = {fmt(sys.S, 0)} N. Jo tyngre hengeren er og jo kraftigere du gir
-            gass, desto større blir S. Det er derfor hver bil har en grense for hvor tung henger den får trekke.
+            samme akselerasjonen som bilen, så S = m<Sub>H</Sub> · a = {fmt(sys.S, 0)} N. Jo tyngre hengeren er og jo kraftigere du
+            gir gass, desto større blir S. Det er en av grunnene til at hengerfestet og bilen har en grense for hvor tung henger de
+            kan trekke.
           </p>
         );
       case 'bil':

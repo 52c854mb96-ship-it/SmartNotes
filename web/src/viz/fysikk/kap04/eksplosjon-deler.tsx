@@ -23,7 +23,6 @@ import {
   mix,
   personPunkter,
   shade,
-  sphereStops,
   tint,
   useStrokeScale,
   useSvgId,
@@ -66,7 +65,8 @@ export function skaterLedd(push: number, relax: number, handsFixed: boolean): Pa
   if (!handsFixed) {
     const q = Math.min(1, Math.max(0, relax));
     const s = q * q * (3 - 2 * q);
-    for (const key of ['venstreSkulder', 'hoyreSkulder', 'venstreAlbue', 'hoyreAlbue'] as const) out[key] = ARMS_OUT[key] + (ARMS_GLIDE[key] - ARMS_OUT[key]) * s;
+    for (const key of ['venstreSkulder', 'hoyreSkulder', 'venstreAlbue', 'hoyreAlbue'] as const)
+      out[key] = ARMS_OUT[key] + (ARMS_GLIDE[key] - ARMS_OUT[key]) * s;
   }
   return out;
 }
@@ -162,10 +162,25 @@ function Skoyteskinne({ x, y, sole, k, dir, far }: { x: number; y: number; sole:
   const holderColor = far ? shade(PAINTS.svart, 0.15) : PAINTS.svart;
   return (
     <g aria-hidden>
-      <LinearGradient id={`${id}s`} stops={[[0, SCENE.metalLight], [0.5, SCENE.metal], [1, SCENE.metalDark]]} />
+      <LinearGradient
+        id={`${id}s`}
+        stops={[
+          [0, SCENE.metalLight],
+          [0.5, SCENE.metal],
+          [1, SCENE.metalDark],
+        ]}
+      />
       <path d={holder} fill={holderColor} stroke={SCENE.outline} strokeWidth={0.6 * ss} strokeLinejoin="round" />
       <path d={runner} fill={`url(#${id}s)`} stroke={SCENE.outline} strokeWidth={0.6 * ss} strokeLinejoin="round" />
-      <line x1={X(-8.8)} y1={r2(top + 0.3 * k)} x2={X(7.6)} y2={r2(top + 0.3 * k)} stroke={SCENE.highlight} strokeWidth={0.7 * ss} strokeLinecap="round" />
+      <line
+        x1={X(-8.8)}
+        y1={r2(top + 0.3 * k)}
+        x2={X(7.6)}
+        y2={r2(top + 0.3 * k)}
+        stroke={SCENE.highlight}
+        strokeWidth={0.7 * ss}
+        strokeLinecap="round"
+      />
     </g>
   );
 }
@@ -253,9 +268,30 @@ export function Jaktrifle({
   return (
     <g>
       {title && <title>{title}</title>}
-      <LinearGradient id={`${id}w`} stops={[[0, tint(SCENE.wood, 0.18)], [0.35, SCENE.wood], [1, shade(SCENE.woodDark, 0.25)]]} />
-      <LinearGradient id={`${id}m`} stops={[[0, tint(SCENE.metalDark, 0.25)], [0.3, shade(SCENE.metalDark, 0.15)], [1, shade(SCENE.metalDark, 0.55)]]} />
-      <LinearGradient id={`${id}s`} stops={[[0, shade(SCENE.rubber, 0.0)], [0.4, tint(SCENE.rubber, 0.12)], [1, shade(SCENE.rubber, 0.3)]]} />
+      <LinearGradient
+        id={`${id}w`}
+        stops={[
+          [0, tint(SCENE.wood, 0.18)],
+          [0.35, SCENE.wood],
+          [1, shade(SCENE.woodDark, 0.25)],
+        ]}
+      />
+      <LinearGradient
+        id={`${id}m`}
+        stops={[
+          [0, tint(SCENE.metalDark, 0.25)],
+          [0.3, shade(SCENE.metalDark, 0.15)],
+          [1, shade(SCENE.metalDark, 0.55)],
+        ]}
+      />
+      <LinearGradient
+        id={`${id}s`}
+        stops={[
+          [0, shade(SCENE.rubber, 0.0)],
+          [0.4, tint(SCENE.rubber, 0.12)],
+          [1, shade(SCENE.rubber, 0.3)],
+        ]}
+      />
       <LinearGradient
         id={`${id}g`}
         x1={0}
@@ -277,7 +313,13 @@ export function Jaktrifle({
         stroke={SCENE.outline}
         strokeWidth={0.7 * ss}
       />
-      <path d={`M${X(-0.95)},${Y(-0.018)}Q${X(-1.04)},${Y(-0.03)} ${X(-1.1)},${Y(-0.024)}`} fill="none" stroke={SCENE.highlight} strokeWidth={1 * ss} strokeLinecap="round" />
+      <path
+        d={`M${X(-0.95)},${Y(-0.018)}Q${X(-1.04)},${Y(-0.03)} ${X(-1.1)},${Y(-0.024)}`}
+        fill="none"
+        stroke={SCENE.highlight}
+        strokeWidth={1 * ss}
+        strokeLinecap="round"
+      />
       {/* Rutemønster på grepet */}
       <path
         d={`M${X(-0.885)},${Y(0.04)}L${X(-0.845)},${Y(0.09)}M${X(-0.875)},${Y(0.025)}L${X(-0.83)},${Y(0.08)}M${X(-0.85)},${Y(0.025)}L${X(-0.885)},${Y(0.07)}M${X(-0.83)},${Y(0.035)}L${X(-0.865)},${Y(0.09)}`}
@@ -294,17 +336,59 @@ export function Jaktrifle({
         strokeWidth={Math.max(1.6 * ss, 0.006 * P)}
         strokeLinecap="round"
       />
-      <path d={`M${X(-0.745)},${Y(0.024)}Q${X(-0.755)},${Y(0.042)} ${X(-0.748)},${Y(0.052)}`} fill="none" stroke={shade(SCENE.metalDark, 0.5)} strokeWidth={Math.max(1.4 * ss, 0.005 * P)} strokeLinecap="round" />
+      <path
+        d={`M${X(-0.745)},${Y(0.024)}Q${X(-0.755)},${Y(0.042)} ${X(-0.748)},${Y(0.052)}`}
+        fill="none"
+        stroke={shade(SCENE.metalDark, 0.5)}
+        strokeWidth={Math.max(1.4 * ss, 0.005 * P)}
+        strokeLinecap="round"
+      />
 
       {/* Låskasse (sylinder) med sluttstykke og håndtak */}
-      <rect x={X(-0.84)} y={Y(-0.019)} width={r2(0.24 * P)} height={r2(0.041 * P)} rx={r2(0.01 * P)} fill={`url(#${id}m)`} stroke={SCENE.outline} strokeWidth={0.9 * ss} />
-      <line x1={X(-0.83)} y1={Y(-0.013)} x2={X(-0.61)} y2={Y(-0.013)} stroke={SCENE.highlight} strokeWidth={0.9 * ss} strokeLinecap="round" opacity={0.7} />
-      <path d={`M${X(-0.79)},${Y(0.0)}L${X(-0.815)},${Y(0.035)}`} stroke={shade(SCENE.metalDark, 0.3)} strokeWidth={Math.max(2 * ss, 0.007 * P)} strokeLinecap="round" />
-      <circle cx={X(-0.818)} cy={Y(0.04)} r={Math.max(2.4 * ss, 0.009 * P)} fill={shade(SCENE.metalDark, 0.2)} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
+      <rect
+        x={X(-0.84)}
+        y={Y(-0.019)}
+        width={r2(0.24 * P)}
+        height={r2(0.041 * P)}
+        rx={r2(0.01 * P)}
+        fill={`url(#${id}m)`}
+        stroke={SCENE.outline}
+        strokeWidth={0.9 * ss}
+      />
+      <line
+        x1={X(-0.83)}
+        y1={Y(-0.013)}
+        x2={X(-0.61)}
+        y2={Y(-0.013)}
+        stroke={SCENE.highlight}
+        strokeWidth={0.9 * ss}
+        strokeLinecap="round"
+        opacity={0.7}
+      />
+      <path
+        d={`M${X(-0.79)},${Y(0.0)}L${X(-0.815)},${Y(0.035)}`}
+        stroke={shade(SCENE.metalDark, 0.3)}
+        strokeWidth={Math.max(2 * ss, 0.007 * P)}
+        strokeLinecap="round"
+      />
+      <circle
+        cx={X(-0.818)}
+        cy={Y(0.04)}
+        r={Math.max(2.4 * ss, 0.009 * P)}
+        fill={shade(SCENE.metalDark, 0.2)}
+        stroke={SCENE.outline}
+        strokeWidth={0.7 * ss}
+      />
 
       {/* Løpet: stål med boringen gjennomskåret */}
       <path d={barrelTop} fill={`url(#${id}m)`} stroke={SCENE.outline} strokeWidth={0.9 * ss} strokeLinejoin="round" />
-      <rect x={X(caseBack - 0.004)} y={Y(-bore * 2.4)} width={r2((-caseBack + 0.004) * P)} height={r2(bore * 4.8 * P)} fill={shade(SCENE.metalDark, 0.7)} />
+      <rect
+        x={X(caseBack - 0.004)}
+        y={Y(-bore * 2.4)}
+        width={r2((-caseBack + 0.004) * P)}
+        height={r2(bore * 4.8 * P)}
+        fill={shade(SCENE.metalDark, 0.7)}
+      />
       <rect x={X(chamber)} y={Y(-bore)} width={r2(RIFLE.barrel * P)} height={r2(2 * bore * P)} fill={shade(SCENE.metalDark, 0.75)} />
       {/* Riller i løpet (som tynne skrå streker) */}
       <path
@@ -340,11 +424,30 @@ export function Jaktrifle({
       {/* Kanten av snittet */}
       <line x1={X(chamber)} y1={Y(-bore)} x2={X(0)} y2={Y(-bore)} stroke={shade(SCENE.metalDark, 0.2)} strokeWidth={0.6 * ss} />
       <line x1={X(chamber)} y1={Y(bore)} x2={X(0)} y2={Y(bore)} stroke={shade(SCENE.metalDark, 0.2)} strokeWidth={0.6 * ss} />
-      <line x1={X(chamber - 0.02)} y1={Y(-RIFLE.rChamber + 0.002)} x2={X(-0.01)} y2={Y(-RIFLE.rMuzzle + 0.002)} stroke={SCENE.highlight} strokeWidth={0.9 * ss} strokeLinecap="round" opacity={0.6} />
+      <line
+        x1={X(chamber - 0.02)}
+        y1={Y(-RIFLE.rChamber + 0.002)}
+        x2={X(-0.01)}
+        y2={Y(-RIFLE.rMuzzle + 0.002)}
+        stroke={SCENE.highlight}
+        strokeWidth={0.9 * ss}
+        strokeLinecap="round"
+        opacity={0.6}
+      />
 
       {/* Kikkertsikte med feste */}
       {[-0.78, -0.66].map((a) => (
-        <rect key={a} x={X(a - 0.012)} y={Y(-0.05)} width={r2(0.024 * P)} height={r2(0.032 * P)} rx={r2(0.004 * P)} fill={shade(SCENE.metalDark, 0.45)} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
+        <rect
+          key={a}
+          x={X(a - 0.012)}
+          y={Y(-0.05)}
+          width={r2(0.024 * P)}
+          height={r2(0.032 * P)}
+          rx={r2(0.004 * P)}
+          fill={shade(SCENE.metalDark, 0.45)}
+          stroke={SCENE.outline}
+          strokeWidth={0.6 * ss}
+        />
       ))}
       <path
         d={`M${X(-0.88)},${Y(-0.074)}L${X(-0.82)},${Y(-0.071)}L${X(-0.8)},${Y(-0.066)}L${X(-0.6)},${Y(-0.066)}L${X(-0.56)},${Y(-0.078)}L${X(-0.5)},${Y(-0.08)}L${X(-0.5)},${Y(-0.036)}L${X(-0.56)},${Y(-0.038)}L${X(-0.6)},${Y(-0.05)}L${X(-0.8)},${Y(-0.05)}L${X(-0.82)},${Y(-0.045)}L${X(-0.88)},${Y(-0.042)}Z`}
@@ -353,8 +456,26 @@ export function Jaktrifle({
         strokeWidth={0.8 * ss}
         strokeLinejoin="round"
       />
-      <rect x={X(-0.72)} y={Y(-0.083)} width={r2(0.03 * P)} height={r2(0.018 * P)} rx={r2(0.003 * P)} fill={tint(SCENE.rubber, 0.1)} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
-      <line x1={X(-0.79)} y1={Y(-0.0625)} x2={X(-0.61)} y2={Y(-0.0625)} stroke={SCENE.highlight} strokeWidth={0.8 * ss} strokeLinecap="round" opacity={0.6} />
+      <rect
+        x={X(-0.72)}
+        y={Y(-0.083)}
+        width={r2(0.03 * P)}
+        height={r2(0.018 * P)}
+        rx={r2(0.003 * P)}
+        fill={tint(SCENE.rubber, 0.1)}
+        stroke={SCENE.outline}
+        strokeWidth={0.6 * ss}
+      />
+      <line
+        x1={X(-0.79)}
+        y1={Y(-0.0625)}
+        x2={X(-0.61)}
+        y2={Y(-0.0625)}
+        stroke={SCENE.highlight}
+        strokeWidth={0.8 * ss}
+        strokeLinecap="round"
+        opacity={0.6}
+      />
       <rect x={X(-0.502)} y={Y(-0.077)} width={r2(Math.max(0.004 * P, 1.2))} height={r2(0.038 * P)} fill={alpha(SCENE.glass, 0.9)} />
     </g>
   );
@@ -378,7 +499,14 @@ export function Gevaerkule({ x, y, P, length, diameter }: { x: number; y: number
   const d = `M${r2(x)},${r2(y - r * 0.92)}L${r2(x + L * 0.5)},${r2(y - r)}Q${r2(x + L * 0.86)},${r2(y - r)} ${r2(x + L)},${r2(y)}Q${r2(x + L * 0.86)},${r2(y + r)} ${r2(x + L * 0.5)},${r2(y + r)}L${r2(x)},${r2(y + r * 0.92)}Z`;
   return (
     <g aria-hidden>
-      <LinearGradient id={id} stops={[[0, tint(SCENE.copper, 0.45)], [0.4, SCENE.copper], [1, shade(SCENE.copper, 0.4)]]} />
+      <LinearGradient
+        id={id}
+        stops={[
+          [0, tint(SCENE.copper, 0.45)],
+          [0.4, SCENE.copper],
+          [1, shade(SCENE.copper, 0.4)],
+        ]}
+      />
       <path d={d} fill={`url(#${id})`} stroke={shade(SCENE.copper, 0.5)} strokeWidth={0.5 * ss} strokeLinejoin="round" />
     </g>
   );
@@ -398,7 +526,14 @@ export function Skytepute({ x, y, w, h }: { x: number; y: number; w: number; h: 
       <ContactShadow cx={x} cy={y} rx={w * 0.56} ry={Math.max(2, h * 0.12)} />
       <LinearGradient id={id} stops={materialStops(c, 1.2)} />
       <path d={d} fill={`url(#${id})`} stroke={SCENE.outline} strokeWidth={0.8 * ss} strokeLinejoin="round" />
-      <path d={`M${r2(x - w * 0.36)},${r2(y - h * 0.5)}Q${r2(x)},${r2(y - h * 0.35)} ${r2(x + w * 0.36)},${r2(y - h * 0.5)}`} fill="none" stroke={shade(c, 0.3)} strokeWidth={0.8 * ss} strokeDasharray={`${2.5 * ss} ${2 * ss}`} opacity={0.7} />
+      <path
+        d={`M${r2(x - w * 0.36)},${r2(y - h * 0.5)}Q${r2(x)},${r2(y - h * 0.35)} ${r2(x + w * 0.36)},${r2(y - h * 0.5)}`}
+        fill="none"
+        stroke={shade(c, 0.3)}
+        strokeWidth={0.8 * ss}
+        strokeDasharray={`${2.5 * ss} ${2 * ss}`}
+        opacity={0.7}
+      />
     </g>
   );
 }
@@ -414,8 +549,22 @@ export function Kruttroyk({ x, y, age, size }: { x: number; y: number; age: numb
   const flash = Math.max(0, 1 - age * 4);
   return (
     <g aria-hidden>
-      <RadialGradient id={`${id}r`} stops={[[0, tint(SCENE.cloudShade, 0.2), 0.85], [0.6, SCENE.cloudShade, 0.45], [1, SCENE.cloudShade, 0]]} />
-      <RadialGradient id={`${id}f`} stops={[[0, SCENE.glow, 0.95], [0.45, SCENE.warm, 0.7], [1, SCENE.hot, 0]]} />
+      <RadialGradient
+        id={`${id}r`}
+        stops={[
+          [0, tint(SCENE.cloudShade, 0.2), 0.85],
+          [0.6, SCENE.cloudShade, 0.45],
+          [1, SCENE.cloudShade, 0],
+        ]}
+      />
+      <RadialGradient
+        id={`${id}f`}
+        stops={[
+          [0, SCENE.glow, 0.95],
+          [0.45, SCENE.warm, 0.7],
+          [1, SCENE.hot, 0],
+        ]}
+      />
       <ellipse cx={x + r * 0.75} cy={y - r * 0.08} rx={r} ry={r * 0.62} fill={`url(#${id}r)`} opacity={1 - age * 0.6} />
       {flash > 0 && <ellipse cx={x + size * 0.22} cy={y} rx={size * 0.34} ry={size * 0.17} fill={`url(#${id}f)`} opacity={flash} />}
     </g>
@@ -430,14 +579,47 @@ export function Kruttroyk({ x, y, age, size }: { x: number; y: number; age: numb
  * Aluminiumsbane for dynamikkvogner sett fra siden: profil med lys overkant, justerbare føtter og et endestopp i hver
  * ende. (x1, x2) er endene, y overkanten der hjulene ruller, h høyden på profilen, `foot` benkeplata.
  */
-export function Labbane({ x1, x2, y, h, foot, feet, stop }: { x1: number; x2: number; y: number; h: number; foot: number; feet: number[]; stop: number }) {
+export function Labbane({
+  x1,
+  x2,
+  y,
+  h,
+  foot,
+  feet,
+  stop,
+}: {
+  x1: number;
+  x2: number;
+  y: number;
+  h: number;
+  foot: number;
+  feet: number[];
+  stop: number;
+}) {
   const id = useSvgId('bane');
   const ss = useStrokeScale();
   const lip = Math.max(2.5, h * 0.12);
   return (
     <g aria-hidden>
-      <LinearGradient id={`${id}p`} stops={[[0, tint(SCENE.metalLight, 0.2)], [0.18, SCENE.metalLight], [0.6, SCENE.metal], [1, SCENE.metalDark]]} />
-      <LinearGradient id={`${id}f`} x2={1} y2={0} stops={[[0, tint(SCENE.rubber, 0.25)], [0.5, SCENE.rubber], [1, shade(SCENE.rubber, 0.25)]]} />
+      <LinearGradient
+        id={`${id}p`}
+        stops={[
+          [0, tint(SCENE.metalLight, 0.2)],
+          [0.18, SCENE.metalLight],
+          [0.6, SCENE.metal],
+          [1, SCENE.metalDark],
+        ]}
+      />
+      <LinearGradient
+        id={`${id}f`}
+        x2={1}
+        y2={0}
+        stops={[
+          [0, tint(SCENE.rubber, 0.25)],
+          [0.5, SCENE.rubber],
+          [1, shade(SCENE.rubber, 0.25)],
+        ]}
+      />
       <LinearGradient id={`${id}e`} stops={materialStops(SCENE.rubber, 1.6)} />
       <ContactShadow cx={(x1 + x2) / 2} cy={foot} rx={(x2 - x1) * 0.52} ry={4} opacity={0.55} />
       {feet.map((fx) => {
@@ -458,7 +640,15 @@ export function Labbane({ x1, x2, y, h, foot, feet, stop }: { x1: number; x2: nu
       <rect x={x1} y={y} width={x2 - x1} height={h} fill={`url(#${id}p)`} stroke={SCENE.outline} strokeWidth={1 * ss} />
       <rect x={x1} y={y} width={x2 - x1} height={lip} fill={tint(SCENE.metalLight, 0.35)} />
       <line x1={x1} y1={y + lip} x2={x2} y2={y + lip} stroke={shade(SCENE.metal, 0.3)} strokeWidth={0.9 * ss} />
-      <line x1={x1} y1={y + h - 1.6 * ss} x2={x2} y2={y + h - 1.6 * ss} stroke={shade(SCENE.metal, 0.35)} strokeWidth={1.1 * ss} opacity={0.7} />
+      <line
+        x1={x1}
+        y1={y + h - 1.6 * ss}
+        x2={x2}
+        y2={y + h - 1.6 * ss}
+        stroke={shade(SCENE.metal, 0.35)}
+        strokeWidth={1.1 * ss}
+        opacity={0.7}
+      />
       <line x1={x1} y1={y + 0.6 * ss} x2={x2} y2={y + 0.6 * ss} stroke={SCENE.highlight} strokeWidth={1.1 * ss} />
       {/* Endestopp med gummiklosser */}
       {[x1, x2].map((ex, i) => {
@@ -467,7 +657,16 @@ export function Labbane({ x1, x2, y, h, foot, feet, stop }: { x1: number; x2: nu
         const left = i === 0 ? ex : ex - bw;
         return (
           <g key={ex}>
-            <rect x={left} y={y - stop} width={bw} height={stop + 1} rx={2} fill={`url(#${id}p)`} stroke={SCENE.outline} strokeWidth={0.9 * ss} />
+            <rect
+              x={left}
+              y={y - stop}
+              width={bw}
+              height={stop + 1}
+              rx={2}
+              fill={`url(#${id}p)`}
+              stroke={SCENE.outline}
+              strokeWidth={0.9 * ss}
+            />
             <rect
               x={dirIn > 0 ? left + bw : left - bw * 0.45}
               y={y - stop * 0.72}
@@ -524,21 +723,20 @@ export function Skilt({
   const left = anchor === 'middle' ? x - w / 2 : anchor === 'start' ? x : x - w;
   return (
     <g>
-      <rect x={left} y={y - h / 2} width={w} height={h} rx={h * 0.32} fill={VIZ.surface} stroke={SCENE.outline} strokeWidth={1 * ss} opacity={0.96} />
+      <rect
+        x={left}
+        y={y - h / 2}
+        width={w}
+        height={h}
+        rx={h * 0.32}
+        fill={VIZ.surface}
+        stroke={SCENE.outline}
+        strokeWidth={1 * ss}
+        opacity={0.96}
+      />
       <Txt x={left + w / 2} y={y + fs * 0.34} anchor="middle" size={size} color={color} weight={700} halo={false}>
         {children}
       </Txt>
-    </g>
-  );
-}
-
-/** Kule i en farge (til stroboskopprikker og markører), med lys fra øvre venstre. */
-export function Markor({ x, y, r, color }: { x: number; y: number; r: number; color: string }) {
-  const id = useSvgId('markor');
-  return (
-    <g aria-hidden>
-      <RadialGradient id={id} fx={0.35} fy={0.35} stops={sphereStops(color)} />
-      <circle cx={x} cy={y} r={r} fill={`url(#${id})`} stroke={SCENE.outline} strokeWidth={0.7} />
     </g>
   );
 }

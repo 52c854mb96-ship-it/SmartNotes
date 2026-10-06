@@ -62,6 +62,8 @@ export interface EulerState {
   v: number;
   /** Strekningen (m): s_n + v_(n+1)·(t − t_n), som i oppdateringen s = s + v·Δt med den nye farten. */
   s: number;
+  /** Farten i starten av steget, v_n (den simuleringen regner kreftene ut fra). */
+  vn: number;
   /** Akselerasjonen i hele steget: a_n = g − (k/m)·v_n² (m/s²). */
   a: number;
   /** Luftmotstanden simuleringen bruker i hele steget: L_n = k·v_n² (N). */
@@ -78,10 +80,10 @@ export function eulerStateAt(p: DragFall, rows: EulerRow[], t: number): EulerSta
   const row = rows[n] ?? { n: 0, t: 0, v: 0, a: G_EARTH, s: 0 };
   const next = rows[n + 1];
   const L = dragForce(p, row.v);
-  if (!next) return { n, t: row.t, tn: row.t, v: row.v, s: row.s, a: row.a, L };
+  if (!next) return { n, t: row.t, tn: row.t, v: row.v, s: row.s, vn: row.v, a: row.a, L };
   const dt = next.t - row.t;
   const tau = Math.min(Math.max(0, (Number.isFinite(t) ? t : 0) - row.t), dt);
-  return { n, t: row.t + tau, tn: row.t, v: row.v + row.a * tau, s: row.s + next.v * tau, a: row.a, L };
+  return { n, t: row.t + tau, tn: row.t, v: row.v + row.a * tau, s: row.s + next.v * tau, vn: row.v, a: row.a, L };
 }
 
 /**

@@ -112,13 +112,14 @@ export default function Eksplosjon() {
   const endRef = useRef(tl.end);
   useEffect(() => {
     pause();
-    setT(endRef.current);
-  }, [id, pause, setT]);
+    setT(tl.end);
+    endRef.current = tl.end;
+  }, [id, pause, setT]); // eslint-disable-line react-hooks/exhaustive-deps
   // Når tallene endres og avspillingen står på slutten, blir den stående på (den nye) slutten.
   useEffect(() => {
     const prev = endRef.current;
     endRef.current = tl.end;
-    if (!clock.playing && clock.t >= prev - 1e-12) setT(tl.end);
+    if (!clock.playing && clock.t >= prev - 1e-9) setT(tl.end);
   }, [tl.end]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const phase = phaseAt(tl, r, t);
@@ -335,13 +336,13 @@ export default function Eksplosjon() {
         )}
         {id === 'gevaer' && (
           <FormulaLine>
-            Kraften fra kruttgassen: F = E/s = {fmt(r.E, 0)} J / {fmt(RIFLE.barrel, 2)} m = {fmt(r.F, 0)} N, i Δt = p/F ={' '}
+            Gjennomsnittskraften fra kruttgassen: F = E/s = {fmt(r.E, 0)} J / {fmt(RIFLE.barrel, 2)} m = {fmt(r.F, 0)} N, i Δt = p/F ={' '}
             {fmt(r.dt * 1000, 2)} ms
           </FormulaLine>
         )}
         <FormulaLine>
-          Σp = m<Sub>1</Sub>v<Sub>1</Sub> + m<Sub>2</Sub>v<Sub>2</Sub> = {massKg(m1)} · ({fmt(r.v1, 2)} m/s) + {massKg(m2)} · {fmt(r.v2, vDec2)}{' '}
-          m/s = 0
+          Σp = m<Sub>1</Sub>v<Sub>1</Sub> + m<Sub>2</Sub>v<Sub>2</Sub> = {massKg(m1)} · ({fmt(r.v1, 2)} m/s) + {massKg(m2)} ·{' '}
+          {fmt(r.v2, vDec2)} m/s = 0
         </FormulaLine>
         <FormulaLine>
           v<Sub>2</Sub>/|v<Sub>1</Sub>| = m<Sub>1</Sub>/m<Sub>2</Sub> = {fmt(m1 / m2, m1 / m2 >= 10 ? 0 : 2)}
@@ -434,14 +435,22 @@ function massKg(m: number): string {
 }
 
 function energy(E: number): string {
-  return E >= 1000 ? `${fmt(E / 1000, 2)} kJ` : E >= 100 ? `${fmt(E, 0)} J` : E >= 10 ? `${fmt(E, 1)} J` : E >= 1 ? `${fmt(E, 2)} J` : `${fmt(E, 3)} J`;
+  return E >= 1000
+    ? `${fmt(E / 1000, 2)} kJ`
+    : E >= 100
+      ? `${fmt(E, 0)} J`
+      : E >= 10
+        ? `${fmt(E, 1)} J`
+        : E >= 1
+          ? `${fmt(E, 2)} J`
+          : `${fmt(E, 3)} J`;
 }
 
 /** Teksten under scenen: hva som er tegnet, og hvor mye saktere avspillingen går. */
 function caption(id: ScenarioId, speed: number): string {
   if (id === 'skoyter') return 'Skøyteløperne er tegnet i riktig størrelse etter massen (barn er lavere). Avspillingen går i ekte tid.';
   if (id === 'fjaer')
-    return `Snora holder fjæra sammenpresset til den kuttes. ${speed < 0.95 ? `Avspillingen går i sakte film, ${fmt(1 / speed, 1)} ganger saktere.` : 'Avspillingen går i ekte tid.'}`;
+    return `Snora holder fjæra sammenpresset til den kuttes. ${speed < 0.95 ? `Avspillingen går i sakte film, ${fmt(1 / speed, 1 / speed >= 10 ? 0 : 1)} ganger saktere.` : 'Avspillingen går i ekte tid.'}`;
   return `Løpet er tegnet gjennomskåret, så du ser kula og kruttgassen inni. Sakte film: 1 ms tar ${fmt(0.001 / speed, 1)} s.`;
 }
 
@@ -453,7 +462,15 @@ function sceneLabel(id: ScenarioId, m1: number, m2: number, r: PushResult): stri
   return `Jaktrifle på sandsekker som skyter ut en kule. Kula får farten ${fmt(r.v2, 0)} m/s, og geværet får rekylfarten ${fmt(r.v1, 2)} m/s.`;
 }
 
-function explanation(id: ScenarioId, m1: number, m2: number, r: PushResult, phase: PushPhase, light: 1 | 2, showForces: boolean): ReactNode {
+function explanation(
+  id: ScenarioId,
+  m1: number,
+  m2: number,
+  r: PushResult,
+  phase: PushPhase,
+  light: 1 | 2,
+  showForces: boolean,
+): ReactNode {
   const p = `${fmt(r.p2, id === 'gevaer' ? 2 : r.p2 >= 10 ? 1 : 2)} kg·m/s`;
   const [n1, n2] = NAMES[id];
   const equal = Math.abs(m1 - m2) < 1e-9;
@@ -476,11 +493,12 @@ function explanation(id: ScenarioId, m1: number, m2: number, r: PushResult, phas
         {id === 'skoyter'
           ? 'Skøyteløper 1 dytter på skøyteløper 2, og skøyteløper 2 dytter like hardt tilbake på skøyteløper 1'
           : id === 'fjaer'
-            ? 'Fjæra dytter vogn 2 framover og vogn 1 bakover'
+            ? 'Fjæra dytter vogn 2 mot høyre og vogn 1 mot venstre'
             : 'Kruttgassen dytter kula framover og geværet bakover'}{' '}
         med like store krefter (Newtons 3. lov), F = {fmt(r.F, 0)} N. Kreftene virker like lenge, Δt ={' '}
-        {id === 'gevaer' ? `${fmt(r.dt * 1000, 2)} ms` : `${fmt(r.dt, 3)} s`}, så begge får like stor impuls, I = F · Δt ={' '}
-        {fmt(r.I, 2)} N·s, men i hver sin retning. Midt i dyttet har begge halvparten av sluttfarten, og Σp er fortsatt 0.
+        {id === 'gevaer' ? `${fmt(r.dt * 1000, 2)} ms` : `${fmt(r.dt, 3)} s`}, så begge får like stor impuls, I = F · Δt = {fmt(r.I, 2)}{' '}
+        N·s, men i hver sin retning. I modellen er kraften konstant, så farten øker jevnt: halvveis i dyttet har begge halvparten av
+        sluttfarten. Σp er 0 hele tiden, også nå.
       </p>
     ) : null;
 
@@ -500,8 +518,8 @@ function explanation(id: ScenarioId, m1: number, m2: number, r: PushResult, phas
         <p>
           <strong>Rekyl.</strong> Kula og geværet får like store og motsatt rettede bevegelsesmengder, p = {p}, så Σp = 0 også etter
           skuddet. Geværet har {fmt(ratio, 0)} ganger så stor masse, så rekylfarten blir bare {fmt(Math.abs(r.v1), 2)} m/s. Fartspila til
-          geværet er så kort at den ikke synes i samme skala som pila til kula. Kula får {fmt(share, 1)} % av energien, fordi E
-          <Sub>k</Sub> = p²/(2m) er størst for den letteste.
+          geværet er så kort at den ikke synes i samme skala som pila til kula. Kula får {fmt(share, 1)} % av energien, fordi E<Sub>k</Sub>{' '}
+          = p²/(2m) er størst for den letteste.
         </p>
         <p>
           Det er derfor geværet slår tilbake i skulderen. Når du holder geværet inntil skulderen, er det du og geværet sammen som får
@@ -515,8 +533,8 @@ function explanation(id: ScenarioId, m1: number, m2: number, r: PushResult, phas
   const intern =
     id === 'skoyter' ? (
       <>
-        Dyttet er en indre kraft i systemet (begge skøyteløperne). Tyngden og normalkraften fra isen opphever hverandre, og friksjonen
-        fra isen er så liten at vi ser bort fra den. Ingen ytre krefter virker vannrett, så Σp kan ikke endre seg.
+        Dyttet er en indre kraft i systemet (begge skøyteløperne). Tyngden og normalkraften fra isen opphever hverandre, og friksjonen fra
+        isen er så liten at vi ser bort fra den. Ingen ytre krefter virker vannrett, så Σp kan ikke endre seg.
       </>
     ) : (
       <>Fjærkraften er en indre kraft i systemet (begge vognene), så den kan ikke endre den totale bevegelsesmengden.</>
@@ -534,7 +552,12 @@ function explanation(id: ScenarioId, m1: number, m2: number, r: PushResult, phas
         ) : (
           <>
             Den letteste ({lightName}) får {fmt(ratio, ratio >= 10 ? 0 : 1)} ganger så stor fart, fordi |v| = p/m
-            {id === 'skoyter' ? ', og glir derfor like mange ganger så langt på samme tid (se s₁ og s₂)' : ''}. Den får også mest energi,{' '}
+            {id === 'skoyter' && (
+              <>
+                , og glir derfor like mange ganger så langt på samme tid (se s<Sub>1</Sub> og s<Sub>2</Sub>)
+              </>
+            )}
+            . Den får også mest energi,{' '}
             {fmt(share, 0)} %, fordi E<Sub>k</Sub> = p²/(2m).
           </>
         )}

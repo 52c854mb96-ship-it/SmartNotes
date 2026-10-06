@@ -9,10 +9,13 @@ import { TRACK_TOP, type Track, type TrackKind } from './model';
 
 export const SCENE_W = 800;
 
-/** Synlig del av verden (m) rundt banen: plattformene på halfpipen og toppene i akebakken. */
-export const WORLD: Record<TrackKind, { left: number; right: number }> = {
-  rampe: { left: -1.6, right: 13.6 },
-  bakke: { left: -1.2, right: 17.2 },
+/**
+ * Synlig del av verden (m) rundt banen: plattformene på halfpipen og toppene i akebakken. På mobil er utsnittet
+ * smalere, så personene blir større.
+ */
+export const WORLD: Record<'wide' | 'narrow', Record<TrackKind, { left: number; right: number }>> = {
+  wide: { rampe: { left: -1.6, right: 13.6 }, bakke: { left: -0.6, right: 16.8 } },
+  narrow: { rampe: { left: -0.7, right: 12.7 }, bakke: { left: -0.6, right: 16.6 } },
 };
 
 /** Bunnen av halfpipen står på et lavt fundament, så banen begynner litt over betongen. */
@@ -73,7 +76,7 @@ export interface SceneLayout {
  */
 export function sceneLayout(kind: TrackKind, narrow: boolean, f = narrow ? 1.84 : 1): SceneLayout {
   const W = SCENE_W;
-  const { left: xLeft, right: xRight } = WORLD[kind];
+  const { left: xLeft, right: xRight } = WORLD[narrow ? 'narrow' : 'wide'][kind];
   // På PC får banen 580 av 800 enheter, og stolpene resten. På mobil fyller banen hele bredden.
   const trackW = narrow ? W : 580;
   const ppm = trackW / (xRight - xLeft);
@@ -83,8 +86,9 @@ export function sceneLayout(kind: TrackKind, narrow: boolean, f = narrow ? 1.84 
   const X = (x: number) => (x - xLeft) * ppm;
   const Y = (h: number) => yZero - h * ppm;
   const groundY = kind === 'rampe' ? Y(-RAMP_BASE) : Y(0);
-  // Under nullnivået: etiketten «nullnivå» og (på PC) navnene under stolpene.
-  const sceneH = Math.round(Math.max(groundY + 26 * f, yZero + 40 * f) + 6);
+  // Under nullnivået: etiketten «nullnivå» og (på PC) navnene under stolpene. I akebakken kan fartspila peke ned
+  // bakken under nullnivået (opptil 2,2 m når akebrettet suser ned mot dalen), så der er det mer snø nederst.
+  const sceneH = Math.round(Math.max(groundY + 26 * f, yZero + 40 * f, kind === 'bakke' ? Y(-2.35) : 0) + 6);
   const horizon = kind === 'rampe' ? groundY - 0.9 * ppm : Y(1.2);
 
   if (!narrow) {
@@ -173,6 +177,23 @@ export function framePoint(fr: RiderFrame, along: number, up: number): { x: numb
   return { x: fr.x + fr.tx * along + fr.nx * up, y: fr.y + fr.ty * along + fr.ny * up };
 }
 
+/** Hvor langt foran tyngdepunktet fartspila begynner (m), så den ikke dekker kroppen. */
+export const ARROW_AHEAD: Record<TrackKind, number> = { rampe: 0.62, bakke: 0.7 };
+
+/**
+ * Fartspila langs banen: fra et punkt i hoftehøyde litt foran kroppen og v · SPEED_ARROW_M meter i fartsretningen.
+ * `v` er farten med fortegn (positiv mot høyre).
+ */
+export function speedArrow(fr: RiderFrame, kind: TrackKind, ppm: number, v: number): { x1: number; y1: number; x2: number; y2: number } {
+  const sv = v >= 0 ? 1 : -1;
+  const com = framePoint(fr, 0, COM_HEIGHT[kind] * ppm);
+  const ahead = ARROW_AHEAD[kind] * ppm;
+  const x1 = com.x + fr.tx * sv * ahead;
+  const y1 = com.y + fr.ty * sv * ahead;
+  const len = Math.abs(v) * SPEED_ARROW_M * ppm;
+  return { x1, y1, x2: x1 + fr.tx * sv * len, y2: y1 + fr.ty * sv * len };
+}
+
 /**
  * Hvilken vei skateren ser: fartsretningen når den beveger seg, ellers den veien tyngden vil dra den (ned bakken).
  * På bunnen i ro: mot høyre.
@@ -201,6 +222,7 @@ export function speedLabelPlace({
   f,
   right,
   top,
+  bottom = Infinity,
 }: {
   x1: number;
   y1: number;
@@ -210,6 +232,8 @@ export function speedLabelPlace({
   f: number;
   right: number;
   top: number;
+  /** Nederste grunnlinje etiketten kan ha. */
+  bottom?: number;
 }): { x: number; y: number; anchor: 'start' | 'end' } {
   const len = Math.hypot(x2 - x1, y2 - y1) || 1;
   const ux = (x2 - x1) / len;
@@ -228,17 +252,50 @@ export function speedLabelPlace({
     x = x2 + ux * 10 * f;
     y = y2 + uy * 14 * f + 6 * f;
   }
-  // Innenfor figuren: snu etiketten til andre siden av spissen hvis den går ut
+  // Innenfor figuren: snu etiketten til andre siden av spissen hvis den går ut, og legg den på den siden av pila
+  // der skaftet ikke er (under spissen når pila peker nedover, over når den peker oppover)
+  const flipY = uy > 0.15 ? y2 + 20 * f : y2 - 12 * f;
   if (anchor === 'start' && x + w > right) {
     anchor = 'end';
-    x = Math.min(x2, right) - 8 * f;
-    y = y2 - 14 * f;
+    x = Math.min(x2, right) - 6 * f;
+    y = flipY;
   } else if (anchor === 'end' && x - w < 6) {
     anchor = 'start';
-    x = Math.max(x2, 6) + 8 * f;
-    y = y2 - 14 * f;
+    x = Math.max(x2, 6) + 6 * f;
+    y = flipY;
   }
   x = anchor === 'start' ? Math.max(6, Math.min(x, right - w)) : Math.min(right, Math.max(x, 6 + w));
-  y = Math.max(top + 16 * f, y);
+  y = Math.min(bottom, Math.max(top + 16 * f, y));
   return { x, y, anchor };
+}
+
+/* ---------- Plassering av etiketter ---------- */
+
+export interface Box {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+}
+
+/** Boksen rundt en tekst med grunnlinje y (Txt er ca. 17 · størrelse · f høy, bredden fra textWidth). */
+export function textBox(x: number, y: number, w: number, anchor: 'start' | 'middle' | 'end', size: number, f: number): Box {
+  const x0 = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
+  return { x0: x0 - 5, x1: x0 + w + 5, y0: y - 15 * size * f - 2, y1: y + 5 * size * f + 2 };
+}
+
+export function boxesOverlap(a: Box, b: Box): boolean {
+  return a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+}
+
+/** Om linjestykket fra a til b (med halv tykkelse `pad`) går gjennom boksen. */
+export function segmentHitsBox(a: { x: number; y: number }, b: { x: number; y: number }, box: Box, pad = 0): boolean {
+  const len = Math.hypot(b.x - a.x, b.y - a.y);
+  const n = Math.max(1, Math.ceil(len / 3));
+  for (let i = 0; i <= n; i++) {
+    const x = a.x + ((b.x - a.x) * i) / n;
+    const y = a.y + ((b.y - a.y) * i) / n;
+    if (x > box.x0 - pad && x < box.x1 + pad && y > box.y0 - pad && y < box.y1 + pad) return true;
+  }
+  return false;
 }

@@ -110,6 +110,7 @@ describe('steget simuleringen er i, og tilstanden mellom radene', () => {
       expect(mid.a).toBe(a.a);
       expect(mid.L).toBeCloseTo(dragForce(p, a.v), 12);
       expect(mid.v).toBeCloseTo(a.v + a.a * 0.5, 12);
+      expect(mid.vn).toBe(a.v);
       // Like før neste rad er tilstanden (nesten) lik neste rad
       const end = eulerStateAt(p, r, b.t - 1e-9);
       expect(end.v).toBeCloseTo(b.v, 6);

@@ -152,8 +152,8 @@ export interface SportSpec {
   ball: string;
   /** Det som treffer ballen: «foten», «racketen», «kølla». */
   hitter: string;
-  /** Treffet: «sparket», «serven», «slaget». */
-  hit: string;
+  /** Treffet i ubestemt form med kjønn, til «et typisk spark», «en typisk serve», «et typisk slag». */
+  hit: { a: 'en' | 'et'; noun: string };
   /** Massen (kg) og radien (m) til ballen. */
   m: number;
   r: number;
@@ -163,7 +163,7 @@ export interface SportSpec {
   F: Range;
   /** Kraften vises i N eller kN. */
   forceUnit: 'N' | 'kN';
-  /** Grafens akser: tid (ms) og kraft (N). */
+  /** Grafens akser: tid (ms) og kraft (N). Kraftaksen er ca. 1,4 · største kraft, så etikettene øverst i grafen får plass. */
   tAxisMs: number;
   FAxis: number;
   /** Sakte film: simulert tid (s) per sekund avspilling. */
@@ -178,7 +178,7 @@ export interface SportSpec {
 
 /**
  * Typiske verdier: en fotball på 430 g som sparkes med vristen (kontakttid ca. 10 ms), en tennisball på 57 g i en
- * serve (ca. 5 ms mot strengene) og en golfball på 46 g som slås ut med en driver (under et halvt millisekund).
+ * serve (ca. 5 ms mot strengene) og en golfball på 45,9 g som slås ut med en driver (under et halvt millisekund).
  * Nivåene for farten er omtrentlige.
  */
 export const SPORTS: Record<SportId, SportSpec> = {
@@ -187,14 +187,14 @@ export const SPORTS: Record<SportId, SportSpec> = {
     label: 'Fotball',
     ball: 'fotballen',
     hitter: 'foten',
-    hit: 'sparket',
+    hit: { a: 'et', noun: 'spark' },
     m: 0.43,
     r: 0.11,
-    dtMs: { min: 4, max: 16, step: 0.5, def: 10 },
-    F: { min: 200, max: 3000, step: 100, def: 1500 },
+    dtMs: { min: 4, max: 15, step: 0.5, def: 10 },
+    F: { min: 200, max: 2800, step: 100, def: 1500 },
     forceUnit: 'kN',
-    tAxisMs: 18,
-    FAxis: 3200,
+    tAxisMs: 17,
+    FAxis: 4000,
     slowmo: 0.01,
     levels: [
       { id: 'rolig', upTo: 8, text: 'en rolig pasning' },
@@ -211,14 +211,14 @@ export const SPORTS: Record<SportId, SportSpec> = {
     label: 'Tennis',
     ball: 'tennisballen',
     hitter: 'racketen',
-    hit: 'serven',
+    hit: { a: 'en', noun: 'serve' },
     m: 0.057,
     r: 0.0335,
     dtMs: { min: 2, max: 8, step: 0.5, def: 5 },
-    F: { min: 100, max: 1500, step: 25, def: 700 },
+    F: { min: 100, max: 1200, step: 25, def: 700 },
     forceUnit: 'N',
     tAxisMs: 9,
-    FAxis: 1600,
+    FAxis: 1700,
     slowmo: 0.005,
     levels: [
       { id: 'rolig', upTo: 20, text: 'en forsiktig serve' },
@@ -235,14 +235,14 @@ export const SPORTS: Record<SportId, SportSpec> = {
     label: 'Golf',
     ball: 'golfballen',
     hitter: 'kølla',
-    hit: 'slaget',
-    m: 0.046,
+    hit: { a: 'et', noun: 'slag' },
+    m: 0.0459,
     r: 0.02135,
-    dtMs: { min: 0.2, max: 1, step: 0.05, def: 0.45 },
-    F: { min: 1000, max: 20000, step: 500, def: 9000 },
+    dtMs: { min: 0.25, max: 0.7, step: 0.05, def: 0.45 },
+    F: { min: 2000, max: 14000, step: 500, def: 9000 },
     forceUnit: 'kN',
-    tAxisMs: 1.2,
-    FAxis: 21000,
+    tAxisMs: 0.9,
+    FAxis: 20000,
     slowmo: 0.0005,
     levels: [
       { id: 'rolig', upTo: 35, text: 'et svakt utslag' },
@@ -266,6 +266,11 @@ export function speedLevel(sport: SportSpec, v: number): SpeedLevel {
 /** Et typisk treff for ballen (standardverdiene). */
 export function typicalKick(sport: SportSpec, shape: PulseShape = 'bue'): KickResult {
   return kick(sport.m, sport.F.def, sport.dtMs.def / 1000, shape);
+}
+
+/** Den største farten glidebryterne kan gi (største kraft og lengste kontakttid, bueform), til skalaen på fartspila. */
+export function maxSpeed(sport: SportSpec): number {
+  return kick(sport.m, sport.F.max, sport.dtMs.max / 1000, 'bue').v;
 }
 
 /**

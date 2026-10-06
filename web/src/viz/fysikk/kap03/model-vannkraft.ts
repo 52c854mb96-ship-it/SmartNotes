@@ -1,6 +1,7 @@
 /**
- * Ren fysikk for «Vannkraftverk» (3A, 3C, 3E, 3F): effekten fra vann som faller fra et magasin gjennom en rørgate
- * til en turbin, og hvor mange husstander kraftverket kan forsyne. Ingen React, så alt kan testes.
+ * Ren fysikk for «Vannkraftverk» (3A, 3C, 3F; farten i fritt fall fra 3E): effekten fra vann som faller fra et
+ * magasin gjennom en rørgate til en turbin, og hvor mange husstander kraftverket kan forsyne. Ingen React, så alt kan
+ * testes.
  *
  * Modell: hvert sekund renner volumet Q (m³) gjennom turbinen. Massen er m = ρQ, og vannet faller fallhøyden h fra
  * vannflata i magasinet ned til turbinen. Vannet mister da den potensielle energien ΔE_p = mgh = ρQgh hvert sekund,

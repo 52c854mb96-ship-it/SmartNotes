@@ -78,10 +78,14 @@ export function Kraftregnskap(props: RegnskapProps) {
 function Content({ mA, mB, festeA, festeB, plan, state, peak }: RegnskapProps) {
   const f = useTextScale();
   const ss = useStrokeScale();
-  const top = axisMax(Math.max(peak, plan.RmaxA, plan.RmaxB) * 1.06);
+  const top = axisMax(Math.max(peak, plan.RmaxA, plan.RmaxB) * 1.04);
   const x0 = 24;
   const x1 = W - 24;
-  const sx = (v: number) => x0 + (Math.max(0, Math.min(top, v)) / top) * (x1 - x0);
+  /** Bredden på etiketten «μsmg = 1 413 N» (omtrent), og plass til den til høyre for den lengste stolpen. */
+  const maxLabelW = (n: number) => (10 + fN(n).length) * 17 * f * 0.78 * 0.6;
+  const reserve = Math.max(maxLabelW(plan.RmaxA), maxLabelW(plan.RmaxB)) + 14;
+  const xEnd = x1 - reserve;
+  const sx = (v: number) => x0 + (Math.max(0, Math.min(top, v)) / top) * (xEnd - x0);
   const barH = 22 * f;
   const yS = 20 * f;
   const labelA = yS + 32 * f;
@@ -106,38 +110,24 @@ function Content({ mA, mB, festeA, festeB, plan, state, peak }: RegnskapProps) {
       {/* Aksen */}
       {niceTicks(0, top, 5).map((v) => (
         <g key={v}>
-          <line x1={sx(v)} x2={sx(v)} y1={barA - 6 * f} y2={axisY} stroke={VIZ.grid} strokeWidth={1} />
+          <line x1={sx(v)} x2={sx(v)} y1={barA - 4 * f} y2={axisY} stroke={VIZ.grid} strokeWidth={1} />
           <Txt x={sx(v)} y={tickY} size={0.82} muted halo={false}>
             {fmt(v, 0)}
           </Txt>
         </g>
       ))}
-      <line x1={x0} x2={x1} y1={axisY} y2={axisY} stroke={VIZ.muted} strokeWidth={1.2 * ss} />
-      <Txt x={(x0 + x1) / 2} y={titleY} size={0.86} muted weight={650} halo={false}>
+      <line x1={x0} x2={xEnd} y1={axisY} y2={axisY} stroke={VIZ.muted} strokeWidth={1.2 * ss} />
+      <Txt x={(x0 + xEnd) / 2} y={titleY} size={0.86} muted weight={650} halo={false}>
         Kraft langs bakken (N)
       </Txt>
 
+      {/* Stolpene: største statiske friksjon (stiplet), friksjonen nå (fylt) og kraftsummen (gapet mellom R og S) */}
       {rows.map((r) => {
         const xR = sx(r.R);
         const xMax = sx(r.Rmax);
-        const maxText = `μs·mg = ${fN(r.Rmax)} N`;
-        const maxW = maxText.length * 17 * f * 0.78 * 0.58;
-        const maxOutside = xMax + 8 + maxW < x1;
         const gap = Math.abs(r.net) > 0.05 && Math.abs(xR - xs) > 1;
         return (
           <g key={r.side}>
-            <Txt x={x0} y={r.labelY} anchor="start" size={0.9} weight={740} halo={false}>
-              Lag {r.side}
-              <tspan fontWeight={520} fill={VIZ.muted}>
-                {' '}
-                · {fmt(r.m, 0)} kg · {FESTE_NAVN[r.feste].toLowerCase()}
-                {r.sliding ? ' · glir' : ''}
-              </tspan>
-            </Txt>
-            <Txt x={x1} y={r.labelY} anchor="end" size={0.86} weight={700} halo={false} color={gap ? VIZ.acceleration : VIZ.ink}>
-              ΣF = {gap ? `${fN(Math.abs(r.net))} N` : '0'}
-            </Txt>
-            {/* Største statiske friksjon: stiplet ramme */}
             <rect
               x={x0}
               y={r.barY}
@@ -149,9 +139,7 @@ function Content({ mA, mB, festeA, festeB, plan, state, peak }: RegnskapProps) {
               strokeWidth={1.4 * ss}
               strokeDasharray={`${5 * ss} ${4 * ss}`}
             />
-            {/* Friksjonen nå: fylt */}
             {xR - x0 > 0.5 && <rect x={x0} y={r.barY + 3 * f} width={xR - x0} height={barH - 6 * f} rx={3.5} fill={VIZ.friction} opacity={0.9} />}
-            {/* Kraftsummen: gapet mellom R og S */}
             {gap && (
               <rect
                 x={Math.min(xR, xs)}
@@ -163,10 +151,67 @@ function Content({ mA, mB, festeA, festeB, plan, state, peak }: RegnskapProps) {
                 strokeWidth={1 * ss}
               />
             )}
+          </g>
+        );
+      })}
+
+      {/* Snordraget: samme strek gjennom begge stolpene, tynn og stiplet forbi etikettene (de har glorie) */}
+      {state.S > 0 && (
+        <g strokeLinecap="round">
+          {[
+            [barA - 4 * f, barA + barH + 4 * f],
+            [barB - 4 * f, barB + barH + 4 * f],
+          ].map(([ya, yb], i) => (
+            <g key={i}>
+              <line x1={xs} x2={xs} y1={ya} y2={yb} stroke={VIZ.surface} strokeWidth={6.5 * ss} opacity={0.85} />
+              <line x1={xs} x2={xs} y1={ya} y2={yb} stroke={VIZ.tension} strokeWidth={3 * ss} />
+            </g>
+          ))}
+          {[
+            [yS + 8 * f, barA - 4 * f],
+            [barA + barH + 4 * f, barB - 4 * f],
+          ].map(([ya, yb], i) => (
+            <line
+              key={i}
+              x1={xs}
+              x2={xs}
+              y1={ya}
+              y2={yb}
+              stroke={VIZ.tension}
+              strokeWidth={1.4 * ss}
+              strokeDasharray={`${2 * ss} ${3 * ss}`}
+              opacity={0.6}
+            />
+          ))}
+        </g>
+      )}
+
+      {/* Etikettene */}
+      {rows.map((r) => {
+        const xR = sx(r.R);
+        const xMax = sx(r.Rmax);
+        // «μsmg = …» til høyre for stolpen, men etter S-streken når den ellers ville krysset teksten.
+        const maxW = maxLabelW(r.Rmax);
+        const crosses = state.S > 0 && xs > xMax - 2 && xs < xMax + 14 + maxW;
+        const maxX = crosses ? xs + 9 : xMax + 8;
+        const gap = Math.abs(r.net) > 0.05 && Math.abs(xR - xs) > 1;
+        return (
+          <g key={r.side}>
+            <Txt x={x0} y={r.labelY} anchor="start" size={0.9} weight={740}>
+              Lag {r.side}
+              <tspan fontWeight={520} fill={VIZ.muted}>
+                {' '}
+                · {fmt(r.m, 0)} kg · {FESTE_NAVN[r.feste].toLowerCase()}
+                {r.sliding ? ' · glir' : ''}
+              </tspan>
+            </Txt>
+            <Txt x={x1} y={r.labelY} anchor="end" size={0.86} weight={700} color={gap ? VIZ.acceleration : VIZ.ink}>
+              ΣF = {gap ? `${fN(Math.abs(r.net))} N` : '0'}
+            </Txt>
             <Txt
-              x={maxOutside ? xMax + 8 : xMax - 8}
+              x={maxX}
               y={r.barY + barH / 2 + 5.5 * f}
-              anchor={maxOutside ? 'start' : 'end'}
+              anchor="start"
               size={0.78}
               color={VIZ.friction}
               weight={700}
@@ -176,16 +221,10 @@ function Content({ mA, mB, festeA, festeB, plan, state, peak }: RegnskapProps) {
           </g>
         );
       })}
-
-      {/* Snordraget: samme strek gjennom begge stolpene */}
       {state.S > 0 && (
-        <g>
-          <line x1={xs} x2={xs} y1={yS + 8 * f} y2={barB + barH + 5 * f} stroke={VIZ.surface} strokeWidth={6 * ss} strokeLinecap="round" opacity={0.85} />
-          <line x1={xs} x2={xs} y1={yS + 8 * f} y2={barB + barH + 5 * f} stroke={VIZ.tension} strokeWidth={3 * ss} strokeLinecap="round" />
-          <Txt x={sLabelX} y={yS} size={0.9} weight={760} color={VIZ.tension}>
-            {sText}
-          </Txt>
-        </g>
+        <Txt x={sLabelX} y={yS} size={0.9} weight={760} color={VIZ.tension}>
+          {sText}
+        </Txt>
       )}
     </g>
   );

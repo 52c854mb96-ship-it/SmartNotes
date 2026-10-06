@@ -27,7 +27,7 @@ import {
   type Leddvinkler,
 } from '../../kit/scene';
 import { MEK, ObjectText } from '../../kit/scene/mekanikk-felles';
-import { fmt } from '../../kit';
+import { VIZ, fmt } from '../../kit';
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 const mod = (a: number, n: number) => ((a % n) + n) % n;
@@ -46,7 +46,8 @@ function cloudPath(w: number, rand: () => number): string {
   const h = w / 2.6;
   const j = () => 0.88 + rand() * 0.24;
   const c = (cx: number, cy: number, r: number) =>
-    `M${r2(cx - r)},${r2(cy)}a${r2(r)},${r2(r)} 0 1,0 ${r2(2 * r)},0a${r2(r)},${r2(r)} 0 1,0 ${r2(-2 * r)},0Z`;
+    // Med klokka, som rektangelet, så putene smelter sammen med det (nonzero) i stedet for å bli hull.
+    `M${r2(cx - r)},${r2(cy)}a${r2(r)},${r2(r)} 0 1,1 ${r2(2 * r)},0a${r2(r)},${r2(r)} 0 1,1 ${r2(-2 * r)},0Z`;
   const puffs: [number, number, number][] = [
     [-0.36 * w, -0.3 * h * j(), 0.3 * h * j()],
     [-0.12 * w, -0.5 * h, 0.5 * h * j()],
@@ -227,25 +228,28 @@ export const FallHimmel = memo(function FallHimmel({ x = 0, y = 0, w, h, horison
 
 /* ---------------------------------------------------------------- Hopperen */
 
-/** Leddene for hodet ned (stuping): kroppen rett, armene ut til sidene, beina litt bøyd. */
+/** Leddene for hodet ned (stuping): strak kropp, armene over hodet (mot bakken) og beina samlet, så flaten er liten. */
 const HODE_NED: Partial<Leddvinkler> = {
   rygg: 0,
-  nakke: -8,
-  venstreSkulder: 100,
-  hoyreSkulder: 80,
-  venstreAlbue: 30,
-  hoyreAlbue: 24,
-  venstreHofte: 6,
-  hoyreHofte: -4,
-  venstreKne: 22,
-  hoyreKne: 14,
+  nakke: -6,
+  venstreSkulder: 166,
+  hoyreSkulder: 176,
+  venstreAlbue: 10,
+  hoyreAlbue: 6,
+  venstreHofte: 4,
+  hoyreHofte: -2,
+  venstreKne: 12,
+  hoyreKne: 6,
   venstreAnkel: 30,
   hoyreAnkel: 26,
 };
 
-/** Hvordan hopperen er dreid: magen ned (liggende, hodet mot høyre) eller hodet ned. */
+/**
+ * Hvordan hopperen er dreid: magen ned (liggende, hodet mot høyre) eller hodet ned, litt på skrå (hodet nede til
+ * venstre), så de loddrette kraftpilene fra tyngdepunktet går forbi hodet og beina i stedet for langs hele kroppen.
+ */
 function placement(hodeNed: boolean) {
-  return hodeNed ? { rotate: 180, ledd: HODE_NED } : { rotate: 90, ledd: undefined };
+  return hodeNed ? { rotate: 200, ledd: HODE_NED } : { rotate: 90, ledd: undefined };
 }
 
 /**
@@ -287,17 +291,17 @@ export function hopperOmriss(size: number, hodeNed: boolean): { top: number; lef
 }
 
 /**
- * Luft som strømmer forbi hopperen: fartsstreker over kroppen (hopperen faller nedover, så lufta går oppover i
- * forhold til ham). `length` bør være proporsjonal med farten; ved 0 tegnes ingenting.
+ * Luft som strømmer forbi hopperen: fartsstreker som går oppover fra (x, y) (hopperen faller nedover, så lufta går
+ * oppover i forhold til ham). Legg dem like utenfor endene av kroppen, så de ikke kommer borti kraftpilene og
+ * etikettene over tyngdepunktet. `length` bør være proporsjonal med farten; ved 0 tegnes ingenting.
  */
-export function Luftstrom({ x, y, bredde, length }: { x: number; y: number; bredde: number; length: number }) {
+export function Luftstrom({ xs, y, length, spread }: { xs: number[]; y: number; length: number; spread: number }) {
   if (!(length > 4)) return null;
-  const xs = [x - bredde * 0.36, x + bredde * 0.36];
   return (
     <g opacity={0.9}>
-      {xs.map((cx, i) => (
-        <g key={i} transform={`rotate(90 ${r2(cx)} ${r2(y)})`}>
-          <SpeedLines x={cx} y={y} length={length * (i ? 0.85 : 1)} spread={bredde * 0.32} color={SCENE.outline} />
+      {xs.map((x, i) => (
+        <g key={i} transform={`rotate(90 ${r2(x)} ${r2(y)})`}>
+          <SpeedLines x={x} y={y} length={length * (i ? 0.85 : 1)} spread={spread} color={VIZ.muted} />
         </g>
       ))}
     </g>
@@ -309,7 +313,7 @@ export function Luftstrom({ x, y, bredde, length }: { x: number; y: number; bred
 const DEG = Math.PI / 180;
 
 /**
- * Analog høydemåler for fallskjermhopping (på armen): svart urskive med én runde = 4 000 m (tallene er tusen meter),
+ * Analog høydemåler for fallskjermhopping (på armen): svart urskive med én runde = 4 000 m (tallene er km),
  * rødt felt under 1 000 m der skjermen skal være ute, hvit viser og et lite digitalt vindu med høyden i meter.
  * Ankerpunkt: sentrum. Remmen går ut 0,3 · r over og under.
  */
@@ -337,14 +341,16 @@ export function Hoydemaaler({ x, y, r, hoyde, runde = 4000, rodt = 1000 }: { x: 
   const npx = R * 0.24;
   const nums = [0, 1, 2, 3].map((k) => {
     const a = (k / 4) * 360 - 90;
-    return { k, x: Math.cos(a * DEG) * dial * 0.58, y: Math.sin(a * DEG) * dial * 0.58 };
+    // «2» nederst flyttes litt ned, så det ikke rører det digitale vinduet
+    const rr = dial * (k === 2 ? 0.7 : 0.6);
+    return { k, x: Math.cos(a * DEG) * rr, y: Math.sin(a * DEG) * rr };
   });
   const face = shade(PAINTS.svart, 0.15);
   const ink = tint(PAINTS.hvit, 0.15);
   const hand = `M${pt(ang - 90, R * 0.05)}L${pt(ang, dial * 0.86)}L${pt(ang + 90, R * 0.05)}L${pt(ang + 180, R * 0.18)}Z`;
   const dW = dial * 1.02;
   const dH = R * 0.3;
-  const dY = R * 0.36;
+  const dY = R * 0.28;
   const strapW = R * 0.95;
   const strapL = R * 0.3;
   return (
@@ -397,13 +403,15 @@ export function Hoydemaaler({ x, y, r, hoyde, runde = 4000, rodt = 1000 }: { x: 
           </text>
         ))}
       </g>
-      <text x={0} y={r2(-R * 0.2)} textAnchor="middle" fill={ink} fontSize={r2(R * 0.12)} fontWeight={600} opacity={0.8}>
-        × 1000 m
+      {/* Tallene er kilometer. Oppe til høyre (0–1 000 m) kommer viseren sjelden, for i fritt fall går den fra 4 000 m mot klokka */}
+      <text x={r2(dial * 0.3)} y={r2(-dial * 0.24)} textAnchor="middle" fill={ink} fontSize={r2(R * 0.15)} fontWeight={650} opacity={0.85}>
+        km
       </text>
-      <rect x={-dW / 2} y={dY - dH / 2} width={dW} height={dH} rx={dH * 0.2} fill={SCENE.display} stroke={shade(SCENE.metal, 0.35)} strokeWidth={0.7 * ss} />
-      <ObjectText x={0} y={dY} w={dW * 0.9} h={dH * 0.95} text={`${fmt(h, 0)} m`} color={SCENE.displayText} weight={650} max={15} />
       <path d={hand} fill={PAINTS.hvit} stroke={shade(PAINTS.svart, 0.2)} strokeWidth={0.6 * ss} strokeLinejoin="round" />
       <circle r={R * 0.07} fill={SCENE.metal} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
+      {/* Vinduet ligger over viseren, så høyden alltid kan leses */}
+      <rect x={-dW / 2} y={dY - dH / 2} width={dW} height={dH} rx={dH * 0.2} fill={SCENE.display} stroke={shade(SCENE.metal, 0.35)} strokeWidth={0.7 * ss} />
+      <ObjectText x={0} y={dY} w={dW * 0.9} h={dH * 0.95} text={`${fmt(h, 0)} m`} color={SCENE.displayText} weight={650} max={15} />
       {/* Glasset */}
       <path
         d={`M${pt(195, dial * 0.88)}A${r2(dial * 0.88)},${r2(dial * 0.88)} 0 0,1 ${pt(250, dial * 0.88)}`}

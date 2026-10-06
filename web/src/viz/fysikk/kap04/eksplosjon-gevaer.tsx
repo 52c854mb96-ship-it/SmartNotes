@@ -176,7 +176,6 @@ export function RifleScene({
   );
 }
 
-
 /** Skyteskive langt borte: hvit papp med svarte ringer på to stolper. (x, y) er midt mellom stolpene på bakken. */
 function Skive({ x, y, s }: { x: number; y: number; s: number }) {
   const ss = useStrokeScale();

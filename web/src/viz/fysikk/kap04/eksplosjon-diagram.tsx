@@ -61,7 +61,8 @@ export function EksPanel({
   let hi0 = Math.max(0, ...values);
   if (hi0 - lo0 < 1e-9) hi0 = 1;
   const hasNeg = lo0 < -1e-9;
-  const ticks = niceTicks(lo0, hi0, height > 340 ? 5 : 4);
+  // Færre aksetall når teksten er stor (mobil), så de ikke står tett
+  const ticks = niceTicks(lo0, hi0, height / f > 300 ? 5 : height / f > 230 ? 4 : 3);
   const tickFs = 17 * f * 0.72;
   const td = tickDecimals(ticks);
 
@@ -138,41 +139,59 @@ export function EksPanel({
       ))}
       <line x1={left} y1={zeroY} x2={right} y2={zeroY} stroke={VIZ.muted} strokeWidth={1.6 * ss} />
 
-      {groups.map((g, gi) => (
-        <g key={g.label}>
-          {g.bars.map((b, bi) => {
-            const x1 = bx(gi, bi);
-            const v = clean(b.value);
-            const y = sy(v);
-            const top = Math.min(y, zeroY);
-            const h = Math.max(1.5, Math.abs(y - zeroY));
-            const neg = v < 0;
-            const vy = neg ? Math.max(zeroY, y) + 17 * f * (b.sum ? 1 : 0.72) + 2 : Math.min(zeroY, y) - 6;
-            return (
-              <g key={bi}>
-                <rect x={x1} y={top} width={bw} height={h} rx={3} fill={`url(#${gradId(b.color)})`} />
-                {shows(b) && (
-                  <Txt
-                    x={Math.min(Math.max(x1 + bw / 2, x + 30 * f), x + width - 30 * f)}
-                    y={vy}
-                    size={b.sum ? 1 : 0.72}
-                    weight={b.sum ? 700 : 600}
-                    color={b.sum ? undefined : b.color}
-                  >
-                    {fmt(v, decimals)}
+      {groups.map((g, gi) => {
+        // Tallet over hver søyle: plassering og omtrentlig utstrekning, så et tall som ville havnet oppå summen, skjules.
+        const labelBox = (b: EBar, bi: number) => {
+          const v = clean(b.value);
+          const y = sy(v);
+          const size = b.sum ? 1 : 0.72;
+          const vy = v < 0 ? Math.max(zeroY, y) + 17 * f * size + 2 : Math.min(zeroY, y) - 6;
+          const cx = Math.min(Math.max(bx(gi, bi) + bw / 2, x + 30 * f), x + width - 30 * f);
+          const half = (fmt(v, decimals).length * 17 * f * size * 0.66) / 2;
+          return { vy, cx, x1: cx - half, x2: cx + half, y1: vy - 17 * f * size * 0.8, y2: vy + 2 };
+        };
+        const si = g.bars.findIndex((b) => b.sum);
+        const sumBox = si >= 0 ? labelBox(g.bars[si]!, si) : null;
+        const hits = (bi: number) => {
+          if (!sumBox || bi === si) return false;
+          const a = labelBox(g.bars[bi]!, bi);
+          return a.x1 < sumBox.x2 + 6 && sumBox.x1 < a.x2 + 6 && a.y1 < sumBox.y2 && sumBox.y1 < a.y2;
+        };
+        return (
+          <g key={g.label}>
+            {g.bars.map((b, bi) => {
+              const x1 = bx(gi, bi);
+              const v = clean(b.value);
+              const y = sy(v);
+              const top = Math.min(y, zeroY);
+              const h = Math.max(1.5, Math.abs(y - zeroY));
+              const vy = labelBox(b, bi).vy;
+              return (
+                <g key={bi}>
+                  <rect x={x1} y={top} width={bw} height={h} rx={3} fill={`url(#${gradId(b.color)})`} />
+                  {shows(b) && !hits(bi) && (
+                    <Txt
+                      x={Math.min(Math.max(x1 + bw / 2, x + 30 * f), x + width - 30 * f)}
+                      y={vy}
+                      size={b.sum ? 1 : 0.72}
+                      weight={b.sum ? 700 : 600}
+                      color={b.sum ? undefined : b.color}
+                    >
+                      {fmt(v, decimals)}
+                    </Txt>
+                  )}
+                  <Txt x={x1 + bw / 2} y={nameY} size={0.72} muted weight={650} halo={false}>
+                    {b.name}
                   </Txt>
-                )}
-                <Txt x={x1 + bw / 2} y={nameY} size={0.72} muted weight={650} halo={false}>
-                  {b.name}
-                </Txt>
-              </g>
-            );
-          })}
-          <Txt x={gx(gi) + groupW / 2} y={groupLabelY} weight={active === gi ? 700 : 560} muted={active !== gi}>
-            {g.label}
-          </Txt>
-        </g>
-      ))}
+                </g>
+              );
+            })}
+            <Txt x={gx(gi) + groupW / 2} y={groupLabelY} weight={active === gi ? 700 : 560} muted={active !== gi}>
+              {g.label}
+            </Txt>
+          </g>
+        );
+      })}
       {note && groups[note.group] && (
         <Txt x={gx(note.group) + groupW / 2} y={zeroY - 30 * f} size={0.72} muted>
           {note.text}

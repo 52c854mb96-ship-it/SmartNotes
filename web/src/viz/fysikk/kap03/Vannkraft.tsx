@@ -329,22 +329,6 @@ function Scene({ sc, h, Q, r, t }: { sc: HydroScene; h: number; Q: number; r: Hy
   );
   obstacles.push(damLabel.box);
 
-  // Rørgata: prøv noen punkter langs lia, og helst etiketten til høyre for røret eller under det (i fjellet)
-  const qText = `Q = ${flowText(Q)} m³/s`;
-  const pipeSpots: (LabelSpot & { px: number; py: number })[] = [];
-  for (const side of ['right', 'below', 'rightLow', 'rightHigh'] as const) {
-    for (const frac of [0.42, 0.3, 0.56]) {
-      const a = pointAlong(pipe, startSlope + (endSlope - startSlope) * frac);
-      const base = { px: a.x, py: a.y };
-      if (side === 'right') pipeSpots.push({ ...base, lx: a.x + pipeW / 2 + 20 * f, ly: a.y - 14 * f, anchor: 'start' });
-      if (side === 'below') pipeSpots.push({ ...base, lx: a.x - pipeW / 2 - 14 * f, ly: a.y + 26 * f, anchor: 'end' });
-      if (side === 'rightLow') pipeSpots.push({ ...base, lx: a.x + pipeW / 2 + 14 * f, ly: a.y + 10 * f, anchor: 'start' });
-      if (side === 'rightHigh') pipeSpots.push({ ...base, lx: a.x + pipeW / 2 + 20 * f, ly: a.y - 40 * f, anchor: 'start' });
-    }
-  }
-  const pipeLabel = placeLabel(pipeSpots, Math.max(7, qText.length), lf, obstacles, frame, 2);
-  const pipePt = { x: pipeLabel.px, y: pipeLabel.py };
-  obstacles.push(pipeLabel.box);
 
   const G = SP.generator;
   const genPt = { x: G.x - G.w / 2 + 3, y: (G.top + G.bottom) / 2 };
@@ -375,7 +359,12 @@ function Scene({ sc, h, Q, r, t }: { sc: HydroScene; h: number; Q: number; r: Hy
       const xAt = (y: number) => genPt.x + ((ex - genPt.x) * (Math.min(hi, Math.max(lo, y)) - genPt.y)) / (ey - genPt.y);
       const right = Math.max(xAt(y1), xAt(y2));
       const left = Math.min(xAt(y1), xAt(y2));
-      if (right + 6 > pTagBox.x1 && left - 6 < pTagBox.x2) pTagX = Math.min(pTagMaxX, pTagX + (right + 8 - pTagBox.x1));
+      if (right + 6 > pTagBox.x1 && left - 6 < pTagBox.x2) {
+        const shift = Math.min(pTagMaxX, pTagX + (right + 8 - pTagBox.x1)) - pTagX;
+        pTagX += shift;
+        pTagBox.x1 += shift;
+        pTagBox.x2 += shift;
+      }
     }
   }
   const turbPt = { x: turbine.x - SP.casingW * 0.28, y: turbine.y + SP.casingH * 0.32 };
@@ -390,6 +379,24 @@ function Scene({ sc, h, Q, r, t }: { sc: HydroScene; h: number; Q: number; r: Hy
     obstacles,
     frame,
   );
+  obstacles.push(turbLabel.box);
+
+  // Rørgata: prøv noen punkter langs lia, og helst etiketten til høyre for røret eller under det (i fjellet)
+  const qText = `Q = ${flowText(Q)} m³/s`;
+  const pipeSpots: (LabelSpot & { px: number; py: number })[] = [];
+  for (const side of ['right', 'below', 'rightLow', 'rightHigh'] as const) {
+    for (const frac of [0.42, 0.3, 0.56]) {
+      const a = pointAlong(pipe, startSlope + (endSlope - startSlope) * frac);
+      const base = { px: a.x, py: a.y };
+      if (side === 'right') pipeSpots.push({ ...base, lx: a.x + pipeW / 2 + 20 * f, ly: a.y - 14 * f, anchor: 'start' });
+      if (side === 'below') pipeSpots.push({ ...base, lx: a.x - pipeW / 2 - 14 * f, ly: a.y + 26 * f, anchor: 'end' });
+      if (side === 'rightLow') pipeSpots.push({ ...base, lx: a.x + pipeW / 2 + 14 * f, ly: a.y + 10 * f, anchor: 'start' });
+      if (side === 'rightHigh') pipeSpots.push({ ...base, lx: a.x + pipeW / 2 + 20 * f, ly: a.y - 40 * f, anchor: 'start' });
+    }
+  }
+  const pipeLabel = placeLabel(pipeSpots, Math.max(7, qText.length), lf, obstacles, frame, 2);
+  const pipePt = { x: pipeLabel.px, y: pipeLabel.py };
+  obstacles.push(pipeLabel.box);
 
   return (
     <g clipPath={`url(#${clip})`}>

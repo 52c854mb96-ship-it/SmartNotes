@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Controls,
   Explain,
@@ -21,7 +21,7 @@ import {
 } from '../../kit';
 import { FESTER, FESTE_MU, FESTE_NAVN, FESTE_TEKST, lagFor, tugPeaks, tugPlan, tugState, type Feste, type Lag, type TugPlan, type TugState } from './model-tautrekking';
 import { Kraftregnskap, fN } from './tautrekking-regnskap';
-import { GROUND, H, PX_PER_M, S_END, TugScene, W, restGeometry, type TugView } from './tautrekking-scene';
+import { H, PX_PER_M, S_END, TugScene, W, restGeometry, type TugView } from './tautrekking-scene';
 import { useNarrow } from './useNarrow';
 
 /**
@@ -39,12 +39,15 @@ const VIEWS: { value: TugView; label: string }[] = [
 
 const M_MIN = 60;
 const M_MAX = 240;
-/** Tidspunktet figuren viser før avspilling: midt i dragkampen, før noen glipper (glippet skjer ved 2,5 s). */
-const T_START = 1.5;
+/** Tidspunktet figuren viser før avspilling: i dragkampen like før noen glipper (glippet skjer ved 2,5 s). */
+const T_START = 2.2;
 /** Største kraftskala (px/N), så små krefter på is ikke blir altfor lange piler. */
-const K_MAX = 0.6;
+const K_MAX = 0.8;
 
-const NB = ' ';
+const NB = '\u00a0';
+/** Utsnittet på mobil (før lagene flytter seg). */
+const NARROW_X = 100;
+const NARROW_W = 600;
 
 export default function Tautrekking() {
   const [view, setView] = useState<TugView>('lag');
@@ -59,23 +62,40 @@ export default function Tautrekking() {
   const peaks = useMemo(() => tugPeaks(A, B, plan), [A, B, plan]);
   const clock = useSimClock({ tMax: plan.tEnd });
 
-  // Figuren starter midt i dragkampen, så den gir mening uten avspilling.
-  useLayoutEffect(() => {
-    clock.setT(T_START);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { t, setT } = clock;
+  // Figuren starter i dragkampen like før noen glipper, så den gir mening uten avspilling.
+  useLayoutEffect(() => setT(T_START), [setT]);
   // Nye lag kan gi en kortere dragkamp: hold tiden innenfor.
   useEffect(() => {
-    if (clock.t > plan.tEnd) clock.setT(plan.tEnd);
-  }, [clock, plan.tEnd]);
+    if (t > plan.tEnd) setT(plan.tEnd);
+  }, [t, plan.tEnd, setT]);
 
-  const state = tugState(A, B, plan, clock.t);
+  // Første «Spill av» starter dragkampen fra begynnelsen (figuren står ellers like før glippet).
+  const fresh = useRef(true);
+  const playClock = {
+    ...clock,
+    toggle: () => {
+      if (fresh.current && !clock.playing) clock.setT(0);
+      fresh.current = false;
+      clock.toggle();
+    },
+  };
+
+  const state = tugState(A, B, plan, t);
   const moving = state.phase === 'glir' || state.phase === 'ferdig';
 
   return (
     <VizLayout>
       <Toolbar>
         <Segmented label="Velg hvilke krefter som vises" options={VIEWS} value={view} onChange={setView} />
+      </Toolbar>
+      <Toolbar>
+        <span className="viz-slider-label">Lag A står på</span>
+        <Segmented label="Underlag for lag A" options={FESTER.map((v) => ({ value: v, label: FESTE_NAVN[v] }))} value={festeA} onChange={setFesteA} />
+      </Toolbar>
+      <Toolbar>
+        <span className="viz-slider-label">Lag B står på</span>
+        <Segmented label="Underlag for lag B" options={FESTER.map((v) => ({ value: v, label: FESTE_NAVN[v] }))} value={festeB} onChange={setFesteB} />
       </Toolbar>
       <Controls>
         <Slider
@@ -108,27 +128,21 @@ export default function Tautrekking() {
         />
         <Slider
           label="Tid t"
-          value={clock.t}
-          onChange={(t) => {
+          value={t}
+          onChange={(v) => {
+            fresh.current = false;
             clock.pause();
-            clock.setT(t);
+            setT(v);
           }}
           min={0}
-          max={Math.round(plan.tEnd * 100) / 100}
-          step={0.05}
-          format={(t) => `${fmt(t, 2)}${NB}s`}
+          // Et helt antall steg (ellers er maks ikke en gyldig verdi), og minst tEnd, så slutten kan nås.
+          max={Math.ceil(plan.tEnd * 100 - 1e-6) / 100}
+          step={0.01}
+          format={(v) => `${fmt(v, 2)}${NB}s`}
         />
       </Controls>
       <Toolbar>
-        <span className="viz-slider-label">Lag A står på</span>
-        <Segmented label="Underlag for lag A" options={FESTER.map((v) => ({ value: v, label: FESTE_NAVN[v] }))} value={festeA} onChange={setFesteA} />
-      </Toolbar>
-      <Toolbar>
-        <span className="viz-slider-label">Lag B står på</span>
-        <Segmented label="Underlag for lag B" options={FESTER.map((v) => ({ value: v, label: FESTE_NAVN[v] }))} value={festeB} onChange={setFesteB} />
-      </Toolbar>
-      <Toolbar>
-        <PlayControls clock={clock} />
+        <PlayControls clock={playClock} />
       </Toolbar>
 
       <SceneFigure mA={mA} mB={mB} festeA={festeA} festeB={festeB} plan={plan} state={state} view={view} peaks={peaks} />
@@ -190,8 +204,8 @@ interface SceneFigureProps {
 function SceneFigure(props: SceneFigureProps) {
   const { mA, mB, festeA, festeB, state } = props;
   const [ref, narrow] = useNarrow<HTMLDivElement>();
-  // På mobil vokser teksten: mer himmel over lagene til etikettene.
-  const box = narrow ? { x: 0, y: -70, w: W, h: H + 70 } : { x: 0, y: 0, w: W, h: H };
+  // På mobil et smalere utsnitt rundt lagene (så personene blir store nok), som følger tauet når lagene flytter seg.
+  const box = narrow ? { x: NARROW_X + state.x * PX_PER_M, y: 30, w: NARROW_W, h: H - 30 } : { x: 0, y: 64, w: W, h: H - 64 };
   return (
     <div ref={ref}>
       <Figure
@@ -208,13 +222,16 @@ function SceneFigure(props: SceneFigureProps) {
 /** Velger kraftskalaen (px/N) ut fra plassen i figuren og de største kreftene i hele dragkampen. */
 function ScaledScene(props: SceneFigureProps & { box: { x: number; y: number; w: number; h: number }; narrow: boolean }) {
   const f = useTextScale();
-  const { mA, mB, plan, peaks, box } = props;
+  const { mA, mB, plan, peaks, narrow } = props;
   const geo = useMemo(() => restGeometry(mA, mB), [mA, mB]);
   const label = 16 + 40 * f;
-  const out = S_END * PX_PER_M;
-  // R-pilene går utover fra den fremste foten; vinnerlaget flytter seg `out` utover før dragkampen er slutt.
-  const roomA = geo.leadA - box.x - label - (plan.winner === 'A' ? out : 0);
-  const roomB = box.x + box.w - geo.leadB - label - (plan.winner === 'B' ? out : 0);
+  // R-pilene går utover fra den fremste foten. På PC flytter vinnerlaget seg `out` utover før dragkampen er slutt;
+  // på mobil følger utsnittet lagene, så plassen er den samme hele tiden.
+  const out = narrow ? 0 : S_END * PX_PER_M;
+  const left = narrow ? NARROW_X : 0;
+  const right = narrow ? NARROW_X + NARROW_W : W;
+  const roomA = geo.leadA - left - label - (plan.winner === 'A' ? out : 0);
+  const roomB = right - geo.leadB - label - (plan.winner === 'B' ? out : 0);
   const candidates = [
     K_MAX,
     // S-pilene fra de to grepene møtes ikke på midten
@@ -302,8 +319,8 @@ function explanation({ mA, mB, festeA, festeB, plan, state, view }: ExplainProps
   const L = plan.loser;
   const RmaxL = L === 'A' ? plan.RmaxA : plan.RmaxB;
   const RmaxW = W === 'A' ? plan.RmaxA : plan.RmaxB;
-  const mW = W === 'A' ? mA : mB;
-  const mL = L === 'A' ? mA : mB;
+  const muW = FESTE_MU[W === 'A' ? festeA : festeB].muS;
+  const muL = FESTE_MU[L === 'A' ? festeA : festeB].muS;
   const feste = (side: 'A' | 'B') => FESTE_TEKST[side === 'A' ? festeA : festeB];
   const heavier = mA > mB ? 'A' : mB > mA ? 'B' : null;
 
@@ -331,7 +348,8 @@ function explanation({ mA, mB, festeA, festeB, plan, state, view }: ExplainProps
             <>Grensene er like store, så ingen av lagene glipper før det andre.</>
           )}{' '}
           Se også hvordan lagene lener seg bakover: jo hardere tauet drar, jo mer må de lene seg for ikke å bli dratt forover.
-          {(festeA === 'is' || festeB === 'is') && ' På is kan de nesten ikke lene seg, for da glir beina.'}
+          {(festeA === 'is' || festeB === 'is') &&
+            ' På is kan de nesten ikke lene seg: friksjonen er for liten til å holde igjen, så beina ville glidd fram.'}
         </p>
       );
       break;
@@ -350,7 +368,8 @@ function explanation({ mA, mB, festeA, festeB, plan, state, view }: ExplainProps
           <strong>Lag {L} glipper.</strong> Draget ble større enn den største statiske friksjonen lag {L} kan få, {fN(RmaxL)} N. Nå glir
           føttene, og friksjonen faller til glidefriksjonen, {fN(L === 'A' ? RA : RB)} N. Lag {W} står støtt og går baklengs, og bakken skyver
           på lag {W} med {fN(W === 'A' ? RA : RB)} N. Kraftsummen på hele systemet peker mot lag {W}, så alt akselererer den veien med a ={' '}
-          {fmt(Math.abs(state.a), 2)} m/s². Legg merke til at tauet fortsatt drar like hardt i begge lagene, S = {fN(S)} N, også nå.
+          {fmt(Math.abs(state.a), 2)} m/s². Legg merke til at tauet fortsatt drar like hardt i begge lagene, S = {fN(S)} N, også nå. Lag {W}{' '}
+          drar ikke hardere i tauet enn lag {L}, men bakken skyver hardere på lag {W}.
         </p>
       );
       break;
@@ -361,9 +380,13 @@ function explanation({ mA, mB, festeA, festeB, plan, state, view }: ExplainProps
           {heavier === L ? `, selv om lag ${L} er ${fmt(Math.abs(mA - mB), 0)} kg tyngre` : heavier === W ? ', og det er også det tyngste laget' : ''}.
           Lag {L} står {feste(L!)} og kan få høyst {fN(RmaxL)} N fra bakken, mens lag {W} står {feste(W!)} og kan få {fN(RmaxW)} N.{' '}
           {heavier === L
-            ? `Lag ${L} har kanskje sterkere armer, men det hjelper ikke når beina glir: musklene kan bare dra så hardt som bakken holder igjen.`
+            ? `Lag ${L} har kanskje sterkere armer, men det hjelper ikke når beina glir: laget kan aldri dra hardere enn bakken holder igjen.`
             : heavier === W
-              ? `Med ${mW > mL ? 'større masse' : 'samme masse'} og ${festeA === festeB ? 'samme' : 'bedre'} feste får lag ${W} mest friksjon fra bakken.`
+              ? muW > muL
+                ? `Lag ${W} har både størst masse og best feste.`
+                : muW === muL
+                  ? `Lagene har like godt feste, så det tyngste laget får mest friksjon fra bakken.`
+                  : `Lag ${W} har dårligere feste, men så mye større masse at μsmg likevel blir størst.`
               : 'Lagene er like tunge, så det er festet som avgjør.'}
         </p>
       );
@@ -394,8 +417,8 @@ function explanation({ mA, mB, festeA, festeB, plan, state, view }: ExplainProps
       <p>
         <strong>Kreftene på hvert lag.</strong> Langs bakken virker to krefter på et lag: S fra tauet mot midten og friksjonen R fra bakken
         bakover. Tyngden G og normalkraften N er ikke tegnet: de er like store og motsatt rettet. Men N = mg bestemmer hvor stor friksjonen kan
-        bli, R ≤ μ<Sub>s</Sub>N = μ<Sub>s</Sub>mg. Derfor vinner laget med størst masse og best feste, ikke laget med sterkest armer: tauet drar
-        alltid like hardt i begge lagene.
+        bli, R ≤ μ<Sub>s</Sub>N = μ<Sub>s</Sub>mg. Derfor vinner laget med størst μ<Sub>s</Sub>mg, altså stor masse og godt feste, og ikke laget
+        med sterkest armer: tauet drar alltid like hardt i begge lagene.
       </p>
     );
   }
@@ -407,4 +430,4 @@ function explanation({ mA, mB, festeA, festeB, plan, state, view }: ExplainProps
   );
 }
 
-export { GROUND };
+
