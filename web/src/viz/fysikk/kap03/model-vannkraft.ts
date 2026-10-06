@@ -189,6 +189,7 @@ export function decimalsFor(v: number, sig = 3): number {
 }
 
 const PREFIXES: { f: number; p: string }[] = [
+  { f: 1e12, p: 'T' },
   { f: 1e9, p: 'G' },
   { f: 1e6, p: 'M' },
   { f: 1e3, p: 'k' },
@@ -196,27 +197,51 @@ const PREFIXES: { f: number; p: string }[] = [
 ];
 
 /**
- * Verdi med SI-prefiks og tre gjeldende siffer: 264 870 000 W → { value: 264,87, unit: 'MW', decimals: 0 } (vises som
- * «265 MW»). Går over til neste prefiks når avrundingen gir 1000 (999 600 W → «1,00 MW»).
+ * Verdi med SI-prefiks og tre gjeldende siffer: 264 870 000 W → { value: 265, unit: 'MW', decimals: 0 } (vises som
+ * «265 MW»). Verdien rundes av før prefikset velges, så 999 600 W blir «1,00 MW» og ikke «1 000 kW».
  */
 export function withPrefix(v: number, unit: string, sig = 3): { value: number; unit: string; decimals: number } {
   if (!Number.isFinite(v)) return { value: v, unit, decimals: 0 };
-  const a = Math.abs(v);
-  for (let i = 0; i < PREFIXES.length; i++) {
-    const { f, p } = PREFIXES[i]!;
-    if (a >= f * (1 - 5e-4) || i === PREFIXES.length - 1) {
-      const scaled = v / f;
-      const d = decimalsFor(scaled, sig);
-      const rounded = Number(Math.abs(scaled).toFixed(d));
-      if (rounded >= 1000 && i > 0) {
-        const up = PREFIXES[i - 1]!;
-        const s2 = v / up.f;
-        return { value: s2, unit: `${up.p}${unit}`, decimals: decimalsFor(s2, sig) };
-      }
-      return { value: scaled, unit: `${p}${unit}`, decimals: d };
-    }
+  const r = roundSig(v, sig);
+  const a = Math.abs(r);
+  const pick = PREFIXES.find((p) => a >= p.f) ?? PREFIXES[PREFIXES.length - 1]!;
+  const value = Number((r / pick.f).toPrecision(12));
+  return { value, unit: `${pick.p}${unit}`, decimals: decimalsFor(value, sig) };
+}
+
+/**
+ * Antall desimaler som trengs for å vise et «pent» tall fra glidebryterne helt nøyaktig (høyst 3):
+ * 0,012 → 3, 0,25 → 2, 2,5 → 1, 40 → 0.
+ */
+export function stepDecimals(v: number): number {
+  for (let d = 0; d < 3; d++) {
+    if (Math.abs(Math.round(v * 10 ** d) / 10 ** d - v) < 1e-9 * Math.max(1, Math.abs(v))) return d;
   }
-  return { value: v, unit, decimals: 0 };
+  return 3;
+}
+
+/* ---------- Hvor mye vann er det? ---------- */
+
+export const BUCKET_M3 = 0.01;
+export const BATHTUB_M3 = 0.15;
+/** Et 25-metersbasseng: 25 m · 12,5 m · 1,6 m = 500 m³. */
+export const POOL_M3 = 500;
+
+export type VolumeComparison =
+  | { kind: 'botter'; count: number }
+  | { kind: 'badekar'; count: number }
+  /** Så mange sekunder det tar å fylle et 25-metersbasseng. */
+  | { kind: 'basseng'; seconds: number };
+
+/**
+ * Vannet som renner gjennom turbinen hvert sekund, sammenlignet med noe kjent: bøtter (10 L) opp til 250 L,
+ * badekar (150 L) opp til 15 m³ (100 badekar), og ellers hvor fort det fyller et 25-metersbasseng.
+ */
+export function volumeComparison(Q: number): VolumeComparison {
+  const V = Math.max(0, Q);
+  if (V < 0.25) return { kind: 'botter', count: V / BUCKET_M3 };
+  if (V < 15) return { kind: 'badekar', count: V / BATHTUB_M3 };
+  return { kind: 'basseng', seconds: POOL_M3 / V };
 }
 
 /* ---------- Forhåndsvalg ---------- */

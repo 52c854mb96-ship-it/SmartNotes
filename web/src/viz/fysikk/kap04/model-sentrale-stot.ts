@@ -248,3 +248,38 @@ export function playback(run: Run): Playback {
 export function rateAt(p: Playback, t: number): number {
   return t >= p.slowFrom && t < p.slowTo ? p.contactRate : p.rate;
 }
+
+/** Grensene (s simulert tid) for det langsomme tidsrommet, klemt inn i forsøket: 0 ≤ a ≤ b ≤ tEnd. */
+function slowWindow(p: Playback, run: Run): [number, number] {
+  const a = Math.min(run.tEnd, Math.max(0, p.slowFrom));
+  const b = Math.min(run.tEnd, Math.max(a, p.slowTo));
+  return [a, b];
+}
+
+/** Hvor lenge hele avspillingen varer (s ekte tid): før og etter støtet med `rate`, rundt støtet med `contactRate`. */
+export function playDuration(p: Playback, run: Run): number {
+  const [a, b] = slowWindow(p, run);
+  return a / p.rate + (b - a) / p.contactRate + (run.tEnd - b) / p.rate;
+}
+
+/**
+ * Simulert tid (s) etter `real` sekunder avspilling, fra 0 til playDuration. Klokka i visualiseringen teller ekte
+ * avspillingstid, og denne funksjonen gir tiden i forsøket, så sakte film rundt støtet blir eksakt (ingen hopp).
+ */
+export function simTimeAt(p: Playback, run: Run, real: number): number {
+  const [a, b] = slowWindow(p, run);
+  const ra = a / p.rate;
+  const rb = ra + (b - a) / p.contactRate;
+  const r = Math.max(0, real);
+  const t = r <= ra ? r * p.rate : r <= rb ? a + (r - ra) * p.contactRate : b + (r - rb) * p.rate;
+  return Math.min(run.tEnd, t);
+}
+
+/** Avspillingstiden (s ekte tid) da forsøket er kommet til den simulerte tiden t (s); motsatt av simTimeAt. */
+export function playTimeAt(p: Playback, run: Run, t: number): number {
+  const [a, b] = slowWindow(p, run);
+  const tt = Math.min(run.tEnd, Math.max(0, t));
+  if (tt <= a) return tt / p.rate;
+  if (tt <= b) return a / p.rate + (tt - a) / p.contactRate;
+  return a / p.rate + (b - a) / p.contactRate + (tt - b) / p.rate;
+}

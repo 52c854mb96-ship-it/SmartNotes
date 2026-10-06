@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   Controls,
   Explain,
   Figure,
   Formula,
   FormulaLine,
+  G_EARTH,
   Legend,
   PlayControls,
   Readout,
@@ -21,7 +22,7 @@ import {
   useSimClock,
 } from '../../kit';
 import { elasticityForLossShare, maxLoss, type CollisionResult } from './model';
-import { planRun, playback, rateAt, runAt, type Bumper, type RunSpec } from './model-sentrale-stot';
+import { planRun, playDuration, playback, rateAt, runAt, simTimeAt, type Bumper, type RunSpec } from './model-sentrale-stot';
 import { StotPanel, barDecimals } from './sentrale-stot-diagram';
 import { StotScene, cartReach, sceneLayout, useSceneFrame } from './sentrale-stot-scene';
 import { useNarrow } from './useNarrow';
@@ -80,14 +81,19 @@ export default function SentraleStot() {
   const r = run.result;
   const pb = useMemo(() => playback(run), [run]);
 
-  // Avspillingen går i sakte film når farten er stor, og enda saktere rundt selve støtet.
-  const [speed, setSpeed] = useState(1);
-  const clock = useSimClock({ tMax: run.tEnd, speed });
-  const t = Math.min(clock.t, run.tEnd);
-  const wanted = rateAt(pb, t);
-  useEffect(() => setSpeed(wanted), [wanted]);
+  // Avspillingen går i sakte film når farten er stor, og enda saktere rundt selve støtet. Klokka teller hvor langt
+  // vi er kommet i avspillingen (0–1), så vi beholder stedet når tallene endres, og simTimeAt gir tiden i forsøket.
+  const duration = playDuration(pb, run);
+  const clock = useSimClock({ tMax: 1, speed: 1 / duration });
+  const u = Math.min(1, Math.max(0, clock.t));
+  const t = simTimeAt(pb, run, u * duration);
+  /** Klokka slik PlayControls viser den: tiden i forsøket. */
+  const shown = { ...clock, t };
+  const rate = rateAt(pb, t);
   const st = runAt(spec, run, t);
-  const slowFactor = clock.playing && wanted < 0.95 ? 1 / wanted : null;
+  const slowFactor = clock.playing && rate < 0.95 ? 1 / rate : null;
+  const Fpeak = peakForce(spec, run);
+  const Gsum = (s.m1 + s.m2) * G_EARTH;
 
   const lossPct = r.EkBefore > 0 ? (100 * r.lost) / r.EkBefore : 0;
   // Flere desimaler når energiene er små (lave farter), så tallene ikke rundes til 0,01 J.
@@ -169,11 +175,24 @@ export default function SentraleStot() {
             format={() => `${fmt(lossPct, 0)} %`}
           />
         )}
+        <Slider
+          label="Tidspunkt"
+          ariaLabel="Tidspunkt i forsøket, med sakte film rundt støtet"
+          value={u}
+          onChange={(v) => {
+            clock.pause();
+            clock.setT(v);
+          }}
+          min={0}
+          max={1}
+          step={0.002}
+          format={() => `${fmt(t, 3)} s`}
+        />
       </Controls>
       <Toolbar>
         <Segmented label="Velg type støt" options={KINDS} value={s.kind} onChange={(kind) => set({ kind })} />
         <Toggle label="Vis krefter" checked={showForces} onChange={setShowForces} />
-        <PlayControls clock={clock} />
+        <PlayControls clock={shown} decimals={3} />
       </Toolbar>
 
       <div ref={sceneRef}>
@@ -184,11 +203,11 @@ export default function SentraleStot() {
 
       <div ref={barsRef}>
         <Figure
-          viewBox={`0 0 800 ${narrow ? 400 : 310}`}
-          label="Søylediagram over bevegelsesmengde og kinetisk energi før og etter støtet"
-          maxHeight={360}
+          viewBox={`0 0 800 ${narrow ? 2 * BARS_STACKED : BARS_WIDE}`}
+          label="Søylediagram over bevegelsesmengde og kinetisk energi før og etter støtet, for vogn 1, vogn 2 og summen"
+          maxHeight={narrow ? 640 : 360}
         >
-          <Bars s={s} r={r} height={narrow ? 400 : 310} active={active} />
+          <Bars s={s} r={r} stacked={narrow} active={active} />
         </Figure>
       </div>
       <Legend
@@ -254,12 +273,25 @@ export default function SentraleStot() {
             <strong>Kraftparet under støtet.</strong> Mens støtfangerne er presset sammen, dytter vogn 2 på vogn 1 med kraften F
             <Sub>1</Sub>, og vogn 1 dytter like hardt tilbake på vogn 2 med F<Sub>2</Sub> = −F<Sub>1</Sub> (Newtons 3. lov). Kreftene virker
             like lenge, så impulsene er like store og motsatt rettet: Δp<Sub>1</Sub> = −Δp<Sub>2</Sub>. Det vogn 1 mister av
-            bevegelsesmengde, får vogn 2, og Σp endrer seg ikke, heller ikke midt i støtet. Spill av og se på Σp øverst i figuren.
+            bevegelsesmengde, får vogn 2, og Σp endrer seg ikke, heller ikke midt i støtet. Dra «Tidspunkt» sakte gjennom støtet (eller
+            spill av) og se på Σp øverst i figuren. I modellen varer støtet ca. {fmt(run.tau * 1000, 0)} ms, og den største kraften blir ca.{' '}
+            {fmt(Fpeak, 0)} N
+            {Fpeak > 2 * Gsum ? `, mye større enn tyngden av begge vognene til sammen (${fmt(Gsum, 0)} N)` : ''}.
           </p>
         )}
       </Explain>
     </VizLayout>
   );
+}
+
+/** Høyden på søylediagrammet: to paneler ved siden av hverandre, eller over hverandre på mobil. */
+const BARS_WIDE = 310;
+const BARS_STACKED = 380;
+
+/** Største kraft mellom vognene i støtet (N): toppen av den halve sinusbuen, F_maks = (π/2) · J/τ. */
+function peakForce(spec: RunSpec, run: { tau: number; result: CollisionResult }): number {
+  if (!run.result.collides || !(run.tau > 0)) return 0;
+  return (Math.PI / 2) * ((spec.m1 * (spec.v1 - run.result.u1)) / run.tau);
 }
 
 /** Fart i en utregning: negative tall i parentes, «1,0 kg · (−0,67 m/s)». */
@@ -276,15 +308,19 @@ function sceneLabel(s: State, r: CollisionResult): string {
   }`;
 }
 
-function Bars({ s, r, height, active }: { s: State; r: CollisionResult; height: number; active: number | null }) {
+function Bars({ s, r, stacked, active }: { s: State; r: CollisionResult; stacked: boolean; active: number | null }) {
   const ek = (m: number, v: number) => 0.5 * m * v * v;
   const pVals = [s.m1 * s.v1, s.m2 * s.v2, s.m1 * r.u1, s.m2 * r.u2, r.pBefore];
+  // På mobil står panelene over hverandre i full bredde, ellers ved siden av hverandre.
+  const height = stacked ? BARS_STACKED : BARS_WIDE;
+  const width = stacked ? 800 : 392;
   return (
     <>
       <StotPanel
         x={0}
-        width={392}
+        width={width}
         height={height}
+        maxBar={stacked ? 84 : 50}
         decimals={barDecimals(pVals)}
         level={r.pBefore}
         active={active}
@@ -308,38 +344,45 @@ function Bars({ s, r, height, active }: { s: State; r: CollisionResult; height: 
           },
         ]}
       />
-      <line x1={400} y1={16} x2={400} y2={height - 16} stroke={VIZ.grid} strokeWidth={2} />
-      <StotPanel
-        x={408}
-        width={392}
-        height={height}
-        decimals={barDecimals([r.EkBefore])}
-        level={r.EkBefore}
-        active={active}
-        title={
-          <>
-            Kinetisk energi E<TSub>k</TSub> (J)
-          </>
-        }
-        groups={[
-          {
-            label: 'Før',
-            bars: [
-              { value: ek(s.m1, s.v1), color: C1, name: '1' },
-              { value: ek(s.m2, s.v2), color: C2, name: '2' },
-              { value: r.EkBefore, color: VIZ.ink, name: 'Σ', sum: true },
-            ],
-          },
-          {
-            label: 'Etter',
-            bars: [
-              { value: ek(s.m1, r.u1), color: C1, name: '1' },
-              { value: ek(s.m2, r.u2), color: C2, name: '2' },
-              { value: r.EkAfter, color: VIZ.ink, name: 'Σ', sum: true, ghost: r.EkBefore },
-            ],
-          },
-        ]}
-      />
+      {stacked ? (
+        <line x1={16} y1={height} x2={784} y2={height} stroke={VIZ.grid} strokeWidth={2} />
+      ) : (
+        <line x1={400} y1={16} x2={400} y2={height - 16} stroke={VIZ.grid} strokeWidth={2} />
+      )}
+      <g transform={stacked ? `translate(0 ${height})` : undefined}>
+        <StotPanel
+          x={stacked ? 0 : 408}
+          width={width}
+          height={height}
+          maxBar={stacked ? 84 : 50}
+          decimals={barDecimals([r.EkBefore])}
+          level={r.EkBefore}
+          active={active}
+          title={
+            <>
+              Kinetisk energi E<TSub>k</TSub> (J)
+            </>
+          }
+          groups={[
+            {
+              label: 'Før',
+              bars: [
+                { value: ek(s.m1, s.v1), color: C1, name: '1' },
+                { value: ek(s.m2, s.v2), color: C2, name: '2' },
+                { value: r.EkBefore, color: VIZ.ink, name: 'Σ', sum: true },
+              ],
+            },
+            {
+              label: 'Etter',
+              bars: [
+                { value: ek(s.m1, r.u1), color: C1, name: '1' },
+                { value: ek(s.m2, r.u2), color: C2, name: '2' },
+                { value: r.EkAfter, color: VIZ.ink, name: 'Σ', sum: true, ghost: r.EkBefore },
+              ],
+            },
+          ]}
+        />
+      </g>
     </>
   );
 }
@@ -361,8 +404,19 @@ function explanation(s: State, r: CollisionResult, lossPct: number): ReactNode {
   if (!r.collides)
     return (
       <p>
-        <strong>Ingen støt.</strong> Vogn 1 tar aldri igjen vogn 2 fordi v<Sub>1</Sub> ≤ v<Sub>2</Sub>, så avstanden mellom dem bare
-        øker. Gjør v<Sub>1</Sub> større enn v<Sub>2</Sub>, for eksempel ved å la vogn 2 kjøre mot venstre.
+        <strong>Ingen støt.</strong>{' '}
+        {Math.abs(s.v1 - s.v2) < 1e-9 ? (
+          <>
+            Vognene har samme fart, v<Sub>1</Sub> = v<Sub>2</Sub>, så avstanden mellom dem holder seg den samme, og vogn 1 tar aldri igjen
+            vogn 2.
+          </>
+        ) : (
+          <>
+            Vogn 1 tar aldri igjen vogn 2 fordi v<Sub>1</Sub> &lt; v<Sub>2</Sub>, så avstanden mellom dem bare øker.
+          </>
+        )}{' '}
+        Gjør v<Sub>1</Sub> større enn v<Sub>2</Sub>, for eksempel ved å la vogn 2 kjøre mot venstre. Uten støt virker ingen krefter mellom
+        vognene, og hver vogn beholder sin egen bevegelsesmengde.
       </p>
     );
   if (s.kind === 'elastisk') {
@@ -384,7 +438,7 @@ function explanation(s: State, r: CollisionResult, lossPct: number): ReactNode {
             : bounce
               ? 'Vogn 1 er lettest, så den spretter tilbake, mens vogn 2 får fart framover. Det er derfor en lett ball spretter tilbake når den treffer en tung ball som ligger stille.'
               : kick
-                ? 'Vogn 1 er tyngst og fortsetter framover, og den lette vogn 2 får større fart enn vogn 1 hadde. Det er derfor en tung golfkølle sender ballen av sted med nesten dobbelt så stor fart som køllehodet har.'
+                ? 'Vogn 1 er tyngst og fortsetter framover, og den lette vogn 2 får større fart enn vogn 1 hadde. Det er derfor en golfkølle, som er mye tyngre enn ballen, kan sende ballen av sted med større fart enn køllehodet har.'
                 : 'Farten etter finner vi ved å bruke begge bevaringslovene sammen.'}
         </p>
       </>

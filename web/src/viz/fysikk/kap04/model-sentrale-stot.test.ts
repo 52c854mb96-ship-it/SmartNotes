@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { collide, elasticityForLossShare } from './model';
 import {
   BUMPER_SQUEEZE,
+  CONTACT_PLAY_SECONDS,
   PLAY_SECONDS,
   T_AFTER,
   T_BEFORE,
@@ -10,9 +11,12 @@ import {
   contactImpulse,
   contactTime,
   planRun,
+  playDuration,
+  playTimeAt,
   playback,
   rateAt,
   runAt,
+  simTimeAt,
   squeezeFor,
   type Bumper,
   type RunSpec,
@@ -236,6 +240,47 @@ describe('avspilling', () => {
     expect(p.slowTo).toBeGreaterThan(run.tHit + run.tau);
     // To bilder på høyst 0,05 s ekte tid kan ikke hoppe over starten av støtet
     expect(run.tHit - p.slowFrom).toBeGreaterThanOrEqual(0.1 * p.rate - 1e-12);
+  });
+
+  it('ekte avspillingstid og simulert tid passer sammen, uten hopp, også i sakte film rundt støtet', () => {
+    const specs: RunSpec[] = [
+      { m1: 1, v1: 2, m2: 2, v2: 0, e: 1, bumper: 'fjaer', length: 1.2, w1: 0.232, w2: 0.232, margin: 0.03 },
+      { m1: 5, v1: 3, m2: 0.5, v2: -3, e: 0, bumper: 'borrelaas', length: 0.8, w1: 0.21, w2: 0.21, margin: 0.03 },
+      { m1: 1, v1: 0.1, m2: 1, v2: 0, e: 0.7, bumper: 'gummi', length: 1.2, w1: 0.213, w2: 0.213, margin: 0.03 },
+      { m1: 1, v1: -1, m2: 1, v2: 1, e: 1, bumper: 'fjaer', length: 1.2, w1: 0.232, w2: 0.232, margin: 0.03 },
+    ];
+    for (const sp of specs) {
+      const run = planRun(sp);
+      const p = playback(run);
+      const D = playDuration(p, run);
+      expect(D).toBeGreaterThan(0);
+      expect(simTimeAt(p, run, 0)).toBe(0);
+      expect(simTimeAt(p, run, D)).toBeCloseTo(run.tEnd, 12);
+      expect(simTimeAt(p, run, D + 5)).toBeCloseTo(run.tEnd, 12);
+      let prev = 0;
+      const n = 2000;
+      for (let i = 1; i <= n; i++) {
+        const real = (i / n) * D;
+        const t = simTimeAt(p, run, real);
+        // Stigende, og aldri raskere enn avspillingsfarten der vi er (ingen hopp)
+        expect(t).toBeGreaterThanOrEqual(prev);
+        expect(t - prev).toBeLessThanOrEqual((D / n) * p.rate + 1e-12);
+        expect(playTimeAt(p, run, t)).toBeCloseTo(real, 9);
+        prev = t;
+      }
+    }
+  });
+
+  it('sakte film: støttiden tar ca. CONTACT_PLAY_SECONDS av avspillingen, resten ca. PLAY_SECONDS', () => {
+    const sp: RunSpec = { m1: 1, v1: 2, m2: 2, v2: 0, e: 1, bumper: 'fjaer', length: 1.2, w1: 0.232, w2: 0.232, margin: 0.03 };
+    const run = planRun(sp);
+    const p = playback(run);
+    const slow = playTimeAt(p, run, p.slowTo) - playTimeAt(p, run, p.slowFrom);
+    expect(slow).toBeCloseTo(CONTACT_PLAY_SECONDS, 9);
+    expect(playDuration(p, run) - slow).toBeLessThanOrEqual(PLAY_SECONDS + 1e-9);
+    // Rundt støtet går klokka saktere enn (eller like sakte som) før og etter
+    expect(p.contactRate).toBeLessThanOrEqual(p.rate);
+    expect(rateAt(p, run.tHit + run.tau / 2)).toBe(p.contactRate);
   });
 
   it('aldri fortere enn sanntid', () => {

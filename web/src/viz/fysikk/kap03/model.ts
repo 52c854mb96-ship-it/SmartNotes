@@ -280,6 +280,27 @@ export function liftsOffAtHump(track: Track, E: number, m: number, g = G_EARTH):
   return v2 > g * track.hump.r;
 }
 
+export interface HumpOutcome {
+  /**
+   * 'over': kommer over toppen i midten. 'under': snur før toppen. 'akkurat': uten friksjon og med starthøyden
+   * nøyaktig like høy som toppen, der legemet i teorien stopper på toppen (simuleringen tipper over på avrundingen).
+   */
+  result: 'over' | 'under' | 'akkurat';
+  /** Energien som trengs for å komme opp på toppen, m·g·h_topp (J). */
+  need: number;
+  /** Mekanisk energi første gang legemet er på toppen (J), eller null hvis det aldri kommer dit. */
+  Etop: number | null;
+}
+
+/** Om legemet kommer over toppen i midten av «bakke» (null for U-rampen), regnet fra simuleringen. */
+export function humpOutcome(track: Track, sim: TrackSim, m: number, g = G_EARTH): HumpOutcome | null {
+  if (!track.hump) return null;
+  const need = m * g * track.hump.h;
+  const first = sim.samples.find((s) => s.x >= track.hump!.x);
+  if (sim.R === 0 && Math.abs(sim.E0 - need) <= 1e-9 * Math.max(1, need)) return { result: 'akkurat', need, Etop: need };
+  return first ? { result: 'over', need, Etop: first.E } : { result: 'under', need, Etop: null };
+}
+
 /** Punktet som er nærmest tiden t. */
 export function sampleAt(sim: TrackSim, t: number): TrackSample {
   const i = Math.min(sim.samples.length - 1, Math.max(0, Math.round(t / sim.every)));

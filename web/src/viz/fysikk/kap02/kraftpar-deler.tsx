@@ -1,17 +1,21 @@
 /**
  * Egne gjenstander til kraftparscenen (k2-kraftpar, 2D) som scene-kit-et ikke har: en lærebok sett fra snittkanten
- * (sidene mellom to permer) og en hånd som presser flatt ned på noe (underarm med genserermet). Samme stil som
+ * (sidene mellom to permer), en hånd som presser flatt ned på noe (underarm med genserermet), nedre del av et vindu,
+ * en vegghylle med bøker, en blyant og et snitt gjennom gulvet og grunnen ned til jordas sentrum. Samme stil som
  * scene-kit-et: toninger fra core, SCENE-farger, tynn kontur og myke skygger. Alle mål er i figurens enheter.
  */
+import { useMemo } from 'react';
 import {
   ContactShadow,
   LinearGradient,
   PAINTS,
+  RadialGradient,
   SCENE,
   SCENE_DIM,
   materialStops,
   mix,
   paint,
+  sceneRandom,
   shade,
   tint,
   useStrokeScale,
@@ -251,4 +255,389 @@ export function Hand({ x, y, k, top, vinkel = 14, loft = 0, genser = 'gul', dim 
 
 function mixPt(a: Pt, b: Pt, t: number): Pt {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+}
+
+/* ---------------------------------------------------------------- Vindu (nedre del) */
+
+/** Hvit karm og list (som fotlisten i Rom), litt varmere enn veggen. */
+const TRIM = mix(PAINTS.hvit, SCENE.wall, 0.35);
+
+/**
+ * Nedre del av et vindu på veggen bak skrivebordet: glasset med himmel og åser utenfor, midtpost, karm og en
+ * vinduspost (benk) med skygge under. Vinduet fortsetter opp og ut av figuren over `top`.
+ * Ankerpunkt: (x, bunn) er midt på underkanten av glasset. `w` er bredden på glasset.
+ *   <VinduUtsnitt x={712} w={130} top={0} bunn={74} />
+ */
+export function VinduUtsnitt({ x, w, top, bunn }: { x: number; w: number; top: number; bunn: number }) {
+  const ss = useStrokeScale();
+  const id = useSvgId('kp-vindu');
+  if (!(w > 10) || !(bunn - top > 8)) return null;
+  const f = clamp(w * 0.07, 4, 9);
+  const L = x - w / 2;
+  const R = x + w / 2;
+  const T = top - 4;
+  const gh = bunn - T;
+  return (
+    <g aria-hidden>
+      <LinearGradient
+        id={`${id}h`}
+        userSpace
+        x1={0}
+        y1={T}
+        x2={0}
+        y2={bunn}
+        stops={[
+          [0, SCENE.skyTop],
+          [1, SCENE.skyBottom],
+        ]}
+      />
+      {/* Skygge av karmen på veggen */}
+      <rect x={L - f + 3} y={T} width={w + 2 * f} height={gh + f + 3} fill={SCENE.shadow} opacity={0.45} />
+      <rect x={L - f} y={T} width={w + 2 * f} height={gh + f} fill={TRIM} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+      <rect x={L} y={T} width={w} height={gh} fill={`url(#${id}h)`} />
+      {/* Utsikten: fjerne og nære åser, og toppen av et par grantrær */}
+      <path
+        d={`M${r1(L)},${r1(bunn - gh * 0.42)}Q${r1(L + w * 0.3)},${r1(bunn - gh * 0.62)} ${r1(L + w * 0.62)},${r1(bunn - gh * 0.46)}T${r1(R)},${r1(bunn - gh * 0.5)}V${r1(bunn)}H${r1(L)}Z`}
+        fill={SCENE.hillFar}
+      />
+      <path
+        d={`M${r1(L)},${r1(bunn - gh * 0.2)}Q${r1(L + w * 0.45)},${r1(bunn - gh * 0.34)} ${r1(R)},${r1(bunn - gh * 0.16)}V${r1(bunn)}H${r1(L)}Z`}
+        fill={SCENE.hillNear}
+      />
+      {[0.72, 0.84].map((t, i) => {
+        const tx = L + w * t;
+        const th = gh * (0.36 - i * 0.08);
+        const tb = bunn - gh * 0.2;
+        return (
+          <path
+            key={i}
+            d={`M${r1(tx)},${r1(tb - th)}L${r1(tx + th * 0.22)},${r1(tb)}H${r1(tx - th * 0.22)}Z`}
+            fill={SCENE.foliageDark}
+            opacity={0.8}
+          />
+        );
+      })}
+      {/* Gjenskinn i glasset */}
+      <path
+        d={`M${r1(L + w * 0.12)},${r1(T)}H${r1(L + w * 0.3)}L${r1(L + w * 0.08)},${r1(bunn)}H${r1(L)}V${r1(T + gh * 0.4)}Z`}
+        fill={SCENE.highlight}
+        opacity={0.5}
+      />
+      <rect x={x - f * 0.45} y={T} width={f * 0.9} height={gh} fill={TRIM} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
+      {/* Vinduspost (benken) med skygge på veggen under */}
+      <rect x={L - f * 2.2} y={bunn + f * 0.7} width={w + f * 4.4} height={f * 1.2} rx={1} fill={TRIM} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+      <line x1={L - f * 2.2 + 1} y1={bunn + f * 0.7 + 0.8 * ss} x2={R + f * 2.2 - 1} y2={bunn + f * 0.7 + 0.8 * ss} stroke={SCENE.highlight} strokeWidth={1.1 * ss} />
+      <rect x={L - f * 2.2} y={bunn + f * 1.9} width={w + f * 4.4} height={f * 1.3} fill={SCENE.shadow} opacity={0.4} />
+    </g>
+  );
+}
+
+/* ---------------------------------------------------------------- Vegghylle */
+
+/** Bøkene på hylla: bredde og høyde i meter, farge og helning (grader, mot høyre). */
+const SHELF_BOOKS: { w: number; h: number; c: PaintName; lean?: number }[] = [
+  { w: 0.035, h: 0.24, c: 'blaa' },
+  { w: 0.028, h: 0.22, c: 'gronn' },
+  { w: 0.045, h: 0.25, c: 'rod' },
+  { w: 0.022, h: 0.2, c: 'gul' },
+  { w: 0.03, h: 0.23, c: 'graa' },
+  { w: 0.026, h: 0.21, c: 'blaa', lean: 14 },
+];
+
+/**
+ * Vegghylle i tre med bøker (ryggene vender ut) og en liten potteplante. Ankerpunkt: (x, y) er venstre ende av
+ * oversiden av hyllebrettet; `w` er lengden og `k` skalaen (figurens enheter per meter).
+ *   <Vegghylle x={30} y={150} w={150} k={420} />
+ */
+export function Vegghylle({ x, y, w, k }: { x: number; y: number; w: number; k: number }) {
+  const ss = useStrokeScale();
+  const id = useSvgId('kp-hylle');
+  if (!(w > 20) || !(k > 0)) return null;
+  const board = Math.max(3, 0.022 * k);
+  let bx = x + 0.03 * k;
+  const books = SHELF_BOOKS.map((b, i) => {
+    const bw = b.w * k;
+    const bh = b.h * k;
+    const left = bx;
+    bx += bw + (b.lean ? bh * Math.sin(((b.lean ?? 0) * Math.PI) / 180) : 0.5);
+    // Dempede farger: bøkene i bakgrunnen skal ikke konkurrere med kraftpilene.
+    const c = mix(paint(b.c), SCENE.wall, 0.3);
+    // Den siste boka lener seg mot de andre: dreid om det nederste høyre hjørnet.
+    const tr = b.lean ? `rotate(${b.lean} ${r1(left + bw)} ${r1(y)})` : undefined;
+    const band = Math.max(2, bh * 0.07);
+    return (
+      <g key={i} transform={tr}>
+        <rect x={left} y={y - bh} width={bw} height={bh} rx={Math.min(1.5, bw * 0.12)} fill={`url(#${id}b${i})`} />
+        <LinearGradient
+          id={`${id}b${i}`}
+          x2={1}
+          y2={0}
+          stops={[
+            [0, tint(c, 0.12)],
+            [0.35, mix(c, SCENE.wall, 0.15)],
+            [1, shade(c, 0.28)],
+          ]}
+        />
+        <rect x={left} y={y - bh + bh * 0.12} width={bw} height={band} fill={shade(c, 0.35)} opacity={0.55} />
+        <rect x={left} y={y - bh * 0.24} width={bw} height={band * 0.6} fill={tint(c, 0.4)} opacity={0.6} />
+        <rect x={left} y={y - bh} width={bw} height={bh} rx={Math.min(1.5, bw * 0.12)} fill="none" stroke={SCENE.outline} strokeWidth={0.7 * ss} />
+      </g>
+    );
+  });
+  // Potteplante i den høyre enden
+  const px = x + w - 0.07 * k;
+  const pr = 0.045 * k;
+  const ph = 0.08 * k;
+  const pot = shade(mix(SCENE.brick, SCENE.soil, 0.3), 0.02);
+  const leaves: string[] = [];
+  for (const [a, l] of [
+    [-62, 1],
+    [-30, 1.25],
+    [-5, 1.1],
+    [25, 1.2],
+    [58, 0.95],
+  ] as const) {
+    const rad = (a * Math.PI) / 180;
+    const len = 0.11 * k * l;
+    const bx0 = px;
+    const by0 = y - ph + 2;
+    const tx = bx0 + Math.sin(rad) * len;
+    const ty = by0 - Math.cos(rad) * len;
+    const nx = Math.cos(rad) * len * 0.22;
+    const ny = Math.sin(rad) * len * 0.22;
+    const mx = (bx0 + tx) / 2;
+    const my = (by0 + ty) / 2;
+    leaves.push(`M${r1(bx0)},${r1(by0)}Q${r1(mx + nx)},${r1(my + ny)} ${r1(tx)},${r1(ty)}Q${r1(mx - nx)},${r1(my - ny)} ${r1(bx0)},${r1(by0)}Z`);
+  }
+  return (
+    <g aria-hidden>
+      <LinearGradient id={`${id}t`} stops={materialStops(SCENE.wood, 0.8)} />
+      <LinearGradient
+        id={`${id}p`}
+        x2={1}
+        y2={0}
+        stops={[
+          [0, tint(pot, 0.18)],
+          [0.5, pot],
+          [1, shade(pot, 0.25)],
+        ]}
+      />
+      {/* Konsollene under brettet og skyggen på veggen */}
+      <rect x={x + 3} y={y + board} width={w} height={board * 1.4} fill={SCENE.shadow} opacity={0.35} />
+      {[x + w * 0.18, x + w * 0.82].map((cx, i) => (
+        <path
+          key={i}
+          d={`M${r1(cx - 1.5)},${r1(y + board)}V${r1(y + board + 0.06 * k)}L${r1(cx + 1.5)},${r1(y + board + 0.06 * k - 3)}V${r1(y + board)}Z`}
+          fill={SCENE.metalDark}
+        />
+      ))}
+      {books}
+      <path d={leaves.join('')} fill={SCENE.foliage} stroke={SCENE.foliageDark} strokeWidth={0.7 * ss} strokeLinejoin="round" />
+      <path
+        d={`M${r1(px - pr)},${r1(y - ph)}H${r1(px + pr)}L${r1(px + pr * 0.78)},${r1(y)}H${r1(px - pr * 0.78)}Z`}
+        fill={`url(#${id}p)`}
+        stroke={SCENE.outline}
+        strokeWidth={0.8 * ss}
+        strokeLinejoin="round"
+      />
+      <rect x={px - pr * 1.05} y={y - ph} width={pr * 2.1} height={ph * 0.18} rx={1} fill={tint(pot, 0.1)} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
+      <rect x={x} y={y} width={w} height={board} rx={1} fill={`url(#${id}t)`} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+      <line x1={x + 1} y1={y + 0.7 * ss} x2={x + w - 1} y2={y + 0.7 * ss} stroke={SCENE.highlight} strokeWidth={1 * ss} />
+    </g>
+  );
+}
+
+/* ---------------------------------------------------------------- Blyant */
+
+/**
+ * Gul blyant (sekskantet) som ligger på bordet, sett fra siden: spissen mot venstre, viskelær med metallhylse til
+ * høyre. Ankerpunkt: (x, y) er midt på blyanten der den ligger på flaten. `k` er skalaen (enheter per meter);
+ * en blyant er 17 cm lang og 7 mm tykk.
+ */
+export function Blyant({ x, y, k }: { x: number; y: number; k: number }) {
+  const ss = useStrokeScale();
+  const id = useSvgId('kp-blyant');
+  if (!(k > 0)) return null;
+  const len = 0.17 * k;
+  const d = Math.max(2.4, 0.007 * k);
+  const L = x - len / 2;
+  const R = x + len / 2;
+  const tip = len * 0.11;
+  const ferrule = len * 0.07;
+  const eraser = len * 0.055;
+  const T = y - d;
+  const body = PAINTS.gul;
+  return (
+    <g aria-hidden>
+      <ContactShadow cx={x} cy={y} rx={len * 0.5} ry={Math.max(1.5, d * 0.45)} opacity={0.8} />
+      <LinearGradient id={`${id}b`} stops={materialStops(body, 1.2)} />
+      <LinearGradient id={`${id}m`} stops={materialStops(SCENE.metal, 1.4)} />
+      <path d={`M${r1(L + tip)},${r1(T)}L${r1(L)},${r1(y - d * 0.5)}L${r1(L + tip)},${r1(y)}Z`} fill={SCENE.woodLight} stroke={SCENE.outline} strokeWidth={0.6 * ss} strokeLinejoin="round" />
+      <path d={`M${r1(L + tip * 0.32)},${r1(y - d * 0.66)}L${r1(L)},${r1(y - d * 0.5)}L${r1(L + tip * 0.32)},${r1(y - d * 0.34)}Z`} fill={SCENE.rubber} />
+      <rect x={L + tip} y={T} width={len - tip - ferrule - eraser} height={d} fill={`url(#${id}b)`} />
+      <line x1={L + tip} y1={y - d * 0.5} x2={R - ferrule - eraser} y2={y - d * 0.5} stroke={shade(body, 0.2)} strokeWidth={0.5 * ss} opacity={0.6} />
+      <rect x={R - ferrule - eraser} y={T - d * 0.04} width={ferrule} height={d * 1.08} fill={`url(#${id}m)`} />
+      <rect x={R - eraser} y={T} width={eraser} height={d} rx={Math.min(1.2, d * 0.3)} fill={tint(PAINTS.rod, 0.45)} />
+      <rect x={L + tip} y={T} width={len - tip} height={d} rx={Math.min(1, d * 0.2)} fill="none" stroke={SCENE.outline} strokeWidth={0.7 * ss} />
+    </g>
+  );
+}
+
+/* ---------------------------------------------------------------- Snitt ned til jordas sentrum */
+
+export interface JordSnittProps {
+  /** Venstre og høyre kant av snittet. */
+  x1: number;
+  x2: number;
+  /** Forkanten av gulvet: snittet begynner her med betongplata. */
+  y: number;
+  /** Bruddlinja: over den er snittet i målestokk, under den er avstanden ned til sentrum forkortet. */
+  brudd: number;
+  /** Jordas sentrum (spissen av kilen). */
+  cx: number;
+  cy: number;
+  /** Halve åpningsvinkelen til kilen i grader (standard 56). */
+  vinkel?: number;
+  dim?: boolean;
+}
+
+/** Siksakkant langs en bruddlinje: punktene går vekselvis opp og ned med amplituden `a`. */
+function zigzag(xa: number, xb: number, y: number, a: number, step: number): [number, number][] {
+  const n = Math.max(2, Math.round((xb - xa) / step));
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= n; i++) pts.push([xa + ((xb - xa) * i) / n, y + (i % 2 === 0 ? -a : a)]);
+  return pts;
+}
+
+/**
+ * Snitt under gulvet, som i en lærebokfigur: betongplate, pukk og jord, en bruddlinje, og under den en kile av jordas
+ * indre (mantel, ytre og indre kjerne) som smalner inn mot jordas sentrum i (cx, cy). Kilen viser at jorda er ei kule,
+ * og at kreftene fra og på jorda som helhet tegnes i sentrum.
+ *   <JordSnitt x1={0} x2={800} y={516} brudd={566} cx={400} cy={682} />
+ */
+export function JordSnitt({ x1, x2, y, brudd, cx, cy, vinkel = 56, dim }: JordSnittProps) {
+  const ss = useStrokeScale();
+  const id = useSvgId('kp-snitt');
+  const slab = Math.min(16, (brudd - y) * 0.3);
+  const gravel = Math.min(12, (brudd - y) * 0.22);
+  const amp = 3;
+  const gap = 7;
+  const wedgeTop = brudd + gap;
+  const h = cy - wedgeTop;
+  const tanA = Math.tan((clamp(vinkel, 10, 80) * Math.PI) / 180);
+  const half = h * tanA;
+  const rand = useMemo(() => {
+    const rnd = sceneRandom(7);
+    const stones: { x: number; y: number; rx: number; ry: number; a: number; layer: 'pukk' | 'jord' }[] = [];
+    const span = x2 - x1;
+    for (let i = 0; i < Math.round(span / 9); i++) {
+      stones.push({ x: x1 + rnd() * span, y: y + slab + 2 + rnd() * (gravel - 4), rx: 1.6 + rnd() * 2.2, ry: 1.2 + rnd() * 1.4, a: rnd() * 180, layer: 'pukk' });
+    }
+    for (let i = 0; i < Math.round(span / 40); i++) {
+      stones.push({ x: x1 + rnd() * span, y: y + slab + gravel + 6 + rnd() * Math.max(2, brudd - y - slab - gravel - 14), rx: 2.5 + rnd() * 4, ry: 1.8 + rnd() * 2.4, a: rnd() * 180, layer: 'jord' });
+    }
+    const dots: string[] = [];
+    for (let i = 0; i < Math.round(span / 6); i++) {
+      const dx = x1 + rnd() * span;
+      const dy = y + 2 + rnd() * (slab - 4);
+      dots.push(`M${r1(dx)},${r1(dy)}h0.01`);
+    }
+    return { stones, dots: dots.join('') };
+  }, [x1, x2, y, slab, gravel, brudd]);
+  if (!(x2 > x1) || !(brudd > y + 10) || !(h > 10)) return null;
+
+  const ground = zigzag(x1, x2, brudd, amp, 14);
+  const groundPath = `M${r1(x1)},${r1(y)}H${r1(x2)}` + ground.reverse().map(([px, py]) => `L${r1(px)},${r1(py)}`).join('') + 'Z';
+  const topEdge = zigzag(cx - half, cx + half, wedgeTop, amp, 14);
+  const wedgePath = `M${r1(cx)},${r1(cy)}` + topEdge.map(([px, py]) => `L${r1(px)},${r1(py)}`).join('') + 'Z';
+  // Lagene i jorda (radius 6 370 km): ytre kjerne fra 3 480 km og indre kjerne fra 1 220 km. Kilen viser de
+  // nederste ca. 80 % av radien, så grensene havner ved 0,55/0,8 og 0,19/0,8 av høyden.
+  const rOuter = h * 0.68;
+  const rInner = h * 0.24;
+  const mantle = mix(SCENE.soilDark, SCENE.stoneDark, 0.45);
+  const outer = mix(mix(SCENE.stone, SCENE.soil, 0.55), SCENE.warm, 0.14);
+  const inner = mix(tint(SCENE.stone, 0.15), SCENE.glow, 0.18);
+  return (
+    <g opacity={dim ? SCENE_DIM : undefined} aria-hidden>
+      <LinearGradient
+        id={`${id}b`}
+        userSpace
+        x1={0}
+        y1={y}
+        x2={0}
+        y2={y + slab}
+        stops={[
+          [0, tint(SCENE.concrete, 0.1)],
+          [1, shade(SCENE.concrete, 0.12)],
+        ]}
+      />
+      <LinearGradient
+        id={`${id}j`}
+        userSpace
+        x1={0}
+        y1={y + slab + gravel}
+        x2={0}
+        y2={brudd}
+        stops={[
+          [0, SCENE.soil],
+          [1, shade(SCENE.soilDark, 0.1)],
+        ]}
+      />
+      <RadialGradient
+        id={`${id}m`}
+        userSpace
+        cx={cx}
+        cy={cy}
+        r={h}
+        stops={[
+          [0, tint(mantle, 0.2)],
+          [1, shade(mantle, 0.15)],
+        ]}
+      />
+      <clipPath id={`${id}k`}>
+        <path d={wedgePath} />
+      </clipPath>
+      <clipPath id={`${id}g`}>
+        <path d={groundPath} />
+      </clipPath>
+      {/* Grunnen under huset: betongplate, pukk og jord, med bruddlinje nederst */}
+      <g clipPath={`url(#${id}g)`}>
+        <rect x={x1} y={y} width={x2 - x1} height={brudd - y + amp} fill={`url(#${id}j)`} />
+        <rect x={x1} y={y + slab} width={x2 - x1} height={gravel} fill={SCENE.gravel} />
+        {rand.stones.map((s, i) => (
+          <ellipse
+            key={i}
+            cx={s.x}
+            cy={s.y}
+            rx={s.rx}
+            ry={s.ry}
+            transform={`rotate(${r1(s.a)} ${r1(s.x)} ${r1(s.y)})`}
+            fill={s.layer === 'pukk' ? (i % 3 === 0 ? SCENE.gravelDark : tint(SCENE.gravel, 0.25)) : mix(SCENE.stone, SCENE.soilDark, 0.35)}
+            stroke={SCENE.outline}
+            strokeWidth={0.4 * ss}
+            opacity={0.9}
+          />
+        ))}
+        <rect x={x1} y={y} width={x2 - x1} height={slab} fill={`url(#${id}b)`} />
+        <path d={rand.dots} stroke={SCENE.concreteDark} strokeWidth={1.6 * ss} strokeLinecap="round" opacity={0.7} />
+        <line x1={x1} y1={y + slab} x2={x2} y2={y + slab} stroke={SCENE.outline} strokeWidth={0.6 * ss} opacity={0.6} />
+      </g>
+      <path d={groundPath} fill="none" stroke={SCENE.outline} strokeWidth={0.9 * ss} strokeLinejoin="round" />
+      {/* Kilen ned til sentrum */}
+      <g clipPath={`url(#${id}k)`}>
+        <rect x={cx - half - 2} y={wedgeTop - amp - 2} width={2 * half + 4} height={h + amp + 4} fill={`url(#${id}m)`} />
+        <circle cx={cx} cy={cy} r={rOuter} fill={outer} />
+        <circle cx={cx} cy={cy} r={rOuter} fill="none" stroke={SCENE.outline} strokeWidth={0.6 * ss} opacity={0.5} />
+        <circle cx={cx} cy={cy} r={rInner} fill={inner} />
+        <circle cx={cx} cy={cy} r={rInner} fill="none" stroke={SCENE.outline} strokeWidth={0.6 * ss} opacity={0.5} />
+        <path
+          d={`M${r1(cx - half)},${r1(wedgeTop)}L${r1(cx)},${r1(cy)}`}
+          stroke={SCENE.highlight}
+          strokeWidth={2 * ss}
+          opacity={0.6}
+        />
+      </g>
+      <path d={wedgePath} fill="none" stroke={SCENE.outline} strokeWidth={0.9 * ss} strokeLinejoin="round" />
+    </g>
+  );
 }

@@ -42,6 +42,7 @@ export function StotPanel({
   decimals,
   level,
   active,
+  maxBar = 50,
 }: {
   x: number;
   width: number;
@@ -51,6 +52,8 @@ export function StotPanel({
   decimals: number;
   level: number;
   active: number | null;
+  /** Største bredde på en søyle (bredere når panelet har hele bredden, på mobil). */
+  maxBar?: number;
 }) {
   const f = useTextScale();
   const ss = useStrokeScale();
@@ -61,17 +64,7 @@ export function StotPanel({
   if (hi0 - lo0 < 1e-9) hi0 = 1;
   const hasNeg = lo0 < -1e-9;
   const ticks = niceTicks(lo0, hi0, height > 340 ? 5 : 4);
-
-  // Plass til tittel, tall over (og under) søylene, navnene under søylene og gruppenavnene.
   const tickFs = 17 * f * 0.72;
-  const valueRoom = 22 * f;
-  const plotTop = 30 * f + 12 + valueRoom;
-  const groupLabelY = height - 8;
-  const nameY = groupLabelY - 20 * f - 2;
-  const plotBottom = nameY - 14 * f - 6 - (hasNeg ? valueRoom : 0);
-  const scale = (plotBottom - plotTop) / (hi0 - lo0);
-  const zeroY = plotTop + hi0 * scale;
-  const sy = (v: number) => zeroY - v * scale;
 
   // Aksetall til venstre, søylene i resten av panelet
   const tickW = Math.max(...ticks.map((t) => fmt(t, tickDecimals(ticks)).length)) * tickFs * 0.6;
@@ -81,15 +74,29 @@ export function StotPanel({
   const gap = 6;
   const groupGap = 38 + 6 * f;
   const avail = right - left - 16;
-  const bw = Math.min(50, (avail - groupGap * (groups.length - 1) - gap * (n - 1) * groups.length) / (n * groups.length));
+  const bw = Math.min(maxBar, (avail - groupGap * (groups.length - 1) - gap * (n - 1) * groups.length) / (n * groups.length));
   const groupW = n * bw + (n - 1) * gap;
   const totalW = groups.length * groupW + (groups.length - 1) * groupGap;
   const x0 = left + (right - left - totalW) / 2;
   const gx = (gi: number) => x0 + gi * (groupW + groupGap);
   const bx = (gi: number, bi: number) => gx(gi) + bi * (bw + gap);
 
-  // Tallene over hver søyle når det er plass (PC), ellers bare summen.
+  // Tallene over hver søyle når det er plass, ellers bare summen. Tall som er null, vises ikke.
   const room = (text: string) => text.length * 17 * f * 0.72 * 0.58 < bw + gap - 2;
+  const shows = (b: StotBar) =>
+    (b.sum || room(fmt(b.value, decimals))) && Math.abs(b.value) >= 0.5 * 10 ** -decimals;
+
+  // Plass til tittel, tall over (og under) søylene, navnene under søylene og gruppenavnene. Under nullinja trengs
+  // plass til tall bare når et negativt tall faktisk vises.
+  const valueRoom = 22 * f;
+  const negLabel = hasNeg && groups.some((g) => g.bars.some((b) => b.value < 0 && shows(b)));
+  const plotTop = 30 * f + 12 + valueRoom;
+  const groupLabelY = height - 8;
+  const nameY = groupLabelY - 20 * f - 2;
+  const plotBottom = nameY - 14 * f - 6 - (negLabel ? valueRoom : 0);
+  const scale = (plotBottom - plotTop) / (hi0 - lo0);
+  const zeroY = plotTop + hi0 * scale;
+  const sy = (v: number) => zeroY - v * scale;
   const colors = [...new Set(groups.flatMap((g) => g.bars.map((b) => b.color)))];
   const gradId = (c: string) => `${id}-${colors.indexOf(c)}`;
 
@@ -168,7 +175,7 @@ export function StotPanel({
             const top = Math.min(y, zeroY);
             const h = Math.max(1.5, Math.abs(y - zeroY));
             const text = fmt(b.value, decimals);
-            const showValue = (b.sum || (room(text) && f < 1.3)) && Math.abs(b.value) >= 0.5 * 10 ** -decimals;
+            const showValue = shows(b);
             const neg = b.value < 0;
             const ghostTop = b.ghost !== undefined ? sy(b.ghost) : zeroY;
             const ghost = b.ghost !== undefined && Math.abs(b.ghost - b.value) > 1e-9;

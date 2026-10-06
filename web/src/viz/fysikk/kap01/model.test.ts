@@ -13,6 +13,7 @@ import {
   kmhToMs,
   maxHeight,
   maxVelocityError,
+  minAxisTopForGround,
   niceAxis,
   niceRange,
   pathLength,
@@ -25,7 +26,10 @@ import {
   stopVelocity,
   stopping,
   terminalVelocity,
+  throwAxisTop,
+  throwBuilding,
   throwHeight,
+  throwPhase,
   throwVelocity,
   topTime,
   turnTime,
@@ -285,6 +289,102 @@ describe('loddrett kast', () => {
     expect(flightTime({ v0: -5, h0: 0 })).toBe(0);
     expect(flightTime({ v0: 0, h0: 0 })).toBe(0);
     expect(impactSpeed({ v0: 0, h0: 0 })).toBe(0);
+  });
+
+  it('tidløs likning v² − v₀² = 2as med a = −g gjelder hele veien (energibevaring)', () => {
+    for (const t2 of [th, { v0: 5, h0: 20 }, { v0: -10, h0: 40 }, { v0: 25, h0: 40 }, { v0: 0, h0: 7 }]) {
+      const T = flightTime(t2);
+      for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+        const t = f * T;
+        const v = throwVelocity(t2, t);
+        const s = throwHeight(t2, t);
+        expect(v * v - t2.v0 * t2.v0).toBeCloseTo(2 * -9.81 * (s - t2.h0), 8);
+      }
+    }
+  });
+
+  it('alle ytterpunktene på glidebryterne gir endelige tall og en ball som ender i s = 0', () => {
+    for (const v0 of [-10, -0.5, 0, 0.5, 12, 25]) {
+      for (const h0 of [0, 1, 2, 40]) {
+        if (h0 === 0 && v0 < 0) continue; // glidebryteren setter v₀ = 0 her
+        const t2 = { v0, h0 };
+        const T = flightTime(t2);
+        expect(Number.isFinite(T) && T >= 0).toBe(true);
+        expect(Number.isFinite(impactSpeed(t2))).toBe(true);
+        expect(maxHeight(t2)).toBeGreaterThanOrEqual(h0);
+        if (T > 0) expect(throwHeight(t2, T)).toBeCloseTo(0, 9);
+        // Høyden er aldri negativ i lufta
+        for (let i = 0; i <= 20; i++) expect(throwHeight(t2, (i / 20) * T)).toBeGreaterThan(-1e-9);
+      }
+    }
+    // Største kast: 25 m/s fra 40 m når 71,9 m og tas imot i 37,9 m/s
+    expect(maxHeight({ v0: 25, h0: 40 })).toBeCloseTo(40 + 625 / 19.62, 9);
+    expect(impactSpeed({ v0: 25, h0: 40 })).toBeCloseTo(Math.sqrt(625 + 2 * 9.81 * 40), 9);
+  });
+
+  it('fasene i kastet: start, opp, topp, ned og slutt', () => {
+    const tTop = topTime(th)!;
+    const T = flightTime(th);
+    expect(throwPhase(th, 0)).toBe('start');
+    expect(throwPhase(th, 0.5)).toBe('opp');
+    expect(throwPhase(th, tTop)).toBe('topp');
+    expect(throwPhase(th, tTop + 0.02)).toBe('topp');
+    expect(throwPhase(th, 2)).toBe('ned');
+    expect(throwPhase(th, T)).toBe('slutt');
+    expect(throwPhase({ v0: 0, h0: 0 }, 0)).toBe('ro');
+    // Kast nedover og slipp har ikke toppunkt, så v ≈ 0 i starten er «start», ikke «topp»
+    expect(throwPhase({ v0: 0, h0: 10 }, 0)).toBe('start');
+    expect(throwPhase({ v0: 0, h0: 10 }, 0.01)).toBe('ned');
+    expect(throwPhase({ v0: -5, h0: 10 }, 0.5)).toBe('ned');
+  });
+
+  it('høydeaksen: luft over toppunktet, pene verdier og minst minTop', () => {
+    expect(throwAxisTop(th)).toBe(10); // 7,34 m · 1,2 = 8,8 → 10
+    expect(throwAxisTop(th, 12)).toBe(15);
+    expect(throwAxisTop({ v0: 0.5, h0: 0 })).toBe(2);
+    expect(throwAxisTop({ v0: 25, h0: 40 })).toBe(100); // 71,9 · 1,2 = 86 → 100
+    expect(throwAxisTop({ v0: -10, h0: 40 })).toBe(50);
+    for (const v0 of [-10, 0, 3, 12, 25])
+      for (const h0 of [0, 5, 40]) {
+        const top = throwAxisTop({ v0, h0 }, 6);
+        expect(top).toBeGreaterThanOrEqual(Math.max(6, 1.2 * maxHeight({ v0, h0 })) - 1e-9);
+      }
+  });
+
+  it('minste høydeakse som gir plass til bakken under s = 0', () => {
+    // 1,45 m under s = 0, 335 enheter høy akse og 50 enheter ledig: høyst 34,5 enheter per meter → minst 9,7 m
+    expect(minAxisTopForGround(1.45, 335, 50)).toBeCloseTo(9.715, 3);
+    expect(minAxisTopForGround(0, 335, 50)).toBe(0);
+    expect(minAxisTopForGround(1.45, 335, 0)).toBeCloseTo(1.45 * 335, 9);
+  });
+
+  it('boligblokka: balkongen h₀ over bakken, etasjene 3 m fra hverandre og grunnmur under', () => {
+    const b10 = throwBuilding(10);
+    expect(b10.floors).toEqual([1, 4, 7, 10]);
+    expect(b10.balconies).toEqual([4, 7, 10]); // 1 m har ikke fri høyde under
+    expect(b10.base).toBe(1);
+    expect(b10.roof).toBe(13);
+    // Lav terrasse: gulvet til den som kaster har alltid balkong, og blokka er minst 9 m høy
+    expect(throwBuilding(2)).toEqual({ floors: [2, 5, 8], balconies: [2, 5, 8], base: 2, roof: 11 });
+    expect(throwBuilding(1).balconies).toEqual([1, 4, 7]);
+    // Tre etasjer når den som kaster står i skolegården (h₀ = 0)
+    expect(throwBuilding(0)).toEqual({ floors: [0, 3, 6], balconies: [3, 6], base: 0, roof: 9 });
+    const b40 = throwBuilding(40);
+    expect(b40.floors.length).toBe(14);
+    expect(b40.floors[b40.floors.length - 1]).toBe(40); // øverste etasje
+    expect(b40.balconies[0]).toBe(4);
+    expect(b40.roof).toBe(43);
+    expect(throwBuilding(6).floors).toEqual([0, 3, 6]);
+    expect(throwBuilding(7).roof).toBe(10);
+    expect(throwBuilding(Number.NaN).floors).toEqual([0, 3, 6]);
+    // Taket er alltid over gulvet til den som kaster, og alle gulvene er 3 m fra hverandre
+    for (let h0 = 0; h0 <= 40; h0++) {
+      const b = throwBuilding(h0);
+      expect(b.roof).toBeGreaterThanOrEqual(Math.max(9, h0 + 3) - 1e-9);
+      expect(b.floors).toContain(h0);
+      for (let i = 1; i < b.floors.length; i++) expect(b.floors[i]! - b.floors[i - 1]!).toBeCloseTo(3, 9);
+      expect(b.base).toBeLessThan(3);
+    }
   });
 });
 

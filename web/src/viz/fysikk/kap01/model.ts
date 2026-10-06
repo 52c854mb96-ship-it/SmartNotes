@@ -289,6 +289,77 @@ export function impactSpeed({ v0, h0 }: Throw, g = G_EARTH): number {
   return Math.sqrt(v0 * v0 + 2 * g * Math.max(0, h0));
 }
 
+/** Hvor i kastet ballen er ved tiden t (til forklaringen og overskriften i figuren). */
+export type ThrowPhase = 'ro' | 'start' | 'opp' | 'topp' | 'ned' | 'slutt';
+
+/**
+ * Fasen i kastet ved tiden t: «ro» når ballen ikke beveger seg (T = 0), «start» i t = 0, «topp» når |v| < `vEps`
+ * rundt toppunktet, «slutt» når ballen er tatt imot (t ≥ T), ellers «opp» eller «ned» etter fortegnet til v.
+ */
+export function throwPhase(th: Throw, t: number, vEps = 0.25, g = G_EARTH): ThrowPhase {
+  const T = flightTime(th, g);
+  if (!(T > 0)) return 'ro';
+  if (t >= T - 1e-3) return 'slutt';
+  const v = throwVelocity(th, t, g);
+  if (topTime(th, g) !== null && Math.abs(v) < vEps) return 'topp';
+  if (t < 0.005) return 'start';
+  return v > 0 ? 'opp' : 'ned';
+}
+
+/**
+ * Øverste verdi på høydeaksen i loddrett kast: 20 % luft over toppunktet (så ballen ikke kolliderer med
+ * overskriften), og minst `minTop` (scenen trenger plass til personene under s = 0). Pene verdier (2, 5, 10 …).
+ */
+export function throwAxisTop(th: Throw, minTop = 2, g = G_EARTH): number {
+  const need = Math.max(maxHeight(th, g) * 1.2, Number.isFinite(minTop) ? minTop : 2, 2);
+  return niceRange(0, need, 5, 2)[1];
+}
+
+/**
+ * Minste høydeakse (m) som gir plass til bakken under s = 0: s = 0 er der ballen tas imot (hendene), og bakken
+ * ligger `below` meter lavere. Med `plotHeight` figurenheter fra s = 0 til toppen av aksen og `room` figurenheter
+ * ledig under s = 0, må skalaen være høyst room / below per meter.
+ */
+export function minAxisTopForGround(below: number, plotHeight: number, room: number): number {
+  if (!(below > 0) || !(plotHeight > 0)) return 0;
+  return (below * plotHeight) / Math.max(1, room);
+}
+
+/** Etasjehøyden i boligblokka i scenen (m). */
+export const THROW_FLOOR_HEIGHT = 3;
+
+export interface ThrowBuilding {
+  /** Etasjegulvene (m over bakken), stigende. Det øverste er h₀, der den som kaster står (når h₀ > 0). */
+  floors: number[];
+  /** Gulvene som har balkong: de med minst `minClear` fri høyde under, og alltid det øverste når h₀ > 0. */
+  balconies: number[];
+  /** Grunnmuren under det nederste gulvet (m), 0 når nederste etasje står på bakken. */
+  base: number;
+  /** Taket (m over bakken): én etasje over det øverste gulvet. */
+  roof: number;
+}
+
+/**
+ * Boligblokka i scenen til loddrett kast: den som kaster står på en balkong h₀ over bakken, og etasjene ligger
+ * `floorH` fra hverandre opp og ned derfra (det som er igjen nederst, blir grunnmur). Blokka er minst `minRoof` høy
+ * (tre etasjer), så den er en høydereferanse også når h₀ = 0 og den som kaster står i skolegården. Over 6 m står
+ * den som kaster i øverste etasje.
+ */
+export function throwBuilding(h0: number, floorH = THROW_FLOOR_HEIGHT, minClear = 2.4, minRoof = 9): ThrowBuilding {
+  const own = Math.max(0, Number.isFinite(h0) ? h0 : 0);
+  const step = floorH > 0 ? floorH : THROW_FLOOR_HEIGHT;
+  const storeysUp = Math.max(1, Math.ceil((minRoof - own) / step - 1e-9));
+  const top = own + (storeysUp - 1) * step;
+  const floors: number[] = [];
+  for (let n = 0; n < 1000; n++) {
+    const L = Math.round((top - n * step) * 1000) / 1000;
+    if (L < 0) break;
+    floors.unshift(L);
+  }
+  const balconies = floors.filter((L) => L >= minClear - 1e-9 || (own > 0 && Math.abs(L - own) < 1e-6));
+  return { floors, balconies, base: floors[0] ?? 0, roof: Math.round((top + step) * 1000) / 1000 };
+}
+
 /* ---------- 1E Simulering: fall med luftmotstand L = kv² (Eulers metode) ---------- */
 
 export interface DragFall {

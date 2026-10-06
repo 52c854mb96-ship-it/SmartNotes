@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   POWER_REFS,
   bestPullAngle,
+  humpOutcome,
   liftsOffAtHump,
   makeTrack,
   niceCeil,
@@ -171,6 +172,42 @@ describe('energibevaring på bane', () => {
     expect(Math.max(...low.samples.map((s) => s.x))).toBeLessThan(9);
     expect(Math.max(...high.samples.map((s) => s.x))).toBeGreaterThan(12.5);
     for (const s of high.samples) expect(s.E / high.E0).toBeCloseTo(1, 4);
+  });
+
+  it('resultatet ved toppen følger simuleringen, også med friksjon og på grensen', () => {
+    const tr = makeTrack('bakke');
+    const run = (h0: number, mu: number) => humpOutcome(tr, simulateTrack({ track: tr, h0, m: 50, mu, tMax: 45 }), 50)!;
+    expect(run(2.5, 0).result).toBe('under');
+    expect(run(2.5, 0).Etop).toBeNull();
+    const over = run(4, 0);
+    expect(over.result).toBe('over');
+    expect(over.need).toBeCloseTo(50 * 9.81 * 3, 9);
+    // Uten friksjon er E på toppen lik E₀
+    expect(over.Etop! / (50 * 9.81 * 4)).toBeCloseTo(1, 4);
+    // Akkurat like høyt som toppen: i teorien stopper den på toppen
+    expect(run(3, 0).result).toBe('akkurat');
+    // Med friksjon holder ikke 3,2 m: friksjonen tar mer enn 0,2 m · mg før toppen
+    expect(run(3.2, 0.06).result).toBe('under');
+    // 4 m holder, men E på toppen er mindre enn E₀ (og fortsatt større enn det som trengs)
+    const f = run(4, 0.06);
+    expect(f.result).toBe('over');
+    expect(f.Etop!).toBeLessThan(50 * 9.81 * 4);
+    expect(f.Etop!).toBeGreaterThan(f.need);
+    // U-rampen har ingen topp
+    expect(humpOutcome(makeTrack('rampe'), simulateTrack({ track: makeTrack('rampe'), h0: 4, m: 50, mu: 0, tMax: 5 }), 50)).toBeNull();
+  });
+
+  it('alle starthøyder på glidebryteren gir endelige tall, og aldri høyere enn h₀', () => {
+    for (const kind of ['rampe', 'bakke'] as const)
+      for (const h0 of [0.5, 2.9, 3, 3.1, 5.5])
+        for (const mu of [0, 0.06]) {
+          const sim = simulateTrack({ track: makeTrack(kind), h0, m: 100, mu, tMax: 45 });
+          for (const s of sim.samples) {
+            for (const v of [s.x, s.v, s.h, s.Ep, s.Ek, s.E, s.heat]) expect(Number.isFinite(v)).toBe(true);
+            expect(s.h).toBeLessThan(h0 + 1e-3);
+            expect(Math.abs(s.E + s.heat - sim.E0)).toBeLessThan(0.5);
+          }
+        }
   });
 });
 

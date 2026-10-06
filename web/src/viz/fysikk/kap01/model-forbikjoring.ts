@@ -176,6 +176,35 @@ export function oncomingFront(o: Overtake, t: number): number {
   return o.D - o.u * t;
 }
 
+/**
+ * Hvor langt bilen har flyttet seg i forhold til lastebilen ved tiden t (m): ½·a·t² under forbikjøringen, Δs_rel
+ * ved T. Lastebilen kjører like fort som bilen startet, så v₀·t faller bort.
+ */
+export function relativeGain(o: Overtake, t: number): number {
+  return carFront(o, t) - (truckRear(o, t) - GAP_BEHIND);
+}
+
+/** Farten til bilen i forhold til lastebilen (m/s): a·t under forbikjøringen. */
+export function relativeVelocity(o: Overtake, t: number): number {
+  return carVelocity(o, t) - o.v0;
+}
+
+/**
+ * Hva som skjer ved tiden t, til forklaringen: «start» (har ikke begynt), «bak» (i motgående felt, men fortsatt bak
+ * lastebilen), «ved siden» (fronten er forbi bakenden av lastebilen), «foran» (bakenden er forbi fronten av
+ * lastebilen, men luka er ennå ikke GAP_AHEAD), «ferdig» (t ≥ T) eller «kollisjon» (bilene har møtt hverandre før T).
+ */
+export type Phase = 'start' | 'bak' | 'ved siden' | 'foran' | 'ferdig' | 'kollisjon';
+
+export function overtakePhase(o: Overtake, t: number): Phase {
+  if (o.verdict === 'kollisjon' && t >= o.tMeet - 1e-9) return 'kollisjon';
+  if (t >= o.T) return 'ferdig';
+  if (t <= 0) return 'start';
+  const front = carFront(o, t);
+  if (front < truckRear(o, t)) return 'bak';
+  return front - CAR_LENGTH < truckFront(o, t) ? 'ved siden' : 'foran';
+}
+
 /** Avstanden mellom fronten av bilen og fronten av den møtende bilen (m), negativ når de har passert hverandre. */
 export function gapToOncoming(o: Overtake, t: number): number {
   return oncomingFront(o, t) - carFront(o, t);

@@ -63,6 +63,8 @@ const FOLLOW_AFTER = 1.2;
 const DIMS_FADE = 0.8;
 /** Når kameraet følger bilen, står bilen så mye bak midten av utsnittet (andel av bredden), så vi ser hva som kommer. */
 const FOLLOW_AHEAD = 0.16;
+/** Korteste akselerasjonspil (px): ved små akselerasjoner ville pila ellers bare vært en pilspiss. */
+const A_MIN = 24;
 /** Kantstolper langs veien (m mellom dem). */
 const POST_SPACING = 50;
 
@@ -85,7 +87,7 @@ export interface SceneLayout {
   /** Der hjulene står i det nærmeste feltet (motgående felt), og bredden på veibanen i perspektiv. */
   road: number;
   B: number;
-  /** Piksler per meter, per m/s (fartspiler) og per m/s² (akselerasjonspil). */
+  /** Piksler per meter, per m/s (fartspiler) og per m/s² (akselerasjonspil, men minst A_MIN lang så den synes). */
   m: number;
   kv: number;
   ka: number;
@@ -103,7 +105,7 @@ export function sceneLayout(narrow: boolean, f: number): SceneLayout {
   const gap = 6 * f;
   // Oversikten: tittel, s og luka over veien, s_M og D under.
   const titleY = 6 + 0.75 * 17 * f * 0.8;
-  const lineS = titleY + 6 + asc + gap;
+  const lineS = titleY + 10 + asc + gap;
   const roadTop = lineS + 7;
   const roadBottom = roadTop + 30;
   const lineM = roadBottom + 7;
@@ -128,8 +130,8 @@ export function sceneLayout(narrow: boolean, f: number): SceneLayout {
     road,
     B,
     m: W / WINDOW_M,
-    kv: narrow ? 1.7 : 2.6,
-    ka: narrow ? 9 : 14,
+    kv: narrow ? 2.2 : 2.6,
+    ka: narrow ? 14 : 18,
     dim1,
     dim2,
     sun: { x: W - (narrow ? 60 : 96), y: narrow ? 30 : 34 },
@@ -169,7 +171,9 @@ export function OvertakeScene({ o, t, truck, lay, showArrows }: { o: Overtake; t
 
 /**
  * Vannrett mållinje med piler i begge ender og etikett over (eller under) midten, med hjelpelinjer fra `ext`.
- * Etiketten byttes til `short` eller sløyfes når målet er for kort. `chars` er antall tegn i etiketten.
+ * Etiketten byttes til `short` når målet er for kort. Får ingen av dem plass, og `outside` er gitt (ledig plass på
+ * raden, [venstre, høyre]), settes etiketten ved siden av mållinja, på den siden der det er mest plass; ellers sløyfes
+ * den. `chars` er antall tegn i etiketten.
  */
 function HDim({
   xa,
@@ -182,6 +186,7 @@ function HDim({
   shortChars = 0,
   below = false,
   ext,
+  outside,
   size = 0.85,
   weight = 700,
 }: {
@@ -195,6 +200,7 @@ function HDim({
   shortChars?: number;
   below?: boolean;
   ext?: number;
+  outside?: [number, number];
   size?: number;
   weight?: number;
 }) {
@@ -204,12 +210,26 @@ function HDim({
   const b = Math.max(xa, xb);
   if (!Number.isFinite(a) || !Number.isFinite(b) || b - a < 1) return null;
   const fs = 17 * f * size;
-  const room = b - a - 6;
-  const fits = (n: number) => n * fs * 0.58 + 6 * f <= room;
-  const text = label !== undefined && chars !== undefined && fits(chars) ? label : short !== undefined && fits(shortChars) ? short : undefined;
+  // Fet skrift er ca. 0,63 em per tegn; luft i begge ender så etiketter på nabomål ikke flyter sammen.
+  const width = (n: number) => n * fs * 0.63 + 6 * f;
+  const fits = (n: number) => width(n) + 8 * f <= b - a;
+  const full = label !== undefined && chars !== undefined;
+  let text = full && fits(chars) ? label : short !== undefined && fits(shortChars) ? short : undefined;
+  let tx = (a + b) / 2;
+  const ty = below ? y + 6 * f + 0.75 * fs : y - 6 * f;
+  let anchor: 'start' | 'middle' | 'end' = 'middle';
+  if (text === undefined && outside) {
+    // Over eller under mållinja som vanlig, men kant i kant med den ene enden og videre ut der det er ledig
+    const right = outside[1] - a;
+    const left = b - outside[0];
+    const side = right >= left ? 'start' : 'end';
+    const space = Math.max(left, right);
+    text = full && width(chars) <= space ? label : short !== undefined && width(shortChars) <= space ? short : undefined;
+    tx = side === 'start' ? a : b;
+    anchor = side;
+  }
   const h = Math.min(7 * ss, (b - a) / 3);
   const head = (x: number, dir: 1 | -1) => `${x},${y} ${x + dir * h},${y - h * 0.45} ${x + dir * h},${y + h * 0.45}`;
-  const ly = below ? y + 6 * f + 0.75 * fs : y - 6 * f;
   return (
     <g>
       {ext !== undefined && (
@@ -223,7 +243,7 @@ function HDim({
       {b - a > 3 * h && <polygon points={head(a, 1)} fill={color} />}
       {b - a > 3 * h && <polygon points={head(b, -1)} fill={color} />}
       {text !== undefined && (
-        <Txt x={(a + b) / 2} y={ly} size={size} color={color} weight={weight}>
+        <Txt x={tx} y={ty} anchor={anchor} size={size} color={color} weight={weight}>
           {text}
         </Txt>
       )}
@@ -262,6 +282,7 @@ function Overview({ o, t, truck, lay }: { o: Overtake; t: number; truck: TruckId
   const camL = xs(C + WINDOW_M / 2);
   const camR = xs(C - WINDOW_M / 2);
   const dashLen = Math.max(4, 3 * k);
+  const showMargin = !crash && o.margin > 0.5;
 
   return (
     <g>
@@ -319,17 +340,19 @@ function Overview({ o, t, truck, lay }: { o: Overtake; t: number; truck: TruckId
         label={<>bilen: s = {fmt(sEnd, 0)} m</>}
         short={`${fmt(sEnd, 0)} m`}
         shortChars={2 + fmt(sEnd, 0).length}
+        outside={[showMargin ? xs(sEnd) : x0, x1 + 4]}
       />
-      {!crash && o.margin > 0.5 && (
+      {showMargin && (
         <HDim
           xa={xs(sEnd)}
           xb={xs(mEnd)}
           y={lineS}
           color={VIZ.muted}
-          chars={7 + fmt(o.margin, 0).length}
-          label={`luke ${fmt(o.margin, 0)} m`}
+          chars={9 + fmt(o.margin, 0).length}
+          label={`margin ${fmt(o.margin, 0)} m`}
           short={`${fmt(o.margin, 0)} m`}
           shortChars={2 + fmt(o.margin, 0).length}
+          outside={[x0 - 4, xs(sEnd)]}
           weight={650}
         />
       )}
@@ -351,6 +374,7 @@ function Overview({ o, t, truck, lay }: { o: Overtake; t: number; truck: TruckId
           </>
         }
         shortChars={6 + fmt(o.sOncoming, 0).length}
+        outside={[x0 - 4, x1 + 4]}
       />
       <HDim
         xa={xs(0)}
@@ -371,6 +395,7 @@ function Overview({ o, t, truck, lay }: { o: Overtake; t: number; truck: TruckId
           </>
         }
         shortChars={6 + fmt(o.D, 0).length + (crash ? 5 + fmt(o.needed, 0).length : 0)}
+        outside={[x0 - 4, x1 + 4]}
         weight={650}
       />
     </g>
@@ -423,6 +448,14 @@ function SideView({ o, t, truck, lay, showArrows }: { o: Overtake; t: number; tr
   const xTruck = X(rear + L / 2);
   const xOnc = X(xM + CAR_LENGTH / 2);
   const kmh = (x: number) => `${fmt(msToKmh(x), 0)} km/h`;
+  const captionY = 8 + 0.75 * 17 * f * 0.75;
+  /** Etiketten står ved spissen av en vannrett pil; går den ut av bildet, flyttes den bak pila. */
+  const keepLabelInside = (x1: number, x2: number, text: string): { labelX?: number; labelAnchor?: 'start' | 'end' } => {
+    const w = text.length * 17 * f * 0.82 * 0.62;
+    if (x2 < x1 && x2 - 12 * f - w < 4) return { labelX: x1 + 10 * f, labelAnchor: 'start' };
+    if (x2 > x1 && x2 + 12 * f + w > W - 4) return { labelX: x1 - 10 * f, labelAnchor: 'end' };
+    return {};
+  };
 
   return (
     <g transform={`translate(0 ${top})`}>
@@ -440,7 +473,7 @@ function SideView({ o, t, truck, lay, showArrows }: { o: Overtake; t: number; tr
         ))}
 
         {/* Målene i forhold til lastebilen: luke bak, lastebilen, luke foran og bilen. Følger lastebilen. */}
-        {dimsOpacity > 0 && <RelativeDims o={o} X={X} rear={rear} lay={lay} yFar={yFar} opacity={dimsOpacity} name={TRUCKS[truck].name} />}
+        {dimsOpacity > 0 && <RelativeDims o={o} X={X} rear={rear} front={front} lay={lay} yFar={yFar} opacity={dimsOpacity} name={TRUCKS[truck].name} />}
 
         {/* Lastebilen i sitt felt (det bakre), bilen og den møtende bilen i det nære feltet */}
         <SpeedLines x={X(rear)} y={yFar - 2.2 * m} length={o.v0 * 1.1 * Math.min(1.4, m / 8)} spread={1.6 * m} dir={-1} />
@@ -459,31 +492,60 @@ function SideView({ o, t, truck, lay, showArrows }: { o: Overtake; t: number; tr
           <g>
             <ForceArrow x1={xTruck} y1={arrowTruckY} x2={xTruck - o.v0 * kv} y2={arrowTruckY} color={VIZ.velocity} width={5.5} label={kmh(o.v0)} labelSize={0.82} />
             {!crashNow && (
-              <ForceArrow x1={xCar} y1={arrowCarY} x2={xCar - v * kv} y2={arrowCarY} color={VIZ.velocity} width={5.5} label={kmh(v)} labelSize={0.82} origin={acc > 0} />
+              <ForceArrow
+                x1={xCar}
+                y1={arrowCarY}
+                x2={xCar - v * kv}
+                y2={arrowCarY}
+                color={VIZ.velocity}
+                width={5.5}
+                label={kmh(v)}
+                labelSize={0.82}
+                origin={acc > 0}
+                {...keepLabelInside(xCar, xCar - v * kv, kmh(v))}
+              />
             )}
             {!crashNow && acc > 0 && (
-              <ForceArrow x1={xCar} y1={arrowAccY} x2={xCar - acc * lay.ka} y2={arrowAccY} color={VIZ.acceleration} width={4.5} label="a" labelSize={0.82} />
+              <ForceArrow x1={xCar} y1={arrowAccY} x2={xCar - Math.max(acc * lay.ka, A_MIN)} y2={arrowAccY} color={VIZ.acceleration} width={4.5} label="a" labelSize={0.82} />
             )}
             {oncomingVisible && !crashNow && (
-              <ForceArrow x1={xOnc} y1={yNear - carH - 11 * f} x2={xOnc + o.u * kv} y2={yNear - carH - 11 * f} color={VIZ.velocity} width={5.5} label={kmh(o.u)} labelSize={0.82} />
+              <ForceArrow
+                x1={xOnc}
+                y1={yNear - carH - 11 * f}
+                x2={xOnc + o.u * kv}
+                y2={yNear - carH - 11 * f}
+                color={VIZ.velocity}
+                width={5.5}
+                label={kmh(o.u)}
+                labelSize={0.82}
+                {...keepLabelInside(xOnc, xOnc + o.u * kv, kmh(o.u))}
+              />
             )}
           </g>
         )}
 
-        {/* Den møtende bilen er utenfor bildet: hvor langt unna er den? */}
+        <Txt x={10} y={captionY} anchor="start" size={0.75} weight={650} muted>
+          Sett fra siden: utsnittet i den stiplede ramma
+        </Txt>
+        {/* Den møtende bilen er utenfor bildet: hvor langt unna er den? Oppe i hjørnet, så skiltet aldri dekker bilene. */}
         {!oncomingVisible && gap > 0 && oncomingX < 0 && (
-          <ValueTag x={8} y={yNear - 2} text={`← møtende bil om ${fmt(gap, 0)} m`} color={C_ONCOMING} anchor="start" size={0.8} />
+          <ValueTag x={8} y={captionY + 8 * f + 0.78 * 17 * f * 0.8} text={`← møtende bil om ${fmt(gap, 0)} m`} color={C_ONCOMING} anchor="start" size={0.8} />
         )}
       </g>
     </g>
   );
 }
 
-/** Mållinjene i veikanten: 15 m bak, lastebilens lengde, 15 m foran og bilens lengde, og summen Δs_rel. */
+/**
+ * Mållinjene i veikanten: 15 m bak, lastebilens lengde, 15 m foran og bilens lengde, og summen Δs_rel. Under summen
+ * vokser en stripe i bilens farge fra startpunktet til fronten av bilen: så langt har bilen flyttet seg i forhold til
+ * lastebilen (½at²).
+ */
 function RelativeDims({
   o,
   X,
   rear,
+  front,
   lay,
   yFar,
   opacity,
@@ -492,11 +554,13 @@ function RelativeDims({
   o: Overtake;
   X: (p: number) => number;
   rear: number;
+  front: number;
   lay: SceneLayout;
   yFar: number;
   opacity: number;
   name: string;
 }) {
+  const ss = useStrokeScale();
   const L = o.truckLength;
   const pStart = rear - GAP_BEHIND;
   const pTR = rear;
@@ -504,6 +568,7 @@ function RelativeDims({
   const pTgtRear = pTF + GAP_AHEAD;
   const pTgtFront = pTgtRear + CAR_LENGTH;
   const ext = yFar + 1;
+  const gained = Math.min(Math.max(0, front - pStart), pTgtFront - pStart);
   return (
     <g opacity={opacity}>
       <HDim xa={X(pStart)} xb={X(pTR)} y={lay.dim1} color={VIZ.ink} ext={ext} chars={4} label={`${fmt(GAP_BEHIND, 0)} m`} weight={650} size={0.8} />
@@ -519,7 +584,18 @@ function RelativeDims({
         size={0.8}
       />
       <HDim xa={X(pTF)} xb={X(pTgtRear)} y={lay.dim1} color={VIZ.ink} ext={ext} chars={4} label={`${fmt(GAP_AHEAD, 0)} m`} weight={650} size={0.8} />
-      <HDim xa={X(pTgtRear)} xb={X(pTgtFront)} y={lay.dim1} color={C_CAR} ext={ext} chars={5} label={`${fmt(CAR_LENGTH, 1)} m`} weight={700} size={0.8} />
+      <HDim
+        xa={X(pTgtRear)}
+        xb={X(pTgtFront)}
+        y={lay.dim1}
+        color={C_CAR}
+        ext={ext}
+        chars={5}
+        label={`${fmt(CAR_LENGTH, 1)} m`}
+        outside={[4, X(pTgtRear)]}
+        weight={700}
+        size={0.8}
+      />
       <HDim
         xa={X(pStart)}
         xb={X(pTgtFront)}
@@ -540,6 +616,9 @@ function RelativeDims({
         weight={700}
         size={0.8}
       />
+      {gained > 0.05 && (
+        <line x1={X(pStart)} x2={X(pStart + gained)} y1={lay.dim2} y2={lay.dim2} stroke={alpha(C_CAR, 0.6)} strokeWidth={7 * ss} strokeLinecap="round" />
+      )}
     </g>
   );
 }

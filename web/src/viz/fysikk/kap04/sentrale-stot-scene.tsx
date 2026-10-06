@@ -1,8 +1,9 @@
 /**
  * Scenen til «Sentrale støt»: to dynamikkvogner på en aluminiumsbane med målebånd, på en labbenk i fysikklaben.
  * Vognene (`Vogn` fra scene-kit-et) har fjær (elastisk), gummidemper (uelastisk) eller borrelås (fullstendig
- * uelastisk) der de møtes, og alt tegnes i én fast skala px/m. Oppå: fartspiler med skilt, massene, kraftparet under
- * selve støtet (bryteren «Vis krefter») og Σp og ΣE_k øverst til høyre.
+ * uelastisk) der de møtes, og alt tegnes i én fast skala px/m. Oppå: fartspiler med skilt (én skala px per m/s, valgt så
+ * ingen pil går ut av figuren), massene, kraftparet under selve støtet (bryteren «Vis krefter»: pilene fra møtepunktet og
+ * inn i hver vogn, og kraften der massen ellers står) og Σp og ΣE_k øverst til høyre.
  *
  * Egne gjenstander for kapittel 4 i samme stil som scene-kit-et (toninger fra core, SCENE-farger, kontur, myk skygge):
  * `Labbane` (aluminiumsprofil med føtter) og `Gummidemper` (gummikloss på enden av vogna).
@@ -25,7 +26,7 @@ import {
   useStrokeScale,
   useSvgId,
 } from '../../kit/scene';
-import { runAt, type Bumper, type Run, type RunSpec } from './model-sentrale-stot';
+import { runAt, type Bumper, type Run, type RunSpec, type RunState } from './model-sentrale-stot';
 
 /* ================================================================================================
  * Mål
@@ -35,7 +36,7 @@ import { runAt, type Bumper, type Run, type RunSpec } from './model-sentrale-sto
 const W = 800;
 const X0 = 20;
 /** Banebiten som vises (m): på mobil en kortere bit, så vognene blir store nok. */
-export const TRACK_WIDE = 1.4;
+export const TRACK_WIDE = 1.2;
 export const TRACK_NARROW = 0.8;
 /** Vogna (scene-kit-et): 0,2 m lang, endestykkene til ±0,101 m, hjulradius 0,014 m. */
 const CART_LEN = 0.2;
@@ -67,7 +68,8 @@ export function useSceneFrame<T extends HTMLElement>() {
     const el = ref.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const update = () => {
-      const w = el.getBoundingClientRect().width;
+      // Bredden på selve SVG-en (uten rammen rundt figuren), slik Figure måler den
+      const w = (el.querySelector('svg') ?? el).getBoundingClientRect().width;
       if (!(w > 0)) return;
       const f = Math.round(Math.max(1, 12.5 / 17 / (w / W)) * 20) / 20;
       const narrow = w < 560;
@@ -80,6 +82,9 @@ export function useSceneFrame<T extends HTMLElement>() {
   }, []);
   return [ref, frame] as const;
 }
+
+/** Luft mellom grunnlinja til masseetiketten og toppen av vogna (senket skrift går under grunnlinja). */
+const labelGap = (f: number) => 4 + 5 * f;
 
 /** Høyden på et skilt (ValueTag-stil) med relativ tekststørrelse `size`. */
 const tagHeight = (f: number, size: number) => 17 * f * size * 1.55;
@@ -123,7 +128,7 @@ export function sceneLayout(f: number, narrow: boolean): SceneLayout {
   const arrowHigh = tagY + tv / 2 + 10 + 7 * ss;
   const arrowLow = arrowHigh + rowGap;
   const massBase = arrowLow + 9 * ss + 8 + 12 * f;
-  const trackY = massBase + 6 + CART_TALL * P;
+  const trackY = massBase + labelGap(f) + CART_TALL * P;
   const tapeH = 11.5 * f * 1.75;
   const trackH = Math.max(0.03 * P, tapeH + 7);
   const benchY = trackY + trackH + 5 + 0.008 * P;
@@ -273,10 +278,17 @@ export interface SceneProps {
 /** Fart i et skilt: «2,00 m/s», og «0 m/s» når vogna står stille. */
 const speedText = (v: number) => (Math.abs(v) < 0.005 ? '0 m/s' : `${fmt(v, 2)} m/s`);
 
-/** Piksler per m/s for fartspilene: den største farten i forsøket gir en pil på ca. 150 (høyst 60 per m/s). */
-export function arrowScale(speeds: number[]): number {
+/**
+ * Piksler per m/s for fartspilene: den største farten i forsøket gir en pil på ca. 150 (høyst 60 per m/s), litt lengre
+ * på mobil (`f` er tekstskaleringen), så pilene synes. `rooms` er plassen (piksler) foran hver pil i løpet av forsøket,
+ * som [plass, fart]: skalaen blir så liten at ingen pil går ut av figuren.
+ */
+export function arrowScale(speeds: number[], f = 1, rooms: [number, number][] = []): number {
   const vmax = Math.max(0.1, ...speeds.map(Math.abs));
-  return Math.min(60, 150 / vmax);
+  const k = 1 + 0.4 * (Math.max(1, f) - 1);
+  let S = Math.min(60 * k, (150 * k) / vmax);
+  for (const [room, v] of rooms) if (Math.abs(v) > 0.005) S = Math.min(S, Math.max(0, room) / Math.abs(v));
+  return Math.max(4, S);
 }
 
 export function StotScene({ spec, run, t, layout, showForces, slowFactor }: SceneProps) {
@@ -287,7 +299,6 @@ export function StotScene({ spec, run, t, layout, showForces, slowFactor }: Scen
   const px = (x: number) => X0 + x * P;
   const st = runAt(spec, run, t);
   const r = run.result;
-  const S = arrowScale([spec.v1, spec.v2, r.u1, r.u2]);
   const stuck = bumper === 'borrelaas' && st.phase === 'etter';
 
   // Midten av vognene (ankerpunktet til Vogn) i figuren
@@ -298,25 +309,35 @@ export function StotScene({ spec, run, t, layout, showForces, slowFactor }: Scen
   const top = (lodd: number) => trackY - (lodd > 0 ? 0.074 + 0.0124 * (lodd - 1) : 0.062) * P;
   const half = st.squeeze / 2;
 
-  // To rader med fartspiler når pilene ellers ville ligge oppå hverandre en gang i løpet av forsøket.
-  const twoRows = useMemo(() => {
-    for (let i = 0; i <= 80; i++) {
-      const s = runAt(spec, run, (i / 80) * run.tEnd);
-      if (bumper === 'borrelaas' && s.phase === 'etter') continue;
-      const a1 = px(s.tip1 - bl - CART_END);
-      const a2 = px(s.tip2 + bl + CART_END);
-      const lo1 = Math.min(a1, a1 + s.v1 * S) - 12;
-      const hi1 = Math.max(a1, a1 + s.v1 * S) + 12;
-      const lo2 = Math.min(a2, a2 + s.v2 * S) - 12;
-      const hi2 = Math.max(a2, a2 + s.v2 * S) + 12;
-      if (Math.abs(s.v1) > 0.005 && Math.abs(s.v2) > 0.005 && lo1 < hi2 && lo2 < hi1) return true;
-    }
-    return false;
+  // Skalaen for fartspilene (ingen pil går ut av figuren), og to rader med fartspiler når pilene ellers ville ligge
+  // oppå hverandre en gang i løpet av forsøket.
+  const { S, twoRows } = useMemo(() => {
+    const samples = Array.from({ length: 121 }, (_, i) => runAt(spec, run, (i / 120) * run.tEnd));
+    const arrows = (s: RunState): [number, number][] =>
+      bumper === 'borrelaas' && s.phase === 'etter'
+        ? [[px((s.tip1 + s.tip2) / 2), s.v1]]
+        : [
+            [px(s.tip1 - bl - CART_END), s.v1],
+            [px(s.tip2 + bl + CART_END), s.v2],
+          ];
+    const rooms = samples.flatMap((s) => arrows(s).map(([a, v]): [number, number] => [v > 0 ? W - 10 - a : a - 10, v]));
+    const scale = arrowScale([spec.v1, spec.v2, r.u1, r.u2], f, rooms);
+    const overlap = samples.some((s) => {
+      const [p1, p2] = arrows(s);
+      if (!p1 || !p2 || Math.abs(p1[1]) < 0.005 || Math.abs(p2[1]) < 0.005) return false;
+      const lo1 = Math.min(p1[0], p1[0] + p1[1] * scale) - 12;
+      const hi1 = Math.max(p1[0], p1[0] + p1[1] * scale) + 12;
+      const lo2 = Math.min(p2[0], p2[0] + p2[1] * scale) - 12;
+      const hi2 = Math.max(p2[0], p2[0] + p2[1] * scale) + 12;
+      return lo1 < hi2 && lo2 < hi1;
+    });
+    return { S: scale, twoRows: overlap };
     // px avhenger bare av P
-  }, [spec, run, bumper, bl, S, P]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [spec, run, bumper, bl, P, f, r.u1, r.u2]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const y1 = layout.arrowLow;
-  const y2 = twoRows ? layout.arrowLow - layout.rowGap : layout.arrowLow;
+  // Én rad midt i rommet for pilene, eller to rader.
+  const y1 = twoRows ? layout.arrowLow : layout.arrowLow - layout.rowGap / 2;
+  const y2 = twoRows ? layout.arrowLow - layout.rowGap : y1;
 
   // Fartsskiltene: over hver vogn, skjøvet fra hverandre så de ikke overlapper, og innenfor figuren.
   const prime = st.phase === 'etter' ? '′' : '';
@@ -353,6 +374,7 @@ export function StotScene({ spec, run, t, layout, showForces, slowFactor }: Scen
   const Fmax = (Math.PI / 2) * (r.collides && run.tau > 0 ? (spec.m1 * (spec.v1 - r.u1)) / run.tau : 0);
   const fLen = Fmax > 0 ? (st.F / Fmax) * 0.13 * P : 0;
   const fy = trackY - BUMPER_Y * P;
+  const forcesNow = showForces && st.phase === 'under';
 
   // Overskrift øverst til venstre
   const phaseText = st.phase === 'for' ? 'Før støtet' : st.phase === 'under' ? 'Under støtet' : st.phase === 'etter' ? 'Etter støtet' : 'Ingen støt';
@@ -414,21 +436,37 @@ export function StotScene({ spec, run, t, layout, showForces, slowFactor }: Scen
       />
       {bumperFor(-1, c2)}
 
-      {/* Massene rett over vognene */}
-      <Txt x={c1} y={top(lodd1) - 7} size={0.85} weight={650}>
-        m<TSub>1</TSub> = {fmt(spec.m1, 1)} kg
-      </Txt>
-      <Txt x={c2} y={top(lodd2) - 7} size={0.85} weight={650}>
-        m<TSub>2</TSub> = {fmt(spec.m2, 1)} kg
-      </Txt>
-
-      {/* Kraftparet under støtet */}
-      {showForces && st.phase === 'under' && fLen > 2 && (
+      {/* Kraftparet under støtet: pilene fra møtepunktet og inn i hver vogn, og kraften der massen ellers står */}
+      {forcesNow && (
         <>
-          <ForceArrow x1={joint} y1={fy} x2={joint - fLen} y2={fy} color={VIZ.applied} width={6} label={<>F<TSub>1</TSub></>} />
-          <ForceArrow x1={joint} y1={fy} x2={joint + fLen} y2={fy} color={VIZ.applied} width={6} label={<>F<TSub>2</TSub></>} origin />
+          <ForceArrow x1={joint} y1={fy} x2={joint - fLen} y2={fy} color={VIZ.applied} width={6} minLength={2} />
+          <ForceArrow x1={joint} y1={fy} x2={joint + fLen} y2={fy} color={VIZ.applied} width={6} minLength={2} origin />
         </>
       )}
+
+      {/* Massene rett over vognene (under støtet: kraften på hver vogn, med fortegn: mot venstre er negativ) */}
+      <Txt x={c1} y={top(lodd1) - labelGap(f)} size={0.85} weight={forcesNow ? 700 : 650} color={forcesNow ? VIZ.applied : undefined}>
+        {forcesNow ? (
+          <>
+            F<TSub>1</TSub> = {fmt(st.F >= 0.5 ? -st.F : 0, 0)} N
+          </>
+        ) : (
+          <>
+            m<TSub>1</TSub> = {fmt(spec.m1, 1)} kg
+          </>
+        )}
+      </Txt>
+      <Txt x={c2} y={top(lodd2) - labelGap(f)} size={0.85} weight={forcesNow ? 700 : 650} color={forcesNow ? VIZ.applied : undefined}>
+        {forcesNow ? (
+          <>
+            F<TSub>2</TSub> = {fmt(st.F, 0)} N
+          </>
+        ) : (
+          <>
+            m<TSub>2</TSub> = {fmt(spec.m2, 1)} kg
+          </>
+        )}
+      </Txt>
 
       {/* Fartspiler */}
       {stuck ? (
@@ -449,10 +487,18 @@ export function StotScene({ spec, run, t, layout, showForces, slowFactor }: Scen
       <Txt x={X0} y={layout.info1 + 6 * f} anchor="start" size={1} weight={700}>
         {phaseText}
       </Txt>
-      {slowFactor !== null && (
+      {slowFactor !== null ? (
         <Txt x={X0} y={layout.info2 + 6 * f} anchor="start" size={0.8} muted>
           Sakte film, {fmt(slowFactor, 0)} ganger saktere
         </Txt>
+      ) : (
+        showForces &&
+        run.collides &&
+        st.phase !== 'under' && (
+          <Txt x={X0} y={layout.info2 + 6 * f} anchor="start" size={0.8} muted>
+            Kraftparet virker bare under støtet
+          </Txt>
+        )
       )}
       <Skilt x={W - 10} y={layout.info1} anchor="end" measure={pText} size={INFO_SIZE}>
         Σp = {fmt(p, 2)} kg·m/s

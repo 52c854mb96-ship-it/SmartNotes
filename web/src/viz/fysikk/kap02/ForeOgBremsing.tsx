@@ -28,6 +28,7 @@ import {
   BIL_MAAL,
   Bil,
   Callout,
+  Dimension,
   ForceArrow,
   Gran,
   Himmel,
@@ -54,18 +55,21 @@ import {
   FRIKSJONSTALL,
   allDistances,
   brake,
-  brakeState,
   brakingDistance,
   frictionCoefficient,
   kmhToMs,
+  maxStopSpeed,
   msToKmh,
   playbackSpeed,
+  queueOutcome,
+  queueState,
   sameDistanceSpeed,
   type BrakeResult,
-  type BrakeState,
   type Bremser,
   type Dekk,
   type Fore,
+  type QueueOutcome,
+  type QueueState,
 } from './model-fore-og-bremsing';
 import { useNarrow } from './useNarrow';
 
@@ -73,6 +77,8 @@ import { useNarrow } from './useNarrow';
  * Friksjon og føre (2C, 2E): en bil bremser fullt fra en gitt fart på tørr asfalt, våt asfalt, snø eller is, med
  * sommer- eller vinterdekk, med ABS eller med låste hjul. Friksjonen R = μN er hele kraftsummen, så a = μg og
  * bremselengden blir s = v₀²/(2μg). Scenen følger bilen, og stolpediagrammet sammenligner bremselengdene.
+ * Hverdagssituasjonen: en bil står stille i kø d meter foran. Rekker bilen å stoppe, eller treffer den køen med
+ * farten v = √(v₀² − 2ad)? Linja i stolpediagrammet viser hvilke føre, dekk og bremser som rekker det.
  */
 export default function ForeOgBremsing() {
   const RG = BRAKE_RANGES;
@@ -82,11 +88,16 @@ export default function ForeOgBremsing() {
   const [dekk, setDekk] = useState<Dekk>('vinter');
   const [bremser, setBremser] = useState<Bremser>('abs');
   const [showForces, setShowForces] = useState(true);
+  const [queueOn, setQueueOn] = useState(true);
+  const [d, setD] = useState<number>(RG.d.start);
 
   const v0 = kmhToMs(vKmh);
   const mu = frictionCoefficient(fore, dekk, bremser);
   const res = brake(v0, mu, m);
-  const clock = useSimClock({ tMax: res.t, speed: playbackSpeed(res.t) });
+  // Med bil i kø slutter bevegelsen når bilen står stille eller treffer køen.
+  const queue = queueOn ? queueOutcome(v0, mu, d) : null;
+  const tEnd = queue ? queue.tEnd : res.t;
+  const clock = useSimClock({ tMax: tEnd, speed: playbackSpeed(tEnd) });
   const { setT, pause } = clock;
 
   // Når siden åpnes, står bilen midt i oppbremsingen, så både bremsesporene og kreftene synes.
@@ -94,25 +105,32 @@ export default function ForeOgBremsing() {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    setT(0.4 * res.t);
-  }, [res.t, setT]);
-  // Ny fart, nytt føre eller nye dekk: bilen er like langt ut i oppbremsingen (samme andel av bremsetiden).
-  const lastStop = useRef(res.t);
+    setT(0.4 * tEnd);
+  }, [tEnd, setT]);
+
+  const tStep = timeStep(tEnd);
+  const tSliderMax = Math.floor(tEnd / tStep + 1e-9) * tStep;
+  // Helt i enden av tidsbryteren står bilen stille (eller har truffet køen).
+  const t = clock.t >= tSliderMax - tStep / 2 ? tEnd : Math.min(clock.t, tEnd);
+
+  // Når tiden bevegelsen tar endres: sto bilen stille (eller hadde truffet køen), blir den stående i enden. Er det
+  // bare køen som er slått av eller på eller flyttet, fortsetter vi fra samme øyeblikk. Ny fart, nytt føre eller
+  // nye dekk: bilen er like langt ut i oppbremsingen (samme andel av tiden).
+  const prevView = useRef({ tEnd, tBrake: res.t, atEnd: false });
   const tNow = useRef(clock.t);
   tNow.current = clock.t;
   useLayoutEffect(() => {
-    const prev = lastStop.current;
-    if (prev === res.t) return;
-    lastStop.current = res.t;
-    setT(prev > 0 ? Math.min(1, tNow.current / prev) * res.t : 0);
-  }, [res.t, setT]);
-
-  const tStep = timeStep(res.t);
-  const tSliderMax = Math.floor(res.t / tStep + 1e-9) * tStep;
-  // Helt i enden av tidsbryteren står bilen stille.
-  const t = clock.t >= tSliderMax - tStep / 2 ? res.t : Math.min(clock.t, res.t);
-  const st = brakeState(v0, mu, m, t);
-  const speed = playbackSpeed(res.t);
+    const prev = prevView.current;
+    if (prev.tEnd !== tEnd) {
+      const tn = tNow.current;
+      if (prev.atEnd) setT(tEnd);
+      else if (prev.tBrake === res.t) setT(Math.min(tn, tEnd));
+      else setT(prev.tEnd > 0 ? Math.min(1, tn / prev.tEnd) * tEnd : 0);
+    }
+    prevView.current = { tEnd, tBrake: res.t, atEnd: prev.tEnd === tEnd && t >= tEnd };
+  });
+  const st = queueState(v0, mu, m, t, queueOn ? d : null);
+  const speed = playbackSpeed(tEnd);
 
   const [ref, narrow] = useNarrow<HTMLDivElement>();
   const other: Bremser = bremser === 'abs' ? 'laast' : 'abs';
@@ -137,12 +155,13 @@ export default function ForeOgBremsing() {
           unit="km/h"
         />
         <Slider label="Masse m (bil med fører)" value={m} onChange={setM} min={RG.m.min} max={RG.m.max} step={RG.m.step} unit="kg" />
+        {queueOn && <Slider label="Avstand til bilen i kø d" value={d} onChange={setD} min={RG.d.min} max={RG.d.max} step={RG.d.step} unit="m" />}
         <Slider
           label="Tid t"
           value={Math.min(t, tSliderMax)}
           onChange={(v) => {
             pause();
-            setT(v >= tSliderMax - tStep / 2 ? res.t : v);
+            setT(v >= tSliderMax - tStep / 2 ? tEnd : v);
           }}
           min={0}
           max={tSliderMax}
@@ -159,11 +178,21 @@ export default function ForeOgBremsing() {
         <PlayControls clock={{ ...clock, t }} decimals={tStep < 0.1 ? 2 : 1} />
         {speed > 1.05 && <span className="viz-play-note">Spilles av {fmt(speed, 1)} ganger så fort</span>}
         <Toggle label="Vis krefter" checked={showForces} onChange={setShowForces} />
+        <Toggle label="Bil i kø foran" checked={queueOn} onChange={setQueueOn} />
       </Toolbar>
 
       <div ref={ref}>
-        <BrakeScene fore={fore} dekk={dekk} bremser={bremser} res={res} st={st} showForces={showForces} narrow={narrow} />
-        <DistanceChart v0={v0} vKmh={vKmh} fore={fore} dekk={dekk} bremser={bremser} s={st.s} narrow={narrow} />
+        <BrakeScene
+          fore={fore}
+          dekk={dekk}
+          bremser={bremser}
+          res={res}
+          st={st}
+          queue={queue && { d, ...queue }}
+          showForces={showForces}
+          narrow={narrow}
+        />
+        <DistanceChart v0={v0} vKmh={vKmh} fore={fore} dekk={dekk} bremser={bremser} s={st.s} d={queueOn ? d : null} narrow={narrow} />
       </div>
       <Legend
         items={[
@@ -207,10 +236,33 @@ export default function ForeOgBremsing() {
         <FormulaLine>
           t = v<Sub>0</Sub>/a = ({fmt(v0, 1)} m/s)/({fmt(res.a, 2)} m/s²) = {fmt(res.t, 1)} s
         </FormulaLine>
+        {queue &&
+          (queue.stops ? (
+            <FormulaLine>
+              d − s = {fmt(d, 0)} m − {fmt(res.s, 1)} m = {fmt(d - res.s, 1)} m, så bilen stopper før køen
+            </FormulaLine>
+          ) : (
+            <FormulaLine>
+              s &gt; d: v = √(v<Sub>0</Sub>
+              <Sup>2</Sup> − 2ad) = √(({fmt(v0, 1)} m/s)² − 2 · {fmt(res.a, 2)} m/s² · {fmt(d, 0)} m) = {fmt(queue.vHit, 1)} m/s ={' '}
+              {fmt(msToKmh(queue.vHit), 0)} km/h i sammenstøtet
+            </FormulaLine>
+          ))}
       </Formula>
 
       <Explain>
-        <ExplainText fore={fore} dekk={dekk} bremser={bremser} vKmh={vKmh} m={m} v0={v0} res={res} st={st} sOther={sOther} />
+        <ExplainText
+          fore={fore}
+          dekk={dekk}
+          bremser={bremser}
+          vKmh={vKmh}
+          m={m}
+          v0={v0}
+          res={res}
+          st={st}
+          sOther={sOther}
+          queue={queue && { d, ...queue }}
+        />
       </Explain>
     </VizLayout>
   );
@@ -260,35 +312,44 @@ const WHEEL_DX = (BIL_MAAL.akselavstand / 2) * PX_PER_M;
 const WHEEL_R = BIL_MAAL.hjulradius * PX_PER_M;
 const RIM_R = (20.5 / 440) * CAR_SIZE;
 
-/** Utsnittet på mobil: bilen, pilene og skiltene blir større. */
+/** Utsnittet på PC (uten den øverste, tomme delen av himmelen) og på mobil (bilen, pilene og skiltene blir større). */
+const WIDE_VIEW = { x: 0, y: 56, w: W, h: H - 56 };
 const NARROW_VIEW = { x: 160, y: 118, w: 500, h: H - 118 };
 /** Lupen som forstørrer kontaktflaten under forhjulet (nede til høyre, i veikanten foran veien). */
 const LUPE = { x: 596, y: 398, r: 58 };
 
 const LANDSKAP: Record<Fore, LandskapType> = { torr: 'aaser', vaat: 'kyst', sno: 'skog', is: 'fjell' };
 
+/** Bilen i kø: avstanden d (m) fra der bremsingen starter, og hvordan det går. */
+type Queue = QueueOutcome & { d: number };
+
 interface SceneProps {
   fore: Fore;
   dekk: Dekk;
   bremser: Bremser;
   res: BrakeResult;
-  st: BrakeState;
+  st: QueueState;
+  queue: Queue | null;
   showForces: boolean;
   narrow: boolean;
 }
 
-function BrakeScene({ fore, dekk, bremser, res, st, showForces, narrow }: SceneProps) {
-  const view = narrow ? NARROW_VIEW : { x: 0, y: 0, w: W, h: H };
-  const kmh = msToKmh(st.v);
+function sceneLabel(fore: Fore, bremser: Bremser, st: QueueState, queue: Queue | null): string {
+  const what = `En bil bremser fullt på ${FORE_TEKST[fore]} ${bremser === 'abs' ? 'med ABS' : 'med låste hjul'}`;
+  const where = queue ? `, og en bil står stille i kø ${fmt(queue.d, 0)} m foran.` : '.';
+  const now = st.crashed
+    ? `Den treffer bilen i køen i ${fmt(msToKmh(queue?.vHit ?? 0), 0)} km/h.`
+    : st.stopped
+      ? `Den står stille etter ${fmtLen(st.s)} m${queue ? `, ${fmtLen(queue.gap)} m før køen` : ''}.`
+      : `Etter ${fmtLen(st.s)} m er farten ${fmt(msToKmh(st.v), 0)} km/h.`;
+  return `${what}${where} ${now}`;
+}
+
+function BrakeScene({ fore, dekk, bremser, res, st, queue, showForces, narrow }: SceneProps) {
+  const view = narrow ? NARROW_VIEW : WIDE_VIEW;
   const clip = useSvgId('fore-utsnitt');
   return (
-    <Figure
-      viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
-      label={`En bil bremser fullt på ${FORE_TEKST[fore]} ${bremser === 'abs' ? 'med ABS' : 'med låste hjul'}. ${
-        st.stopped ? `Den står stille etter ${fmtLen(st.s)} m.` : `Etter ${fmtLen(st.s)} m er farten ${fmt(kmh, 0)} km/h.`
-      }`}
-      maxHeight={500}
-    >
+    <Figure viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`} label={sceneLabel(fore, bremser, st, queue)} maxHeight={500}>
       {/* Alt klippes til utsnittet, så trær og bremsespor utenfor ikke synes ved siden av figuren. */}
       <defs>
         <clipPath id={clip}>
@@ -297,7 +358,7 @@ function BrakeScene({ fore, dekk, bremser, res, st, showForces, narrow }: SceneP
       </defs>
       <g clipPath={`url(#${clip})`}>
         <Backdrop fore={fore} camera={st.s * PX_PER_M} />
-        <RoadContent fore={fore} dekk={dekk} bremser={bremser} res={res} st={st} showForces={showForces} view={view} />
+        <RoadContent fore={fore} dekk={dekk} bremser={bremser} res={res} st={st} queue={queue} showForces={showForces} view={view} />
       </g>
     </Figure>
   );
@@ -357,7 +418,7 @@ function tagWidth(text: string, f: number, size = 0.9): number {
   return Math.max(fs * 1.6, text.length * fs * 0.6 + 16 * f);
 }
 
-function RoadContent({ fore, dekk, bremser, res, st, showForces, view }: Omit<SceneProps, 'narrow'> & { view: { x: number; y: number; w: number; h: number } }) {
+function RoadContent({ fore, dekk, bremser, res, st, queue, showForces, view }: Omit<SceneProps, 'narrow'> & { view: { x: number; y: number; w: number; h: number } }) {
   const f = useTextScale();
   const s = st.s;
   // Verdenskoordinat w (m): 0 er der fronten av bilen var da bremsingen startet.
@@ -383,17 +444,30 @@ function RoadContent({ fore, dekk, bremser, res, st, showForces, view }: Omit<Sc
   const skidEnd = CAR_X - WHEEL_DX - WHEEL_R - 6;
   const skidCallout = skidEnd - skidStart > 60 ? Math.max(skidStart + 12, Math.min(skidEnd - 12, view.x + 70)) : null;
 
-  const kmh = msToKmh(st.v);
-  const speedText = st.stopped ? 'Står stille' : `${fmt(kmh, 0)} km/h`;
+  // Skiltene øverst: farten og strekningen til venstre, køen til høyre.
+  const speedText = st.crashed ? 'Kollisjon' : st.stopped ? 'Står stille' : `${fmt(msToKmh(st.v), 0)} km/h`;
   const distText = `s = ${fmtLen(s)} m`;
   const tagY = view.y + 24 * Math.max(1, f * 0.9);
   const tagX = view.x + 14;
 
-  // Etiketten til R: tallet når det er plass mellom pilspissen og venstre kant, ellers bare symbolet.
+  // Bilen i kø: bakenden står d meter foran der fronten vår var da bremsingen startet.
+  const queueRear = queue ? X(queue.d) : null;
+  const frontX = X(s);
+  const gap = queue ? Math.max(0, queue.d - s) : 0;
+  const queueVisible = queueRear !== null && queueRear < view.x + view.w - 26 * f;
+  let queueText: string | null = null;
+  if (queue) {
+    if (st.crashed) queueText = `Traff i ${fmt(msToKmh(queue.vHit), 0)} km/h`;
+    else if (st.stopped) queueText = queue.gap < 0.05 ? 'Stoppet akkurat i tide' : `Stoppet ${fmtLen(queue.gap)} m før`;
+    else if (!queueVisible) queueText = `Bilen i kø: ${fmtLen(gap)} m →`;
+  }
+  const dimY = ROAD_Y - 0.62 * PX_PER_M;
+
+  // Etiketten til R står på linje med pila, til venstre for spissen (bare symbolet når det ikke er plass til tallet).
   const rY = ROAD_Y + 9;
   const rTip = CAR_X - 6 - st.R * PX_PER_N;
   const rText = `R = ${fmt(st.R, 0)} N`;
-  const rLabel = rTip - 4 - rText.length * 17 * f * 0.6 > view.x + 6 ? rText : 'R';
+  const rLabel = rTip - 8 - rText.length * 17 * f * 0.68 > view.x + 14 ? rText : 'R';
 
   return (
     <g>
@@ -403,6 +477,19 @@ function RoadContent({ fore, dekk, bremser, res, st, showForces, view }: Omit<Sc
 
       {/* Kjeglene der bremsingen startet (den bakre står i veikanten bak veien) */}
       {startX > left && startX < right && <Trafikkjegle x={startX + 3} y={ROAD_TOP - 2} h={0.5 * PX_PER_M * 0.85} />}
+
+      {/* Bilen som står stille i kø (med bremselysene på), når den er i bildet */}
+      {queueRear !== null && queueRear < right && (
+        <Bil
+          x={queueRear + BIL_MAAL.bak * PX_PER_M}
+          y={ROAD_Y}
+          size={CAR_SIZE}
+          lakk="blaa"
+          type="stasjonsvogn"
+          bremselys
+          title="Bil som står stille i kø"
+        />
+      )}
 
       {/* Bremsespor fra låste hjul: fra der hjulene låste seg til der de er nå (bakhjulet går i sporet til forhjulet) */}
       {locked && s > 0.02 && (
@@ -443,6 +530,11 @@ function RoadContent({ fore, dekk, bremser, res, st, showForces, view }: Omit<Sc
         tekst={st.stopped ? 'I ro' : locked ? 'Sklir' : 'Ruller'}
       />
 
+      {/* Avstanden mellom støtfangerne når bilen i kø er i bildet */}
+      {queueRear !== null && queueVisible && !st.crashed && gap > 0.15 && (
+        <Dimension x1={frontX} y1={dimY} x2={queueRear} y2={dimY} label={`${fmt(gap, 1)} m`} labelSize={0.85} />
+      )}
+
       {showForces && (
         <g>
           <ForceArrow
@@ -467,8 +559,8 @@ function RoadContent({ fore, dekk, bremser, res, st, showForces, view }: Omit<Sc
               minLength={0.5}
               label={rLabel}
               labelAnchor="end"
-              labelX={Math.min(rTip, CAR_X - 14) - 2}
-              labelY={rY + 8 + 16 * f}
+              labelX={rTip - 8}
+              labelY={rY + 6 * f}
             />
           )}
           {st.v > 0.05 && <ForceArrow x1={KIN_X} y1={V_Y} x2={KIN_X + st.v * PX_PER_V} y2={V_Y} color={VIZ.velocity} width={6} label="v" />}
@@ -499,6 +591,9 @@ function RoadContent({ fore, dekk, bremser, res, st, showForces, view }: Omit<Sc
 
       <ValueTag x={tagX} y={tagY} anchor="start" text={speedText} color={st.stopped ? undefined : VIZ.velocity} />
       <ValueTag x={tagX + tagWidth(speedText, f) + 8 * f} y={tagY} anchor="start" text={distText} />
+      {queueText !== null && (
+        <ValueTag x={view.x + view.w - 14} y={tagY} anchor="end" text={queueText} color={st.crashed ? VIZ.velocity : undefined} />
+      )}
     </g>
   );
 }
@@ -522,15 +617,17 @@ interface ChartProps {
   bremser: Bremser;
   /** Hvor langt bilen har bremset (m), som et punkt på den valgte stolpen. */
   s: number;
+  /** Avstanden til bilen i kø (m), som en loddrett linje, eller null. */
+  d: number | null;
   narrow: boolean;
 }
 
 function DistanceChart(props: ChartProps) {
-  const { v0, narrow } = props;
+  const { v0, narrow, d } = props;
   const all = allDistances(v0);
-  // Aksen er den samme for ABS og låste hjul, så stolpene kan sammenlignes når du bytter.
-  let longest = 0;
-  for (const f of FORE) for (const d of DEKK) longest = Math.max(longest, all[f][d].laast);
+  // Aksen er den samme for ABS og låste hjul, så stolpene kan sammenlignes når du bytter. Køen er alltid med.
+  let longest = d ?? 0;
+  for (const f of FORE) for (const dk of DEKK) longest = Math.max(longest, all[f][dk].laast);
   const top = axisMax(longest / 0.86);
   const ch = narrow ? 640 : 340;
   return (
@@ -540,9 +637,11 @@ function DistanceChart(props: ChartProps) {
   );
 }
 
-function ChartContent({ vKmh, fore, dekk, bremser, s, narrow, all, top, ch }: ChartProps & { all: ReturnType<typeof allDistances>; top: number; ch: number }) {
+function ChartContent({ vKmh, fore, dekk, bremser, s, d, narrow, all, top, ch }: ChartProps & { all: ReturnType<typeof allDistances>; top: number; ch: number }) {
   const f = useTextScale();
-  const margin = narrow ? { top: 46 * f, right: 20 * f, bottom: 56 * f, left: 18 } : { top: 46 * f, right: 24 * f, bottom: 56 * f, left: 150 };
+  // Med kø står navnet på linja mellom tittelen og plottet, så toppmargen er litt større.
+  const mTop = (d !== null ? 62 : 46) * f;
+  const margin = narrow ? { top: mTop, right: 20 * f, bottom: 56 * f, left: 18 } : { top: mTop, right: 24 * f, bottom: 56 * f, left: 150 };
   const title = `Bremselengde fra ${fmt(vKmh, 0)} km/h ${bremser === 'abs' ? 'med ABS' : 'med låste hjul'}`;
   return (
     <>
@@ -550,68 +649,131 @@ function ChartContent({ vKmh, fore, dekk, bremser, s, narrow, all, top, ch }: Ch
         {title}
       </Txt>
       <Plot x={{ min: 0, max: top, label: 'Bremselengde s (m)' }} y={{ min: 0, max: FORE.length, label: '', ticks: [] }} width={800} height={ch} margin={margin}>
-        {({ sx, sy, x0 }) => (
-          <g>
-            {FORE.map((fr, i) => {
-              const rowTop = sy(FORE.length - i);
-              const rowBot = sy(FORE.length - i - 1);
-              const selectedRow = fr === fore;
-              // Mobil: navnet over stolpene. PC: navnet til venstre.
-              const labelH = narrow ? 24 * f : 0;
-              const bh = Math.min(narrow ? 24 * f : 18, (rowBot - rowTop - labelH) * 0.36);
-              const mid = (rowTop + labelH + rowBot) / 2;
-              return (
-                <g key={fr}>
-                  <Txt
-                    x={narrow ? x0 : x0 - 12}
-                    y={narrow ? rowTop + 18 * f : mid + 6}
-                    anchor={narrow ? 'start' : 'end'}
-                    weight={selectedRow ? 720 : 560}
-                    muted={!selectedRow}
-                    size={0.9}
-                  >
-                    {FORE_NAVN[fr]}
-                  </Txt>
-                  {DEKK.map((dk, j) => {
-                    const cy = mid + (j === 0 ? -1 : 1) * (bh / 2 + 3);
-                    const len = all[fr][dk][bremser];
-                    const lenOther = all[fr][dk][bremser === 'abs' ? 'laast' : 'abs'];
-                    const selected = selectedRow && dk === dekk;
-                    const end = sx(Math.min(len, top));
-                    const labelX = Math.max(end, selected ? sx(Math.min(lenOther, top)) : end) + 8;
-                    return (
-                      <g key={dk} opacity={selectedRow ? 1 : 0.5}>
-                        <rect x={x0} y={cy - bh / 2} width={Math.max(1.5, end - x0)} height={bh} rx={Math.min(4, bh / 3)} fill={TYRE_COLOR[dk]} />
-                        {selected && (
-                          <>
-                            <rect
-                              x={x0}
-                              y={cy - bh / 2 - 2}
-                              width={Math.max(1.5, sx(Math.min(lenOther, top)) - x0)}
-                              height={bh + 4}
-                              rx={Math.min(5, bh / 3)}
-                              fill="none"
-                              stroke={VIZ.ink}
-                              strokeWidth={1.6}
-                              strokeDasharray="6 4"
-                            />
-                            <rect x={x0} y={cy - bh / 2} width={Math.max(1.5, end - x0)} height={bh} rx={Math.min(4, bh / 3)} fill="none" stroke={VIZ.ink} strokeWidth={2} />
-                          </>
-                        )}
-                        <Txt x={labelX} y={cy + 5.5 * f} anchor="start" size={0.8} weight={selected ? 720 : 600} muted={!selected}>
-                          {`${fmtLen(len)} m`}
-                        </Txt>
-                        {selected && <Dot x={sx(Math.min(Math.max(0, s), top))} y={cy} r={6.5} color={VIZ.ink} />}
-                      </g>
-                    );
-                  })}
-                </g>
-              );
-            })}
-          </g>
-        )}
+        {({ sx, sy, x0 }) => {
+          const lineX = d !== null ? sx(d) : null;
+          // Mobil: navnet på føret står over stolpene. Krysser linja for køen navnet, får linja et opphold der.
+          const labelH = narrow ? 24 * f : 0;
+          const skip: [number, number][] = [];
+          if (narrow && lineX !== null) {
+            for (const [i, fr] of FORE.entries()) {
+              const w = FORE_NAVN[fr].length * 17 * f * 0.9 * 0.62;
+              const base = sy(FORE.length - i) + 18 * f;
+              if (lineX > x0 - 4 && lineX < x0 + w + 4) skip.push([base - 17 * f, base + 5 * f]);
+            }
+          }
+          return (
+            <g>
+              {/* Linja for køen tegnes først: stolper som går forbi den, betyr sammenstøt, og tallene skal ligge oppå */}
+              {d !== null && lineX !== null && <QueueLine x={lineX} y0={sy(FORE.length)} y1={sy(0)} d={d} xMin={x0} xMax={sx(top)} skip={skip} />}
+              {FORE.map((fr, i) => {
+                const rowTop = sy(FORE.length - i);
+                const rowBot = sy(FORE.length - i - 1);
+                const selectedRow = fr === fore;
+                // Mobil: navnet over stolpene. PC: navnet til venstre.
+                const bh = Math.min(narrow ? 24 * f : 18, (rowBot - rowTop - labelH) * 0.36);
+                const mid = (rowTop + labelH + rowBot) / 2;
+                return (
+                  <g key={fr}>
+                    <Txt
+                      x={narrow ? x0 : x0 - 12}
+                      y={narrow ? rowTop + 18 * f : mid + 6}
+                      anchor={narrow ? 'start' : 'end'}
+                      weight={selectedRow ? 720 : 560}
+                      muted={!selectedRow}
+                      size={0.9}
+                    >
+                      {FORE_NAVN[fr]}
+                    </Txt>
+                    {DEKK.map((dk, j) => {
+                      const cy = mid + (j === 0 ? -1 : 1) * (bh / 2 + 3);
+                      const len = all[fr][dk][bremser];
+                      const lenOther = all[fr][dk][bremser === 'abs' ? 'laast' : 'abs'];
+                      const selected = selectedRow && dk === dekk;
+                      const end = sx(Math.min(len, top));
+                      const text = `${fmtLen(len)} m`;
+                      // Tallet står etter stolpen, men hopper forbi linja for køen hvis det ellers ville krysset den.
+                      let labelX = Math.max(end, selected ? sx(Math.min(lenOther, top)) : end) + 8;
+                      const textW = text.length * 17 * f * 0.8 * 0.62;
+                      if (lineX !== null && labelX - 4 < lineX && labelX + textW + 4 > lineX) labelX = lineX + 8;
+                      return (
+                        <g key={dk} opacity={selectedRow ? 1 : 0.5}>
+                          <rect x={x0} y={cy - bh / 2} width={Math.max(1.5, end - x0)} height={bh} rx={Math.min(4, bh / 3)} fill={TYRE_COLOR[dk]} />
+                          {selected && (
+                            <>
+                              <rect
+                                x={x0}
+                                y={cy - bh / 2 - 2}
+                                width={Math.max(1.5, sx(Math.min(lenOther, top)) - x0)}
+                                height={bh + 4}
+                                rx={Math.min(5, bh / 3)}
+                                fill="none"
+                                stroke={VIZ.ink}
+                                strokeWidth={1.6}
+                                strokeDasharray="6 4"
+                              />
+                              <rect x={x0} y={cy - bh / 2} width={Math.max(1.5, end - x0)} height={bh} rx={Math.min(4, bh / 3)} fill="none" stroke={VIZ.ink} strokeWidth={2} />
+                            </>
+                          )}
+                          <Txt x={labelX} y={cy + 5.5 * f} anchor="start" size={0.8} weight={selected ? 720 : 600} muted={!selected}>
+                            {text}
+                          </Txt>
+                          {selected && <Dot x={sx(Math.min(Math.max(0, s), top))} y={cy} r={6.5} color={VIZ.ink} />}
+                        </g>
+                      );
+                    })}
+                  </g>
+                );
+              })}
+            </g>
+          );
+        }}
       </Plot>
     </>
+  );
+}
+
+/**
+ * Loddrett linje i stolpediagrammet der bilen i kø står. Stolper som går forbi linja, betyr sammenstøt.
+ * Navnet står over plottet, midt over linja, men aldri utenfor plottet.
+ */
+function QueueLine({
+  x,
+  y0,
+  y1,
+  d,
+  xMin,
+  xMax,
+  skip,
+}: {
+  x: number;
+  y0: number;
+  y1: number;
+  d: number;
+  xMin: number;
+  xMax: number;
+  /** Høyder (fra, til) der linja har et opphold, f.eks. der den ville krysset navnet på et føre. */
+  skip: [number, number][];
+}) {
+  const f = useTextScale();
+  const text = `Bilen i kø: ${fmt(d, 0)} m`;
+  const half = (text.length * 17 * f * 0.85 * 0.58) / 2;
+  const lx = Math.min(Math.max(x, xMin + half), xMax - half);
+  // Linja som én sti med opphold
+  let path = '';
+  let from = y0 - 4 * f;
+  for (const [a, b] of [...skip].sort((p, q) => p[0] - q[0])) {
+    if (a > from) path += `M${x},${from}V${a}`;
+    from = Math.max(from, b);
+  }
+  if (y1 > from) path += `M${x},${from}V${y1}`;
+  return (
+    <g>
+      <path d={path} stroke={VIZ.surface} strokeWidth={5} opacity={0.85} />
+      <path d={path} stroke={VIZ.ink} strokeWidth={2} />
+      <Txt x={lx} y={y0 - 9 * f} anchor="middle" size={0.85} weight={700}>
+        {text}
+      </Txt>
+    </g>
   );
 }
 
@@ -625,11 +787,12 @@ interface ExplainProps {
   m: number;
   v0: number;
   res: BrakeResult;
-  st: BrakeState;
+  st: QueueState;
   sOther: number;
+  queue: Queue | null;
 }
 
-function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther }: ExplainProps) {
+function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther, queue }: ExplainProps) {
   const winter = fore === 'sno' || fore === 'is';
   const muS = FRIKSJONSTALL[fore][dekk].muS;
   const muK = FRIKSJONSTALL[fore][dekk].muK;
@@ -640,21 +803,46 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther }: Expl
   const vLow = vKmh - 20;
   const sLow = brakingDistance(kmhToMs(vLow), mu);
   const vSame = sameDistanceSpeed(vKmh, muTorr, mu);
+  const setup = `på ${FORE_TEKST[fore]} med ${DEKK_NAVN[dekk].toLowerCase()} og ${bremser === 'abs' ? 'ABS' : 'låste hjul'}`;
 
   let moment: ReactNode;
-  if (st.stopped) {
+  if (st.crashed && queue) {
+    const vHit = msToKmh(queue.vHit);
     moment = (
       <p>
-        <strong>Bilen står stille etter {fmtLen(res.s)} m og {fmt(res.t, 1)} s.</strong> Nå er friksjonen null: på flat vei er det ingen kraft
-        som prøver å flytte bilen langs veien, så veien trenger ikke å holde igjen. Friksjonen er ikke alltid μN, det er bare den
-        største friksjonen veien kan gi.
+        <strong>Bilen treffer bilen i køen i {fmt(vHit, 0)} km/h.</strong> Bremselengden er {fmtLen(res.s)} m, men køen står bare{' '}
+        {fmt(queue.d, 0)} m foran. Der har bilen fortsatt farten v = √(v<Sub>0</Sub>
+        <Sup>2</Sup> − 2ad) = {fmt(vHit, 0)} km/h, {fmt((100 * vHit) / vKmh, 0)} % av farten den hadde.{' '}
+        {res.s - queue.d < 0.25 * res.s ? (
+          <>
+            Bremselengden er bare {fmtLen(res.s - queue.d)} m for lang, men bilen mister mest fart på de siste metrene før den stopper, så
+            farten i sammenstøtet blir likevel stor.
+          </>
+        ) : (
+          <>Farten avtar lite på de første metrene, der bilen kjører fort og bruker kort tid, så den har mye fart igjen når den treffer.</>
+        )}{' '}
+        (Animasjonen stopper ved sammenstøtet.)
+      </p>
+    );
+  } else if (st.stopped) {
+    const where = queue ? (queue.gap < 0.05 ? ', akkurat ved køen' : `, ${fmtLen(queue.gap)} m før køen`) : '';
+    moment = (
+      <p>
+        <strong>
+          Bilen står stille etter {fmtLen(res.s)} m og {fmt(res.t, 1)} s{where}.
+        </strong>{' '}
+        Nå er friksjonen null: på flat vei er det ingen kraft som prøver å flytte bilen langs veien, så veien trenger ikke å holde
+        igjen. Friksjonen er ikke alltid μN, det er bare den største friksjonen veien kan gi.
       </p>
     );
   } else if (st.s < 0.05) {
     moment = (
       <p>
-        <strong>Føreren tråkker bremsen helt ned ved kjeglene.</strong> Loddrett opphever G og N hverandre, så kraftsummen på bilen er
-        friksjonen R fra veien på dekkene. Den peker bakover, og derfor peker akselerasjonen også bakover: farten avtar. Trykk «Spill av».
+        <strong>
+          {queue ? `Føreren ser køen ${fmt(queue.d, 0)} m foran og tråkker bremsen helt ned ved kjeglene.` : 'Føreren tråkker bremsen helt ned ved kjeglene.'}
+        </strong>{' '}
+        Loddrett opphever G og N hverandre, så kraftsummen på bilen er friksjonen R fra veien på dekkene. Den peker bakover, og derfor
+        peker akselerasjonen også bakover: farten avtar. Trykk «Spill av».
       </p>
     );
   } else {
@@ -663,9 +851,11 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther }: Expl
         <strong>
           Etter {fmt(st.t, 1)} s har bilen bremset {fmtLen(st.s)} m, og farten er {fmt(msToKmh(st.v), 0)} km/h.
         </strong>{' '}
-        Kraftsummen er friksjonen R = μN, som er like stor hele tiden, så akselerasjonen er konstant og farten avtar like mye hvert sekund.
-        Men den avtar ikke like mye per meter: halvveis i bremselengden er farten fortsatt {fmt(vKmh / Math.SQRT2, 0)} km/h (71 %),
-        fordi bilen bruker kort tid på de første metrene mens den kjører fort.
+        Farten v peker framover, men kraftsummen R og akselerasjonen a peker bakover: kraften trenger ikke å peke dit bilen kjører.
+        {mu <= 0.1 && <> Her er friksjonen bare {fmt(100 * mu, 0)} % av tyngden, så R-pila er knapt synlig ved siden av G.</>} R = μN er
+        like stor hele tiden, så farten avtar like mye hvert sekund. Men den avtar ikke like mye per meter: halvveis i
+        bremselengden er farten fortsatt {fmt(vKmh / Math.SQRT2, 0)} km/h (71 %), fordi bilen bruker kort tid på de første metrene mens
+        den kjører fort.
       </p>
     );
   }
@@ -680,10 +870,8 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther }: Expl
       </p>
     ) : (
       <p>
-        <strong>Låste hjul sklir.</strong> Dekkene glir bortover veien og lager bremsespor, så friksjonen er glidefriksjon, μ<Sub>k</Sub>N =
-        {' '}
-        {fmt(res.R, 0)} N. Den er mindre enn den største statiske friksjonen μ<Sub>s</Sub>N = {fmt(muS * res.N, 0)} N, så bremselengden blir
-        {' '}
+        <strong>Låste hjul sklir.</strong> Dekkene glir bortover veien og lager bremsespor, så friksjonen er glidefriksjon, μ<Sub>k</Sub>N ={' '}
+        {fmt(res.R, 0)} N. Den er mindre enn den største statiske friksjonen μ<Sub>s</Sub>N = {fmt(muS * res.N, 0)} N, så bremselengden blir{' '}
         {fmtLen(res.s - sOther)} m lenger enn med ABS ({fmtLen(sOther)} m). Og du kan ikke styre: friksjonen på et dekk som sklir, virker
         alltid mot glideretningen, så det hjelper ikke å vri på rattet. Bilen sklir rett fram.
       </p>
@@ -730,12 +918,14 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther }: Expl
     );
   }
 
+  const vMax = Math.floor(msToKmh(maxStopSpeed(mu, queue?.d ?? 0)) + 1e-9);
   return (
     <>
       {moment}
       {brakes}
       <p>
-        {tyres} {fore !== 'torr' && Number.isFinite(vSame) && (
+        {tyres}{' '}
+        {fore !== 'torr' && Number.isFinite(vSame) && (
           <>
             For å stoppe like kort på {FORE_TEKST[fore]} som på tørr asfalt fra {fmt(vKmh, 0)} km/h, må du ned i {fmt(vSame, 0)} km/h.
           </>
@@ -752,8 +942,16 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther }: Expl
         ) : (
           <>, så dobbel fart gir fire ganger så lang bremselengde.</>
         )}{' '}
-        <strong>Massen betyr ingenting:</strong> a = μmg/m = μg. En bil på {fmt(m, 0)} kg trenger større bremsekraft enn en lettere bil, men den
-        får også større normalkraft og dermed større friksjon. (Vi ser bort fra luftmotstanden. Reaksjonslengden kommer i tillegg.)
+        {queue && (
+          <>
+            Skal du rekke å stoppe før køen {fmt(queue.d, 0)} m foran, kan du kjøre høyst {fmt(vMax, 0)} km/h {setup}: v<Sub>0</Sub> = √(2μgd).
+          </>
+        )}
+      </p>
+      <p>
+        <strong>Massen betyr ingenting:</strong> en bil på {fmt(m, 0)} kg trenger større bremsekraft enn en lettere bil, men den får også
+        større normalkraft og dermed større friksjon, så a = μmg/m = μg. (Vi ser bort fra luftmotstanden. Reaksjonslengden, strekningen
+        bilen kjører før føreren rekker å bremse, kommer i tillegg.)
       </p>
     </>
   );

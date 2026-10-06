@@ -19,16 +19,20 @@ import {
   useStrokeScale,
   useSvgId,
 } from '../../kit/scene';
-import type { StairGeom, StairLayout } from './trappelop-scene';
+import type { HillItem, StairGeom, StairLayout } from './trappelop-scene';
+
+/** Hvor foten av trappa er i figuren (px): bare det trappa og rekkverket trenger fra utformingen. */
+type Origin = Pick<StairLayout, 'xs' | 'yBot'>;
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
 /**
  * Steintrapp (sherpatrapp) bygd inn i lia: én kantet steinblokk per trinn, med litt ulik farge og en lys kant der
  * foten treffer. Tegnes med kameraet nederst (figurens koordinater for c = 0); kameraet flytter hele gruppen.
- * Trinn i har forkanten i x = xs + i · run · S og toppen i y = yBot − (i + 1) · rise · S.
+ * Trinn i har forkanten i x = xs + i · run · S og toppen i y = yBot − (i + 1) · rise · S. Med `from` og `to`
+ * tegnes bare trinnene i ≥ from og i < to (samme farger som i hele trappa).
  */
-export const Steintrapp = memo(function Steintrapp({ g, lay, S }: { g: StairGeom; lay: StairLayout; S: number }) {
+export const Steintrapp = memo(function Steintrapp({ g, lay, S, from = 0, to = Infinity }: { g: StairGeom; lay: Origin; S: number; from?: number; to?: number }) {
   const ss = useStrokeScale();
   const shadeId = useSvgId('tr-stein');
   const { xs, yBot } = lay;
@@ -36,9 +40,10 @@ export const Steintrapp = memo(function Steintrapp({ g, lay, S }: { g: StairGeom
   const run = g.run * S;
   const rnd = sceneRandom(17);
   const blocks: { d: string; fill: string; top: string }[] = [];
-  for (let i = 0; i < g.n; i++) {
+  for (let i = 0; i < Math.min(g.n, to); i++) {
     const v = rnd();
     const w = rnd();
+    if (i < from) continue;
     const x0 = xs + i * run - 0.5;
     const x1 = xs + (i + 1) * run + 0.9;
     const yTop = yBot - (i + 1) * rise;
@@ -77,7 +82,7 @@ export const Steintrapp = memo(function Steintrapp({ g, lay, S }: { g: StairGeom
  * Rekkverk i galvanisert stål langs trappa og et stykke inn på toppen: stolper (ca. hver 1,6 m) og en rund
  * håndlist 0,9 m over trinnene. Står på den andre siden av trappa, så det tegnes før løperen.
  */
-export const Rekkverk = memo(function Rekkverk({ g, lay, S, topLength = 2.2 }: { g: StairGeom; lay: StairLayout; S: number; topLength?: number }) {
+export const Rekkverk = memo(function Rekkverk({ g, lay, S, topLength = 2.2 }: { g: StairGeom; lay: Origin; S: number; topLength?: number }) {
   const ss = useStrokeScale();
   const { xs, yBot } = lay;
   const tan = g.rise / g.run;
@@ -121,6 +126,89 @@ export const Rekkverk = memo(function Rekkverk({ g, lay, S, topLength = 2.2 }: {
         strokeLinejoin="round"
         opacity={0.85}
       />
+    </g>
+  );
+});
+
+/**
+ * Steiner og einerbusker i lia (plassene fra hillItems, i meter). Dempede farger nær gresset, så de gir lia
+ * dybde uten å konkurrere med pilene og målene. Tegnes etter terrenget og før trappa.
+ */
+export const LiaDetaljer = memo(function LiaDetaljer({ items, lay, S }: { items: HillItem[]; lay: Origin; S: number }) {
+  const ss = useStrokeScale();
+  const rockId = useSvgId('tr-lia-stein');
+  const bushId = useSvgId('tr-lia-busk');
+  return (
+    <g aria-hidden>
+      <RadialGradient
+        id={rockId}
+        fx={0.3}
+        fy={0.25}
+        stops={[
+          [0, SCENE.highlight, 0.45],
+          [0.55, SCENE.highlight, 0],
+          [1, SCENE.shadow, 0.45],
+        ]}
+      />
+      <RadialGradient
+        id={bushId}
+        fx={0.32}
+        fy={0.22}
+        stops={[
+          [0, mix(SCENE.foliage, SCENE.grass, 0.35)],
+          [0.6, mix(SCENE.foliageDark, SCENE.grassDark, 0.35)],
+          [1, shade(SCENE.foliageDark, 0.2)],
+        ]}
+      />
+      {items.map((it, i) => {
+        const x = lay.xs + it.x * S;
+        const y = lay.yBot - it.y * S;
+        const w = it.w * S;
+        const rnd = sceneRandom(it.seed);
+        if (it.kind === 'stein') {
+          // Halvt nedgravd stein: kuppel med skjev topp, flat mot bakken.
+          const h = w * (0.38 + 0.2 * rnd());
+          const peak = (rnd() - 0.5) * 0.35 * w;
+          const d = `M${r2(x - w / 2)},${r2(y)} C${r2(x - w * 0.48)},${r2(y - h * 0.7)} ${r2(x + peak - w * 0.3)},${r2(y - h)} ${r2(x + peak)},${r2(y - h)} C${r2(x + peak + w * 0.32)},${r2(y - h)} ${r2(x + w * 0.5)},${r2(y - h * 0.55)} ${r2(x + w / 2)},${r2(y)} Z`;
+          const c = mix(SCENE.stone, SCENE.grass, 0.22 + 0.12 * rnd());
+          return (
+            <g key={i}>
+              <ellipse cx={x + w * 0.08} cy={y + 0.6} rx={w * 0.56} ry={Math.max(1.2, w * 0.07)} fill={SCENE.shadow} opacity={0.35} />
+              <path d={d} fill={c} stroke={SCENE.outline} strokeWidth={0.6 * ss} strokeLinejoin="round" opacity={0.92} />
+              <path d={d} fill={`url(#${rockId})`} />
+              <path d={`M${r2(x - w * 0.38)},${r2(y + 0.3)} L${r2(x + w * 0.42)},${r2(y + 0.3)}`} stroke={SCENE.grassDark} strokeWidth={1.4 * ss} strokeLinecap="round" opacity={0.7} />
+            </g>
+          );
+        }
+        // Einerbusk: kuppel med bølget kant (flat mot bakken), lysere der sola treffer og et par blader som tekstur.
+        const h = w * (0.5 + 0.18 * rnd());
+        const n = 4 + Math.floor(rnd() * 2);
+        const pts: [number, number][] = [];
+        for (let j = 0; j <= n; j++) {
+          const t = j / n;
+          const lift = j === 0 || j === n ? 0 : Math.pow(Math.sin(Math.PI * t), 0.7) * (0.88 + 0.24 * rnd());
+          pts.push([x - w / 2 + t * w, y - h * lift]);
+        }
+        let d = `M${r2(pts[0]![0])},${r2(pts[0]![1])}`;
+        for (let j = 1; j <= n; j++) {
+          const [px, py] = pts[j - 1]!;
+          const [qx, qy] = pts[j]!;
+          const rr = Math.hypot(qx - px, qy - py) * 0.62;
+          d += ` A${r2(rr)},${r2(rr)} 0 0 1 ${r2(qx)},${r2(qy)}`;
+        }
+        d += ' Z';
+        const leaf = (cx: number, cy: number, rr: number) => `M${r2(cx - rr)},${r2(cy)} Q${r2(cx)},${r2(cy - rr * 0.8)} ${r2(cx + rr)},${r2(cy)}`;
+        const leaves = [0.3, 0.55, 0.72]
+          .map((t) => leaf(x - w / 2 + t * w + (rnd() - 0.5) * w * 0.1, y - h * (0.35 + 0.3 * rnd()), w * 0.07))
+          .join(' ');
+        return (
+          <g key={i}>
+            <ellipse cx={x + w * 0.06} cy={y + 0.6} rx={w * 0.56} ry={Math.max(1.2, w * 0.08)} fill={SCENE.shadow} opacity={0.32} />
+            <path d={d} fill={`url(#${bushId})`} stroke={SCENE.outline} strokeWidth={0.6 * ss} strokeLinejoin="round" opacity={0.95} />
+            <path d={leaves} fill="none" stroke={tint(SCENE.foliage, 0.3)} strokeWidth={0.8 * ss} strokeLinecap="round" opacity={0.55} />
+          </g>
+        );
+      })}
     </g>
   );
 });

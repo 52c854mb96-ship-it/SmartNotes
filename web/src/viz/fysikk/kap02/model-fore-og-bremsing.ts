@@ -13,6 +13,8 @@
  * Newtons 2. lov gir a = R/m = μmg/m = μg: massen forkortes bort. Konstant akselerasjon gir bremsetiden t = v₀/a og
  * bremselengden s = v₀²/(2a) = v₀²/(2μg) (tidløs likning med v = 0).
  * Når bilen står stille, er friksjonen null: på flat vei prøver ingen kraft å flytte bilen langs veien.
+ * Bil i kø: står det en bil stille d meter foran, stopper bilen før hvis s ≤ d. Ellers treffer den med farten
+ * v = √(v₀² − 2ad) (tidløs likning), og den største farten som rekker å stoppe, er v₀ = √(2μgd).
  */
 import { G_EARTH } from '../../kit/format';
 
@@ -63,10 +65,14 @@ export function frictionCoefficient(fore: Fore, dekk: Dekk, bremser: Bremser): n
   return bremser === 'abs' ? f.muS : f.muK;
 }
 
-/** Glidebryterne: farten i km/h og massen til bilen med fører i kg. */
+/**
+ * Glidebryterne: farten i km/h, massen til bilen med fører i kg og avstanden (m) fra der bremsingen starter til en
+ * bil som står stille i kø. Med standardverdiene (80 km/h, snø, vinterdekk og ABS) stopper bilen så vidt før køen.
+ */
 export const BRAKE_RANGES = {
   v: { min: 30, max: 110, step: 5, start: 80 },
   m: { min: 1000, max: 2000, step: 50, start: 1400 },
+  d: { min: 20, max: 200, step: 1, start: 103 },
 } as const;
 
 export const kmhToMs = (v: number): number => v / 3.6;
@@ -159,6 +165,58 @@ export function speedAfter(v0: number, mu: number, s: number): number {
   const v = Math.max(0, finite(v0));
   const a = Math.max(0, finite(mu)) * G_EARTH;
   return Math.sqrt(Math.max(0, v * v - 2 * a * Math.max(0, finite(s))));
+}
+
+/* ---------- Bil i kø foran: rekker bilen å stoppe? ---------- */
+
+export interface QueueOutcome {
+  /** Bilen stopper før bilen som står i kø (eller akkurat ved den). */
+  stops: boolean;
+  /** Avstanden igjen til bilen foran når bilen står stille (m), 0 ved sammenstøt. */
+  gap: number;
+  /** Farten i sammenstøtet (m/s), 0 når bilen stopper før. */
+  vHit: number;
+  /** Strekningen bilen bremser før den står stille eller treffer (m). */
+  sEnd: number;
+  /** Tiden fra bremsingen starter til bilen står stille eller treffer (s). */
+  tEnd: number;
+}
+
+/**
+ * En bil står stille i kø d meter foran der bremsingen starter (fra fronten vår til bakenden dens). Bilen stopper
+ * før hvis bremselengden s = v₀²/(2μg) ≤ d. Ellers treffer den med farten fra den tidløse likningen:
+ * v² = v₀² − 2ad, og det skjer etter tiden t = (v₀ − v)/a (uten friksjon: t = d/v₀).
+ */
+export function queueOutcome(v0: number, mu: number, d: number): QueueOutcome {
+  const v = Math.max(0, finite(v0));
+  const dd = Math.max(0, finite(d));
+  const r = brake(v, mu, 1);
+  if (r.s <= dd) return { stops: true, gap: dd - r.s, vHit: 0, sEnd: r.s, tEnd: r.t };
+  const vHit = speedAfter(v, mu, dd);
+  const tEnd = r.a > 0 ? (v - vHit) / r.a : dd / v;
+  return { stops: false, gap: 0, vHit, sEnd: dd, tEnd };
+}
+
+/** Den største farten (m/s) bilen kan ha og likevel stoppe på strekningen d (m): v₀ = √(2μgd). */
+export function maxStopSpeed(mu: number, d: number): number {
+  return Math.sqrt(2 * Math.max(0, finite(mu)) * G_EARTH * Math.max(0, finite(d)));
+}
+
+export interface QueueState extends BrakeState {
+  /** Bilen har truffet bilen foran (og står med fronten mot den). */
+  crashed: boolean;
+}
+
+/**
+ * Som brakeState, men med en bil i kø d meter foran (`d` = null: fri vei). Treffer bilen, stopper vi bevegelsen ved
+ * sammenstøtet: s = d, og etter det regner vi ikke videre (det som skjer i selve sammenstøtet, er ikke med).
+ */
+export function queueState(v0: number, mu: number, m: number, t: number, d: number | null): QueueState {
+  if (d !== null) {
+    const out = queueOutcome(v0, mu, d);
+    if (!out.stops && finite(t) >= out.tEnd) return { t: out.tEnd, v: 0, s: out.sEnd, a: 0, R: 0, stopped: true, crashed: true };
+  }
+  return { ...brakeState(v0, mu, m, t), crashed: false };
 }
 
 /**

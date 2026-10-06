@@ -20,8 +20,11 @@ import {
   legalAcceleration,
   msToKmh,
   oncomingFront,
+  overtakePhase,
   overtakeTime,
   relativeDistance,
+  relativeGain,
+  relativeVelocity,
   solveOvertake,
   targetFront,
   truckFront,
@@ -224,6 +227,58 @@ describe('bevegelsen', () => {
     expect(oncomingFront(o, 0)).toBe(450);
     expect(oncomingFront(o, 2) - oncomingFront(o, 5)).toBeCloseTo(3 * o.u, 12);
     expect(targetFront(o, 0)).toBeCloseTo(GAP_BEHIND + 12 + GAP_AHEAD + CAR_LENGTH, 12);
+  });
+});
+
+describe('bevegelsen i forhold til lastebilen', () => {
+  const o = solveOvertake(DEFAULT);
+
+  it('er ½at² og a·t, uavhengig av v₀', () => {
+    for (const t of [0, 1, 2.5, 4, o.T]) {
+      expect(relativeGain(o, t)).toBeCloseTo(0.5 * o.a * t * t, 9);
+      expect(relativeVelocity(o, t)).toBeCloseTo(o.a * t, 9);
+    }
+    const fast = solveOvertake({ ...DEFAULT, v0: kmhToMs(80) });
+    expect(relativeGain(fast, 3)).toBeCloseTo(relativeGain(o, 3), 9);
+  });
+
+  it('er bare en fjerdedel av Δs_rel etter halve tiden, og hele Δs_rel ved T', () => {
+    expect(relativeGain(o, o.T / 2)).toBeCloseTo(o.rel / 4, 9);
+    expect(relativeGain(o, o.T)).toBeCloseTo(o.rel, 9);
+    // Etter T kjører bilen fra med konstant relativ fart
+    expect(relativeGain(o, o.T + 1) - relativeGain(o, o.T)).toBeCloseTo(o.vEnd - o.v0, 9);
+  });
+
+  it('sluttfarten i forhold til lastebilen er dobbelt så stor som snittet', () => {
+    for (const input of allInputs()) {
+      const s = solveOvertake(input);
+      expect(relativeVelocity(s, s.T)).toBeCloseTo((2 * s.rel) / s.T, 9);
+    }
+  });
+});
+
+describe('fasene i forklaringen', () => {
+  it('går fra start via bak og ved siden til ferdig', () => {
+    const o = solveOvertake(DEFAULT);
+    expect(overtakePhase(o, 0)).toBe('start');
+    // Fronten når bakenden av lastebilen når ½at² = GAP_BEHIND
+    const tAlong = Math.sqrt((2 * GAP_BEHIND) / o.a);
+    expect(overtakePhase(o, tAlong - 0.01)).toBe('bak');
+    expect(overtakePhase(o, tAlong + 0.01)).toBe('ved siden');
+    // Bakenden passerer fronten av lastebilen når ½at² = GAP_BEHIND + L + CAR_LENGTH
+    const tAhead = Math.sqrt((2 * (GAP_BEHIND + 12 + CAR_LENGTH)) / o.a);
+    expect(overtakePhase(o, tAhead - 0.01)).toBe('ved siden');
+    expect(overtakePhase(o, tAhead + 0.01)).toBe('foran');
+    expect(overtakePhase(o, o.T - 0.01)).toBe('foran');
+    expect(overtakePhase(o, o.T)).toBe('ferdig');
+    expect(overtakePhase(o, o.tEnd)).toBe('ferdig');
+  });
+
+  it('ender i kollisjon når bilene møtes før T', () => {
+    const o = solveOvertake({ ...DEFAULT, D: 250 });
+    expect(overtakePhase(o, o.tMeet - 0.01)).not.toBe('kollisjon');
+    expect(overtakePhase(o, o.tMeet)).toBe('kollisjon');
+    expect(overtakePhase(o, o.T)).toBe('kollisjon');
   });
 });
 

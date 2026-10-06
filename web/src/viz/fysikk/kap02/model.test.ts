@@ -230,6 +230,13 @@ describe('bok på bord', () => {
     expect(bookOnTable(2.5).earthAccel / bookOnTable(0.5).earthAccel).toBeCloseTo(5, 9);
   });
 
+  it('største normalkraft på glidebryterne er 34,5 N (2,5 kg og 10 N dytt), som figuren setter av plass til', () => {
+    const r = bookOnTable(2.5, 10);
+    expect(r.G).toBeCloseTo(24.525, 9);
+    expect(r.N).toBeCloseTo(34.525, 9);
+    expect(r.N - r.F).toBeCloseTo(r.G, 12);
+  });
+
   it('negativt dytt regnes som null (hånda kan ikke dra i boka)', () => {
     const r = bookOnTable(1, -3);
     expect(r.F).toBe(0);

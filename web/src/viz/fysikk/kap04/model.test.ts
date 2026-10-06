@@ -10,6 +10,8 @@ import {
   maxLoss,
   pulseForce,
   pulseImpulse,
+  pushApart,
+  pushAt,
   timeToForce,
 } from './model';
 
@@ -230,6 +232,100 @@ describe('eksplosjon', () => {
 
   it('uten energi skjer det ingenting', () => {
     expect(explode(1, 1, 0)).toMatchObject({ p1: -0, p2: 0, Ek1: 0, Ek2: 0 });
+  });
+});
+
+describe('dytt med konstant kraft (skøyteløpere, fjær og krutt)', () => {
+  it('skøyteløpere på 80 og 40 kg som dytter med 150 N mens armene strekkes 0,50 m', () => {
+    const r = pushApart(80, 40, 150, 0.5);
+    // E = F·D = 75 J og p = √(2E·m1·m2/(m1 + m2)) = √4000
+    expect(r.E).toBeCloseTo(75, 12);
+    expect(r.p2).toBeCloseTo(Math.sqrt(4000), 12);
+    expect(r.v1).toBeCloseTo(-0.7906, 4);
+    expect(r.v2).toBeCloseTo(1.5811, 4);
+    // Impulsloven: F·Δt = p, og begge får like stor impuls
+    expect(r.dt).toBeCloseTo(0.4216, 4);
+    expect(r.F * r.dt).toBeCloseTo(r.p2, 12);
+    expect(r.I).toBeCloseTo(-r.p1, 12);
+    // Den lette (barnet) får dobbelt så stor fart og dobbelt så mye energi
+    expect(r.v2 / -r.v1).toBeCloseTo(2, 12);
+    expect(r.Ek2 / r.Ek1).toBeCloseTo(2, 12);
+  });
+
+  it('gir samme resultat som explode med E = F·D', () => {
+    for (const [m1, m2, F, D] of [
+      [80, 40, 150, 0.5],
+      [100, 20, 300, 0.5],
+      [1, 2, 0.75 / 0.045, 0.045],
+      [4, 0.01, 3500 / 0.6, 0.6],
+    ] as const) {
+      const r = pushApart(m1, m2, F, D);
+      const e = explode(m1, m2, F * D);
+      expect(r.v1).toBeCloseTo(e.v1, 12);
+      expect(r.v2).toBeCloseTo(e.v2, 12);
+      expect(r.Ek1 + r.Ek2).toBeCloseTo(F * D, 9);
+    }
+  });
+
+  it('kruttgassen i et gevær: 3,5 kJ over et løp på 0,60 m', () => {
+    const r = pushApart(4, 0.01, 3500 / 0.6, 0.6);
+    expect(r.F).toBeCloseTo(5833.3, 1);
+    expect(r.v2).toBeCloseTo(836, 0);
+    expect(r.v1).toBeCloseTo(-2.09, 2);
+    // Kula er i løpet i ca. 1,4 ms
+    expect(r.dt * 1000).toBeCloseTo(1.432, 3);
+  });
+
+  it('avstanden mellom legemene øker med akkurat D mens kraften virker', () => {
+    for (const [m1, m2, F, D] of [
+      [80, 40, 150, 0.5],
+      [30, 90, 60, 0.5],
+      [4, 0.01, 2000, 0.6],
+    ] as const) {
+      const r = pushApart(m1, m2, F, D);
+      const s = pushAt(m1, m2, r, r.dt);
+      expect(s.x2 - s.x1).toBeCloseTo(D, 9);
+    }
+  });
+
+  it('Σp = 0 og massesenteret står stille hele tiden, også midt i dyttet', () => {
+    const [m1, m2] = [70, 45];
+    const r = pushApart(m1, m2, 120, 0.5);
+    for (const f of [-0.3, 0, 0.1, 0.5, 0.99, 1, 1.5, 4, 10]) {
+      const s = pushAt(m1, m2, r, f * r.dt);
+      expect(m1 * s.v1 + m2 * s.v2).toBeCloseTo(0, 9);
+      expect(m1 * s.x1 + m2 * s.x2).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('før, under og etter dyttet: kraft, fart og posisjon henger sammen uten hopp', () => {
+    const [m1, m2] = [80, 40];
+    const r = pushApart(m1, m2, 150, 0.5);
+    expect(pushAt(m1, m2, r, -0.2)).toEqual({ phase: 'for', x1: 0, x2: 0, v1: 0, v2: 0, F: 0 });
+    const mid = pushAt(m1, m2, r, r.dt / 2);
+    expect(mid.phase).toBe('under');
+    expect(mid.F).toBe(150);
+    // Jevn akselerasjon: halv tid gir halv fart og en firedel av strekningen
+    expect(mid.v2).toBeCloseTo(r.v2 / 2, 12);
+    expect(mid.x2).toBeCloseTo(pushAt(m1, m2, r, r.dt).x2 / 4, 12);
+    const before = pushAt(m1, m2, r, r.dt * (1 - 1e-9));
+    const after = pushAt(m1, m2, r, r.dt);
+    expect(after.phase).toBe('etter');
+    expect(after.F).toBe(0);
+    expect(after.x1).toBeCloseTo(before.x1, 6);
+    expect(after.v2).toBeCloseTo(before.v2, 6);
+    // Etter dyttet: jevn fart, Δx = v·Δt
+    const later = pushAt(m1, m2, r, r.dt + 2);
+    expect(later.x2 - after.x2).toBeCloseTo(2 * r.v2, 12);
+    expect(later.x1 - after.x1).toBeCloseTo(2 * r.v1, 12);
+  });
+
+  it('uten kraft står alt stille', () => {
+    const r = pushApart(50, 50, 0, 0.5);
+    expect(r.dt).toBe(0);
+    expect(r.E).toBe(0);
+    const s = pushAt(50, 50, r, 3);
+    expect(Math.abs(s.x1) + Math.abs(s.x2) + Math.abs(s.v1) + Math.abs(s.v2)).toBe(0);
   });
 });
 

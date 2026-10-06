@@ -10,6 +10,7 @@ import {
   Readout,
   Readouts,
   Slider,
+  Sub,
   Toggle,
   Toolbar,
   Txt,
@@ -23,7 +24,6 @@ import {
 } from '../../kit';
 import {
   Dimension,
-  ForceArrow,
   Gran,
   Himmel,
   Landskap,
@@ -41,7 +41,6 @@ import {
   useStrokeScale,
   useSvgId,
   type Leddvinkler,
-  type PersonPose,
 } from '../../kit/scene';
 import {
   BREAD_SLICE_ENERGY,
@@ -54,15 +53,18 @@ import {
   type StairProgress,
   type StairResult,
 } from './model';
-import { LedPaere, Mikrobolgeovn, Rekkverk, Steintrapp, Stol, Varde } from './trappelop-deler';
+import { LedPaere, LiaDetaljer, Mikrobolgeovn, Rekkverk, Steintrapp, Stol, Varde } from './trappelop-deler';
+import { Lupe, LupeRing, type Friend, type Look } from './trappelop-lupe';
 import {
   LAYOUT_NARROW,
   LAYOUT_WIDE,
   RUNNER_HEIGHT,
   cameraLift,
-  forceScale,
+  hillItems,
+  panelBox,
   runnerPlace,
-  runningArm,
+  runnerPose,
+  runnerRing,
   stairGeometry,
   stairView,
   toScreen,
@@ -73,10 +75,12 @@ import { useNarrow } from './useNarrow';
 const KETTLE = 2000;
 /** Effekten din i diagrammet og avlesningen (det du selv gjør). */
 const C_YOU = VIZ.applied;
-/** Venninnen som tar tida, holder stoppeklokka foran seg. */
+/** Løperen: rød treningsjakke, mørke tights og hvite joggesko (også i diagrammet). */
+const RUNNER: Look = { jakke: 'rod', bukse: SCENE.rubber, sko: 'hvit', har: 'brun', frisyre: 'hestehale' };
+/** Venninnen som tar tida, i gul regnjakke, holder stoppeklokka foran seg. */
+const FRIEND_LOOK: Look = { jakke: 'gul', har: 'svart' };
 const FRIEND_POSE: Partial<Leddvinkler> = { hoyreSkulder: 62, hoyreAlbue: 78, nakke: 8 };
-/** Jakkefargen til løperen (også i diagrammet). */
-const JACKET = 'blaa';
+const FRIEND_HEIGHT = 1.66;
 
 export default function Trappelop() {
   const [m, setM] = useState(60);
@@ -95,6 +99,7 @@ export default function Trappelop() {
   const lay = narrow ? LAYOUT_NARROW : LAYOUT_WIDE;
   const chart = narrow ? CHART_NARROW : CHART_WIDE;
   const chartH = chart.top + chart.rowH * (POWER_REFS.length + 1) + chart.bottom;
+  const phase = runnerPlace(stairGeometry(h), prog.u).phase;
 
   return (
     <VizLayout>
@@ -111,7 +116,7 @@ export default function Trappelop() {
       <div ref={ref}>
         <Figure
           viewBox={`0 0 ${lay.W} ${lay.H}`}
-          label={`En elev på ${fmt(m, 0)} kg løper opp en steintrapp på ${fmt(h, 1)} m til en varde på toppen, og venninnen tar tida: ${fmt(time, 1)} s. Etter ${fmt(tau, 1)} s er eleven ${fmt(prog.climbed, 1)} m oppe, og arbeidet så langt er ${fmt(prog.W, 0)} J.`}
+          label={`En elev på ${fmt(m, 0)} kg løper opp en steintrapp i lia, ${fmt(h, 1)} m opp til en varde, og venninnen tar tida: ${fmt(time, 1)} s. Etter ${fmt(tau, 1)} s er eleven ${fmt(prog.climbed, 1)} m oppe, og arbeidet så langt er ${fmt(prog.W, 0)} J.${forces ? ` Lupen viser tyngden G = ${fmt(m * G_EARTH, 0)} N nedover og like stor kraft oppover.` : ''}`}
           maxHeight={narrow ? 620 : 500}
         >
           <StairScene lay={lay} m={m} h={h} time={time} tau={tau} prog={prog} running={r.vertical >= 0.45} forces={forces} />
@@ -128,21 +133,24 @@ export default function Trappelop() {
         <Readout label="Vannkokeren bruker like mye energi på" value={fmt(timeForEnergy(r.W, KETTLE), 1)} unit="s" />
       </Readouts>
 
-      <Formula label="Arbeid og effekt">
+      <Formula label="Kraft, arbeid og effekt">
         <FormulaLine>
-          W = mgh = {fmt(m, 0)} kg · 9,81 m/s² · {fmt(h, 1)} m = {fmt(r.W, 0)} J
+          F = G = mg = {fmt(m, 0)} kg · 9,81 m/s² = {fmt(m * G_EARTH, 0)} N
+        </FormulaLine>
+        <FormulaLine>
+          W = F · h = mgh = {fmt(m, 0)} kg · 9,81 m/s² · {fmt(h, 1)} m = {fmt(r.W, 0)} J
         </FormulaLine>
         <FormulaLine>
           P = W / t = {fmt(r.W, 0)} J / {fmt(time, 1)} s = {fmt(r.P, 0)} W
         </FormulaLine>
       </Formula>
 
-      <Explain>{explanation(r, m, h, time)}</Explain>
+      <Explain>{explanation(r, m, h, time, phase, forces)}</Explain>
     </VizLayout>
   );
 }
 
-/* ---------- Scenen: steintrappa opp lia ---------- */
+/* ---------- Scenen: steintrappa opp lia fra fjorden ---------- */
 
 function StairScene({
   lay,
@@ -169,6 +177,7 @@ function StairScene({
   const clip = useSvgId('tr-ramme');
   const g = useMemo(() => stairGeometry(h), [h]);
   const view = useMemo(() => stairView(g, lay), [g, lay]);
+  const items = useMemo(() => hillItems(g), [g]);
   const { S } = view;
   const { W, H } = lay;
   const tan = g.rise / g.run;
@@ -180,7 +189,7 @@ function StairScene({
   const B = (x: number, y: number) => toScreen(g, lay, S, 0, x, y);
   const foot = B(0, 0);
   const top = B(g.L, g.h);
-  const horizon = lay.yBot - 24 + camY * 0.08;
+  const horizon = lay.yBot - 26 + camY * 0.08;
 
   // Lia: flatt ved fjorden, steintrappa opp, og nesten flatt på toppen der varden står.
   const hill = useMemo(
@@ -198,25 +207,17 @@ function StairScene({
   // Varden står et stykke inn på toppen, men alltid inne i figuren når kameraet er ved toppen.
   const topEnd = toScreen(g, lay, S, view.cMax, g.L, g.h).x;
   const cairnX = g.L + Math.max(1.6, Math.min(3, (W - 14 - 0.35 * S - topEnd) / S));
+  // Lauvtreet står helt ute til venstre i figuren, og venninnen ved foten av trappa (aldri utenfor figuren).
+  const treeX = Math.min(-4.6, (4 - lay.xs) / S);
+  const friendX = Math.max(-1.75, (34 - lay.xs) / S);
+  const friend: Friend = { x: friendX, size: FRIEND_HEIGHT, ledd: FRIEND_POSE, look: FRIEND_LOOK };
 
   // Løperen
   const place = runnerPlace(g, prog.u);
   const size = RUNNER_HEIGHT * S;
-  const pose: PersonPose = place.phase === 'climb' ? 'gaa' : place.phase === 'top' ? 'armer-opp' : 'staa';
-  const ledd: Partial<Leddvinkler> | undefined =
-    place.phase !== 'climb'
-      ? undefined
-      : running
-        ? (() => {
-            const near = runningArm(place.fase);
-            const far = runningArm(place.fase + 0.5);
-            return { rygg: 17, hoyreSkulder: near.skulder, hoyreAlbue: near.albue, venstreSkulder: far.skulder, venstreAlbue: far.albue };
-          })()
-        : { rygg: 9 };
+  const rp = runnerPose(g, place, running);
   const p = B(place.x, place.y);
-  const plass = { x: p.x, y: p.y, skraaning: place.phase === 'climb' ? g.angle : 0, fase: place.fase };
-  const com = personPunkter(pose, size, ledd, plass).tyngdepunkt;
-  const gLen = m * G_EARTH * forceScale(S);
+  const ring = runnerRing({ x: p.x - camX, y: p.y + camY }, S, rp, place.fase);
 
   // Høyden: målet h som loddrett katet under toppen av trappa (trappa er hypotenusen), og høyden så langt.
   // Målet tegnes utenfor kameraet, så det kan flyttes inn i figuren når toppen er utenfor (høyden er den samme).
@@ -230,25 +231,37 @@ function StairScene({
   const visBot = Math.min(y0, H);
   const hText = `h = ${fmt(h, 1)} m`;
   const hW = hText.length * 0.6 * 17 * f * 0.95 + 8;
-  const yMid = (visTop + visBot) / 2 + 6 * f;
-  const hInside = dimX - stairXAt(yMid - 6 * f) > hW + 22;
+  // Etiketten for h står helst midt på målet, mellom trappa og mållinja. Er det for trangt der, flyttes den ned
+  // (der trappa er lenger unna), så til høyre for linja, og til slutt nederst med glorie oppå trappa.
+  const footX = foot.x - camX;
+  const lowest = Math.min(visBot, H) - 12 * f;
   const tagText = `${fmt(prog.climbed, 1)} m`;
   const tagW = tagText.length * 0.6 * 17 * f * 0.9 + 6;
   const tagRight = dimX + 12 + tagW < W - 4;
-  const showTag = prog.u > 0 && prog.u < 1 && (hInside || Math.abs(climbY + 6 * f - yMid) > 24 * f) && climbY < y0 - 4;
+  // Står høyden så langt (skiltet som følger løperen) på samme side, settes h litt under midten, så de to
+  // møtes bare et øyeblikk under avspillingen og ikke i utgangspunktet (6 s av 10 s).
+  let hY = visBot - (tagRight ? 0.5 : 0.36) * (visBot - visTop) + 6 * f;
+  let hInside = dimX - stairXAt(hY - 6 * f) - 22 >= hW;
+  if (!hInside) {
+    const yNeeded = y0 + 6 * f - tan * (dimX - footX - 22 - hW);
+    if (yNeeded <= lowest) {
+      hY = Math.max(hY, yNeeded + 2);
+      hInside = true;
+    } else if (dimX + 10 + hW > W - 4) {
+      hY = lowest;
+      hInside = true;
+    }
+  }
+  const sameSide = tagRight !== hInside;
+  const showTag = prog.u > 0 && prog.u < 1 && climbY < y0 - 4 && !(sameSide && Math.abs(climbY + 6 * f - hY) < 24 * f);
 
   // Stoppeklokka og arbeidet så langt i et skilt øverst til venstre (står fast mens kameraet flytter seg).
-  const clockR = 27 * k;
-  const pad = 12;
+  const panel = panelBox(f, k);
   const workText = `${fmt(prog.W, 0)} J`;
-  const fs = 17 * f;
-  const textX = pad + 12 + clockR * 2 + 14;
-  const panelW = textX - pad + Math.max(15 * 0.6 * fs * 0.82, workText.length * 0.62 * fs * 1.25) + 14;
-  const panelH = clockR * 2.4 + 18;
 
-  const friend = B(-1.75, 0);
-  const friendSize = 1.66 * S;
-  const watch = personPunkter('staa', friendSize, FRIEND_POSE, { x: friend.x, y: friend.y }).hoyreHand;
+  const fp = B(friendX, 0);
+  const friendSize = FRIEND_HEIGHT * S;
+  const watch = personPunkter('staa', friendSize, FRIEND_POSE, { x: fp.x, y: fp.y }).hoyreHand;
 
   return (
     <g clipPath={`url(#${clip})`}>
@@ -266,15 +279,16 @@ function StairScene({
         <Gran x={B(g.L + 9.5, 0).x} y={top.y - 0.4 * S} size={7.5 * S} seed={7} />
         <Gran x={B(g.L + 5.4, 0).x} y={top.y} size={5.8 * S} seed={3} />
         <Terreng points={hill} bottom={H + 40} type="gress" seed={4} />
+        <LiaDetaljer items={items} lay={lay} S={S} />
         {g.L > 3 && <Gran x={B(0.3 * g.L, 0.3 * g.h).x} y={B(0.3 * g.L, 0.3 * g.h).y} size={2.6 * S} seed={11} />}
         {g.L > 6 && <Gran x={B(0.76 * g.L, 0.76 * g.h).x} y={B(0.76 * g.L, 0.76 * g.h).y} size={3.3 * S} seed={12} />}
-        <Lauvtre x={B(-4.4, 0).x} y={foot.y} size={5 * S} seed={2} />
+        <Lauvtre x={B(treeX, 0).x} y={foot.y} size={4.4 * S} seed={2} />
         <Rekkverk g={g} lay={lay} S={S} />
         <Steintrapp g={g} lay={lay} S={S} />
         <Varde x={B(cairnX, 0).x} y={top.y} size={1.3 * S} />
         {/* Venninnen nederst tar tida */}
-        <Person x={friend.x} y={friend.y} size={friendSize} pose="staa" ledd={FRIEND_POSE} jakke="gronn" har="svart" />
-        <Stoppeklokke x={watch.x + 0.03 * S} y={watch.y - 0.05 * S} r={Math.max(2.4, 0.06 * S)} t={tau} digital={false} />
+        <Person x={fp.x} y={fp.y} size={friendSize} pose="staa" ledd={FRIEND_POSE} {...FRIEND_LOOK} />
+        <Stoppeklokke x={watch.x + 0.03 * S} y={watch.y - 0.05 * S} r={Math.max(2.4, 0.07 * S)} t={tau} digital={false} />
       </g>
 
       {/* Høyden h og høyden så langt */}
@@ -298,7 +312,7 @@ function StairScene({
           <circle cx={dimX} cy={climbY} r={4 * ss} fill={VIZ.gravity} stroke={VIZ.surface} strokeWidth={1.5 * ss} />
         </g>
       )}
-      <Txt x={hInside ? dimX - 10 : dimX + 10} y={yMid} anchor={hInside ? 'end' : 'start'} weight={700} size={0.95}>
+      <Txt x={hInside ? dimX - 10 : dimX + 10} y={hY} anchor={hInside ? 'end' : 'start'} weight={700} size={0.95}>
         {hText}
       </Txt>
       {showTag && (
@@ -307,34 +321,26 @@ function StairScene({
         </Txt>
       )}
 
-      {/* Løperen foran målet, med tyngden */}
+      {/* Løperen foran målet */}
       <g transform={`translate(${-camX} ${camY})`}>
-        <Person
-          x={p.x}
-          y={p.y}
-          size={size}
-          pose={pose}
-          ledd={ledd}
-          fase={place.fase}
-          skraaning={plass.skraaning}
-          jakke={JACKET}
-          bukse={SCENE.rubber}
-          sko="hvit"
-          har="brun"
-          frisyre="hestehale"
-        />
-        {forces && <ForceArrow x1={com.x} y1={com.y} x2={com.x} y2={com.y + gLen} color={VIZ.gravity} label="G" width={5.5} origin />}
+        <Person x={p.x} y={p.y} size={size} pose={rp.pose} ledd={rp.ledd} fase={place.fase} skraaning={rp.skraaning} {...RUNNER} />
       </g>
+      {forces && <LupeRing ring={ring} lupe={lay.lupe} />}
 
       {/* Skiltet med stoppeklokka og arbeidet så langt */}
-      <rect x={pad} y={pad} width={panelW} height={panelH} rx={12} fill={VIZ.surface} opacity={0.92} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
-      <Stoppeklokke x={pad + 12 + clockR} y={pad + 9 + clockR * 1.4} r={clockR} t={tau} desimaler={1} title={`Stoppeklokke: ${fmt(tau, 1)} s av ${fmt(time, 1)} s`} />
-      <Txt x={textX} y={pad + panelH * 0.4} anchor="start" size={0.82} muted halo={false}>
+      <rect x={panel.x} y={panel.y} width={panel.w} height={panel.h} rx={12} fill={VIZ.surface} opacity={0.92} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+      <Stoppeklokke x={panel.clockX} y={panel.clockY} r={panel.clockR} t={tau} desimaler={1} title={`Stoppeklokke: ${fmt(tau, 1)} s av ${fmt(time, 1)} s`} />
+      <Txt x={panel.textX} y={panel.y + panel.h * 0.4} anchor="start" size={0.82} muted halo={false}>
         Arbeid så langt
       </Txt>
-      <Txt x={textX} y={pad + panelH * 0.4 + 30 * f} anchor="start" size={1.25} weight={760} color={VIZ.gravity} halo={false}>
+      <Txt x={panel.textX} y={panel.y + panel.h * 0.4 + 30 * f} anchor="start" size={1.25} weight={760} color={VIZ.gravity} halo={false}>
         {workText}
       </Txt>
+
+      {/* Lupen med kreftene */}
+      {forces && (
+        <Lupe g={g} lupe={lay.lupe} place={place} rp={rp} look={RUNNER} m={m} cairnX={cairnX} friend={friend} tau={tau} />
+      )}
     </g>
   );
 }
@@ -377,6 +383,7 @@ function PowerChart({ P, lay }: { P: number; lay: ChartLayout }) {
   const ticks = niceTicks(0, max, stacked ? 3 : 4).filter((v) => v <= max);
   const yAxis = top + rowH * rows.length;
   const bar = stacked ? 16 * f : Math.min(24 * f, rowH * 0.46);
+  const xYou = xs(P);
   return (
     <g>
       <Txt x={18} y={24 * f} anchor="start" weight={700} size={0.95}>
@@ -411,6 +418,28 @@ function PowerChart({ P, lay }: { P: number; lay: ChartLayout }) {
           </g>
         );
       })}
+      {/* Effekten din som en strek gjennom alle søylene, så du ser hva som bruker mer og mindre enn deg. Når navnet
+          står over søylen (mobil), går streken bare gjennom søylene, så den ikke krysser teksten. */}
+      {stacked ? (
+        rows.map((row, i) => {
+          const barY = top + rowH * i + rowH * 0.7;
+          return (
+            <line
+              key={row.label}
+              x1={xYou}
+              x2={xYou}
+              y1={barY - bar / 2 - 5}
+              y2={barY + bar / 2 + 5}
+              stroke={C_YOU}
+              strokeWidth={1.8 * ss}
+              strokeDasharray={`${4 * ss} ${3 * ss}`}
+              opacity={row.you ? 0 : 0.85}
+            />
+          );
+        })
+      ) : (
+        <line x1={xYou} x2={xYou} y1={top - 4} y2={yAxis} stroke={C_YOU} strokeWidth={1.6 * ss} strokeDasharray={`${5 * ss} ${4 * ss}`} opacity={0.75} />
+      )}
     </g>
   );
 }
@@ -437,18 +466,19 @@ function PowerIcon({ kind, x, y, size }: { kind: Icon; x: number; y: number; siz
     case 'koker':
       return <Vannkoker x={x} y={y} size={size * 0.86} paa />;
     case 'du':
-      return <Person x={x} y={y} size={size * 1.02} pose="loepe" jakke={JACKET} bukse={SCENE.rubber} sko="hvit" har="brun" frisyre="hestehale" />;
+      return <Person x={x} y={y} size={size * 1.02} pose="loepe" {...RUNNER} />;
   }
 }
 
 /* ---------- Forklaring ---------- */
 
-function explanation(r: StairResult, m: number, h: number, time: number): ReactNode {
+function explanation(r: StairResult, m: number, h: number, time: number, phase: 'start' | 'climb' | 'top', forces: boolean): ReactNode {
   const level = pace(r.vertical);
   const bulbs = r.P / 60;
   const g = stairGeometry(h);
   const body = bodyEnergy(r.W);
   const slices = BREAD_SLICE_ENERGY / body;
+  const G = m * G_EARTH;
   const levelText: Record<typeof level, string> = {
     rolig: 'Det er en rolig tur opp trappa.',
     gange: `Det tilsvarer vanlig gange i trappa, omtrent like mye som ${fmt(bulbs, 0)} glødepærer.`,
@@ -456,16 +486,23 @@ function explanation(r: StairResult, m: number, h: number, time: number): ReactN
     sprint: 'Det er spurt på toppidrettsnivå, og kan bare holdes i noen få sekunder.',
     urealistisk: `Det er urealistisk: ingen mennesker løfter seg ${fmt(r.vertical, 1)} m per sekund opp en trapp.`,
   };
+  const lupe: Record<typeof phase, string> = {
+    start: `I lupen står du klar nederst. Du står stille, så normalkraften N fra bakken er like stor som tyngden G, ${fmt(G, 0)} N. Spill av, så ser du kraften F fra beina i trappa.`,
+    climb: `I lupen ser du kreftene på deg i trappa: tyngden G nedover og kraften F fra beina oppover. Løper du med jevn fart, er F i snitt like stor som G, ${fmt(G, 0)} N. For hvert trinn (ca. ${fmt(g.rise * 100, 0)} cm opp) gjør F et arbeid på omtrent ${fmt(G * g.rise, 0)} J.`,
+    top: `På toppen står du stille igjen, og normalkraften N er like stor som tyngden G, ${fmt(G, 0)} N. Arbeidet er gjort: ${g.n} trinn med omtrent ${fmt(G * g.rise, 0)} J hver, til sammen mgh = ${fmt(r.W, 0)} J.`,
+  };
   return (
     <>
       <p>
-        <strong>Arbeidet avhenger ikke av tiden.</strong> Trappa har {g.n} trinn og løfter deg {fmt(h, 1)} m. Beina må i snitt skyve deg opp med en
-        kraft F like stor som tyngden G = mg = {fmt(m * G_EARTH, 0)} N, så arbeidet er W = F · h = mgh = {fmt(r.W, 0)} J enten du går eller løper.
+        <strong>Arbeidet avhenger ikke av tiden.</strong> Steintrappa har {g.n} trinn og løfter deg {fmt(h, 1)} m. Beina må i snitt skyve deg opp med
+        en kraft F like stor som tyngden G = mg = {fmt(G, 0)} N, så arbeidet er W = F · h = mgh = {fmt(r.W, 0)} J enten du går eller løper.
         Effekten forteller hvor fort arbeidet gjøres: P = W/t = {fmt(r.P, 0)} W. {levelText[level]}
       </p>
+      {forces && <p>{lupe[phase]}</p>}
       <p>
         Bruker du dobbelt så lang tid ({fmt(2 * time, 1)} s), blir arbeidet det samme, men effekten halvparten ({fmt(r.P / 2, 0)} W). Under avspillingen
-        vokser arbeidet så langt jevnt, med {fmt(r.P, 0)} J hvert sekund.
+        vokser arbeidet så langt jevnt, med {fmt(r.P, 0)} J hvert sekund. På toppen er arbeidet lagret som potensiell energi: E<Sub>p</Sub> = mgh ={' '}
+        {fmt(r.W, 0)} J høyere enn nede ved fjorden.
       </p>
       <p>
         Det er derfor trappeløp er god trening, men bruker lite av energien i maten: musklene har en virkningsgrad på rundt 25 %, så kroppen bruker

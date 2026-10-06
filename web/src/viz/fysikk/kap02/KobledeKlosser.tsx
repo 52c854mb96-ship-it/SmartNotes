@@ -1,15 +1,12 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
-  Arrow,
-  Block,
-  Boundary,
   Controls,
   Explain,
   Figure,
   Formula,
   FormulaLine,
-  Ground,
-  Label,
+  Legend,
+  PlayControls,
   Readout,
   Readouts,
   Segmented,
@@ -17,58 +14,44 @@ import {
   Sub,
   Toggle,
   Toolbar,
+  Txt,
   VIZ,
   VizLayout,
   fmt,
   G_EARTH,
+  useSimClock,
+  useTextScale,
 } from '../../kit';
-import { coupled } from './model';
+import { BIL_MAAL, Bil, ForceArrow, Gran, Himmel, Landskap, Lauvtre, Underlag, ValueTag, Vei, hjulvinkelFraStrekning, paint, useSvgId } from '../../kit/scene';
+import { BOUNDARY, BruttPil, HENGER_MAAL, HengerLupe, Hengerfeste, KULE, Systemgrense, Tilhenger, hengerTopp } from './koblede-deler';
+import { TOW_RANGES, towDuration, towMotion, towSystem, trailerLoad, type TowSystem, type TowView } from './model-koblede-klosser';
 
-type View = 'system' | 'A' | 'B';
-
-const VIEWS: { value: View; label: string }[] = [
-  { value: 'system', label: 'Hele systemet' },
-  { value: 'A', label: 'Kloss A' },
-  { value: 'B', label: 'Kloss B' },
+const VIEWS: { value: TowView; label: string }[] = [
+  { value: 'system', label: 'Hele vogntoget' },
+  { value: 'henger', label: 'Hengeren' },
+  { value: 'bil', label: 'Bilen' },
 ];
 
-/** Piksler per newton for vannrette krefter. */
-const K = 5;
-/** Piksler per newton for G og N (lengre krefter, mindre skala). */
-const KV = 0.9;
-const FLOOR = 200;
-const ROPE = 110;
+const VIEW_TEXT: Record<TowView, string> = { system: 'hele vogntoget', henger: 'hengeren', bil: 'bilen' };
 
+/**
+ * Koblede legemer (2E): en bil trekker en tilhenger med storsekker med ved. Eleven velger hva som er systemet
+ * (hele vogntoget, bare hengeren eller bare bilen) og ser at kraften S i hengerfestet er en indre kraft som faller
+ * ut av kraftsummen når begge er med, men en ytre kraft når vi ser på én av dem. Avspillingen viser vogntoget som
+ * starter fra ro med konstant akselerasjon.
+ */
 export default function KobledeKlosser() {
-  const [view, setView] = useState<View>('system');
-  const [mA, setMA] = useState(2);
-  const [mB, setMB] = useState(4);
-  const [F, setF] = useState(9);
+  const RG = TOW_RANGES;
+  const [view, setView] = useState<TowView>('system');
+  const [mH, setMH] = useState<number>(RG.mH.start);
+  const [mB, setMB] = useState<number>(RG.mB.start);
+  const [F, setF] = useState<number>(RG.F.start);
+  const [showForces, setShowForces] = useState(true);
   const [vertical, setVertical] = useState(false);
-  const r = coupled(mA, mB, F);
-
-  const wA = 80 + mA * 8;
-  const wB = 80 + mB * 8;
-  const h = 80;
-  const total = wA + ROPE + wB;
-  const xA = Math.max(24, (800 - total - 150) / 2);
-  const xB = xA + wA + ROPE;
-  const top = FLOOR - h;
-  const cy = top + h / 2;
-  const sLen = r.S * K;
-  const pad = 16;
-
-  const boundary =
-    view === 'system'
-      ? { x: xA - pad, y: top - pad - 26, w: total + 2 * pad, h: h + 2 * pad + 26 }
-      : view === 'A'
-        ? { x: xA - pad, y: top - pad - 26, w: wA + 2 * pad, h: h + 2 * pad + 26 }
-        : { x: xB - pad, y: top - pad - 26, w: wB + 2 * pad, h: h + 2 * pad + 26 };
-
-  const sOnA = view !== 'B';
-  const sOnB = view !== 'A';
-  const internal = view === 'system';
-  const showF = view !== 'A';
+  const sys = towSystem(view, mH, mB, F);
+  const tEnd = towDuration(sys.a);
+  const clock = useSimClock({ tMax: tEnd });
+  const motion = towMotion(sys.a, clock.t);
 
   return (
     <VizLayout>
@@ -76,147 +59,441 @@ export default function KobledeKlosser() {
         <Slider
           label={
             <>
-              Masse A, m<Sub>A</Sub>
+              Masse henger med last, m<Sub>H</Sub>
             </>
           }
-          ariaLabel="Masse til kloss A"
-          value={mA}
-          onChange={setMA}
-          min={0.5}
-          max={10}
-          step={0.5}
+          ariaLabel="Masse til hengeren med last"
+          value={mH}
+          onChange={setMH}
+          min={RG.mH.min}
+          max={RG.mH.max}
+          step={RG.mH.step}
           unit="kg"
-          decimals={1}
         />
         <Slider
           label={
             <>
-              Masse B, m<Sub>B</Sub>
+              Masse bil med fører, m<Sub>B</Sub>
             </>
           }
-          ariaLabel="Masse til kloss B"
+          ariaLabel="Masse til bilen med fører"
           value={mB}
           onChange={setMB}
-          min={0.5}
-          max={10}
-          step={0.5}
+          min={RG.mB.min}
+          max={RG.mB.max}
+          step={RG.mB.step}
           unit="kg"
-          decimals={1}
         />
-        <Slider label="Kraft F på B" value={F} onChange={setF} min={0} max={30} step={0.5} unit="N" decimals={1} />
+        <Slider label="Drivkraft F fra veien" value={F} onChange={setF} min={RG.F.min} max={RG.F.max} step={RG.F.step} unit="N" />
       </Controls>
       <Toolbar>
         <Segmented label="Velg hva som er systemet" options={VIEWS} value={view} onChange={setView} />
+      </Toolbar>
+      <Toolbar>
+        <PlayControls clock={{ ...clock, t: motion.t }} decimals={1} />
+        <Toggle label="Vis krefter" checked={showForces} onChange={setShowForces} />
         <Toggle label="Vis tyngde og normalkraft" checked={vertical} onChange={setVertical} />
       </Toolbar>
 
-      <Figure
-        viewBox="0 0 800 300"
-        label={`To klosser bundet sammen med en snor på et glatt underlag. Kraften F drar i kloss B. Valgt system: ${VIEWS.find((v) => v.value === view)?.label}.`}
-        maxHeight={360}
-      >
-        <Ground x1={20} x2={780} y={FLOOR} />
-        <line x1={xA + wA} y1={cy} x2={xB} y2={cy} stroke={VIZ.tension} strokeWidth={2.5} />
-        <Block x={xA} y={top} w={wA} h={h} label="A" strong={view === 'A'} />
-        <Block x={xB} y={top} w={wB} h={h} label="B" strong={view === 'B'} />
-        <Boundary {...boundary} label={view === 'system' ? 'Systemet: A + B' : `Systemet: kloss ${view}`} />
-
-        {/* Snordraget: på A mot høyre (litt over snora), på B mot venstre (litt under) */}
-        {sOnA && (
-          <g opacity={internal ? 0.45 : 1}>
-            <Arrow x1={xA + wA} y1={cy - 12} x2={xA + wA + sLen} y2={cy - 12} color={VIZ.tension} dashed={internal} width={internal ? 2.5 : 3} />
-            <Label x={xA + wA + Math.max(sLen, 10) + 4} y={cy - 18} anchor="start" color={VIZ.tension}>
-              S
-            </Label>
-          </g>
-        )}
-        {sOnB && (
-          <g opacity={internal ? 0.45 : 1}>
-            <Arrow x1={xB} y1={cy + 12} x2={xB - sLen} y2={cy + 12} color={VIZ.tension} dashed={internal} width={internal ? 2.5 : 3} />
-            <Label x={xB - Math.max(sLen, 10) - 4} y={cy + 30} anchor="end" color={VIZ.tension}>
-              S
-            </Label>
-          </g>
-        )}
-        {internal && r.S > 0 && (
-          <Label x={xA + wA + ROPE / 2} y={FLOOR + 44} muted>
-            indre krefter faller ut
-          </Label>
-        )}
-
-        {showF && (
-          <Arrow x1={xB + wB} y1={cy} x2={xB + wB + F * K} y2={cy} color={VIZ.applied} label="F" labelX={xB + wB + F * K + 8} labelY={cy + 6} labelAnchor="start" />
-        )}
-
-        {vertical && (
-          <>
-            {view !== 'B' && <VerticalForces x={xA + wA / 2} cy={cy} m={mA} />}
-            {view !== 'A' && <VerticalForces x={xB + wB / 2} cy={cy} m={mB} />}
-          </>
-        )}
-
-        {r.a > 0 && (
-          <Arrow
-            x1={xA}
-            y1={24}
-            x2={xA + Math.min(200, 30 + r.a * 25)}
-            y2={24}
-            color={VIZ.acceleration}
-            width={2.5}
-            label="a"
-            labelX={xA + Math.min(200, 30 + r.a * 25) + 8}
-            labelY={30}
-            labelAnchor="start"
-          />
-        )}
+      <Figure viewBox={`0 ${VIEW_Y} ${W} ${H - VIEW_Y}`} label={sceneLabel(sys, mH, mB, F, motion.v)} maxHeight={480}>
+        <TowScene sys={sys} mH={mH} mB={mB} F={F} v={motion.v} s={motion.s} showForces={showForces} vertical={vertical} />
       </Figure>
 
-      <Formula label="Newtons 2. lov for det valgte systemet">{formula(view, mA, mB, F, r.a, r.S)}</Formula>
+      {showForces && <Legend items={legendItems(view, vertical)} />}
+
+      <Formula label="Newtons 2. lov for det valgte systemet">{formula(sys, mH, mB, F)}</Formula>
 
       <Readouts>
-        <Readout label="Akselerasjon a" value={fmt(r.a, 2)} unit="m/s²" tone={VIZ.acceleration} />
-        <Readout label="Snordrag S" value={fmt(r.S, 2)} unit="N" tone={VIZ.tension} />
-        <Readout label="Kraftsum på A" value={fmt(r.netA, 2)} unit="N" />
-        <Readout label="Kraftsum på B" value={fmt(r.netB, 2)} unit="N" />
+        <Readout label="Akselerasjon a" value={fmt(sys.a, 2)} unit="m/s²" tone={VIZ.acceleration} />
+        <Readout label="Kraft i hengerfestet S" value={fmt(sys.S, 0)} unit="N" tone={VIZ.tension} />
+        <Readout label="Kraftsum på hengeren" value={fmt(sys.netA, 0)} unit="N" />
+        <Readout label="Kraftsum på bilen" value={fmt(sys.netB, 0)} unit="N" />
       </Readouts>
 
-      <Explain>{explanation(view, vertical)}</Explain>
+      <Explain>{explanation(sys, mH, mB, F, vertical)}</Explain>
     </VizLayout>
   );
 }
 
-function VerticalForces({ x, cy, m }: { x: number; cy: number; m: number }) {
-  const len = m * G_EARTH * KV;
+/* ---------- Scenen: vogntoget på en landevei, kameraet følger med ---------- */
+
+const W = 800;
+const H = 440;
+/** Utsnittet starter litt ned på himmelen (den øverste, tomme delen er skåret bort). */
+const VIEW_Y = 60;
+const HORIZON = 212;
+/** Der hjulene står (midt i det nærmeste feltet), og hvor bred veibanen ser ut i perspektiv (som i Vei). */
+const ROAD_Y = 318;
+const ROAD_W = 56;
+const ROAD_BOT = ROAD_Y + 0.3 * ROAD_W;
+const NEAR_EDGE = ROAD_BOT + 0.18 * ROAD_W;
+/** Én skala for hele scenen: 60 px per meter (bilen er 4,4 m lang). */
+const PX_PER_M = 60;
+const CAR_SIZE = BIL_MAAL.lengde * PX_PER_M;
+/** Akslingen på hengeren, kula i hengerfestet og midten av bilen (ankerpunktene). */
+const TRAILER_X = 34 + (HENGER_MAAL.kasse / 2) * PX_PER_M;
+const HITCH_X = TRAILER_X + HENGER_MAAL.kobling * PX_PER_M;
+const HITCH_Y = ROAD_Y - KULE.hoyde * PX_PER_M;
+const CAR_X = HITCH_X + KULE.bak * PX_PER_M;
+const TRAILER_REAR = TRAILER_X - (HENGER_MAAL.kasse / 2) * PX_PER_M;
+const CAR_FRONT = CAR_X + BIL_MAAL.foran * PX_PER_M;
+const CAR_TOP = ROAD_Y - BIL_MAAL.hoyde * PX_PER_M;
+/** Drivhjulene (forhjulsdrift): der drivkraften fra veien virker. */
+const DRIVE_X = CAR_X + (BIL_MAAL.akselavstand / 2) * PX_PER_M;
+/** Tyngdepunktene, der G og N tegnes fra. */
+const CG_CAR = ROAD_Y - BIL_MAAL.tyngdepunkt * PX_PER_M;
+const CG_TRAILER = ROAD_Y - HENGER_MAAL.tyngdepunkt * PX_PER_M;
+/** Én skala for F og S: den største drivkraften (5 000 N) blir 180 px. */
+const PX_PER_N = 180 / TOW_RANGES.F.max;
+/** G og N er mye større (ca. 2 000–25 000 N) og tegnes forkortet, med brudd i pila. */
+const GN_LEN = 62;
+/** Fart og akselerasjon (egne skalaer): 5 px per m/s og 24 px per m/s². */
+const PX_PER_V = 5;
+const PX_PER_A = 24;
+const TRAILER_WHEEL_R = HENGER_MAAL.hjulradius;
+const LAKK = 'rod';
+/** Lupen på hengerfestet, i gresset rett under kula. */
+const LUPE = { x: HITCH_X, y: 393, r: 44 };
+
+function sceneLabel(sys: TowSystem, mH: number, mB: number, F: number, v: number): string {
+  const what = `En bil på ${fmt(mB, 0)} kg trekker en tilhenger med ved på ${fmt(mH, 0)} kg. Drivkraften fra veien er ${fmt(F, 0)} N, og kraften i hengerfestet er ${fmt(sys.S, 0)} N.`;
+  const now = v > 0.05 ? ` Farten er nå ${fmt(v * 3.6, 0)} km/h.` : '';
+  return `${what} Valgt system: ${VIEW_TEXT[sys.view]}.${now}`;
+}
+
+function TowScene({ sys, mH, mB, F, v, s, showForces, vertical }: { sys: TowSystem; mH: number; mB: number; F: number; v: number; s: number; showForces: boolean; vertical: boolean }) {
+  const f = useTextScale();
+  const narrow = f > 1.3;
+  const clip = useSvgId('vogntog-utsnitt');
+  const camera = s * PX_PER_M;
+  const fill = trailerLoad(mH).fill;
+  const withH = sys.view !== 'bil';
+  const withB = sys.view !== 'henger';
+  const internal = withH && withB;
+
+  // Systemgrensen: rundt det som er med, og gjennom hengerfestet når bare én av delene er med.
+  const loadTop = ROAD_Y - hengerTopp(fill) * PX_PER_M;
+  const pad = 10;
+  const left = withH ? TRAILER_REAR - pad : HITCH_X - 4;
+  const right = withB ? CAR_FRONT + pad : HITCH_X + 4;
+  const top = Math.min(withH ? loadTop : Infinity, withB ? CAR_TOP : Infinity) - pad - 2;
+  const bottom = ROAD_Y + 12;
+
+  const tagY = VIEW_Y + 24 * Math.max(1, f * 0.9);
+  const speedText = `${fmt(v * 3.6, 0)} km/h`;
+  const distText = `s = ${fmt(s, s < 100 ? 1 : 0)} m`;
+  const sysText = `Systemet: ${VIEW_TEXT[sys.view]}`;
+
   return (
-    <>
-      <Arrow x1={x - 10} y1={cy} x2={x - 10} y2={cy + len} color={VIZ.gravity} width={2.5} label="G" labelX={x - 18} labelY={cy + len} labelAnchor="end" />
-      <Arrow x1={x + 10} y1={FLOOR} x2={x + 10} y2={FLOOR - len} color={VIZ.normal} width={2.5} label="N" labelX={x + 18} labelY={FLOOR - len + 12} labelAnchor="start" />
-    </>
+    <g>
+      <defs>
+        <clipPath id={clip}>
+          <rect x={0} y={VIEW_Y} width={W} height={H - VIEW_Y} />
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${clip})`}>
+        <Backdrop camera={camera} />
+
+        <Hengerfeste x={CAR_X} y={ROAD_Y} pxPerM={PX_PER_M} dim={!withB} />
+        <Bil
+          x={CAR_X}
+          y={ROAD_Y}
+          size={CAR_SIZE}
+          lakk={LAKK}
+          type="stasjonsvogn"
+          hjulvinkel={hjulvinkelFraStrekning(s)}
+          dim={!withB}
+          title={`Bil med fører, ${fmt(mB, 0)} kg`}
+        />
+        <Tilhenger
+          x={TRAILER_X}
+          y={ROAD_Y}
+          pxPerM={PX_PER_M}
+          fill={fill}
+          hjulvinkel={hjulvinkelFraStrekning(s, TRAILER_WHEEL_R)}
+          dim={!withH}
+          title={`Tilhenger med ved, ${fmt(mH, 0)} kg`}
+        />
+
+        <Systemgrense x={left} y={top} w={right - left} h={bottom - top} />
+
+        {showForces && (
+          <g>
+            {vertical && withH && <VerticalPair x={TRAILER_X} cy={CG_TRAILER} G={mH * G_EARTH} side="end" narrow={narrow} />}
+            {vertical && withB && <VerticalPair x={CAR_X} cy={CG_CAR} G={mB * G_EARTH} side="start" narrow={narrow} />}
+            <HitchForces S={sys.S} onH={withH} onB={withB} internal={internal} narrow={narrow} />
+            {withB && F > 0 && (
+              <ForceArrow
+                x1={DRIVE_X}
+                y1={ROAD_Y + 8}
+                x2={DRIVE_X + F * PX_PER_N}
+                y2={ROAD_Y + 8}
+                color={VIZ.applied}
+                minLength={0.5}
+                label={narrow ? 'F' : `F = ${fmt(F, 0)} N`}
+                labelAnchor="start"
+                labelX={DRIVE_X + F * PX_PER_N + 8}
+                labelY={ROAD_Y + 14 * f}
+              />
+            )}
+            <Kinematics a={sys.a} v={v} x={kinX(sys.view)} y={top} narrow={narrow} />
+          </g>
+        )}
+
+        <HengerLupe
+          cx={LUPE.x}
+          cy={LUPE.y}
+          r={LUPE.r}
+          tx={HITCH_X}
+          ty={HITCH_Y}
+          tr={9}
+          lakk={paint(LAKK)}
+          withH={withH}
+          withB={withB}
+          showForces={showForces && sys.S > 0}
+        />
+        <LupeText view={sys.view} S={sys.S} />
+
+        <ValueTag x={14} y={tagY} anchor="start" text={speedText} color={v > 0.05 ? VIZ.velocity : undefined} />
+        <ValueTag x={14 + tagWidth(speedText, f) + 8 * f} y={tagY} anchor="start" text={distText} />
+        <ValueTag x={W - 14} y={tagY} anchor="end" text={sysText} color={BOUNDARY} />
+      </g>
+    </g>
   );
 }
 
-function formula(view: View, mA: number, mB: number, F: number, a: number, S: number): ReactNode {
-  const kg = (v: number) => `${fmt(v, 1)} kg`;
-  const n = (v: number) => `${fmt(v, 1)} N`;
-  if (view === 'system')
+/** Teksten ved lupen: hva den viser, og hva kraften i hengerfestet er for det valgte systemet. */
+function LupeText({ view, S }: { view: TowView; S: number }) {
+  const f = useTextScale();
+  const x = LUPE.x + LUPE.r + 12;
+  const y = LUPE.y - 4 * f;
+  const line =
+    !(S > 0) ? 'ingen kraft når F = 0' : view === 'system' ? 'indre krefter: opphever hverandre' : view === 'henger' ? 'bilen drar hengeren fremover' : 'hengeren drar bilen bakover';
+  return (
+    <g>
+      <Txt x={x} y={y} anchor="start" size={0.85} weight={720}>
+        Hengerfestet
+      </Txt>
+      <Txt x={x} y={y + 18 * f} anchor="start" size={0.8} weight={600} color={VIZ.tension}>
+        {line}
+      </Txt>
+    </g>
+  );
+}
+
+/** Der fart- og akselerasjonspilene begynner: over midten av systemet. */
+function kinX(view: TowView): number {
+  if (view === 'henger') return TRAILER_X - 40;
+  if (view === 'bil') return CAR_X - 40;
+  return (TRAILER_REAR + CAR_FRONT) / 2 - 40;
+}
+
+/** Bredden på et ValueTag (samme regel som i scene-kit-et), så to skilt kan stå ved siden av hverandre. */
+function tagWidth(text: string, f: number, size = 0.9): number {
+  const fs = 17 * f * size;
+  return Math.max(fs * 1.6, text.length * fs * 0.6 + 16 * f);
+}
+
+/** Himmel, åser, landeveien og noen trær. Alt ruller med kameraet (forskyvning i piksler). */
+function Backdrop({ camera }: { camera: number }) {
+  // Kameraet flytter seg bare synlig når bilen kjører; runder av så bakgrunnen ikke tegnes på nytt for småting.
+  const cam = Math.round(camera * 4) / 4;
+  return useMemo(
+    () => (
+      <g>
+        <Himmel w={W} h={HORIZON + 2} sol={{ x: 660, y: 78, r: 24 }} skyer={2} seed={5} forskyvning={cam} />
+        <Landskap x={0} y={HORIZON} w={W} h={104} type="aaser" seed={3} forskyvning={cam} />
+        <Vei x1={0} x2={W} y={ROAD_Y} bredde={ROAD_W} type="asfalt" horisont={HORIZON} depth={0.5 * ROAD_W} forskyvning={cam} seed={4} />
+        <Underlag x1={0} x2={W} y={H - 1} depth={2} type="gress" horisont={NEAR_EDGE} forskyvning={cam} seed={5} />
+        <Trees camera={cam} />
+      </g>
+    ),
+    [cam],
+  );
+}
+
+/** Trær på den bakre veikanten. De står lenger unna enn veien, så de ruller saktere (parallakse). */
+const TREES = [
+  { u: 30, y: 250, size: 92, kind: 'gran' },
+  { u: 560, y: 246, size: 70, kind: 'lauv' },
+  { u: 760, y: 252, size: 100, kind: 'gran' },
+  { u: 1060, y: 248, size: 84, kind: 'gran' },
+  { u: 1300, y: 246, size: 76, kind: 'lauv' },
+] as const;
+const TREE_PERIOD = 1500;
+const TREE_PARALLAX = 0.65;
+
+function Trees({ camera }: { camera: number }) {
+  const shift = camera * TREE_PARALLAX;
+  return (
+    <g>
+      {TREES.map((tr, i) => {
+        const x = ((((tr.u - shift) % TREE_PERIOD) + TREE_PERIOD) % TREE_PERIOD) - 120;
+        if (x < -80 || x > W + 80) return null;
+        return tr.kind === 'gran' ? <Gran key={i} x={x} y={tr.y} size={tr.size} seed={i + 1} /> : <Lauvtre key={i} x={x} y={tr.y} size={tr.size} seed={i + 1} />;
+      })}
+    </g>
+  );
+}
+
+/** Kraften i hengerfestet: på hengeren fremover og på bilen bakover, begge med angrepspunkt i kula. */
+function HitchForces({ S, onH, onB, internal, narrow }: { S: number; onH: boolean; onB: boolean; internal: boolean; narrow: boolean }) {
+  const f = useTextScale();
+  if (!(S > 0)) return null;
+  const len = S * PX_PER_N;
+  const label = internal || narrow ? 'S' : `S = ${fmt(S, 0)} N`;
+  const ly = HITCH_Y - 12 * f;
+  return (
+    <g opacity={internal ? 0.85 : 1}>
+      {onH && (
+        <ForceArrow
+          x1={HITCH_X}
+          y1={HITCH_Y}
+          x2={HITCH_X + len}
+          y2={HITCH_Y}
+          color={VIZ.tension}
+          dashed={internal}
+          minLength={0.5}
+          label={label}
+          labelAnchor={internal ? 'middle' : 'start'}
+          labelX={internal ? HITCH_X + Math.max(len, 14) / 2 + 4 : HITCH_X + len + 6}
+          labelY={internal ? ly : HITCH_Y + 6 * f}
+        />
+      )}
+      {onB && (
+        <ForceArrow
+          x1={HITCH_X}
+          y1={HITCH_Y}
+          x2={HITCH_X - len}
+          y2={HITCH_Y}
+          color={VIZ.tension}
+          dashed={internal}
+          minLength={0.5}
+          label={label}
+          labelAnchor={internal ? 'middle' : 'end'}
+          labelX={internal ? HITCH_X - Math.max(len, 14) / 2 - 4 : HITCH_X - len - 6}
+          labelY={internal ? ly : HITCH_Y + 6 * f}
+        />
+      )}
+    </g>
+  );
+}
+
+/** Tyngden og normalkraften på én del, fra tyngdepunktet, forkortet med brudd i pila. */
+function VerticalPair({ x, cy, G, side, narrow }: { x: number; cy: number; G: number; side: 'start' | 'end'; narrow: boolean }) {
+  const f = useTextScale();
+  const dx = (side === 'start' ? 10 : -10) * f;
+  const value = narrow ? undefined : fmt(G, 0);
+  return (
+    <g>
+      <BruttPil
+        x1={x}
+        y1={cy}
+        x2={x}
+        y2={cy - GN_LEN}
+        color={VIZ.normal}
+        label={value ? `N = ${value} N` : 'N'}
+        labelAnchor={side}
+        labelX={x + dx}
+        labelY={cy - GN_LEN + 14 * f}
+      />
+      <BruttPil
+        x1={x}
+        y1={cy}
+        x2={x}
+        y2={cy + GN_LEN}
+        color={VIZ.gravity}
+        label={value ? `G = ${value} N` : 'G'}
+        labelAnchor={side}
+        labelX={x + dx}
+        labelY={cy + GN_LEN - 2 * f}
+        origin
+      />
+    </g>
+  );
+}
+
+/** Akselerasjonen og farten til systemet (samme for bilen og hengeren), over systemgrensen. */
+function Kinematics({ a, v, x, y, narrow }: { a: number; v: number; x: number; y: number; narrow: boolean }) {
+  const f = useTextScale();
+  const aY = y - 22 * f;
+  const vY = aY - 26 * f;
+  return (
+    <g>
+      {a > 0 && (
+        <ForceArrow
+          x1={x}
+          y1={aY}
+          x2={x + a * PX_PER_A}
+          y2={aY}
+          color={VIZ.acceleration}
+          width={5}
+          minLength={0.5}
+          label={narrow ? 'a' : `a = ${fmt(a, 2)} m/s²`}
+          labelAnchor="start"
+          labelX={x + a * PX_PER_A + 8}
+          labelY={aY + 6 * f}
+        />
+      )}
+      {v > 0.05 && (
+        <ForceArrow
+          x1={x}
+          y1={vY}
+          x2={x + v * PX_PER_V}
+          y2={vY}
+          color={VIZ.velocity}
+          width={6}
+          minLength={0.5}
+          label="v"
+          labelAnchor="start"
+          labelX={x + v * PX_PER_V + 8}
+          labelY={vY + 6 * f}
+        />
+      )}
+    </g>
+  );
+}
+
+function legendItems(view: TowView, vertical: boolean): { color: string; label: ReactNode; dashed?: boolean }[] {
+  const items: { color: string; label: ReactNode; dashed?: boolean }[] = [];
+  if (view !== 'henger') items.push({ color: VIZ.applied, label: 'F: drivkraft fra veien på bilen' });
+  items.push({
+    color: VIZ.tension,
+    label: view === 'system' ? 'S: kraften i hengerfestet (indre krefter, stiplet)' : view === 'henger' ? 'S: bilen drar hengeren fremover' : 'S: hengeren drar bilen bakover',
+    dashed: view === 'system',
+  });
+  if (vertical) {
+    items.push({ color: VIZ.gravity, label: 'G: tyngde (forkortet)' });
+    items.push({ color: VIZ.normal, label: 'N: normalkraft (forkortet)' });
+  }
+  items.push({ color: VIZ.acceleration, label: 'a: akselerasjon' }, { color: VIZ.velocity, label: 'v: fart' });
+  items.push({ color: BOUNDARY, label: 'Systemgrense', dashed: true });
+  return items;
+}
+
+function formula(sys: TowSystem, mH: number, mB: number, F: number): ReactNode {
+  const kg = (v: number) => `${fmt(v, 0)} kg`;
+  const n = (v: number) => `${fmt(v, 0)} N`;
+  const a = `${fmt(sys.a, 2)} m/s²`;
+  if (sys.view === 'system')
     return (
       <>
         <FormulaLine>
-          ΣF = F = (m<Sub>A</Sub> + m<Sub>B</Sub>) · a
+          ΣF = F = (m<Sub>H</Sub> + m<Sub>B</Sub>) · a
         </FormulaLine>
         <FormulaLine>
-          a = {n(F)} / {kg(mA + mB)} = {fmt(a, 2)} m/s²
+          a = F/(m<Sub>H</Sub> + m<Sub>B</Sub>) = {n(F)}/{kg(mH + mB)} = {a}
         </FormulaLine>
       </>
     );
-  if (view === 'A')
+  if (sys.view === 'henger')
     return (
       <>
         <FormulaLine>
-          ΣF = S = m<Sub>A</Sub> · a
+          ΣF = S = m<Sub>H</Sub> · a
         </FormulaLine>
         <FormulaLine>
-          S = {kg(mA)} · {fmt(a, 2)} m/s² = {fmt(S, 2)} N
+          S = {kg(mH)} · {a} = {n(sys.S)}
         </FormulaLine>
       </>
     );
@@ -226,35 +503,66 @@ function formula(view: View, mA: number, mB: number, F: number, a: number, S: nu
         ΣF = F − S = m<Sub>B</Sub> · a
       </FormulaLine>
       <FormulaLine>
-        S = F − m<Sub>B</Sub> · a = {n(F)} − {kg(mB)} · {fmt(a, 2)} m/s² = {fmt(S, 2)} N
+        S = F − m<Sub>B</Sub> · a = {n(F)} − {kg(mB)} · {a} = {n(sys.S)}
       </FormulaLine>
     </>
   );
 }
 
-function explanation(view: View, vertical: boolean): ReactNode {
-  const vert = vertical ? ' Tyngden og normalkraften er like store og opphever hverandre, så de påvirker ikke bevegelsen.' : '';
-  switch (view) {
-    case 'system':
-      return (
+function explanation(sys: TowSystem, mH: number, mB: number, F: number, vertical: boolean): ReactNode {
+  const vert = vertical ? (
+    <p>
+      Tyngden G og normalkraften N er like store og opphever hverandre, så de påvirker ikke bevegelsen. De er mye større enn F og S (for
+      bilen er G = {fmt(mB * G_EARTH, 0)} N), så de er tegnet forkortet, med brudd i pila.
+    </p>
+  ) : null;
+  if (!(F > 0))
+    return (
+      <>
         <p>
-          Ser vi på A og B som <strong>ett system</strong>, er snordraget en indre kraft: snora drar A fremover og B bakover med like
-          stor kraft, så de to S-ene faller ut av kraftsummen. Bare den ytre kraften F er igjen, og den akselererer hele massen.{vert}
+          Uten drivkraft står vogntoget stille: a = 0, og det er ingen kraft i hengerfestet. Dra i glidebryteren for drivkraften, og se
+          hvordan F deles mellom bilen og hengeren.
         </p>
-      );
-    case 'A':
-      return (
-        <p>
-          For <strong>kloss A</strong> alene er snordraget en ytre kraft, og den eneste vannrette kraften. Det er S som gir A den samme
-          akselerasjonen som resten av systemet.{vert}
-        </p>
-      );
-    case 'B':
-      return (
-        <p>
-          For <strong>kloss B</strong> virker både F fremover og S bakover. Kraftsummen F − S gir B akselerasjonen a. Du får samme S som
-          når du regner på kloss A, og det er en fin kontroll.{vert}
-        </p>
-      );
-  }
+        {vert}
+      </>
+    );
+  const main = (() => {
+    switch (sys.view) {
+      case 'system':
+        return (
+          <p>
+            Ser vi på bilen og hengeren som <strong>ett system</strong>, er kraften i hengerfestet en indre kraft: bilen drar hengeren
+            fremover med S, og hengeren drar bilen bakover med like stor kraft (Newtons 3. lov). De to S-ene opphever hverandre i
+            kraftsummen. Bare den ytre kraften F fra veien er igjen, og den akselererer hele massen på {fmt(mH + mB, 0)} kg. Det er derfor
+            bilen blir merkbart tregere med full henger: den samme drivkraften skal gi fart til mer masse.
+          </p>
+        );
+      case 'henger':
+        return (
+          <p>
+            For <strong>hengeren</strong> alene er S en ytre kraft, og den eneste vannrette kraften. Hengerfestet må gi hengeren den
+            samme akselerasjonen som bilen, så S = m<Sub>H</Sub> · a = {fmt(sys.S, 0)} N. Jo tyngre hengeren er og jo kraftigere du gir
+            gass, desto større blir S. Det er derfor hver bil har en grense for hvor tung henger den får trekke.
+          </p>
+        );
+      case 'bil':
+        return (
+          <p>
+            For <strong>bilen</strong> alene virker både F fremover og S bakover, fra hengeren. Kraftsummen F − S = {fmt(sys.netB, 0)} N gir
+            bilen akselerasjonen a. Drivkraften er friksjonen fra veien på drivhjulene, men bare {fmt((1 - sys.S / F) * 100, 0)} % av
+            den går til å akselerere selve bilen. Du får samme S som når du regner på hengeren, og det er en fin kontroll.
+          </p>
+        );
+    }
+  })();
+  return (
+    <>
+      {main}
+      {vert}
+      <p>
+        Trykk «Spill av» for å se vogntoget starte fra ro. Farten øker like mye hvert sekund, og bilen og hengeren har hele tiden samme fart
+        og akselerasjon. Vi ser bort fra luftmotstand og rullemotstand.
+      </p>
+    </>
+  );
 }
