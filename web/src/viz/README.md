@@ -65,7 +65,7 @@ Eleven vil at visualiseringene skal se **ekte** ut og samtidig være **maksimalt
 import { Himmel, Landskap, Vei, Bil, ForceArrow, Dimension, ValueTag, SCENE } from '../../kit/scene';
 ```
 
-Scene-kit-et importeres for seg selv, ikke fra `../../kit`, så navnene ikke kolliderer med kjemi- og biologi-kit-et. `index.ts` laster også `scene.css`. Gjenstandene ses i galleriet: `http://localhost:5173/viz-preview.html?galleri=alle&theme=dark` (eller `?galleri=kjoretoy` osv.). Skjermbilder: `node scripts/galleri-shot.mjs --port 5173 --galleri alle --out /tmp/galleri`.
+Scene-kit-et importeres for seg selv, ikke fra `../../kit`, så navnene ikke kolliderer med kjemi- og biologi-kit-et. **Kort oversikt over alt i kit-et: `kit/scene/API.md`** (generert fra JSDoc; les den først, og bare kildefilene for det du bruker). `index.ts` laster også `scene.css`. Gjenstandene ses i galleriet: `http://localhost:5173/viz-preview.html?galleri=alle&theme=dark` (eller `?galleri=kjoretoy` osv.). Skjermbilder: `node scripts/galleri-shot.mjs --port 5173 --galleri alle --out /tmp/galleri`.
 
 | Fil | Innhold |
 |---|---|
