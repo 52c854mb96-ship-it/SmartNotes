@@ -526,7 +526,16 @@ function Scene({
         <Skinner geo={geo} rail={L.rail} />
 
         {/* Vendepunkt og hvor mye energien mangler på toppen */}
-        {turn && failed && <TurnMarks turn={turn} failed={failed} L={L} viewL={viewL} viewR={viewR} />}
+        {turn && failed && (
+          <TurnMarks
+            turn={turn}
+            failed={failed}
+            L={L}
+            viewL={viewL}
+            viewR={viewR}
+            avoid={pointMarks.find((m) => m.p.id === failed.id)?.boxes[0]}
+          />
+        )}
 
         {/* E_k som høyde v²/2g: hjelpelinje i høyden h fra prikken under vogna, og mållinja opp til linja */}
         {showEk && (
@@ -591,7 +600,22 @@ function Scene({
 }
 
 /** Vendepunktet (v = 0) og mållinje for hvor mye som mangler opp til toppen vogna ikke klarer. */
-function TurnMarks({ turn, failed, L, viewL, viewR }: { turn: TurnPoint; failed: PointResult; L: TrackLayout; viewL: number; viewR: number }) {
+function TurnMarks({
+  turn,
+  failed,
+  L,
+  viewL,
+  viewR,
+  avoid,
+}: {
+  turn: TurnPoint;
+  failed: PointResult;
+  L: TrackLayout;
+  viewL: number;
+  viewR: number;
+  /** Navnet på toppen (f.eks. «B 20 m»), som målpila ikke skal krysse. */
+  avoid?: Box;
+}) {
   const f = useTextScale();
   const ss = useStrokeScale();
   const { X, Y } = L;
@@ -601,7 +625,12 @@ function TurnMarks({ turn, failed, L, viewL, viewR }: { turn: TurnPoint; failed:
   const text = `mangler ${fmt(missing, missing < 0.95 ? 2 : 1)} m`;
   const w = textWidth(text, 0.85, f);
   // Mållinja til høyre for toppen med teksten til høyre. Er det ikke plass, står teksten over toppen.
-  const xd = X(failed.x) + 22 + 10 * f;
+  // Står navnet på toppen i høyden til mållinja (på mobil er teksten større), flyttes mållinja forbi det.
+  const xd0 = X(failed.x) + 22 + 10 * f;
+  const yTop = Math.min(Y(failed.h), Y(level));
+  const yBot = Math.max(Y(failed.h), Y(level));
+  const blocked = avoid && avoid.x1 + 6 > xd0 - 6 && avoid.x0 < xd0 + 6 && avoid.y0 < yBot && avoid.y1 > yTop;
+  const xd = avoid && blocked && avoid.x1 + 10 < viewR - 8 ? avoid.x1 + 10 : xd0;
   const beside = xd + 8 * f + w < viewR;
   const showDim = missing > 0.04;
   if (!showDim) return null;

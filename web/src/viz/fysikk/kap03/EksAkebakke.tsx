@@ -489,20 +489,21 @@ function Scene({ task, s, look, spec, L }: { task: SledTask; s: SledSolution; lo
       )}
 
       {/* Mål (på snøen) */}
+      {spec.dims.s !== 'off' && (
+        <SnowDimension x1={xA} y1={yA} x2={xB} y2={groundY} offset={-S_DIM_OFFSET * f} labelOffset={sShift} label={sText} strong={sStrong} />
+      )}
       {spec.dims.h !== 'off' && (
         <SnowDimension
           x1={8 + 14 * f}
           y1={yA}
           x2={8 + 14 * f}
           y2={groundY}
-          // Etiketten høyt oppe, så den ikke kolliderer med starten av s-målet under A
+          // Etiketten høyt oppe, så den ikke kolliderer med starten av s-målet under A. Målet tegnes etter s-målet, så
+          // glorien rundt etiketten dekker den stiplede hjelpelinja fra A der de møtes (mobil).
           labelOffset={Math.min(0, 20 * f - (groundY - yA) / 2)}
           label={`h = ${fmt(task.h, 1)} m`}
           strong={spec.dims.h === 'strong'}
         />
-      )}
-      {spec.dims.s !== 'off' && (
-        <SnowDimension x1={xA} y1={yA} x2={xB} y2={groundY} offset={-S_DIM_OFFSET * f} labelOffset={sShift} label={sText} strong={sStrong} />
       )}
       {spec.dims.d !== 'off' && (
         <SnowDimension x1={xB} y1={groundY} x2={xC} y2={groundY} offset={-38 * f} label={`d = ${fmt(s.d, 0)} m`} strong={spec.dims.d === 'strong'} />
