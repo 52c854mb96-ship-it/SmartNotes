@@ -116,11 +116,13 @@ test.afterAll(async () => {
   if (work) fs.rmSync(work, { recursive: true, force: true });
 });
 
+// «underveis»: siden lastes på nytt mens den nye versjonen installeres (nedlastingen holdes igjen i 4 s).
+// «ferdig»: den nye versjonen er installert før siden lastes på nytt. Safari lar den gjerne stå og vente.
 for (const [name, delay] of [
-  ['stor oppdatering (treg installasjon)', 4000],
-  ['liten oppdatering (rask installasjon)', 0],
+  ['installasjonen er underveis når siden lastes', 4000],
+  ['ny versjon er ferdig installert når siden lastes', 0],
 ] as const) {
-  test(`ny versjon tas i bruk selv om installasjonen startet før siden: ${name}`, async ({ page }) => {
+  test(`ny versjon tas i bruk: ${name}`, async ({ page }) => {
     test.setTimeout(120_000);
     const log: string[] = [];
     const t0 = Date.now();
@@ -143,7 +145,7 @@ for (const [name, delay] of [
     expect(buildA).toBeTruthy();
     expect(buildA).not.toBe(BUILD_B);
 
-    // Ny versjon på serveren. Nettleseren begynner å installere den, og siden lastes på nytt mens det pågår.
+    // Ny versjon på serveren. Nettleseren begynner å installere den, og siden lastes på nytt.
     await stopServer();
     installDelay = delay;
     await startServer(path.join(work, 'B'));
@@ -152,20 +154,21 @@ for (const [name, delay] of [
       (window as unknown as { oldWorker?: ServiceWorker | null }).oldWorker = r?.active;
       void r?.update();
     });
-    // Vent til installasjonen er i gang (eller allerede ferdig, hvis nettleseren er rask).
+    // «underveis»: vent til installasjonen er i gang. «ferdig»: vent til den er ferdig (venter eller har tatt over).
     await page.waitForFunction(
-      async () => {
+      async (underway) => {
         const r = await navigator.serviceWorker.getRegistration();
-        return Boolean(r?.installing || r?.waiting || r?.active !== (window as unknown as { oldWorker?: ServiceWorker | null }).oldWorker);
+        const replaced = r?.active !== (window as unknown as { oldWorker?: ServiceWorker | null }).oldWorker;
+        return Boolean((underway && r?.installing) || r?.waiting || replaced);
       },
-      null,
+      delay > 0,
       { timeout: 30_000 },
     );
     log.push(`${Date.now() - t0} ms før omlasting: ${JSON.stringify(await swState(page))}`);
     await page.reload();
     const afterReload = await build(page);
     log.push(`${Date.now() - t0} ms etter omlasting (${afterReload}): ${JSON.stringify(await swState(page))}`);
-    // Ved rask installasjon kan B allerede ha tatt over før siden lastes på nytt; da er det ingenting å oppdatere.
+    // Har B allerede tatt over før siden lastes på nytt (vanlig i Chromium), er det ingenting å oppdatere.
     if (delay > 0) expect(afterReload).toBe(buildA);
     if (afterReload === BUILD_B) return;
     expect(afterReload).toBe(buildA);
