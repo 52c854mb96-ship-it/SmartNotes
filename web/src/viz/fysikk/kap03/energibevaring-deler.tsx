@@ -278,16 +278,31 @@ export const Halfpipe = memo(function Halfpipe({ track, L }: { track: Track; L: 
 /* ---------- Akebakke ---------- */
 
 /**
- * Sporene etter akebrettene i snøen: en hardpakket, litt blåere stripe like under overflaten, så bakken ser brukt
- * ut. `points` er overflaten i figurens enheter (samme punkter som Terreng).
+ * Akebakken oppå Terreng: en myk, blålig skygge innover fra overflaten (så snøen får tykkelse og form) og sporene
+ * etter akebrettene, en hardpakket, litt blåere stripe like under overflaten, så bakken ser brukt ut. `points` er
+ * hele overflaten i figurens enheter (samme punkter som Terreng), `run` den delen det akes på, og `bottom` bunnen.
  */
-export const Akespor = memo(function Akespor({ points, ppm }: { points: [number, number][]; ppm: number }) {
+export const Akespor = memo(function Akespor({ points, run, bottom, ppm }: { points: [number, number][]; run: [number, number][]; bottom: number; ppm: number }) {
   const ss = useStrokeScale();
-  const d = points.map(([x, y], i) => `${i ? 'L' : 'M'}${r1(x)},${r1(y)}`).join('');
+  const id = useSvgId('akebakke');
+  const line = (pts: [number, number][]) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${r1(x)},${r1(y)}`).join('');
+  const surface = line(points);
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) return null;
+  const body = `${surface}L${r1(last[0])},${r1(bottom)}L${r1(first[0])},${r1(bottom)}Z`;
+  const d = line(run);
   return (
     <g aria-hidden>
-      <path d={d} fill="none" stroke={SCENE.snowShade} strokeWidth={Math.max(3 * ss, 0.1 * ppm)} strokeLinejoin="round" opacity={0.55} transform={`translate(0 ${r1(Math.max(2.4 * ss, 0.07 * ppm))})`} />
-      <path d={d} fill="none" stroke={tint(SCENE.ice, 0.4)} strokeWidth={1 * ss} strokeLinejoin="round" opacity={0.7} transform={`translate(0 ${r1(Math.max(1.2 * ss, 0.035 * ppm))})`} />
+      <clipPath id={`${id}-klipp`}>
+        <path d={body} />
+      </clipPath>
+      <g clipPath={`url(#${id}-klipp)`}>
+        <path d={surface} fill="none" stroke={SCENE.snowShade} strokeWidth={0.9 * ppm} strokeLinejoin="round" opacity={0.22} />
+        <path d={surface} fill="none" stroke={SCENE.snowShade} strokeWidth={0.4 * ppm} strokeLinejoin="round" opacity={0.25} />
+        <path d={d} fill="none" stroke={SCENE.snowShade} strokeWidth={Math.max(3 * ss, 0.12 * ppm)} strokeLinejoin="round" opacity={0.7} transform={`translate(0 ${r1(Math.max(2.6 * ss, 0.08 * ppm))})`} />
+        <path d={surface} fill="none" stroke={tint(SCENE.snow, 0.5)} strokeWidth={Math.max(2.4 * ss, 0.06 * ppm)} strokeLinejoin="round" opacity={0.9} />
+      </g>
     </g>
   );
 });

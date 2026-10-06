@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { barHeight, boxesOverlap, facing, framePoint, riderFrame, sceneLayout, segmentHitsBox, speedArrow, speedLabelPlace, textBox, textWidth } from './energibevaring-scene';
+import {
+  COM_HEIGHT,
+  G_ARROW_M,
+  SPEED_ARROW_LIFT,
+  barHeight,
+  boxesOverlap,
+  facing,
+  framePoint,
+  riderFrame,
+  sceneForces,
+  sceneLayout,
+  segmentHitsBox,
+  speedArrow,
+  speedLabelPlace,
+  textBox,
+  textWidth,
+} from './energibevaring-scene';
 import { TRACK_TOP, makeTrack, simulateTrack } from './model';
 
 const KINDS = ['rampe', 'bakke'] as const;
@@ -39,15 +55,20 @@ describe('utformingen av scenen', () => {
         else expect(c.x).toBeGreaterThan(L.freeRight);
       });
 
-      it(`${name}: fartspila og etiketten holder seg inne i scenen for alle posisjoner med h₀ = 5,5 m`, () => {
+      it(`${name}: fartspila og etiketten holder seg inne i scenen for alle posisjoner med h₀ = 5,5 m (også løftet)`, () => {
         const f = narrow ? 1.84 : 1;
         for (let x = tr.xMin; x <= tr.xMax; x += 0.05) {
           const h = tr.height(x);
           if (h > 5.5) continue;
           const v = Math.sqrt(2 * G * (5.5 - h));
           const fr = riderFrame(tr, L, x);
-          for (const sv of [1, -1]) {
-            const a = speedArrow(fr, kind, L.ppm, sv * v);
+          for (const [sv, lift] of [
+            [1, 0],
+            [-1, 0],
+            [1, SPEED_ARROW_LIFT],
+            [-1, SPEED_ARROW_LIFT],
+          ] as const) {
+            const a = speedArrow(fr, kind, L.ppm, sv * v, lift);
             expect(a.x2).toBeGreaterThan(0);
             expect(a.x2).toBeLessThan(L.freeRight);
             expect(a.y2).toBeGreaterThan(0);
@@ -147,6 +168,77 @@ describe('personen på banen', () => {
           expect(s.x).toBeGreaterThan(L.xLeft + 0.5);
           expect(s.x).toBeLessThan(L.xRight - 0.5);
         }
+      }
+  });
+});
+
+describe('kreftene', () => {
+  it('G er loddrett og like lang for alle masser, og G∥ er komponenten av G langs banen', () => {
+    for (const kind of KINDS) {
+      const tr = makeTrack(kind);
+      for (const narrow of [false, true]) {
+        const L = sceneLayout(kind, narrow);
+        for (const m of [20, 50, 100])
+          for (let x = tr.xMin + 0.05; x < tr.xMax; x += 0.41) {
+            const fr = riderFrame(tr, L, x);
+            const F = sceneForces(fr, kind, L.ppm, m, G, 3, 0);
+            // Én skala for alle kreftene: k px/N, og G blir G_ARROW_M meter lang
+            expect(F.k * m * G).toBeCloseTo(G_ARROW_M * L.ppm, 9);
+            expect(F.G.x2).toBeCloseTo(F.G.x1, 9);
+            expect(F.G.y2 - F.G.y1).toBeCloseTo(G_ARROW_M * L.ppm, 9);
+            // Angrepspunktet er tyngdepunktet over brettet
+            const com = framePoint(fr, 0, COM_HEIGHT[kind] * L.ppm);
+            expect(F.com.x).toBeCloseTo(com.x, 9);
+            expect(F.com.y).toBeCloseTo(com.y, 9);
+            // G∥ = G · sin θ, med fortegn ned bakken (−mg · h′/√(1 + h′²))
+            const k = tr.slope(x);
+            const sin = k / Math.sqrt(1 + k * k);
+            expect(F.GparN).toBeCloseTo(-m * G * sin, 9);
+            if (!F.Gpar) {
+              expect(Math.abs(F.GparN) * F.k).toBeLessThanOrEqual(0.5);
+              continue;
+            }
+            const px = F.Gpar.x2 - F.Gpar.x1;
+            const py = F.Gpar.y2 - F.Gpar.y1;
+            expect(Math.hypot(px, py)).toBeCloseTo(m * G * Math.abs(sin) * F.k, 9);
+            // Langs banen, og resten av G (G⊥) står vinkelrett på banen
+            expect(px * fr.ty - py * fr.tx).toBeCloseTo(0, 9);
+            const gx = F.G.x2 - F.G.x1 - px;
+            const gy = F.G.y2 - F.G.y1 - py;
+            expect(gx * fr.tx + gy * fr.ty).toBeCloseTo(0, 6);
+            // Ned bakken: høyden minker i retning G∥
+            expect(tr.height(x + (Math.sign(px) * 0.01) / L.ppm)).toBeLessThan(tr.height(x) + 1e-12);
+          }
+      }
+    }
+  });
+
+  it('R peker mot farten, er like stor som friksjonen i samme skala, og mangler i ro eller uten friksjon', () => {
+    const tr = makeTrack('rampe');
+    const L = sceneLayout('rampe', false);
+    const fr = riderFrame(tr, L, 3);
+    const m = 50;
+    const R = 0.06 * m * G;
+    for (const v of [4, -4]) {
+      const F = sceneForces(fr, 'rampe', L.ppm, m, G, v, R);
+      expect(F.R).not.toBeNull();
+      const rx = F.R!.x2 - F.R!.x1;
+      const ry = F.R!.y2 - F.R!.y1;
+      expect(Math.hypot(rx, ry)).toBeCloseTo(R * F.k, 9);
+      // Motsatt av fartsretningen (v > 0 er mot høyre langs banen)
+      expect(Math.sign(rx * fr.tx + ry * fr.ty)).toBe(-Math.sign(v));
+    }
+    expect(sceneForces(fr, 'rampe', L.ppm, m, G, 0, R).R).toBeNull();
+    expect(sceneForces(fr, 'rampe', L.ppm, m, G, 4, 0).R).toBeNull();
+  });
+
+  it('G-pila holder seg inne i scenen i bunnen av banen', () => {
+    for (const kind of KINDS)
+      for (const narrow of [false, true]) {
+        const L = sceneLayout(kind, narrow);
+        const tr = makeTrack(kind);
+        const F = sceneForces(riderFrame(tr, L, tr.xBottom), kind, L.ppm, 100, G, 0, 0);
+        expect(F.G.y2).toBeLessThan(L.sceneH - 8);
       }
   });
 });

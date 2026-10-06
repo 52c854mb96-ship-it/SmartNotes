@@ -373,7 +373,12 @@ function Scene({
           : 'Sjåføren kjører videre, men når ikke stopplinja før lyset blir rødt.');
   return (
     <div ref={ref}>
-      <Figure viewBox={`0 0 ${W} ${L.H}`} label={label} maxHeight={420}>
+      <Figure
+        viewBox={`0 0 ${W} ${L.H}`}
+        label={label}
+        maxHeight={420}
+        caption="Fargene i kjørefeltet viser hva sjåføren kan gjøre hvis fronten av bilen er der når lyset blir gult."
+      >
         <Road L={L} view={view} p={p} input={input} D={D} z={z} plan={plan} t={t} so={so} go={go} />
       </Figure>
     </div>
@@ -581,7 +586,7 @@ function Road({
 
         <ValueTag x={count.x} y={L.headTop + L.headH / 2} text={count.text} anchor={count.anchor} color={VIZ.ink} />
 
-        {/* Rad 1: navnene på sonene, og krysset etter stopplinja */}
+        {/* Rad 1: navnene på sonene */}
         {visible.map((sg) => {
           const w = sg.x2 - sg.x1;
           const [long, short] = zoneNames[sg.kind];
@@ -599,17 +604,18 @@ function Road({
             </g>
           );
         })}
+        {/* Rad 2: avstanden D når lyset blir gult, og videre bredden av krysset (en kjede av mål fra stopplinja) */}
         <Dimension
           x1={X(0)}
-          y1={L.zoneY - 5 * f}
+          y1={L.laneBot}
           x2={X(KRYSS.bredde)}
-          y2={L.zoneY - 5 * f}
+          y2={L.laneBot}
+          offset={-(L.dY - L.laneBot)}
           color={VIZ.muted}
           labelSize={0.8}
           label={fits(X(KRYSS.bredde) - X(0), 'krysset 15 m') ? `krysset ${fmt(KRYSS.bredde, 0)} m` : `${fmt(KRYSS.bredde, 0)} m`}
         />
 
-        {/* Rad 2: avstanden D når lyset blir gult */}
         {D > 0.4 && <Dimension x1={X(-D)} y1={L.laneBot} x2={X(0)} y2={L.laneBot} offset={-(L.dY - L.laneBot)} label={fits(X(0) - X(-D), 'D = 100 m') ? `D = ${fmt(D, 0)} m` : fits(X(0) - X(-D), `${fmt(D, 0)} m`) ? `${fmt(D, 0)} m` : undefined} />}
 
         {/* Rad 3: strekningen bilen kjører i valget */}

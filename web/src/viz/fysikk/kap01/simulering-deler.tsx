@@ -345,12 +345,15 @@ const PLANE_STRIPE = 'M68,-5.6L-10,-5.6C-26,-5.6 -44,-8.6 -62,-11.6L-62,-9.2C-44
 const PLANE_FIN = 'M-38,-16.4C-45,-22.5 -51,-31 -53.5,-36L-61,-36C-61.6,-28 -61,-18 -59.4,-11.4Z';
 const PLANE_FIN_TOP = 'M-50,-30L-64,-30L-64,-38L-50,-38Z';
 const PLANE_TAILPLANE = 'M-45,-10.8L-62.5,-10.6C-64,-10.4 -64,-8.6 -62.5,-8.4L-45,-8.8Z';
-const PLANE_WING = 'M37,-18.4C37,-20.8 33.6,-22 28.5,-22L14,-20.4C13,-20.2 12.6,-19.4 13,-18.6L13.5,-17.6L37,-17.2Z';
-const PLANE_COCKPIT = 'M48.4,-12.6L42.4,-16.1L36.5,-16.1L36.5,-10L48.4,-10Z';
-const PLANE_WINDOWS: readonly number[] = [29, 21.5, -14, -21.5];
+/** Vingeprofilen der vingen sitter på taket: avrundet forkant rett over frontruta og spiss bakkant. */
+const PLANE_WING = 'M44.6,-15.5C44,-19.6 40.6,-22 35.4,-22C29,-22 21,-20.6 13.5,-17.6L13.5,-16.6L42,-16.6Z';
+const PLANE_COCKPIT = 'M48.4,-12.6L42.4,-16.1L37,-16.1L37,-10L48.4,-10Z';
+const PLANE_WINDOWS: readonly number[] = [31, 25, -14, -21.5];
 const PLANE_SPINNER = 'M66.4,-9.4C70.8,-8.6 73.2,-6.6 73.2,-5C73.2,-3.4 70.8,-1.4 66.4,-0.6Z';
 const PLANE_HIGHLIGHT = 'M41,-16L-12,-16C-26,-16 -42,-13.6 -55,-11.4';
 const PLANE_GEAR = 'M12,1.5L8,10M57,1.5L58.5,10.5';
+/** Vingestaget fra buken opp til vingen, mellom vinduene. */
+const PLANE_STRUT = 'M16,1.5L21.6,-17';
 const PLANE_WHEELS: readonly { x: number; y: number; r: number }[] = [
   { x: 8, y: 10.8, r: 3.1 },
   { x: 58.5, y: 11.2, r: 2.6 },
@@ -420,8 +423,8 @@ export function Hoppefly({ x, y, pxPerM, lakk = 'rod' }: { x: number; y: number;
         opacity={0.8}
       />
       {/* Vingen og vingestaget */}
-      <path d="M19,1L26,-17.6" stroke={shade(SCENE.metal, 0.1)} strokeWidth={sw(1.8)} strokeLinecap="round" />
-      <path d="M19,1L26,-17.6" stroke={SCENE.outline} strokeWidth={sw(0.5)} strokeLinecap="round" opacity={0.5} />
+      <path d={PLANE_STRUT} stroke={shade(SCENE.metal, 0.1)} strokeWidth={sw(1.8)} strokeLinecap="round" />
+      <path d={PLANE_STRUT} stroke={SCENE.outline} strokeWidth={sw(0.5)} strokeLinecap="round" opacity={0.5} />
       <path d={PLANE_WING} fill={`url(#${id}k)`} stroke={SCENE.outline} strokeWidth={sw(0.9)} strokeLinejoin="round" />
       {/* Nesen: spinner og propellen som en uskarp skive */}
       <path d={PLANE_SPINNER} fill={`url(#${id}m)`} stroke={SCENE.outline} strokeWidth={sw(0.8)} strokeLinejoin="round" />

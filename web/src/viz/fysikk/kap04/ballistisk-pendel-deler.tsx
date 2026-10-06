@@ -184,25 +184,95 @@ export function Luftgevaer({ x, y, P, title }: { x: number; y: number; P: number
 }
 
 /**
- * Sandpute som geværet hviler på: en avlang pute i lerret med et søkk på toppen. (x, y) er midt på bunnen.
+ * Stativ som holder luftgeværet fast på labbenken: fot, loddrett stang, muffe og en klemme rundt løpet. Tegnes i to
+ * lag: `lag="bak"` (foten, stanga og muffen, før geværet) og `lag="foran"` (klemma rundt løpet, etter geværet).
+ * `x` er midten av stanga, `footY` benkeplata, `axisY` løpets akse og `rBarrel` radien til løpet (m). `P` er piksler
+ * per meter.
  */
-export function Sandpute({ x, y, w, h }: { x: number; y: number; w: number; h: number }) {
-  const id = useSvgId('sandpute');
+export function Gevaerholder({ x, footY, axisY, rBarrel, P, lag }: { x: number; footY: number; axisY: number; rBarrel: number; P: number; lag: 'bak' | 'foran' }) {
+  const id = useSvgId('holder');
   const ss = useStrokeScale();
-  const c = mix(SCENE.woodLight, SCENE.grassDark, 0.42);
-  const d = `M${r2(x - w / 2)},${r2(y)}Q${r2(x - w / 2 - w * 0.06)},${r2(y - h * 0.55)} ${r2(x - w * 0.42)},${r2(y - h)}Q${r2(x - w * 0.15)},${r2(y - h * 1.04)} ${r2(x)},${r2(y - h * 0.84)}Q${r2(x + w * 0.15)},${r2(y - h * 1.04)} ${r2(x + w * 0.42)},${r2(y - h)}Q${r2(x + w / 2 + w * 0.06)},${r2(y - h * 0.55)} ${r2(x + w / 2)},${r2(y)}Z`;
+  const rRod = Math.max(2.6, 0.0065 * P);
+  const footH = Math.max(6, 0.016 * P);
+  const footL = x - 0.09 * P;
+  const footR = x + 0.09 * P;
+  const paint = shade(PAINTS.blaa, 0.25);
+  const jawW = Math.max(10, 0.026 * P);
+  const jawR = rBarrel * P + Math.max(2.5, 0.005 * P);
+  if (lag === 'bak') {
+    return (
+      <g aria-hidden>
+        <LinearGradient
+          id={`${id}r`}
+          x2={1}
+          y2={0}
+          stops={[
+            [0, shade(SCENE.metal, 0.15)],
+            [0.3, tint(SCENE.metalLight, 0.2)],
+            [0.65, SCENE.metal],
+            [1, shade(SCENE.metal, 0.35)],
+          ]}
+        />
+        <LinearGradient id={`${id}f`} stops={materialStops(paint, 1)} />
+        <LinearGradient id={`${id}b`} stops={materialStops(shade(SCENE.metalDark, 0.1), 1)} />
+        <ContactShadow cx={x} cy={footY} rx={(footR - footL) * 0.56} ry={3} />
+        <path
+          d={`M${r2(footL)},${r2(footY)} L${r2(footL + footH * 0.5)},${r2(footY - footH)} L${r2(footR - footH * 0.5)},${r2(footY - footH)} L${r2(footR)},${r2(footY)} Z`}
+          fill={`url(#${id}f)`}
+          stroke={SCENE.outline}
+          strokeWidth={0.9 * ss}
+          strokeLinejoin="round"
+        />
+        <line x1={footL + footH * 0.6} y1={footY - footH + 1.2 * ss} x2={footR - footH * 0.6} y2={footY - footH + 1.2 * ss} stroke={SCENE.highlight} strokeWidth={1 * ss} opacity={0.5} />
+        <rect
+          x={r2(x - rRod)}
+          y={r2(axisY - 0.06 * P)}
+          width={r2(2 * rRod)}
+          height={r2(footY - footH - axisY + 0.06 * P + 1)}
+          rx={r2(rRod * 0.5)}
+          fill={`url(#${id}r)`}
+          stroke={SCENE.outline}
+          strokeWidth={0.9 * ss}
+        />
+        {/* Muffen bak løpet */}
+        <rect
+          x={r2(x - jawW * 0.7)}
+          y={r2(axisY - jawR - 0.03 * P)}
+          width={r2(jawW * 1.4)}
+          height={r2(0.026 * P)}
+          rx={2}
+          fill={`url(#${id}b)`}
+          stroke={SCENE.outline}
+          strokeWidth={0.9 * ss}
+        />
+      </g>
+    );
+  }
+  // Klemma: to bakker rundt løpet med gummiforing og en vingeskrue oppå
   return (
     <g aria-hidden>
-      <ContactShadow cx={x} cy={y} rx={w * 0.56} ry={Math.max(2, h * 0.12)} />
-      <LinearGradient id={id} stops={materialStops(c, 1.2)} />
-      <path d={d} fill={`url(#${id})`} stroke={SCENE.outline} strokeWidth={0.8 * ss} strokeLinejoin="round" />
-      <path
-        d={`M${r2(x - w * 0.36)},${r2(y - h * 0.48)}Q${r2(x)},${r2(y - h * 0.34)} ${r2(x + w * 0.36)},${r2(y - h * 0.48)}`}
-        fill="none"
-        stroke={shade(c, 0.3)}
-        strokeWidth={0.8 * ss}
-        strokeDasharray={`${2.5 * ss} ${2 * ss}`}
-        opacity={0.7}
+      <LinearGradient id={`${id}k`} stops={materialStops(shade(SCENE.metalDark, 0.05), 1.1)} />
+      <rect
+        x={r2(x - jawW / 2)}
+        y={r2(axisY - jawR)}
+        width={r2(jawW)}
+        height={r2(2 * jawR)}
+        rx={r2(Math.min(4, jawW * 0.25))}
+        fill={`url(#${id}k)`}
+        stroke={SCENE.outline}
+        strokeWidth={0.9 * ss}
+      />
+      <line x1={x - jawW / 2 + 1.5} y1={axisY} x2={x + jawW / 2 - 1.5} y2={axisY} stroke={shade(SCENE.metalDark, 0.5)} strokeWidth={1 * ss} />
+      <rect x={r2(x - 1.6)} y={r2(axisY - jawR - 0.03 * P)} width={3.2} height={r2(0.03 * P)} fill={shade(SCENE.metalDark, 0.2)} />
+      <rect
+        x={r2(x - jawW * 0.42)}
+        y={r2(axisY - jawR - 0.034 * P)}
+        width={r2(jawW * 0.84)}
+        height={r2(Math.max(4, 0.008 * P))}
+        rx={2}
+        fill={shade(SCENE.metalDark, 0.05)}
+        stroke={SCENE.outline}
+        strokeWidth={0.7 * ss}
       />
     </g>
   );
@@ -431,37 +501,43 @@ export interface SnittProps {
   depth: number;
   caliber: number;
   visning: SnittVisning;
-  /** Tallene som vises: kraften (N), impulsene (kg·m/s), flyttingen av klossen (m). */
+  /** Kraften (N), impulsen på klossen (kg·m/s), hvor langt klossen flytter seg (m) og arbeidet på kula og klossen (J). */
   F: number;
   dp: number;
   sBlock: number;
+  Wbullet: number;
+  Wblock: number;
 }
 
 /**
  * Forstørret snitt gjennom venstre ende av klossen: kula borer seg inn i treet. «kraft»: kraften på kula, «kraftpar»:
  * også kraften på klossen, «impulser»: impulsene, «arbeid»: kula har stoppet, med inntrengningen d og varmen rundt
- * kanalen. Skalaen velges så hele inntrengningen får plass.
+ * kanalen. Skalaen velges så hele inntrengningen får plass. Tallene står i en tekstlinje under snittet.
  */
-export function KlossSnitt({ x, y, w, h, depth, caliber, visning, F, dp, sBlock }: SnittProps) {
+export function KlossSnitt({ x, y, w, h, depth, caliber, visning, F, dp, sBlock, Wbullet, Wblock }: SnittProps) {
   const id = useSvgId('snitt');
   const ss = useStrokeScale();
   const f = useTextScale();
-  const face = x + 0.2 * w;
+  const line = 17 * f * 0.78;
+  const capH = 2 * line * 1.25 + 8;
+  const woodH = h - capH;
+  const face = x + Math.min(0.2 * w, 80);
   // Plass til inntrengningen og en kraftpil etter kula
-  const Q = (0.8 * w - 24) / (depth + 0.0045);
+  const Q = Math.min((x + w - face - 0.16 * w - 12) / (depth + 0.0025), (woodH * 0.42) / (caliber * 1.0));
   const len = 1.25 * caliber * Q;
   const D = 0.8 * len;
   const done = visning === 'arbeid';
   const nose = face + (done ? depth : 0.56 * depth) * Q;
   const mid = nose - len / 2;
   const tail = nose - len;
-  const axis = y + h * (done ? 0.5 : 0.42);
+  // Med inntrengningen (d) over kanalen står kula litt lavere, så målet får plass over den
+  const axis = y + woodH * (done ? 0.58 : 0.5);
   const wood = mix(SCENE.wood, SCENE.woodLight, 0.4);
 
   // Fiberlinjer langs klossen (fast frø), og en kanal med frynsete kanter bak kula
   const rnd = sceneRandom(7);
   const lines: string[] = [];
-  for (let yy = y + 6; yy < y + h; yy += 7 + rnd() * 5) {
+  for (let yy = y + 6; yy < y + woodH; yy += 7 + rnd() * 5) {
     let d = `M${r2(face + 2)},${r2(yy)}`;
     const steps = 6;
     for (let i = 1; i <= steps; i++) {
@@ -479,49 +555,64 @@ export function KlossSnitt({ x, y, w, h, depth, caliber, visning, F, dp, sBlock 
   const pts = [...jag(-1), ...jag(1).reverse()];
   const channel = `${pts.map(([px, py], i) => `${i === 0 ? 'M' : 'L'}${r2(px)},${r2(py)}`).join(' ')} Z`;
 
-  const arrowLen = Math.min(0.22 * w, 92);
-  const arrowY = axis;
+  const arrowLen = Math.min(0.2 * w, 96);
   const labelY = axis - D / 2 - 10 * f;
+  const underY = axis + D / 2 + 20 * f;
+  const caption: [ReactNode, ReactNode] =
+    visning === 'kraft'
+      ? [<>Kraften fra klossen på kula: F = {fmt(F, 0)} N</>, 'Kraften virker mot fartsretningen til kula']
+      : visning === 'kraftpar'
+        ? [<>Like stor kraft fra kula på klossen: F = {fmt(F, 0)} N</>, <>Klossen flytter seg bare {fmt(sBlock * 1000, 2)} mm</>]
+        : visning === 'impulser'
+          ? [<>Kula: Δp = {fmt(-Math.abs(dp), 4)} kg·m/s</>, <>Klossen: Δp = +{fmt(Math.abs(dp), 4)} kg·m/s</>]
+          : [<>Arbeid på kula: W = {fmt(Wbullet, 2)} J</>, <>Arbeid på klossen: W = +{fmt(Wblock, 3)} J</>];
   return (
     <g>
       <defs>
         <clipPath id={`${id}c`}>
-          <rect x={x} y={y} width={w} height={h} rx={6} />
+          <rect x={x} y={y} width={w} height={woodH} rx={6} />
+        </clipPath>
+        <clipPath id={`${id}t`}>
+          <rect x={face} y={y} width={x + w - face} height={woodH} />
         </clipPath>
       </defs>
       <LinearGradient id={`${id}w`} stops={materialStops(wood, 0.7)} />
       <RadialGradient
         id={`${id}h`}
         stops={[
-          [0, SCENE.hot, 0.55],
-          [0.55, SCENE.warm, 0.35],
+          [0, SCENE.hot, 0.6],
+          [0.5, SCENE.hot, 0.38],
+          [0.8, SCENE.warm, 0.2],
           [1, SCENE.warm, 0],
         ]}
       />
       <g clipPath={`url(#${id}c)`}>
         {/* Lufta foran klossen */}
-        <rect x={x} y={y} width={face - x} height={h} fill={alpha(SCENE.wall, 0.6)} />
+        <rect x={x} y={y} width={face - x} height={woodH} fill={alpha(SCENE.wall, 0.6)} />
         {/* Treverket i snitt */}
-        <rect x={face} y={y} width={x + w - face} height={h} fill={`url(#${id}w)`} />
+        <rect x={face} y={y} width={x + w - face} height={woodH} fill={`url(#${id}w)`} />
         <path d={lines.join(' ')} fill="none" stroke={shade(wood, 0.38)} strokeWidth={0.9 * ss} opacity={0.45} />
-        {done && <ellipse cx={(face + nose) / 2} cy={axis} rx={(nose - face) / 2 + D * 0.9} ry={D * 1.35} fill={`url(#${id}h)`} />}
         {/* Kanalen kula har boret, med opprevne fibrer */}
         <path d={channel} fill={shade(wood, 0.62)} stroke={shade(wood, 0.75)} strokeWidth={0.8 * ss} strokeLinejoin="round" />
-        <rect x={face - 1.5} y={y} width={3} height={h} fill={shade(wood, 0.3)} />
+        {done && (
+          // Varmen der kula har gnidd mot treet: en varm glød over kanalen og treverket rundt
+          <g clipPath={`url(#${id}t)`}>
+            <ellipse cx={(face + nose) / 2} cy={axis} rx={(nose - face) / 2 + D * 1.1} ry={D * 1.5} fill={`url(#${id}h)`} />
+          </g>
+        )}
+        <rect x={face - 1.5} y={y} width={3} height={woodH} fill={shade(wood, 0.3)} />
         <Diabolokule x={mid} y={axis} len={len} />
       </g>
-      <Txt x={x + (face - x) / 2} y={y + h - 8} size={0.72} muted>
+      <rect x={x} y={y} width={w} height={woodH} rx={6} fill="none" stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+      <Txt x={x + (face - x) / 2} y={y + woodH - 8} size={0.7} muted>
         luft
-      </Txt>
-      <Txt x={x + w - 8} y={y + h - 8} anchor="end" size={0.72} muted>
-        treverket i klossen
       </Txt>
 
       {!done && (
         <>
           {/* Kraften fra klossen på kula, mot venstre */}
-          <ForceArrow x1={mid} y1={arrowY} x2={mid - arrowLen} y2={arrowY} color={VIZ.applied} width={6} label="F" labelX={mid - arrowLen / 2} labelY={labelY} labelAnchor="middle" origin />
-          <Txt x={mid - arrowLen / 2} y={axis + D / 2 + 20 * f} size={0.72} weight={650} color={VIZ.applied}>
+          <ForceArrow x1={mid} y1={axis} x2={mid - arrowLen} y2={axis} color={VIZ.applied} width={6} label="F" labelX={mid - arrowLen / 2} labelY={labelY} labelAnchor="middle" origin />
+          <Txt x={mid - arrowLen / 2} y={underY} size={0.72} weight={650} color={VIZ.applied}>
             på kula
           </Txt>
         </>
@@ -529,40 +620,28 @@ export function KlossSnitt({ x, y, w, h, depth, caliber, visning, F, dp, sBlock 
       {(visning === 'kraftpar' || visning === 'impulser') && (
         <>
           {/* Kraften fra kula på klossen, mot høyre (Newtons 3. lov) */}
-          <ForceArrow x1={nose} y1={arrowY} x2={nose + arrowLen} y2={arrowY} color={VIZ.applied} width={6} label="F" labelX={nose + arrowLen / 2} labelY={labelY} labelAnchor="middle" />
-          <Txt x={nose + arrowLen / 2} y={axis + D / 2 + 20 * f} size={0.72} weight={650} color={VIZ.applied}>
+          <ForceArrow x1={nose} y1={axis} x2={nose + arrowLen} y2={axis} color={VIZ.applied} width={6} label="F" labelX={nose + arrowLen / 2} labelY={labelY} labelAnchor="middle" />
+          <Txt x={nose + arrowLen / 2} y={underY} size={0.72} weight={650} color={VIZ.applied}>
             på klossen
-          </Txt>
-        </>
-      )}
-      {visning === 'kraft' && (
-        <Txt x={x + w - 10} y={y + 18 * f} anchor="end" size={0.78} weight={650}>
-          F = {fmt(F, 0)} N
-        </Txt>
-      )}
-      {visning === 'kraftpar' && (
-        <Txt x={x + w - 10} y={y + 18 * f} anchor="end" size={0.78} weight={650}>
-          Klossen flytter seg {fmt(sBlock * 1000, 2)} mm
-        </Txt>
-      )}
-      {visning === 'impulser' && (
-        <>
-          <Txt x={x + 10} y={y + 18 * f} anchor="start" size={0.76} weight={650}>
-            Kula: Δp = {fmt(-Math.abs(dp), 4)} kg·m/s
-          </Txt>
-          <Txt x={x + 10} y={y + 40 * f} anchor="start" size={0.76} weight={650}>
-            Klossen: Δp = +{fmt(Math.abs(dp), 4)} kg·m/s
           </Txt>
         </>
       )}
       {done && (
         <>
           <Dimension x1={face} y1={axis - D / 2 - 6} x2={nose} y2={axis - D / 2 - 6} offset={6 + 4 * f} label={<>d = {fmt(depth * 100, 1)} cm</>} />
-          <Txt x={(face + nose) / 2} y={axis + D * 1.35 + 14 * f} size={0.74} weight={650} color={shade(SCENE.hot, 0.1)}>
+          <Txt x={face + 10} y={Math.min(axis + D * 0.5 + 22 * f, y + woodH - 8)} anchor="start" size={0.72} weight={650} color={shade(SCENE.hot, 0.15)}>
             varme og opprevet treverk
           </Txt>
         </>
       )}
+
+      {/* Tallene under snittet */}
+      <Txt x={x + 2} y={y + woodH + 6 + line} anchor="start" size={0.78} weight={650}>
+        {caption[0]}
+      </Txt>
+      <Txt x={x + 2} y={y + woodH + 6 + line * 2.25} anchor="start" size={0.78} weight={650}>
+        {caption[1]}
+      </Txt>
     </g>
   );
 }
@@ -571,11 +650,19 @@ export function KlossSnitt({ x, y, w, h, depth, caliber, visning, F, dp, sBlock 
  * Energistolper
  * ============================================================================================== */
 
+/** Høyden energistolpene trenger (figurens enheter), så panelet kan tilpasses. */
+export function energiHoyde(f: number): number {
+  const line = 17 * f;
+  const barH = Math.round(18 + 4 * f);
+  return 6 + 2 * barH + 16 + 10 + line * 0.8 + line * 0.95 + 8;
+}
+
 /**
  * To liggende stolper for kinetisk energi før og etter støtet. Med `tapt` vises energien som er omdannet, skravert,
- * så «etter»-stolpen blir like lang som «før»-stolpen. (x, y, w, h) er innholdsflaten i panelet.
+ * så «etter»-stolpen blir like lang som «før»-stolpen. (x, y) er øverste venstre hjørne og `w` bredden; høyden er
+ * energiHoyde(f).
  */
-export function EnergiStolper({ x, y, w, h, before, after, tapt }: { x: number; y: number; w: number; h: number; before: number; after: number; tapt: boolean }) {
+export function EnergiStolper({ x, y, w, before, after, tapt }: { x: number; y: number; w: number; before: number; after: number; tapt: boolean }) {
   const hatch = useSvgId('pendel-tapt');
   const ss = useStrokeScale();
   const f = useTextScale();
@@ -586,7 +673,7 @@ export function EnergiStolper({ x, y, w, h, before, after, tapt }: { x: number; 
   const x1 = x + w - valueW;
   const k = before > 0 ? (x1 - x0) / before : 0;
   const barH = Math.round(18 + 4 * f);
-  const gap = Math.max(14, h * 0.1);
+  const gap = 16;
   const y1 = y + 6;
   const y2 = y1 + barH + gap;
   const wAfter = Math.max(2.5, after * k);

@@ -203,3 +203,30 @@ describe('vogn og lodd over trinse: tallsettene er fornuftige', () => {
     }
   });
 });
+
+describe('vogn og lodd over trinse: utregningene i løsningen går opp med de viste tallene', () => {
+  // Løsningen viser mellomsvar med to eller tre desimaler. Regner eleven videre med de viste tallene, skal svaret
+  // bli det samme som i løsningen, eller høyst én enhet forskjellig i siste siffer.
+  const r = (v: number, d: number) => Math.round(v * 10 ** d) / 10 ** d;
+  const close = (a: number, b: number, d: number) => expect(Math.abs(r(a, d) - r(b, d))).toBeLessThanOrEqual(10 ** -d + 1e-9);
+
+  it('b) til e) med tallene slik de står i utregningen', () => {
+    for (const task of PULLEY_TASKS) {
+      const s = solvePulleyTask(task);
+      const M = task.m1 + task.m2;
+      const a = r(s.a, 2);
+      // c) S = m₁a, S = m₂(g − a) og kraftsummen på loddet G₂ − S
+      close(task.m1 * a, s.S, 2);
+      close(task.m2 * (g - a), s.S, 2);
+      close(r(s.G2, 2) - r(s.S, 2), s.netLodd, 2);
+      // d) v = √(2as)
+      close(Math.sqrt(2 * a * task.h), s.v, 2);
+      // e) a = (G₂ − R)/(m₁ + m₂) med tre desimaler, S = m₂(g − a) og S = m₁a + R
+      expect(r((r(s.G2, 3) - r(s.R, 3)) / M, 2)).toBe(r(s.aF, 2));
+      const aF = r(s.aF, 2);
+      close(task.m2 * (g - aF), s.SF, 2);
+      close(task.m1 * aF + r(s.R, 3), s.SF, 2);
+      close(Math.sqrt(2 * aF * task.h), s.vF, 2);
+    }
+  });
+});

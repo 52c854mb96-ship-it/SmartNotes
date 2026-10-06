@@ -54,8 +54,8 @@ describe('ballistisk pendel: tallsett 1 (0,53 g kule, 95 g kloss, h = 4,4 cm)', 
     expect(s.sBullet).toBeCloseTo(0.01684, 5);
   });
 
-  it('snorene står i 27,1° når klossen snur (L = 0,40 m)', () => {
-    expect((s.thetaMax * 180) / Math.PI).toBeCloseTo(27.127, 3);
+  it('snorene står i 31,4° når klossen snur (L = 0,30 m)', () => {
+    expect((s.thetaMax * 180) / Math.PI).toBeCloseTo(31.424, 3);
   });
 });
 
@@ -155,12 +155,12 @@ describe('ballistisk pendel: tallsettene er fysisk fornuftige', () => {
       // Et vanlig luftgevær skyter 150–200 m/s.
       expect(s.v).toBeGreaterThan(150);
       expect(s.v).toBeLessThan(200);
-      // Klossen stiger noen få centimeter, og snorene svinger 20–35°.
+      // Klossen stiger noen få centimeter, og snorene svinger 25–40°.
       expect(t.h).toBeGreaterThanOrEqual(0.03);
       expect(t.h).toBeLessThanOrEqual(0.07);
       const deg = (s.thetaMax * 180) / Math.PI;
-      expect(deg).toBeGreaterThan(20);
-      expect(deg).toBeLessThan(35);
+      expect(deg).toBeGreaterThan(25);
+      expect(deg).toBeLessThan(40);
       // Nesten all energien går tapt, kula stopper på 1–3 cm, og klossen flytter seg under 0,2 mm.
       expect(s.lossShare).toBeGreaterThan(0.99);
       expect(s.depth).toBeGreaterThan(0.01);

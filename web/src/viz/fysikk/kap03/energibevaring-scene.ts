@@ -203,10 +203,10 @@ export function speedArrow(fr: RiderFrame, kind: TrackKind, ppm: number, v: numb
 /* ---------- Kreftene (bryteren «Vis krefter») ---------- */
 
 /**
- * Kraftskalaen: tyngden er alltid 1,5 m lang i samme skala som banen, så G∥ synes også for lette personer. Skalaen
+ * Kraftskalaen: tyngden er alltid 1,8 m lang i samme skala som banen, så G∥ synes også for lette personer. Skalaen
  * (px/N) avhenger dermed av massen, men er den samme for alle kreftene i figuren; størrelsen på G står på pila.
  */
-export const G_ARROW_M = 1.5;
+export const G_ARROW_M = 1.8;
 /** Friksjonspila begynner ved bakenden av brettet (m bak midten). */
 const R_BACK = 0.4;
 

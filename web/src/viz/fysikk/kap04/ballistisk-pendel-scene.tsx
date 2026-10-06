@@ -31,8 +31,9 @@ import {
   Luftgevaer,
   Pendelstativ,
   Ringskrue,
-  Sandpute,
+  Gevaerholder,
   Zoomring,
+  energiHoyde,
   innfeltTittel,
   type SnittVisning,
 } from './ballistisk-pendel-deler';
@@ -120,17 +121,17 @@ export function visningFor(step: number, showAll: boolean): PendelVisning {
 
 export const W = 800;
 /** Piksler per meter i scenen. */
-const P = 640;
+const P = 860;
 const BENCH_Y = 392;
 /** Høyden fra benken til undersiden av klossen og tykkelsen på klossen (m). */
 const GAP = 0.055;
 const BLOCK_H = 0.045;
-const X_C = 450;
-const ROD_X = 770;
+const X_C = 470;
+const ROD_X = 782;
 /** Fartspilene: piksler per m/s (V er under 1,1 m/s). Kula har sin egen pil (v er ukjent i oppgaven). */
-const PX_PER_MS = 80;
+const PX_PER_MS = 100;
 /** Kraftpilene i svingningen: piksler per newton (G ≈ 0,7–1,2 N). */
-const PX_PER_N = 62;
+const PX_PER_N = 90;
 /** Bevegelsesmengden: like lang pil før og etter. */
 const P_ARROW = 110;
 
@@ -144,24 +145,25 @@ export interface PendelLayout {
   inset: { x: number; y: number; w: number; h: number };
 }
 
-/** Desktop: panelet oppe til venstre på veggen. Mobil: smalere utsnitt rundt pendelen og panelet under benken. */
+/**
+ * Desktop: panelet oppe til venstre på veggen. Mobil: smalere utsnitt rundt pendelen, og panelet legges over den
+ * øverste delen av scenen (stativarmen og snorene), så figuren ikke blir høyere enn nødvendig.
+ */
 export function pendelLayout(narrow: boolean): PendelLayout {
   if (!narrow) {
     return { narrow, viewBox: `0 0 ${W} 440`, left: 0, right: W, bottom: 440, inset: { x: 16, y: 16, w: 372, h: 236 } };
   }
-  const left = 214;
-  const right = 798;
-  const top = 14;
-  const insetY = 432;
-  const insetH = 244;
-  const bottom = insetY + insetH + 10;
+  const left = 248;
+  const right = 800;
+  const top = 6;
+  const bottom = 440;
   return {
     narrow,
     viewBox: `${left} ${top} ${right - left} ${bottom - top}`,
     left,
     right,
     bottom,
-    inset: { x: left + 8, y: insetY, w: right - left - 16, h: insetH },
+    inset: { x: left + 8, y: 8, w: right - left - 16, h: 232 },
   };
 }
 
@@ -189,8 +191,9 @@ export function PendelScene({
   const restBottom = BENCH_Y - GAP * P;
   const axis = restBottom - bh / 2;
   const blockLeft = X_C - bw / 2;
-  const muzzle = blockLeft - 0.2 * P;
+  const muzzle = blockLeft - 0.15 * P;
   const ringR = Math.max(2.4, 0.004 * P);
+  const holderX = muzzle - 0.16 * P;
   const armLeft = X_C - a - 0.03 * P;
   const armR = Math.max(2.2, 0.0055 * P);
 
@@ -206,7 +209,7 @@ export function PendelScene({
   const backdrop = useMemo(
     () => (
       <>
-        <Rom x={layout.left} y={0} w={layout.right - layout.left} h={layout.bottom} gulvY={BENCH_Y + (layout.bottom - BENCH_Y) * 0.8} gulv="betong" vindu={!layout.narrow} vinduX={250} />
+        <Rom x={layout.left} y={0} w={layout.right - layout.left} h={layout.bottom} gulvY={BENCH_Y + (layout.bottom - BENCH_Y) * 0.8} gulv="betong" />
         <Underlag x1={layout.left - 10} x2={layout.right + 10} y={BENCH_Y} depth={layout.bottom - BENCH_Y + 4} type="labbenk" />
       </>
     ),
@@ -214,7 +217,7 @@ export function PendelScene({
   );
 
   /** Klossen med ringskruer og snorer når den er flyttet (dx, dy) fra bunnen. */
-  const pendel = (st: { dx: number; dy: number }, dim: boolean, key: string, label?: string) => {
+  const pendel = (st: { dx: number; dy: number }, dim: boolean, key: string, label?: string, labelPlass?: 'midt' | 'oppe-venstre') => {
     const bx = X_C + st.dx * P;
     const bottom = restBottom - st.dy * P;
     const topY = bottom - bh;
@@ -226,7 +229,7 @@ export function PendelScene({
         {[-1, 1].map((side) => (
           <Ringskrue key={side} x={bx + side * a} y={topY} r={ringR} />
         ))}
-        <Kloss x={bx} y={bottom} w={bw} h={bh} materiale="tre" skygge={false} label={label} title={dim ? undefined : `Trekloss, ${fmt(task.M * 1000, 0)} g`} />
+        <Kloss x={bx} y={bottom} w={bw} h={bh} materiale="tre" skygge={false} label={label} labelPlass={labelPlass} title={dim ? undefined : `Trekloss, ${fmt(task.M * 1000, 0)} g`} />
         {dim && <rect x={bx - bw / 2} y={topY} width={bw} height={bh} rx={2} fill="none" stroke={VIZ.ink} strokeWidth={1.4 * ss} strokeDasharray="5 4" />}
       </g>
     );
@@ -235,15 +238,20 @@ export function PendelScene({
   const real = posOf(at);
   const ghost = posOf(top);
   const ghostBottom = restBottom - top.dy * P;
+  const ghostTop = ghostBottom - bh;
+  /** Hvor den høyre snora til klossen i toppen er i høyden y, så tekst kan settes til høyre for den. */
+  const stringX = (y: number) => X_C + a + ((ghost.cx - X_C) * (y - pivotY)) / Math.max(1, ghostTop - ringR * 1.9 - pivotY);
+  const epY = ghostTop - 44;
+  const faseY = pivotY + 0.34 * (ghostTop - pivotY) + 14 * f;
   const blockMass = `${fmt(task.M * 1000, 0)} g`;
 
   // Kula
-  const pelletLen = 10 * k;
+  const pelletLen = 14 * k;
   const pelletX = vis.kule === 'flukt' ? (muzzle + blockLeft) / 2 - 6 : blockLeft - 24 - pelletLen / 2;
 
-  // Bevegelsesmengden: én skala, like lang før og etter
-  const pRowBefore = axis - 76;
-  const pRowAfter = axis - 42;
+  // Bevegelsesmengden: én skala, like lang før og etter. Pila som gjelder nå, er nærmest; «før» flyttes opp etter støtet.
+  const pNow = axis - 44;
+  const pPrev = axis - 78;
 
   const inset = layout.inset;
   const titleH = innfeltTittel(f);
@@ -252,8 +260,8 @@ export function PendelScene({
   let insetNode: ReactNode = null;
   if (vis.innfelt?.type === 'energi') {
     insetNode = (
-      <Innfelt x={inset.x} y={inset.y} w={inset.w} h={inset.h} title="Kinetisk energi i støtet">
-        <EnergiStolper x={body.x} y={body.y + 6} w={body.w} h={body.h - 6} before={s.EkBefore} after={s.EkAfter} tapt={vis.innfelt.tapt} />
+      <Innfelt x={inset.x} y={inset.y} w={inset.w} h={titleH + energiHoyde(f) + 14} title="Kinetisk energi i støtet">
+        <EnergiStolper x={body.x} y={body.y + 4} w={body.w} before={s.EkBefore} after={s.EkAfter} tapt={vis.innfelt.tapt} />
       </Innfelt>
     );
   } else if (vis.innfelt?.type === 'snitt') {
@@ -270,20 +278,25 @@ export function PendelScene({
           F={s.F}
           dp={s.dpBlock}
           sBlock={s.sBlock}
+          Wbullet={s.Wbullet}
+          Wblock={s.Wblock}
         />
       </Innfelt>
     );
   }
-  const zoomTarget = layout.narrow ? { x: blockLeft + 6, y: inset.y } : { x: inset.x + inset.w, y: inset.y + inset.h - 30 };
+  /** Ringen rundt det som er forstørret (ikke i steget med fasene, der det blir for mange streker). */
+  const zoom = vis.innfelt?.type === 'snitt' && !vis.faser;
+  const zoomTarget = layout.narrow ? { x: blockLeft + 5, y: inset.y + inset.h } : { x: inset.x + inset.w, y: inset.y + inset.h - 30 };
 
   return (
     <>
       {backdrop}
 
       {/* Stativet og geværet på benken */}
-      <Pendelstativ rodX={ROD_X} footY={BENCH_Y} topY={pivotY - 0.05 * P} armY={pivotY} armLeft={armLeft} P={P} />
-      <Sandpute x={muzzle - 0.5 * P} y={BENCH_Y} w={0.16 * P} h={BENCH_Y - (axis + AIR_RIFLE.forendBottom * P) + 2} />
-      <Luftgevaer x={muzzle} y={axis} P={P} title="Luftgevær" />
+      <Pendelstativ rodX={ROD_X} footY={BENCH_Y} topY={pivotY - 0.03 * P} armY={pivotY} armLeft={armLeft} P={P} />
+      <Gevaerholder x={holderX} footY={BENCH_Y} axisY={axis} rBarrel={AIR_RIFLE.rBarrel} P={P} lag="bak" />
+      <Luftgevaer x={muzzle} y={axis} P={P} title="Luftgevær, spent fast i et stativ" />
+      <Gevaerholder x={holderX} footY={BENCH_Y} axisY={axis} rBarrel={AIR_RIFLE.rBarrel} P={P} lag="foran" />
 
       {/* Skyggen av klossen på benken */}
       <ContactShadow cx={real.cx} cy={BENCH_Y} rx={bw * 0.55} opacity={0.5} />
@@ -299,8 +312,8 @@ export function PendelScene({
         />
       )}
       {vis.topp && pendel(top, true, 'topp')}
-      {pendel(at, false, 'kloss', blockMass)}
-      {vis.kule === 'inne' && <ellipse cx={blockLeft + 1.2} cy={axis} rx={1.4 * k} ry={2.2 * k} fill={shade(SCENE.woodDark, 0.5)} />}
+      {pendel(at, false, 'kloss', vis.krefter || zoom ? undefined : blockMass, vis.VPil ? 'oppe-venstre' : 'midt')}
+      {vis.kule === 'inne' && vis.kloss === 'bunn' && <ellipse cx={blockLeft + 1.2} cy={axis} rx={1.4 * k} ry={2.2 * k} fill={shade(SCENE.woodDark, 0.5)} />}
 
       {/* Kula */}
       {vis.kule !== 'inne' && (
@@ -317,16 +330,27 @@ export function PendelScene({
           y2={axis - 22}
           color={VIZ.velocity}
           width={5}
-          label="v = ?"
+          label={state.showAll ? `v = ${fmt(s.v, 0)} m/s` : 'v = ?'}
           labelX={pelletX + 22}
           labelY={axis - 36 - 4 * f}
           labelAnchor="middle"
         />
       )}
       {vis.masser && (
-        <Callout x={pelletX} y={axis + 4} lx={pelletX - 14} ly={axis + 38 + 4 * f} anchor="end">
-          m = {fmt(task.m * 1000, 2)} g
-        </Callout>
+        <>
+          <Callout x={pelletX - pelletLen * 0.1} y={axis + pelletLen * 0.45} lx={layout.narrow ? pelletX + 8 : pelletX - 14} ly={axis + 38 + 4 * f} anchor={layout.narrow ? 'start' : 'end'}>
+            m = {fmt(task.m * 1000, 2)} g
+          </Callout>
+          <Callout
+            x={layout.narrow ? layout.left + 26 : holderX - 0.09 * P}
+            y={axis - AIR_RIFLE.rBarrel * P}
+            lx={layout.narrow ? layout.left + 10 : holderX - 0.13 * P}
+            ly={axis - (layout.narrow ? 74 : 52)}
+            anchor={layout.narrow ? 'start' : 'middle'}
+          >
+            luftgevær
+          </Callout>
+        </>
       )}
 
       {/* Høyden h: fra undersiden i ro til undersiden i toppen, rett under klossen i toppen */}
@@ -355,10 +379,17 @@ export function PendelScene({
 
       {vis.energi && (
         <>
-          <Callout x={blockLeft + 6} y={axis - bh / 2 + 4} lx={blockLeft - 34} ly={axis - 48} anchor="end">
-            E<TSub>k</TSub> = ½(m + M)V²
-          </Callout>
-          <Callout x={ghost.cx + bw / 2 - 4} y={ghostBottom - bh + 4} lx={ghost.cx + bw / 2 + 18} ly={ghostBottom - bh - 44} anchor="start">
+          {layout.narrow ? (
+            // Mobil: ikke plass til venstre for klossen, så teksten står på benken
+            <Callout x={blockLeft + 8} y={restBottom - 4} lx={blockLeft - 10} ly={BENCH_Y + 30} anchor="start">
+              E<TSub>k</TSub> = ½(m + M)V²
+            </Callout>
+          ) : (
+            <Callout x={blockLeft + 6} y={axis - bh / 2 + 4} lx={blockLeft - 30} ly={axis - 40} anchor="end">
+              E<TSub>k</TSub> = ½(m + M)V²
+            </Callout>
+          )}
+          <Callout x={ghost.cx + bw / 2 - 6} y={ghostTop + 4} lx={stringX(epY - 12 * f) + 12} ly={epY} anchor="start">
             E<TSub>p</TSub> = (m + M)gh
           </Callout>
         </>
@@ -366,46 +397,61 @@ export function PendelScene({
 
       {/* b) Bevegelsesmengden like før og like etter støtet: like lange piler */}
       {vis.p === 'for' && (
-        <ForceArrow x1={pelletX} y1={pRowBefore} x2={pelletX + P_ARROW} y2={pRowBefore} color={VIZ.velocity} width={6} label="p = m·v" origin />
+        <ForceArrow x1={pelletX} y1={pNow} x2={pelletX + P_ARROW} y2={pNow} color={VIZ.velocity} width={6} label="p = m·v" origin />
       )}
       {vis.p === 'begge' && (
         <>
           <ForceArrow
             x1={blockLeft - 24 - pelletLen / 2}
-            y1={pRowBefore}
+            y1={pPrev}
             x2={blockLeft - 24 - pelletLen / 2 + P_ARROW}
-            y2={pRowBefore}
+            y2={pPrev}
             color={VIZ.velocity}
             width={6}
             dashed
-            label="før: m·v"
+            label={layout.narrow ? 'm·v' : 'før: m·v'}
           />
-          <ForceArrow x1={X_C} y1={pRowAfter} x2={X_C + P_ARROW} y2={pRowAfter} color={VIZ.velocity} width={6} label="etter: (m + M)·V" origin />
+          <ForceArrow x1={X_C} y1={pNow} x2={X_C + P_ARROW} y2={pNow} color={VIZ.velocity} width={6} label={layout.narrow ? '(m + M)·V' : 'etter: (m + M)·V'} origin />
         </>
       )}
 
       {vis.faser && (
         <>
-          <Callout x={blockLeft} y={axis - 4} lx={blockLeft - 26} ly={axis - 74} anchor="end" strong>
-            Støtet: p bevart
-          </Callout>
-          <Callout
-            x={X_C + R * Math.sin(0.62 * s.thetaMax)}
-            y={pathCy + R * Math.cos(0.62 * s.thetaMax)}
-            lx={ghost.cx + bw / 2 + 16}
-            ly={ghostBottom - bh - 40}
-            anchor="start"
-            strong
-          >
-            Svingningen: E bevart
-          </Callout>
+          {layout.narrow ? (
+            // Mobil: panelet dekker den øverste delen av scenen, så tekstene står på benken
+            <>
+              <Callout x={blockLeft + 2} y={axis + 6} lx={blockLeft + 8} ly={BENCH_Y + 30} anchor="end" strong size={0.8}>
+                Støtet: p bevart
+              </Callout>
+              <Callout
+                x={X_C + R * Math.sin(0.45 * s.thetaMax)}
+                y={pathCy + R * Math.cos(0.45 * s.thetaMax)}
+                lx={X_C + R * Math.sin(0.45 * s.thetaMax) - 8}
+                ly={BENCH_Y + 30}
+                anchor="start"
+                strong
+                size={0.8}
+              >
+                Svingningen: E bevart
+              </Callout>
+            </>
+          ) : (
+            <>
+              <Callout x={blockLeft + 2} y={axis + 6} lx={blockLeft - 34} ly={BENCH_Y - 14} anchor="end" strong size={0.8}>
+                Støtet: p bevart
+              </Callout>
+              <Callout x={ghost.cx + bw / 2 - 6} y={ghostTop + 4} lx={stringX(faseY - 12 * f) + 12} ly={faseY} anchor="start" strong size={0.8}>
+                Svingningen: E bevart
+              </Callout>
+            </>
+          )}
         </>
       )}
 
-      {vis.tag && <ValueTag x={vis.innfelt && !layout.narrow ? 600 : X_C + 110} y={36} text={vis.tag} size={0.88} />}
+      {vis.tag && !(layout.narrow && vis.innfelt) && <ValueTag x={600} y={24} text={vis.tag} size={0.88} />}
 
       {/* Panelet: energistolper eller forstørret snitt */}
-      {vis.innfelt?.type === 'snitt' && <Zoomring cx={blockLeft + 5} cy={axis} r={16 * k} tx={zoomTarget.x} ty={zoomTarget.y} />}
+      {zoom && <Zoomring cx={blockLeft + 5} cy={axis} r={16 * k} tx={zoomTarget.x} ty={zoomTarget.y} />}
       {insetNode}
     </>
   );
@@ -424,7 +470,7 @@ function SwingForces({ cx, cy, st }: { cx: number; cy: number; st: ReturnType<ty
   const c = Math.cos(st.phi);
   const uS = { x: -s, y: -c }; // mot festet
   const uV = { x: c, y: -s }; // langs banen
-  const m = 10;
+  const m = 15;
   const corner = `M${cx + uS.x * m},${cy + uS.y * m} L${cx + uS.x * m + uV.x * m},${cy + uS.y * m + uV.y * m} L${cx + uV.x * m},${cy + uV.y * m}`;
   return (
     <g>
@@ -433,7 +479,7 @@ function SwingForces({ cx, cy, st }: { cx: number; cy: number; st: ReturnType<ty
       <ForceArrow x1={cx} y1={cy} x2={cx + uV.x * st.u * PX_PER_MS} y2={cy + uV.y * st.u * PX_PER_MS} color={VIZ.velocity} width={5} />
       <path d={corner} fill="none" stroke={VIZ.surface} strokeWidth={4 * ss} opacity={0.85} />
       <path d={corner} fill="none" stroke={VIZ.ink} strokeWidth={1.5 * ss} />
-      <Callout x={cx + (uS.x + uV.x) * m * 0.9} y={cy + (uS.y + uV.y) * m * 0.9} lx={cx + 58} ly={cy + 34 + 6 * f} anchor="start">
+      <Callout x={cx + (uS.x + uV.x) * m * 0.75} y={cy + (uS.y + uV.y) * m * 0.75} lx={cx + 44} ly={cy - 64 - 4 * f} anchor="start" size={0.8}>
         S ⊥ farten
       </Callout>
     </g>

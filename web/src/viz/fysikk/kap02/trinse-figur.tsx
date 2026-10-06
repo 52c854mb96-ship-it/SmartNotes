@@ -2,9 +2,12 @@
  * Figuren til eksempeloppgaven «Vogn og lodd over en trinse» (k2-eks-trinse): et labbord med en dynamikkvogn (eller
  * en trekloss i deloppgave e), en snor over en trinse på bordkanten og et lodd som henger over gulvet.
  *
- * Avstandene (bordhøyden 0,85 m, høyden h og strekningen vogna ruller) er i én fast skala, 340 px/m, og vogna er
- * tegnet i riktig størrelse (0,20 m lang). Trinsa og loddet er tegnet større enn i virkeligheten (ca. 1,6 og 3 ganger),
+ * Avstandene (bordhøyden 0,85 m, høyden h og strekningen vogna ruller) er i én fast skala, 380 px/m, og vogna er en
+ * 0,26 m lang dynamikkvogn i samme skala. Trinsa og loddet er tegnet større enn i virkeligheten (ca. 1,7 og 3 ganger),
  * ellers ville de vært for små til å se. Kraftpilene har én skala per tallsett: G₁ er alltid 118 px lang.
+ *
+ * Målet for h står til venstre for bordbeinet, og etikettene på loddet til venstre for det, så høyre side av loddet
+ * er fri for a- og v-pilene, og mobilutsnittet kan slutte like etter loddet.
  */
 import type { ReactNode } from 'react';
 import { Figure, TSub, Txt, VIZ, fmt } from '../../kit';
@@ -28,43 +31,48 @@ export type TrinseFig =
   | 'alle';
 
 const W = 800;
-const H = 470;
+const H = 500;
 /** Piksler per meter for avstandene i scenen. */
-const K = 340;
-const Y_FLOOR = 446;
+const K = 380;
+const Y_FLOOR = 476;
 /** Bordhøyden (m). */
 const TABLE_H = 0.85;
 const Y_TOP = Y_FLOOR - TABLE_H * K;
-const X_EDGE = 560;
-/** Vogna er 0,20 m lang. */
-const CART = 0.2 * K;
+const X_EDGE = 590;
+/** Vogna er 0,26 m lang. */
+const CART = 0.26 * K;
 /** Snora går like høyt over bordet som festet midt på enden av vogna (0,2 · lengden). */
 const ATT = 0.2 * CART;
 const Y_SNOR = Y_TOP - ATT;
 /** Trinsa: radius (forstørret) og akselen, med tvingen på bordkanten. */
-const R_P = 14;
+const R_P = 16;
 const X_P = X_EDGE + 1.5 * R_P;
 const Y_P = Y_SNOR + R_P;
 /** Loddet henger rett under høyre side av trinsa. */
 const X_L = X_P + R_P;
-/** Fronten av vogna ved start: 0,68 m fra bordkanten, så vogna har plass til å rulle h ≤ 0,5 m. */
-const X_FRONT0 = X_EDGE - 0.68 * K;
+/** Fronten av vogna ved start: 0,60 m fra bordkanten, så vogna har plass til å rulle h ≤ 0,5 m. */
+const X_FRONT0 = X_EDGE - 0.6 * K;
 /** Snora er knyttet i en øyeskrue foran på vogna; her slutter snora. */
 const EYE = 5.6;
-/** Treklossen i e) er like høy som festet på vogna ganger to, så snora går like høyt. */
-const KLOSS_W = 64;
+/** Treklossen i e) er dobbelt så høy som festet på vogna, så snora går like høyt. Den står litt lenger fram enn vogna. */
+const KLOSS_W = 80;
 const KLOSS_H = 2 * ATT;
+const KLOSS_FRONT = X_FRONT0 + 40;
 /** Øyeskruen på klossen (se Kloss: rr = min(6, max(2,5, 0,1 · h))). */
 const KLOSS_RR = Math.min(6, Math.max(2.5, 0.1 * KLOSS_H));
+/** Mållinja for h står under bordet, til venstre for bordbeinet. */
+const X_HDIM = X_EDGE - 52;
 /** Lengden på G₁-pila; de andre kreftene tegnes i samme skala (px/N). */
 const G1_LEN = 118;
 /** Akselerasjon og fart har egne skalaer (px per m/s² og px per m/s). */
 const A_K = 14;
 const V_K = 40;
+/** a- og v-pilene på loddet står så langt til høyre for snora. */
+const X_LA = X_L + 32;
 
-/** Loddets diameter i figuren: 24 for 200 g, og større eller mindre som massen i tredje rot (samme materiale). */
+/** Loddets diameter i figuren: 26 for 200 g, og større eller mindre som massen i tredje rot (samme materiale). */
 function loddSize(m2: number): number {
-  return 24 * Math.cbrt(Math.max(0.02, m2) / 0.2);
+  return 26 * Math.cbrt(Math.max(0.02, m2) / 0.2);
 }
 
 /** Punkter langs en sirkelbue (grader, med klokka fra x-aksen fordi y peker ned). */
@@ -93,11 +101,11 @@ function TrinseScene({ task, s, fig, narrow }: { task: PulleyTask; s: PulleySolu
   const yL0 = Y_FLOOR - task.h * K - 2 * D;
   const yL = yL0 + travel;
   const yCm = yL + 1.36 * D;
-  const front = X_FRONT0 + travel;
-  const snorX = front + EYE;
-  const cx = kloss ? snorX - KLOSS_W / 2 - 2.9 * KLOSS_RR : front - CART / 2;
+  const front = kloss ? KLOSS_FRONT : X_FRONT0 + travel;
+  const snorX = kloss ? front + 2.9 * KLOSS_RR : front + EYE;
+  const cx = kloss ? front - KLOSS_W / 2 : front - CART / 2;
   // Tyngdepunktet: midt i klossen, eller litt over midten av vognkroppen (ekstraloddene ligger oppå).
-  const cy = kloss ? Y_TOP - KLOSS_H / 2 : Y_TOP - 0.24 * CART;
+  const cy = kloss ? Y_TOP - KLOSS_H / 2 : Y_TOP - 0.22 * CART;
   const k = G1_LEN / s.G1;
   const S = kloss ? s.SF : s.S;
   const a = kloss ? s.aF : s.a;
@@ -117,12 +125,12 @@ function TrinseScene({ task, s, fig, narrow }: { task: PulleyTask; s: PulleySolu
     : `En dynamikkvogn på ${fmt(task.m1, 2)} kg på et vannrett labbord, trukket av et lodd på ${gram} i en snor over en trinse på bordkanten. Loddet henger ${fmt(task.h, 2)} m over gulvet.`;
 
   // På mobil zoomes figuren inn på vogna, trinsa og loddet.
-  const vb = narrow ? `225 0 480 ${H}` : `0 0 ${W} ${H}`;
+  const vb = narrow ? `245 0 445 ${H}` : `0 0 ${W} ${H}`;
   const sLabel = (v: number) => `S = ${fmt(v, 2)} N`;
 
   return (
-    <Figure viewBox={vb} label={label} maxHeight={500}>
-      <Rom x={0} y={0} w={W} h={H} gulvY={396} gulv="betong" vindu vinduX={140} />
+    <Figure viewBox={vb} label={label} maxHeight={520}>
+      <Rom x={0} y={0} w={W} h={H} gulvY={424} gulv="betong" vindu vinduX={130} />
       <Bord x={(X_EDGE - 60) / 2} y={Y_TOP} w={X_EDGE + 60} h={TABLE_H * K} type="lab" />
       <Trinse
         x={X_P}
@@ -148,7 +156,7 @@ function TrinseScene({ task, s, fig, narrow }: { task: PulleyTask; s: PulleySolu
       ) : (
         <>
           <Vogn
-            x={front - CART / 2}
+            x={cx}
             y={Y_TOP}
             size={CART}
             lakk="blaa"
@@ -163,39 +171,31 @@ function TrinseScene({ task, s, fig, narrow }: { task: PulleyTask; s: PulleySolu
 
       {fig === 'oppgave' && (
         <>
-          <Callout x={cx + 14} y={Y_TOP - 24} lx={cx + 44} ly={Y_TOP - 74}>
+          <Callout x={cx + 16} y={Y_TOP - 34} lx={cx + 46} ly={Y_TOP - 84}>
             m<TSub>1</TSub> = {fmt(task.m1, 2)} kg
           </Callout>
-          <Callout x={X_L + D / 2} y={yL + 1.3 * D} lx={X_L + 30} ly={yL + 4}>
+          <Callout x={X_L - D / 2} y={yL + 1.3 * D} lx={X_L - 40} ly={yL + 12} anchor="end">
             m<TSub>2</TSub> = {fmt(task.m2, 2)} kg
           </Callout>
-          <Callout x={X_P + 6} y={Y_P - 12} lx={X_P + 34} ly={Y_P - 58}>
+          <Callout x={X_P - 6} y={Y_P - 14} lx={X_P - 30} ly={Y_P - 64} anchor="end">
             trinse
           </Callout>
         </>
       )}
 
       {showH && (
-        <Dimension x1={X_L} y1={yL0 + 2 * D} x2={X_L} y2={Y_FLOOR} offset={72} label={`h = ${fmt(task.h, 2)} m`} />
+        <Dimension x1={X_L} y1={yL0 + 2 * D} x2={X_L} y2={Y_FLOOR} offset={X_HDIM - X_L} label={`h = ${fmt(task.h, 2)} m`} />
       )}
 
       {moved && (
         <>
-          <Dimension x1={X_FRONT0} y1={Y_TOP - 22} x2={front} y2={Y_TOP - 22} offset={58} label={`s = h = ${fmt(task.h, 2)} m`} />
-          <ForceArrow x1={cx + 6} y1={Y_TOP - 50} x2={cx + 6 + s.v * V_K} y2={Y_TOP - 50} color={VIZ.velocity} width={5} label="v" />
-          <ForceArrow
-            x1={X_L + 32}
-            y1={Y_FLOOR - 2 * D - 26}
-            x2={X_L + 32}
-            y2={Y_FLOOR - 2 * D - 26 + s.v * V_K}
-            color={VIZ.velocity}
-            width={5}
-            label="v"
-          />
+          <Dimension x1={X_FRONT0} y1={Y_TOP - 30} x2={front} y2={Y_TOP - 30} offset={56} label={`s = h = ${fmt(task.h, 2)} m`} />
+          <ForceArrow x1={cx + 6} y1={Y_TOP - 60} x2={cx + 6 + s.v * V_K} y2={Y_TOP - 60} color={VIZ.velocity} width={5} label="v" />
+          <ForceArrow x1={X_LA} y1={Y_FLOOR - 2 * D - 30} x2={X_LA} y2={Y_FLOOR - 2 * D - 30 + s.v * V_K} color={VIZ.velocity} width={5} label="v" />
         </>
       )}
 
-      {fig === 'system' && <PlusPath x1={snorX + 18} />}
+      {fig === 'system' && <PlusPath x1={snorX + 22} />}
 
       {/* Kreftene på vogna eller klossen */}
       {forces && (
@@ -203,19 +203,9 @@ function TrinseScene({ task, s, fig, narrow }: { task: PulleyTask; s: PulleySolu
           <ForceArrow x1={cx} y1={cy} x2={cx} y2={cy + s.G1 * k} color={VIZ.gravity} label={<>G<TSub>1</TSub></>} origin />
           <ForceArrow x1={cx} y1={cy} x2={cx} y2={cy - s.N * k} color={VIZ.normal} label="N" />
           {kloss && (
-            <ForceArrow
-              x1={cx - KLOSS_W / 2}
-              y1={Y_TOP - 4}
-              x2={cx - KLOSS_W / 2 - s.R * k}
-              y2={Y_TOP - 4}
-              color={VIZ.friction}
-              label={fig === 'friksjon' ? `R = ${fmt(s.R, 3)} N` : 'R'}
-            />
+            // Friksjonen langs kontaktflaten, fra bakkanten av klossen og bakover.
+            <ForceArrow x1={cx - KLOSS_W / 2} y1={Y_TOP - 5} x2={cx - KLOSS_W / 2 - s.R * k} y2={Y_TOP - 5} color={VIZ.friction} label="R" />
           )}
-        </g>
-      )}
-      {forces && (
-        <g opacity={dimCart ? 0.3 : 1}>
           <ForceArrow
             x1={snorX}
             y1={Y_SNOR}
@@ -223,11 +213,12 @@ function TrinseScene({ task, s, fig, narrow }: { task: PulleyTask; s: PulleySolu
             y2={Y_SNOR}
             color={VIZ.tension}
             label={fig === 'S-vogn' || fig === 'S-friksjon' ? sLabel(S) : 'S'}
+            labelY={Y_SNOR - 11}
           />
         </g>
       )}
 
-      {/* Kreftene på loddet. S-etiketten står til venstre, så høyre side er fri for a, v og h. */}
+      {/* Kreftene på loddet. Etikettene står til venstre, så høyre side er fri for a og v. */}
       {loddForces && (
         <>
           <g opacity={dimLodd || dimLoddS ? 0.3 : 1}>
@@ -239,8 +230,8 @@ function TrinseScene({ task, s, fig, narrow }: { task: PulleyTask; s: PulleySolu
               color={VIZ.tension}
               label={fig === 'S-lodd' || fig === 'S-friksjon' ? sLabel(S) : 'S'}
               labelAnchor="end"
-              labelX={X_L - 10}
-              labelY={yL - S * k + 12}
+              labelX={X_L - 11}
+              labelY={yL - S * k + 13}
             />
           </g>
           <g opacity={dimLodd ? 0.3 : 1}>
@@ -251,6 +242,9 @@ function TrinseScene({ task, s, fig, narrow }: { task: PulleyTask; s: PulleySolu
               y2={yCm + s.G2 * k}
               color={VIZ.gravity}
               label={fig === 'S-lodd' ? <>G<TSub>2</TSub> = {fmt(s.G2, 2)} N</> : <>G<TSub>2</TSub></>}
+              labelAnchor="end"
+              labelX={X_L - 11}
+              labelY={yCm + s.G2 * k - 2}
               origin
             />
           </g>
@@ -259,20 +253,23 @@ function TrinseScene({ task, s, fig, narrow }: { task: PulleyTask; s: PulleySolu
 
       {showA && (
         <>
-          <ForceArrow x1={cx + 8} y1={Y_TOP - 52} x2={cx + 8 + a * A_K} y2={Y_TOP - 52} color={VIZ.acceleration} width={5} label="a" />
-          <ForceArrow x1={X_L + 32} y1={yL + 2} x2={X_L + 32} y2={yL + 2 + a * A_K} color={VIZ.acceleration} width={5} label="a" />
+          <ForceArrow x1={cx + 8} y1={Y_TOP - 66} x2={cx + 8 + a * A_K} y2={Y_TOP - 66} color={VIZ.acceleration} width={5} label="a" />
+          <ForceArrow x1={X_LA} y1={yL + 2} x2={X_LA} y2={yL + 2 + a * A_K} color={VIZ.acceleration} width={5} label="a" />
         </>
       )}
 
       {fig === 'friksjon' && (
-        <Callout x={cx + 18} y={Y_TOP - KLOSS_H + 4} lx={cx + 42} ly={Y_TOP - 70}>
-          trekloss
-        </Callout>
+        <>
+          <Callout x={cx + 22} y={Y_TOP - KLOSS_H + 6} lx={cx + 48} ly={Y_TOP - 74}>
+            trekloss
+          </Callout>
+          <ValueTag x={cx + 170} y={40} text={`R = μN = ${fmt(s.R, 3)} N`} color={VIZ.friction} />
+        </>
       )}
       {fig === 'aks-friksjon' && (
-        <ValueTag x={cx + 150} y={56} text={`a = ${fmt(s.aF, 2)} m/s² (før ${fmt(s.a, 2)} m/s²)`} color={VIZ.acceleration} />
+        <ValueTag x={cx + 170} y={40} text={`a = ${fmt(s.aF, 2)} m/s² (før ${fmt(s.a, 2)} m/s²)`} color={VIZ.acceleration} />
       )}
-      {fig === 'S-friksjon' && <ValueTag x={cx + 150} y={56} text={`S = ${fmt(s.SF, 2)} N (før ${fmt(s.S, 2)} N)`} />}
+      {fig === 'S-friksjon' && <ValueTag x={cx + 170} y={40} text={`S = ${fmt(s.SF, 2)} N (før ${fmt(s.S, 2)} N)`} />}
     </Figure>
   );
 }
@@ -299,7 +296,7 @@ function PlusPath({ x1 }: { x1: number }): ReactNode {
   const r = R_P + d;
   const yTop = Y_SNOR - d;
   const xDown = X_P + r;
-  const yEnd = Y_P + 40;
+  const yEnd = Y_P + 44;
   const path = `M${x1},${yTop} H${X_P} A${r},${r} 0 0 1 ${xDown},${Y_P} V${yEnd}`;
   const hw = 6 * ss;
   return (

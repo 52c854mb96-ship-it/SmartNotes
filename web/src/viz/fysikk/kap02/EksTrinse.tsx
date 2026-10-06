@@ -8,6 +8,13 @@ function sig2(v: number): string {
   return fmt(v, v >= 10 ? 0 : v >= 1 ? 1 : 2);
 }
 
+/** «1,31 N ≈ 1,3 N», eller bare «0,92 N» når avrundingen ikke endrer noe. */
+function approx(v: number, decimals: number, unit: string): string {
+  const exact = fmt(v, decimals);
+  const short = sig2(v);
+  return exact === short ? `${exact} ${unit}` : `${exact} ${unit} ≈ ${short} ${unit}`;
+}
+
 const BARS = ['', 'ett ekstralodd', 'to ekstralodd', 'tre ekstralodd'];
 
 /**
@@ -32,8 +39,8 @@ export default function EksTrinse() {
       body: (
         <>
           <p>
-            Tre ting virker på vogna: jorda (tyngden G<Sub>1</Sub>), bordet (normalkraften N) og snora (snordraget S). Loddet berører
-            ikke vogna, så det virker bare på vogna gjennom snora.
+            Vogna påvirkes av tre ting: jorda (tyngden G<Sub>1</Sub>), bordet (normalkraften N) og snora (snordraget S). Loddet
+            berører ikke vogna, så det virker bare på vogna gjennom snora.
           </p>
           <p>
             Bordet er vannrett, og vogna beveger seg ikke opp eller ned. Da er kraftsummen loddrett null, så N er like stor som G
@@ -89,15 +96,15 @@ export default function EksTrinse() {
             langs snora: mot høyre for vogna og nedover for loddet.
           </p>
           <p>
-            Snora drar vogna fremover og loddet bakover med like stor kraft. For hele systemet er S en indre kraft, og de to
-            S-ene faller bort. G<Sub>1</Sub> og N opphever hverandre. Igjen står bare G<Sub>2</Sub>, som drar hele systemet
+            Snora drar vogna fremover og loddet oppover, altså bakover langs snora, med like stor kraft. For hele systemet er S en
+            indre kraft, og de to S-ene faller bort. G<Sub>1</Sub> og N opphever hverandre. Igjen står bare G<Sub>2</Sub>, som drar hele systemet
             fremover.
           </p>
         </>
       ),
       math: [
         <>
-          ΣF = G<Sub>2</Sub> = m<Sub>2</Sub>g
+          ΣF = G<Sub>2</Sub> = m<Sub>2</Sub>g = {kg(m2)} · 9,81 m/s² = {fmt(s.G2, 2)} N
         </>,
       ],
     },
@@ -182,7 +189,7 @@ export default function EksTrinse() {
       ],
       answer: (
         <>
-          S = {fmt(s.S, 2)} N ≈ {sig2(s.S)} N. Det er mindre enn G<Sub>2</Sub> = {fmt(s.G2, 2)} N, fordi loddet akselererer nedover:
+          S = {approx(s.S, 2, 'N')}. Det er mindre enn G<Sub>2</Sub> = {fmt(s.G2, 2)} N, fordi loddet akselererer nedover:
           kraftsummen G<Sub>2</Sub> − S = {fmt(s.netLodd, 2)} N gir loddet akselerasjonen a.
         </>
       ),
@@ -264,12 +271,18 @@ export default function EksTrinse() {
       ),
       math: [
         <>
-          ΣF = G<Sub>2</Sub> − R = {fmt(s.G2, 3)} N − {fmt(s.R, 3)} N = {fmt(s.G2 - s.R, 3)} N
+          ΣF = G<Sub>2</Sub> − R
         </>,
         <>
-          a = ΣF / (m<Sub>1</Sub> + m<Sub>2</Sub>) = {fmt(s.G2 - s.R, 3)} N / {kg(M)} = {fmt(s.aF, 2)} m/s²
+          a = ΣF / (m<Sub>1</Sub> + m<Sub>2</Sub>) = ({fmt(s.G2, 3)} N − {fmt(s.R, 3)} N) / {kg(M)} = {fmt(s.aF, 2)} m/s²
         </>,
       ],
+      tip: (
+        <>
+          Med symboler blir a = (m<Sub>2</Sub> − μ<Sub>k</Sub>m<Sub>1</Sub>)g / (m<Sub>1</Sub> + m<Sub>2</Sub>). Med μ<Sub>k</Sub> = 0
+          får du svaret fra b) igjen.
+        </>
+      ),
     },
     {
       part: 'e',
@@ -291,8 +304,8 @@ export default function EksTrinse() {
       ],
       answer: (
         <>
-          Akselerasjonen blir mindre: a = {fmt(s.aF, 2)} m/s² ≈ {sig2(s.aF)} m/s² (før {sig2(s.a)} m/s²). Snordraget blir større: S ={' '}
-          {fmt(s.SF, 2)} N ≈ {sig2(s.SF)} N (før {sig2(s.S)} N).
+          Akselerasjonen blir mindre: a = {approx(s.aF, 2, 'm/s²')} (før {sig2(s.a)} m/s²). Snordraget blir større: S ={' '}
+          {approx(s.SF, 2, 'N')} (før {sig2(s.S)} N).
         </>
       ),
       tip: (

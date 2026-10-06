@@ -229,8 +229,16 @@ export default function Skraplan() {
         {p !== null ? (
           r.moving ? (
             <p>
-              <strong>Klossen glir.</strong> Den begynte å gli ved {fmt(crit, 1)}°, der G
-              <Sub>∥</Sub> ble større enn den største statiske friksjonen μ<Sub>s</Sub>N, altså der tan α = μ<Sub>s</Sub>. Planken ble løftet{' '}
+              <strong>Klossen glir.</strong>{' '}
+              {crit < 0.05 ? (
+                <>Uten statisk friksjon er det ingenting som holder klossen igjen, så den begynte å gli med en gang planken ble løftet.</>
+              ) : (
+                <>
+                  Den begynte å gli ved {fmt(crit, 1)}°, der G<Sub>∥</Sub> ble større enn den største statiske friksjonen μ<Sub>s</Sub>N, altså der
+                  tan α = μ<Sub>s</Sub>.
+                </>
+              )}{' '}
+              Planken ble løftet{' '}
               {fmt(TILT_RUN.reactionDeg, 0)}° til før du stoppet, og nå virker glidefriksjonen R = μ<Sub>k</Sub>N = {fmt(r.R, 1)} N. Kraftsummen
               langs planken gir a = g(sin α − μ<Sub>k</Sub> cos α) = {fmt(r.a, 2)} m/s², så farten øker hele veien ned
               {p.v > 0 ? <> (nå {fmt(p.v, 2)} m/s)</> : null}. Slik måler man μ<Sub>s</Sub> i laben: les av vinkelen der klossen begynner å gli,

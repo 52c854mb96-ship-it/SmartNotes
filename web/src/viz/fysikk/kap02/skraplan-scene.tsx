@@ -32,7 +32,7 @@ const G_LEN = 145;
 const PX_PER_A = 18;
 
 /** Utsnittet på mobil: bare skråplanet, så klossen og pilene blir store nok. */
-const NARROW_VIEW = { x: HX - 48, y: 0, w: 448, h: H };
+const NARROW_VIEW = { x: HX - 84, y: 0, w: 484, h: H };
 const FULL_VIEW = { x: 0, y: 0, w: W, h: H };
 
 /** Klossens materiale i scene-kit-et. */

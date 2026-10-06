@@ -39,9 +39,9 @@ export interface PendulumTask {
  * i b) ikke ligger på grensen mellom to avrundinger.
  */
 export const PENDULUM_TASKS: PendulumTask[] = [
-  { m: 0.53e-3, M: 0.095, h: 0.044, dt: 0.2e-3, L: 0.4 },
-  { m: 0.68e-3, M: 0.12, h: 0.052, dt: 0.18e-3, L: 0.4 },
-  { m: 0.5e-3, M: 0.072, h: 0.06, dt: 0.25e-3, L: 0.4 },
+  { m: 0.53e-3, M: 0.095, h: 0.044, dt: 0.2e-3, L: 0.3 },
+  { m: 0.68e-3, M: 0.12, h: 0.052, dt: 0.18e-3, L: 0.3 },
+  { m: 0.5e-3, M: 0.072, h: 0.06, dt: 0.25e-3, L: 0.3 },
 ];
 
 export interface PendulumSolution {

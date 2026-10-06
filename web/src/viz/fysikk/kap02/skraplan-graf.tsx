@@ -39,7 +39,7 @@ export function ForceGraph(props: ForceGraphProps) {
     <div ref={ref}>
       <Figure viewBox={`0 0 800 ${gh}`} label="Graf over G∥, største statiske friksjon og friksjonen R som funksjon av vinkelen α" maxHeight={400}>
         <Plot x={{ min: 0, max: props.alphaMax, label: 'Vinkel α (°)' }} y={{ min: 0, max: yMax, label: 'Kraft (N)' }} width={800} height={gh}>
-          {(sc) => <GraphContent {...sc} {...props} yMax={yMax} />}
+          {(sc) => <GraphContent {...sc} {...props} />}
         </Plot>
       </Figure>
     </div>
@@ -61,7 +61,6 @@ function GraphContent({
   muK,
   crit,
   alphaMax,
-  yMax,
 }: ForceGraphProps & {
   sx: (v: number) => number;
   sy: (v: number) => number;
@@ -69,7 +68,6 @@ function GraphContent({
   x1: number;
   y0: number;
   y1: number;
-  yMax: number;
 }) {
   const f = useTextScale();
   const ss = useStrokeScale();
@@ -104,15 +102,18 @@ function GraphContent({
   const rY = rBelow ? sy(kinEnd) + 26 * f : sy(kinEnd) - 10;
   const gBelow = sy(gParEnd) + 26 * f;
   const gRoom = critShown ? Math.min(sy(kinEnd) - 8, rBelow ? Infinity : rY - lh) : y0 - 4;
-  const gY = gBelow < gRoom ? gBelow : sy(gParEnd) - 10;
 
   // Tilstanden nå
   const px = sx(alpha);
   const gNow = gPar(alpha);
-  const showSum = moving && gNow - R > yMax * 0.06;
+  const showSum = moving && sy(R) - sy(gNow) > 34 * f;
   // Klammen for ΣF til høyre for hjelpelinja, eller til venstre når teksten ikke får plass før kanten.
   const sumRight = px + 22 + 'ΣF = ma'.length * 10 * f < x1 + 30;
   const sd = sumRight ? 1 : -1;
+  // G∥-etiketten over kurven når klammen står ved høyre kant (ellers krysser den etiketten).
+  const sumAtEdge = showSum && px > x1 - 70 * f;
+  const gY = gBelow < gRoom && !sumAtEdge ? gBelow : sy(gParEnd) - 10;
+  const gX = sumAtEdge && px > x1 - 30 ? x1 - 26 : x1 - 4;
   return (
     <g>
       {critShown && crit >= 0.5 && (
@@ -150,7 +151,7 @@ function GraphContent({
         </>
       )}
 
-      <Txt x={x1 - 4} y={gY} anchor="end" color={VIZ.gravity} weight={700}>
+      <Txt x={gX} y={gY} anchor="end" color={VIZ.gravity} weight={700}>
         G<TSub>∥</TSub>
       </Txt>
       {critShown && (

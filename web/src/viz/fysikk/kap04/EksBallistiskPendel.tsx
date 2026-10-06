@@ -27,7 +27,6 @@ export default function EksBallistiskPendel() {
   const V3 = fmt(s.V, 3);
   const v1 = fmt(s.v, 1);
   const vShown = fmt(s.vShown, 0);
-  const dp4 = fmt(Math.abs(s.dpBullet), 4);
   const sBlockM = fmtSci(s.sBlock, 1);
   const sBlockMm = fmt(s.sBlock * 1000, 2);
 
@@ -298,7 +297,7 @@ export default function EksBallistiskPendel() {
         <>m = {mG} g</>,
         <>M = {MG} g</>,
         <>h = {hCm} cm</>,
-        <>Δt = {dtMs} ms (i d)</>,
+        <>Δt = {dtMs} ms</>,
       ]}
       parts={[
         { id: 'a', text: 'Bestem farten til klossen med kula like etter støtet.' },

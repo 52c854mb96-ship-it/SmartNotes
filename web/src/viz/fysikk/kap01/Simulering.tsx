@@ -166,7 +166,8 @@ export default function Simulering() {
         label={`Fart-tid-graf for et fall med luftmotstand. Eulers metode med tidssteg ${fmt(dt, 1)} s sammenlignet med den eksakte løsningen. Terminalfarten er ${fmt(vT, 1)} m/s. Steg ${st.n} er markert.`}
         maxHeight={narrow ? 600 : 440}
       >
-        <VelocityPlot p={p} rows={rows} st={st} fn={fn} tEnd={tEnd} vT={vT} free={free} height={narrow ? 560 : 400} />
+        {/* Tidsaksen går til siste rad, som kan ligge litt etter tEnd når Δt ikke går opp i den (f.eks. 29 · 0,7 s = 20,3 s) */}
+        <VelocityPlot p={p} rows={rows} st={st} fn={fn} tEnd={Math.max(tEnd, tLast)} vT={vT} free={free} height={narrow ? 560 : 400} />
       </Figure>
       <Legend
         items={[
@@ -202,7 +203,7 @@ export default function Simulering() {
           unit="m/s"
           tone={C_EXACT}
         />
-        <Readout label={`Antall steg til t = ${fmt(tEnd, 0)} s`} value={fmt(rows.length - 1, 0)} />
+        <Readout label={`Antall steg til t = ${fmt(tLast, Math.abs(tLast - Math.round(tLast)) < 1e-6 ? 0 : 1)} s`} value={fmt(rows.length - 1, 0)} />
         <Readout label="Største avvik i farten" value={fmt(err, 2)} unit="m/s" tone={C_EULER} />
       </Readouts>
 
@@ -359,7 +360,7 @@ function FallScene({ p, rows, st, vT, geo, forces }: { p: DragFall; rows: EulerR
             y2={cy + G * kN}
             color={VIZ.gravity}
             label={`G = ${fmt(G, 0)} N`}
-            labelX={headDown ? cx + 10 * f : cx - 10 * f}
+            labelX={headDown ? cx + 16 * f : cx - 10 * f}
             labelY={cy + G * kN - 4 * f}
             labelAnchor={headDown ? 'start' : 'end'}
             origin
@@ -572,8 +573,9 @@ function ErrorPlot({ curve, dt, err, height }: { curve: [number, number][]; dt: 
 
 /**
  * Hvor verdien ved punktet (px, py) på avvikskurven skal stå, så teksten ikke krysser kurven eller går ut av plottet:
- * den første av fire plasser (over til venstre, over til høyre, under til høyre, under til venstre) der tekstboksen
- * (bredde w, høyde h) ikke treffer noen del av kurven. Kurven stiger nesten alltid, så over til venstre er vanligst.
+ * den første plassen (over til venstre, over til høyre, under til høyre, under til venstre, og så det samme litt
+ * lenger unna) der tekstboksen (bredde w, høyde h) ikke treffer noen del av kurven. Kurven stiger nesten alltid, så
+ * over til venstre er vanligst; helt til venstre i plottet havner teksten over til høyre, høyt nok over kurven.
  */
 function labelSpot(
   pts: [number, number][],
@@ -586,12 +588,14 @@ function labelSpot(
 ): { x: number; y: number; anchor: 'start' | 'end' } {
   const gap = 10 * f;
   const pad = 3 * f;
-  const options: { x: number; y: number; anchor: 'start' | 'end' }[] = [
-    { x: px - gap, y: py - gap, anchor: 'end' },
-    { x: px + gap, y: py - gap, anchor: 'start' },
-    { x: px + gap, y: py + gap + h, anchor: 'start' },
-    { x: px - gap, y: py + gap + h, anchor: 'end' },
-  ];
+  const options: { x: number; y: number; anchor: 'start' | 'end' }[] = [];
+  for (const extra of [0, 0.8 * h, 1.6 * h])
+    options.push(
+      { x: px - gap, y: py - gap - extra, anchor: 'end' },
+      { x: px + gap, y: py - gap - extra, anchor: 'start' },
+      { x: px + gap, y: py + gap + h + extra, anchor: 'start' },
+      { x: px - gap, y: py + gap + h + extra, anchor: 'end' },
+    );
   const fits = (o: (typeof options)[number]) => {
     const left = o.anchor === 'end' ? o.x - w : o.x;
     const right = left + w;
@@ -608,7 +612,7 @@ function labelSpot(
     }
     return true;
   };
-  return options.find(fits) ?? options[0]!;
+  return options.find(fits) ?? { x: px + gap, y: py - gap, anchor: 'start' };
 }
 
 /* ---------- Tabell ---------- */
@@ -755,7 +759,8 @@ function explanation({
       <p>
         Etter hvert som farten øker, nærmer luftmotstanden L = kv² seg tyngden G, så akselerasjonen går mot null og farten mot terminalfarten
         v<Sub>T</Sub> = √(mg/k) = {fmt(vT, 1)} m/s = {fmt(toKmh(vT), 0)} km/h, der L = G. Det er derfor en fallskjermhopper ikke faller fortere og
-        fortere: med magen ned blir farten ca. 200 km/h, og med hodet ned, der flaten mot lufta og dermed k er mindre, nærmere 300 km/h.{' '}
+        fortere: med magen ned blir farten ca. 200 km/h, med hodet ned, der flaten mot lufta og dermed k er mindre, nærmere 300 km/h, og i
+        vid drakt med armer og bein strukket ut bare ca. 160 km/h.{' '}
         {deploy <= tEnd ? (
           <>
             Med disse tallene er hopperen nede i {fmt(DEPLOY_HEIGHT, 0)} m allerede etter ca. {fmt(deploy, 0)} s, og der må skjermen ut. Resten av

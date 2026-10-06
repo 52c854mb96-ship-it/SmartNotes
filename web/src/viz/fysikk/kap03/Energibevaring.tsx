@@ -183,7 +183,6 @@ export default function Energibevaring() {
                     </span>
                   ),
                 },
-                ...(friction ? [{ color: C_HEAT, label: 'Friksjon og luftmotstand R' }] : []),
               ]
             : []),
         ]}
@@ -319,7 +318,7 @@ const Bane = memo(function Bane({ L, track }: { L: SceneLayout; track: Track }) 
       <Gran x={X(L.xLeft + 0.3)} y={Y(track.top) + 2} size={2.4 * L.ppm} sno seed={3} />
       <Gran x={X(Math.min(16.75, L.xRight - 0.3))} y={Y(track.top) + 2} size={3.2 * L.ppm} sno seed={4} />
       <Terreng points={pts} bottom={L.sceneH + 2} type="sno" seed={7} title="Akebakke i snø" />
-      <Akespor points={run} ppm={L.ppm} />
+      <Akespor points={pts} run={run} bottom={L.sceneH + 2} ppm={L.ppm} />
     </g>
   );
 });
@@ -378,17 +377,43 @@ function Scene({
   const tagW = textWidth(tagText, 0.85, f) + 20 * f;
   const tagX = Math.min(right - tagW / 2, Math.max(6 + tagW / 2, head.x));
 
-  // Etikettene til kreftene: G ved spissen på motsatt side av G∥ (så de ikke kolliderer), G∥ og R like forbi spissen
+  // Etikettene til kreftene (med «Vis krefter»)
+  const forceSegs: Seg[] = forces ? [forces.G, ...(forces.Gpar ? [forces.Gpar] : []), ...(forces.R ? [forces.R] : [])] : [];
   const gText = `G = ${fmt(m * G_EARTH, 0)} N`;
   const forceLabels: { key: string; x: number; y: number; anchor: 'start' | 'middle' | 'end'; box: Box }[] = [];
   if (forces) {
     const g = forces.G;
+    // Etikettene der de ikke treffer fartspila, etiketten for farten eller hverandre
+    const vBox = moving ? textBox(vLabel.x, vLabel.y, textWidth(vText, 0.9, f), vLabel.anchor, 0.9, f) : { x0: tagX - tagW / 2, x1: tagX + tagW / 2, y0: head.y - 36 * f, y1: head.y - 4 };
+    // `own` er pila etiketten hører til (den kan etiketten ligge inntil)
+    const fits = (b: Box, own?: Seg) =>
+      b.x0 >= 4 &&
+      b.x1 <= right + 1 &&
+      b.y1 <= L.sceneH &&
+      !boxesOverlap(b, vBox) &&
+      !forceLabels.some((l) => boxesOverlap(b, l.box)) &&
+      !(moving && segmentHitsBox(a0, tip, b, 4)) &&
+      !forceSegs.some((sg) => sg !== own && segmentHitsBox({ x: sg.x1, y: sg.y1 }, { x: sg.x2, y: sg.y2 }, b, 1));
+    // G: ved spissen på motsatt side av G∥, ellers på den andre siden eller midt på pila
     const gw = textWidth(gText, 0.9, f);
     const gRight = forces.Gpar ? forces.Gpar.x2 < forces.Gpar.x1 : true;
-    const gx = Math.min(right - gw, Math.max(6 + gw, g.x2 + (gRight ? 10 : -10) * f));
-    const ga = gRight ? 'start' : 'end';
-    const gy = g.y2 + 4 * f;
-    forceLabels.push({ key: 'G', x: gx, y: gy, anchor: ga, box: textBox(gx, gy, gw, ga, 0.9, f) });
+    const gCands = (
+      [
+        [gRight, g.y2 + 4 * f],
+        [!gRight, g.y2 + 4 * f],
+        [gRight, (g.y1 + g.y2) / 2 + 6 * f],
+        [!gRight, (g.y1 + g.y2) / 2 + 6 * f],
+      ] as const
+    ).map(([r, y]) => {
+      const anchor: 'start' | 'end' = r ? 'start' : 'end';
+      const x0 = g.x2 + (r ? 10 : -10) * f;
+      // Innenfor figuren
+      const x = anchor === 'start' ? Math.min(right - gw, Math.max(6, x0)) : Math.max(6 + gw, Math.min(right, x0));
+      return { x, y, anchor, box: textBox(x, y, gw, anchor, 0.9, f) };
+    });
+    const gc = gCands.find((c) => fits(c.box, g)) ?? gCands[0]!;
+    forceLabels.push({ key: 'G', ...gc });
+    // G∥ og R: like forbi spissen, eller ved spissen eller midt på pila på en av sidene
     for (const [key, sg, w] of [
       ['Gpar', forces.Gpar, textWidth('G∥', 1, f)],
       ['R', forces.R, textWidth('R', 1, f)],
@@ -397,13 +422,24 @@ function Scene({
       const len = Math.hypot(sg.x2 - sg.x1, sg.y2 - sg.y1) || 1;
       const ux = (sg.x2 - sg.x1) / len;
       const uy = (sg.y2 - sg.y1) / len;
-      const anchor = ux > 0.3 ? 'start' : ux < -0.3 ? 'end' : 'middle';
-      const x = sg.x2 + ux * 12 * f;
-      const y = sg.y2 + uy * 14 * f + 6 * f;
-      forceLabels.push({ key, x, y, anchor, box: textBox(x, y, w, anchor, 1, f) });
+      const anchor: 'start' | 'middle' | 'end' = ux > 0.3 ? 'start' : ux < -0.3 ? 'end' : 'middle';
+      const side = (px: number, py: number, out: number) => {
+        const x = px + fr.nx * out * 15 * f;
+        const y = py + fr.ny * out * 15 * f + 6 * f;
+        return { x, y, anchor: 'middle' as const, box: textBox(x, y, w, 'middle', 1, f) };
+      };
+      const beyond = (d: number) => {
+        const x = sg.x2 + ux * d * f;
+        const y = sg.y2 + uy * (d + 2) * f + 6 * f;
+        return { x, y, anchor, box: textBox(x, y, w, anchor, 1, f) };
+      };
+      const mx = (sg.x1 + sg.x2) / 2;
+      const my = (sg.y1 + sg.y2) / 2;
+      const cands = [beyond(12), side(sg.x2, sg.y2, -1), side(mx, my, -1), side(sg.x2, sg.y2, 1), side(mx, my, 1), beyond(30), side(sg.x2, sg.y2, -2), side(sg.x2, sg.y2, 2)];
+      const c = cands.find((q) => fits(q.box, sg)) ?? cands[0]!;
+      forceLabels.push({ key, ...c });
     }
   }
-  const forceSegs: Seg[] = forces ? [forces.G, ...(forces.Gpar ? [forces.Gpar] : []), ...(forces.R ? [forces.R] : [])] : [];
 
   // Etikettene plasseres der de ikke kolliderer med personen, pilene eller hverandre: første ledige av noen
   // faste kandidater, ellers den første.
@@ -494,8 +530,8 @@ function Scene({
   const zeroCands =
     kind === 'rampe'
       ? [
-          { x: 8 + zeroW / 2, y: Y(0) - 7 * f },
-          { x: right - 4 - zeroW / 2, y: Y(0) - 7 * f },
+          { x: 10 + zeroW / 2, y: Y(0) - 7 * f },
+          { x: right - 6 - zeroW / 2, y: Y(0) - 7 * f },
           { x: X(6), y: L.groundY + 20 * f },
         ]
       : [
@@ -813,8 +849,16 @@ function ExplainText({
   if (stopped)
     phase = (
       <>
-        <strong>{w.Subj} har stoppet.</strong> Nå er E<Sub>k</Sub> = 0, og E = E<Sub>p</Sub> = {fmt(p.E, 0)} J er det som er igjen av den
-        mekaniske energien.
+        <strong>{w.Subj} har stoppet.</strong>{' '}
+        {p.h < 0.005 ? (
+          <>
+            Nå er både E<Sub>k</Sub> og E<Sub>p</Sub> null: all den mekaniske energien ({fmt(sim.E0, 0)} J) er blitt termisk energi.
+          </>
+        ) : (
+          <>
+            Nå er E<Sub>k</Sub> = 0, og E = E<Sub>p</Sub> = {fmt(p.E, 0)} J er det som er igjen av den mekaniske energien.
+          </>
+        )}
       </>
     );
   else if (t === 0)
@@ -1004,8 +1048,9 @@ function ForcesText({
   else
     now = goingDown ? (
       <>
-        På vei ned peker G<Sub>∥</Sub> samme vei som farten. Da gjør tyngden positivt arbeid, og E<Sub>k</Sub> øker like mye som E<Sub>p</Sub>{' '}
-        minker.
+        På vei ned peker G<Sub>∥</Sub> samme vei som farten. Da gjør tyngden positivt arbeid, og E<Sub>k</Sub> øker
+        {friction ? ', men litt mindre enn E' : ' like mye som E'}
+        <Sub>p</Sub> minker{friction ? ', fordi R tar litt hele tiden' : ''}.
       </>
     ) : (
       <>
@@ -1014,15 +1059,14 @@ function ForcesText({
     );
   return (
     <p>
-      <strong>Kreftene:</strong> Tyngden G peker rett ned. Det er komponenten langs banen, G<Sub>∥</Sub> (stiplet), som gjør arbeid. {now}{' '}
-      Arbeidet tyngden har gjort siden start, avhenger bare av høydeforskjellen, ikke av formen på banen: W<Sub>G</Sub> = mg(h<Sub>0</Sub> − h)
-      = {fmt(m * G_EARTH * (h0 - p.h), 0)} J, akkurat det E<Sub>p</Sub> har minket med. Normalkraften N fra {w.place} er ikke tegnet: den står
-      vinkelrett på banen og på farten og gjør aldri arbeid.
+      <strong>Kreftene:</strong> Tyngden G peker rett ned, men det er bare komponenten langs banen, G<Sub>∥</Sub> (stiplet), som gjør arbeid.{' '}
+      {now} Til sammen avhenger tyngdens arbeid bare av høydeforskjellen, ikke av formen på banen: W<Sub>G</Sub> = mg(h<Sub>0</Sub> − h) ={' '}
+      {fmt(m * G_EARTH * (h0 - p.h), 0)} J, akkurat det E<Sub>p</Sub> har minket med. Normalkraften N fra {w.place} (ikke tegnet) står
+      vinkelrett på farten og gjør ikke arbeid.
       {friction && (
         <>
           {' '}
-          Friksjonen og luftmotstanden R peker alltid mot farten og gjør negativt arbeid både på vei ned og på vei opp. R er bare 6 % av G, så
-          pila er kort, men den virker hele veien.
+          R peker alltid mot farten, så friksjonen gjør negativt arbeid både på vei ned og på vei opp. R er bare 6 % av G, så pila er kort.
         </>
       )}
     </p>
