@@ -4,7 +4,9 @@
  *
  * Bakken er tegnet i riktig skala (vinkelen og forholdet mellom h, s og d stemmer), men akeren er tegnet to til tre
  * ganger større enn skalaen, ellers ville hun blitt en prikk i en 30 m lang bakke. Pilene for fart og krefter har
- * hver sin faste skala (px per m/s og px per N) i hele figuren.
+ * hver sin faste skala (px per m/s og px per N) i hele figuren. I e) er kraftskalaen dobbelt så stor, så den lille
+ * luftmotstanden L kan leses; en målestokk i hjørnet viser skalaen hver gang kreftene vises. Tyngden og normalkraften
+ * på flaten (d) er ti ganger større enn friksjonen og vises i en lupe med egen skala.
  *
  * Utsnittet følger deloppgaven: bakken (a, b, c, e) eller flaten (d), og hele turen fra A til C når hele løsningen
  * vises. På PC står energipanelet oppe til høyre i himmelen, på mobil i en egen figur under scenen.
@@ -28,8 +30,16 @@ export const RIDER_PPM_ALT = 32;
 export const SPEED_PX = 7;
 export const FORCE_PX = 1.3;
 
-/** Hvor langt ned i bakken akeren står når kreftene i bakken tegnes (andel av s), litt under midten. */
-export const MID_FRACTION = 0.56;
+/**
+ * Hvor langt ned i bakken akeren står når kreftene i bakken tegnes (andel av s), et stykke under midten, så kraftpilene
+ * opp langs bakken får plass (også i e), der kraftskalaen er dobbelt så stor).
+ */
+export const MID_FRACTION = 0.68;
+/**
+ * Kraftskalaen i e) i forhold til resten av figuren, så luftmotstanden L blir en pil og ikke bare en pilspiss. På
+ * mobil er pilspissene større (strekene er tykkere), så der er skalaen litt større.
+ */
+export const E_FORCE_FACTOR = { wide: 2, narrow: 2.4 };
 
 export type Spot = 'A' | 'mid' | 'B' | 'flat' | 'C' | 'Cest';
 export type Camera = 'alt' | 'bakke' | 'flate';
@@ -48,10 +58,15 @@ export interface FigureSpec {
   v0: boolean;
   /** Fartspila i B: uten friksjon, målt (med fart uten friksjon stiplet), eller ingen. */
   speedB: 'off' | 'ideal' | 'measured' | 'measured-only';
-  /** Kraftpiler midt i bakken: R (gjennomsnittet) eller R delt i μN og L. */
-  slopeForces: 'off' | 'R' | 'split';
+  /**
+   * Kraftpiler midt i bakken: den samlede motkraften F_mot (gjennomsnittet, c), bare friksjonen fra snøen μN (e, første
+   * steg), eller F_mot delt i μN og luftmotstanden L (e).
+   */
+  slopeForces: 'off' | 'Fmot' | 'muN' | 'split';
   /** Friksjonen og farten på flaten. */
   flatForces: boolean;
+  /** Lupe med tyngden G og normalkraften N på flaten (like lange, egen skala). */
+  flatLupe: boolean;
   /** Termisk energi langs sporet i bakken og på flaten. */
   heatSlope: boolean;
   heatFlat: boolean;
@@ -76,6 +91,7 @@ const BASE: FigureSpec = {
   speedB: 'off',
   slopeForces: 'off',
   flatForces: false,
+  flatLupe: false,
   heatSlope: false,
   heatFlat: false,
   zero: false,
@@ -122,9 +138,19 @@ export function figureSpec(step: number, showAll: boolean): FigureSpec {
     case 4:
       return { ...BASE, rider: 'B', ghosts: ['A'], speedB: 'measured', zero: true, heatSlope: true, ledger: ledgerAB };
     case 5:
-      return { ...BASE, rider: 'mid', slopeForces: 'R', heatSlope: true, dims: { ...BASE.dims, s: 'strong' }, ledger: ledgerAB };
+      return { ...BASE, rider: 'mid', slopeForces: 'Fmot', heatSlope: true, dims: { ...BASE.dims, s: 'strong' }, ledger: ledgerAB };
     case 6:
-      return { ...BASE, rider: 'flat', ghosts: ['B'], camera: 'flate', flatForces: true, heatSlope: true, dims: { ...BASE.dims, h: 'off', s: 'off' }, ledger: ledgerAB };
+      return {
+        ...BASE,
+        rider: 'flat',
+        ghosts: ['B'],
+        camera: 'flate',
+        flatForces: true,
+        flatLupe: true,
+        heatSlope: true,
+        dims: { ...BASE.dims, h: 'off', s: 'off' },
+        ledger: ledgerAB,
+      };
     case 7:
       return {
         ...BASE,
@@ -139,7 +165,17 @@ export function figureSpec(step: number, showAll: boolean): FigureSpec {
       };
     case 8:
     case 9:
-      return { ...BASE, rider: 'mid', slopeForces: 'split', heatSlope: true, angle: true, dims: { ...BASE.dims, h: 'on', s: 'on' }, pointC: true, ledger: ledgerAll };
+      // Først friksjonen fra snøen (μN) og vinkelen α, så luftmotstanden L når den er regnet ut
+      return {
+        ...BASE,
+        rider: 'mid',
+        slopeForces: step === 8 ? 'muN' : 'split',
+        heatSlope: true,
+        angle: true,
+        dims: { ...BASE.dims, h: 'on', s: 'on' },
+        pointC: true,
+        ledger: ledgerAll,
+      };
     case 10:
       return {
         ...BASE,
@@ -176,9 +212,10 @@ export interface SceneLayout {
   ppm: number;
   /** Akeren: figurenheter per meter (forstørret). */
   rppm: number;
-  /** Fartspilene (enheter per m/s) og kraftpilene (enheter per N). */
+  /** Fartspilene (enheter per m/s) og kraftpilene (enheter per N), og kraftpilene i e) (E_FORCE_FACTOR · kF). */
   kv: number;
   kF: number;
+  kFe: number;
   /** Tekstskalaen (1 på PC, ca. 1,8 på mobil). */
   f: number;
   /** x (m, fra A og bortover) og høyde over flaten (m) til figurens koordinater. */
@@ -187,7 +224,10 @@ export interface SceneLayout {
   /** Flaten (nullnivået) og toppen av bakken. */
   groundY: number;
   topY: number;
-  /** Horisonten bak flaten. */
+  /**
+   * Horisonten: bakkanten av snøjordet bak flaten. Den ligger høyere enn akeren på flaten, så akeren og pilene står
+   * mot snø og ikke mot skogen langt borte.
+   */
   horizon: number;
   /** Vannrett lengde av bakken og punktene B, C og C′ (m fra A). */
   run: number;
@@ -196,6 +236,17 @@ export interface SceneLayout {
   xCest: number;
   /** Energipanelet i himmelen (PC), ellers null. */
   panel: Box | null;
+  /** Lupen med G og N på flaten (bare i utsnittet av flaten) og midten av skiltet under den. */
+  lupe: Circle | null;
+  lupeTag: { x: number; y: number } | null;
+  /** Målestokken for kreftene oppe til venstre: der teksten («20 N») begynner, og midten av streken (y). */
+  scaleBar: { x: number; y: number };
+}
+
+export interface Circle {
+  x: number;
+  y: number;
+  r: number;
 }
 
 /** Høyden på energipanelet med tekstskalaen f (tre rader, tittel og fargeforklaring). */
@@ -243,11 +294,24 @@ export function sceneLayout(task: SledTask, sol: SledSolution, opts: { narrow: b
   const hillTop = camera === 'flate' ? (task.h * Math.max(0, run - x0m)) / run : task.h;
   const panelW = PANEL_W * f;
   const panelH = ledgerHeight(f);
+  const panel = narrow ? null : { x: W - 8 - panelW, y: 8, w: panelW, h: panelH };
   const flatClear = narrow ? 0 : 8 + panelH + headroom + 6;
-  const groundY = Math.round(Math.max(hillTop * ppm + headroom + 10, flatClear, 150 * f));
+  // Lupen på flaten: oppe til høyre på mobil, til venstre for energipanelet på PC, med et skilt under seg.
+  const lupeR = Math.round((narrow ? 47 : 76) * Math.max(1, f));
+  const lupe =
+    camera === 'flate'
+      ? { x: (panel ? panel.x - 20 : W - 12) - lupeR, y: 10 * f + lupeR, r: lupeR }
+      : null;
+  // Skiltet «N = G = 441 N» (ca. 135 · f bredt) under lupen, inni figuren
+  const lupeTag = lupe ? { x: Math.min(lupe.x, W - 8 - 70 * f), y: lupe.y + lupe.r + 8 * f + tagHeight(f) / 2 } : null;
+  const lupeClear = lupeTag ? lupeTag.y + tagHeight(f) / 2 + 12 * f : 0;
+  // Utsnittet av flaten har ingen bakketopp, så det trenger ikke den høye himmelen (bare plass til akeren og lupen).
+  const minGround = camera === 'flate' ? 0 : 150 * f;
+  const groundY = Math.round(Math.max(hillTop * ppm + headroom + 10, flatClear, lupeClear, minGround));
   const H = Math.round(groundY + 50 * f);
   const X = (x: number) => padL + (x - x0m) * ppm;
   const Y = (h: number) => groundY - h * ppm;
+  const kF = FORCE_PX * Math.sqrt(k);
   return {
     narrow,
     camera,
@@ -256,19 +320,40 @@ export function sceneLayout(task: SledTask, sol: SledSolution, opts: { narrow: b
     ppm,
     rppm,
     kv,
-    kF: FORCE_PX * Math.sqrt(k),
+    kF,
+    kFe: (narrow ? E_FORCE_FACTOR.narrow : E_FORCE_FACTOR.wide) * kF,
     f,
     X,
     Y,
     groundY,
     topY: Y(task.h),
-    horizon: groundY - 2,
+    horizon: groundY - Math.round(FIELD_DEPTH * RIDER_TOP * rppm),
     run,
     xB: run,
     xC,
     xCest,
-    panel: narrow ? null : { x: W - 8 - panelW, y: 8, w: panelW, h: panelH },
+    panel,
+    lupe,
+    lupeTag,
+    scaleBar: { x: 18 * f, y: 22 * f },
   };
+}
+
+/** Hvor dypt snøjordet bak flaten er (fra flaten opp til horisonten), som andel av høyden til akeren. */
+export const FIELD_DEPTH = 1.25;
+
+/** Bredden på teksten ved målestokken («50 N», size 0,78). */
+export function scaleBarTextW(f: number): number {
+  return 4 * 17 * 0.78 * 0.6 * f;
+}
+
+/**
+ * Målestokken for kreftene: en pen kraft (10, 20, 50 eller 100 N) som blir omtrent `target` figurenheter lang med
+ * skalaen k (enheter per N).
+ */
+export function scaleBarForce(k: number, target: number): number {
+  const raw = target / k;
+  return [10, 20, 50, 100, 200].reduce((best, v) => (Math.abs(Math.log(v / raw)) < Math.abs(Math.log(best / raw)) ? v : best), 10);
 }
 
 /* ---------- Bakken ---------- */
@@ -363,6 +448,70 @@ export function speedArrow(L: SceneLayout, fr: Frame, v: number): { x1: number; 
   const p = framePoint(fr, 0.66 * sled + 4 * L.f, COM_HEIGHT * L.rppm);
   const len = v * L.kv;
   return { x1: p.x, y1: p.y, x2: p.x + fr.tx * len, y2: p.y + fr.ty * len };
+}
+
+/* ---------- Lupen på flaten ---------- */
+
+/**
+ * Lupen med akeren på flaten: skalaen Z (enheter per m) og hvor akeren står (ankerpunktet til brettet), så akeren
+ * (0,83 m lang med brettet og 0,98 m høy) står midt i lupen. Kreftene G og N er like lange, 0,78 · radien, så
+ * skalaen kN (enheter per N) avhenger av tallsettet. G virker i tyngdepunktet, N fra snøen under brettet, et stykke
+ * foran G, så pilene står side om side.
+ */
+export function flatLupeMap(lupe: Circle, G: number, f: number) {
+  const Z = (1.15 * lupe.r) / RIDER_TOP;
+  const ground = lupe.y + 0.49 * Z;
+  const fr: Frame = { x: lupe.x - 0.1 * Z, y: ground, rotate: 0, tx: 1, ty: 0, nx: 0, ny: -1 };
+  const len = 0.78 * lupe.r;
+  const kN = G > 0 ? len / G : 0;
+  const com = framePoint(fr, 0, COM_HEIGHT * Z);
+  const nX = com.x + Math.max(0.3 * Z, 26 * Math.max(1, 0.75 * f));
+  return {
+    Z,
+    fr,
+    kN,
+    G: { x1: com.x, y1: com.y, x2: com.x, y2: com.y + G * kN },
+    N: { x1: nX, y1: ground, x2: nX, y2: ground - G * kN },
+  };
+}
+
+/** Ringen rundt akeren i scenen (den delen som er forstørret i lupen). */
+export function riderRing(L: SceneLayout, fr: Frame): Circle {
+  const c = framePoint(fr, 0.1 * L.rppm, 0.49 * L.rppm);
+  return { x: c.x, y: c.y, r: 0.75 * RIDER_TOP * L.rppm };
+}
+
+/* ---------- Vinkelen ved B ---------- */
+
+/** s-målet står så langt vinkelrett under bakken (ganger tekstskalaen f). */
+export const S_DIM_OFFSET = 36;
+
+/**
+ * Vinkelbuen ved B: en liten bue nær B (radius r) mellom den vannrette linja og bakken, og bokstaven α inne i
+ * vinkelen der vinkelen er høy nok til bokstaven (`rho` fra B langs midtlinja). Står akeren der (smal figur), flyttes
+ * bokstaven forbi brettet. Den vannrette hjelpelinja går litt forbi bokstaven (`leg`). Alt ligger nærmere B enn der
+ * s-målet krysser den vannrette linja. `glyphW` og `glyphH` er omtrentlig bredde og høyde på bokstaven.
+ */
+export function angleMark(L: SceneLayout, task: SledTask, sol: SledSolution): { r: number; rho: number; leg: number; glyphW: number; glyphH: number } {
+  const f = L.f;
+  const a = (sol.alphaDeg * Math.PI) / 180;
+  const glyphH = 0.95 * 17 * f * 0.75;
+  const glyphW = 0.95 * 17 * f * 0.62;
+  // Vinkelen er høy nok til bokstaven med litt luft over og under
+  let rho = Math.max(64 * f, (glyphH + 9 * f) / Math.tan(a) + 8 * f);
+  // Akeren i bakken (avstand fra B langs bakken til ankerpunktet til brettet, og brettet foran og bak)
+  const slopeLen = Math.hypot(L.X(sol.run) - L.X(0), L.Y(0) - L.Y(task.h));
+  const rider = (1 - MID_FRACTION) * slopeLen;
+  const sled = SLED_LENGTH * L.rppm;
+  const front = rider - 0.64 * sled - 6 * f;
+  const rear = rider + 0.4 * sled + 6 * f;
+  if (rho + glyphW / 2 > front && rho - glyphW / 2 < rear) rho = rear + 4 * f + glyphW / 2;
+  return { r: 40 * f, rho, leg: rho + glyphW / 2 + 12 * f, glyphW, glyphH };
+}
+
+/** Der s-målet (forskjøvet `offset` vinkelrett under bakken) krysser den vannrette linja gjennom B, målt fra B. */
+export function dimCrossing(alphaDeg: number, offset: number): number {
+  return offset / Math.sin((alphaDeg * Math.PI) / 180);
 }
 
 /** Høyden på et verdiskilt (ValueTag med size 0,9) med tekstskalaen f. */

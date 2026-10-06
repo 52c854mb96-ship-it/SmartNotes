@@ -35,8 +35,8 @@ const AVG = VIZ.ink;
 
 const PHASES: PhaseNo[] = [1, 2, 3];
 
-/** Omtrentlig bredde av en tekst i figurens enheter (Txt med relativ størrelse `size`). */
-const textW = (text: string, f: number, size = 0.9) => text.length * 17 * size * f * 0.58;
+/** Omtrentlig bredde av en tekst i figurens enheter (Txt med relativ størrelse `size`, halvfet skrift). */
+const textW = (text: string, f: number, size = 0.9) => text.length * 17 * size * f * 0.61;
 
 export function TripGraphs({ task, sol, view, narrow }: { task: CityTripTask; sol: CityTripSolution; view: TripView; narrow: boolean }) {
   const ax = tripAxes(task, sol.s);
@@ -178,12 +178,15 @@ function VtPanel({ task, sol, ax, view, height }: PanelProps) {
                 v<TSub>maks</TSub> = {fmtSig(vMax)} m/s
               </Txt>
             )}
-            {view === 'a1' && <SlopeLabels n={1} sol={sol} sx={sx} sy={sy} level={0.62} />}
+            {view === 'a1' && <SlopeLabels n={1} sol={sol} sx={sx} sy={sy} level={0.7} />}
+            {/* To blokker på opptil tre linjer (Δv, Δt og a): den for del 1 høyt og den for del 3 lavt, så de ikke
+                overlapper på mobil, der begge går inn over midten av del 2. */}
             {view === 'a23' && (
               <>
-                <SlopeLabels n={1} sol={sol} sx={sx} sy={sy} level={0.66} />
-                <SlopeLabels n={3} sol={sol} sx={sx} sy={sy} level={0.3} />
-                <Txt x={sx((t1 + t2) / 2)} y={sy(vMax) + 22 * f} size={0.9} weight={700} color={VIZ.acceleration}>
+                <SlopeLabels n={1} sol={sol} sx={sx} sy={sy} level={0.76} />
+                <SlopeLabels n={3} sol={sol} sx={sx} sy={sy} level={0.36} />
+                {/* Over den vannrette linja, der det er tomt, så blokken for del 1 under linja får plass */}
+                <Txt x={sx((t1 + t2) / 2)} y={sy(vMax) - 9 * f} size={0.9} weight={700} color={VIZ.acceleration}>
                   a<TSub>2</TSub> = 0
                 </Txt>
               </>
@@ -193,7 +196,7 @@ function VtPanel({ task, sol, ax, view, height }: PanelProps) {
                 s = arealet under grafen
               </Txt>
             )}
-            {splitAreas && <AreaLabels sol={sol} sx={sx} sy={sy} />}
+            {splitAreas && <AreaLabels sol={sol} sx={sx} sy={sy} top={y1} />}
             {showAvg && (
               <Txt x={sx((t1 + t2) / 2)} y={sy(sol.vAvg) + 22 * f} size={0.9} weight={700} color={AVG}>
                 v<TSub>snitt</TSub> {avgLabel} m/s
@@ -323,6 +326,21 @@ function PhaseLines({ task, sx, y0, y1 }: { task: CityTripTask; sx: (v: number) 
   );
 }
 
+/** Teksten for Δt i stigningstrekanten: «Δt = 6,0 s». */
+const dtText = (sol: CityTripSolution, n: 1 | 3) => `Δt = ${fmtSig(phaseOf(sol, n).dt)} s`;
+
+/**
+ * Om «Δt = 6,0 s» får plass over den vannrette kateten, inne i trekanten: teksten står inntil den loddrette kateten,
+ * og det ytre øverste hjørnet av teksten må ligge under grafen (med litt luft til streken og glorien).
+ */
+function dtFitsOnLeg(n: 1 | 3, sol: CityTripSolution, sx: (v: number) => number, sy: (v: number) => number, f: number): boolean {
+  const p = phaseOf(sol, n);
+  const w = Math.abs(sx(p.to) - sx(p.from));
+  const legH = sy(0) - sy(Math.max(p.v0, p.v1));
+  const dist = w - 7 * f - textW(dtText(sol, n), f, 0.85);
+  return dist > 0 && (dist / w) * legH > 8 * f + 17 * 0.85 * f + 6 * f;
+}
+
 /** Stigningstrekanten i del 1 eller 3: den loddrette kateten er Δv, den vannrette Δt. */
 function SlopeTriangle({ n, sol, sx, sy, dim }: { n: 1 | 3; sol: CityTripSolution; sx: (v: number) => number; sy: (v: number) => number; dim?: boolean }) {
   const f = useTextScale();
@@ -333,43 +351,55 @@ function SlopeTriangle({ n, sol, sx, sy, dim }: { n: 1 | 3; sol: CityTripSolutio
   const vTop = n === 1 ? p.v1 : p.v0;
   const xa = sx(p.from);
   const xb = sx(p.to);
-  const full = `Δt = ${fmtSig(p.dt)} s`;
-  const leg = Math.abs(xb - xa);
-  const dtText = leg > textW(full, f) + 16 * f ? full : 'Δt';
+  // Med verdi når den får plass; ellers står «Δt = …» i blokken ved Δv og a (se SlopeLabels).
+  const label = dtFitsOnLeg(n, sol, sx, sy, f) ? dtText(sol, n) : 'Δt';
   return (
     <g opacity={dim ? 0.55 : 1}>
       <path d={`M${xa},${sy(0)}L${xb},${sy(0)}M${xv},${sy(0)}L${xv},${sy(vTop)}`} stroke={VIZ.acceleration} strokeWidth={3 * ss} strokeLinecap="round" fill="none" />
       <path d={`M${xa},${sy(p.v0)}L${xb},${sy(p.v1)}L${xb},${sy(0)}L${xa},${sy(0)}Z`} fill={alpha(VIZ.acceleration, 0.1)} />
       <Txt x={n === 1 ? xv - 7 * f : xv + 7 * f} y={sy(0) - 8 * f} anchor={n === 1 ? 'end' : 'start'} size={0.85} weight={700} color={VIZ.acceleration}>
-        {dtText}
+        {label}
       </Txt>
     </g>
   );
 }
 
-/** Δv og akselerasjonen ved siden av den loddrette kateten, i høyden `level` (andel av v_maks). */
+/**
+ * Δv og akselerasjonen ved siden av den loddrette kateten, i høyden `level` (andel av v_maks). Når «Δt = …» ikke får
+ * plass ved den vannrette kateten (smale trekanter), står den her mellom Δv og a, så alle tre tallene i a = Δv/Δt synes.
+ */
 function SlopeLabels({ n, sol, sx, sy, level }: { n: 1 | 3; sol: CityTripSolution; sx: (v: number) => number; sy: (v: number) => number; level: number }) {
   const f = useTextScale();
   const p = phaseOf(sol, n);
   const xv = n === 1 ? sx(p.to) + 9 * f : sx(p.from) - 9 * f;
   const anchor = n === 1 ? 'start' : 'end';
   const vTop = Math.max(p.v0, p.v1);
+  const withDt = !dtFitsOnLeg(n, sol, sx, sy, f);
   const y = sy(vTop * level);
   return (
     <g>
       <Txt x={xv} y={y} anchor={anchor} size={0.85} weight={700} color={VIZ.acceleration}>
         Δv = {fmtSig(p.dv)} m/s
       </Txt>
-      <Txt x={xv} y={y + 22 * f} anchor={anchor} size={0.95} weight={750} color={VIZ.acceleration}>
+      {withDt && (
+        <Txt x={xv} y={y + 20 * f} anchor={anchor} size={0.85} weight={700} color={VIZ.acceleration}>
+          {dtText(sol, n)}
+        </Txt>
+      )}
+      <Txt x={xv} y={y + (withDt ? 42 : 22) * f} anchor={anchor} size={0.95} weight={750} color={VIZ.acceleration}>
         a<TSub>{n}</TSub> = {fmt(p.a, 1)} m/s²
       </Txt>
     </g>
   );
 }
 
-/** Strekningen i hver del, skrevet i arealet. Lange etiketter forkortes når trekanten er smal (mobil). */
-function AreaLabels({ sol, sx, sy }: { sol: CityTripSolution; sx: (v: number) => number; sy: (v: number) => number }) {
+/**
+ * Strekningen i hver del, skrevet i arealet. I smale trekanter (mobil) står tallet over grafen i samme kolonne og
+ * farge, og bare symbolet står i trekanten.
+ */
+function AreaLabels({ sol, sx, sy, top }: { sol: CityTripSolution; sx: (v: number) => number; sy: (v: number) => number; top: number }) {
   const f = useTextScale();
+  const ss = useStrokeScale();
   const p2 = phaseOf(sol, 2);
   const v = p2.v0;
   const lineH = 17 * 0.9 * f * 1.12;
@@ -378,9 +408,10 @@ function AreaLabels({ sol, sx, sy }: { sol: CityTripSolution; sx: (v: number) =>
   const legH = base - sy(v);
 
   /**
-   * Etiketten i trekanten står nederst, inntil den høye kateten. Vi prøver «s₁ = 36 m» på én linje, så «s₁» over
-   * «36 m», og til slutt bare «s₁» (smale trekanter på mobil). Den velges hvis det øverste ytre hjørnet av teksten
-   * ligger under grafen.
+   * Etiketten i trekanten står nederst, inntil den høye kateten. Vi prøver «s₁ = 36 m» på én linje og så «s₁» over
+   * «36 m». Den velges hvis det øverste ytre hjørnet av teksten ligger under grafen, med luft til streken og glorien.
+   * Får ingen av dem plass, står bare «s₁» i trekanten og «s₁ = 36 m» over grafen, like over den vannrette linja
+   * (der det alltid er tomt), i kolonnen til delen.
    */
   const tri = (n: 1 | 3): ReactNode => {
     const p = phaseOf(sol, n);
@@ -390,7 +421,7 @@ function AreaLabels({ sol, sx, sy }: { sol: CityTripSolution; sx: (v: number) =>
     const w = Math.abs(sx(p.to) - sx(p.from));
     const fits = (tw: number, lines: number) => {
       const dist = w - pad - tw; // fra den spisse enden til ytterkanten av teksten
-      return dist > 0 && (dist / w) * legH > pad + lines * lineH + 4 * f;
+      return dist > 0 && (dist / w) * legH > pad + lines * lineH + 4 * f + 3 * ss;
     };
     const dir = n === 1 ? -1 : 1;
     const anchor = n === 1 ? 'end' : 'start';
@@ -414,10 +445,20 @@ function AreaLabels({ sol, sx, sy }: { sol: CityTripSolution; sx: (v: number) =>
           </Txt>
         </g>
       );
+    // Over grafen: del 1 fra t-aksen og innover, del 3 inn mot slutten av delen. Så høyt som plassen over den vannrette
+    // linja tillater, så teksten går klar av hjørnepunktet ved t₁ eller t₂.
+    const topY = Math.min(sy(v) - 9 * f, Math.max(top + 0.8 * 17 * 0.9 * f, sy(v) - 16 * f));
     return (
-      <Txt key={n} x={x} y={y} anchor={anchor} size={0.9} weight={750} color={color}>
-        s<TSub>{sub}</TSub>
-      </Txt>
+      <g key={n}>
+        {fits(textW(`s${sub}`, f), 1) && (
+          <Txt x={x} y={y} anchor={anchor} size={0.9} weight={750} color={color}>
+            s<TSub>{sub}</TSub>
+          </Txt>
+        )}
+        <Txt x={n === 1 ? sx(p.from) + 6 * f : sx(p.to)} y={topY} anchor={n === 1 ? 'start' : 'end'} size={0.9} weight={750} color={color}>
+          s<TSub>{sub}</TSub> = {value}
+        </Txt>
+      </g>
     );
   };
   return (

@@ -34,8 +34,13 @@ export interface BikeLayout {
   hud: Box;
   /** Den lengste kraftpila (px). */
   maxArrow: number;
-  /** Stigningstrekanten: venstre hjørne (px) og lengden bortover (m). */
-  tri: { x: number; run: number };
+  /**
+   * Stigningstrekanten: venstre hjørne (px), lengden bortover (m) og hvor langt under veikanten den står (px, på
+   * tvers av veien). Med `drop` = 0 er veikanten hypotenusen; ellers står trekanten nede i lia med hypotenusen
+   * parallell med veien, så den ikke kommer i veien for kraftpila F (mobil). Lengden bortover er 2 m, så høyden
+   * run · p/100 er et eksakt tall med to desimaler for alle stigningene på glidebryteren (steg på 0,5 %).
+   */
+  tri: { x: number; run: number; drop: number };
   /** Målestokken for kreftene: høyre ende (px) og høyden. */
   scaleBar: { x: number; y: number };
   narrow: boolean;
@@ -52,7 +57,7 @@ export const BIKE_WIDE: BikeLayout = {
   horizon: 236,
   hud: { x: 12, y: 12, w: 316, h: 128 },
   maxArrow: 186,
-  tri: { x: 492, run: 2.5 },
+  tri: { x: 566, run: 2, drop: 0 },
   scaleBar: { x: 784, y: 30 },
   narrow: false,
 };
@@ -68,7 +73,7 @@ export const BIKE_NARROW: BikeLayout = {
   horizon: 382,
   hud: { x: 10, y: 10, w: 500, h: 150 },
   maxArrow: 136,
-  tri: { x: 262, run: 1.5 },
+  tri: { x: 236, run: 2, drop: 30 },
   scaleBar: { x: 506, y: 190 },
   narrow: true,
 };
@@ -126,10 +131,11 @@ export interface GradeTriangle {
 
 /**
  * Stigningstrekanten under veien: vannrett katet `run` meter bortover fra kanten av veien, loddrett katet opp til
- * kanten igjen (`rise` = run · p/100 meter), og veikanten som hypotenus. Samme skala som syklisten.
+ * kanten igjen (`rise` = run · p/100 meter), og veikanten som hypotenus (eller en linje parallell med veikanten,
+ * `lay.tri.drop` px lenger ned i lia). Samme skala som syklisten.
  */
 export function gradeTriangle(lay: BikeLayout, theta: number): GradeTriangle {
-  const e = nearEdge(lay);
+  const e = nearEdge(lay) + lay.tri.drop;
   const run = lay.tri.run;
   const x0 = lay.tri.x;
   const y0 = roadLineY(lay, theta, x0, e);

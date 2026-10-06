@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GRADE_MAX, GRADE_MIN, slopeAngle } from './model-sykkel-bakke';
+import { GRADE_MAX, GRADE_MIN, GRADE_STEP, slopeAngle } from './model-sykkel-bakke';
 import { fmt } from '../../kit/format';
 import {
   BIKE_NARROW,
@@ -19,6 +19,12 @@ import {
 
 const LAYOUTS = [BIKE_WIDE, BIKE_NARROW];
 const GRADES = [GRADE_MIN, 5, 7.5, 12, GRADE_MAX];
+/** Alle stigningene på glidebryteren. */
+const ALL_GRADES = Array.from({ length: Math.round((GRADE_MAX - GRADE_MIN) / GRADE_STEP) + 1 }, (_, i) => GRADE_MIN + i * GRADE_STEP);
+/** Tekstskalaen figuren kan få: PC-utformingen brukes ned til ca. 560 px bredde, mobil-utformingen på 320–560 px. */
+const TEXT_SCALES = (lay: typeof BIKE_WIDE) => (lay.narrow ? [1.1, 1.2, 1.35] : [1, 1.05, 1.1]);
+/** Et tall slik det står i figuren («0,15») tilbake til et tall. */
+const shown = (v: number, d: number) => Number(fmt(v, d).replace(',', '.').replace('\u2212', '-'));
 
 describe('veirammen', () => {
   it('fromRoad og roadLineY beskriver samme linje', () => {
@@ -63,7 +69,7 @@ describe('veirammen', () => {
 });
 
 describe('stigningstrekanten', () => {
-  it('har rise = run · stigning og hypotenusen langs veikanten', () => {
+  it('har rise = run · stigning og hypotenusen langs veikanten eller parallell med den', () => {
     for (const lay of LAYOUTS)
       for (const grade of GRADES) {
         const th = slopeAngle(grade);
@@ -72,7 +78,23 @@ describe('stigningstrekanten', () => {
         expect(t.x1 - t.x0).toBeCloseTo(t.run * lay.S, 9);
         // Samme skala som syklisten: den loddrette kateten er rise · S
         expect(t.y0 - t.y1).toBeCloseTo(t.rise * lay.S, 9);
-        expect(t.y0).toBeCloseTo(roadLineY(lay, th, t.x0, nearEdge(lay)), 9);
+        // Hypotenusen er veikanten (PC) eller parallell med den nede i lia (mobil)
+        expect(t.y0).toBeCloseTo(roadLineY(lay, th, t.x0, nearEdge(lay) + lay.tri.drop), 9);
+        expect(t.y1).toBeCloseTo(roadLineY(lay, th, t.x1, nearEdge(lay) + lay.tri.drop), 9);
+      }
+  });
+
+  it('viser tall som går opp: høyden / lengden bortover gir nøyaktig stigningen som står i figuren', () => {
+    for (const lay of LAYOUTS)
+      for (const grade of ALL_GRADES) {
+        const t = gradeTriangle(lay, slopeAngle(grade));
+        const rise = shown(t.rise, 2);
+        const run = shown(t.run, 1);
+        // De viste tallene er eksakte (ingen avrunding), så eleven får samme svar som figuren når hun regner etter.
+        expect(rise).toBeCloseTo(t.rise, 9);
+        expect(run).toBe(t.run);
+        expect(fmt((rise / run) * 100, 1)).toBe(fmt(grade, 1));
+        expect((rise / run) * 100).toBeCloseTo(grade, 9);
       }
   });
 
@@ -85,13 +107,40 @@ describe('stigningstrekanten', () => {
         expect(t.y0 + 50).toBeLessThan(lay.H);
       }
   });
+
+  it('kraftpila F (også den lengste, med etiketten) kommer aldri borti trekanten', () => {
+    for (const lay of LAYOUTS)
+      for (const grade of ALL_GRADES) {
+        const th = slopeAngle(grade);
+        const t = gradeTriangle(lay, th);
+        for (const f of TEXT_SCALES(lay)) {
+          const ss = f;
+          // I veirammen: F går fra bakhjulet (u = −0,52 · S) langs veien, 5 · ss under kontaktlinja, og etiketten «F» står
+          // like etter spissen og litt under pila.
+          const fEnd = -0.52 * lay.S + lay.maxArrow + 12 * f + 11 * f;
+          const fLow = 5 * ss + 4.5 * ss + 8 * f;
+          // Trekanten: fra venstre hjørne og bortover, med hypotenusen nearEdge + drop under kontaktlinja.
+          const tStart = (t.x0 - lay.xc) / Math.cos(th);
+          const tTop = nearEdge(lay) + lay.tri.drop;
+          const clear = fEnd + 4 < tStart || fLow + 6 < tTop;
+          expect(clear, `${lay.W}: ${grade} %, f = ${f}`).toBe(true);
+        }
+      }
+  });
+
+  it('den loddrette kateten er lang nok til å sees ved vanlige stigninger', () => {
+    for (const lay of LAYOUTS) {
+      const t = gradeTriangle(lay, slopeAngle(7.5));
+      expect(t.y0 - t.y1).toBeGreaterThanOrEqual(12 - 1e-9);
+    }
+  });
 });
 
 describe('tekstene ved stigningstrekanten', () => {
   it('høyden står til høyre for kateten uten å overlappe «… m bortover», og alt er inne i figuren', () => {
     for (const lay of LAYOUTS)
-      for (const f of [1, 1.15, 1.3])
-        for (let grade = GRADE_MIN; grade <= GRADE_MAX; grade += 0.5) {
+      for (const f of TEXT_SCALES(lay))
+        for (const grade of ALL_GRADES) {
           const tri = gradeTriangle(lay, slopeAngle(grade));
           const rise = `${fmt(tri.rise, 2)} m opp`;
           const run = `${fmt(tri.run, 1)} m bortover`;

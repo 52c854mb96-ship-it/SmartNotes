@@ -56,10 +56,12 @@ import {
 import { LedPaere, LiaDetaljer, Mikrobolgeovn, Rekkverk, Steintrapp, Stol, Varde } from './trappelop-deler';
 import { Lupe, LupeRing, type Friend, type Look } from './trappelop-lupe';
 import {
+  FRIEND_HEIGHT,
   LAYOUT_NARROW,
   LAYOUT_WIDE,
   RUNNER_HEIGHT,
   cameraLift,
+  friendX as friendSpot,
   hillItems,
   panelBox,
   runnerPlace,
@@ -80,7 +82,6 @@ const RUNNER: Look = { jakke: 'rod', bukse: SCENE.rubber, sko: 'hvit', har: 'bru
 /** Venninnen som tar tida, i gul regnjakke, holder stoppeklokka foran seg. */
 const FRIEND_LOOK: Look = { jakke: 'gul', har: 'svart' };
 const FRIEND_POSE: Partial<Leddvinkler> = { hoyreSkulder: 62, hoyreAlbue: 78, nakke: 8 };
-const FRIEND_HEIGHT = 1.66;
 
 export default function Trappelop() {
   const [m, setM] = useState(60);
@@ -92,8 +93,12 @@ export default function Trappelop() {
   const r = stairRun(input);
   const clock = useSimClock({ tMax: time });
   const { setT } = clock;
-  // Start midt i trappa
+  // Start litt over midt i trappa (6 s av 10 s)
   useEffect(() => setT(6), [setT]);
+  // Settes tida kortere enn klokka har gått, er løperen på toppen, og klokka viser den nye tida (samme tid overalt).
+  useEffect(() => {
+    if (clock.t > time) setT(time);
+  }, [clock.t, time, setT]);
   const tau = Math.min(clock.t, time);
   const prog = stairProgress(input, tau);
   const lay = narrow ? LAYOUT_NARROW : LAYOUT_WIDE;
@@ -209,7 +214,7 @@ function StairScene({
   const cairnX = g.L + Math.max(1.6, Math.min(3, (W - 14 - 0.35 * S - topEnd) / S));
   // Lauvtreet står helt ute til venstre i figuren, og venninnen ved foten av trappa (aldri utenfor figuren).
   const treeX = Math.min(-4.6, (4 - lay.xs) / S);
-  const friendX = Math.max(-1.75, (34 - lay.xs) / S);
+  const friendX = friendSpot(lay, S);
   const friend: Friend = { x: friendX, size: FRIEND_HEIGHT, ledd: FRIEND_POSE, look: FRIEND_LOOK };
 
   // Løperen
@@ -256,7 +261,7 @@ function StairScene({
   const showTag = prog.u > 0 && prog.u < 1 && climbY < y0 - 4 && !(sameSide && Math.abs(climbY + 6 * f - hY) < 24 * f);
 
   // Stoppeklokka og arbeidet så langt i et skilt øverst til venstre (står fast mens kameraet flytter seg).
-  const panel = panelBox(f, k);
+  const panel = panelBox(f, k, lay);
   const workText = `${fmt(prog.W, 0)} J`;
 
   const fp = B(friendX, 0);
@@ -270,7 +275,7 @@ function StairScene({
           <rect x={0} y={0} width={W} height={H} />
         </clipPath>
       </defs>
-      <Himmel w={W} h={H} sol={{ x: W * 0.47, y: 40, r: 18 }} skyer={2} seed={6} forskyvning={camX} />
+      <Himmel w={W} h={H} sol={lay.panel === 'right' ? { x: W * 0.64, y: panel.y + panel.h + 44, r: 18 } : { x: W * 0.47, y: 40, r: 18 }} skyer={2} seed={6} forskyvning={camX} />
       <Vann x={0} y={horizon} w={W} h={H - horizon + 2} />
       <Landskap x={0} y={horizon} w={W} h={H * 0.3} type="kyst" seed={3} forskyvning={camX} />
 
@@ -487,15 +492,15 @@ function explanation(r: StairResult, m: number, h: number, time: number, phase: 
     urealistisk: `Det er urealistisk: ingen mennesker løfter seg ${fmt(r.vertical, 1)}\u00a0m per sekund opp en trapp.`,
   };
   const lupe: Record<typeof phase, string> = {
-    start: `I lupen står du klar nederst. Du står stille, så normalkraften N fra bakken er like stor som tyngden G, ${fmt(G, 0)}\u00a0N. Spill av, så ser du kraften F fra beina i trappa.`,
-    climb: `I lupen ser du kreftene på deg i trappa: tyngden G nedover og kraften F fra beina oppover. Løper du med jevn fart, er F i snitt like stor som G, ${fmt(G, 0)}\u00a0N. For hvert trinn (ca. ${fmt(g.rise * 100, 0)}\u00a0cm opp) gjør F et arbeid på omtrent ${fmt(G * g.rise, 0)}\u00a0J.`,
-    top: `På toppen står du stille igjen, og normalkraften N er like stor som tyngden G, ${fmt(G, 0)}\u00a0N. Arbeidet er gjort: ${g.n} trinn med omtrent ${fmt(G * g.rise, 0)}\u00a0J hver, til sammen mgh = ${fmt(r.W, 0)}\u00a0J.`,
+    start: `I lupen står du klar nederst. Du står stille, så normalkraften N fra bakken er like stor som tyngden G, ${fmt(G, 0)}\u00a0N. Spill av, så ser du kraften F fra trinnet når du løper.`,
+    climb: `I lupen ser du kreftene på deg i trappa: tyngden G nedover og kraften F fra trinnet oppover, under foten som står på trinnet. Beina skyver ned på trinnet, og trinnet skyver like hardt opp på deg (Newtons 3.\u00a0lov). Det er den samme kontaktkraften som normalkraften N når du står stille. Løper du med jevn fart, er F i snitt like stor som G, ${fmt(G, 0)}\u00a0N. For hvert trinn (ca. ${fmt(g.rise * 100, 0)}\u00a0cm opp) gjør F et arbeid på omtrent ${fmt(G * g.rise, 0)}\u00a0J.`,
+    top: `På toppen står du stille igjen, og normalkraften N fra bakken er like stor som tyngden G, ${fmt(G, 0)}\u00a0N. Arbeidet er gjort: ${g.n} trinn med omtrent ${fmt(G * g.rise, 0)}\u00a0J hver, til sammen mgh = ${fmt(r.W, 0)}\u00a0J.`,
   };
   return (
     <>
       <p>
-        <strong>Arbeidet avhenger ikke av tiden.</strong> Steintrappa har {g.n} trinn og løfter deg {fmt(h, 1)}&nbsp;m. Beina må i snitt skyve deg opp med
-        en kraft F like stor som tyngden G = mg = {fmt(G, 0)}&nbsp;N, så arbeidet er W = F · h = mgh = {fmt(r.W, 0)}&nbsp;J enten du går eller løper.
+        <strong>Arbeidet avhenger ikke av tiden.</strong> Steintrappa har {g.n} trinn og løfter deg {fmt(h, 1)}&nbsp;m. Når beina skyver fra, skyver trinnene deg
+        opp med en kraft F som i snitt er like stor som tyngden G = mg = {fmt(G, 0)}&nbsp;N, så arbeidet er W = F · h = mgh = {fmt(r.W, 0)}&nbsp;J enten du går eller løper.
         Effekten forteller hvor fort arbeidet gjøres: P = W/t = {fmt(r.P, 0)}&nbsp;W. {levelText[level]}
       </p>
       {forces && <p>{lupe[phase]}</p>}

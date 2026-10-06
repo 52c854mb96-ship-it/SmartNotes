@@ -156,8 +156,8 @@ function edgeX(edge: Pt[], y: number): number {
 /**
  * Betongbru sett fra siden: brubjelke med kantdrager, rekkverk og en hoppeplattform i stål midt på, der strikken er
  * festet. `px` er piksler per meter (bjelken er `tykkelse` m høy, standard 4 m, og rekkverket 1,1 m), så brua kan
- * brukes både i oversikten og i nærbildet. Undersiden av bjelken er mørk, med en svak skygge under, så bjelken
- * leses som et dekk med luft under og ikke som en vegg.
+ * brukes både i oversikten og i nærbildet. Undersiden av bjelken er et smalt, mørkt bånd, så bjelken leses som et
+ * dekk med luft under.
  *   <Bru x1={0} x2={500} y={66} px={4.5} plattformX={250} />
  * Ankerpunkt: y er toppen av brudekket (der hopperen står), og strikken er festet i (feste ?? plattformX, y).
  */
@@ -191,15 +191,9 @@ export function Bru({
   const w = x2 - x1;
   let posts = '';
   for (let x = x1 + step / 2; x < x2; x += step) posts += `M${r1(x)},${r1(y)}V${r1(y - rail)}`;
-  // Plattformen: gulv av rist som stikker ut foran rekkverket, med en rød ramme (portal) over.
-  const pw = Math.max(14, 3.4 * px);
-  const ph = Math.max(2.2, 0.35 * px);
-  const portal = Math.max(8, 2.4 * px);
-  const pole = Math.max(1.4, 0.16 * px);
   return (
     <g aria-hidden>
       <LinearGradient id={`${id}b`} stops={materialStops(SCENE.concrete, 0.9)} />
-      <LinearGradient id={`${id}p`} stops={materialStops(PAINTS.rod, 0.8)} />
       {/* Rekkverket bak */}
       <path d={posts} stroke={SCENE.metalDark} strokeWidth={Math.max(0.8, 0.09 * px) * ss} />
       <path d={`M${r1(x1)},${r1(y - rail)}H${r1(x2)}`} stroke={SCENE.metal} strokeWidth={Math.max(1.2, 0.14 * px) * ss} />
@@ -209,37 +203,51 @@ export function Bru({
       <rect x={x1} y={y} width={w} height={lip} fill={tint(SCENE.concrete, 0.25)} />
       <rect x={x1} y={y + lip} width={w} height={Math.max(1, lip * 0.5)} fill={shade(SCENE.concrete, 0.3)} opacity={0.6} />
       <rect x={x1} y={y + T - Math.max(1.5, 0.3 * px)} width={w} height={Math.max(1.5, 0.3 * px)} fill={shade(SCENE.concrete, 0.35)} opacity={0.7} />
-      {/* Undersiden: et smalt, mørkt bånd (vi ser litt opp under dekket) og en myk skygge som blekner nedover */}
-      <LinearGradient
-        id={`${id}u`}
-        stops={[
-          [0, SCENE.shadow, 0.28],
-          [1, SCENE.shadow, 0],
-        ]}
-      />
-      <rect x={x1} y={y + T} width={w} height={Math.max(1, 0.18 * px)} fill={shade(SCENE.concrete, 0.5)} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
-      <rect x={x1} y={y + T + Math.max(1, 0.18 * px)} width={w} height={Math.max(2, 0.5 * px)} fill={`url(#${id}u)`} />
-      {plattform && (
-        <g>
-          {/* Portalen */}
-          <rect x={plattformX - pw / 2} y={y - portal} width={pole} height={portal} fill={`url(#${id}p)`} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
-          <rect x={plattformX + pw / 2 - pole} y={y - portal} width={pole} height={portal} fill={`url(#${id}p)`} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
-          <rect x={plattformX - pw / 2} y={y - portal} width={pw} height={pole * 1.2} fill={`url(#${id}p)`} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
-          {/* Gulvet med gul og svart kant */}
-          <rect x={plattformX - pw / 2 - 1} y={y - ph * 0.4} width={pw + 2} height={ph} fill={SCENE.metalDark} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
-          <rect
-            x={plattformX - pw / 2 - 1}
-            y={y + ph * 0.6}
-            width={pw + 2}
-            height={Math.max(1.2, ph * 0.6)}
-            fill={PAINTS.gul}
-            stroke={SCENE.outline}
-            strokeWidth={0.5 * ss}
-          />
-          {/* Festet til strikken */}
-          <circle cx={feste ?? plattformX} cy={y + ph * 0.6} r={Math.max(1.6, 0.1 * px)} fill="none" stroke={SCENE.metal} strokeWidth={Math.max(1, 0.04 * px) * ss} />
+      {/* Undersiden: et smalt, mørkt bånd (vi ser litt opp under dekket) */}
+      <rect x={x1} y={y + T} width={w} height={Math.max(1, 0.2 * px)} fill={shade(SCENE.concrete, 0.5)} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
+      {plattform && <Plattform x={plattformX} y={y} px={px} feste={feste} />}
+    </g>
+  );
+}
+
+/**
+ * Hoppeplattformen: gulv av stålrist med gul kant og en rød portal over, og festet til strikken under gulvkanten.
+ * Med `stagTil` tegnes to stag fra undersiden av gulvet ned til den y-en, der plattformen er festet i brua bak
+ * (i nærbildet står brua lenger unna enn plattformen og er tegnet mindre).
+ *   <Plattform x={300} y={200} px={90} feste={320} stagTil={260} />
+ * Ankerpunkt: (x, y) er midt på gulvet, oppå; strikken er festet i (feste ?? x) like under gulvet.
+ */
+export function Plattform({ x, y, px, feste, stagTil }: { x: number; y: number; px: number; feste?: number; stagTil?: number }) {
+  const ss = useStrokeScale();
+  const id = useSvgId('sh-plattform');
+  const pw = Math.max(14, 3.4 * px);
+  const ph = Math.max(2.2, 0.35 * px);
+  const portal = Math.max(8, 2.4 * px);
+  const pole = Math.max(1.4, 0.16 * px);
+  const under = y + ph * 0.6 + Math.max(1.2, ph * 0.6);
+  const stag = stagTil !== undefined && stagTil > under + 2;
+  const sw = Math.max(1.2, 0.12 * px);
+  return (
+    <g aria-hidden>
+      <LinearGradient id={`${id}p`} stops={materialStops(PAINTS.rod, 0.8)} />
+      {stag && (
+        <g stroke={SCENE.outline} strokeWidth={0.6 * ss} fill={SCENE.metalDark}>
+          {[-0.32, 0.32].map((u) => {
+            const xa = x + u * pw;
+            const xb = x + u * pw * 0.55;
+            return <path key={u} d={`M${r1(xa - sw / 2)},${r1(under)}L${r1(xa + sw / 2)},${r1(under)}L${r1(xb + sw / 2)},${r1(stagTil!)}L${r1(xb - sw / 2)},${r1(stagTil!)}Z`} />;
+          })}
         </g>
       )}
+      {/* Portalen */}
+      <rect x={x - pw / 2} y={y - portal} width={pole} height={portal} fill={`url(#${id}p)`} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
+      <rect x={x + pw / 2 - pole} y={y - portal} width={pole} height={portal} fill={`url(#${id}p)`} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
+      <rect x={x - pw / 2} y={y - portal} width={pw} height={pole * 1.2} fill={`url(#${id}p)`} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
+      {/* Gulvet med gul og svart kant */}
+      <rect x={x - pw / 2 - 1} y={y - ph * 0.4} width={pw + 2} height={ph} fill={SCENE.metalDark} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
+      <rect x={x - pw / 2 - 1} y={y + ph * 0.6} width={pw + 2} height={Math.max(1.2, ph * 0.6)} fill={PAINTS.gul} stroke={SCENE.outline} strokeWidth={0.5 * ss} />
+      {/* Festet til strikken */}
+      <circle cx={feste ?? x} cy={y + ph * 0.6} r={Math.max(1.6, 0.1 * px)} fill="none" stroke={SCENE.metal} strokeWidth={Math.max(1, 0.04 * px) * ss} />
     </g>
   );
 }

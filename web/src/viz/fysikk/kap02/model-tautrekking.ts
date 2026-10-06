@@ -24,21 +24,21 @@
 import { G_EARTH } from '../../kit/format';
 
 /** Hva lagene står på (og har på beina). */
-export type Feste = 'gress' | 'sokker' | 'is';
+export type Feste = 'gress' | 'tregulv' | 'is';
 
-export const FESTER: Feste[] = ['gress', 'sokker', 'is'];
+export const FESTER: Feste[] = ['gress', 'tregulv', 'is'];
 
 /** Navn til knapper (stor forbokstav bare først). */
 export const FESTE_NAVN: Record<Feste, string> = {
   gress: 'Gress',
-  sokker: 'Sokker på gulv',
+  tregulv: 'Tregulv',
   is: 'Is',
 };
 
 /** Til løpende tekst: «lag A står … ». */
 export const FESTE_TEKST: Record<Feste, string> = {
   gress: 'i joggesko på gress',
-  sokker: 'i sokker på et glatt tregulv',
+  tregulv: 'i glatte sko på et tregulv',
   is: 'i vanlige sko på blank is',
 };
 
@@ -48,7 +48,7 @@ export const FESTE_TEKST: Record<Feste, string> = {
  */
 export const FESTE_MU: Record<Feste, { muS: number; muK: number }> = {
   gress: { muS: 0.6, muK: 0.45 },
-  sokker: { muS: 0.25, muK: 0.2 },
+  tregulv: { muS: 0.25, muK: 0.2 },
   is: { muS: 0.1, muK: 0.05 },
 };
 

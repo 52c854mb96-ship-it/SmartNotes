@@ -26,6 +26,7 @@ import {
   lupeMap,
   outerTangents,
   type Circle,
+  type LupeCircle,
   type RunnerPlace,
   type RunnerPose,
   type StairGeom,
@@ -73,7 +74,7 @@ const LupeVerden = memo(function LupeVerden({ g, Z, cairnX }: { g: StairGeom; Z:
 
 export interface LupeProps {
   g: StairGeom;
-  lupe: Circle;
+  lupe: LupeCircle;
   place: RunnerPlace;
   rp: RunnerPose;
   look: Look;
@@ -107,9 +108,10 @@ export function LupeRing({ ring, lupe }: { ring: Circle; lupe: Circle }) {
 }
 
 /**
- * Forstørret utsnitt av løperen med tyngden G og kraften oppover: F fra beina mens hun løper (i snitt like stor som
- * G når farten er jevn), og normalkraften N når hun står stille nederst eller på toppen. Som i læreboka virker G i
- * tyngdepunktet og F eller N der føttene står, så pilene ikke dekker ansiktet.
+ * Forstørret utsnitt av løperen med tyngden G og kontaktkraften oppover: F fra trinnet mens hun løper (i snitt like
+ * stor som G når farten er jevn), og normalkraften N fra bakken når hun står stille nederst eller på toppen. Som i
+ * læreboka virker G i tyngdepunktet og F eller N under foten som står på trinnet. Pilene tegnes oppå kanten, så G
+ * kan gå et stykke ut under lupen for de største massene.
  */
 export function Lupe({ g, lupe, place, rp, look, m, cairnX, friend, tau }: LupeProps) {
   const ss = useStrokeScale();
@@ -154,7 +156,7 @@ export function Lupe({ g, lupe, place, rp, look, m, cairnX, friend, tau }: LupeP
       <circle cx={cx} cy={cy} r={R} fill="none" stroke={VIZ.surface} strokeWidth={6 * ss} />
       <circle cx={cx} cy={cy} r={R + 3 * ss} fill="none" stroke={alpha(VIZ.ink, 0.45)} strokeWidth={1.3 * ss} />
       <circle cx={cx} cy={cy} r={R - 3 * ss} fill="none" stroke={SCENE.outline} strokeWidth={0.8 * ss} opacity={0.6} />
-      {/* F (eller N) virker der føttene treffer trinnet, G i tyngdepunktet. Pilene står side om side, så du ser at de er like lange. */}
+      {/* F (eller N) virker under foten som står på trinnet, G i tyngdepunktet. Pilene står side om side, så du ser at de er like lange. */}
       <ForceArrow x1={U.x1} y1={U.y1} x2={U.x2} y2={U.y2} color={up.color} label={up.label} labelX={U.x2 + 11 * ss} labelY={U.y2 + 15} labelAnchor="start" />
       <ForceArrow x1={G.x1} y1={G.y1} x2={G.x2} y2={G.y2} color={VIZ.gravity} label="G" labelX={G.x2 - 11 * ss} labelY={G.y2 - 2} labelAnchor="end" origin />
     </g>

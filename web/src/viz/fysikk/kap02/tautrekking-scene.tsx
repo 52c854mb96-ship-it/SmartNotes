@@ -39,6 +39,10 @@ export const GROUND = 330;
 const HORIZON = 250;
 /** Nederste kant av figuren: foran lagene er det plass til to rader med piler langs bakken (R og R′). */
 export const H = 440;
+/** Nederste kant når bare R-raden vises (alle visninger unntatt «Kraftparene»): da kuttes den tomme bakken bort. */
+export const H_SHORT = 394;
+/** S′ (lagene på tauet) tegnes på tauet mellom lagene, med spissen så langt inn fra grepet (px). */
+export const S2_INSET = 10;
 /** Midtstreken. */
 export const CX = 400;
 /** Piksler per meter. En person på 1,75 m blir 158 høy. */
@@ -83,8 +87,10 @@ const LOOK: Record<'A' | 'B', [TeamLook, TeamLook]> = {
   ],
 };
 
-const GROUND_TYPE: Record<Feste, 'gress' | 'tregulv' | 'is'> = { gress: 'gress', sokker: 'tregulv', is: 'is' };
-const FESTE_KORT: Record<Feste, string> = { gress: 'Gress', sokker: 'Sokker', is: 'Is' };
+/** Brune skinnsko med glatte såler (på tregulvet). */
+const SHOE_LEATHER = mix(SCENE.woodDark, PAINTS.svart, 0.35);
+const GROUND_TYPE: Record<Feste, 'gress' | 'tregulv' | 'is'> = { gress: 'gress', tregulv: 'tregulv', is: 'is' };
+const FESTE_KORT: Record<Feste, string> = { gress: 'Gress', tregulv: 'Tregulv', is: 'Is' };
 
 interface Pt {
   x: number;
@@ -171,7 +177,7 @@ export function restGeometry(mA: number, mB: number) {
 
 /* ---------- Bakgrunn ---------- */
 
-/** Himmel og landskap (ute) eller et rom (inne, når begge lagene står i sokker på gulvet). Endres ikke under avspillingen. */
+/** Himmel og landskap (ute) eller et rom (inne, når begge lagene står på tregulv). Endres ikke under avspillingen. */
 const Backdrop = memo(function Backdrop({ indoor, top, x0, x1 }: { indoor: boolean; top: number; x0: number; x1: number }) {
   if (indoor) return <Rom x={x0} y={top} w={x1 - x0} h={H - top} gulvY={HORIZON} gulv="tre" vindu vinduX={x0 + (x1 - x0) * 0.5} />;
   return (
@@ -242,7 +248,7 @@ function Sklispor({ x0, x1, feste }: { x0: number; x1: number; feste: Feste }) {
   const ss = useStrokeScale();
   if (!(Math.abs(x1 - x0) > 2)) return null;
   const color = feste === 'is' ? tint(SCENE.iceShine, 0.4) : feste === 'gress' ? SCENE.soil : shade(SCENE.wood, 0.15);
-  const op = feste === 'sokker' ? 0.35 : 0.75;
+  const op = feste === 'tregulv' ? 0.35 : 0.75;
   return (
     <g aria-hidden opacity={op}>
       <line x1={x0} x2={x1} y1={GROUND + 1.5} y2={GROUND + 1.5} stroke={color} strokeWidth={2.6 * ss} strokeLinecap="round" />
@@ -274,7 +280,7 @@ const SKY_TOP = 0;
 export function TugScene({ mA, mB, festeA, festeB, plan, state, view, k, box, narrow }: TugSceneProps) {
   const f = useTextScale();
   const ss = useStrokeScale();
-  const indoor = festeA === 'sokker' && festeB === 'sokker';
+  const indoor = festeA === 'tregulv' && festeB === 'tregulv';
   const shift = state.x * PX_PER_M;
   const A = teamLayout('A', mA, state.S, shift);
   const B = teamLayout('B', mB, state.S, shift);
@@ -287,7 +293,8 @@ export function TugScene({ mA, mB, festeA, festeB, plan, state, view, k, box, na
     const walking = moving && winner === side;
     return ([T.front, T.rear] as const).map((p, i) => {
       const look = LOOK[side][i]!;
-      const extra = { lue: feste === 'is' ? (side === 'A' ? 'gul' : 'hvit') : undefined, sko: feste === 'sokker' ? 'hvit' : 'svart' };
+      // Glatte skinnsko på tregulvet, joggesko ellers.
+      const extra = { lue: feste === 'is' ? (side === 'A' ? 'gul' : 'hvit') : undefined, sko: feste === 'tregulv' ? SHOE_LEATHER : 'svart' };
       if (walking) {
         const pose: PersonPose = 'gaa';
         const fase = (((0.04 - travel / (0.8 * p.size)) % 1) + 1) % 1;
@@ -331,6 +338,16 @@ export function TugScene({ mA, mB, festeA, festeB, plan, state, view, k, box, na
     const y1 = g.y + n.y * off * side;
     return { x1, y1, x2: x1 + u.x * S * along, y2: y1 + u.y * S * along };
   };
+  /**
+   * S′ (laget drar i tauet) angriper tauet i grepet og peker utover. Den tegnes under tauet mellom lagene, med spissen
+   * litt inn fra grepet, så den ikke havner oppå armene og overkroppen til den fremste personen.
+   * `inward` = +1 for lag A (tauet går mot høyre fra grepet), −1 for lag B.
+   */
+  const ropePullArrow = (g: Pt, inward: number) => {
+    const x2 = g.x - n.x * off + u.x * S2_INSET * inward;
+    const y2 = g.y - n.y * off + u.y * S2_INSET * inward;
+    return { x1: x2 + u.x * S * inward, y1: y2 + u.y * S * inward, x2, y2 };
+  };
   const rY = GROUND + 20;
   const r2Y = GROUND + 30 + 24 * f;
   const showPairs = view === 'par';
@@ -339,7 +356,7 @@ export function TugScene({ mA, mB, festeA, festeB, plan, state, view, k, box, na
 
   // Etikettene til S står midt over pila, og til S′ midt under pila.
   const sLabel = (g: Pt, along: number, prime: boolean) => {
-    const a = ropeArrow(g, along, prime ? -1 : 1);
+    const a = prime ? ropePullArrow(g, -along) : ropeArrow(g, along, 1);
     const mx = (a.x1 + a.x2) / 2;
     const my = (a.y1 + a.y2) / 2;
     return (
@@ -384,14 +401,21 @@ export function TugScene({ mA, mB, festeA, festeB, plan, state, view, k, box, na
             ? `Lag ${plan.loser} glir`
             : `Lag ${plan.winner} vant`;
 
-  // Akselerasjonspila over midten av tauet, med etiketten over pila.
+  // Lagetikettene står like høyt, over hodene.
+  const labelY = Math.min(A.headTop, B.headTop) - 14;
+
+  // Akselerasjonspila over tauet ved båndet, med etiketten over pila: under lagetikettene og over S-etikettene
+  // (de står midt over S-pilene, som slutter et stykke fra båndet).
   const aLen = Math.min(A_MAX_PX, Math.abs(state.a) * PX_PER_A);
   const aDir = Math.sign(state.a);
   const tagY = box.y + 22 * Math.max(1, f * 0.9);
-  const aY = tagY + 30 + 18 * f;
-
-  // Lagetikettene står like høyt, over hodene.
-  const labelY = Math.min(A.headTop, B.headTop) - 14;
+  const sLabelTop = ribbonY - off - 9 - 3 * f - 13 * f;
+  // Høyest: etiketten går klar av lagetikettene. Lavest: pila går klar av S-etikettene. På PC står hele verdien
+  // over pila; på mobil er det for trangt mellom lagetikettene, så der står bare «a» over pila (verdien står under
+  // figuren).
+  const aHigh = narrow ? labelY + 6 * f + 9 * ss : labelY + 16 + 18 * f;
+  const aLow = sLabelTop - 9 * ss;
+  const aY = aLow >= aHigh ? (aHigh + aLow) / 2 : aLow;
   const teamLabel = (T: TeamLayout, side: 'A' | 'B', m: number, feste: Feste) => (
     <g>
       <Txt x={T.cx} y={labelY - 19 * f} size={0.92} weight={740}>
@@ -457,8 +481,8 @@ export function TugScene({ mA, mB, festeA, festeB, plan, state, view, k, box, na
       )}
       {showPairs && state.S > 0 && (
         <g>
-          <ForceArrow {...ropeArrow(A.grip, -1, -1)} color={VIZ.tension} />
-          <ForceArrow {...ropeArrow(B.grip, 1, -1)} color={VIZ.tension} />
+          <ForceArrow {...ropePullArrow(A.grip, 1)} color={VIZ.tension} />
+          <ForceArrow {...ropePullArrow(B.grip, -1)} color={VIZ.tension} />
           {sLabel(A.grip, -1, true)}
           {sLabel(B.grip, 1, true)}
         </g>
@@ -504,9 +528,9 @@ export function TugScene({ mA, mB, festeA, festeB, plan, state, view, k, box, na
           y2={aY}
           color={VIZ.acceleration}
           width={5}
-          label={`a = ${fmt(Math.abs(state.a), 2)} m/s²`}
+          label={narrow ? 'a' : `a = ${fmt(Math.abs(state.a), 2)} m/s²`}
           labelX={ribbonX}
-          labelY={aY - 12 - 2 * f}
+          labelY={narrow ? aY - 10 - f : aY - 12 - 2 * f}
           labelAnchor="middle"
         />
       )}

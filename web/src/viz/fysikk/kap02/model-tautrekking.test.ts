@@ -10,8 +10,8 @@ const deriv = (f: (t: number) => number, t: number, h = 1e-4) => (f(t + h) - f(t
 describe('friksjonstallene', () => {
   it('har μk ≤ μs, og gress gir best feste og is dårligst', () => {
     for (const f of FESTER) expect(FESTE_MU[f].muK).toBeLessThanOrEqual(FESTE_MU[f].muS);
-    expect(FESTE_MU.gress.muS).toBeGreaterThan(FESTE_MU.sokker.muS);
-    expect(FESTE_MU.sokker.muS).toBeGreaterThan(FESTE_MU.is.muS);
+    expect(FESTE_MU.gress.muS).toBeGreaterThan(FESTE_MU.tregulv.muS);
+    expect(FESTE_MU.tregulv.muS).toBeGreaterThan(FESTE_MU.is.muS);
   });
 });
 
@@ -44,8 +44,8 @@ describe('tugPlan: grensene og hvem som vinner', () => {
     expect(same.winner).toBeNull();
     expect(same.tSlip).toBe(Infinity);
     // 0,6 · 100 = 0,25 · 240 = 60 og 0,25 · 80 = 0,1 · 200 = 20
-    expect(tugPlan(lagFor(100, 'gress'), lagFor(240, 'sokker')).winner).toBeNull();
-    expect(tugPlan(lagFor(80, 'sokker'), lagFor(200, 'is')).winner).toBeNull();
+    expect(tugPlan(lagFor(100, 'gress'), lagFor(240, 'tregulv')).winner).toBeNull();
+    expect(tugPlan(lagFor(80, 'tregulv'), lagFor(200, 'is')).winner).toBeNull();
   });
 
   it('taperen glipper etter tRise, og vinneren når sin grense senere', () => {
@@ -157,7 +157,7 @@ describe('tugState: når taperen glir (Newtons 2. lov)', () => {
   });
 
   it('lag B kan også vinne, og da går alt mot høyre', () => {
-    const A2 = lagFor(200, 'sokker');
+    const A2 = lagFor(200, 'tregulv');
     const B2 = lagFor(100, 'gress');
     const p2 = tugPlan(A2, B2);
     expect(p2.winner).toBe('B');
@@ -186,8 +186,8 @@ describe('tugState: når taperen glir (Newtons 2. lov)', () => {
 
 describe('uavgjort', () => {
   it('S stiger til den felles grensen og står der, uten bevegelse', () => {
-    const A = lagFor(150, 'sokker');
-    const B = lagFor(150, 'sokker');
+    const A = lagFor(150, 'tregulv');
+    const B = lagFor(150, 'tregulv');
     const p = tugPlan(A, B, { tRise: 2, tHold: 2 });
     expect(p.tEnd).toBe(4);
     expect(tugState(A, B, p, 1).phase).toBe('drar');

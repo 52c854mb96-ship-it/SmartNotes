@@ -2,7 +2,8 @@
  * Kraftregnskapet til tautrekkingen: for hvert lag en stolpe med friksjonen fra bakken nå (fylt) og den største
  * statiske friksjonen laget kan få, μs · mg (stiplet). Én loddrett strek viser snordraget S, som er det samme for
  * begge lagene. Så lenge fyllet når akkurat til streken, er R = S og kraftsummen null. Når et lag glir, blir det et
- * gap mellom R og S: det er kraftsummen på laget.
+ * gap mellom R og S: det er kraftsummen på laget, vist som en magenta stripe rett under stolpen (likt for begge lagene,
+ * enten R er større eller mindre enn S).
  */
 import { useEffect, useRef, useState } from 'react';
 import { Figure, TSub, Txt, VIZ, fmt, niceTicks, useTextScale } from '../../kit';
@@ -101,6 +102,11 @@ function Content({ mA, mB, festeA, festeB, plan, state, peak }: RegnskapProps) {
     { side: 'B' as const, m: mB, feste: festeB, R: state.RB, Rmax: plan.RmaxB, sliding: state.slidingB, net: state.netB, labelY: labelB, barY: barB },
   ];
   const xs = sx(state.S);
+  /** Omtrentlig bredde på radetiketten «Lag A · 120 kg · gress · glir» (fet start, resten vanlig). */
+  const rowLabelW = (r: (typeof rows)[number]) => {
+    const rest = ` · ${fmt(r.m, 0)} kg · ${FESTE_NAVN[r.feste].toLowerCase()}${r.sliding ? ' · glir' : ''}`;
+    return 5 * 17 * f * 0.9 * 0.62 + rest.length * 17 * f * 0.9 * 0.53;
+  };
   const sText = `S = ${fN(state.S)} N`;
   const sW = sText.length * 17 * f * 0.9 * 0.58;
   const sLabelX = Math.min(x1 - sW / 2, Math.max(x0 + sW / 2, xs));
@@ -121,11 +127,13 @@ function Content({ mA, mB, festeA, festeB, plan, state, peak }: RegnskapProps) {
         Kraft langs bakken (N)
       </Txt>
 
-      {/* Stolpene: største statiske friksjon (stiplet), friksjonen nå (fylt) og kraftsummen (gapet mellom R og S) */}
+      {/* Stolpene: største statiske friksjon (stiplet), friksjonen nå (fylt) og kraftsummen (stripe under, fra R til S) */}
       {rows.map((r) => {
         const xR = sx(r.R);
         const xMax = sx(r.Rmax);
         const gap = Math.abs(r.net) > 0.05 && Math.abs(xR - xs) > 1;
+        const stripeY = r.barY + barH + 1.5 * f;
+        const stripeH = 5.5 * f;
         return (
           <g key={r.side}>
             <rect
@@ -141,21 +149,18 @@ function Content({ mA, mB, festeA, festeB, plan, state, peak }: RegnskapProps) {
             />
             {xR - x0 > 0.5 && <rect x={x0} y={r.barY + 3 * f} width={xR - x0} height={barH - 6 * f} rx={3.5} fill={VIZ.friction} opacity={0.9} />}
             {gap && (
-              <rect
-                x={Math.min(xR, xs)}
-                y={r.barY + 3 * f}
-                width={Math.abs(xs - xR)}
-                height={barH - 6 * f}
-                fill={alpha(VIZ.acceleration, 0.28)}
-                stroke={VIZ.acceleration}
-                strokeWidth={1 * ss}
-              />
+              <g>
+                {/* Tynne merker i stolpen der R og S er, så eleven ser at stripa går fra den ene til den andre */}
+                <rect x={Math.min(xR, xs)} y={stripeY} width={Math.abs(xs - xR)} height={stripeH} rx={2} fill={VIZ.acceleration} />
+                <line x1={xR} x2={xR} y1={r.barY + 3 * f} y2={stripeY + stripeH} stroke={VIZ.acceleration} strokeWidth={1.4 * ss} />
+              </g>
             )}
           </g>
         );
       })}
 
-      {/* Snordraget: samme strek gjennom begge stolpene, tynn og stiplet forbi etikettene (de har glorie) */}
+      {/* Snordraget: samme strek gjennom begge stolpene, tynn og stiplet mellom dem, med et opphold der streken ellers
+          ville krysset radetiketten («Lag A · 120 kg · gress») */}
       {state.S > 0 && (
         <g strokeLinecap="round">
           {[
@@ -167,22 +172,34 @@ function Content({ mA, mB, festeA, festeB, plan, state, peak }: RegnskapProps) {
               <line x1={xs} x2={xs} y1={ya} y2={yb} stroke={VIZ.tension} strokeWidth={3 * ss} />
             </g>
           ))}
-          {[
-            [yS + 8 * f, barA - 4 * f],
-            [barA + barH + 4 * f, barB - 4 * f],
-          ].map(([ya, yb], i) => (
-            <line
-              key={i}
-              x1={xs}
-              x2={xs}
-              y1={ya}
-              y2={yb}
-              stroke={VIZ.tension}
-              strokeWidth={1.4 * ss}
-              strokeDasharray={`${2 * ss} ${3 * ss}`}
-              opacity={0.6}
-            />
-          ))}
+          {(
+            [
+              [yS + 8 * f, barA - 4 * f, rows[0]!],
+              [barA + barH + 4 * f, barB - 4 * f, rows[1]!],
+            ] as const
+          )
+            .flatMap(([ya, yb, r]): [number, number][] =>
+              xs < x0 + rowLabelW(r) + 8 * f
+                ? [
+                    [ya, r.labelY - 16 * f],
+                    [r.labelY + 6 * f, yb],
+                  ]
+                : [[ya, yb]],
+            )
+            .filter(([ya, yb]) => yb - ya > 2)
+            .map(([ya, yb], i) => (
+              <line
+                key={i}
+                x1={xs}
+                x2={xs}
+                y1={ya}
+                y2={yb}
+                stroke={VIZ.tension}
+                strokeWidth={1.4 * ss}
+                strokeDasharray={`${2 * ss} ${3 * ss}`}
+                opacity={0.6}
+              />
+            ))}
         </g>
       )}
 
@@ -200,9 +217,7 @@ function Content({ mA, mB, festeA, festeB, plan, state, peak }: RegnskapProps) {
             <Txt x={x0} y={r.labelY} anchor="start" size={0.9} weight={740}>
               Lag {r.side}
               <tspan fontWeight={520} fill={VIZ.muted}>
-                {' '}
-                · {fmt(r.m, 0)} kg · {FESTE_NAVN[r.feste].toLowerCase()}
-                {r.sliding ? ' · glir' : ''}
+                {` · ${fmt(r.m, 0)} kg · ${FESTE_NAVN[r.feste].toLowerCase()}${r.sliding ? ' · glir' : ''}`}
               </tspan>
             </Txt>
             <Txt x={x1} y={r.labelY} anchor="end" size={0.86} weight={700} color={gap ? VIZ.acceleration : VIZ.ink}>

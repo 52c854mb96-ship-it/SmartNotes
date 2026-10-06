@@ -4,11 +4,28 @@
  *
  *   <Trafikklys x={x} y={fot} top={y0} size={44} lys="gul" />   lyssignal på stolpe (hodet er `size` høyt)
  *   <Kryss X={X} roadY={y} B={34} horizon={h} bottom={H} />       fortau, tverrvei, gangfelt og stopplinje
+ *   <BilLupe x={x} y={y} carLen={150} text="50 km/h" … />          innfelt utsnitt med bilen forstørret og farten
  *
  * Signalhodet tegnes større enn i virkeligheten (et ekte er ca. 1 m høyt), så lampene synes også på mobil.
  */
 import { memo } from 'react';
-import { ContactShadow, LinearGradient, PAINTS, RadialGradient, SCENE, mix, shade, tint, useStrokeScale, useSvgId } from '../../kit/scene';
+import { Txt, VIZ, useTextScale } from '../../kit';
+import {
+  BIL_MAAL,
+  Bil,
+  ContactShadow,
+  LinearGradient,
+  PAINTS,
+  RadialGradient,
+  SCENE,
+  SpeedLines,
+  mix,
+  shade,
+  tint,
+  useStrokeScale,
+  useSvgId,
+  type PaintName,
+} from '../../kit/scene';
 import { KRYSS } from './model-gult-lys';
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -325,5 +342,125 @@ export function Stopplinje({ X, roadY, B, horizon, vpX = 400 }: { X: (m: number)
       strokeWidth={0.5}
       aria-hidden
     />
+  );
+}
+
+/* ------------------------------------------------------------------ Bilen forstørret */
+
+/** Høyden av vinduet med bilen i BilLupe, som andel av billengden: bilen (1,5/4,4), veien under og litt himmel over. */
+const LUPE_WIN_H = 0.56;
+/** Bredden av vinduet, som andel av billengden (plass til fartsstrekene bak bilen). */
+const LUPE_WIN_W = 1.3;
+
+/** Målene på BilLupe: bredde og høyde av skiltet (figurenheter), med `textW` plass til teksten og kanten `inset`. */
+export function bilLupeSize(carLen: number, textW: number, inset: number, gap: number): { w: number; h: number } {
+  return { w: inset + LUPE_WIN_W * carLen + gap + textW + gap, h: LUPE_WIN_H * carLen + 2 * inset };
+}
+
+/**
+ * Innfelt utsnitt av bilen: et skilt med bilen forstørret på et lite stykke vei (med bremselys og fartsstreker), og
+ * farten ved siden av. Brukes når bilen i scenen er så liten at den knapt synes (på mobil, og når veien i bildet er
+ * lang). Spissen under skiltet peker ned på bilen i scenen, i `pointerX`. (x, y) er midten av skiltet, og `carLen`
+ * lengden på bilen i skiltet (figurenheter). Bilen i skiltet står stille i bildet; veien under den viser farten med
+ * fartsstreker.
+ */
+export function BilLupe({
+  x,
+  y,
+  w,
+  h,
+  inset,
+  gap,
+  carLen,
+  pointer,
+  pointerX,
+  text,
+  color,
+  speed,
+  lakk,
+  hjulvinkel,
+  bremselys,
+  title,
+}: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  inset: number;
+  gap: number;
+  carLen: number;
+  /** Høyden på spissen fra underkanten av skiltet ned mot bilen, og hvor den peker. */
+  pointer: number;
+  pointerX: number;
+  text: string;
+  color: string;
+  /** Lengden på fartsstrekene bak bilen (0 når den står stille). */
+  speed: number;
+  lakk: PaintName | string;
+  hjulvinkel: number;
+  bremselys: boolean;
+  title: string;
+}) {
+  const ss = useStrokeScale();
+  const f = useTextScale();
+  const id = useSvgId('bil-lupe');
+  const left = x - w / 2;
+  const top = y - h / 2;
+  const winW = LUPE_WIN_W * carLen;
+  const winH = h - 2 * inset;
+  const wx = left + inset;
+  const wy = top + inset;
+  const q = carLen / BIL_MAAL.lengde;
+  const ground = wy + winH * 0.84;
+  const roadTop = wy + winH * 0.7;
+  // Bilen litt til høyre i vinduet, så fartsstrekene får plass bak den
+  const front = wx + winW - 0.06 * carLen;
+  const anchorX = front - BIL_MAAL.foran * q;
+  const rear = front - carLen;
+  const r = Math.min(h * 0.22, 10 * ss);
+  const px = Math.min(left + w - r - 7 * ss, Math.max(left + r + 7 * ss, pointerX));
+  return (
+    <g role="img" aria-label={title}>
+      <title>{title}</title>
+      <defs>
+        <clipPath id={`${id}-vindu`}>
+          <rect x={wx} y={wy} width={winW} height={winH} rx={r * 0.7} />
+        </clipPath>
+      </defs>
+      <LinearGradient
+        id={`${id}-himmel`}
+        stops={[
+          [0, SCENE.skyTop],
+          [1, SCENE.skyBottom],
+        ]}
+      />
+      <LinearGradient
+        id={`${id}-vei`}
+        stops={[
+          [0, tint(SCENE.asphalt, 0.08)],
+          [1, SCENE.asphaltDark],
+        ]}
+      />
+      {pointer > 0 && (
+        <polygon
+          points={`${r2(px - 6 * ss)},${r2(top + h - 1)} ${r2(px + 6 * ss)},${r2(top + h - 1)} ${r2(px)},${r2(top + h + pointer)}`}
+          fill={VIZ.surface}
+          stroke={SCENE.outline}
+          strokeWidth={1 * ss}
+        />
+      )}
+      <rect x={left} y={top} width={w} height={h} rx={r} fill={VIZ.surface} stroke={SCENE.outline} strokeWidth={1 * ss} opacity={0.97} />
+      <g clipPath={`url(#${id}-vindu)`}>
+        <rect x={wx} y={wy} width={winW} height={roadTop - wy} fill={`url(#${id}-himmel)`} />
+        <rect x={wx} y={roadTop} width={winW} height={wy + winH - roadTop} fill={`url(#${id}-vei)`} />
+        <line x1={wx} x2={wx + winW} y1={roadTop + 0.6 * ss} y2={roadTop + 0.6 * ss} stroke={SCENE.concrete} strokeWidth={1.4 * ss} opacity={0.8} />
+        {speed > 4 && <SpeedLines x={rear} y={ground - 0.45 * BIL_MAAL.hoyde * q} length={speed} spread={0.62 * BIL_MAAL.hoyde * q} />}
+        <Bil x={anchorX} y={ground} size={carLen} lakk={lakk} hjulvinkel={hjulvinkel} bremselys={bremselys} />
+      </g>
+      <rect x={wx} y={wy} width={winW} height={winH} rx={r * 0.7} fill="none" stroke={SCENE.outline} strokeWidth={0.8 * ss} opacity={0.35} />
+      <Txt x={wx + winW + gap} y={y + 17 * 0.9 * f * 0.34} anchor="start" size={0.9} weight={700} color={color} halo={false}>
+        {text}
+      </Txt>
+    </g>
   );
 }

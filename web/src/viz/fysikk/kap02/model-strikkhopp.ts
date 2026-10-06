@@ -1,5 +1,5 @@
 /**
- * Strikkhopp fra en bro (2E, 2F): ren fysikk uten React, så den kan testes for seg.
+ * Strikkhopp fra en bru (2E, 2F): ren fysikk uten React, så den kan testes for seg.
  *
  * Modell: hopperen er et punkt i enden av strikken og slipper seg fra ro der strikken er festet. Strikken drar bare
  * når den er strukket, med S = k · Δx (Hookes lov), der Δx = s − L₀ er forlengelsen. Vi ser bort fra luftmotstand,

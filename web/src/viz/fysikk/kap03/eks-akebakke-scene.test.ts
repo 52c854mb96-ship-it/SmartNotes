@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
   COM_HEIGHT,
+  RIDER_TOP,
   STEP_COUNT,
   SLED_LENGTH,
+  S_DIM_OFFSET,
+  angleMark,
   framePoint,
   boxesOverlap,
   figureSpec,
+  flatLupeMap,
+  riderRing,
+  scaleBarForce,
+  scaleBarTextW,
   ledgerRows,
   riderBox,
   sceneLayout,
@@ -32,7 +39,11 @@ describe('figuren steg for steg', () => {
     expect(figureSpec(5, false).rider).toBe('mid');
     expect(figureSpec(6, false).rider).toBe('flat');
     expect(figureSpec(7, false).rider).toBe('C');
-    expect(figureSpec(8, false).slopeForces).toBe('split');
+    expect(figureSpec(5, false).slopeForces).toBe('Fmot');
+    expect(figureSpec(6, false).flatLupe).toBe(true);
+    // I e) kommer friksjonen fra snøen først, og luftmotstanden når den er regnet ut
+    expect(figureSpec(8, false).slopeForces).toBe('muN');
+    expect(figureSpec(9, false).slopeForces).toBe('split');
     expect(figureSpec(10, false).rider).toBe('Cest');
     expect(figureSpec(0, true).rider).toBe('C');
   });
@@ -139,16 +150,106 @@ describe('utformingen av scenen', () => {
           }
 
           if (spec.slopeForces !== 'off' || spec.flatForces) {
-            it(`${label}: kraftpilene holder seg i bakken (til høyre for A) og inni figuren`, () => {
+            it(`${label}: kraftpilene holder seg i bakken (til høyre for A) og inni figuren, og er lange nok til å leses`, () => {
               const fr = spotFrame(L, task, s, spec.rider);
-              const com = framePoint(fr, 0, COM_HEIGHT * L.rppm);
-              const force = spec.flatForces ? s.Rflat : spec.slopeForces === 'R' ? s.R : s.muN;
-              const tipX = com.x - fr.tx * force * L.kF;
+              const e = spec.slopeForces === 'muN' || spec.slopeForces === 'split';
+              const k = e ? L.kFe : L.kF;
+              const force = spec.flatForces ? s.Rflat : spec.slopeForces === 'Fmot' ? s.Fmot : s.muN;
+              // μN begynner bakerst under brettet, de andre i tyngdepunktet
+              const start = e ? framePoint(fr, -0.36 * SLED_LENGTH * L.rppm, 0) : framePoint(fr, 0, COM_HEIGHT * L.rppm);
+              const tipX = start.x - fr.tx * force * k;
               expect(tipX).toBeGreaterThan(spec.flatForces ? 20 : L.X(0) + 20 * L.f);
               // Lengden står i forhold til kraften (fast skala px/N)
-              expect(Math.hypot(fr.tx, fr.ty) * force * L.kF).toBeGreaterThan(40);
+              expect(force * k).toBeGreaterThan(40);
+              // Luftmotstanden i e) er en pil, ikke bare en pilspiss (ca. 2,5 pilspisser lang)
+              if (spec.slopeForces === 'split') expect(s.L * k).toBeGreaterThan(27 * Math.max(1, 0.75 * L.f));
             });
           }
+
+          if (spec.slopeForces !== 'off' || spec.flatForces) {
+            it(`${label}: målestokken oppe til venstre er fri for trærne, toppen, lupen og energipanelet`, () => {
+              const k = spec.slopeForces === 'muN' || spec.slopeForces === 'split' ? L.kFe : L.kF;
+              const F = scaleBarForce(k, 60 * L.f);
+              const box: Box = { x: L.scaleBar.x, y: L.scaleBar.y - 14 * L.f, w: scaleBarTextW(L.f) + 8 * L.f + F * k, h: 24 * L.f };
+              expect(F * k).toBeGreaterThan(35 * L.f);
+              expect(F * k).toBeLessThan(110 * L.f);
+              // Granene på toppen er 4,2 m høye, og toppen A har bokstaven over seg (toppen er utenfor utsnittet av flaten)
+              if (spec.camera !== 'flate') {
+                const treeTop = L.Y(task.h) - 4.2 * L.ppm;
+                expect(box.y + box.h).toBeLessThan(Math.min(treeTop, L.Y(task.h) - 30 * L.f));
+              }
+              expect(box.y + box.h).toBeLessThan(L.horizon - 20 * L.f);
+              if (L.panel) expect(boxesOverlap(box, L.panel, 6)).toBe(false);
+              if (L.lupe && spec.flatLupe) expect(box.x + box.w).toBeLessThan(L.lupe.x - L.lupe.r - 6);
+            });
+          }
+
+          if (spec.flatLupe) {
+            it(`${label}: lupen med G og N er inni figuren, fri for akeren, pilene og panelet, og G = N`, () => {
+              const lupe = L.lupe!;
+              const tag = L.lupeTag!;
+              expect(lupe.x - lupe.r).toBeGreaterThan(0);
+              expect(lupe.x + lupe.r).toBeLessThan(L.W);
+              expect(lupe.y - lupe.r).toBeGreaterThan(0);
+              const fr = spotFrame(L, task, s, spec.rider);
+              const ring = riderRing(L, fr);
+              expect(Math.hypot(ring.x - lupe.x, ring.y - lupe.y)).toBeGreaterThan(ring.r + lupe.r + 10);
+              // Skiltet under lupen er over flaten og ikke oppå akeren
+              const tagBoxL: Box = { x: tag.x - 68 * L.f, y: tag.y - 14 * L.f, w: 136 * L.f, h: 28 * L.f };
+              expect(tagBoxL.y + tagBoxL.h).toBeLessThan(L.groundY);
+              expect(tagBoxL.x + tagBoxL.w).toBeLessThan(L.W);
+              for (const p of visible) expect(boxesOverlap(riderBox(L, spotFrame(L, task, s, p)), tagBoxL, 4), p).toBe(false);
+              if (L.panel) {
+                expect(lupe.x + lupe.r + 6).toBeLessThan(L.panel.x);
+                expect(tagBoxL.x + tagBoxL.w).toBeLessThan(L.panel.x + L.panel.w);
+              }
+              // R og v på flaten går ikke inn i lupen
+              const com = framePoint(fr, 0, COM_HEIGHT * L.rppm);
+              expect(com.y - lupe.y).toBeGreaterThan(lupe.r + 10);
+              const m = flatLupeMap(lupe, s.G, L.f);
+              expect(m.G.y2 - m.G.y1).toBeCloseTo(m.N.y1 - m.N.y2, 9);
+              expect(m.N.x1 - m.G.x1).toBeGreaterThan(24);
+              for (const [x, y] of [
+                [m.G.x1, m.G.y1],
+                [m.G.x2, m.G.y2],
+                [m.N.x1, m.N.y1],
+                [m.N.x2, m.N.y2],
+              ] as const)
+                expect(Math.hypot(x - lupe.x, y - lupe.y)).toBeLessThan(lupe.r - 4);
+            });
+          }
+
+          if (spec.angle) {
+            it(`${label}: vinkelbuen er nær B, α står inne i vinkelen og s-målet krysser ikke vinkelen`, () => {
+              const a = angleMark(L, task, s);
+              const al = (s.alphaDeg * Math.PI) / 180;
+              const cross = (S_DIM_OFFSET * L.f) / Math.sin(al);
+              expect(a.r).toBeLessThan(a.rho - a.glyphW / 2 - 4 * L.f);
+              expect(a.leg).toBeLessThan(cross - 4 * L.f);
+              expect(a.rho + a.glyphW / 2).toBeLessThan(cross - 8 * L.f);
+              // Bokstaven får plass mellom den vannrette linja og bakken
+              const cx = a.rho * Math.cos(al / 2);
+              const cy = a.rho * Math.sin(al / 2);
+              expect(cy - a.glyphH / 2).toBeGreaterThan(2 * L.f);
+              expect((cx - a.glyphW / 2) * Math.tan(al) - (cy + a.glyphH / 2)).toBeGreaterThan(2 * L.f);
+              // … og står ikke under brettet
+              const fr = spotFrame(L, task, s, 'mid');
+              const glyph: Box = { x: L.X(s.run) - cx - a.glyphW / 2, y: L.groundY - cy - a.glyphH / 2, w: a.glyphW, h: a.glyphH };
+              const sled = SLED_LENGTH * L.rppm;
+              const sledBox: Box = {
+                x: framePoint(fr, -0.4 * sled, 0).x,
+                y: framePoint(fr, -0.4 * sled, 0).y - 6,
+                w: framePoint(fr, 0.64 * sled, 0).x - framePoint(fr, -0.4 * sled, 0).x,
+                h: framePoint(fr, 0.64 * sled, 0).y - framePoint(fr, -0.4 * sled, 0).y + 12,
+              };
+              expect(boxesOverlap(glyph, sledBox)).toBe(false);
+            });
+          }
+
+          it(`${label}: akeren på flaten står mot snøen (horisonten er over akeren)`, () => {
+            expect(L.horizon).toBeLessThan(L.groundY - RIDER_TOP * L.rppm - 4);
+            expect(L.horizon).toBeGreaterThan(0);
+          });
 
           if (spec.speedB !== 'off') {
             it(`${label}: fartspila uten friksjon og etiketten får plass til høyre for B`, () => {

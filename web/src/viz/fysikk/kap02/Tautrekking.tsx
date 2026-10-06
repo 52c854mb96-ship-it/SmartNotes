@@ -21,7 +21,7 @@ import {
 } from '../../kit';
 import { FESTER, FESTE_MU, FESTE_NAVN, FESTE_TEKST, lagFor, tugPeaks, tugPlan, tugState, type Feste, type Lag, type TugPlan, type TugState } from './model-tautrekking';
 import { Kraftregnskap, fN } from './tautrekking-regnskap';
-import { H, PX_PER_M, S_END, TugScene, W, restGeometry, type TugView } from './tautrekking-scene';
+import { H, H_SHORT, PX_PER_M, S2_INSET, S_END, TugScene, W, restGeometry, type TugView } from './tautrekking-scene';
 import { useNarrow } from './useNarrow';
 
 /**
@@ -151,7 +151,15 @@ export default function Tautrekking() {
         items={[
           { color: VIZ.tension, label: view === 'par' ? 'S: tauet på laget · S′: laget på tauet' : 'Snordrag S: tauet på laget' },
           { color: VIZ.friction, label: view === 'par' ? 'R: bakken på laget · R′: laget på bakken' : 'Friksjon R: bakken på laget' },
-          { color: VIZ.friction, label: 'Største statiske friksjon μs·mg', dashed: true },
+          {
+            color: VIZ.friction,
+            label: (
+              <span>
+                Største statiske friksjon μ<Sub>s</Sub>·mg
+              </span>
+            ),
+            dashed: true,
+          },
           ...(moving ? [{ color: VIZ.acceleration, label: 'Akselerasjon a og kraftsum ΣF' }] : []),
         ]}
       />
@@ -202,10 +210,12 @@ interface SceneFigureProps {
 }
 
 function SceneFigure(props: SceneFigureProps) {
-  const { mA, mB, festeA, festeB, state } = props;
+  const { mA, mB, festeA, festeB, state, view } = props;
   const [ref, narrow] = useNarrow<HTMLDivElement>();
   // På mobil et smalere utsnitt rundt lagene (så personene blir store nok), som følger tauet når lagene flytter seg.
-  const box = narrow ? { x: NARROW_X + state.x * PX_PER_M, y: 30, w: NARROW_W, h: H - 30 } : { x: 0, y: 64, w: W, h: H - 64 };
+  // Bunnen kuttes når R′-raden ikke vises, så det ikke blir tom bakke under lagene.
+  const bottom = view === 'par' ? H : H_SHORT;
+  const box = narrow ? { x: NARROW_X + state.x * PX_PER_M, y: 30, w: NARROW_W, h: bottom - 30 } : { x: 0, y: 64, w: W, h: bottom - 64 };
   return (
     <div ref={ref}>
       <Figure
@@ -234,8 +244,8 @@ function ScaledScene(props: SceneFigureProps & { box: { x: number; y: number; w:
   const roomB = right - geo.leadB - label - (plan.winner === 'B' ? out : 0);
   const candidates = [
     K_MAX,
-    // S-pilene fra de to grepene møtes ikke på midten
-    (geo.gripGap - 26) / (2 * Math.max(peaks.S, 1e-9)),
+    // S-pilene fra de to grepene møtes ikke på midten (heller ikke S′, som slutter S2_INSET inn fra grepene)
+    (geo.gripGap - 26 - 2 * S2_INSET) / (2 * Math.max(peaks.S, 1e-9)),
     Math.min(roomA, roomB) / Math.max(peaks.R, 1e-9),
     // R′-pilene fra de to fremste føttene (i «Kraftparene») møtes ikke
     (geo.leadGap - 26) / Math.max(peaks.Rsum, 1e-9),
@@ -273,17 +283,18 @@ function formulaLines(A: Lag, B: Lag, festeA: Feste, festeB: Feste, plan: TugPla
         {NB}kg · 9,81{NB}m/s² = {fN(RL)}
         {NB}N
       </FormulaLine>,
+      // Mellomsvaret a med ett siffer mer enn i avlesningen, og kreftene med én desimal, så utregningen går opp.
       <FormulaLine key="sys">
-        Hele systemet: a = (R<Sub>{Wn}</Sub> − R<Sub>{L}</Sub>)/(m<Sub>A</Sub> + m<Sub>B</Sub>) = ({fN(RW)}
-        {NB}N − {fN(RL)}
+        Hele systemet: a = (R<Sub>{Wn}</Sub> − R<Sub>{L}</Sub>)/(m<Sub>A</Sub> + m<Sub>B</Sub>) = ({fmt(RW, 1)}
+        {NB}N − {fmt(RL, 1)}
         {NB}N)/{fmt(A.m + B.m, 0)}
-        {NB}kg = {fmt(a, 2)}
+        {NB}kg = {fmt(a, 3)}
         {NB}m/s²
       </FormulaLine>,
       <FormulaLine key="s">
-        Lag {L} alene: S = R<Sub>{L}</Sub> + m<Sub>{L}</Sub>a = {fN(RL)}
+        Lag {L} alene: S = R<Sub>{L}</Sub> + m<Sub>{L}</Sub>a = {fmt(RL, 1)}
         {NB}N + {fmt(mL, 0)}
-        {NB}kg · {fmt(a, 2)}
+        {NB}kg · {fmt(a, 3)}
         {NB}m/s² = {fN(s.S)}
         {NB}N
       </FormulaLine>,
@@ -323,6 +334,9 @@ function explanation({ mA, mB, festeA, festeB, plan, state, view }: ExplainProps
   const muL = FESTE_MU[L === 'A' ? festeA : festeB].muS;
   const feste = (side: 'A' | 'B') => FESTE_TEKST[side === 'A' ? festeA : festeB];
   const heavier = mA > mB ? 'A' : mB > mA ? 'B' : null;
+  // Friksjonen på taperlaget (glidefriksjon når det glir) og på vinnerlaget.
+  const RL = L === 'A' ? RA : RB;
+  const RW = W === 'A' ? RA : RB;
 
   let lead: ReactNode;
   switch (state.phase) {
@@ -364,13 +378,18 @@ function explanation({ mA, mB, festeA, festeB, plan, state, view }: ExplainProps
       break;
     case 'glir':
       lead = (
-        <p>
-          <strong>Lag {L} glipper.</strong> Draget ble større enn den største statiske friksjonen lag {L} kan få, {fN(RmaxL)} N. Nå glir
-          føttene, og friksjonen faller til glidefriksjonen, {fN(L === 'A' ? RA : RB)} N. Lag {W} står støtt og går baklengs, og bakken skyver
-          på lag {W} med {fN(W === 'A' ? RA : RB)} N. Kraftsummen på hele systemet peker mot lag {W}, så alt akselererer den veien med a ={' '}
-          {fmt(Math.abs(state.a), 2)} m/s². Legg merke til at tauet fortsatt drar like hardt i begge lagene, S = {fN(S)} N, også nå. Lag {W}{' '}
-          drar ikke hardere i tauet enn lag {L}, men bakken skyver hardere på lag {W}.
-        </p>
+        <>
+          <p>
+            <strong>Lag {L} glipper.</strong> Da draget nådde {fN(RmaxL)} N, den største statiske friksjonen lag {L} kan få, glapp føttene. Nå
+            glir de, og friksjonen er bare glidefriksjonen, {fN(RL)} N. Lag {W} står støtt og går baklengs, og bakken skyver på lag {W} med{' '}
+            {fN(RW)} N. Kraftsummen på hele systemet peker mot lag {W}, så alt akselererer den veien med a = {fmt(Math.abs(state.a), 2)} m/s².
+          </p>
+          <p>
+            Tauet drar fortsatt like hardt i begge lagene, S = {fN(S)} N. For lag {L} gir Newtons 2. lov S = R<Sub>{L}</Sub> + m<Sub>{L}</Sub>a.
+            Derfor falt S litt i glippøyeblikket, og den vokser igjen når lag {W} presser hardere mot bakken. S kan til og med bli større enn{' '}
+            {fN(RmaxL)} N, fordi lag {L} akselererer. Lag {W} drar altså ikke hardere i tauet enn lag {L}, men bakken skyver hardere på lag {W}.
+          </p>
+        </>
       );
       break;
     case 'ferdig':
@@ -379,15 +398,31 @@ function explanation({ mA, mB, festeA, festeB, plan, state, view }: ExplainProps
           <strong>Lag {W} vant</strong>
           {heavier === L ? `, selv om lag ${L} er ${fmt(Math.abs(mA - mB), 0)} kg tyngre` : heavier === W ? ', og det er også det tyngste laget' : ''}.
           Lag {L} står {feste(L!)} og kan få høyst {fN(RmaxL)} N fra bakken, mens lag {W} står {feste(W!)} og kan få {fN(RmaxW)} N.{' '}
-          {heavier === L
-            ? `Lag ${L} har kanskje sterkere armer, men det hjelper ikke når beina glir: laget kan aldri dra hardere enn bakken holder igjen.`
-            : heavier === W
-              ? muW > muL
-                ? `Lag ${W} har både størst masse og best feste.`
-                : muW === muL
-                  ? `Lagene har like godt feste, så det tyngste laget får mest friksjon fra bakken.`
-                  : `Lag ${W} har dårligere feste, men så mye større masse at μsmg likevel blir størst.`
-              : 'Lagene er like tunge, så det er festet som avgjør.'}
+          {heavier === L ? (
+            <>
+              Lag {L} har kanskje sterkere armer, men det hjelper ikke når beina ikke får feste: så lenge lag {L} står, kan tauet ikke dra hardere
+              i dem enn {fN(RmaxL)} N, for da glipper de.
+            </>
+          ) : heavier === W ? (
+            muW > muL ? (
+              <>Lag {W} har både størst masse og best feste.</>
+            ) : muW === muL ? (
+              <>Lagene har like godt feste, så det tyngste laget får mest friksjon fra bakken.</>
+            ) : (
+              <>
+                Lag {W} har dårligere feste, men så mye større masse at μ<Sub>s</Sub>mg likevel blir størst.
+              </>
+            )
+          ) : (
+            <>Lagene er like tunge, så det er festet som avgjør.</>
+          )}{' '}
+          Etter glippet er S = R<Sub>{L}</Sub> + m<Sub>{L}</Sub>a = {fN(S)} N, større enn friksjonen R<Sub>{L}</Sub> = {fN(RL)} N.{' '}
+          {S > RmaxL + 0.05 && (
+            <>
+              Det er også mer enn {fN(RmaxL)} N, men det er ingen motsigelse: grensen gjelder bare så lenge lag {L} står.{' '}
+            </>
+          )}
+          Forskjellen S − R<Sub>{L}</Sub> er kraftsummen som drar lag {L} mot lag {W}.
         </p>
       );
       break;

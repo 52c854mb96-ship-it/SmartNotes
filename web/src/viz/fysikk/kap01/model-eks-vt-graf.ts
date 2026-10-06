@@ -53,6 +53,23 @@ export function fmtSig(v: number, n = 2): string {
   return fmt(v, d);
 }
 
+/** Antall desimaler fmtSig bruker for v med n gjeldende siffer. */
+function sigDecimals(v: number, n: number): number {
+  if (!Number.isFinite(v) || v === 0) return 0;
+  return Math.max(0, n - 1 - Math.floor(Math.log10(Math.abs(v)) + 1e-9));
+}
+
+/**
+ * Tallene i tipset i d): «Med v_maks hele veien ville turen tatt s / v_maks = 19,5 s, altså 4,5 s mindre enn 24 s.»
+ * Tiden står med tre gjeldende siffer (så 19,5 s ikke blir «20 s»), og forskjellen regnes fra tiden slik den står,
+ * med like mange desimaler, så tallene alltid stemmer med hverandre: 24 − 19,5 = 4,5.
+ */
+export function allMaxTimeText(task: Pick<CityTripTask, 't3'>, tAllMax: number): { t3: string; tAll: string; saved: string } {
+  const d = sigDecimals(tAllMax, 3);
+  const shown = Number(tAllMax.toFixed(d));
+  return { t3: fmtSig(task.t3), tAll: fmt(shown, d), saved: fmt(task.t3 - shown, d) };
+}
+
 export type PhaseNo = 1 | 2 | 3;
 
 export interface TripPhase {

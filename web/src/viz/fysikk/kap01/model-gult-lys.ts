@@ -80,6 +80,14 @@ export function goLimit(input: YellowInput, clear = CLEAR_DISTANCE): number {
   return yellowDistance(input) - clear;
 }
 
+/**
+ * Den laveste farten (m/s) som rekker helt over krysset på gultiden selv fra stopplinja: v·t_g = b + l.
+ * Saktere biler har negativ grense for å rekke over (goLimit < 0): de er for sakte, ikke for langt unna.
+ */
+export function minGoSpeed(tg: number, clear = CLEAR_DISTANCE): number {
+  return tg > 0 ? clear / tg : Infinity;
+}
+
 export type Situation = 'stopp' | 'kjor' | 'dilemma' | 'begge';
 
 const EPS = 1e-9;

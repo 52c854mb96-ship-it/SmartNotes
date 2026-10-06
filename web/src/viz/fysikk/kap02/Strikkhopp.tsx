@@ -52,7 +52,7 @@ import {
   type BungeeParams,
   type BungeeState,
 } from './model-strikkhopp';
-import { Bru, Fjellvegg, Hoydeskala } from './strikkhopp-scene';
+import { Bru, Fjellvegg, Hoydeskala, Plattform } from './strikkhopp-scene';
 import { kroppsdeler, ledigX, ledigY } from './kropp-klaring';
 import { useNarrow } from './useNarrow';
 
@@ -463,10 +463,13 @@ function spreadLabels(ys: number[], gap: number, lo: number, hi: number): number
 }
 
 /**
- * Hvor tykt brudekket er i nærbildet (m). I oversikten er bjelken 4 m, men i nærbildet ville den fylt hele bildet
- * som en vegg; et tynnere dekk med himmel under viser at det er en bru.
+ * Brua i nærbildet: plattformen stikker ut fra brua mot oss, så brua står lenger unna og tegnes mindre (FAR ganger
+ * skalaen til hopperen) og flytter seg saktere oppover når hopperen faller (parallakse). Ellers ville en 4 m høy
+ * bjelke i hopperens skala fylt hele bildet som en vegg.
  */
-const DECK_CLOSE = 1.4;
+const FAR = 0.4;
+/** Bjelken i nærbildet (m). */
+const DECK_CLOSE = 2.2;
 
 /** Nærbildet: kameraet følger hopperen. Kreftene G og S og kraftsummen ΣF er tegnet med én fast skala (px/N). */
 function Closeup({ p, k, st, box, narrow }: { p: BungeeParams; k: BungeeKeyPoints; st: BungeeState; box: Box; narrow: boolean }) {
@@ -496,7 +499,10 @@ function Closeup({ p, k, st, box, narrow }: { p: BungeeParams; k: BungeeKeyPoint
   const jx = hx + shift;
   const jp = shift === 0 ? j0 : jumperPoints(P, jx, fy, rot);
   const deckY = fy - st.s * pxm;
-  const showDeck = deckY + (DECK_CLOSE + 0.4) * pxm > box.y && deckY < box.y + box.h + 2.6 * pxm;
+  const farPx = pxm * FAR;
+  const bridgeY = fy + (deckY - fy) * FAR;
+  const bridgeBottom = bridgeY + (DECK_CLOSE + 0.2) * farPx;
+  const showDeck = Math.max(bridgeBottom, deckY + 0.6 * pxm) > box.y && Math.min(bridgeY, deckY) - 2.6 * pxm < box.y + box.h;
 
   // Fartsstriper i lufta som flytter seg oppover når hopperen faller.
   const streaks = useMemo(() => [0.08, 0.2, 0.71, 0.86, 0.94].map((u, i) => ({ x: box.x + u * box.w, y0: ((i * 0.37) % 1) * box.h })), [box.x, box.w, box.h]);
@@ -506,29 +512,31 @@ function Closeup({ p, k, st, box, narrow }: { p: BungeeParams; k: BungeeKeyPoint
   // da tegnes den litt til siden (den siden som krever minst flytting), med en stiplet strek inn til tyngdepunktet.
   const tp = jp.tp;
   const gLen = k.G * kN;
-  const gOpts = { start: tp.x, fra: tp.y, til: tp.y + gLen, gap: 8 * ss, fri: [tp.y - 0.13 * P, tp.y + 0.13 * P] as [number, number] };
+  const gOpts = { start: tp.x, fra: tp.y, til: tp.y + gLen, gap: 13 * ss, fri: [tp.y - 0.13 * P, tp.y + 0.13 * P] as [number, number] };
   const gLeftX = ledigX(jp.deler, { ...gOpts, dir: -1 });
   const gRightX = ledigX(jp.deler, { ...gOpts, dir: 1 });
   const gx = gRightX - tp.x < 0.6 * (tp.x - gLeftX) ? gRightX : gLeftX;
   const gShift = Math.abs(gx - tp.x) > 0.5;
   const gLeft = gx < tp.x - 0.5;
 
-  // Kraftsummen ved siden av, klar av kroppen og av G med etiketten: helst til høyre, ellers til venstre, og når
-  // hopperen stuper og fyller hele bredden, rett under (eller over) kroppen.
+  // Kraftsummen ved siden av, klar av kroppen og av G med etiketten: helst til høyre, ellers til venstre (men ikke
+  // når strikken henger slakk i en løkke ved føttene), og når hopperen stuper og fyller hele bredden, rett under
+  // (eller over) kroppen.
   const sumLen = st.sumF * kN;
   const sfZero = Math.abs(sumLen) < 8;
   const sfW = (sfZero ? 62 : 30) * f;
-  const sfGap = 10 * ss;
+  const sfGap = 12 * ss;
   const sfSpan = sfZero ? { fra: tp.y - 12 * f, til: tp.y + 4 * f } : { fra: tp.y, til: tp.y - sumLen };
-  const gRightEdge = !gLeft && gShift ? gx + 26 * f : tp.x;
-  const gLeftEdge = gLeft ? gx - 26 * f : tp.x;
+  // G-etiketten står på samme side som G er flyttet (til høyre når G står i tyngdepunktet).
+  const gRightEdge = gLeft ? tp.x : gx + 34 * f;
+  const gLeftEdge = gLeft ? gx - 34 * f : tp.x;
   const sfRightX = ledigX(jp.deler, { start: Math.max(gRightEdge + sfGap, tp.x + 20 * f), ...sfSpan, gap: sfGap, dir: 1 });
   const sfLeftX = ledigX(jp.deler, { start: Math.min(gLeftEdge - sfGap, tp.x - 20 * f), ...sfSpan, gap: sfGap, dir: -1 });
   const fitsRight = sfRightX + 10 * f + sfW <= box.x + box.w - 6;
-  const fitsLeft = sfLeftX - 10 * f - sfW >= box.x + 6;
+  const fitsLeft = st.S > 0 && sfLeftX - 10 * f - sfW >= box.x + 6;
   const sfLeft = !fitsRight && fitsLeft;
   const sfBeside = fitsRight || fitsLeft;
-  const sfX = fitsRight ? sfRightX : fitsLeft ? sfLeftX : Math.min(box.x + box.w - 10 * f - sfW - 6, Math.max(box.x + 14, tp.x + 34 * f));
+  const sfX = fitsRight ? sfRightX : fitsLeft ? sfLeftX : Math.min(box.x + box.w - 10 * f - sfW - 6, Math.max(box.x + 14, tp.x + 44 * f));
   // Under kroppen når kraftsummen peker nedover (fritt fall), over når den peker oppover.
   const sfY = sfBeside
     ? tp.y
@@ -551,7 +559,12 @@ function Closeup({ p, k, st, box, narrow }: { p: BungeeParams; k: BungeeKeyPoint
             const len = 10 + speed * 2.6;
             return <line key={i} x1={sk.x} x2={sk.x} y1={y} y2={y + len} stroke={alpha(SCENE.cloud, 0.9)} strokeWidth={2.4 * ss} strokeLinecap="round" />;
           })}
-        {showDeck && <Bru x1={box.x - 4} x2={box.x + box.w + 4} y={deckY} px={pxm} plattformX={hx - 1.5 * pxm} feste={hx - 1} tykkelse={DECK_CLOSE} />}
+        {showDeck && (
+          <g>
+            <Bru x1={box.x - 4} x2={box.x + box.w + 4} y={bridgeY} px={farPx} plattformX={hx} plattform={false} tykkelse={DECK_CLOSE} />
+            <Plattform x={hx - 1.5 * pxm} y={deckY} px={pxm} feste={hx - 1} stagTil={bridgeY + DECK_CLOSE * farPx * 0.8} />
+          </g>
+        )}
         <Cord
           ax={hx - 1}
           ay={deckY + 0.2 * pxm}

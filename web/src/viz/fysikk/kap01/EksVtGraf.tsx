@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Sub, WorkedExample, fmt, type ExampleStep } from '../../kit';
 import { TripGraphs, type TripView } from './eks-vt-graf-graf';
 import { TripScene } from './eks-vt-graf-scene';
-import { CITY_TRIP_TASKS, KMH_PER_MS, fmtSig as sig, solveCityTrip, type CityTripSolution, type CityTripTask } from './model-eks-vt-graf';
+import { CITY_TRIP_TASKS, KMH_PER_MS, allMaxTimeText, fmtSig as sig, solveCityTrip, type CityTripSolution, type CityTripTask } from './model-eks-vt-graf';
 import { useNarrow } from './useNarrow';
 
 type Step = ExampleStep & { view: TripView };
@@ -77,6 +77,7 @@ function buildSteps(task: CityTripTask, sol: CityTripSolution): Step[] {
   const vAvg3 = sig(sol.vAvg, 3);
   const vAvg2 = sig(sol.vAvg, 2);
   const avgRounded = Math.abs(Number(sol.vAvg.toPrecision(2)) - sol.vAvg) > 1e-9;
+  const allMax = allMaxTimeText(task, sol.tAllMax);
 
   const limitAnswer: ReactNode = sol.withinLimit ? (
     <>
@@ -103,7 +104,7 @@ function buildSteps(task: CityTripTask, sol: CityTripSolution): Step[] {
           </p>
           <p>
             <strong>Del 1</strong> (0–{ts(t1)}): grafen stiger jevnt fra 0 til {v}. Farten øker like mye hvert sekund, så bilen
-            akselererer jevnt fra rødt lys.
+            akselererer jevnt fra ro ved stopplinja.
           </p>
           <p>
             <strong>Del 2</strong> ({ts(t1)}–{ts(t2)}): grafen er vannrett. Bilen kjører med konstant fart {v}.
@@ -161,8 +162,8 @@ function buildSteps(task: CityTripTask, sol: CityTripSolution): Step[] {
             I del 2 er grafen vannrett. Farten endrer seg ikke, så Δv = 0 og akselerasjonen er null.
           </p>
           <p>
-            I del 3 avtar farten fra {v} til 0. Da er Δv negativ, og akselerasjonen blir negativ: den peker mot fartsretningen, og bilen
-            bremser (se pilene i scenen).
+            I del 3 avtar farten fra {v} til 0. Da er Δv negativ, og akselerasjonen blir negativ: den peker motsatt vei av farten, og
+            bilen bremser (se pilene i scenen).
           </p>
         </>
       ),
@@ -307,7 +308,7 @@ function buildSteps(task: CityTripTask, sol: CityTripSolution): Step[] {
       ),
       tip: (
         <>
-          Med {v} hele veien ville turen tatt {m(sol.s)} / {v} = {sig(sol.tAllMax)} s, altså {sig(t3 - sol.tAllMax)} s mindre.
+          Med {v} hele veien ville turen tatt {m(sol.s)} / {v} = {allMax.tAll} s, altså {allMax.saved} s mindre enn {allMax.t3} s.
         </>
       ),
     },

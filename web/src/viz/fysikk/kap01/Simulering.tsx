@@ -67,9 +67,14 @@ const T_START = 4;
 /** Hopperen er 1,75 m høy; i scenen på PC er det 150 figurenheter (86 per meter, se målestokken). */
 const PERSON_M = 1.75;
 
-/** Tall med enhet og hardt mellomrom i utregningen; negative tall i parentes: «(−1,76 m/s²)». */
+/** Tall med enhet og hardt mellomrom, så enheten ikke havner alene på neste linje: «1,76 m/s²». */
+function nb(value: number, decimals: number, unit: string): string {
+  return `${fmt(value, decimals)}\u00a0${unit}`;
+}
+
+/** Tall som settes inn i en utregning: med enhet, og negative tall i parentes: «(−1,76 m/s²)». */
 function q(value: number, decimals: number, unit: string): string {
-  const text = `${fmt(value, decimals)}\u00a0${unit}`;
+  const text = nb(value, decimals, unit);
   return value < 0 && fmt(value, decimals) !== fmt(0, decimals) ? `(${text})` : text;
 }
 
@@ -217,22 +222,22 @@ export default function Simulering() {
       {step && next && (
         <Formula label={`Ett steg i Eulers metode med tall, fra steg ${fn} til steg ${fn + 1}`}>
           <FormulaLine>
-            G = mg = {q(m, 0, 'kg')} · {q(G_EARTH, 2, 'm/s²')} = {q(m * G_EARTH, 1, 'N')}
+            G = mg = {q(m, 0, 'kg')} · {q(G_EARTH, 2, 'm/s²')} = {nb(m * G_EARTH, 1, 'N')}
           </FormulaLine>
           <FormulaLine>
-            L<Sub>{fn}</Sub> = k · v<Sub>{fn}</Sub>² = {q(k, 2, 'kg/m')} · ({q(step.v, 2, 'm/s')})² = {q(k * step.v * step.v, 1, 'N')}
+            L<Sub>{fn}</Sub> = k · v<Sub>{fn}</Sub>² = {q(k, 2, 'kg/m')} · ({q(step.v, 2, 'm/s')})² = {nb(k * step.v * step.v, 1, 'N')}
           </FormulaLine>
           <FormulaLine>
             a<Sub>{fn}</Sub> = (G − L<Sub>{fn}</Sub>) / m = ({q(m * G_EARTH, 1, 'N')} − {q(k * step.v * step.v, 1, 'N')}) / {q(m, 0, 'kg')} ={' '}
-            {q(step.a, 2, 'm/s²')}
+            {nb(step.a, 2, 'm/s²')}
           </FormulaLine>
           <FormulaLine>
             v<Sub>{fn + 1}</Sub> = v<Sub>{fn}</Sub> + a<Sub>{fn}</Sub> · Δt = {q(step.v, 2, 'm/s')} + {q(step.a, 2, 'm/s²')} · {q(dt, 1, 's')} ={' '}
-            {q(next.v, 2, 'm/s')}
+            {nb(next.v, 2, 'm/s')}
           </FormulaLine>
           <FormulaLine>
             s<Sub>{fn + 1}</Sub> = s<Sub>{fn}</Sub> + v<Sub>{fn + 1}</Sub> · Δt = {q(step.s, sDec, 'm')} + {q(next.v, 2, 'm/s')} · {q(dt, 1, 's')} ={' '}
-            {q(next.s, sDec, 'm')}
+            {nb(next.s, sDec, 'm')}
           </FormulaLine>
         </Formula>
       )}
@@ -700,29 +705,29 @@ function explanation({
     now = (
       <>
         <strong>Steg 0:</strong> hopperen har akkurat forlatt flyet, så v = 0 og det er ingen luftmotstand. Da er a = g = 9,81 m/s², og det
-        første steget blir et fritt fall: v<Sub>1</Sub> = g · Δt = {fmt(G_EARTH * dt, 2)} m/s.
+        første steget blir et fritt fall: v<Sub>1</Sub> = g · Δt = {nb(G_EARTH * dt, 2, 'm/s')}.
       </>
     );
   else if (st.a < -1e-6)
     now = (
       <>
-        <strong>Steg {st.n}:</strong> den simulerte farten var {fmt(st.vn, 1)} m/s i starten av steget, over terminalfarten. Da blir L ={' '}
-        {fmt(st.L, 0)} N større enn G = {fmt(G, 0)} N, og akselerasjonen peker oppover (a = {fmt(st.a, 2)} m/s²). Det skjer ikke i virkeligheten: det
+        <strong>Steg {st.n}:</strong> den simulerte farten var {nb(st.vn, 1, 'm/s')} i starten av steget, over terminalfarten. Da blir L ={' '}
+        {nb(st.L, 0, 'N')} større enn G = {nb(G, 0, 'N')}, og akselerasjonen peker oppover (a = {nb(st.a, 2, 'm/s²')}). Det skjer ikke i virkeligheten: det
         er tidssteget som er for stort.
       </>
     );
   else if (share > 0.97)
     now = (
       <>
-        <strong>Steg {st.n}:</strong> farten er nesten terminalfarten. Luftmotstanden L = {fmt(st.L, 0)} N er nesten like stor som tyngden G ={' '}
-        {fmt(G, 0)} N, så kraftsummen og akselerasjonen er nesten null, og farten øker knapt lenger.
+        <strong>Steg {st.n}:</strong> farten er nesten terminalfarten. Luftmotstanden L = {nb(st.L, 0, 'N')} er nesten like stor som tyngden G ={' '}
+        {nb(G, 0, 'N')}, så kraftsummen og akselerasjonen er nesten null, og farten øker knapt lenger.
       </>
     );
   else
     now = (
       <>
-        <strong>Steg {st.n}:</strong> i starten av steget er farten {fmt(st.vn, 1)} m/s, så luftmotstanden er L = kv² = {fmt(st.L, 0)} N,{' '}
-        {fmt(share * 100, 0)} % av tyngden. Simuleringen regner ut a = (G − L)/m = {fmt(st.a, 2)} m/s² og{' '}
+        <strong>Steg {st.n}:</strong> i starten av steget er farten {nb(st.vn, 1, 'm/s')}, så luftmotstanden er L = kv² = {nb(st.L, 0, 'N')},{' '}
+        {fmt(share * 100, 0)} % av tyngden. Simuleringen regner ut a = (G − L)/m = {nb(st.a, 2, 'm/s²')} og{' '}
         <strong>later som a er konstant gjennom hele steget</strong>. Spill av eller trykk «Neste steg»: farten øker jevnt i steget, mens L og a står
         stille til neste steg begynner.
       </>
@@ -733,14 +738,14 @@ function explanation({
   if (overshoot)
     accuracy = (
       <>
-        Med Δt = {fmt(dt, 1)} s er tidssteget så stort at simuleringen <strong>skyter over terminalfarten</strong> og svinger rundt den før den
+        Med Δt = {nb(dt, 1, 's')} er tidssteget så stort at simuleringen <strong>skyter over terminalfarten</strong> og svinger rundt den før den
         roer seg. Gjør Δt mindre, så forsvinner svingningene.
       </>
     );
   else if (rel < 0.01)
     accuracy = (
       <>
-        Med Δt = {fmt(dt, 1)} s ligger punktene nesten oppå den eksakte kurven: største avvik er bare {fmt(err, 2)} m/s. Prisen er mange steg å
+        Med Δt = {nb(dt, 1, 's')} ligger punktene nesten oppå den eksakte kurven: største avvik er bare {nb(err, 2, 'm/s')}. Prisen er mange steg å
         regne, men det gjør datamaskinen raskt.
       </>
     );
@@ -748,7 +753,7 @@ function explanation({
     accuracy = (
       <>
         Punktene ligger <strong>over</strong> den eksakte kurven fordi akselerasjonen i starten av hvert steg er større enn gjennomsnittet i
-        steget. Halverer du Δt, blir avviket omtrent halvparten så stort (nå {fmt(err, 1)} m/s).
+        steget. Halverer du Δt, blir avviket omtrent halvparten så stort (nå {nb(err, 1, 'm/s')}).
       </>
     );
 
@@ -762,17 +767,17 @@ function explanation({
       </p>
       <p>
         Etter hvert som farten øker, nærmer luftmotstanden L = kv² seg tyngden G, så akselerasjonen går mot null og farten mot terminalfarten
-        v<Sub>T</Sub> = √(mg/k) = {fmt(vT, 1)} m/s = {fmt(toKmh(vT), 0)} km/h, der L = G. Det er derfor en fallskjermhopper ikke faller fortere og
+        v<Sub>T</Sub> = √(mg/k) = {nb(vT, 1, 'm/s')} = {nb(toKmh(vT), 0, 'km/h')}, der L = G. Det er derfor en fallskjermhopper ikke faller fortere og
         fortere: med magen ned blir farten ca. 200 km/h, med hodet ned, der flaten mot lufta og dermed k er mindre, nærmere 300 km/h, og i
         vid drakt med armer og bein strukket ut bare ca. 160 km/h.{' '}
         {deploy <= tEnd ? (
           <>
-            Med disse tallene er hopperen nede i {fmt(DEPLOY_HEIGHT, 0)} m allerede etter ca. {fmt(deploy, 0)} s, og der må skjermen ut. Resten av
+            Med disse tallene er hopperen nede i {nb(DEPLOY_HEIGHT, 0, 'm')} allerede etter ca. {nb(deploy, 0, 's')}, og der må skjermen ut. Resten av
             simuleringen er bare regning.
           </>
         ) : (
           <>
-            Fallet fra {fmt(EXIT_HEIGHT, 0)} m ned til {fmt(DEPLOY_HEIGHT, 0)} m (med luftmotstand), der skjermen må ut, tar ca. {fmt(deploy, 0)} s.
+            Fallet fra {nb(EXIT_HEIGHT, 0, 'm')} ned til {nb(DEPLOY_HEIGHT, 0, 'm')} (med luftmotstand), der skjermen må ut, tar ca. {nb(deploy, 0, 's')}.
           </>
         )}
       </p>

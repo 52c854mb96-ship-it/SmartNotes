@@ -156,7 +156,7 @@ export function LuftScene({ m, k, t, st, vT, showForces, narrow }: LuftSceneProp
     start: cx,
     fra: cy - Math.max(lLen, 0.22 * size),
     til: cy + gLen,
-    gap: 9 * ss,
+    gap: 13 * ss,
     dir: 1,
     fri: [cy - 0.13 * size, cy + 0.13 * size],
   });

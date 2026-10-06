@@ -55,6 +55,14 @@ export interface Circle {
   r: number;
 }
 
+/**
+ * Lupen: sirkelen og lengden på G for den største massen, som andel av radien. Pilene tegnes oppå kanten av lupen,
+ * så G kan gå et stykke ut under lupen for de største massene. Da blir pilene lange nok til å leses også ved 30 kg.
+ */
+export interface LupeCircle extends Circle {
+  force: number;
+}
+
 /** Utformingen av figuren: størrelse (viewBox) og plassen trappa kan bruke når kameraet står nederst. */
 export interface StairLayout {
   W: number;
@@ -72,11 +80,16 @@ export interface StairLayout {
   /** Hvor høyt løperen står i figuren (andel av høyden fra yBot til yTopMin) når kameraet følger med. */
   follow: number;
   /**
-   * Forstørrelsen (lupen) med løperen og kreftene, oppe til venstre under skiltet med stoppeklokka. Trappa går
-   * alltid langs den samme linja i figuren (fast fot og fast stigning, og kameraet flytter seg langs linja), så
-   * lupen ligger over linja og kommer aldri i veien for løperen.
+   * Forstørrelsen (lupen) med løperen og kreftene, oppe til venstre. Trappa går alltid langs den samme linja i
+   * figuren (fast fot og fast stigning, og kameraet flytter seg langs linja), så lupen ligger over linja og kommer
+   * aldri i veien for løperen.
    */
-  lupe: Circle;
+  lupe: LupeCircle;
+  /**
+   * Skiltet med stoppeklokka: oppe til venstre over lupen (PC), eller oppe til høyre (mobil), så lupen kan være
+   * stor nok til at kraftpilene kan leses.
+   */
+  panel: 'left' | 'right';
 }
 
 export const LAYOUT_WIDE: StairLayout = {
@@ -89,19 +102,25 @@ export const LAYOUT_WIDE: StairLayout = {
   Smin: 22,
   Smax: 46,
   follow: 0.42,
-  lupe: { x: 116, y: 210, r: 90 },
+  lupe: { x: 116, y: 210, r: 90, force: 1.15 },
+  panel: 'left',
 };
+/**
+ * Mobil: lupen er større (r = 132) og står helt oppe til venstre, skiltet står oppe til høyre, og trappa begynner
+ * så langt ned at toppen av trappa (med løperen som strekker armene i været) er under skiltet.
+ */
 export const LAYOUT_NARROW: StairLayout = {
   W: 560,
-  H: 540,
+  H: 600,
   xs: 92,
-  yBot: 502,
-  yTopMin: 70,
+  yBot: 562,
+  yTopMin: 132,
   xTopMax: 476,
   Smin: 32,
   Smax: 54,
   follow: 0.45,
-  lupe: { x: 112, y: 218, r: 90 },
+  lupe: { x: 139, y: 150, r: 132, force: 1.3 },
+  panel: 'right',
 };
 
 /** Skalaen og kameraet for en trapp i en utforming. */
@@ -205,7 +224,10 @@ export function runnerPose(g: StairGeom, place: RunnerPlace, running: boolean): 
 
 /* ---------- Skiltet, ringen rundt løperen og lupen ---------- */
 
-/** Skiltet med stoppeklokka og arbeidet så langt (oppe til venstre). `f` = tekstskalaen, `k` = sceneskalaen. */
+/**
+ * Skiltet med stoppeklokka og arbeidet så langt, oppe til venstre eller (med `lay.panel = 'right'`) oppe til høyre.
+ * `f` = tekstskalaen, `k` = sceneskalaen.
+ */
 export interface PanelBox {
   x: number;
   y: number;
@@ -218,15 +240,16 @@ export interface PanelBox {
   textX: number;
 }
 
-export function panelBox(f: number, k: number): PanelBox {
+export function panelBox(f: number, k: number, lay: Pick<StairLayout, 'W' | 'panel'> = { W: 0, panel: 'left' }): PanelBox {
   const pad = 12;
   const clockR = 27 * k;
   const fs = 17 * f;
-  const textX = pad + 12 + clockR * 2 + 14;
+  const inner = 12 + clockR * 2 + 14;
   // Bredden er satt av etiketten «Arbeid så langt» (lengre enn tallet, også «35 316 J»), så den står fast under avspillingen.
-  const w = textX - pad + Math.max(15 * 0.6 * fs * 0.82, 8 * 0.62 * fs * 1.25) + 14;
+  const w = inner + Math.max(15 * 0.6 * fs * 0.82, 8 * 0.62 * fs * 1.25) + 14;
   const h = clockR * 2.4 + 18;
-  return { x: pad, y: pad, w, h, clockR, clockX: pad + 12 + clockR, clockY: pad + 9 + clockR * 1.4, textX };
+  const x = lay.panel === 'right' ? lay.W - pad - w : pad;
+  return { x, y: pad, w, h, clockR, clockX: x + 12 + clockR, clockY: pad + 9 + clockR * 1.4, textX: x + inner };
 }
 
 /**
@@ -264,13 +287,19 @@ export function lupeMap(lupe: Circle, place: RunnerPlace, rp: RunnerPose) {
   return { Z, ox: anchor.x - place.x * Z, oy: anchor.y + place.y * Z, anchor };
 }
 
-/** Den største massen på glidebryteren (kg). Kreftene i lupen er tegnet så G for denne massen er 0,86 · radien. */
+/** Den største massen på glidebryteren (kg). */
 export const MAX_MASS = 120;
 
-/** Kraftskalaen i lupen (px/N): fast for hele glidebryteren, så pila blir dobbelt så lang når massen dobles. */
-export function lupeForceScale(lupe: Circle, g = 9.81): number {
-  return (0.86 * lupe.r) / (MAX_MASS * g);
+/**
+ * Kraftskalaen i lupen (px/N): fast for hele glidebryteren, så pila blir dobbelt så lang når massen dobles. G for
+ * den største massen er `lupe.force` · radien.
+ */
+export function lupeForceScale(lupe: LupeCircle, g = 9.81): number {
+  return (lupe.force * lupe.r) / (MAX_MASS * g);
 }
+
+/** Minste vannrette avstand mellom G og kraften oppover i lupen (andel av høyden til løperen), så pilene ikke dekker hverandre. */
+export const ARROW_GAP = 0.2;
 
 export interface Segment {
   x1: number;
@@ -280,17 +309,34 @@ export interface Segment {
 }
 
 /**
- * Pilene i lupen (px): tyngden G fra tyngdepunktet og nedover, og kraften oppover (F i trappa, N når hun står)
- * fra fotlinja like foran tyngdepunktet, som i læreboka. Begge er m · g · k lange (fast kraftskala k i lupen).
+ * Foten som står på trinnet (eller bakken): den som er nærmest linja føttene går langs. Den andre foten er i lufta
+ * på vei til neste trinn. `above` er hvor høyt over linja sålen er (px).
  */
-export function lupeForces(lupe: Circle, place: RunnerPlace, rp: RunnerPose, m: number, g = 9.81): { com: Pt; G: Segment; up: Segment } {
+export function stanceFoot(rp: RunnerPose, size: number, plass: { x: number; y: number; skraaning: number; fase: number }): Pt & { above: number } {
+  const p = personPunkter(rp.pose, size, rp.ledd, plass);
+  const tan = Math.tan(rp.skraaning / DEG);
+  const above = (f: Pt) => plass.y - (f.x - plass.x) * tan - f.y;
+  const a = { ...p.venstreFot, above: above(p.venstreFot) };
+  const b = { ...p.hoyreFot, above: above(p.hoyreFot) };
+  // Står begge føttene (nesten) på linja, velges den fremste.
+  if (Math.abs(a.above - b.above) < 0.005 * size) return a.x >= b.x ? a : b;
+  return a.above < b.above ? a : b;
+}
+
+/**
+ * Pilene i lupen (px): tyngden G fra tyngdepunktet og nedover, og kraften oppover fra trinnet (F i trappa, N når hun
+ * står) fra sålen til foten som står på trinnet, som i læreboka. Står foten nesten rett under tyngdepunktet, flyttes
+ * pila litt fram langs sålen, så de to pilene står side om side. Begge er m · g · k lange (fast kraftskala k i lupen).
+ */
+export function lupeForces(lupe: LupeCircle, place: RunnerPlace, rp: RunnerPose, m: number, g = 9.81): { com: Pt; G: Segment; up: Segment } {
   const map = lupeMap(lupe, place, rp);
   const size = RUNNER_HEIGHT * map.Z;
   const plass = { x: map.anchor.x, y: map.anchor.y, skraaning: rp.skraaning, fase: place.fase };
   const com = personPunkter(rp.pose, size, rp.ledd, plass).tyngdepunkt;
   const len = m * g * lupeForceScale(lupe, g);
-  const upX = com.x + 0.22 * size;
-  const upY = plass.y - (upX - plass.x) * Math.tan(rp.skraaning / DEG);
+  const foot = stanceFoot(rp, size, plass);
+  const upX = Math.max(foot.x, com.x + ARROW_GAP * size);
+  const upY = foot.y;
   return {
     com,
     G: { x1: com.x, y1: com.y, x2: com.x, y2: com.y + len },
@@ -332,6 +378,16 @@ export function runnerOnScreen(g: StairGeom, lay: StairLayout, view: StairView, 
   const place = runnerPlace(g, u);
   const c = cameraLift(view, u * g.h);
   return toScreen(g, lay, view.S, c, place.x, place.y);
+}
+
+/* ---------- Venninnen ---------- */
+
+/** Høyden til venninnen som tar tida (m). */
+export const FRIEND_HEIGHT = 1.66;
+
+/** Der venninnen står (m fra foten av trappa, negativ = til venstre): ved foten av trappa, men aldri utenfor figuren. */
+export function friendX(lay: StairLayout, S: number): number {
+  return Math.max(-1.75, (34 - lay.xs) / S);
 }
 
 /* ---------- Detaljer i lia ---------- */

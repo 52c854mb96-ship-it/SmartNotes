@@ -12,6 +12,7 @@ import {
   goOutcome,
   graphTop,
   kmhToMs,
+  minGoSpeed,
   msToKmh,
   niceCeil,
   pickValues,
@@ -322,5 +323,38 @@ describe('klikk i grafen', () => {
     expect(pickValues(3, -8)).toEqual([20, 0]);
     expect(pickValues(99, 140)).toEqual([90, 100]);
     expect(pickValues(Number.NaN, Number.NaN)).toEqual([20, 0]);
+  });
+});
+
+describe('for sakte til å rekke over (grensen for å rekke over er negativ)', () => {
+  it('den laveste farten som rekker over fra stopplinja: v · t_g = 19,4 m', () => {
+    expect(minGoSpeed(3)).toBeCloseTo(CLEAR_DISTANCE / 3, 12);
+    expect(msToKmh(minGoSpeed(3))).toBeCloseTo(23.28, 2);
+    expect(minGoSpeed(0)).toBe(Infinity);
+    for (const tg of [2, 3, 4.5, 6]) {
+      const v = minGoSpeed(tg);
+      // Akkurat ved denne farten er grensen 0 m: bilen rekker over bare fra stopplinja
+      expect(goLimit({ v0: v, tr: 1, a: 3, tg })).toBeCloseTo(0, 9);
+      expect(goLimit({ v0: 0.9 * v, tr: 1, a: 3, tg })).toBeLessThan(0);
+      expect(goLimit({ v0: 1.1 * v, tr: 1, a: 3, tg })).toBeGreaterThan(0);
+    }
+  });
+
+  it('20 km/h med gultid 3 s: selv fra stopplinja rekker bilen bare 16,7 m, så den er i dilemmasonen ved D = 0', () => {
+    const input = { v0: kmhToMs(20), tr: 1, a: 3, tg: 3 };
+    const z = zones(input);
+    expect(yellowDistance(input)).toBeCloseTo(16.67, 2);
+    expect(z.dGo).toBeLessThan(0);
+    expect(situation(input, 0)).toBe('dilemma');
+    expect(kmhToMs(20)).toBeLessThan(minGoSpeed(3));
+  });
+
+  it('på glidebryternes rutenett runder aldri minstefarten til en fart som faktisk er for sakte', () => {
+    // Teksten viser minstefarten med 0 desimaler; en bil med akkurat den viste farten må være under den ekte grensen
+    for (let tg = 2; tg <= 6 + 1e-9; tg += 0.5)
+      for (let kmh = 20; kmh <= 90; kmh += 5) {
+        const input = { v0: kmhToMs(kmh), tr: 1, a: 3, tg };
+        if (zones(input).dGo < 0) expect(Math.round(msToKmh(minGoSpeed(tg)))).toBeGreaterThan(kmh);
+      }
   });
 });

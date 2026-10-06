@@ -411,12 +411,16 @@ function Scene({ lay, c, prog, tVis, forces, scenery }: { lay: BikeLayout; c: Cl
   );
 }
 
-/** Stigningstrekanten under veien: run meter bortover og rise meter opp, med veikanten som hypotenus. */
+/**
+ * Stigningstrekanten under veien: run = 2 m bortover og rise m opp, med veikanten som hypotenus (PC) eller nede i lia
+ * med hypotenusen parallell med veien (mobil). Med 2 m bortover er høyden et eksakt tall med to desimaler, så
+ * «stigning 0,15 / 2,0 = 7,5 %» går opp når eleven regner etter.
+ */
 function GradeMarks({ tri, grade, W }: { tri: ReturnType<typeof gradeTriangle>; grade: number; W: number }) {
   const f = useTextScale();
   const ss = useStrokeScale();
   const { x0, y0, x1, y1 } = tri;
-  // «0,19 m opp» står til høyre for den loddrette kateten, eller bare «0,19 m» når det er trangt.
+  // «0,15 m opp» står til høyre for den loddrette kateten, eller bare «0,15 m» når det er trangt.
   const rise = fmt(tri.rise, 2);
   const lab = gradeLabelLayout(tri, W, f, `${rise} m opp`.length, `${rise} m`.length);
   const corner = Math.min(9 * ss, Math.max(0, (y0 - y1) * 0.8));
@@ -691,7 +695,8 @@ function ExplainText({ c, choice }: { c: Climb; choice: Choice }): ReactNode {
         {grade * 2 <= GRADE_MAX
           ? `Dobler du stigningen til ${fmt(steeper, 1)}\u00a0%, blir G∥ nesten dobbelt så stor, og med samme effekt faller farten til ${fmt(vSteep, 1)}\u00a0km/h.`
           : `I en så bratt bakke er G∥ nesten hele kraften du må overvinne.`}{' '}
-        Derfor gir du ned i motbakke: samme effekt ved lavere fart gir større kraft (F = P / v), mens beina tråkker like fort.
+        Kraften fra veien er gitt av bakken, F = {air ? 'G∥ + R + L' : 'G∥ + R'}, og i bratt bakke er den stor. Derfor gir du ned i motbakke: et lavt gir
+        gjør at beina kan gi den store kraften på bakhjulet med vanlig pedalkraft og like rask tråkking, selv om hjulet går sakte.
         {unreal &&
           ` Uten luftmotstand blir farten urealistisk høy i slake bakker (${fmt(c.kmh, 0)}\u00a0km/h). Slå på luftmotstand: på nesten flat vei er det lufta du kjemper mest mot.`}
         {air && c.L > c.Gpar && ` Nå er luftmotstanden større enn G∥: i så slake bakker kjemper du mest mot lufta.`}
@@ -709,8 +714,10 @@ function ExplainText({ c, choice }: { c: Climb; choice: Choice }): ReactNode {
             Med {fmt(gentleGrade, 1)}&nbsp;% stigning ville veien vært {lengthText(gentle.s)}, kraften {N(gentle.F)}&nbsp;N og farten {fmt(gentle.kmh, 1)}&nbsp;km/h. Du
             må likevel løfte deg {fmt(h, 0)}&nbsp;m, så mgh er den samme, og turen tar {durationText(gentle.t)} i stedet for {durationText(c.t)}.{' '}
             {gentle.t / c.t < 1.12
-              ? 'Det er nesten like lenge: med samme effekt løfter du deg nesten like mange meter i minuttet. Forskjellen kommer av at rullefriksjonen virker på en lengre vei.'
-              : 'Det tar lengre tid fordi friksjonen og luftmotstanden virker på en lengre vei, og luftmotstanden øker med farten.'}
+              ? `Det er nesten like lenge: med samme effekt løfter du deg nesten like mange meter i minuttet. Forskjellen kommer av at ${air ? 'rullefriksjonen og luftmotstanden' : 'rullefriksjonen'} virker på en lengre vei.`
+              : air
+                ? 'Det tar lengre tid fordi rullefriksjonen og luftmotstanden virker på en lengre vei, og luftmotstanden er større fordi den øker med farten.'
+                : 'Det tar lengre tid fordi rullefriksjonen virker på en lengre vei, så mer av arbeidet blir termisk energi.'}
           </>
         ) : (
           'Med den minste stigningen er veien allerede svært lang for hver meter du kommer opp.'

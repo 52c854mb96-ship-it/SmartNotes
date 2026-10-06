@@ -7,11 +7,12 @@
  *
  *   Uten friksjon (bare tyngden gjør arbeid):   mgh + ½mv₀² = ½mv²             ⇒ v = √(v₀² + 2gh)
  *   Termisk energi i bakken:                    Q = E_A − E_B = (mgh + ½mv₀²) − ½mv_B²
- *   Friksjonsarbeidet i bakken:                 W_R = ΔE = −Q = −R · s          ⇒ R = Q / s (gjennomsnitt)
+ *   Arbeidet til motkreftene i bakken:          W_mot = ΔE = −Q = −F_mot · s    ⇒ F_mot = Q / s (gjennomsnitt)
  *   Flaten (N = mg, se bort fra luftmotstand):  −μmg · d = 0 − ½mv_B²            ⇒ d = v_B² / (2μg)
  *
- * Vurderingen i e): med samme friksjonstall i bakken er friksjonen fra snøen μN = μmg cos α (sin α = h/s), og resten
- * av R er luftmotstand: L = R − μN. Snittet av v² langs strekningen er omtrent like stort på flaten (v_B²/2) som i
+ * F_mot er den samlede motkraften: friksjonen R fra snøen og luftmotstanden L til sammen (som i ERGO er R friksjon og
+ * L luftmotstand). Vurderingen i e): med samme friksjonstall i bakken er friksjonen fra snøen μN = μmg cos α
+ * (sin α = h/s), og resten av F_mot er luftmotstand: L = F_mot − μN. Snittet av v² langs strekningen er omtrent like stort på flaten (v_B²/2) som i
  * bakken ((v₀² + v_B²)/2), så luftmotstanden er i snitt omtrent like stor der. Et overslag over glidestrekningen
  * blir da d′ = ½mv_B² / (μmg + L), som er kortere enn d.
  */
@@ -71,10 +72,10 @@ export interface SledSolution {
   Q: number;
   /** Andelen av den mekaniske energien på toppen som er blitt termisk energi i bakken. */
   QShare: number;
-  /** Friksjonsarbeidet i bakken (J): W_R = ΔE = −Q. */
-  WR: number;
-  /** Den gjennomsnittlige motkraften (friksjon og luftmotstand) i bakken (N): R = Q/s. */
-  R: number;
+  /** Arbeidet til motkreftene (friksjon og luftmotstand) i bakken (J): W_mot = ΔE = −Q. */
+  Wmot: number;
+  /** Den gjennomsnittlige samlede motkraften (friksjon og luftmotstand til sammen) i bakken (N): F_mot = Q/s. */
+  Fmot: number;
   /** Normalkraften på flaten (N): N = G. */
   Nflat: number;
   /** Friksjonen på flaten (N): μmg. */
@@ -97,9 +98,9 @@ export interface SledSolution {
   Nslope: number;
   /** Friksjonen fra snøen i bakken med samme friksjonstall (N): μmg cos α. */
   muN: number;
-  /** Luftmotstanden i bakken i gjennomsnitt (N): L = R − μN. */
+  /** Luftmotstanden i bakken i gjennomsnitt (N): L = F_mot − μN. */
   L: number;
-  /** Andelen av R som er luftmotstand. */
+  /** Andelen av den samlede motkraften F_mot som er luftmotstand. */
   airShare: number;
   /** Overslag over glidestrekningen med luftmotstand (m): ½mv_B² / (μmg + L). */
   dEst: number;
@@ -129,7 +130,7 @@ export function solveSledTask({ m, h, s, v0, vB, mu }: SledTask, g = G_EARTH): S
   const vDrop = Math.sqrt(2 * g * Math.max(0, h));
   const EkB = 0.5 * m * vB * vB;
   const Q = EA - EkB;
-  const R = s > 0 ? Q / s : 0;
+  const Fmot = s > 0 ? Q / s : 0;
   const Nflat = G;
   const Rflat = mu * Nflat;
   const aFlat = mu * g;
@@ -139,7 +140,7 @@ export function solveSledTask({ m, h, s, v0, vB, mu }: SledTask, g = G_EARTH): S
   const cosA = Math.sqrt(1 - sinA * sinA);
   const Nslope = G * cosA;
   const muN = mu * Nslope;
-  const L = R - muN;
+  const L = Fmot - muN;
   return {
     G,
     EpA,
@@ -152,8 +153,8 @@ export function solveSledTask({ m, h, s, v0, vB, mu }: SledTask, g = G_EARTH): S
     EkB,
     Q,
     QShare: EA > 0 ? Q / EA : 0,
-    WR: -Q,
-    R,
+    Wmot: -Q,
+    Fmot,
     Nflat,
     Rflat,
     d,
@@ -166,7 +167,7 @@ export function solveSledTask({ m, h, s, v0, vB, mu }: SledTask, g = G_EARTH): S
     Nslope,
     muN,
     L,
-    airShare: R > 0 ? L / R : 0,
+    airShare: Fmot > 0 ? L / Fmot : 0,
     dEst: Rflat + L > 0 ? EkB / (Rflat + L) : Infinity,
   };
 }

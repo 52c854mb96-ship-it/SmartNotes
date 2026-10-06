@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CITY_TRIP_TASKS,
   accelerationAt,
+  allMaxTimeText,
   fmtSig,
   phaseAt,
   positionAt,
@@ -262,5 +263,35 @@ describe('bil i bytrafikk: fornuftige tall i alle tallsettene', () => {
     expect(ax.tMinor).toBe(2);
     expect(ax.vTop).toBe(14);
     expect(ax.sTop).toBe(350);
+  });
+});
+
+describe('bil i bytrafikk: tallene i tipset i d) stemmer med hverandre', () => {
+  const num = (t: string) => Number(t.replace(/\u00a0/g, '').replace('−', '-').replace(',', '.'));
+
+  it('tallsett 3: 156 m / 8,0 m/s = 19,5 s, altså 4,5 s mindre enn 24 s (ikke «20 s» og «4,5 s»)', () => {
+    const task = CITY_TRIP_TASKS[2]!;
+    const txt = allMaxTimeText(task, solveCityTrip(task).tAllMax);
+    expect(txt).toEqual({ t3: '24', tAll: '19,5', saved: '4,5' });
+  });
+
+  it('tallsett 1 og 2: 25,0 s (5,0 s mindre enn 30 s) og 31,0 s (8,0 s mindre enn 39 s)', () => {
+    expect(allMaxTimeText(CITY_TRIP_TASKS[0]!, solveCityTrip(CITY_TRIP_TASKS[0]!).tAllMax)).toEqual({ t3: '30', tAll: '25,0', saved: '5,0' });
+    expect(allMaxTimeText(CITY_TRIP_TASKS[1]!, solveCityTrip(CITY_TRIP_TASKS[1]!).tAllMax)).toEqual({ t3: '39', tAll: '31,0', saved: '8,0' });
+  });
+
+  it('i alle tallsettene er t₃ − tiden med v_maks lik forskjellen som står, og tiden er riktig avrundet', () => {
+    for (const task of CITY_TRIP_TASKS) {
+      const sol = solveCityTrip(task);
+      const txt = allMaxTimeText(task, sol.tAllMax);
+      expect(num(txt.t3)).toBe(task.t3);
+      expect(num(txt.t3) - num(txt.tAll)).toBeCloseTo(num(txt.saved), 9);
+      expect(Math.abs(num(txt.tAll) - sol.tAllMax)).toBeLessThanOrEqual(0.05 + 1e-9);
+      expect(num(txt.saved)).toBeGreaterThan(0);
+    }
+    // Også tider som ikke er hele tall eller halve sekunder
+    const txt = allMaxTimeText({ t3: 30 }, 23.456);
+    expect(txt).toEqual({ t3: '30', tAll: '23,5', saved: '6,5' });
+    expect(allMaxTimeText({ t3: 12 }, 8.04)).toEqual({ t3: '12', tAll: '8,04', saved: '3,96' });
   });
 });

@@ -76,7 +76,7 @@ const viz: VizMeta[] = [
     sections: ['2B', '2C', '2D', '2E'],
     title: 'Tautrekking: hvem drar hardest?',
     summary:
-      'To lag drar i et tau på gress, i sokker på gulv eller på is. Tauet drar like hardt i begge lagene, så det er friksjonen fra bakken som avgjør hvem som vinner, ikke hvem som er sterkest.',
+      'To lag drar i et tau på gress, på et glatt tregulv eller på is. Tauet drar like hardt i begge lagene, så det er friksjonen fra bakken som avgjør hvem som vinner, ikke hvem som er sterkest.',
     keywords: [
       'tautrekking',
       'dragkamp',
@@ -95,7 +95,7 @@ const viz: VizMeta[] = [
       'andre lov',
       'kraftsum',
       'gress',
-      'sokker',
+      'tregulv',
       'is',
       'KM5',
     ],
@@ -220,9 +220,9 @@ const viz: VizMeta[] = [
     id: 'strikkhopp',
     chapter: '2',
     sections: ['2E', '2F'],
-    title: 'Strikkhopp fra en bro',
+    title: 'Strikkhopp fra en bru',
     summary:
-      'Velg masse, strikklengde og stivhet, og følg kreftene, høyden, farten og akselerasjonen fra fritt fall til det laveste punktet. Når er farten størst, og hvor stor blir akselerasjonen?',
+      'Velg masse, strikklengde og stivhet, og følg kreftene, høyden, farten og akselerasjonen fra fritt fall til hopperen er på vei opp igjen. Når er farten størst, og hvor stor blir akselerasjonen?',
     keywords: ['strikkraft', 'fjærkraft', 'Hookes lov', 'kraftsum', 'andre lov', 'fritt fall', 'laveste punkt', 'største akselerasjon', 'grafer', 'KM5', 'KM6'],
     load: () => import('./Strikkhopp'),
   },

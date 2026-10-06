@@ -24,11 +24,11 @@ describe('akebrett ned bakken: tallsett 1 (Ida)', () => {
     expect(s.EkB).toBeCloseTo(1440, 10);
     expect(s.Q).toBeCloseTo(1921.5, 10);
     expect(s.QShare).toBeCloseTo(0.5716, 4);
-    expect(s.WR).toBeCloseTo(-1921.5, 10);
+    expect(s.Wmot).toBeCloseTo(-1921.5, 10);
   });
 
-  it('gjennomsnittlig motkraft i bakken er 64 N', () => {
-    expect(s.R).toBeCloseTo(64.05, 10);
+  it('den samlede motkraften (friksjon og luftmotstand) i bakken er 64 N i gjennomsnitt', () => {
+    expect(s.Fmot).toBeCloseTo(64.05, 10);
   });
 
   it('på flaten er N = G = 441 N og R = 53,0 N, og brettet glir 27,2 m', () => {
@@ -70,12 +70,12 @@ describe('akebrett ned bakken: sammenhengene', () => {
     }
   });
 
-  it('energiregnskapet går opp: E_A = E_kB + Q, og W_R = ΔE = −R · s', () => {
+  it('energiregnskapet går opp: E_A = E_kB + Q, og W_mot = ΔE = −F_mot · s', () => {
     for (const t of tasks) {
       const s = solveSledTask(t);
       expect(s.EkB + s.Q).toBeCloseTo(s.EA, 9);
-      expect(s.WR).toBeCloseTo(s.EkB - s.EA, 9);
-      expect(-s.R * t.s).toBeCloseTo(s.WR, 9);
+      expect(s.Wmot).toBeCloseTo(s.EkB - s.EA, 9);
+      expect(-s.Fmot * t.s).toBeCloseTo(s.Wmot, 9);
     }
   });
 
@@ -92,12 +92,12 @@ describe('akebrett ned bakken: sammenhengene', () => {
     }
   });
 
-  it('geometrien i bakken: sin α = h/s, run² + h² = s² og μN + L = R', () => {
+  it('geometrien i bakken: sin α = h/s, run² + h² = s² og μN + L = F_mot', () => {
     for (const t of tasks) {
       const s = solveSledTask(t);
       expect(s.run ** 2 + t.h ** 2).toBeCloseTo(t.s ** 2, 9);
       expect(Math.sin((s.alphaDeg * Math.PI) / 180)).toBeCloseTo(t.h / t.s, 12);
-      expect(s.muN + s.L).toBeCloseTo(s.R, 9);
+      expect(s.muN + s.L).toBeCloseTo(s.Fmot, 9);
       expect(s.Nslope).toBeLessThan(s.Nflat);
     }
   });
@@ -137,8 +137,8 @@ describe('akebrett ned bakken: alle tallsettene gir fornuftige svar', () => {
         expect(s.Q).toBeGreaterThan(0);
         expect(s.QShare).toBeGreaterThan(0.4);
         expect(s.QShare).toBeLessThan(0.7);
-        expect(s.R).toBeGreaterThan(40);
-        expect(s.R).toBeLessThan(90);
+        expect(s.Fmot).toBeGreaterThan(40);
+        expect(s.Fmot).toBeLessThan(90);
       });
 
       it('luftmotstanden er en mindre, men tydelig del av motkraften (15–30 %), med et rimelig luftmotstandsareal', () => {

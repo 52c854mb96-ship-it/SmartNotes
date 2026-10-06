@@ -41,7 +41,8 @@ export interface KroppsPunkter {
 export function kroppsdeler(p: KroppsPunkter, size: number, ekstra = 0): KroppsDel[] {
   const s = Math.max(0, size);
   return [
-    { a: p.hode, b: p.hode, r: 0.085 * s },
+    // Hodet med hjelm, nese og hår
+    { a: p.hode, b: p.hode, r: 0.1 * s },
     { a: p.nakke, b: p.hofte, r: (0.075 + ekstra) * s },
     { a: p.skulder, b: p.venstreHand, r: 0.035 * s },
     { a: p.skulder, b: p.hoyreHand, r: 0.035 * s },

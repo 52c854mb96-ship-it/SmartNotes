@@ -39,7 +39,7 @@ import {
 } from '../../kit/scene';
 import { Veikant } from './bremselengde-deler';
 import { DilemmaGraph, ZONE_COLOR } from './gult-lys-graf';
-import { Kryss, Stopplinje, Trafikklys } from './gult-lys-deler';
+import { BilLupe, Kryss, Stopplinje, Trafikklys, bilLupeSize } from './gult-lys-deler';
 import {
   BRAKE,
   CAR_LENGTH,
@@ -49,6 +49,7 @@ import {
   dilemmaLength,
   goOutcome,
   kmhToMs,
+  minGoSpeed,
   msToKmh,
   noDilemmaSpeeds,
   planAcceleration,
@@ -282,23 +283,43 @@ const PAD = 12;
 /** Lakken på bilen: hvit synes på alle sonefargene (en rød bil forsvinner i den oransje dilemmasonen). */
 const CAR_PAINT = 'hvit';
 
-/** Tekstskaleringen figuren vil få (samme regel som i <Figure>), målt på beholderen før figuren tegnes. */
+/**
+ * Tekstskaleringen figuren vil få (samme regel som i <Figure>), målt på beholderen før figuren tegnes, og hvor
+ * mange skjermpiksler én figurenhet blir (til å avgjøre om bilen er for liten til å synes).
+ */
 function useContainerTextScale() {
   const ref = useRef<HTMLDivElement>(null);
-  const [f, setF] = useState(1);
+  const [m, setM] = useState({ f: 1, unitPx: 1 });
   useEffect(() => {
     const el = ref.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
     const update = () => {
       const w = el.getBoundingClientRect().width;
-      if (w > 0) setF(Math.round(Math.max(1, 12.5 / 17 / (w / W)) * 20) / 20);
+      if (w > 0) {
+        const f = Math.round(Math.max(1, 12.5 / 17 / (w / W)) * 20) / 20;
+        const unitPx = Math.round((w / W) * 100) / 100;
+        setM((old) => (old.f === f && old.unitPx === unitPx ? old : { f, unitPx }));
+      }
     };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  return { ref, f };
+  return { ref, f: m.f, unitPx: m.unitPx };
+}
+
+/** Bilen tegnes høyst så mange ganger for stor i scenen (sentrert om den ekte midten, så fronten er høyst 0,9 m feil). */
+const carScale = (f: number) => Math.min(Math.max(1, f * 0.85), 1.4);
+/** Er bilen kortere enn dette på skjermen (CSS-piksler), vises den også forstørret i et innfelt utsnitt (BilLupe). */
+const LUPE_MIN_PX = 40;
+/** Lengden på bilen i utsnittet (CSS-piksler). */
+const LUPE_PX = 56;
+
+/** Lengden på bilen i det innfelte utsnittet (figurenheter), eller 0 når bilen i scenen er stor nok. */
+function lupeCarLength(p: number, f: number, unitPx: number): number {
+  const onScreen = BIL_MAAL.lengde * p * carScale(f) * unitPx;
+  return onScreen < LUPE_MIN_PX && unitPx > 0 ? LUPE_PX / unitPx : 0;
 }
 
 /**
@@ -306,16 +327,19 @@ function useContainerTextScale() {
  * signalhodet, under det skiltet med farten over bilen, så veien med fortau, og under veien tre rader: navnene på
  * sonene (og krysset), avstanden D og strekningen bilen kjører i valget.
  */
-function sceneLayout(f: number, p: number) {
+function sceneLayout(f: number, p: number, lupe: number) {
   const k = Math.max(1, f * 0.85);
   const ss = Math.max(1, f * 0.75);
   const headTop = 8;
   const headH = 48 * k;
-  const tagH = 17 * f * 0.9 * 1.55;
+  // Skiltet med farten, eller det innfelte utsnittet med bilen forstørret når bilen er for liten (lupe > 0)
+  const lupeInset = 4 * ss;
+  const lupeGap = 10 * f;
+  const tagH = lupe > 0 ? bilLupeSize(lupe, 0, lupeInset, lupeGap).h : 17 * f * 0.9 * 1.55;
   const tagY = headTop + headH + 6 + tagH / 2;
   // Bilen tegnes litt større på mobil (som useSceneScale, men høyst 1,4), sentrert om den ekte midten, så
   // fronten og bakenden er høyst 0,9 m feil (et par skjermpiksler).
-  const carK = Math.min(k, 1.4);
+  const carK = carScale(f);
   const carH = BIL_MAAL.hoyde * p * carK;
   const roadY = tagY + tagH / 2 + 7 * ss + carH + 2;
   const B = 34 * k;
@@ -329,7 +353,7 @@ function sceneLayout(f: number, p: number) {
   const dY = zoneY + 10 * ss + 22 * f;
   const planY = dY + 12 * ss + 22 * f;
   const H = Math.round(planY + 9 * ss + 19 * f + 6);
-  return { f, k, ss, headTop, headH, tagH, tagY, carK, carH, roadY, B, roadTop, roadBot, sidewalk, horizon, laneTop, laneBot, zoneY, dY, planY, H };
+  return { f, k, ss, headTop, headH, lupe, lupeInset, lupeGap, tagH, tagY, carK, carH, roadY, B, roadTop, roadBot, sidewalk, horizon, laneTop, laneBot, zoneY, dY, planY, H };
 }
 
 type SceneLayout = ReturnType<typeof sceneLayout>;
@@ -353,10 +377,10 @@ function Scene({
   so: StopOutcome;
   go: GoOutcome;
 }) {
-  const { ref, f } = useContainerTextScale();
+  const { ref, f, unitPx } = useContainerTextScale();
   const view = sceneRange(D, z);
   const p = (W - 2 * PAD) / (view.max - view.min);
-  const L = sceneLayout(f, p);
+  const L = sceneLayout(f, p, lupeCarLength(p, f, unitPx));
   const sit = situation(input, D);
   const label =
     `Lyskryss sett fra siden. Lyset har akkurat blitt gult, og en bil i ${fmt(kmh, 0)} km/h er ${fmt(D, 0)} m fra stopplinja. ` +
@@ -436,7 +460,10 @@ function Road({
   const tagText = v > 0.05 ? `${fmt(msToKmh(v), 0)} km/h` : 'Står stille';
   const fs = 17 * f * 0.9;
   const widthOf = (txt: string) => Math.max(fs * 1.6, txt.length * fs * 0.6 + 16 * f);
-  const tagW = Math.max(widthOf(`${fmt(msToKmh(input.v0), 0)} km/h`), widthOf('Står stille'));
+  const tagTexts = [`${fmt(msToKmh(input.v0), 0)} km/h`, 'Står stille'];
+  // Med innfelt utsnitt er skiltet bredere: bilen forstørret og farten ved siden av
+  const lupeW = bilLupeSize(L.lupe, Math.max(...tagTexts.map((txt) => txt.length * fs * 0.6)), L.lupeInset, L.lupeGap).w;
+  const tagW = L.lupe > 0 ? lupeW : Math.max(...tagTexts.map(widthOf));
   const mid = X(s - CAR_LENGTH / 2);
   // Bilen har kjørt ut av bildet (bare når den kjører videre forbi krysset)
   const gone = rearX > W - 2;
@@ -578,7 +605,28 @@ function Road({
           <ValueTag x={W - 6} y={L.tagY} text={`${tagText} →`} anchor="end" color={VIZ.velocity} />
         ) : (
           <>
-            <ValueTag x={tagX} y={L.tagY} text={tagText} color={VIZ.velocity} pointer={pointer} />
+            {L.lupe > 0 ? (
+              <BilLupe
+                x={tagX}
+                y={L.tagY}
+                w={tagW}
+                h={L.tagH}
+                inset={L.lupeInset}
+                gap={L.lupeGap}
+                carLen={L.lupe}
+                pointer={pointer}
+                pointerX={mid}
+                text={tagText}
+                color={VIZ.velocity}
+                speed={Math.min(0.24 * L.lupe - 6, L.lupe * v * 0.012)}
+                lakk={CAR_PAINT}
+                hjulvinkel={hjulvinkelFraStrekning(s + D)}
+                bremselys={braking || (plan === 'bremse' && t > input.tr)}
+                title={`Bilen forstørret: ${tagText}`}
+              />
+            ) : (
+              <ValueTag x={tagX} y={L.tagY} text={tagText} color={VIZ.velocity} pointer={pointer} />
+            )}
             {vLen > 3 && <ForceArrow x1={vx} y1={L.tagY} x2={vx + vLen} y2={L.tagY} color={VIZ.velocity} width={6} label="v" />}
             {aLen > 3 && <ForceArrow x1={ax} y1={L.tagY} x2={ax - aLen} y2={L.tagY} color={VIZ.acceleration} width={5} label="a" />}
           </>
@@ -748,8 +796,18 @@ function explanation(input: YellowInput, kmh: number, D: number, z: Zones, sit: 
       <p>
         {sit === 'dilemma' ? (
           <>
-            <strong>Bilen er i dilemmasonen.</strong> Den er for nær til å stoppe (stopplengden er {m1(z.dStop)}, men den er bare {fmt(D, 0)} m unna) og for
-            langt unna til å rekke over krysset før rødt. {stopText} {goText}
+            <strong>Bilen er i dilemmasonen.</strong> Den er for nær til å stoppe (stopplengden er {m1(z.dStop)}, men{' '}
+            {D < 0.5 ? 'den står allerede ved stopplinja' : `den er bare ${fmt(D, 0)} m unna`}) og{' '}
+            {z.dGo < 0 ? (
+              // Grensen for å rekke over er negativ: farten er for lav, ikke avstanden for lang.
+              <>
+                for sakte til å rekke over krysset før rødt, selv fra stopplinja: for å kjøre {clearTxt} (krysset og bilen) på{' '}
+                {fmt(tg, 1)} s må farten være minst {fmt(msToKmh(minGoSpeed(tg)), 0)} km/h.
+              </>
+            ) : (
+              'for langt unna til å rekke over krysset før rødt.'
+            )}{' '}
+            {stopText} {goText}
           </>
         ) : sit === 'stopp' ? (
           <>
