@@ -27,12 +27,12 @@ test('visualiseringer: oversikt, friksjon og neste', async ({ page }) => {
 
   await expect(page).toHaveURL(/\/visualiseringer\/k2-friksjon$/);
   await expect(page.getByRole('heading', { name: 'Statisk friksjon og glidefriksjon', level: 1 })).toBeVisible();
-  await expect(main.getByText('Klossen står i ro.')).toBeVisible();
+  await expect(main.getByText('Kassen står i ro.')).toBeVisible();
 
-  // Dytt hardere enn μs·N (29,4 N ved 6 kg og μs = 0,5): klossen glir.
-  await main.getByRole('slider', { name: 'Dytt F' }).fill('40');
-  await expect(main.getByText('Klossen glir.')).toBeVisible();
-  await expect(main.getByRole('img', { name: /Klossen glir/ })).toBeVisible();
+  // Dytt hardere enn μs·N (147 N ved 30 kg og μs = 0,50 på tregulv): kassen glir.
+  await main.getByRole('slider', { name: 'Dytt F' }).fill('200');
+  await expect(main.getByText('Kassen glir.')).toBeVisible();
+  await expect(main.getByRole('img', { name: /Kassen glir/ })).toBeVisible();
 
   // Bla til neste visualisering (rekkefølgen kan endre seg når nye legges til)
   await main.getByRole('navigation', { name: 'Andre visualiseringer' }).getByRole('link').last().click();

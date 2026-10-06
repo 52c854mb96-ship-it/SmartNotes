@@ -824,22 +824,6 @@
   --kj-glass-shine: rgb(255 255 255 / 0.75);
   --kj-liquid: #d3e6f7;
   --kj-liquid-line: #6aa3d8;
-  /* Illustrert realisme: glass, stativ og kuler med lys fra øvre venstre (viz/kjemi/kit/lys.tsx) */
-  --kj-glass-tint: #bcd5e6;
-  --kj-glass-wall: rgb(205 225 238 / 0.85);
-  --kj-glass-glint: rgb(255 255 255 / 0.92);
-  --kj-scale-ink: #3a4652;
-  --kj-stand: #aeb7c1;
-  --kj-rubber: #3b4048;
-  --kj-ptfe: #f4f5f2;
-  --kj-shadow: rgb(20 25 35 / 0.2);
-  --kj-outline: rgb(28 33 42 / 0.5);
-  --kj-sphere-hi: 70%;
-  --kj-sphere-hi-line: 0%;
-  --kj-sphere-lo: 8%;
-  --kj-sphere-lo-line: 30%;
-  --kj-ball-hi: 48%;
-  --kj-ball-lo: 24%;
   --kj-btb-acid: #f2cf3a;
   --kj-btb-neutral: #5cb85c;
   --kj-btb-base: #3b7dd8;
@@ -911,21 +895,6 @@
     --kj-glass-shine: rgb(255 255 255 / 0.14);
     --kj-liquid: #23435f;
     --kj-liquid-line: #5b93c9;
-    --kj-glass-tint: #9cc0d8;
-    --kj-glass-wall: rgb(150 185 210 / 0.26);
-    --kj-glass-glint: rgb(255 255 255 / 0.5);
-    --kj-scale-ink: #cfd8e2;
-    --kj-stand: #8d98a4;
-    --kj-rubber: #1b1f24;
-    --kj-ptfe: #c4cad1;
-    --kj-shadow: rgb(0 0 0 / 0.45);
-    --kj-outline: rgb(0 0 0 / 0.6);
-    --kj-sphere-hi: 16%;
-    --kj-sphere-hi-line: 55%;
-    --kj-sphere-lo: 42%;
-    --kj-sphere-lo-line: 0%;
-    --kj-ball-hi: 32%;
-    --kj-ball-lo: 40%;
     --kj-btb-acid: #cfae2a;
     --kj-btb-neutral: #3f9a4f;
     --kj-btb-base: #3f74c4;
@@ -997,21 +966,6 @@
   --kj-glass-shine: rgb(255 255 255 / 0.14);
   --kj-liquid: #23435f;
   --kj-liquid-line: #5b93c9;
-  --kj-glass-tint: #9cc0d8;
-  --kj-glass-wall: rgb(150 185 210 / 0.26);
-  --kj-glass-glint: rgb(255 255 255 / 0.5);
-  --kj-scale-ink: #cfd8e2;
-  --kj-stand: #8d98a4;
-  --kj-rubber: #1b1f24;
-  --kj-ptfe: #c4cad1;
-  --kj-shadow: rgb(0 0 0 / 0.45);
-  --kj-outline: rgb(0 0 0 / 0.6);
-  --kj-sphere-hi: 16%;
-  --kj-sphere-hi-line: 55%;
-  --kj-sphere-lo: 42%;
-  --kj-sphere-lo-line: 0%;
-  --kj-ball-hi: 32%;
-  --kj-ball-lo: 40%;
   --kj-btb-acid: #cfae2a;
   --kj-btb-neutral: #3f9a4f;
   --kj-btb-base: #3f74c4;
@@ -1313,14 +1267,6 @@
   --bio-pop-2: #b5532a;
   --bio-pop-3: #4f8f3a;
   --bio-pop-4: #8a5cc8;
-  /* Lys og skygge i illustrasjonene (lys.tsx): fargen toningene går mot, glans og skygge som legges oppå. */
-  --bio-lys: #ffffff;
-  --bio-skygge: #3b2a1e;
-  --bio-glans: rgb(255 255 255 / 0.7);
-  --bio-mork: rgb(52 34 22 / 0.22);
-  /* Hvor sterke de lyse partiene er, og hvor mye de tar fargen fra kanten (mørkt tema: farget lys, ikke grått) */
-  --bio-lys-styrke: 1;
-  --bio-lys-farge: 0%;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -1407,12 +1353,6 @@
     --bio-pop-2: #f0905e;
     --bio-pop-3: #7cc46a;
     --bio-pop-4: #b59af0;
-    --bio-lys: #e4dccb;
-    --bio-skygge: #000000;
-    --bio-glans: rgb(255 255 255 / 0.26);
-    --bio-mork: rgb(0 0 0 / 0.38);
-    --bio-lys-styrke: 0.62;
-    --bio-lys-farge: 55%;
   }
 }
 
@@ -1499,12 +1439,6 @@
   --bio-pop-2: #f0905e;
   --bio-pop-3: #7cc46a;
   --bio-pop-4: #b59af0;
-  --bio-lys: #e4dccb;
-  --bio-skygge: #000000;
-  --bio-glans: rgb(255 255 255 / 0.26);
-  --bio-mork: rgb(0 0 0 / 0.38);
-  --bio-lys-styrke: 0.62;
-  --bio-lys-farge: 55%;
 }
 
 /* Forhåndsvalg (f.eks. sykdommer med kjent R₀): knapperad der ingen eller én er valgt (<Forvalg>). */

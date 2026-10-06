@@ -26,7 +26,8 @@
 4. **Ingen pilot:** kjør alt med en gang. Én PR per fag, med fysikk først. Flett selv når CI er grønn.
 5. **Fortsett automatisk:**
    - Etter fysikk går arbeidet rett videre med kjemi og biologi.
-   - Stopper bruksgrensen arbeidet, skal det fortsette av seg selv når grensen er nullstilt. Det sørger en gjentakende påminnelse i økten for.
+   - Stopper bruksgrensen arbeidet, skal det fortsette av seg selv når grensen er nullstilt. Det sørget en gjentakende påminnelse i økten for.
+6. **Pause (6. oktober):** eleven ba om at arbeidet stopper når de pågående workflowene er ferdige, og at ikke noe nytt startes før eleven sier fra. Påminnelsen er slått av. Dette går foran punkt 5.
 
 ## Fremdrift
 
@@ -40,8 +41,8 @@ Merk av her når en del er ferdig, og commit + push. Grenen er `claude/blissful-
   - [x] README i `viz/` med stilguide for illustrert realisme og eksempeloppgaver
 - [ ] 2. Fysikk (kapittel 1–10): oppgradere, lage nye, lage eksempler, kontrollere og rette. Startet 5. oktober kl. 17.15 (UTC), én workflow per kapittel; hvert kapittel committes for seg («Fysikk kapittel N: …»)
   - Ferdige kapitler: 4 (12903f5: 3 oppgraderte, 3 nye, 2 eksempeloppgaver), 2 (fee4538: 6 oppgraderte, 3 nye, 2 eksempeloppgaver), 1 (b95d75d: 4 oppgraderte, 3 nye, 2 eksempeloppgaver), 3 (69c89ab: 3 oppgraderte, 3 nye, 2 eksempeloppgaver). Gjenstår: kapittel 5–10 (bruk wf-fysikk2.js, slank). Eleven sa 6. oktober: start ikke noe nytt før eleven sier fra.
-- [ ] 2b. Finpuss av kjemi- og biologi-kit-et (startet parallelt)
-- [ ] 3. PR for fysikk, CI grønn, flettet
+- [ ] 2b. Finpuss av kjemi- og biologi-kit-et (startet parallelt, men avbrutt av bruksgrensen før kontroll; tatt ut igjen før PR #7, start på nytt sammen med punkt 4)
+- [ ] 3. PR for fysikk, CI grønn, flettet (PR #7 tar grunnmuren og kapittel 1–4; kapittel 5–10 får en egen PR)
 - [ ] 4. Kjemi (kapittel 1–8)
 - [ ] 5. Biologi (kapittel 1–15)
 - [ ] 6. PR for kjemi og biologi, CI grønn, flettet

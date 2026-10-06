@@ -1,6 +1,6 @@
 # Status for SmartNotes
 
-> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 5. oktober 2026, i PR #6 (overleveringen). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
+> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 6. oktober 2026, i PR #7 (illustrerte fysikkvisualiseringer, kapittel 1–4). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
 
 Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen dokumentasjon står i [README.md](../README.md) og [OPPSETT.md](OPPSETT.md).
 
@@ -23,7 +23,7 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 | Fag og lærebøker | Kapitler og kompetansemål (ordrett fra Udir) for tre læreboksett. Delkapitler finnes foreløpig for Fysikk 1 og kapittel 1 i Kjemi 1. Claude velger kapittel og eventuelt delkapittel, og eleven kan flytte notatet selv. | `server/src/textbooks.ts`, `server/src/profiles/` |
 | Import av innholdsfortegnelse | Tekst eller bilder → kapitler med delkapitler, koblet til kompetansemålene. | `server/src/toc.ts`, `web/src/pages/settings/ChapterImport.tsx` |
 | Søk | Ctrl/Cmd+K søker i titler og innhold, også uten nett. | `web/src/components/SearchPalette.tsx` |
-| Visualiseringer | 109 interaktive forklaringer, ordnet etter kapittel: 36 i fysikk, 31 i kjemi og 42 i biologi. | `web/src/viz/` (les `README.md` der) |
+| Visualiseringer | 129 interaktive forklaringer, ordnet etter kapittel: 56 i fysikk, 31 i kjemi og 42 i biologi. Fysikk kapittel 1–4 har illustrert utseende (ekte gjenstander, lys, skygge og kraftpiler), praktiske situasjoner og to eksempeloppgaver per kapittel, der løsningen vises trinn for trinn. | `web/src/viz/` (les `README.md` der) |
 | Flashcards | Eleven velger notater og vanskelighetsgrad, og Claude lager en kortstokk. Eleven vurderer selv hvert svar fra 1 til 4 (Feil, Delvis, Bra, Perfekt). Etter runden velger eleven hva som skal repeteres. Kortstokker og fremgang synkroniseres, og øving fungerer uten nett. | `server/src/flashcards/`, `web/src/flashcards/` |
 | Samle-PDF | Et helt kapittel eller hele faget som én PDF med innholdsliste. | `server/src/pipeline/bundle.ts` |
 | Offline og synk | Dexie (IndexedDB) er kilden lokalt. Opplastinger uten nett havner i en kø, og PDF-ene hentes på forhånd. | `web/src/db.ts`, `web/src/sync.ts` |
@@ -36,7 +36,7 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 
 ## Hva som er gjort
 
-Alt ble bygget 4. og 5. oktober 2026 og flettet inn i `main` gjennom fem pull requests:
+Alt ble bygget 4.–6. oktober 2026 og flettet inn i `main` gjennom disse pull requestene:
 
 | PR | Innhold |
 |---|---|
@@ -45,8 +45,10 @@ Alt ble bygget 4. og 5. oktober 2026 og flettet inn i `main` gjennom fem pull re
 | [#3](https://github.com/52c854mb96-ship-it/SmartNotes/pull/3) | Biologi 1: alle 42 visualiseringer for kapittel 1–15 ferdig bygget, kontrollert og koblet inn (mange av filene kom allerede med i #2) |
 | [#4](https://github.com/52c854mb96-ship-it/SmartNotes/pull/4) | Flashcards: kortstokker fra notatene, øving med vurdering 1–4, repetisjon og effekter |
 | [#5](https://github.com/52c854mb96-ship-it/SmartNotes/pull/5) | Billigere Claude: Sonnet 5.5 og middels grundighet som standard |
+| [#6](https://github.com/52c854mb96-ship-it/SmartNotes/pull/6) | Overlevering: denne fila og oppstart for nye økter |
+| [#7](https://github.com/52c854mb96-ship-it/SmartNotes/pull/7) | Illustrerte visualiseringer, del 1: byggeklosser for illustrert realisme (`viz/kit/scene/`), eksempeloppgaver (`viz/kit/eksempel.tsx`, egen gruppe på sidene) og fysikk kapittel 1–4 (16 oppgraderte, 12 nye praktiske og 8 eksempeloppgaver). Resten står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md) |
 
-**Tester:** omtrent 1 000 enhetstester (77 på serveren og 921 i web-appen), 12 ende-til-ende-tester i Chromium (PC og mobil) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`. Alle var grønne på `main` etter PR #5.
+**Tester:** omtrent 2 300 enhetstester (77 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 12 ende-til-ende-tester i Chromium (PC og mobil) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 
@@ -102,6 +104,9 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 - **Ikke testet med ekte Claude:** skyøktene har ingen API-nøkkel, så alle tester bruker en falsk Claude (`SMARTNOTES_FAKE_CLAUDE=1`). Det er ennå ikke prøvd hvordan Sonnet 5.5 med middels grundighet konverterer ekte notater, eller hvor gode kortene i flashcards blir. [OPPSETT.md](OPPSETT.md) forklarer hvordan eleven kan gi skyøktene en nøkkel.
 - **Kostnadene er beregnet, ikke målt:** valutakursen (10,50 kr per dollar) og Railway-prisen er omtrentlige, fordi nettverket i økten blokkerte kildene. Det faktiske forbruket står i Anthropic Console under **Usage**.
 - **Kjemi 1 og Biologi 1 mangler delkapitler:** bare kapittel 1 i kjemi har delkapitler (1.1–1.5, der 1.3 er mest usikker). De fire visualiseringene i kjemi kapittel 1 er koblet til delkapitlene. De andre i kjemi og alle i biologi er koblet per kapittel (`sections: []`). Noen kapitteltitler er heller ikke bekreftet: kapittel 2 i kjemi og kapittel 8, 13 og 15 i biologi.
+- **Visualiseringene er halvveis:** fysikk kapittel 5–10 har ennå det gamle utseendet og mangler nye praktiske visualiseringer og eksempeloppgaver. Kjemi og biologi er ikke påbegynt (et halvferdig forsøk på å pusse opp byggeklossene ble tatt ut igjen før PR #7). Planen og elevens valg står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md). Eleven har bedt om at nytt arbeid ikke startes før eleven sier fra.
+- **Rottegnet (√) i `FormulaLine`** står litt for lavt. Kapittel 4 retter det lokalt; det bør rettes i `viz/kit/` for alle.
+- **De nye visualiseringene er ikke prøvd på en ekte iPad eller iPhone,** bare i WebKit-testene i CI.
 - **Bare én bruker:** appen har ett passord og én database. Vil andre bruke den i dag, trenger de hver sin egen server.
 - **Flashcards:** trykker eleven «Angre forrige» etter at en ny beste rekke er sendt til serveren, blir rekka ikke lavere igjen, fordi serveren beholder den høyeste.
 - **Stor hovedbunt:** hovedbunten i web-appen er rundt 710 kB (ca. 220 kB komprimert). KaTeX og visualiseringene lastes allerede først når de trengs.
@@ -111,21 +116,22 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 
 Dette er bare forslag. Eleven bestemmer rekkefølgen.
 
-1. **Prøve med ekte Claude:** konverter noen vanskelige fysikknotater og lag et par kortstokker. Juster så instruksene etter resultatet: `server/src/profiles/physics.ts` og `server/src/flashcards/prompt.ts`.
-2. **Vise faktisk forbruk i appen:** tokenbruken lagres i dag i `notes.usage`, `decks.usage` og `meta.json` i notatmappen, men bare for siste vellykkede kjøring. «Konverter på nytt» og nye forsøk på en kortstokk overskriver tallene, og import av innholdsfortegnelser og mislykkede forsøk lagres ikke. Feltene synkroniseres heller ikke til klienten, og det finnes verken tidsstempel per kall eller pristabell. En riktig månedssum trenger derfor trolig en egen logg (for eksempel tabellen `usage_log` med tid, type, modell og tokens) som alle Claude-kall skriver til, og et eget API-endepunkt. Den falske Claude rapporterer 0 tokens.
-3. **Flere brukere på samme server:** dette gjør at andre elever kan bruke appen. Det krever:
+1. **Fullføre visualiseringene** etter [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md): fysikk kapittel 5–10, deretter kjemi og biologi. Workflow-skriptene fra økten 5.–6. oktober ligger ikke i repoet, så en ny økt må skrive dem på nytt etter planfila.
+2. **Prøve med ekte Claude:** konverter noen vanskelige fysikknotater og lag et par kortstokker. Juster så instruksene etter resultatet: `server/src/profiles/physics.ts` og `server/src/flashcards/prompt.ts`.
+3. **Vise faktisk forbruk i appen:** tokenbruken lagres i dag i `notes.usage`, `decks.usage` og `meta.json` i notatmappen, men bare for siste vellykkede kjøring. «Konverter på nytt» og nye forsøk på en kortstokk overskriver tallene, og import av innholdsfortegnelser og mislykkede forsøk lagres ikke. Feltene synkroniseres heller ikke til klienten, og det finnes verken tidsstempel per kall eller pristabell. En riktig månedssum trenger derfor trolig en egen logg (for eksempel tabellen `usage_log` med tid, type, modell og tokens) som alle Claude-kall skriver til, og et eget API-endepunkt. Den falske Claude rapporterer 0 tokens.
+4. **Flere brukere på samme server:** dette gjør at andre elever kan bruke appen. Det krever:
    - brukerkontoer, med `user_id` på fag, notater og kortstokker
    - synk per bruker
    - invitasjon eller registrering
    - en avklaring av hvem som betaler for Claude, og eventuelt kvoter
 
    Oppgaven er stor, så still oppklaringsspørsmål før du begynner.
-4. **Delkapitler for Kjemi 1 og Biologi 1:** når noen har bøkene, importeres innholdsfortegnelsen. Etterpå kan visualiseringene kobles til delkapitlene.
-5. **Mer i flashcards:**
+5. **Delkapitler for Kjemi 1 og Biologi 1:** når noen har bøkene, importeres innholdsfortegnelsen. Etterpå kan visualiseringene kobles til delkapitlene.
+6. **Mer i flashcards:**
    - «Lag flere kort» i en kortstokk som finnes fra før
    - eksport, for eksempel til CSV eller Anki
-6. **Mindre hovedbunt:** del koden opp i flere biter.
-7. **Sikkerhetskopi fra appen:** eksport av hele databasen og filene fra innstillingene.
+7. **Mindre hovedbunt:** del koden opp i flere biter.
+8. **Sikkerhetskopi fra appen:** eksport av hele databasen og filene fra innstillingene.
 
 ## Nyttige kommandoer
 
