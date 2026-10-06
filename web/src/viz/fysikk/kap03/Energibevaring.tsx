@@ -550,8 +550,8 @@ function Scene({
 
       {forces && (
         <g>
-          {forces.Gpar && <ForceArrow {...forces.Gpar} color={VIZ.gravity} width={5} dashed />}
-          <ForceArrow {...forces.G} color={VIZ.gravity} width={5} origin />
+          {forces.Gpar && <ForceArrow {...forces.Gpar} color={VIZ.gravity} width={6.5} dashed />}
+          <ForceArrow {...forces.G} color={VIZ.gravity} width={6} origin />
           {forces.R && <ForceArrow {...forces.R} color={C_HEAT} width={4} minLength={0.5} />}
           {forceLabels.map((l) => (
             <Txt key={l.key} x={l.x} y={l.y} anchor={l.anchor} color={l.key === 'R' ? C_HEAT : VIZ.gravity} weight={720} size={l.key === 'G' ? 0.9 : 1}>
