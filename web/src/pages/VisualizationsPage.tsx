@@ -1,14 +1,16 @@
 import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { ChevronLeft, NotebookPen, Shapes } from 'lucide-react';
+import { ChevronLeft, ListChecks, NotebookPen, Shapes } from 'lucide-react';
 import { EmptyState, PageSkeleton } from '../components/EmptyState';
 import { useChapters, useSubject } from '../data';
 import { sectionsOf } from '../lib/curriculum';
 import { plural } from '../lib/format';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
-import { matchesViz, vizChapterNumbers, vizEntries } from '../viz/registry';
+import { isExample, matchesViz, vizChapterNumbers, vizEntries } from '../viz/registry';
 import type { VizEntry } from '../viz/types';
 import { NotFoundPage } from './NotFoundPage';
+
+type KindFilter = 'alle' | 'visualisering' | 'eksempel';
 
 /** Oversikt over de interaktive visualiseringene, ordnet etter kapitlene i læreboka. */
 export function VisualizationsPage() {
@@ -16,6 +18,7 @@ export function VisualizationsPage() {
   const subject = useSubject(subjectId);
   const chapters = useChapters(subjectId);
   const [query, setQuery] = useState('');
+  const [kind, setKind] = useState<KindFilter>('alle');
   useDocumentTitle(subject ? `Visualiseringer · ${subject.name}` : null);
 
   const profile = subject?.profile;
@@ -26,9 +29,9 @@ export function VisualizationsPage() {
     return vizChapterNumbers(profile).map((no) => ({
       no,
       chapter: byNumber.get(no) ?? null,
-      entries: entries.filter((e) => e.chapter === no && matchesViz(e, query)),
+      entries: entries.filter((e) => e.chapter === no && matchesViz(e, query) && (kind === 'alle' || (kind === 'eksempel') === isExample(e))),
     }));
-  }, [chapters, query, profile]);
+  }, [chapters, query, profile, kind]);
 
   // Titlene på alle delkapitlene, siden en visualisering kan høre til delkapitler i flere kapitler.
   const sectionTitles = useMemo(
@@ -60,7 +63,8 @@ export function VisualizationsPage() {
   }
 
   const shown = groups.filter((g) => g.entries.length > 0);
-  const total = all.length;
+  const examples = all.filter(isExample).length;
+  const total = all.length - examples;
 
   return (
     <div className="page">
@@ -70,8 +74,9 @@ export function VisualizationsPage() {
           <p className="eyebrow">{subject.name}</p>
           <h1 className="page-title">Visualiseringer</h1>
           <p className="page-subtitle">
-            {plural(total, 'interaktiv forklaring', 'interaktive forklaringer')} ordnet etter kapitlene i læreboka. Dra i
-            glidebryterne og se hva som skjer.
+            {plural(total, 'interaktiv forklaring', 'interaktive forklaringer')}
+            {examples > 0 ? ` og ${plural(examples, 'eksempeloppgave', 'eksempeloppgaver')} med løsning steg for steg` : ''}, ordnet
+            etter kapitlene i læreboka. Dra i glidebryterne og se hva som skjer.
           </p>
         </div>
       </header>
@@ -85,6 +90,21 @@ export function VisualizationsPage() {
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
         />
+        {examples > 0 && (
+          <div className="viz-segmented" role="radiogroup" aria-label="Vis">
+            {(
+              [
+                ['alle', 'Alle'],
+                ['visualisering', 'Visualiseringer'],
+                ['eksempel', 'Eksempeloppgaver'],
+              ] as const
+            ).map(([value, label]) => (
+              <button key={value} type="button" role="radio" aria-checked={kind === value} className={kind === value ? 'is-on' : undefined} onClick={() => setKind(value)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {query && (
           <span className="muted small" role="status">
             {plural(
@@ -96,7 +116,7 @@ export function VisualizationsPage() {
         )}
       </div>
 
-      {shown.length === 0 && <p className="muted">Ingen visualiseringer passer med «{query}».</p>}
+      {shown.length === 0 && <p className="muted">{query ? `Ingen passer med «${query}».` : 'Ingen å vise.'}</p>}
 
       {shown.map((g) => (
         <section key={g.no} className="viz-chapter" aria-labelledby={`viz-ch-${g.no}`}>
@@ -111,22 +131,41 @@ export function VisualizationsPage() {
               </Link>
             )}
           </div>
-          <ul className="viz-cards" role="list">
-            {g.entries.map((e) => (
-              <li key={e.key}>
-                <VizCard subjectId={subject.id} entry={e} sectionTitles={sectionTitles} />
-              </li>
-            ))}
-          </ul>
+          <VizCardList subjectId={subject.id} entries={g.entries.filter((e) => !isExample(e))} sectionTitles={sectionTitles} />
+          {g.entries.some(isExample) && (
+            <>
+              {g.entries.some((e) => !isExample(e)) && <h3 className="viz-subhead">Eksempeloppgaver</h3>}
+              <VizCardList subjectId={subject.id} entries={g.entries.filter(isExample)} sectionTitles={sectionTitles} />
+            </>
+          )}
         </section>
       ))}
     </div>
   );
 }
 
-function VizCard({ subjectId, entry, sectionTitles }: { subjectId: string; entry: VizEntry; sectionTitles: Map<string, string> }) {
+function VizCardList({ subjectId, entries, sectionTitles }: { subjectId: string; entries: VizEntry[]; sectionTitles: Map<string, string> }) {
+  if (entries.length === 0) return null;
   return (
-    <Link to={`/fag/${subjectId}/visualiseringer/${entry.key}`} className="viz-card">
+    <ul className="viz-cards" role="list">
+      {entries.map((e) => (
+        <li key={e.key}>
+          <VizCard subjectId={subjectId} entry={e} sectionTitles={sectionTitles} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function VizCard({ subjectId, entry, sectionTitles }: { subjectId: string; entry: VizEntry; sectionTitles: Map<string, string> }) {
+  const example = isExample(entry);
+  return (
+    <Link to={`/fag/${subjectId}/visualiseringer/${entry.key}`} className={`viz-card${example ? ' is-example' : ''}`}>
+      {example && (
+        <span className="viz-card-kind">
+          <ListChecks size={15} aria-hidden /> Eksempeloppgave
+        </span>
+      )}
       <span className="viz-card-title">{entry.title}</span>
       <span className="viz-card-summary">{entry.summary}</span>
       <span className="viz-card-meta">

@@ -5,23 +5,34 @@ import {
   eulerFall,
   exactPosition,
   exactVelocity,
+  facingDirection,
   flightTime,
+  isReversing,
   impactSpeed,
   kmhToMs,
+  layoutMarkLabels,
+  markLabel,
   maxHeight,
   maxVelocityError,
+  minAxisTopForGround,
   niceAxis,
   niceRange,
   pathLength,
   position,
   positionExtent,
+  sceneCamera,
+  secondMarks,
   speedTrend,
   stopPosition,
   stopVelocity,
   stopping,
   terminalVelocity,
+  throwAxisTop,
+  throwBuilding,
   throwHeight,
+  throwPhase,
   throwVelocity,
+  topLabelPlacement,
   topTime,
   turnTime,
   velocity,
@@ -110,6 +121,132 @@ describe('bevegelsesgrafer (konstant akselerasjon)', () => {
   });
 });
 
+describe('scenen til bevegelsesgrafene (bil på vei)', () => {
+  const m = { s0: -5, v0: 6, a: -2 };
+
+  it('fronten peker i startretningen, og bilen rygger etter vendepunktet', () => {
+    expect(facingDirection(m)).toBe(1);
+    expect(facingDirection({ s0: 0, v0: -3, a: 2 })).toBe(-1);
+    expect(facingDirection({ s0: 0, v0: 0, a: -1 })).toBe(-1);
+    expect(facingDirection({ s0: 0, v0: 0, a: 0 })).toBe(1);
+    expect(isReversing(m, 2)).toBe(false);
+    expect(isReversing(m, 3)).toBe(false); // står akkurat stille i vendepunktet
+    expect(isReversing(m, 5)).toBe(true);
+    // Starter fra ro: kjører alltid forover, aldri rygging
+    for (const t of [0, 1, 6]) expect(isReversing({ s0: 0, v0: 0, a: -3 }, t)).toBe(false);
+    // Konstant fart rygger aldri
+    expect(isReversing({ s0: 0, v0: -4, a: 0 }, 6)).toBe(false);
+  });
+
+  it('merkene hvert hele sekund ligger på s-t-grafen, også rundt vendepunktet', () => {
+    const marks = secondMarks(m, 4.5);
+    expect(marks.map((p) => p.t)).toEqual([0, 1, 2, 3, 4]);
+    expect(marks.map((p) => p.s)).toEqual([-5, 0, 3, 4, 3]);
+    expect(secondMarks(m, 0)).toEqual([{ t: 0, s: -5 }]);
+    expect(secondMarks(m, 6).length).toBe(7);
+    expect(secondMarks(m, 1.99).length).toBe(2);
+    // Avrundingsfeil fra glidebryteren (0,05 · 40) skal ikke miste merket ved 2 s
+    expect(secondMarks(m, 1.9999999999).length).toBe(3);
+    expect(secondMarks(m, -1)).toEqual([]);
+  });
+
+  it('kameraet viser hele strekningen når den får plass, ellers følger det bilen', () => {
+    // 10 m på 520 enheter: 52 per meter er over taket på 40, så hele strekningen vises med 40 per meter
+    const fit = sceneCamera(-5, 5, 2, 520, 16, 40);
+    expect(fit).toEqual({ pxPerM: 40, center: 0, follows: false });
+    // 26 m: skalaen tilpasses (20 per meter)
+    expect(sceneCamera(-6, 20, 3, 520, 16, 40)).toEqual({ pxPerM: 20, center: 7, follows: false });
+    // 200 m: minste skala, og kameraet følger bilen, men stopper ved endene
+    const far = (s: number) => sceneCamera(-50, 150, s, 520, 16, 40);
+    expect(far(40)).toEqual({ pxPerM: 16, center: 40, follows: true });
+    expect(far(-50).center).toBeCloseTo(-50 + 260 / 16, 12);
+    expect(far(150).center).toBeCloseTo(150 - 260 / 16, 12);
+  });
+
+  it('bilen holder seg innenfor det indre feltet uansett tallsett og tidspunkt', () => {
+    const inner = 520;
+    for (const s0 of [-20, -5, 0, 20])
+      for (const v0 of [-10, -2.5, 0, 6, 10])
+        for (const a of [-4, -1, 0, 2.5, 4]) {
+          const mm = { s0, v0, a };
+          const [lo, hi] = positionExtent(mm, 6);
+          for (const t of [0, 0.7, 2, 3.3, 6]) {
+            const s = position(mm, t);
+            const cam = sceneCamera(Math.min(0, lo), Math.max(0, hi), s, inner, 16, 40);
+            expect(cam.pxPerM).toBeGreaterThanOrEqual(16);
+            expect(cam.pxPerM).toBeLessThanOrEqual(40);
+            expect(Math.abs((s - cam.center) * cam.pxPerM)).toBeLessThanOrEqual(inner / 2 + 1e-6);
+          }
+        }
+  });
+
+  it('kameraet flytter seg jevnt (ingen hopp) når bilen kjører', () => {
+    let prev = sceneCamera(0, 150, 0, 520, 16, 40).center;
+    for (let s = 0.5; s <= 150; s += 0.5) {
+      const c = sceneCamera(0, 150, s, 520, 16, 40).center;
+      expect(Math.abs(c - prev)).toBeLessThanOrEqual(0.5 + 1e-9);
+      prev = c;
+    }
+  });
+
+  it('etikettene til sekundmerkene: felles etikett på samme sted, to rader og ingen overlapp', () => {
+    const w = (times: number[]) => 10 + 8 * times.length;
+    // 2 s og 4 s på samme sted (vendepunkt): én etikett. 3 s like ved: rad 1, så den ikke overlapper.
+    const g = layoutMarkLabels(
+      [
+        { t: 0, x: 0 },
+        { t: 1, x: 200 },
+        { t: 2, x: 320 },
+        { t: 3, x: 340 },
+        { t: 4, x: 321 },
+      ],
+      w,
+    );
+    expect(g.map((p) => p.times)).toEqual([[0], [1], [2, 4], [3]]);
+    expect(g.map((p) => p.row)).toEqual([0, 0, 0, 1]);
+    expect(g[2]!.x).toBeCloseTo(320.5, 12);
+    // Langt fra hverandre: én rad, sortert etter x
+    expect(layoutMarkLabels([{ t: 1, x: 100 }, { t: 0, x: 0 }], w).map((p) => [p.times, p.row])).toEqual([
+      [[0], 0],
+      [[1], 0],
+    ]);
+    expect(layoutMarkLabels([], w)).toEqual([]);
+    // Tett i tett: ingen etiketter overlapper i samme rad, og de som ikke får plass i noen rad, sløyfes
+    const many = Array.from({ length: 7 }, (_, i) => ({ t: i, x: i * 6.5 }));
+    const res = layoutMarkLabels(many, w);
+    for (const row of [0, 1]) {
+      const inRow = res.filter((p) => p.row === row);
+      for (let i = 1; i < inRow.length; i++) {
+        const a = inRow[i - 1]!;
+        const b = inRow[i]!;
+        expect(b.x - w(b.times) / 2 - (a.x + w(a.times) / 2)).toBeGreaterThanOrEqual(4);
+      }
+    }
+    expect(res.length).toBeLessThan(7);
+    // Etiketter utenfor bildet tar ikke plass
+    const vis = layoutMarkLabels([{ t: 0, x: -50 }, { t: 1, x: 15 }], w, { visible: (x, ww) => x - ww / 2 >= 0 });
+    expect(vis.map((p) => [p.times, p.row])).toEqual([[[1], 0]]);
+    // Bil som er ved s = 5 m både ved t = 1 s og t = 5 s: de to merkene får én etikett, «1 s og 5 s»
+    const m5 = { s0: 0, v0: 6, a: -2 };
+    expect(position(m5, 1)).toBeCloseTo(5, 12);
+    expect(position(m5, 5)).toBeCloseTo(5, 12);
+    const labels = layoutMarkLabels(
+      secondMarks(m5, 5).map((q) => ({ t: q.t, x: 400 + q.s * 40 })),
+      (times) => markLabel(times).length * 8,
+    );
+    expect(labels.find((p) => p.times.includes(1))!.times).toEqual([1, 5]);
+    expect(labels.find((p) => p.times.includes(2))!.times).toEqual([2, 4]);
+  });
+
+  it('etiketten har enhet på hvert tidspunkt, så «1, 5 s» aldri kan leses som 1,5 s', () => {
+    expect(markLabel([3])).toBe('3\u00a0s');
+    expect(markLabel([1, 5])).toBe('1\u00a0s og 5\u00a0s');
+    expect(markLabel([2, 3, 4])).toBe('2\u00a0s, 3\u00a0s og 4\u00a0s');
+    expect(markLabel([])).toBe('');
+    for (const times of [[1, 5], [2, 3, 4], [0, 1, 2, 3]]) expect(markLabel(times)).not.toMatch(/\d, ?\d/);
+  });
+});
+
 describe('reaksjonslengde og bremselengde', () => {
   it('80 km/h, 1,0 s reaksjonstid og 8,0 m/s²', () => {
     const v0 = kmhToMs(80);
@@ -182,6 +319,142 @@ describe('loddrett kast', () => {
     expect(flightTime({ v0: -5, h0: 0 })).toBe(0);
     expect(flightTime({ v0: 0, h0: 0 })).toBe(0);
     expect(impactSpeed({ v0: 0, h0: 0 })).toBe(0);
+  });
+
+  it('tidløs likning v² − v₀² = 2as med a = −g gjelder hele veien (energibevaring)', () => {
+    for (const t2 of [th, { v0: 5, h0: 20 }, { v0: -10, h0: 40 }, { v0: 25, h0: 40 }, { v0: 0, h0: 7 }]) {
+      const T = flightTime(t2);
+      for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+        const t = f * T;
+        const v = throwVelocity(t2, t);
+        const s = throwHeight(t2, t);
+        expect(v * v - t2.v0 * t2.v0).toBeCloseTo(2 * -9.81 * (s - t2.h0), 8);
+      }
+    }
+  });
+
+  it('alle ytterpunktene på glidebryterne gir endelige tall og en ball som ender i s = 0', () => {
+    for (const v0 of [-10, -0.5, 0, 0.5, 12, 25]) {
+      for (const h0 of [0, 1, 2, 40]) {
+        if (h0 === 0 && v0 < 0) continue; // glidebryteren setter v₀ = 0 her
+        const t2 = { v0, h0 };
+        const T = flightTime(t2);
+        expect(Number.isFinite(T) && T >= 0).toBe(true);
+        expect(Number.isFinite(impactSpeed(t2))).toBe(true);
+        expect(maxHeight(t2)).toBeGreaterThanOrEqual(h0);
+        if (T > 0) expect(throwHeight(t2, T)).toBeCloseTo(0, 9);
+        // Høyden er aldri negativ i lufta
+        for (let i = 0; i <= 20; i++) expect(throwHeight(t2, (i / 20) * T)).toBeGreaterThan(-1e-9);
+      }
+    }
+    // Største kast: 25 m/s fra 40 m når 71,9 m og tas imot i 37,9 m/s
+    expect(maxHeight({ v0: 25, h0: 40 })).toBeCloseTo(40 + 625 / 19.62, 9);
+    expect(impactSpeed({ v0: 25, h0: 40 })).toBeCloseTo(Math.sqrt(625 + 2 * 9.81 * 40), 9);
+  });
+
+  it('fasene i kastet: start, opp, topp, ned og slutt', () => {
+    const tTop = topTime(th)!;
+    const T = flightTime(th);
+    expect(throwPhase(th, 0)).toBe('start');
+    expect(throwPhase(th, 0.5)).toBe('opp');
+    expect(throwPhase(th, tTop)).toBe('topp');
+    expect(throwPhase(th, tTop + 0.02)).toBe('topp');
+    expect(throwPhase(th, 2)).toBe('ned');
+    expect(throwPhase(th, T)).toBe('slutt');
+    expect(throwPhase({ v0: 0, h0: 0 }, 0)).toBe('ro');
+    // Kast nedover og slipp har ikke toppunkt, så v ≈ 0 i starten er «start», ikke «topp»
+    expect(throwPhase({ v0: 0, h0: 10 }, 0)).toBe('start');
+    expect(throwPhase({ v0: 0, h0: 10 }, 0.01)).toBe('ned');
+    expect(throwPhase({ v0: -5, h0: 10 }, 0.5)).toBe('ned');
+  });
+
+  it('høydeaksen: luft over toppunktet, pene verdier og minst minTop', () => {
+    expect(throwAxisTop(th)).toBe(10); // 7,34 m · 1,2 = 8,8 → 10
+    expect(throwAxisTop(th, 12)).toBe(15);
+    expect(throwAxisTop({ v0: 0.5, h0: 0 })).toBe(2);
+    expect(throwAxisTop({ v0: 25, h0: 40 })).toBe(100); // 71,9 · 1,2 = 86 → 100
+    expect(throwAxisTop({ v0: -10, h0: 40 })).toBe(50);
+    for (const v0 of [-10, 0, 3, 12, 25])
+      for (const h0 of [0, 5, 40]) {
+        const top = throwAxisTop({ v0, h0 }, 6);
+        expect(top).toBeGreaterThanOrEqual(Math.max(6, 1.2 * maxHeight({ v0, h0 })) - 1e-9);
+      }
+  });
+
+  it('minste høydeakse som gir plass til bakken under s = 0', () => {
+    // 1,45 m under s = 0, 335 enheter høy akse og 50 enheter ledig: høyst 34,5 enheter per meter → minst 9,7 m
+    expect(minAxisTopForGround(1.45, 335, 50)).toBeCloseTo(9.715, 3);
+    expect(minAxisTopForGround(0, 335, 50)).toBe(0);
+    expect(minAxisTopForGround(1.45, 335, 0)).toBeCloseTo(1.45 * 335, 9);
+  });
+
+  it('boligblokka: balkongen h₀ over bakken, etasjene 3 m fra hverandre og grunnmur under', () => {
+    const b10 = throwBuilding(10);
+    expect(b10.floors).toEqual([1, 4, 7, 10]);
+    expect(b10.balconies).toEqual([4, 7, 10]); // 1 m har ikke fri høyde under
+    expect(b10.base).toBe(1);
+    expect(b10.roof).toBe(13);
+    // Lav terrasse: gulvet til den som kaster har alltid balkong, og blokka er minst 9 m høy
+    expect(throwBuilding(2)).toEqual({ floors: [2, 5, 8], balconies: [2, 5, 8], base: 2, roof: 11 });
+    expect(throwBuilding(1).balconies).toEqual([1, 4, 7]);
+    // Tre etasjer når den som kaster står i skolegården (h₀ = 0)
+    expect(throwBuilding(0)).toEqual({ floors: [0, 3, 6], balconies: [3, 6], base: 0, roof: 9 });
+    const b40 = throwBuilding(40);
+    expect(b40.floors.length).toBe(14);
+    expect(b40.floors[b40.floors.length - 1]).toBe(40); // øverste etasje
+    expect(b40.balconies[0]).toBe(4);
+    expect(b40.roof).toBe(43);
+    expect(throwBuilding(6).floors).toEqual([0, 3, 6]);
+    expect(throwBuilding(7).roof).toBe(10);
+    expect(throwBuilding(Number.NaN).floors).toEqual([0, 3, 6]);
+    // Taket er alltid over gulvet til den som kaster, og alle gulvene er 3 m fra hverandre
+    for (let h0 = 0; h0 <= 40; h0++) {
+      const b = throwBuilding(h0);
+      expect(b.roof).toBeGreaterThanOrEqual(Math.max(9, h0 + 3) - 1e-9);
+      expect(b.floors).toContain(h0);
+      for (let i = 1; i < b.floors.length; i++) expect(b.floors[i]! - b.floors[i - 1]!).toBeCloseTo(3, 9);
+      expect(b.base).toBeLessThan(3);
+    }
+  });
+});
+
+describe('etiketten «toppunkt» i v-t-grafen', () => {
+  // Mobil: tekstskalering 1,8, grafen begynner i x0 = 130 og er 310 enheter bred for 2 s, 14,8 enheter per m/s
+  const f = 1.8;
+  const x0 = 130;
+  const x1 = 450;
+  const sx = (t: number) => x0 + 155 * t;
+  const slope = (14.8 * 9.81) / 155;
+  const base = { py: 300, w: 8 * 0.8 * 17 * f * 0.6, h: 0.8 * 17 * f * 0.75, pad: 8 * f, x0, x1, slope };
+
+  it('står under og til venstre for punktet når det er plass (som før)', () => {
+    const p = topLabelPlacement({ ...base, px: sx(1.6) })!;
+    expect(p.anchor).toBe('end');
+    expect(p.x).toBeCloseTo(sx(1.6) - 8 * f, 9);
+    expect(p.y).toBeGreaterThan(300);
+  });
+
+  it('dekker aldri aksetallene når toppunktet kommer tidlig (v₀ = 8 m/s og 5 m/s)', () => {
+    for (const v0 of [8, 5, 3, 1, 0.5]) {
+      const px = sx(v0 / 9.81);
+      const p = topLabelPlacement({ ...base, px })!;
+      expect(p).not.toBeNull();
+      const left = p.anchor === 'end' ? p.x - base.w : p.x;
+      expect(left).toBeGreaterThanOrEqual(x0 + 2);
+      expect(left + base.w).toBeLessThanOrEqual(x1 - 2);
+      if (p.anchor === 'end') {
+        // Under aksen: høyre kant er til venstre for linja ved overkanten av teksten
+        const top = p.y - base.h;
+        expect(p.x).toBeLessThan(px + (top - 300) / slope);
+      } else expect(p.y).toBeLessThan(300);
+    }
+  });
+
+  it('går over til høyre når den ikke får plass under, og sløyfes når noe står i veien der også', () => {
+    const px = sx(0.1);
+    expect(topLabelPlacement({ ...base, px })!.anchor).toBe('start');
+    const blocked = { x: px, y: 200, w: 300, h: 100 };
+    expect(topLabelPlacement({ ...base, px, avoid: [blocked] })).toBeNull();
   });
 });
 

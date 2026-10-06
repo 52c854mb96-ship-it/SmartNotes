@@ -1,0 +1,71 @@
+/*
+ * Egne farger for familien «lab» i scene-kit-et (varme og elektrisitet). Bruk SCENE og PAINTS først; dette er bare
+ * det de mangler: termometervæske, trykk på instrumenter, motstander med fargekode og solceller.
+ * Mørkt tema er skumring (samme materialer, mindre lys). Verdiene må være like i begge mørke blokkene.
+ */
+:root {
+  /* Rød termometervæske (farget sprit) */
+  --sc-lab-thermo: #d0433a;
+  /* Trykk og skalastreker på glass og instrumenter */
+  --sc-lab-ink: #34404c;
+  /* Motstand: lys beige kropp og fargekoden 0–9 */
+  --sc-lab-resistor: #dcc59a;
+  --sc-lab-band-0: #222324;
+  --sc-lab-band-1: #7b4a26;
+  --sc-lab-band-2: #cc3a2f;
+  --sc-lab-band-3: #e57c25;
+  --sc-lab-band-4: #ecc531;
+  --sc-lab-band-5: #3c9147;
+  --sc-lab-band-6: #2f64b6;
+  --sc-lab-band-7: #8150ad;
+  --sc-lab-band-8: #8d8f92;
+  --sc-lab-band-9: #f3f3f0;
+  /* Solcellepanel: mørkeblått glass og sølvstriper */
+  --sc-lab-solar: #26487f;
+  --sc-lab-solar-line: #c9d6e6;
+  /* Damp: hvit kjerne, lys blågrå myk kant (lys også i skumring, så den ikke ser ut som røyk) */
+  --sc-lab-steam: #ffffff;
+  --sc-lab-steam-edge: #b2c3d5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --sc-lab-thermo: #c84c41;
+    --sc-lab-ink: #d3dbe3;
+    --sc-lab-resistor: #a18e69;
+    --sc-lab-band-0: #141516;
+    --sc-lab-band-1: #61391d;
+    --sc-lab-band-2: #a8372e;
+    --sc-lab-band-3: #b9682a;
+    --sc-lab-band-4: #c2a32f;
+    --sc-lab-band-5: #357b3f;
+    --sc-lab-band-6: #2e5696;
+    --sc-lab-band-7: #6a4690;
+    --sc-lab-band-8: #6e7175;
+    --sc-lab-band-9: #bcbeba;
+    --sc-lab-solar: #1c3765;
+    --sc-lab-solar-line: #8195ad;
+    --sc-lab-steam: #eef3f8;
+    --sc-lab-steam-edge: #c9d6e4;
+  }
+}
+
+:root[data-theme='dark'] {
+  --sc-lab-thermo: #c84c41;
+  --sc-lab-ink: #d3dbe3;
+  --sc-lab-resistor: #a18e69;
+  --sc-lab-band-0: #141516;
+  --sc-lab-band-1: #61391d;
+  --sc-lab-band-2: #a8372e;
+  --sc-lab-band-3: #b9682a;
+  --sc-lab-band-4: #c2a32f;
+  --sc-lab-band-5: #357b3f;
+  --sc-lab-band-6: #2e5696;
+  --sc-lab-band-7: #6a4690;
+  --sc-lab-band-8: #6e7175;
+  --sc-lab-band-9: #bcbeba;
+  --sc-lab-solar: #1c3765;
+  --sc-lab-solar-line: #8195ad;
+  --sc-lab-steam: #eef3f8;
+  --sc-lab-steam-edge: #c9d6e4;
+}

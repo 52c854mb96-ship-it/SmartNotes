@@ -5,7 +5,7 @@ import { PageSkeleton } from '../components/EmptyState';
 import { useChapters, useSubject } from '../data';
 import { sectionLabel, sectionsOf } from '../lib/curriculum';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
-import { getViz, vizEntries } from '../viz/registry';
+import { getViz, isExample, vizEntries } from '../viz/registry';
 import { NotFoundPage } from './NotFoundPage';
 
 /** Én interaktiv visualisering. */
@@ -47,7 +47,7 @@ export function VisualizationPage() {
       <header className="page-header">
         <div className="page-heading">
           <p className="eyebrow">
-            Kapittel {entry.chapter}
+            {isExample(entry) ? 'Eksempeloppgave · ' : ''}Kapittel {entry.chapter}
             {chapter ? ` ${chapter.title}` : ''}
             {sectionText ? ` · ${sectionText}` : ''}
           </p>

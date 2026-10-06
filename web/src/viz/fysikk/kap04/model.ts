@@ -43,6 +43,43 @@ export function dtForFmax(dp: number, Fmax: number): number {
   return (Math.PI * dp) / (2 * Fmax);
 }
 
+export interface ImpactState {
+  /** Kraften fra underlaget på legemet (N). */
+  F: number;
+  /** Farten (m/s), positiv i bevegelsesretningen før støtet. */
+  v: number;
+  /** Hvor langt legemet har flyttet seg siden det traff (m). Negativ før støtet. */
+  s: number;
+  /** Impulsen så langt (N·s): arealet under F-t-grafen fra 0 til t. */
+  I: number;
+}
+
+/**
+ * Tilstanden ved tiden t (s) i støtet fra `impact` (til avspilling i sakte film): t = 0 når legemet treffer, t = Δt når
+ * det står stille. Med kraften som en halv sinusbue blir v(t) = (v₀/2)·(1 + cos(πt/Δt)) og
+ * s(t) = (v₀/2)·(t + (Δt/π)·sin(πt/Δt)). Impulsloven gjelder i hvert øyeblikk: I(t) = m·v₀ − m·v(t).
+ * Før støtet går legemet med farten v₀; tyngden er sett bort fra, som i `impact`.
+ */
+export function impactAt(m: number, v0: number, dt: number, t: number): ImpactState {
+  if (t <= 0) return { F: 0, v: v0, s: v0 * t, I: 0 };
+  if (t >= dt) return { F: 0, v: 0, s: (v0 * dt) / 2, I: m * v0 };
+  const w = (Math.PI * t) / dt;
+  const Fmax = (Math.PI / 2) * ((m * v0) / dt);
+  return {
+    F: Fmax * Math.sin(w),
+    v: (v0 / 2) * (1 + Math.cos(w)),
+    s: (v0 / 2) * (t + (dt / Math.PI) * Math.sin(w)),
+    I: ((m * v0) / 2) * (1 - Math.cos(w)),
+  };
+}
+
+/** Første tidspunkt (s) der kraften i en halv sinuspuls når F, eller null hvis toppen F_maks er mindre enn F. */
+export function timeToForce(Fmax: number, dt: number, F: number): number | null {
+  if (!(Fmax >= F)) return null;
+  if (F <= 0) return 0;
+  return (dt / Math.PI) * Math.asin(F / Fmax);
+}
+
 /* ---------- 4C/4D Sentrale støt ---------- */
 
 export interface CollisionResult {
@@ -112,6 +149,64 @@ export interface ExplosionResult {
 export function explode(m1: number, m2: number, E: number): ExplosionResult {
   const p = Math.sqrt((2 * Math.max(0, E) * m1 * m2) / (m1 + m2));
   return { v1: -p / m1, v2: p / m2, p1: -p, p2: p, Ek1: (p * p) / (2 * m1), Ek2: (p * p) / (2 * m2) };
+}
+
+export interface PushResult extends ExplosionResult {
+  /** Kraften mellom legemene mens de skyves fra hverandre (N). Konstant i modellen (gjennomsnittskraften). */
+  F: number;
+  /** Hvor lenge kraften virker (s): Δt = p/F. */
+  dt: number;
+  /** Impulsen på legeme 2 (N·s): I = F·Δt = p₂. Legeme 1 får −I. */
+  I: number;
+  /** Energien som blir kinetisk energi (J): arbeidet E = F·D. */
+  E: number;
+  /** Hvor mye avstanden mellom legemene øker mens kraften virker (m). */
+  D: number;
+}
+
+/**
+ * To legemer i ro skyves fra hverandre av en konstant kraft F (N) mens avstanden mellom dem øker med D (m): armene
+ * strekkes, fjæra spretter ut eller kula går gjennom løpet. Arbeidet F·D blir kinetisk energi, så farten etterpå er
+ * den samme som i explode(m1, m2, F·D). Kraften virker i Δt = p/F, og begge får impulsen F·Δt (motsatt rettet).
+ * Med E kjent i stedet for F (fjær, krutt): pushApart(m1, m2, E/D, D).
+ */
+export function pushApart(m1: number, m2: number, F: number, D: number): PushResult {
+  const force = Math.max(0, F);
+  const dist = Math.max(0, D);
+  const E = force * dist;
+  const r = explode(m1, m2, E);
+  return { ...r, F: force, dt: force > 0 ? r.p2 / force : 0, I: r.p2, E, D: dist };
+}
+
+export type PushPhase = 'for' | 'under' | 'etter';
+
+export interface PushState {
+  /** Før dyttet (i ro), under dyttet (kraften virker) eller etter (jevn fart). */
+  phase: PushPhase;
+  /** Hvor langt hvert legeme har flyttet seg fra start (m), negativt mot venstre. */
+  x1: number;
+  x2: number;
+  /** Farten (m/s), positiv mot høyre. */
+  v1: number;
+  v2: number;
+  /** Kraften på legeme 2 (N, mot høyre). Legeme 1 får −F (Newtons 3. lov). Null før og etter dyttet. */
+  F: number;
+}
+
+/**
+ * Tilstanden ved tiden t (s) etter at dyttet begynner (t < 0: i ro). Kraften er konstant i [0, Δt], så farten øker
+ * jevnt (v = a·t, s = ½·a·t²), og etterpå går begge med jevn fart. Σp = 0 og massesenteret står stille hele tiden.
+ */
+export function pushAt(m1: number, m2: number, r: PushResult, t: number): PushState {
+  if (!(t >= 0)) return { phase: 'for', x1: 0, x2: 0, v1: 0, v2: 0, F: 0 };
+  if (t < r.dt) {
+    const a1 = -r.F / m1;
+    const a2 = r.F / m2;
+    return { phase: 'under', x1: 0.5 * a1 * t * t, x2: 0.5 * a2 * t * t, v1: a1 * t, v2: a2 * t, F: r.F };
+  }
+  // Etter dyttet: x = v·(t − Δt/2), som henger sammen med ½·a·Δt² når t = Δt.
+  const tt = t - r.dt / 2;
+  return { phase: 'etter', x1: r.v1 * tt, x2: r.v2 * tt, v1: r.v1, v2: r.v2, F: 0 };
 }
 
 /* ---------- Tegnehjelp: posisjoner langs en bane ---------- */

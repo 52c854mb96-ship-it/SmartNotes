@@ -7,6 +7,9 @@
  *   node scripts/viz-shot.mjs --port 5311 --ids k2-friksjon,k2-kraftpar --themes dark --widths 390
  *   node scripts/viz-shot.mjs --port 5311 --chapter 2 --extremes     # også med alle glidebrytere på min og på maks
  *   node scripts/viz-shot.mjs --port 5311 --fag kjemi --chapter 3     # kjemi eller biologi (standard: fysikk)
+ *   node scripts/viz-shot.mjs --port 5311 --ids k2-eks-skraplan --steps   # eksempeloppgave: også ett bilde per steg
+ *
+ * Eksempeloppgaver (`.viz-example`) får alltid også et bilde av hele løsningen (`-alle`).
  *
  * Skriver én PNG per visualisering × tema × bredde, og lister konsollfeil. Avslutter med kode 1 ved feil.
  */
@@ -49,7 +52,7 @@ try {
       for (const width of widths) {
         const page = await browser.newPage({ viewport: { width, height: 900 }, deviceScaleFactor: width < 600 ? 2 : 1 });
         const errors = [];
-        page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+        page.on('console', (m) => m.type() === 'error' && !(m.location().url ?? '').includes('favicon') && errors.push(m.text()));
         page.on('pageerror', (e) => errors.push(String(e)));
         await page.goto(`${base}?fag=${fag}&id=${id}&theme=${theme}`);
         try {
@@ -58,9 +61,25 @@ try {
           errors.push('Visualiseringen ble ikke vist innen 30 s');
         }
         await page.waitForTimeout(300);
+        const isExample = (await page.$('.viz-example')) !== null;
         const variants = args.extremes ? ['', 'min', 'max'] : [''];
+        // Eksempeloppgaver: også hele løsningen («alle»), og med --steps ett bilde per steg («steg1» …).
+        if (isExample) {
+          if (args.steps) {
+            const n = await page.$$eval('.viz-steps-dot', (d) => d.length);
+            for (let i = 1; i <= n; i++) variants.push(`steg${i}`);
+          }
+          variants.push('alle');
+        }
         for (const variant of variants) {
-          if (variant) {
+          if (variant.startsWith('steg')) {
+            const i = Number(variant.slice(4));
+            await page.click(`.viz-steps-dot >> nth=${i - 1}`);
+            await page.waitForTimeout(450);
+          } else if (variant === 'alle') {
+            await page.click('button:has-text("Vis hele løsningen")');
+            await page.waitForTimeout(450);
+          } else if (variant) {
             // Sett alle glidebryterne til ytterverdien (React lytter på input-hendelsen).
             for (const slider of await page.$$('input[type=range]')) {
               const value = await slider.getAttribute(variant);

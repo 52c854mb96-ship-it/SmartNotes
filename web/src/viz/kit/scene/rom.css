@@ -1,0 +1,187 @@
+/*
+ * Farger for familien «rom» i scene-kit-et (rom.tsx): verdensrommet, planetene, sola, tåker og partikler.
+ * Verdensrommet er mørkt i begge temaer (SCENE.space). I mørkt tema (skumring) er alt litt dempet, så ingenting
+ * gløder sterkere enn kraftpilene oppå.
+ *
+ * Proton, nøytron og elektron peker på de samme variablene som fysikk kapittel 7 og 8 (PARTICLE i
+ * fysikk/kap07/parts.tsx), så partiklene har samme farge overalt. Tegnene (+ og −) har flatefargen (VIZ.surface), som i
+ * kapittel 7, så de følger både temaet og fagtemaene (kjemi og biologi).
+ *
+ * Farger for lys (bølgelengde, stjernetemperatur) er fysiske og regnes ut i rom.tsx, ikke her.
+ */
+:root {
+  /* Partikler (samme som PARTICLE i fysikk kapittel 7–8) */
+  --sc-rom-proton: var(--viz-s2);
+  --sc-rom-noytron: var(--viz-tension);
+  --sc-rom-elektron: var(--viz-s1);
+  --sc-rom-tegn: var(--viz-surface);
+
+  /* Himmel */
+  --sc-rom-melkevei: #8d9dc4;
+  --sc-rom-melkevei-kjerne: #d6c4a4;
+  --sc-rom-stov: #120b09;
+  --sc-rom-natt: #02050c;
+
+  /* Sola */
+  --sc-rom-sol-kjerne: #fff7d6;
+  --sc-rom-sol: #ffcf52;
+  --sc-rom-sol-kant: #ee8a2a;
+  --sc-rom-sol-korona: #ffd27a;
+  --sc-rom-sol-flekk: #6e3210;
+
+  /* Jorda */
+  --sc-rom-hav: #3a78bf;
+  --sc-rom-hav-dyp: #1d4a8c;
+  --sc-rom-land: #6d9850;
+  --sc-rom-land-mork: #4f7a3c;
+  --sc-rom-orken: #d2b07a;
+  --sc-rom-is: #f4f7fb;
+  --sc-rom-sky: #ffffff;
+  --sc-rom-atmosfaere: #86bdff;
+
+  /* Mars */
+  --sc-rom-mars: #c8693c;
+  --sc-rom-mars-mork: #8c4a2c;
+  --sc-rom-mars-lys: #e3a174;
+
+  /* Jupiter */
+  --sc-rom-jupiter-sone: #ece2cb;
+  --sc-rom-jupiter-belte: #bf926a;
+  --sc-rom-jupiter-mork: #94694a;
+  --sc-rom-jupiter-flekk: #cd6a45;
+
+  /* Månen */
+  --sc-rom-maane: #cfcdc6;
+  --sc-rom-maane-mare: #8f8d88;
+  --sc-rom-maane-lys: #ecebe6;
+
+  /* Neptun */
+  --sc-rom-neptun: #4273d6;
+  --sc-rom-neptun-lys: #9cc0f4;
+  --sc-rom-neptun-mork: #23428f;
+
+  /* Tåker (gass og støv) */
+  --sc-rom-taake-rod: #e4577b;
+  --sc-rom-taake-rod-2: #f39a68;
+  --sc-rom-taake-blaa: #4d86e2;
+  --sc-rom-taake-blaa-2: #92d4f2;
+  --sc-rom-taake-fiolett: #9b62d8;
+  --sc-rom-taake-fiolett-2: #e47cc6;
+  --sc-rom-taake-indre: #bdf3ec;
+  --sc-rom-taake-kjerne: #fff3e6;
+
+  /* Lys */
+  --sc-rom-hvitt-lys: #fffdf3;
+  --sc-rom-hvitt-glod: #ffcf6e;
+  --sc-rom-spektrum-bunn: #06080e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --sc-rom-tegn: var(--viz-surface);
+
+    --sc-rom-melkevei: #6f7fa6;
+    --sc-rom-melkevei-kjerne: #a8987c;
+    --sc-rom-stov: #0a0605;
+    --sc-rom-natt: #010307;
+
+    --sc-rom-sol-kjerne: #fff1c8;
+    --sc-rom-sol: #f6c24a;
+    --sc-rom-sol-kant: #dc7a26;
+    --sc-rom-sol-korona: #e9b85e;
+    --sc-rom-sol-flekk: #5a2a0e;
+
+    --sc-rom-hav: #2f66a6;
+    --sc-rom-hav-dyp: #183d74;
+    --sc-rom-land: #5b8443;
+    --sc-rom-land-mork: #426833;
+    --sc-rom-orken: #b39566;
+    --sc-rom-is: #d9e1ea;
+    --sc-rom-sky: #e9eef4;
+    --sc-rom-atmosfaere: #6aa6ec;
+
+    --sc-rom-mars: #b45e36;
+    --sc-rom-mars-mork: #7a4027;
+    --sc-rom-mars-lys: #cc8f66;
+
+    --sc-rom-jupiter-sone: #d8ccb2;
+    --sc-rom-jupiter-belte: #a87f5c;
+    --sc-rom-jupiter-mork: #7f5a3f;
+    --sc-rom-jupiter-flekk: #b65d3c;
+
+    --sc-rom-maane: #b9b7b0;
+    --sc-rom-maane-mare: #7c7a75;
+    --sc-rom-maane-lys: #d5d3cd;
+
+    --sc-rom-neptun: #3a66c0;
+    --sc-rom-neptun-lys: #86ace2;
+    --sc-rom-neptun-mork: #1d397c;
+
+    --sc-rom-taake-rod: #cc4d6e;
+    --sc-rom-taake-rod-2: #dc8a5d;
+    --sc-rom-taake-blaa: #4478cb;
+    --sc-rom-taake-blaa-2: #80bedb;
+    --sc-rom-taake-fiolett: #8a57c2;
+    --sc-rom-taake-fiolett-2: #cc6eb1;
+    --sc-rom-taake-indre: #a2e2da;
+    --sc-rom-taake-kjerne: #f3e6d8;
+
+    --sc-rom-hvitt-lys: #f6f1e2;
+    --sc-rom-hvitt-glod: #e8b85e;
+    --sc-rom-spektrum-bunn: #040509;
+  }
+}
+
+:root[data-theme='dark'] {
+  --sc-rom-tegn: var(--viz-surface);
+
+  --sc-rom-melkevei: #6f7fa6;
+  --sc-rom-melkevei-kjerne: #a8987c;
+  --sc-rom-stov: #0a0605;
+  --sc-rom-natt: #010307;
+
+  --sc-rom-sol-kjerne: #fff1c8;
+  --sc-rom-sol: #f6c24a;
+  --sc-rom-sol-kant: #dc7a26;
+  --sc-rom-sol-korona: #e9b85e;
+  --sc-rom-sol-flekk: #5a2a0e;
+
+  --sc-rom-hav: #2f66a6;
+  --sc-rom-hav-dyp: #183d74;
+  --sc-rom-land: #5b8443;
+  --sc-rom-land-mork: #426833;
+  --sc-rom-orken: #b39566;
+  --sc-rom-is: #d9e1ea;
+  --sc-rom-sky: #e9eef4;
+  --sc-rom-atmosfaere: #6aa6ec;
+
+  --sc-rom-mars: #b45e36;
+  --sc-rom-mars-mork: #7a4027;
+  --sc-rom-mars-lys: #cc8f66;
+
+  --sc-rom-jupiter-sone: #d8ccb2;
+  --sc-rom-jupiter-belte: #a87f5c;
+  --sc-rom-jupiter-mork: #7f5a3f;
+  --sc-rom-jupiter-flekk: #b65d3c;
+
+  --sc-rom-maane: #b9b7b0;
+  --sc-rom-maane-mare: #7c7a75;
+  --sc-rom-maane-lys: #d5d3cd;
+
+  --sc-rom-neptun: #3a66c0;
+  --sc-rom-neptun-lys: #86ace2;
+  --sc-rom-neptun-mork: #1d397c;
+
+  --sc-rom-taake-rod: #cc4d6e;
+  --sc-rom-taake-rod-2: #dc8a5d;
+  --sc-rom-taake-blaa: #4478cb;
+  --sc-rom-taake-blaa-2: #80bedb;
+  --sc-rom-taake-fiolett: #8a57c2;
+  --sc-rom-taake-fiolett-2: #cc6eb1;
+  --sc-rom-taake-indre: #a2e2da;
+  --sc-rom-taake-kjerne: #f3e6d8;
+
+  --sc-rom-hvitt-lys: #f6f1e2;
+  --sc-rom-hvitt-glod: #e8b85e;
+  --sc-rom-spektrum-bunn: #040509;
+}

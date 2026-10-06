@@ -4,6 +4,8 @@ Interaktive forklaringer til hvert kapittel i lærebøkene (ERGO Fysikk 1, Kjemi
 
 **Mønster å følge:** `fysikk/kap02/` (friksjon, kraftpar og koblede klosser), og for kjemi `kjemi/kap01/` og `kjemi/kap03/`. Les dem før du lager nye.
 
+**Nytt fra oktober 2026:** visualiseringene tegnes i **illustrert realisme** med scene-kit-et (`kit/scene/`), og hvert kapittel får **eksempeloppgaver** med løsning steg for steg (`kit/eksempel.tsx`). Les de to avsnittene om dette under før du lager eller endrer noe. Mønster for eksempeloppgavene: `fysikk/kap02/EksSkraplan.tsx`.
+
 ## Struktur
 
 ```
@@ -44,6 +46,96 @@ Rekkefølge inne i `<VizLayout>`:
 4. `<Readouts>` med 2–4 `<Readout>` (store tall)
 5. `<Formula>` med utregning med levende tall (valgfritt)
 6. `<Explain>` – kort tekst som **endrer seg med tilstanden** og forklarer hva eleven ser
+
+## Illustrert realisme (scene-kit)
+
+Eleven vil at visualiseringene skal se **ekte** ut og samtidig være **maksimalt lette å forstå**. Tenk en god, moderne lærebokillustrasjon: en ekte bil på en vei med himmel og landskap bak, en trekasse på en planke, en heis med en person på en badevekt. Fysikken (kraftpiler, fartspiler, mål og tall) legges tydelig oppå.
+
+### Grunnregelen: dempet scene, tydelig fysikk
+
+- Scenen bruker naturlige, dempede farger fra `SCENE` og `PAINTS` (CSS-variabler `--sc-*` i `kit/scene/scene.css`, lyst og mørkt tema).
+- Fysiske størrelser bruker alltid `VIZ`-fargene (G oransje, N blå, R lilla, F grønn, v turkis, a magenta). Bruk dem aldri på gjenstander.
+- Pilene er tykke `ForceArrow` med glorie, så de synes oppå himmel, asfalt og snø. Etiketter og mål har også glorie (`Txt`, `Dimension`, `Callout`, `ValueTag`).
+- Lengden på pilene er proporsjonal med størrelsen, med én fast skala (px/N) i hele figuren. Skalaen kan avhenge av tallsettet, men aldri av hvilken kraft det er.
+- Gi eleven en bryter for kreftene der scenen ellers blir rotete: `<Toggle label="Vis krefter" …>`. Standard er på når kreftene er poenget.
+
+### Bruk
+
+```tsx
+import { Himmel, Landskap, Vei, Bil, ForceArrow, Dimension, ValueTag, SCENE } from '../../kit/scene';
+```
+
+Scene-kit-et importeres for seg selv, ikke fra `../../kit`, så navnene ikke kolliderer med kjemi- og biologi-kit-et. **Kort oversikt over alt i kit-et: `kit/scene/API.md`** (generert fra JSDoc; les den først, og bare kildefilene for det du bruker). `index.ts` laster også `scene.css`. Gjenstandene ses i galleriet: `http://localhost:5173/viz-preview.html?galleri=alle&theme=dark` (eller `?galleri=kjoretoy` osv.). Skjermbilder: `node scripts/galleri-shot.mjs --port 5173 --galleri alle --out /tmp/galleri`.
+
+| Fil | Innhold |
+|---|---|
+| `palette.ts` | `SCENE.*` (himmel, landskap, underlag, materialer, hud, rom, skygge), `PAINTS` (rod, blaa, gronn, gul, oransje, lilla, hvit, graa, svart) og `paint()` |
+| `core.tsx` | `shade`, `tint`, `alpha`, `mix` (fargeblanding som følger temaet), `LinearGradient`, `RadialGradient`, `materialStops`, `sphereStops`, `ContactShadow`, `Place`, `useSceneScale`, `useStrokeScale`, `sceneRandom(frø)`, `useSvgId`, `SceneObjectProps`, `SCENE_DIM` |
+| `overlay.tsx` | `ForceArrow` (tykk pil, `dashed` for komponenter, `origin` for angrepspunktet), `Dimension` (mållinje), `Callout` (etikett med strek), `ValueTag` (skilt med verdi), `SpeedLines` (fartsstreker) |
+| `bakgrunn.tsx` | himmel, landskap, trær, underlag og terreng av ulike typer, vei, rom og vann |
+| `kjoretoy.tsx` | bil, sykkel, akebrett, kjelke, labvogn, heis og berg-og-dal-vogn |
+| `figurer.tsx` | personer i mange positurer (skjelett med leddvinkler), fallskjerm |
+| `mekanikk.tsx` | kasse, kloss, ball, curlingstein, trinse, tau, fjær, strikk, kraftmåler, badevekt, bord, rampe, lodd, målebånd og stoppeklokke |
+| `lab.tsx` | termometer, vannkoker, kokeplate, kasserolle, isbit, batteri, lyspære, motstand, multimeter, ledning, bryter, stikkontakt, sikring og sikringsskap, solcellepanel og panelovn |
+| `rom.tsx` | stjernehimmel, stjerner med farge etter temperatur, sola, planeter, tåker, atomkjerner, nukleoner og elektroner, fotoner, lysstråler og spektre |
+
+Se JSDoc i hver fil for props og ankerpunkt. Gjenstander som står på noe, har `(x, y)` midt på kontaktflaten, så de kan settes rett på et underlag og dreies med et skråplan (`rotate` dreier om ankerpunktet).
+
+### Slik bygges en scene
+
+1. **Bakgrunn:** himmel, landskap eller rom. Hold den rolig, uten detaljer som konkurrerer med fysikken.
+2. **Underlag og terreng:** riktig type, for eksempel tørr asfalt, snø, is, gress eller tregulv. Typen kan selv være en del av fysikken (friksjonstallet).
+3. **Gjenstander:** i riktige proporsjoner etter én fast skala px/m i hele figuren. En bil er 4,4 m og en person 1,75 m. Bruk myke skygger.
+4. **Fysikken oppå:** piler, mål, etiketter og skilt med verdier. De skal ikke overlappe hverandre ved standardverdiene.
+5. **Tekst** i figuren bare der den hjelper. Forklaringen hører hjemme i `Explain` under figuren.
+
+Ytterligere regler:
+- **Skjematisk er lov når det er tydeligst:** grafer, energistolper, spektre, HR-diagram og periodesystem forblir rene diagrammer, men får samme stil (glorie, farger og typografi). Ikke tving en illustrasjon inn der en graf forklarer bedre. Mange visualiseringer har både en scene og en graf.
+- **Egne gjenstander** som bare ett kapittel trenger, lages i kapittelmappen etter samme stil (toninger fra `core.tsx`, `SCENE`-farger, kontur, myk skygge) og legges i en egen fil (f.eks. `kap05/varmepumpe-deler.tsx`).
+- **Ytelse:** ingen SVG-filtre og ingen bilder (`<image>`). Statiske bakgrunner kan memoiseres (`useMemo`) når figuren animeres.
+- **Mobil:** gjenstandene vokser ikke av seg selv på mobil. Gang størrelser med `useSceneScale()` når små ting må synes, og sjekk skjermbilder på 390 px.
+- **Mørkt tema** er skumring, ikke invertert. Sjekk alltid begge temaene.
+
+## Eksempeloppgaver
+
+Hvert kapittel har eksempeloppgaver: en oppgave i eksamensstil med deloppgaver og løsningen steg for steg, med en figur som bygger seg opp. Eleven blar gjennom løsningen. Det er ingen svarfelt.
+
+**Opphavsrett:** oppgavene skal **ligne** eksamensoppgaver i form og nivå, men være **egne**: egen tekst, egne tall og egne situasjoner. Kopier aldri, og gjenfortell aldri, ekte eksamensoppgaver, læreboksoppgaver eller oppgaver fra andre nettsider. Appen kan bli brukt av andre og kanskje koste penger.
+
+**Mønster:** `fysikk/kap02/EksSkraplan.tsx` (med `RAMP_TASKS` og `solveRampTask` i `kap02/model.ts`).
+
+```ts
+{
+  id: 'eks-skraplan',          // starter alltid med «eks-» (registry.test.ts sjekker det)
+  kind: 'eksempel',
+  chapter: '2',
+  sections: ['2C', '2E'],
+  title: 'Kasse som sklir ned en rampe',
+  summary: 'Krefter, dekomponering av tyngden, Newtons 2. lov, fart nederst og grensevinkelen, steg for steg.',
+  keywords: [...],
+  load: () => import('./EksSkraplan'),
+}
+```
+
+Komponenten bruker `<WorkedExample>` fra `../../kit` i stedet for `VizLayout`:
+
+| Prop | Innhold |
+|---|---|
+| `intro` | Oppgaveteksten: en kort, konkret situasjon med tallene, slik en eksamensoppgave innleder. |
+| `given` | Tallene kort («m = 25 kg»), som brikker. |
+| `parts` | Deloppgavene a), b), c) … i eksamensstil: «Tegn kreftene …», «Vis at …», «Hvor stor …», «Bestem …», «Forklar hvorfor …». Bruk gjerne en «Vis at»-oppgave, så eleven kan gå videre selv om svaret på forrige deloppgave mangler. |
+| `steps` | Løsningen, 1–3 steg per deloppgave. Hvert steg har `title` (hva vi gjør), `body` (hvorfor), `math` (utregning med levende tall), `answer` (på siste steg i deloppgaven), og gjerne `tip` eller `pitfall` (en vanlig feil). |
+| `figure` | `({ step, part, showAll }) => <Figure …>`. Figuren bygger seg opp: kreftene kommer når de blir tegnet, komponentene når de blir regnet ut, og gjenstanden flytter seg når deloppgaven handler om et annet tidspunkt. Med `showAll` vises alt. |
+| `variants` | Valgfritt: 2–3 tallsett («Tallsett 1, 2, 3»). Hele teksten og løsningen regnes ut fra tallsettet. Test i `model.test.ts` at alle tallsettene gir fysisk fornuftige svar. |
+
+**Innhold og nivå:**
+- Det som typisk kommer på prøver og eksamen i faget: regneoppgaver med flere trinn, tolking av grafer, «forklar» og «vurder».
+- 3–5 deloppgaver som bygger på hverandre og blir gradvis vanskeligere, og som bruker flere delkapitler.
+- Hvert steg forklarer **hvorfor** vi gjør det, ikke bare hva: hvilken lov, hvilket system, hvilken positiv retning og hvilken formel, og hvorfor akkurat den.
+- `pitfall` brukes for typiske feil: N = G på skråplan, celsius i stedet for kelvin, glemt kvadrat, feil friksjonstall, fortegn.
+- **Tall:** regn alltid videre med uavrundede verdier fra modellen. Vis mellomsvar med ett siffer mer enn svaret, og svar med fornuftig antall gjeldende siffer og enhet. Tallene i oppgaveteksten, utregningen og svaret skal komme fra samme modellfunksjon, så de alltid stemmer med hverandre.
+- **Språk:** som i eksamensoppgaver, kort og presist, på bokmål.
+- **Figuren** følger «Illustrert realisme» over.
 
 ## Byggeklosser (`kit/`)
 

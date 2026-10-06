@@ -133,6 +133,6 @@ test('søk og visualiseringer i Safari', async ({ page }, info) => {
   const figure = page.locator('.viz-figure svg').first();
   await expect(figure).toBeVisible();
   expect((await figure.boundingBox())?.height ?? 0).toBeGreaterThan(100);
-  await page.locator('main').getByRole('slider', { name: 'Dytt F' }).fill('40');
-  await expect(page.locator('main').getByText('Klossen glir.')).toBeVisible();
+  await page.locator('main').getByRole('slider', { name: 'Dytt F' }).fill('200');
+  await expect(page.locator('main').getByText('Kassen glir.')).toBeVisible();
 });

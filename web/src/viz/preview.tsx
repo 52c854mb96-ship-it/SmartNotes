@@ -49,7 +49,33 @@ async function loadChapter(no: string): Promise<VizMeta[]> {
   return (await mod()).default;
 }
 
+/** Galleriet over scene-kit-et: ?galleri=kjoretoy (én familie) eller ?galleri=alle. */
+const galleries = import.meta.glob<{ default: ComponentType }>('./kit/scene/galleri/*.tsx');
+
+async function showGallery(name: string) {
+  const keys = Object.keys(galleries)
+    .filter((k) => !k.endsWith('/felles.tsx'))
+    .filter((k) => name === 'alle' || k.endsWith(`/${name}.tsx`))
+    .sort();
+  if (keys.length === 0) throw new Error(`Fant ikke galleriet «${name}»`);
+  const sections = await Promise.all(keys.map(async (k) => ({ name: k.replace(/^.*\/(.*)\.tsx$/, '$1'), Component: (await galleries[k]!()).default })));
+  createRoot(root!).render(
+    <StrictMode>
+      <div data-viz-ready>
+        {sections.map(({ name: n, Component }) => (
+          <section key={n} className="viz" style={{ marginBottom: 24 }}>
+            <h2 style={{ margin: 0 }}>Scene-kit: {n}</h2>
+            <Component />
+          </section>
+        ))}
+      </div>
+    </StrictMode>,
+  );
+}
+
 async function main() {
+  const gallery = params.get('galleri');
+  if (gallery) return showGallery(gallery);
   const match = /^k(\d+)-(.+)$/.exec(id);
   if (!match) {
     const only = params.get('chapter');

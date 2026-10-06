@@ -75,6 +75,14 @@ export function sledWork({ F, alphaDeg, s, mu, m = SLED_MASS }: SledInput, g = G
   return { Fpar, Fperp, G, N, R, WF, WR, WG: 0, WN: 0, W: WF + WR };
 }
 
+/**
+ * Vinkelen (grader) som gir mest totalt arbeid for en gitt kraft når kjelken ikke letter:
+ * W = s(F cos α − μ(G − F sin α)) har dW/dα = sF(μ cos α − sin α) = 0, altså tan α = μ.
+ */
+export function bestPullAngle(mu: number): number {
+  return Math.atan(Math.max(0, mu)) / DEG;
+}
+
 /* ---------- 3C–3F Energibevaring: kule på en bane ---------- */
 
 export type TrackKind = 'rampe' | 'bakke';
@@ -87,38 +95,135 @@ export interface Track {
   top: number;
   /** Laveste punkt (der kula starter fra venstre side ned mot). */
   xBottom: number;
-  /** Toppen i midten (bare for «bakke»), med den minste krumningsradien r der (m). */
+  /** Kulen i midten (bare for «bakke»): toppunktet og krumningsradien r der (m). */
   hump: { x: number; h: number; r: number } | null;
   height: (x: number) => number;
   slope: (x: number) => number;
+  /** Krumningen κ = h″/(1 + h′²)^{3/2} (1/m): positiv i en dal, negativ over en topp, 0 på rette stykker. */
+  curvature: (x: number) => number;
 }
 
-interface Segment {
-  x0: number;
-  x1: number;
-  h0: number;
-  h1: number;
+/** Stykker av en bane: rett stykke, sirkelbue eller parabel h = ha − (x − xa)²/(2c) med toppen i xa. */
+type Piece =
+  | { kind: 'line'; x0: number; x1: number; h0: number; k: number }
+  /** Sirkelbue med sentrum (cx, cy): `convex` = sentrum under (en topp), ellers sentrum over (en dal). */
+  | { kind: 'arc'; x0: number; x1: number; cx: number; cy: number; r: number; convex: boolean }
+  | { kind: 'parabola'; x0: number; x1: number; xa: number; ha: number; c: number };
+
+function pieceHeight(p: Piece, x: number): number {
+  if (p.kind === 'line') return p.h0 + p.k * (x - p.x0);
+  if (p.kind === 'parabola') return p.ha - (x - p.xa) ** 2 / (2 * p.c);
+  const dx = Math.min(p.r, Math.max(-p.r, x - p.cx));
+  const root = Math.sqrt(p.r * p.r - dx * dx);
+  return p.convex ? p.cy + root : p.cy - root;
 }
 
-/** Glatt bane satt sammen av cosinusbuer mellom punktene (vannrett tangent i hvert knekkpunkt). */
-function cosineTrack(segments: Segment[]) {
-  const find = (x: number) => segments.find((s) => x <= s.x1) ?? segments[segments.length - 1]!;
+function pieceSlope(p: Piece, x: number): number {
+  if (p.kind === 'line') return p.k;
+  if (p.kind === 'parabola') return -(x - p.xa) / p.c;
+  const dx = Math.min(p.r * 0.999999, Math.max(-p.r * 0.999999, x - p.cx));
+  const root = Math.sqrt(p.r * p.r - dx * dx);
+  return p.convex ? -dx / root : dx / root;
+}
+
+function pieceCurvature(p: Piece, x: number): number {
+  if (p.kind === 'line') return 0;
+  if (p.kind === 'arc') return p.convex ? -1 / p.r : 1 / p.r;
+  const k = pieceSlope(p, x);
+  return -1 / p.c / (1 + k * k) ** 1.5;
+}
+
+/**
+ * Bygger en glatt bane fra venstre mot høyre: hvert stykke begynner der det forrige sluttet, med samme helning.
+ * Vinklene er helningsvinkelen φ (radianer, positiv når banen stiger mot høyre).
+ */
+function trackBuilder(x: number, h: number) {
+  const pieces: Piece[] = [];
+  let phi = 0;
+  const api = {
+    /** Sirkelbue med radius r til helningsvinkelen `to`; dal (sentrum over) når vinkelen øker. */
+    arc(r: number, to: number) {
+      const convex = to < phi;
+      // Punktet med helningsvinkel φ: dal x = cx + r sin φ, h = cy − r cos φ; topp x = cx − r sin φ, h = cy + r cos φ
+      const s = convex ? -1 : 1;
+      const cx = x - s * r * Math.sin(phi);
+      const cy = h + s * r * Math.cos(phi);
+      const x1 = cx + s * r * Math.sin(to);
+      pieces.push({ kind: 'arc', x0: x, x1, cx, cy, r, convex });
+      h = cy - s * r * Math.cos(to);
+      x = x1;
+      phi = to;
+      return api;
+    },
+    /** Rett stykke med helningen φ som endrer høyden med dh. */
+    line(dh: number) {
+      const k = Math.tan(phi);
+      const x1 = x + dh / k;
+      pieces.push({ kind: 'line', x0: x, x1, h0: h, k });
+      x = x1;
+      h += dh;
+      return api;
+    },
+    /** Parabel (en topp) med krumningsradius c i toppunktet, til helningsvinkelen `to`. */
+    parabola(c: number, to: number) {
+      const k0 = Math.tan(phi);
+      const k1 = Math.tan(to);
+      const xa = x + c * k0;
+      const ha = h + (c * k0 * k0) / 2;
+      const x1 = xa - c * k1;
+      pieces.push({ kind: 'parabola', x0: x, x1, xa, ha, c });
+      x = x1;
+      h = ha - (c * k1 * k1) / 2;
+      phi = to;
+      return api;
+    },
+    get x() {
+      return x;
+    },
+    get h() {
+      return h;
+    },
+    pieces,
+  };
+  return api;
+}
+
+function piecewise(pieces: Piece[]) {
+  const xMin = pieces[0]!.x0;
+  const xMax = pieces[pieces.length - 1]!.x1;
+  const find = (x: number) => pieces.find((p) => x <= p.x1) ?? pieces[pieces.length - 1]!;
+  const at = (x: number) => Math.min(xMax, Math.max(xMin, x));
   return {
-    height(x: number) {
-      const s = find(x);
-      const u = Math.min(1, Math.max(0, (x - s.x0) / (s.x1 - s.x0)));
-      return s.h0 + ((s.h1 - s.h0) * (1 - Math.cos(Math.PI * u))) / 2;
-    },
-    slope(x: number) {
-      const s = find(x);
-      const L = s.x1 - s.x0;
-      const u = Math.min(1, Math.max(0, (x - s.x0) / L));
-      return ((s.h1 - s.h0) * Math.PI * Math.sin(Math.PI * u)) / (2 * L);
-    },
+    xMin,
+    xMax,
+    height: (x: number) => pieceHeight(find(at(x)), at(x)),
+    slope: (x: number) => pieceSlope(find(at(x)), at(x)),
+    curvature: (x: number) => pieceCurvature(find(at(x)), at(x)),
   };
 }
 
 export const TRACK_TOP = 6;
+
+/**
+ * Akebakken: en bakke på 6 m ned i en dal, en kul og en motbakke opp til 6 m igjen. Mål som i en ekte akebakke:
+ * sidene er høyst 30° bratte, kulen er 2,5 m høy med høyst 25° helning, og dalene er runde.
+ */
+export const SLED_HILL = {
+  /** Den bratteste helningen i bakken og motbakken (grader). */
+  sideDeg: 30,
+  /** Krumningsradien på toppen av bakken og motbakken, og i dalene (m). */
+  crestR: 3,
+  valleyR: 4,
+  /** Kulen: høyde, største helning og krumningsradius i toppunktet (m). */
+  humpH: 2.5,
+  humpDeg: 25,
+  /**
+   * Toppen av kulen er en parabel. Et legeme som glir over en parabel med krumningsradius c i toppen, letter ikke så lenge
+   * v² < g·c i toppen, og da letter det heller ikke lenger ned (parabelen er like krum som en kastebane med denne farten).
+   * Med h₀ ≤ 5,5 m er v² ≤ 2g · 3,0 m på toppen, så c = 7,5 m gir 25 % margin: akebrettet følger alltid bakken.
+   */
+  humpR: 7.5,
+} as const;
 
 export function makeTrack(kind: TrackKind): Track {
   if (kind === 'rampe') {
@@ -132,18 +237,31 @@ export function makeTrack(kind: TrackKind): Track {
       hump: null,
       height: (x) => TRACK_TOP * ((x - 6) / 6) ** 2,
       slope: (x) => (2 * TRACK_TOP * (x - 6)) / 36,
+      curvature: (x) => {
+        const k = (2 * TRACK_TOP * (x - 6)) / 36;
+        return (2 * TRACK_TOP) / 36 / (1 + k * k) ** 1.5;
+      },
     };
   }
-  // Bakke: høy start, dal, en topp på 3 m, ny dal og en vegg til høyre
-  const segments = [
-    { x0: 0, x1: 4.5, h0: TRACK_TOP, h1: 0 },
-    { x0: 4.5, x1: 9, h0: 0, h1: 3 },
-    { x0: 9, x1: 12.5, h0: 3, h1: 0 },
-    { x0: 12.5, x1: 16, h0: 0, h1: TRACK_TOP },
-  ];
-  // Krumningsradien på toppen av en cosinusbue med lengde L og høyde H er r = 2L²/(π²H); den bratteste siden gir minst r.
-  const r = Math.min(...segments.slice(1, 3).map((sg) => (2 * (sg.x1 - sg.x0) ** 2) / (Math.PI ** 2 * Math.abs(sg.h1 - sg.h0))));
-  return { kind, xMin: 0, xMax: 16, top: TRACK_TOP, xBottom: 4.5, hump: { x: 9, h: 3, r }, ...cosineTrack(segments) };
+  // Bakke: topp (6 m), rett ned i 30°, dal (0 m), opp i 25°, kulen, ned i 25°, dal, opp i 30° og topp (6 m)
+  const { crestR, valleyR, humpH, humpR } = SLED_HILL;
+  const side = (SLED_HILL.sideDeg * Math.PI) / 180;
+  const hump = (SLED_HILL.humpDeg * Math.PI) / 180;
+  const crestDrop = crestR * (1 - Math.cos(side));
+  const valleySide = valleyR * (1 - Math.cos(side));
+  const valleyHump = valleyR * (1 - Math.cos(hump));
+  const parabolaDrop = (humpR * Math.tan(hump) ** 2) / 2;
+  const b = trackBuilder(0, TRACK_TOP).arc(crestR, -side).line(-(TRACK_TOP - crestDrop - valleySide)).arc(valleyR, 0);
+  const xBottom = b.x;
+  b.arc(valleyR, hump).line(humpH - valleyHump - parabolaDrop);
+  const humpX = b.x + humpR * Math.tan(hump);
+  b.parabola(humpR, -hump)
+    .line(-(humpH - valleyHump - parabolaDrop))
+    .arc(valleyR, side)
+    .line(TRACK_TOP - crestDrop - valleySide)
+    .arc(crestR, 0);
+  const p = piecewise(b.pieces);
+  return { kind, top: TRACK_TOP, xBottom, hump: { x: humpX, h: humpH, r: humpR }, ...p };
 }
 
 /** Startpunktet på venstre side av banen der høyden er h₀ (halveringsmetoden). */
@@ -263,13 +381,52 @@ export function simulateTrack({ track, h0, m, mu, tMax, dt = 0.002, every = 0.02
 }
 
 /**
- * Om en løs kule med mekanisk energi E ville lettet fra banen på toppen i midten: der må tyngden alene gi
- * sentripetalakselerasjonen, så den følger banen bare hvis v²/r ≤ g. Simuleringen lar kula følge banen uansett.
+ * Normalkraften delt på tyngden, N/(mg), i posisjonen x når farten er v: N = m(g cos θ + κv²), der κ er krumningen
+ * (negativ over en topp). Simuleringen lar legemet følge banen; den stemmer bare så lenge N > 0 overalt der det kommer.
+ * (Selve formelen er Fysikk 2-stoff og brukes bare til å kontrollere at banen er realistisk, ikke i teksten.)
  */
-export function liftsOffAtHump(track: Track, E: number, m: number, g = G_EARTH): boolean {
-  if (!track.hump) return false;
-  const v2 = 2 * (E / m - g * track.hump.h);
-  return v2 > g * track.hump.r;
+export function normalRatio(track: Track, x: number, v: number, g = G_EARTH): number {
+  const k = track.slope(x);
+  const cos = 1 / Math.sqrt(1 + k * k);
+  return cos + (track.curvature(x) * v * v) / g;
+}
+
+/** Den minste N/(mg) langs banen når legemet slippes fra h₀ uten friksjon (der det får størst fart). */
+export function minNormalRatio(track: Track, h0: number, g = G_EARTH): number {
+  let min = Infinity;
+  for (let x = track.xMin; x <= track.xMax + 1e-9; x += 0.01) {
+    const h = track.height(x);
+    if (h > h0) continue;
+    min = Math.min(min, normalRatio(track, x, Math.sqrt(2 * g * (h0 - h)), g));
+  }
+  return min;
+}
+
+export interface HumpOutcome {
+  /**
+   * 'over': kommer over toppen i midten. 'under': snur før toppen. 'akkurat': uten friksjon og med starthøyden
+   * nøyaktig like høy som toppen, der legemet i teorien stopper på toppen (simuleringen tipper over på avrundingen).
+   */
+  result: 'over' | 'under' | 'akkurat';
+  /** Energien som trengs for å komme opp på toppen, m·g·h_topp (J). */
+  need: number;
+  /** Mekanisk energi første gang legemet er på toppen (J), eller null hvis det aldri kommer dit. */
+  Etop: number | null;
+}
+
+/** Om legemet kommer over toppen i midten av «bakke» (null for U-rampen), regnet fra simuleringen. */
+export function humpOutcome(track: Track, sim: TrackSim, m: number, g = G_EARTH): HumpOutcome | null {
+  if (!track.hump) return null;
+  const need = m * g * track.hump.h;
+  const hx = track.hump.x;
+  const i = sim.samples.findIndex((s) => s.x >= hx);
+  if (sim.R === 0 && Math.abs(sim.E0 - need) <= 1e-9 * Math.max(1, need)) return { result: 'akkurat', need, Etop: need };
+  if (i < 0) return { result: 'under', need, Etop: null };
+  // E akkurat på toppen: mellom punktet før og etter (E minker jevnt med strekningen når det er friksjon)
+  const b = sim.samples[i]!;
+  const a = sim.samples[i - 1];
+  const Etop = a && b.x > a.x ? a.E + ((b.E - a.E) * (hx - a.x)) / (b.x - a.x) : b.E;
+  return { result: 'over', need, Etop };
 }
 
 /** Punktet som er nærmest tiden t. */
@@ -328,3 +485,28 @@ export function pace(vertical: number): Pace {
 
 /** Hvor lenge et apparat med effekt P må gå for å bruke energien W. */
 export const timeForEnergy = (W: number, P: number): number => W / P;
+
+export interface StairProgress {
+  /** Andelen av trappa du har løpt (0–1). */
+  u: number;
+  /** Høyden du har løftet deg så langt (m). */
+  climbed: number;
+  /** Arbeidet så langt, mg · høyden (J). Med jevn fart er det P · τ. */
+  W: number;
+}
+
+/** Hvor langt du er kommet etter tiden τ (s) når du løper opp trappa med jevn fart på tiden t. */
+export function stairProgress({ m, h, t }: StairInput, tau: number, g = G_EARTH): StairProgress {
+  const u = t > 0 && Number.isFinite(tau) ? Math.min(1, Math.max(0, tau / t)) : 1;
+  const climbed = u * h;
+  return { u, climbed, W: m * g * climbed };
+}
+
+/** Virkningsgraden til musklene: omtrent en firedel av energien blir til arbeid, resten blir varme. */
+export const MUSCLE_EFFICIENCY = 0.25;
+
+/** Energien kroppen bruker for å gjøre arbeidet W (J) med virkningsgraden η. */
+export const bodyEnergy = (W: number, eta = MUSCLE_EFFICIENCY): number => W / eta;
+
+/** Omtrent hvor mye energi en brødskive med ost gir (J), til sammenligning. */
+export const BREAD_SLICE_ENERGY = 700e3;

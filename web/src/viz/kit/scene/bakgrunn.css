@@ -1,0 +1,57 @@
+/*
+ * Ekstra farger for bakgrunnene i scene-kit-et (bakgrunn.tsx). Resten kommer fra scene.css (SCENE).
+ * Samme mønster som scene.css: lyst tema, mørkt tema ved systemvalg og mørkt tema ved data-theme="dark"
+ * (verdiene i de to mørke blokkene må være like). Mørkt tema er skumring: tente vinduer, et par stjerner og en
+ * ravgul kveldssol med svak, varm glød (ikke en fullmåne, og ikke lik den oransje tyngdepilen).
+ */
+:root {
+  /* Vei: gul midtlinje (som på norske veier), hvit kantlinje fra SCENE.roadLine */
+  --sc-bakgrunn-midtlinje: #e0b23f;
+  /* Vinduer i byen: speiler himmelen om dagen, er tent i skumringen */
+  --sc-bakgrunn-vindu: #d6e6f1;
+  /* Stjerner i skumringshimmelen (gjennomsiktighet, 0 = ingen om dagen) */
+  --sc-bakgrunn-stjerner: 0;
+  /* Sola i Himmel: skiva, gløden rundt og hvor sterk gløden er (0–1) */
+  --sc-bakgrunn-sol: var(--sc-sun);
+  --sc-bakgrunn-solglod: var(--sc-sun-glow);
+  --sc-bakgrunn-solglod-styrke: 1;
+  /* Glitter i snø og blank is */
+  --sc-bakgrunn-glitter: #ffffff;
+  /* Fliser og fuger på gulvet */
+  --sc-bakgrunn-flis: #e4e1da;
+  --sc-bakgrunn-fuge: #c2bcb1;
+  /* Fotlist og vinduskarm (hvitmalt tre) */
+  --sc-bakgrunn-list: #fbfbf8;
+  /* Sollys fra vinduet på gulvet */
+  --sc-bakgrunn-lysflekk: rgb(255 246 222 / 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --sc-bakgrunn-midtlinje: #a4852f;
+    --sc-bakgrunn-vindu: #e3bf67;
+    --sc-bakgrunn-stjerner: 0.75;
+    --sc-bakgrunn-sol: #e8aa5c;
+    --sc-bakgrunn-solglod: #b8743e;
+    --sc-bakgrunn-solglod-styrke: 0.6;
+    --sc-bakgrunn-glitter: #e4eef9;
+    --sc-bakgrunn-flis: #3a3e43;
+    --sc-bakgrunn-fuge: #2a2d31;
+    --sc-bakgrunn-list: #3a4350;
+    --sc-bakgrunn-lysflekk: rgb(255 214 140 / 0.07);
+  }
+}
+
+:root[data-theme='dark'] {
+  --sc-bakgrunn-midtlinje: #a4852f;
+  --sc-bakgrunn-vindu: #e3bf67;
+  --sc-bakgrunn-stjerner: 0.75;
+  --sc-bakgrunn-sol: #e8aa5c;
+  --sc-bakgrunn-solglod: #b8743e;
+  --sc-bakgrunn-solglod-styrke: 0.6;
+  --sc-bakgrunn-glitter: #e4eef9;
+  --sc-bakgrunn-flis: #3a3e43;
+  --sc-bakgrunn-fuge: #2a2d31;
+  --sc-bakgrunn-list: #3a4350;
+  --sc-bakgrunn-lysflekk: rgb(255 214 140 / 0.07);
+}
