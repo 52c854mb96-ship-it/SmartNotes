@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Pause, Play, RotateCcw } from 'lucide-react';
 import {
   Controls,
   Explain,
@@ -6,7 +7,6 @@ import {
   Formula,
   FormulaLine,
   Legend,
-  PlayControls,
   Plot,
   Readout,
   Readouts,
@@ -23,6 +23,7 @@ import {
   scaleLinear,
   useSimClock,
   useTextScale,
+  type SimClock,
 } from '../../kit';
 import {
   ForceArrow,
@@ -80,7 +81,7 @@ import {
 } from './model-sykkel-bakke';
 import { ColorDot } from './marks';
 import { Dalbunn, LiaDetaljer, Stalrekkverk, Steinmur } from './sykkel-bakke-deler';
-import { BIKE_NARROW, BIKE_WIDE, fromRoad, gradeTriangle, hudLayout, roadSpan, roadsideItems, type BikeLayout, type Pt } from './sykkel-bakke-scene';
+import { BIKE_NARROW, BIKE_WIDE, fromRoad, gradeLabelLayout, gradeTriangle, hudLayout, roadSpan, roadsideItems, type BikeLayout, type Pt } from './sykkel-bakke-scene';
 import { useNarrow } from './useNarrow';
 
 /** Hele turen opp bakken spilles av på så mange sekunder (tidsforløp). */
@@ -112,7 +113,7 @@ function N(F: number): string {
 
 /** Lengde langs veien: meter under 1 km, ellers km. */
 function lengthText(s: number): string {
-  return s < 1000 ? `${fmt(s, 0)} m` : `${fmt(s / 1000, s < 10000 ? 2 : 1)} km`;
+  return s < 1000 ? `${fmt(s, 0)}\u00a0m` : `${fmt(s / 1000, s < 10000 ? 2 : 1)}\u00a0km`;
 }
 
 export default function SykkelBakke() {
@@ -176,7 +177,7 @@ export default function SykkelBakke() {
       </Controls>
       <Toolbar>
         <Segmented<Choice> label="Velg en bakke" options={HILLS.map((b) => ({ value: b.id, label: b.label }))} value={choice} onChange={pick} />
-        <PlayControls clock={clock} decimals={0} />
+        <PlayBar clock={clock} time={`t = ${clockText(clock.t)}`} />
         <Toggle label="Vis krefter" checked={forces} onChange={setForces} />
         <Toggle label="Med luftmotstand" checked={air} onChange={setAir} />
       </Toolbar>
@@ -210,28 +211,28 @@ export default function SykkelBakke() {
           θ = arctan({fmt(grade / 100, 3)}) = {fmt(c.thetaDeg, 2)}°
         </FormulaLine>
         <FormulaLine>
-          G∥ = mg · sin θ = {fmt(m, 0)} kg · 9,81 m/s² · sin {fmt(c.thetaDeg, 2)}° = {N(c.Gpar)} N
+          G∥ = mg · sin θ = {fmt(m, 0)}&nbsp;kg · 9,81&nbsp;m/s² · sin {fmt(c.thetaDeg, 2)}° = {N(c.Gpar)}&nbsp;N
         </FormulaLine>
         <FormulaLine>
-          R = μN = μ · mg · cos θ = {fmt(ROLLING_COEFF, 3)} · {fmt(m, 0)} kg · 9,81 m/s² · cos {fmt(c.thetaDeg, 2)}° = {fmt(c.R, 2)} N
+          R = μN = μ · mg · cos θ = {fmt(ROLLING_COEFF, 3)} · {fmt(m, 0)}&nbsp;kg · 9,81&nbsp;m/s² · cos {fmt(c.thetaDeg, 2)}° = {fmt(c.R, 2)}&nbsp;N
         </FormulaLine>
         {air && (
           <FormulaLine>
-            L = kv² = {fmt(AIR_K, 2)} kg/m · ({fmt(c.v, 2)} m/s)² = {fmt(c.L, 2)} N
+            L = kv² = {fmt(AIR_K, 2)}&nbsp;kg/m · ({fmt(c.v, 2)}&nbsp;m/s)² = {fmt(c.L, 2)}&nbsp;N
           </FormulaLine>
         )}
         <FormulaLine>
-          F = G∥ + R{air ? ' + L' : ''} = {N(c.F)} N &nbsp;(konstant fart: kreftene langs veien er i balanse)
+          F = G∥ + R{air ? ' + L' : ''} = {N(c.F)}&nbsp;N &nbsp;(konstant fart: kreftene langs veien er i balanse)
         </FormulaLine>
         <FormulaLine>
-          v = P / F = {fmt(P, 0)} W / {N(c.F)} N = {fmt(c.v, 2)} m/s = {fmt(c.kmh, 1)} km/h
+          v = P / F = {fmt(P, 0)}&nbsp;W / {N(c.F)}&nbsp;N = {fmt(c.v, 2)}&nbsp;m/s = {fmt(c.kmh, 1)}&nbsp;km/h
         </FormulaLine>
         <FormulaLine>
-          s = h / sin θ = {fmt(h, 0)} m / sin {fmt(c.thetaDeg, 2)}° = {fmt(c.s, 0)} m, &nbsp;t = s / v = {fmt(c.s, 0)} m / {fmt(c.v, 2)} m/s = {fmt(c.t, 0)} s ≈{' '}
+          s = h / sin θ = {fmt(h, 0)}&nbsp;m / sin {fmt(c.thetaDeg, 2)}° = {fmt(c.s, 0)}&nbsp;m, &nbsp;t = s / v = {fmt(c.s, 0)}&nbsp;m / {fmt(c.v, 2)}&nbsp;m/s = {fmt(c.t, 0)}&nbsp;s ≈{' '}
           {durationText(c.t)}
         </FormulaLine>
         <FormulaLine>
-          W = F · s = {N(c.F)} N · {fmt(c.s, 0)} m = {kJ(c.W)} kJ = mgh + {air ? '(R + L)' : 'R'} · s = {kJ(c.Wg)} kJ + {kJ(c.Wr + c.Wl)} kJ
+          W = F · s = {N(c.F)}&nbsp;N · {fmt(c.s, 0)}&nbsp;m = {kJ(c.W)}&nbsp;kJ = mgh + {air ? '(R + L)' : 'R'} · s = {kJ(c.Wg)}&nbsp;kJ + {kJ(c.Wr + c.Wl)}&nbsp;kJ
         </FormulaLine>
       </Formula>
 
@@ -240,6 +241,36 @@ export default function SykkelBakke() {
       </Explain>
     </VizLayout>
   );
+}
+
+/** Spill av, start på nytt og tida på klokka i minutter og sekunder (som PlayControls, men med egen tidstekst). */
+function PlayBar({ clock, time }: { clock: SimClock; time: ReactNode }) {
+  return (
+    <div className="viz-play">
+      <button type="button" className="btn btn-sm" onClick={clock.toggle} aria-pressed={clock.playing}>
+        {clock.playing ? <Pause size={16} aria-hidden /> : <Play size={16} aria-hidden />}
+        {clock.playing ? 'Pause' : 'Spill av'}
+      </button>
+      <button type="button" className="btn btn-sm btn-ghost" onClick={clock.reset}>
+        <RotateCcw size={16} aria-hidden />
+        Start på nytt
+      </button>
+      <span className="viz-play-time" aria-live="off">
+        {time}
+      </span>
+      {reducedMotion() && <span className="viz-play-note">Animasjoner er redusert i systeminnstillingene.</span>}
+    </div>
+  );
+}
+
+const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/** «Det er omtrent 3,9 brødskiver med ost.», eller en andel av én skive for små bakker. */
+function slicesText(n: number): string {
+  if (n >= 9.95) return `Det er omtrent ${fmt(n, 0)} brødskiver med ost.`;
+  if (n >= 0.95) return `Det er omtrent ${fmt(n, 1)} brødskiver med ost.`;
+  if (n >= 0.01) return `Det er omtrent ${fmt(n * 100, 0)}\u00a0% av en brødskive med ost.`;
+  return 'Det er mindre enn 1\u00a0% av en brødskive med ost.';
 }
 
 function sceneLabel(c: Climb, prog: ClimbProgress, choice: Choice, forces: boolean): string {
@@ -301,6 +332,7 @@ function Scene({ lay, c, prog, tVis, forces, scenery }: { lay: BikeLayout; c: Cl
   const tri = gradeTriangle(lay, th);
   const head = pp.hode;
   const tagY = head.y - 34 - 6 * f;
+  const skyY = lay.narrow ? lay.hud.y + lay.hud.h - 10 : 0;
 
   return (
     <g clipPath={`url(#${clip})`}>
@@ -309,7 +341,17 @@ function Scene({ lay, c, prog, tVis, forces, scenery }: { lay: BikeLayout; c: Cl
           <rect x={0} y={0} width={W} height={H} />
         </clipPath>
       </defs>
-      <Himmel w={W} h={lay.horizon + 4} sol={lay.narrow ? { x: 96, y: lay.hud.y + lay.hud.h + 40, r: 17 } : { x: W * 0.6, y: 40, r: 17 }} skyer={2} seed={4} forskyvning={shift * 0.02} />
+      {/* På mobil står panelet øverst: himmelen (med skyene) begynner under det, og over er det bare blått. */}
+      {skyY > 0 && <rect x={0} y={0} width={W} height={skyY + 1} fill={SCENE.skyTop} />}
+      <Himmel
+        y={skyY}
+        w={W}
+        h={lay.horizon + 4 - skyY}
+        sol={lay.narrow ? { x: 96, y: lay.hud.y + lay.hud.h + 40, r: 17 } : { x: W * 0.6, y: 40, r: 17 }}
+        skyer={2}
+        seed={4}
+        forskyvning={shift * 0.02}
+      />
       <Landskap x={0} y={lay.horizon} w={W} h={scenery === 'by' ? 110 : 186} type={scenery} seed={scenery === 'fjell' ? 7 : 3} forskyvning={shift * 0.04} />
       <Dalbunn w={W} top={lay.horizon} bottom={H} />
 
@@ -364,7 +406,7 @@ function Scene({ lay, c, prog, tVis, forces, scenery }: { lay: BikeLayout; c: Cl
 
       <Hud lay={lay} hud={hud} c={c} prog={prog} />
 
-      {forces && <ScaleBar x={lay.scaleBar.x} y={lay.scaleBar.y} len={barN * kN} text={`${fmt(barN, 0)} N`} />}
+      {forces && <ScaleBar x={lay.scaleBar.x} y={lay.scaleBar.y} len={barN * kN} text={`${fmt(barN, 0)} N`} note={lay.narrow ? undefined : 'Pilene: kreftene langs veien'} />}
     </g>
   );
 }
@@ -374,11 +416,9 @@ function GradeMarks({ tri, grade, W }: { tri: ReturnType<typeof gradeTriangle>; 
   const f = useTextScale();
   const ss = useStrokeScale();
   const { x0, y0, x1, y1 } = tri;
-  // «0,19 m opp» står til høyre for den loddrette kateten, eller bare «0,19 m» når det er trangt (mobil).
-  const charW = 17 * 0.6 * 0.82 * f;
-  const longText = `${fmt(tri.rise, 2)} m opp`;
-  const riseText = x1 + 8 + longText.length * charW < W - 4 ? longText : `${fmt(tri.rise, 2)} m`;
-  const riseRight = x1 + 8 + riseText.length * charW < W - 4;
+  // «0,19 m opp» står til høyre for den loddrette kateten, eller bare «0,19 m» når det er trangt.
+  const rise = fmt(tri.rise, 2);
+  const lab = gradeLabelLayout(tri, W, f, `${rise} m opp`.length, `${rise} m`.length);
   const corner = Math.min(9 * ss, Math.max(0, (y0 - y1) * 0.8));
   return (
     <g>
@@ -389,21 +429,21 @@ function GradeMarks({ tri, grade, W }: { tri: ReturnType<typeof gradeTriangle>; 
       <line x1={x1} y1={y0} x2={x1} y2={y1} stroke={VIZ.surface} strokeWidth={5 * ss} opacity={0.75} />
       <line x1={x1} y1={y0} x2={x1} y2={y1} stroke={VIZ.ink} strokeWidth={2.4 * ss} />
       {corner > 3 && <path d={`M${x1 - corner},${y0} L${x1 - corner},${y0 - corner} L${x1},${y0 - corner}`} fill="none" stroke={VIZ.ink} strokeWidth={1 * ss} />}
-      <Txt x={riseRight ? (x0 + x1) / 2 : x0} y={y0 + 20 * f} anchor={riseRight ? 'middle' : 'start'} size={0.82} weight={620}>
+      <Txt x={lab.run.x} y={lab.run.y} size={0.82} weight={620}>
         {fmt(tri.run, 1)} m bortover
       </Txt>
-      <Txt x={riseRight ? x1 + 8 : x1} y={riseRight ? (y0 + y1) / 2 + 5 * f : y0 + 20 * f} anchor={riseRight ? 'start' : 'end'} size={0.82} weight={620}>
-        {riseText}
+      <Txt x={lab.rise.x} y={lab.rise.y} anchor={lab.rise.anchor} size={0.82} weight={620}>
+        {lab.long ? `${rise} m opp` : `${rise} m`}
       </Txt>
-      <Txt x={(x0 + x1) / 2} y={y0 + 42 * f} size={0.82} muted>
-        stigning {fmt(tri.rise, 2)} / {fmt(tri.run, 1)} = {fmt(grade, 1)} %
+      <Txt x={lab.ratio.x} y={lab.ratio.y} size={0.82} muted>
+        stigning {rise} / {fmt(tri.run, 1)} = {fmt(grade, 1)} %
       </Txt>
     </g>
   );
 }
 
 /** Målestokk for kraftpilene: en strek like lang som en kraft på `text`. (x, y) er høyre ende. */
-function ScaleBar({ x, y, len, text }: { x: number; y: number; len: number; text: string }) {
+function ScaleBar({ x, y, len, text, note }: { x: number; y: number; len: number; text: string; note?: string }) {
   const ss = useStrokeScale();
   const f = useTextScale();
   const x0 = x - len;
@@ -416,6 +456,11 @@ function ScaleBar({ x, y, len, text }: { x: number; y: number; len: number; text
       <Txt x={x0 - 8} y={y + 5 * f} anchor="end" size={0.78} weight={620}>
         {text}
       </Txt>
+      {note && (
+        <Txt x={x} y={y + 24 * f} anchor="end" size={0.72} muted>
+          {note}
+        </Txt>
+      )}
     </g>
   );
 }
@@ -589,7 +634,7 @@ function SpeedPlot({ c, lay }: { c: Climb; lay: ChartLayout }) {
               </defs>
               <rect x={x0} y={band} width={x1 - x0} height={y0 - band} fill={alpha(VIZ.muted, 0.14)} />
               {y0 - band > 15 * f && (
-                <Txt x={x1 - 8} y={band + 15 * f} anchor="end" size={0.72} muted>
+                <Txt x={x0 + 8} y={y0 - 6} anchor="start" size={0.72} muted>
                   under 5 km/h: vanskelig å holde balansen
                 </Txt>
               )}
@@ -624,10 +669,10 @@ function ExplainText({ c, choice }: { c: Climb; choice: Choice }): ReactNode {
   const heat = c.Wr + c.Wl;
   const ideal = (P / (m * 9.81)) * 3600;
   const intro: Record<Choice, string> = {
-    skole: 'Skolebakken er 300 m lang og stiger 30 m: en bratt bakke på 10 %, slik mange har på vei til skolen.',
-    trollstigen: 'Trollstigen i Romsdalen stiger omtrent 850 m på 11 km, med 11 hårnålssvinger opp fjellsida.',
-    alpe: "Alpe d'Huez i de franske Alpene er en kjent stigning i Tour de France: 21 svinger og omtrent 1 100 høydemeter på 13,8 km.",
-    egen: `Bakken din er ${lengthText(c.s)} lang og stiger ${fmt(h, 0)} m.`,
+    skole: 'Skolebakken er 300\u00a0m lang og stiger 30\u00a0m: en bratt bakke på 10\u00a0%, slik mange har på vei til skolen.',
+    trollstigen: 'Trollstigen i Romsdalen stiger omtrent 850\u00a0m på 11\u00a0km, med 11 hårnålssvinger opp fjellsida.',
+    alpe: "Alpe d'Huez i de franske Alpene er en kjent stigning i Tour de France: 21 svinger og omtrent 1\u00a0100 høydemeter på 13,8\u00a0km.",
+    egen: `Bakken din er ${lengthText(c.s)} lang og stiger ${fmt(h, 0)}\u00a0m.`,
   };
   const slow = c.v < BALANCE_SPEED;
   const unreal = !air && c.kmh > 45;
@@ -635,25 +680,25 @@ function ExplainText({ c, choice }: { c: Climb; choice: Choice }): ReactNode {
     <>
       <p>
         {intro[choice]} <strong>Farten er konstant, så kreftene langs veien er i balanse.</strong> Bakhjulet skyver bakover på veien, og veien skyver
-        like hardt framover på hjulet: det er kraften F = {N(c.F)} N som driver deg opp. Den er like stor som summen av kreftene bakover: tyngden langs
-        veien G∥ = {N(c.Gpar)} N{air ? `, rullefriksjonen R = ${fmt(c.R, 1)} N og luftmotstanden L = ${fmt(c.L, 1)} N` : ` og rullefriksjonen R = ${fmt(c.R, 1)} N`}. Effekten er P = F · v, så farten
-        blir v = P / F = {fmt(P, 0)} W / {N(c.F)} N = {fmt(c.v, 2)} m/s, altså {fmt(c.kmh, 1)} km/h.
+        like hardt framover på hjulet: det er kraften F = {N(c.F)}&nbsp;N som driver deg opp. Den er like stor som summen av kreftene bakover: tyngden langs
+        veien G∥ = {N(c.Gpar)}&nbsp;N{air ? `, rullefriksjonen R = ${fmt(c.R, 1)}\u00a0N og luftmotstanden L = ${fmt(c.L, 1)}\u00a0N` : ` og rullefriksjonen R = ${fmt(c.R, 1)}\u00a0N`}. Effekten er P = F · v, så farten
+        blir v = P / F = {fmt(P, 0)}&nbsp;W / {N(c.F)}&nbsp;N = {fmt(c.v, 2)}&nbsp;m/s, altså {fmt(c.kmh, 1)}&nbsp;km/h.
         {slow && ' Så sakte er det vanskelig å holde balansen, og de fleste går av og triller (gangfart er omtrent 5 km/h).'}
       </p>
       <p>
-        <strong>Med samme effekt gir brattere bakke lavere fart.</strong> Bare en liten del av tyngden virker langs veien: ved {fmt(grade, 1)} % er
-        G∥ = mg · sin θ bare {fmt(share, 1)} % av tyngden G = {fmt(c.G, 0)} N{grade <= 12 ? ' (nesten samme tall som stigningen, fordi sin θ ≈ tan θ for små vinkler)' : ''}.{' '}
+        <strong>Med samme effekt gir brattere bakke lavere fart.</strong> Bare en liten del av tyngden virker langs veien: ved {fmt(grade, 1)}&nbsp;% er
+        G∥ = mg · sin θ bare {fmt(share, 1)}&nbsp;% av tyngden G = {fmt(c.G, 0)}&nbsp;N{grade <= 12 ? ' (nesten samme tall som stigningen, fordi sin θ ≈ tan θ for små vinkler)' : ''}.{' '}
         {grade * 2 <= GRADE_MAX
-          ? `Dobler du stigningen til ${fmt(steeper, 1)} %, blir G∥ nesten dobbelt så stor, og med samme effekt faller farten til ${fmt(vSteep, 1)} km/h.`
+          ? `Dobler du stigningen til ${fmt(steeper, 1)}\u00a0%, blir G∥ nesten dobbelt så stor, og med samme effekt faller farten til ${fmt(vSteep, 1)}\u00a0km/h.`
           : `I en så bratt bakke er G∥ nesten hele kraften du må overvinne.`}{' '}
         Derfor gir du ned i motbakke: samme effekt ved lavere fart gir større kraft (F = P / v), mens beina tråkker like fort.
         {unreal &&
-          ` Uten luftmotstand blir farten urealistisk høy i slake bakker (${fmt(c.kmh, 0)} km/h). Slå på luftmotstand: på nesten flat vei er det lufta du kjemper mest mot.`}
+          ` Uten luftmotstand blir farten urealistisk høy i slake bakker (${fmt(c.kmh, 0)}\u00a0km/h). Slå på luftmotstand: på nesten flat vei er det lufta du kjemper mest mot.`}
         {air && c.L > c.Gpar && ` Nå er luftmotstanden større enn G∥: i så slake bakker kjemper du mest mot lufta.`}
       </p>
       <p>
-        <strong>Arbeidet opp {name}</strong> er W = F · s = {N(c.F)} N · {fmt(c.s, 0)} m = {kJ(c.W)} kJ, det samme som P · t = {fmt(P, 0)} W ·{' '}
-        {fmt(c.t, 0)} s. Av dette blir mgh = {kJ(c.Wg)} kJ ({fmt((c.Wg / c.W) * 100, 0)} %) potensiell energi. Resten, {kJ(heat)} kJ, går med til
+        <strong>Arbeidet opp {name}</strong> er W = F · s = {N(c.F)}&nbsp;N · {fmt(c.s, 0)}&nbsp;m = {kJ(c.W)}&nbsp;kJ, det samme som P · t = {fmt(P, 0)}&nbsp;W ·{' '}
+        {fmt(c.t, 0)}&nbsp;s. Av dette blir mgh = {kJ(c.Wg)}&nbsp;kJ ({fmt((c.Wg / c.W) * 100, 0)}&nbsp;%) potensiell energi. Resten, {kJ(heat)}&nbsp;kJ, går med til
         rullefriksjonen{air ? ' og luftmotstanden' : ''} og blir termisk energi i {air ? 'dekkene og lufta' : 'dekkene'}. Den kinetiske energien endres
         ikke, fordi farten er den samme hele veien.
       </p>
@@ -661,8 +706,8 @@ function ExplainText({ c, choice }: { c: Climb; choice: Choice }): ReactNode {
         <strong>Hårnålssvingene gjør det lettere, men ikke mindre arbeid.</strong> En slakere vei til samme høyde er lengre.{' '}
         {gentleGrade < grade ? (
           <>
-            Med {fmt(gentleGrade, 1)} % stigning ville veien vært {lengthText(gentle.s)}, kraften {N(gentle.F)} N og farten {fmt(gentle.kmh, 1)} km/h. Du
-            må likevel løfte deg {fmt(h, 0)} m, så mgh er den samme, og turen tar {durationText(gentle.t)} i stedet for {durationText(c.t)}.{' '}
+            Med {fmt(gentleGrade, 1)}&nbsp;% stigning ville veien vært {lengthText(gentle.s)}, kraften {N(gentle.F)}&nbsp;N og farten {fmt(gentle.kmh, 1)}&nbsp;km/h. Du
+            må likevel løfte deg {fmt(h, 0)}&nbsp;m, så mgh er den samme, og turen tar {durationText(gentle.t)} i stedet for {durationText(c.t)}.{' '}
             {gentle.t / c.t < 1.12
               ? 'Det er nesten like lenge: med samme effekt løfter du deg nesten like mange meter i minuttet. Forskjellen kommer av at rullefriksjonen virker på en lengre vei.'
               : 'Det tar lengre tid fordi friksjonen og luftmotstanden virker på en lengre vei, og luftmotstanden øker med farten.'}
@@ -673,11 +718,10 @@ function ExplainText({ c, choice }: { c: Climb; choice: Choice }): ReactNode {
       </p>
       <p>
         <strong>Watt per kilo bestemmer hvor fort du kommer til værs.</strong> Du kommer {fmt(c.vam, 0)} høydemeter opp i timen. Uten friksjon og
-        luftmotstand ville det vært P / (mg) · 3 600 s = {fmt(ideal, 0)} m i timen, uansett stigning. Derfor sammenligner syklister W/kg: du yter{' '}
-        {fmt(c.wPerKg, 1)} W/kg, mens proffene i Tour de France holder rundt 6 W/kg i en halvtime.
-        {choice === 'alpe' && ' Prøv m = 65 kg og P = 380 W med luftmotstand: da kommer du opp på rundt 38 minutter, nær rekorden på knapt 37 minutter.'}{' '}
-        Kroppen bruker omtrent fire ganger arbeidet, {kJ(c.body)} kJ, fordi musklene har en virkningsgrad på rundt 25 %. Det er omtrent{' '}
-        {fmt(c.slices, c.slices < 10 ? 1 : 0)} brødskiver med ost.
+        luftmotstand ville det vært P / (mg) · 3&nbsp;600&nbsp;s = {fmt(ideal, 0)}&nbsp;m i timen, uansett stigning. Derfor sammenligner syklister W/kg: du yter{' '}
+        {fmt(c.wPerKg, 1)}&nbsp;W/kg, mens proffene i Tour de France holder rundt 6&nbsp;W/kg i en halvtime.
+        {choice === 'alpe' && ' Prøv m = 65\u00a0kg og P = 380\u00a0W med luftmotstand: da kommer du opp på rundt 38 minutter, nær rekorden på knapt 37 minutter.'}{' '}
+        Kroppen bruker omtrent fire ganger arbeidet, {kJ(c.body)}&nbsp;kJ, fordi musklene har en virkningsgrad på rundt 25&nbsp;%. {slicesText(c.slices)}
       </p>
     </>
   );

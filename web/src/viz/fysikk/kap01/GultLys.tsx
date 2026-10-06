@@ -279,6 +279,8 @@ function conclusion(input: YellowInput, D: number, z: Zones): ReactNode {
 
 const W = 800;
 const PAD = 12;
+/** Lakken på bilen: hvit synes på alle sonefargene (en rød bil forsvinner i den oransje dilemmasonen). */
+const CAR_PAINT = 'hvit';
 
 /** Tekstskaleringen figuren vil få (samme regel som i <Figure>), målt på beholderen før figuren tegnes. */
 function useContainerTextScale() {
@@ -490,10 +492,10 @@ function Road({
   const deficit =
     plan === 'bremse'
       ? so.over > 0.05
-        ? { from: X(0), to: X(so.stopAt), text: (w: number) => pick(w, [`${m1(so.over)} over linja`, m1(so.over)]) }
+        ? { from: X(0), to: X(so.stopAt), texts: [`${m1(so.over)} over linja`, m1(so.over)] }
         : null
       : go.missing > 0.05
-        ? { from: X(go.atRed - CAR_LENGTH), to: X(KRYSS.bredde), text: (w: number) => pick(w, [`mangler ${m1(go.missing)}`, m1(go.missing)]) }
+        ? { from: X(go.atRed - CAR_LENGTH), to: X(KRYSS.bredde), texts: [`mangler ${m1(go.missing)}`, m1(go.missing)] }
         : null;
   const charP = 17 * 0.9 * f * 0.58;
   const fits = (w: number, text: string) => w > text.length * charP + 14 * f;
@@ -517,9 +519,6 @@ function Road({
       );
     return fits(w, val) ? val : undefined;
   };
-  function pick(w: number, texts: string[]): string | undefined {
-    return texts.find((txt) => w > txt.length * 17 * 0.8 * f * 0.58 + 10 * f);
-  }
 
   return (
     <g>
@@ -555,7 +554,7 @@ function Road({
 
         {/* Spøkelsesbilen der valget ender */}
         {showGhost && (
-          <Bil x={carX(ghostS)} y={L.roadY} size={carSize} lakk="rod" dim title={plan === 'bremse' ? 'Her stopper bilen' : 'Her er bilen når lyset blir rødt'} />
+          <Bil x={carX(ghostS)} y={L.roadY} size={carSize} lakk={CAR_PAINT} dim title={plan === 'bremse' ? 'Her stopper bilen' : 'Her er bilen når lyset blir rødt'} />
         )}
 
         {/* Bilen */}
@@ -564,7 +563,7 @@ function Road({
           x={carX(s)}
           y={L.roadY}
           size={carSize}
-          lakk="rod"
+          lakk={CAR_PAINT}
           hjulvinkel={hjulvinkelFraStrekning(s + D)}
           bremselys={braking || (plan === 'bremse' && t > input.tr)}
           title={braking ? 'Bilen bremser' : 'Bil'}
@@ -640,7 +639,7 @@ function PlanRow({
   edge: number;
   color: string;
   label: (w: number) => ReactNode;
-  deficit: { from: number; to: number; text: (w: number) => string | undefined } | null;
+  deficit: { from: number; to: number; texts: string[] } | null;
 }) {
   const f = useTextScale();
   const ss = useStrokeScale();
@@ -651,7 +650,11 @@ function PlanRow({
   const dA = deficit ? Math.max(4, Math.min(deficit.from, edge)) : 0;
   const dB = deficit ? Math.min(deficit.to, edge) : 0;
   const dy = y + 7 * ss;
-  const dText = deficit ? deficit.text(Math.min(2 * (dA + dB) / 2, 2 * (edge - (dA + dB) / 2)) - 8) : undefined;
+  // Teksten under klammen: midt under den, men skjøvet inn fra kanten når klammen ligger helt ute ved kanten
+  const textW = (txt: string) => txt.length * 17 * 0.8 * f * 0.58 + 6 * f;
+  const dText = deficit?.texts.find((txt) => textW(txt) < edge - 8);
+  const dW = dText ? textW(dText) : 0;
+  const dX = Math.min(edge - 4 - dW / 2, Math.max(4 + dW / 2, (dA + dB) / 2));
   return (
     <g>
       {end - x0 > 2 &&
@@ -677,7 +680,7 @@ function PlanRow({
           <line x1={dA} y1={dy - 5 * ss} x2={dA} y2={dy + 4 * ss} stroke={ZONE_COLOR.dilemma} strokeWidth={1.6 * ss} />
           <line x1={dB} y1={dy - 5 * ss} x2={dB} y2={dy + 4 * ss} stroke={ZONE_COLOR.dilemma} strokeWidth={1.6 * ss} />
           {dText && (
-            <Txt x={(dA + dB) / 2} y={dy + 17 * 0.8 * f + 2} size={0.8} color={ZONE_COLOR.dilemma} weight={700}>
+            <Txt x={dX} y={dy + 17 * 0.8 * f + 2} size={0.8} color={ZONE_COLOR.dilemma} weight={700}>
               {dText}
             </Txt>
           )}
@@ -689,11 +692,31 @@ function PlanRow({
 
 /* ---------- Forklaring ---------- */
 
+/** «a, b og c» */
+function joinList(xs: string[]): string {
+  return xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} og ${xs[xs.length - 1]}`;
+}
+
+/**
+ * Lengden av dilemmasonen ved noen farter, f.eks. «Med disse verdiene er dilemmasonen 14,3 m lang ved 30 km/h, 23,8 m
+ * ved 50 km/h og 43,5 m ved 70 km/h.» eller «… finnes det ingen dilemmasone ved 30 og 50 km/h, men den er 4,6 m lang
+ * ved 70 km/h.»
+ */
+function lengthsText(lens: { kmh: number; len: number }[]): string {
+  const gone = lens.filter((l) => l.len <= 0).map((l) => fmt(l.kmh, 0));
+  const present = lens.filter((l) => l.len > 0).map((l, i) => `${m1(l.len)}${i === 0 ? ' lang' : ''} ved ${fmt(l.kmh, 0)} km/h`);
+  if (!gone.length) return `Med disse verdiene er dilemmasonen ${joinList(present)}.`;
+  if (!present.length) return `Med disse verdiene finnes det ingen dilemmasone ved ${joinList(gone)} km/h.`;
+  return `Med disse verdiene finnes det ingen dilemmasone ved ${joinList(gone)} km/h, men den er ${joinList(present)}.`;
+}
+
 function explanation(input: YellowInput, kmh: number, D: number, z: Zones, sit: Situation, so: StopOutcome, go: GoOutcome, plan: Plan): ReactNode {
   const { tr, a, tg } = input;
   const need = requiredDeceleration(input, D);
   const lens = [30, 50, 70].map((k) => ({ kmh: k, len: dilemmaLength({ ...input, v0: kmhToMs(k) }) }));
-  const growing = lens[2]!.len > lens[1]!.len && lens[1]!.len >= lens[0]!.len;
+  const [l30, l50, l70] = lens.map((l) => l.len) as [number, number, number];
+  const noneTypical = lens.every((l) => l.len <= 0);
+  const growing = l70 > l50 && l50 > 0 && l50 >= l30;
   const tNeed = yellowNeeded(input);
   const ok = noDilemmaSpeeds(input);
   const stopPlace: Record<StopOutcome['place'], string> = {
@@ -738,19 +761,22 @@ function explanation(input: YellowInput, kmh: number, D: number, z: Zones, sit: 
         {plan === 'bremse' ? 'Velg «Sjåføren kjører videre» og spill av for å se det andre valget.' : 'Velg «Sjåføren bremser» og spill av for å se det andre valget.'}
       </p>
       <p>
-        <strong>{growing ? 'Dilemmasonen vokser med farten.' : 'Ved høy nok fart vokser dilemmasonen.'}</strong> Stopplengden v<Sub>0</Sub>t<Sub>r</Sub> + v<Sub>0</Sub>²/(2a) øker med kvadratet av farten, mens
-        strekningen bilen rekker på gultiden, v<Sub>0</Sub>t<Sub>g</Sub>, bare øker proporsjonalt med farten. Med disse verdiene er dilemmasonen{' '}
-        {lens.map((l, i) => (
-          <span key={l.kmh}>
-            {l.len > 0 ? `${m1(l.len)} lang` : 'borte'} ved {l.kmh} km/h{i < lens.length - 2 ? ', ' : i === lens.length - 2 ? ' og ' : '.'}
-          </span>
-        ))}{' '}
-        I grafen er dilemmasonen det oransje området mellom den blå kurven og den grønne linja.{' '}
+        <strong>{noneTypical ? 'Ingen dilemmasone ved 30–70 km/h.' : growing ? 'Dilemmasonen vokser med farten.' : 'Dilemmasonen avhenger av farten.'}</strong>{' '}
+        Bremselengden v<Sub>0</Sub>²/(2a) øker med kvadratet av farten, mens reaksjonslengden v<Sub>0</Sub>t<Sub>r</Sub> og strekningen bilen rekker på
+        gultiden, v<Sub>0</Sub>t<Sub>g</Sub>, bare øker proporsjonalt med farten. Ved høy fart vokser derfor stopplengden raskere enn grensen for å rekke
+        over. {noneTypical ? '' : `${lengthsText(lens)} `}I grafen er dilemmasonen det oransje området mellom den blå kurven og den grønne linja.{' '}
         {ok ? (
-          <>
-            Med t<Sub>r</Sub>, a og t<Sub>g</Sub> som nå er det bare mellom {fmt(msToKmh(ok[0]), 0)} og {fmt(msToKmh(ok[1]), 0)} km/h at det ikke finnes
-            noen dilemmasone: saktere biler bruker for lang tid over krysset, og raskere biler har for lang stopplengde.
-          </>
+          ok[1] > kmhToMs(150) ? (
+            <>
+              Med t<Sub>r</Sub>, a og t<Sub>g</Sub> som nå finnes dilemmasonen bare under {fmt(msToKmh(ok[0]), 0)} km/h (og ved urealistisk høy fart): så
+              sakte bruker bilen for lang tid over krysset.
+            </>
+          ) : (
+            <>
+              Med t<Sub>r</Sub>, a og t<Sub>g</Sub> som nå er det bare mellom {fmt(msToKmh(ok[0]), 0)} og {fmt(msToKmh(ok[1]), 0)} km/h at det ikke finnes
+              noen dilemmasone: saktere biler bruker for lang tid over krysset, og raskere biler har for lang stopplengde.
+            </>
+          )
         ) : (
           <>
             Med t<Sub>r</Sub>, a og t<Sub>g</Sub> som nå finnes dilemmasonen ved alle farter.
@@ -774,8 +800,9 @@ function explanation(input: YellowInput, kmh: number, D: number, z: Zones, sit: 
       </p>
       <p>
         Mange tror at gult betyr «gass på». Etter trafikkreglene betyr gult lys stopp, men den som er så nær at den ikke kan stoppe trygt, kan kjøre videre.
-        Lyskryss har derfor en kort tid der alle har rødt, så en bil som er på vei over, rekker ut før kryssende trafikk får grønt. Det sikreste er å holde
-        lavere fart inn mot krysset: da blir dilemmasonen kortere.
+        Her regner vi strengt: hele bilen skal være ute av krysset før rødt, og den gasser ikke. Ekte lyskryss har i tillegg en kort tid der alle har rødt,
+        så en bil som er på vei over, rekker ut før kryssende trafikk får grønt. Det sikreste er likevel å holde lavere fart inn mot krysset: da blir
+        stopplengden kortere, og du kan stoppe selv om lyset skifter når du er nær.
       </p>
     </>
   );

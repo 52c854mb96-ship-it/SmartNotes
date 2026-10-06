@@ -181,17 +181,75 @@ export function framePoint(fr: RiderFrame, along: number, up: number): { x: numb
 export const ARROW_AHEAD: Record<TrackKind, number> = { rampe: 0.62, bakke: 0.7 };
 
 /**
- * Fartspila langs banen: fra et punkt i hoftehøyde litt foran kroppen og v · SPEED_ARROW_M meter i fartsretningen.
- * `v` er farten med fortegn (positiv mot høyre).
+ * Hvor mye høyere fartspila går (m ut fra banen) når kreftene vises: da går G∥ langs banen fra tyngdepunktet, og
+ * de to pilene skal ikke ligge oppå hverandre.
  */
-export function speedArrow(fr: RiderFrame, kind: TrackKind, ppm: number, v: number): { x1: number; y1: number; x2: number; y2: number } {
+export const SPEED_ARROW_LIFT = 0.55;
+
+/**
+ * Fartspila langs banen: fra et punkt i hoftehøyde litt foran kroppen og v · SPEED_ARROW_M meter i fartsretningen.
+ * `v` er farten med fortegn (positiv mot høyre). `lift` (m) flytter pila lenger ut fra banen.
+ */
+export function speedArrow(fr: RiderFrame, kind: TrackKind, ppm: number, v: number, lift = 0): { x1: number; y1: number; x2: number; y2: number } {
   const sv = v >= 0 ? 1 : -1;
-  const com = framePoint(fr, 0, COM_HEIGHT[kind] * ppm);
+  const com = framePoint(fr, 0, (COM_HEIGHT[kind] + lift) * ppm);
   const ahead = ARROW_AHEAD[kind] * ppm;
   const x1 = com.x + fr.tx * sv * ahead;
   const y1 = com.y + fr.ty * sv * ahead;
   const len = Math.abs(v) * SPEED_ARROW_M * ppm;
   return { x1, y1, x2: x1 + fr.tx * sv * len, y2: y1 + fr.ty * sv * len };
+}
+
+/* ---------- Kreftene (bryteren «Vis krefter») ---------- */
+
+/**
+ * Kraftskalaen: tyngden er alltid 1,5 m lang i samme skala som banen, så G∥ synes også for lette personer. Skalaen
+ * (px/N) avhenger dermed av massen, men er den samme for alle kreftene i figuren; størrelsen på G står på pila.
+ */
+export const G_ARROW_M = 1.5;
+/** Friksjonspila begynner ved bakenden av brettet (m bak midten). */
+const R_BACK = 0.4;
+
+export interface Seg {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface SceneForces {
+  /** Tyngdepunktet, der G og komponenten G∥ har angrepspunkt. */
+  com: { x: number; y: number };
+  /** Tyngden G = mg, rett ned. */
+  G: Seg;
+  /** Komponenten av G langs banen, G∥ = G · sin θ, ned bakken (null på et vannrett stykke). */
+  Gpar: Seg | null;
+  /** G∥ med fortegn langs banen mot høyre (N): negativ når banen stiger mot høyre. */
+  GparN: number;
+  /** Friksjon og luftmotstand R mot farten, med angrepspunkt ved brettet (null i ro eller uten friksjon). */
+  R: Seg | null;
+  /** Figurenheter per newton. */
+  k: number;
+}
+
+/**
+ * Pilene for tyngden, komponenten av tyngden langs banen og friksjonen, med én skala px/N for alle kreftene.
+ * Normalkraften er ikke med: den står vinkelrett på farten og gjør ikke arbeid, og størrelsen endrer seg når banen
+ * krummer. `v` er farten med fortegn (positiv mot høyre), `R` friksjonskraften (0 uten friksjon).
+ */
+export function sceneForces(fr: RiderFrame, kind: TrackKind, ppm: number, m: number, g: number, v: number, R: number): SceneForces {
+  const G = Math.max(0, m * g);
+  const k = G > 0 ? (G_ARROW_M * ppm) / G : 0;
+  const com = framePoint(fr, 0, COM_HEIGHT[kind] * ppm);
+  // sin θ for banen mot høyre: tangenten (tx, ty) har ty < 0 når banen stiger (y ned i figuren)
+  const sin = -fr.ty;
+  const GparN = -G * sin;
+  const Gpar = Math.abs(GparN) * k > 0.5 ? { x1: com.x, y1: com.y, x2: com.x + fr.tx * GparN * k, y2: com.y + fr.ty * GparN * k } : null;
+  // R fra bakenden av brettet (0,4 m bak midten, i hjulhøyde), bakover langs banen
+  const sv = Math.sign(v);
+  const back = framePoint(fr, -sv * R_BACK * ppm, 0.06 * ppm);
+  const Rseg = R > 0 && sv !== 0 ? { x1: back.x, y1: back.y, x2: back.x - fr.tx * sv * R * k, y2: back.y - fr.ty * sv * R * k } : null;
+  return { com, G: { x1: com.x, y1: com.y, x2: com.x, y2: com.y + G * k }, Gpar, GparN, R: Rseg, k };
 }
 
 /**

@@ -175,6 +175,31 @@ const viz: VizMeta[] = [
     keywords: ['skråplan', 'rampe', 'friksjonstall', 'dekomponering', 'andre lov', 'grensevinkel', 'tidløs likning'],
     load: () => import('./EksSkraplan'),
   },
+  {
+    id: 'eks-trinse',
+    kind: 'eksempel',
+    chapter: '2',
+    sections: ['2B', '2C', '2E'],
+    title: 'Vogn og lodd over en trinse',
+    summary:
+      'Krefter på vogna og loddet, akselerasjonen til systemet, snordraget og hvorfor det er mindre enn tyngden til loddet, farten og hva friksjon endrer, steg for steg.',
+    keywords: [
+      'trinse',
+      'snordrag',
+      'lodd',
+      'dynamikkvogn',
+      'koblede legemer',
+      'system',
+      'indre krefter',
+      'andre lov',
+      'Newtons 2. lov',
+      'første lov',
+      'glidefriksjon',
+      'friksjonstall',
+      'tidløs likning',
+    ],
+    load: () => import('./EksTrinse'),
+  },
 ];
 
 export default viz;

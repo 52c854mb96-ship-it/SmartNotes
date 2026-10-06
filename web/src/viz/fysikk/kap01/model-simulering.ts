@@ -115,8 +115,32 @@ export function bodyPositionOf(k: number): BodyPositionId | null {
   return BODY_POSITIONS.find((b) => Math.abs(b.k - k) < 1e-6)?.id ?? null;
 }
 
+/**
+ * Stillingen hopperen tegnes i for et luftmotstandstall: små k betyr liten flate mot lufta (hodet ned), store k en
+ * vid drakt med armer og bein strukket ut. Grensene ligger midt mellom forhåndsvalgene, så også egne verdier på
+ * glidebryteren får den nærmeste stillingen.
+ */
+export function bodyPoseOf(k: number): BodyPositionId {
+  if (k < 0.17) return 'hode';
+  return k < 0.33 ? 'mage' : 'vid';
+}
+
 /** Om hopperen tegnes med hodet ned: små luftmotstandstall betyr liten flate mot lufta. */
-export const isHeadDown = (k: number): boolean => k < 0.17;
+export const isHeadDown = (k: number): boolean => bodyPoseOf(k) === 'hode';
+
+/* ---------- Flyet ---------- */
+
+/**
+ * Flyet står lenger inne i bildet enn hopperen (dybdefaktor: hvor mange ganger mindre det tegnes per meter), så det
+ * ser ut som et ekte hoppfly bak og over ham uten å dekke ham. Kameraet følger hopperen, så flyet glir oppover med
+ * strekningen han har falt, i samme dybdeskala.
+ */
+export const PLANE_DEPTH = 0.25;
+
+/** Hvor langt flyet har glidd oppover i figuren (figurenheter) når hopperen har falt s meter. */
+export function planeRise(s: number, pxPerM: number, depth = PLANE_DEPTH): number {
+  return Math.max(0, Number.isFinite(s) ? s : 0) * pxPerM * depth;
+}
 
 /* ---------- Høyde og utløsning ---------- */
 

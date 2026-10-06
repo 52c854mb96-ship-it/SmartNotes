@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { G_EARTH } from '../../kit/format';
 import { criticalAngleDeg, incline } from './model';
-import { BLOCK_ASPECT, BLOCK_MATERIALS, TILT_RUN, blockSize, tiltEnd, tiltState, tiltTimes, type BlockMaterial, type TiltInput } from './model-skraplan';
+import {
+  BLOCK_ASPECT,
+  BLOCK_MATERIALS,
+  PLANK,
+  TILT_RUN,
+  blockSize,
+  slideRoom,
+  tiltEnd,
+  tiltState,
+  tiltTimes,
+  type BlockMaterial,
+  type TiltInput,
+} from './model-skraplan';
 
 const RAD = Math.PI / 180;
 const MATERIALS = Object.keys(BLOCK_MATERIALS) as BlockMaterial[];
@@ -198,6 +210,27 @@ describe('forsøket: planken løftes til klossen glir', () => {
         }
       }
     }
+  });
+});
+
+describe('skråplanet', () => {
+  it('har plass til den største klossen, og klossen kan alltid gli et stykke', () => {
+    for (const k of MATERIALS) {
+      for (const m of [1, 4, 10]) {
+        const { length } = blockSize(m, k);
+        // Bakkanten er innenfor planken, og forkanten er over stoppeklossen før forsøket.
+        expect(PLANK.start + length / 2).toBeLessThanOrEqual(PLANK.length);
+        expect(PLANK.start - length / 2).toBeGreaterThan(PLANK.stop);
+        expect(slideRoom(length)).toBeGreaterThan(0.2);
+        // Etter glidingen ligger forkanten akkurat inntil stoppeklossen.
+        expect(PLANK.start - slideRoom(length) - length / 2).toBeCloseTo(PLANK.stop, 12);
+      }
+    }
+  });
+
+  it('gir aldri negativ glidelengde', () => {
+    expect(slideRoom(10)).toBe(0);
+    expect(slideRoom(Number.NaN)).toBeCloseTo(PLANK.start - PLANK.stop, 12);
   });
 });
 

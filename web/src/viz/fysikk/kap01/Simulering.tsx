@@ -27,7 +27,7 @@ import {
   useSimClock,
   useTextScale,
 } from '../../kit';
-import { ForceArrow, Stoppeklokke, ValueTag, alpha, useSceneScale } from '../../kit/scene';
+import { ForceArrow, Stoppeklokke, ValueTag, alpha, useSceneScale, useSvgId } from '../../kit/scene';
 import { eulerFall, exactVelocity, maxVelocityError, niceRange, terminalVelocity, type DragFall, type EulerRow } from './model';
 import {
   BODY_POSITIONS,
@@ -35,12 +35,14 @@ import {
   EXIT_HEIGHT,
   SIM_DT_MAX,
   SIM_DT_MIN,
+  PLANE_DEPTH,
   altitude,
+  bodyPoseOf,
   bodyPositionOf,
   eulerStateAt,
   extremes,
   forceScale,
-  isHeadDown,
+  planeRise,
   sDecimals,
   simTime,
   tableWindow,
@@ -49,7 +51,7 @@ import {
   type BodyPositionId,
   type EulerState,
 } from './model-simulering';
-import { FallHimmel, Hopper, Hoydemaaler, Luftstrom, hopperOmriss } from './simulering-deler';
+import { FallHimmel, HOPPEFLY_DM, Hopper, Hoppefly, Hoydemaaler, Luftstrom, hopperOmriss } from './simulering-deler';
 import { useNarrow } from './useNarrow';
 import { ColorDot, Label } from './marks';
 
@@ -283,8 +285,10 @@ function FallScene({ p, rows, st, vT, geo, forces }: { p: DragFall; rows: EulerR
   const { panel, cx, cy, narrow } = geo;
   const size = geo.size * sc;
   const pxPerM = size / PERSON_M;
-  const headDown = isHeadDown(p.k);
-  const outline = useMemo(() => hopperOmriss(size, headDown), [size, headDown]);
+  const pose = bodyPoseOf(p.k);
+  const headDown = pose === 'hode';
+  const outline = useMemo(() => hopperOmriss(size, pose), [size, pose]);
+  const clip = useSvgId('sim-scene');
   const ex = useMemo(() => extremes(p, rows), [p, rows]);
 
   const G = p.m * G_EARTH;
@@ -309,17 +313,37 @@ function FallScene({ p, rows, st, vT, geo, forces }: { p: DragFall; rows: EulerR
 
   const air = (narrow ? 90 : 64) * (st.v / vAxis);
   const nSteps = rows.length - 1;
+  // Flyet hopperen kom fra: lenger inne i bildet (mindre per meter) og litt foran ham. Dørterskelen står så lavt at
+  // hele halefinnen synes, men hjulene holder seg over skiltet for a og buken over etiketten for L (som er 0 N mens
+  // flyet synes). Flyet glir oppover og ut av bildet i løpet av det første sekundet.
+  const planeK = pxPerM * PLANE_DEPTH;
+  const kd = planeK / 10;
+  const planeY0 = Math.min(-HOPPEFLY_DM.top * kd + 8, cy - 36 * f - 6 - HOPPEFLY_DM.bottom * kd, bodyTop - 21 * f - 6 - 2 * kd);
+  const planeY = planeY0 - planeRise(st.s, pxPerM);
+  const planeVisible = planeY + HOPPEFLY_DM.bottom * kd > 0;
 
   return (
     <g>
       <FallHimmel w={panel.w} h={panel.h} horisont={panel.horizon} falt={st.s} parallakse={narrow ? 2.2 : 1.6} />
+      {planeVisible && (
+        <>
+          <defs>
+            <clipPath id={clip}>
+              <rect x={0} y={0} width={panel.w} height={panel.h} rx={10} />
+            </clipPath>
+          </defs>
+          <g clipPath={`url(#${clip})`}>
+            <Hoppefly x={cx + (narrow ? 70 : 60) * sc} y={planeY} pxPerM={planeK} />
+          </g>
+        </>
+      )}
       <Luftstrom
         xs={[cx + outline.left - 14 * sc, cx + outline.right + 14 * sc]}
         y={cy - 4 * sc}
         length={air}
         spread={(outline.right - outline.left) * 0.12}
       />
-      <Hopper x={cx} y={cy} size={size} hodeNed={headDown} />
+      <Hopper x={cx} y={cy} size={size} stilling={pose} />
 
       {forces && (
         <>
@@ -516,11 +540,17 @@ function ErrorPlot({ curve, dt, err, height }: { curve: [number, number][]; dt: 
       height={height}
       margin={{ top: 34 * f, right: 24 * f, bottom: 56 * f, left: 72 * f }}
     >
-      {({ sx, sy, x0, y0, y1 }) => {
+      {({ sx, sy, x0, x1, y0, y1 }) => {
         const area = `${linePath(curve, sx, sy)}L${sx(curve[curve.length - 1]?.[0] ?? SIM_DT_MAX)},${y0}L${sx(curve[0]?.[0] ?? 0)},${y0}Z`;
-        const right = sx(dt) > 560;
-        // Under punktet når det ligger høyt (ellers kolliderer tallet med overskriften)
-        const labelY = sy(err) - 10 * f < y1 + 8 * f ? sy(err) + 24 * f : sy(err) - 10 * f;
+        const spot = labelSpot(
+          curve.map(([d, e]) => [sx(d), sy(e)]),
+          sx(dt),
+          sy(err),
+          `${fmt(err, 2)} m/s`.length * 0.6 * 17 * 0.85 * f,
+          17 * 0.85 * f,
+          { x0, x1, top: y1 + 6 * f, bottom: y0 },
+          f,
+        );
         return (
           <g>
             <Label x={x0} y={y1 - 12} anchor="start" muted>
@@ -530,7 +560,7 @@ function ErrorPlot({ curve, dt, err, height }: { curve: [number, number][]; dt: 
             <path d={linePath(curve, sx, sy)} fill="none" stroke={C_EULER} strokeWidth={3} />
             <line x1={sx(dt)} x2={sx(dt)} y1={y0} y2={sy(err)} stroke={C_EULER} strokeWidth={1.5} strokeDasharray="3 4" />
             <ColorDot x={sx(dt)} y={sy(err)} color={C_EULER} />
-            <Txt x={sx(dt) + (right ? -12 : 12) * f} y={labelY} anchor={right ? 'end' : 'start'} size={0.85} color={C_EULER} weight={700}>
+            <Txt x={spot.x} y={spot.y} anchor={spot.anchor} size={0.85} color={C_EULER} weight={700}>
               {fmt(err, 2)} m/s
             </Txt>
           </g>
@@ -538,6 +568,47 @@ function ErrorPlot({ curve, dt, err, height }: { curve: [number, number][]; dt: 
       }}
     </Plot>
   );
+}
+
+/**
+ * Hvor verdien ved punktet (px, py) på avvikskurven skal stå, så teksten ikke krysser kurven eller går ut av plottet:
+ * den første av fire plasser (over til venstre, over til høyre, under til høyre, under til venstre) der tekstboksen
+ * (bredde w, høyde h) ikke treffer noen del av kurven. Kurven stiger nesten alltid, så over til venstre er vanligst.
+ */
+function labelSpot(
+  pts: [number, number][],
+  px: number,
+  py: number,
+  w: number,
+  h: number,
+  box: { x0: number; x1: number; top: number; bottom: number },
+  f: number,
+): { x: number; y: number; anchor: 'start' | 'end' } {
+  const gap = 10 * f;
+  const pad = 3 * f;
+  const options: { x: number; y: number; anchor: 'start' | 'end' }[] = [
+    { x: px - gap, y: py - gap, anchor: 'end' },
+    { x: px + gap, y: py - gap, anchor: 'start' },
+    { x: px + gap, y: py + gap + h, anchor: 'start' },
+    { x: px - gap, y: py + gap + h, anchor: 'end' },
+  ];
+  const fits = (o: (typeof options)[number]) => {
+    const left = o.anchor === 'end' ? o.x - w : o.x;
+    const right = left + w;
+    const top = o.y - h;
+    const bottom = o.y + 0.25 * h;
+    if (left < box.x0 || right > box.x1 || top < box.top || bottom > box.bottom) return false;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1];
+      const b = pts[i];
+      if (!a || !b || b[0] < left - pad || a[0] > right + pad) continue;
+      const lo = Math.min(a[1], b[1]);
+      const hi = Math.max(a[1], b[1]);
+      if (hi >= top - pad && lo <= bottom + pad) return false;
+    }
+    return true;
+  };
+  return options.find(fits) ?? options[0]!;
 }
 
 /* ---------- Tabell ---------- */

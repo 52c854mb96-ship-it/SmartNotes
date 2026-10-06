@@ -7,12 +7,15 @@ import {
   SIM_DT_MAX,
   SIM_DT_MIN,
   altitude,
+  bodyPoseOf,
   bodyPositionOf,
   dragForce,
   eulerStateAt,
   extremes,
   forceScale,
   isHeadDown,
+  planeRise,
+  PLANE_DEPTH,
   rowStep,
   sDecimals,
   simTime,
@@ -151,6 +154,34 @@ describe('kroppsstilling, høyde og utløsning', () => {
     expect(bodyPositionOf(0.31)).toBeNull();
     expect(isHeadDown(0.12)).toBe(true);
     expect(isHeadDown(0.25)).toBe(false);
+  });
+
+  it('stillingen som tegnes, følger k: forhåndsvalgene gir sin egen stilling, egne verdier den nærmeste', () => {
+    for (const b of BODY_POSITIONS) expect(bodyPoseOf(b.k)).toBe(b.id);
+    expect(bodyPoseOf(0.1)).toBe('hode');
+    expect(bodyPoseOf(0.16)).toBe('hode');
+    expect(bodyPoseOf(0.17)).toBe('mage');
+    expect(bodyPoseOf(0.32)).toBe('mage');
+    expect(bodyPoseOf(0.33)).toBe('vid');
+    expect(bodyPoseOf(0.5)).toBe('vid');
+    // Grensene ligger mellom forhåndsvalgene
+    const ks = BODY_POSITIONS.map((b) => b.k);
+    expect(0.17).toBeGreaterThan(ks[0]!);
+    expect(0.17).toBeLessThan(ks[1]!);
+    expect(0.33).toBeGreaterThan(ks[1]!);
+    expect(0.33).toBeLessThan(ks[2]!);
+  });
+
+  it('flyet glir oppover i dybdeskalaen når hopperen faller, og står stille i starten', () => {
+    expect(planeRise(0, 86)).toBe(0);
+    expect(planeRise(10, 86)).toBeCloseTo(10 * 86 * PLANE_DEPTH, 12);
+    expect(planeRise(-3, 86)).toBe(0);
+    expect(planeRise(Number.NaN, 86)).toBe(0);
+    // Etter første steg med Δt = 1 s (s₁ = g · Δt² = 9,81 m) har flyet glidd over 200 figurenheter: ute av scenen
+    const r = eulerFall(p, 1, 20);
+    expect(planeRise(r[1]!.s, 150 / 1.75)).toBeGreaterThan(200);
+    expect(PLANE_DEPTH).toBeGreaterThan(0);
+    expect(PLANE_DEPTH).toBeLessThan(1);
   });
 
   it('høyden over bakken er 4 000 m minus strekningen, aldri negativ', () => {

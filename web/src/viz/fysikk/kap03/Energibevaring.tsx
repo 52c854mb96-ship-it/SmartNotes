@@ -27,15 +27,17 @@ import {
   useTextScale,
 } from '../../kit';
 import { Dimension, ForceArrow, Gran, Himmel, Landskap, SCENE, Terreng, Underlag, ValueTag, alpha, useStrokeScale } from '../../kit/scene';
-import { Aker, HalfpipeDetaljer, SKATER_TOP, SLEDDER_TOP, Skater, halfpipeProfile } from './energibevaring-deler';
+import { Akespor, Aker, Halfpipe, SKATER_TOP, SLEDDER_TOP, Skater } from './energibevaring-deler';
 import {
   SCENE_W,
+  SPEED_ARROW_LIFT,
+  SPEED_ARROW_M,
   barHeight,
+  boxesOverlap,
   facing,
   framePoint,
   riderFrame,
-  boxesOverlap,
-  SPEED_ARROW_M,
+  sceneForces,
   sceneLayout,
   segmentHitsBox,
   speedArrow,
@@ -44,6 +46,7 @@ import {
   textWidth,
   type Box,
   type SceneLayout,
+  type Seg,
 } from './energibevaring-scene';
 import {
   humpOutcome,
@@ -85,6 +88,7 @@ export default function Energibevaring() {
   const [h0, setH0] = useState(4);
   const [m, setM] = useState(50);
   const [friction, setFriction] = useState(false);
+  const [showForces, setShowForces] = useState(false);
   const { ref, narrow } = useNarrow();
 
   const track = useMemo(() => makeTrack(kind), [kind]);
@@ -130,14 +134,15 @@ export default function Energibevaring() {
       <Toolbar>
         <Segmented label="Velg situasjon" options={KINDS} value={kind} onChange={(k) => change(() => setKind(k))} />
         <Toggle label="Med friksjon (R = 6 % av G)" checked={friction} onChange={(on) => change(() => setFriction(on))} />
+        <Toggle label="Vis krefter" checked={showForces} onChange={setShowForces} />
       </Toolbar>
       <Toolbar>
         <PlayControls clock={clock} decimals={1} />
       </Toolbar>
 
       <div ref={ref}>
-        <Figure viewBox={`0 0 ${SCENE_W} ${L.H}`} label={sceneLabel(kind, h0, m, friction, p)} maxHeight={narrow ? 600 : 440}>
-          <Scene L={L} track={track} sim={sim} p={p} h0={h0} m={m} friction={friction} stopped={stopped} />
+        <Figure viewBox={`0 0 ${SCENE_W} ${L.H}`} label={sceneLabel(kind, h0, m, friction, p, showForces)} maxHeight={narrow ? 600 : 440}>
+          <Scene L={L} track={track} sim={sim} p={p} h0={h0} m={m} friction={friction} stopped={stopped} showForces={showForces} />
         </Figure>
       </div>
       <Legend
@@ -166,6 +171,19 @@ export default function Energibevaring() {
                     </span>
                   ),
                 },
+              ]
+            : []),
+          ...(showForces
+            ? [
+                {
+                  color: VIZ.gravity,
+                  label: (
+                    <span>
+                      Tyngden G og komponenten langs banen, G<Sub>∥</Sub> (stiplet)
+                    </span>
+                  ),
+                },
+                ...(friction ? [{ color: C_HEAT, label: 'Friksjon og luftmotstand R' }] : []),
               ]
             : []),
         ]}
@@ -227,7 +245,7 @@ export default function Energibevaring() {
       </Formula>
 
       <Explain>
-        <ExplainText kind={kind} track={track} sim={sim} p={p} t={t} h0={h0} friction={friction} stopped={stopped} outcome={outcome} m={m} />
+        <ExplainText kind={kind} track={track} sim={sim} p={p} t={t} h0={h0} friction={friction} stopped={stopped} outcome={outcome} m={m} showForces={showForces} />
       </Explain>
     </VizLayout>
   );
@@ -251,12 +269,13 @@ function LegendText({ text }: { text: string }) {
   );
 }
 
-function sceneLabel(kind: TrackKind, h0: number, m: number, friction: boolean, p: TrackSample): string {
+function sceneLabel(kind: TrackKind, h0: number, m: number, friction: boolean, p: TrackSample, showForces: boolean): string {
   const where =
     kind === 'rampe'
-      ? `Skater på skateboard i en halfpipe av tre som er 6 m høy og 12 m bred, startet i ro ${fmt(h0, 1)} m over bunnen`
+      ? `Skater på skateboard i en halfpipe av tre som er 6 m høy og 12 m bred, startet fra et vendepunkt ${fmt(h0, 1)} m over bunnen`
       : `Akebrett i en akebakke med en kul på 3 m i midten og en motbakke på den andre siden, startet i ro ${fmt(h0, 1)} m over bunnen av dalen`;
-  return `${where}. Masse ${fmt(m, 0)} kg${friction ? ', med friksjon' : ', uten friksjon'}. Nå ${fmt(p.h, 1)} m over nullnivået med farten ${fmt(Math.abs(p.v), 1)} m/s. Energistolper for potensiell, kinetisk og mekanisk energi${friction ? ' og termisk energi' : ''}.`;
+  const forces = showForces ? ` Kraftpiler for tyngden G, komponenten av G langs banen${friction ? ' og friksjonen R' : ''}.` : '';
+  return `${where}. Masse ${fmt(m, 0)} kg${friction ? ', med friksjon' : ', uten friksjon'}. Nå ${fmt(p.h, 1)} m over nullnivået med farten ${fmt(Math.abs(p.v), 1)} m/s. Energistolper for potensiell, kinetisk og mekanisk energi${friction ? ' og termisk energi' : ''}.${forces}`;
 }
 
 /* ---------- Scenen ---------- */
@@ -281,21 +300,18 @@ const Bakgrunn = memo(function Bakgrunn({ L }: { L: SceneLayout }) {
   );
 });
 
-/** Banen selv: halfpipen med bindingsverk og rekkverk, eller akebakken i snø med graner på toppene. */
+/** Banen selv: halfpipen av tre, eller akebakken i snø med spor etter akebrettene og graner på toppene. */
 const Bane = memo(function Bane({ L, track }: { L: SceneLayout; track: Track }) {
   const { X, Y } = L;
-  if (L.kind === 'rampe') {
-    const pts = halfpipeProfile(track, L).map(([x, h]): [number, number] => [X(x), Y(h)]);
-    return (
-      <g>
-        <Terreng points={pts} bottom={L.groundY} type="tregulv" seed={3} title="Halfpipe av tre" />
-        <HalfpipeDetaljer track={track} L={L} />
-      </g>
-    );
-  }
+  if (L.kind === 'rampe') return <Halfpipe track={track} L={L} />;
   const right = L.xLeft + L.W / L.ppm + 0.5;
   const pts: [number, number][] = [[X(L.xLeft - 0.5), Y(track.top)]];
-  for (let x = track.xMin; x <= track.xMax + 1e-9; x += 0.1) pts.push([X(x), Y(track.height(Math.min(x, track.xMax)))]);
+  const run: [number, number][] = [];
+  for (let x = track.xMin; x <= track.xMax + 1e-9; x += 0.1) {
+    const q: [number, number] = [X(x), Y(track.height(Math.min(x, track.xMax)))];
+    pts.push(q);
+    run.push(q);
+  }
   pts.push([X(right), Y(track.top)]);
   return (
     <g>
@@ -303,6 +319,7 @@ const Bane = memo(function Bane({ L, track }: { L: SceneLayout; track: Track }) 
       <Gran x={X(L.xLeft + 0.3)} y={Y(track.top) + 2} size={2.4 * L.ppm} sno seed={3} />
       <Gran x={X(Math.min(16.75, L.xRight - 0.3))} y={Y(track.top) + 2} size={3.2 * L.ppm} sno seed={4} />
       <Terreng points={pts} bottom={L.sceneH + 2} type="sno" seed={7} title="Akebakke i snø" />
+      <Akespor points={run} ppm={L.ppm} />
     </g>
   );
 });
@@ -316,6 +333,7 @@ function Scene({
   m,
   friction,
   stopped,
+  showForces,
 }: {
   L: SceneLayout;
   track: Track;
@@ -325,6 +343,7 @@ function Scene({
   m: number;
   friction: boolean;
   stopped: boolean;
+  showForces: boolean;
 }) {
   const f = useTextScale();
   const ss = useStrokeScale();
@@ -333,7 +352,8 @@ function Scene({
   const fr = riderFrame(track, L, p.x);
   const slope = track.slope(p.x);
   const dir = kind === 'rampe' ? facing(p.v, slope) : 1;
-  const speed = stopped ? 0 : Math.abs(p.v);
+  const vNow = stopped ? 0 : p.v;
+  const speed = Math.abs(vNow);
   // Pila tegnes når den er lang nok til å synes; ellers står farten på et skilt over hodet (v = 0 i ro)
   const moving = speed * SPEED_ARROW_M * ppm >= 8;
   const sv = p.v >= 0 ? 1 : -1;
@@ -343,8 +363,12 @@ function Scene({
   const yH0 = Y(h0);
   const yReach = Y(reach);
 
+  // Kreftene (med «Vis krefter»): G og G∥ fra tyngdepunktet, R fra bakenden av brettet. Fartspila flyttes da litt
+  // lenger ut fra banen, så den ikke ligger oppå G∥.
+  const forces = showForces ? sceneForces(fr, kind, ppm, m, G_EARTH, vNow, sim.R) : null;
+
   // Fartspila langs banen, foran kroppen, fra hoftehøyde
-  const arrow = speedArrow(fr, kind, ppm, stopped ? 0 : p.v);
+  const arrow = speedArrow(fr, kind, ppm, vNow, showForces ? SPEED_ARROW_LIFT : 0);
   const a0 = { x: arrow.x1, y: arrow.y1 };
   const tip = { x: arrow.x2, y: arrow.y2 };
   const vText = `v = ${fmt(speed, 1)} m/s`;
@@ -354,7 +378,34 @@ function Scene({
   const tagW = textWidth(tagText, 0.85, f) + 20 * f;
   const tagX = Math.min(right - tagW / 2, Math.max(6 + tagW / 2, head.x));
 
-  // Etikettene plasseres der de ikke kolliderer med personen, fartspila eller hverandre: første ledige av noen
+  // Etikettene til kreftene: G ved spissen på motsatt side av G∥ (så de ikke kolliderer), G∥ og R like forbi spissen
+  const gText = `G = ${fmt(m * G_EARTH, 0)} N`;
+  const forceLabels: { key: string; x: number; y: number; anchor: 'start' | 'middle' | 'end'; box: Box }[] = [];
+  if (forces) {
+    const g = forces.G;
+    const gw = textWidth(gText, 0.9, f);
+    const gRight = forces.Gpar ? forces.Gpar.x2 < forces.Gpar.x1 : true;
+    const gx = Math.min(right - gw, Math.max(6 + gw, g.x2 + (gRight ? 10 : -10) * f));
+    const ga = gRight ? 'start' : 'end';
+    const gy = g.y2 + 4 * f;
+    forceLabels.push({ key: 'G', x: gx, y: gy, anchor: ga, box: textBox(gx, gy, gw, ga, 0.9, f) });
+    for (const [key, sg, w] of [
+      ['Gpar', forces.Gpar, textWidth('G∥', 1, f)],
+      ['R', forces.R, textWidth('R', 1, f)],
+    ] as const) {
+      if (!sg) continue;
+      const len = Math.hypot(sg.x2 - sg.x1, sg.y2 - sg.y1) || 1;
+      const ux = (sg.x2 - sg.x1) / len;
+      const uy = (sg.y2 - sg.y1) / len;
+      const anchor = ux > 0.3 ? 'start' : ux < -0.3 ? 'end' : 'middle';
+      const x = sg.x2 + ux * 12 * f;
+      const y = sg.y2 + uy * 14 * f + 6 * f;
+      forceLabels.push({ key, x, y, anchor, box: textBox(x, y, w, anchor, 1, f) });
+    }
+  }
+  const forceSegs: Seg[] = forces ? [forces.G, ...(forces.Gpar ? [forces.Gpar] : []), ...(forces.R ? [forces.R] : [])] : [];
+
+  // Etikettene plasseres der de ikke kolliderer med personen, pilene eller hverandre: første ledige av noen
   // faste kandidater, ellers den første.
   const vW = textWidth(vText, 0.9, f);
   const obstacles: Box[] = [
@@ -365,14 +416,15 @@ function Scene({
       y1: Math.max(fr.y, head.y) + 4,
     },
     moving ? textBox(vLabel.x, vLabel.y, vW, vLabel.anchor, 0.9, f) : { x0: tagX - tagW / 2, x1: tagX + tagW / 2, y0: head.y - 36 * f, y1: head.y - 4 },
+    ...forceLabels.map((l) => l.box),
   ];
-  const arrowHits = (b: Box) => moving && segmentHitsBox(a0, tip, b, 6);
+  const arrowHits = (b: Box) =>
+    (moving && segmentHitsBox(a0, tip, b, 6)) || forceSegs.some((sg) => segmentHitsBox({ x: sg.x1, y: sg.y1 }, { x: sg.x2, y: sg.y2 }, b, 6));
   const free = (b: Box, extra: Box[] = []) => b.x0 >= 4 && b.x1 <= right + 1 && b.y0 >= 0 && ![...obstacles, ...extra].some((o) => boxesOverlap(b, o)) && !arrowHits(b);
   const pick = <T extends { box: Box }>(cands: T[], extra: Box[] = []): T => cands.find((c) => free(c.box, extra)) ?? cands[0]!;
   const pickFree = <T extends { box: Box }>(cands: T[], extra: Box[] = []): T | undefined => cands.find((c) => free(c.box, extra));
 
   // h₀ over linja: midt i dalen, eller et annet sted langs linja
-  const center = kind === 'rampe' ? 6 : 4.5;
   const h0W = textWidth(`h₀ = ${fmt(h0, 1)} m`, 0.92, f);
   const h0y = yH0 - 8 * f;
   const h0Label = pick(
@@ -384,8 +436,8 @@ function Scene({
   const h0x = h0Label.x;
 
   // Høyden h fra nullnivået opp til brettet: etiketten på motsatt side av fartspila (i ro: på oppoverbakkesiden),
-  // midt på mållinja eller nede ved nullnivået
-  const showH = p.h > 0.3;
+  // midt på mållinja eller nede ved nullnivået. Med kreftene vises den ikke, for da ville G ligget oppå mållinja.
+  const showH = p.h > 0.3 && !showForces;
   const hText = `h = ${fmt(p.h, 1)} m`;
   const hW = textWidth(hText, 0.85, f);
   const prefRight = moving ? sv < 0 : slope > 0;
@@ -413,6 +465,8 @@ function Scene({
   const hOffset = hLabel ? (labelRight ? 1 : -1) * (hLabel.my - midY) : 0;
   const hBox = showH && hLabel ? hLabel.box : null;
   const placed = [h0Label.box, ...(hBox ? [hBox] : [])];
+  // Mållinja for h er også i veien for etikettene under
+  const hLineHits = (b: Box) => showH && segmentHitsBox({ x: fr.x, y: fr.y }, { x: fr.x, y: Y(0) }, b, 3);
 
   // Kulen i akebakken: over toppen, ved siden av toppen eller inne i snøen
   let hump: { x: number; y: number; anchor: 'middle' | 'start' | 'end'; box: Box } | null = null;
@@ -428,29 +482,43 @@ function Scene({
       { x: hx + 0.9 * ppm, y: ht - 2 * f, anchor: 'start' as const },
       { x: hx, y: ht + 28 * f, anchor: 'middle' as const },
     ].map((c) => ({ ...c, box: textBox(c.x, c.y, kw, c.anchor, 0.85, f) }));
-    hump = pick(cands, [...placed, ...lines]);
+    const clear = cands.filter((c) => !hLineHits(c.box));
+    hump = pick(clear.length ? clear : cands, [...placed, ...lines]);
     placed.push(hump.box);
   }
 
-  // Nullnivået: i halfpipen midt under bunnen (der er det aldri noen), i akebakken nede til venstre eller under den
-  // andre dalen
+  // Nullnivået. I halfpipen på sideveggen like over linja, helt til venstre eller helt til høyre (eller under
+  // bunnen av rampa); i akebakken nede til venstre eller under den andre dalen.
   const zeroText = 'nullnivå, h = 0';
   const zeroW = textWidth(zeroText, 0.85, f);
-  const zeroY = Y(0) + 22 * f;
-  const zeroX = pick(
-    (kind === 'rampe' ? [X(center)] : [10 + zeroW / 2, X(12.5), X(8.6)]).map((x) => {
-      const cx = Math.min(right - zeroW / 2, Math.max(6 + zeroW / 2, x));
-      return { x: cx, box: textBox(cx, zeroY, zeroW, 'middle', 0.85, f) };
-    }),
+  const zeroCands =
+    kind === 'rampe'
+      ? [
+          { x: 8 + zeroW / 2, y: Y(0) - 7 * f },
+          { x: right - 4 - zeroW / 2, y: Y(0) - 7 * f },
+          { x: X(6), y: L.groundY + 20 * f },
+        ]
+      : [
+          { x: 10 + zeroW / 2, y: Y(0) + 22 * f },
+          { x: X(12.5), y: Y(0) + 22 * f },
+          { x: X(8.6), y: Y(0) + 22 * f },
+        ];
+  const zero = pick(
+    zeroCands
+      .map((c) => {
+        const cx = Math.min(right - zeroW / 2, Math.max(6 + zeroW / 2, c.x));
+        return { x: cx, y: c.y, box: textBox(cx, c.y, zeroW, 'middle', 0.85, f) };
+      })
+      .filter((c, i, all) => i === all.length - 1 || !hLineHits(c.box)),
     placed,
-  ).x;
+  );
 
   return (
     <g>
       <Bakgrunn L={L} />
       {/* Så høyt energien rekker. Linjene tegnes før banen, så de bare synes i lufta over den. */}
       {friction && reach < h0 - 0.005 && (
-        <rect x={0} y={yH0} width={right} height={Math.max(0, yReach - yH0)} fill={alpha(C_HEAT, 0.22)} />
+        <rect x={0} y={yH0} width={right} height={Math.max(0, yReach - yH0)} fill={alpha(C_HEAT, 0.14)} />
       )}
       <line x1={0} x2={right} y1={yH0} y2={yH0} stroke={VIZ.surface} strokeWidth={4 * ss} opacity={0.55} />
       <line
@@ -472,12 +540,34 @@ function Scene({
       <Bane L={L} track={track} />
 
       {/* Nullnivået gjennom bunnen av banen */}
-      <line x1={0} x2={right} y1={Y(0)} y2={Y(0)} stroke={VIZ.ink} strokeWidth={1.2 * ss} strokeDasharray="3 5" opacity={0.5} />
+      <line x1={0} x2={right} y1={Y(0)} y2={Y(0)} stroke={VIZ.surface} strokeWidth={3 * ss} opacity={0.35} />
+      <line x1={0} x2={right} y1={Y(0)} y2={Y(0)} stroke={VIZ.ink} strokeWidth={1.2 * ss} strokeDasharray={`${3 * ss} ${5 * ss}`} opacity={0.6} />
 
       {/* Høyden over nullnivået: E_p = mgh */}
       {showH && <Dimension x1={fr.x} y1={hy0} x2={fr.x} y2={hy1} label={hLabel ? hText : undefined} labelSize={0.85} labelOffset={hOffset} color={C_EP} />}
 
       {kind === 'rampe' ? <Skater fr={fr} ppm={ppm} dir={dir} d={p.d} /> : <Aker fr={fr} ppm={ppm} />}
+
+      {forces && (
+        <g>
+          {forces.Gpar && <ForceArrow {...forces.Gpar} color={VIZ.gravity} width={5} dashed />}
+          <ForceArrow {...forces.G} color={VIZ.gravity} width={5} origin />
+          {forces.R && <ForceArrow {...forces.R} color={C_HEAT} width={4} minLength={0.5} />}
+          {forceLabels.map((l) => (
+            <Txt key={l.key} x={l.x} y={l.y} anchor={l.anchor} color={l.key === 'R' ? C_HEAT : VIZ.gravity} weight={720} size={l.key === 'G' ? 0.9 : 1}>
+              {l.key === 'Gpar' ? (
+                <>
+                  G<TSub>∥</TSub>
+                </>
+              ) : l.key === 'G' ? (
+                gText
+              ) : (
+                l.key
+              )}
+            </Txt>
+          ))}
+        </g>
+      )}
 
       {moving ? (
         <>
@@ -493,7 +583,7 @@ function Scene({
       <Txt x={h0x} y={h0y} size={0.92} weight={720} color={friction ? C_HEAT : C_E}>
         h<TSub>0</TSub> = {fmt(h0, 1)} m
       </Txt>
-      <Txt x={zeroX} y={zeroY} size={0.85} weight={600} muted>
+      <Txt x={zero.x} y={zero.y} size={0.85} weight={600} muted>
         {zeroText}
       </Txt>
       {track.hump && hump && (
@@ -559,7 +649,7 @@ function EnergyCard({ L, p, sim, m, friction }: { L: SceneLayout; p: TrackSample
   const c = B.card;
   return (
     <g>
-      <rect x={c.x} y={c.y} width={c.w} height={c.h} rx={10} fill={VIZ.surface} opacity={0.93} />
+      <rect x={c.x} y={c.y} width={c.w} height={c.h} rx={10} fill={VIZ.surface} />
       <rect x={c.x} y={c.y} width={c.w} height={c.h} rx={10} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} opacity={0.35} />
       <Txt x={c.x + 12} y={c.y + 20 * f} anchor="start" size={0.8} weight={700} muted halo={false}>
         Energi (J)
@@ -701,6 +791,7 @@ function ExplainText({
   stopped,
   outcome,
   m,
+  showForces,
 }: {
   kind: TrackKind;
   track: Track;
@@ -712,6 +803,7 @@ function ExplainText({
   stopped: boolean;
   outcome: HumpOutcome | null;
   m: number;
+  showForces: boolean;
 }) {
   const w = WORDS[kind];
   const speed = Math.abs(p.v);
@@ -729,10 +821,11 @@ function ExplainText({
     phase = (
       <>
         <strong>
-          {w.Subj} står i ro {fmt(h0, 1)} m over nullnivået.
+          {kind === 'rampe' ? `Skateren snur ${fmt(h0, 1)} m over nullnivået.` : `${w.Subj} står i ro ${fmt(h0, 1)} m over nullnivået.`}
         </strong>{' '}
-        All energien er potensiell: E<Sub>p</Sub> = mgh<Sub>0</Sub> = {fmt(sim.E0, 0)} J. Nullnivået er lagt i bunnen av {w.place}; et annet
-        nullnivå ville endret E<Sub>p</Sub>, men ikke endringene i energi.
+        {kind === 'rampe' ? 'I et vendepunkt er farten null et øyeblikk, så all' : 'All'} energien er potensiell: E<Sub>p</Sub> = mgh
+        <Sub>0</Sub> = {fmt(sim.E0, 0)} J. Nullnivået er lagt i bunnen av {w.place}; et annet nullnivå ville endret E<Sub>p</Sub>, men ikke
+        endringene i energi.
       </>
     );
   else if (speed < 0.3)
@@ -836,6 +929,8 @@ function ExplainText({
       </>
     );
 
+  const forces = showForces ? <ForcesText kind={kind} track={track} p={p} m={m} h0={h0} friction={friction} stopped={stopped} goingDown={goingDown} /> : null;
+
   // Ved start holder det med starttilstanden og nullnivået (og eventuelt kulen i midten)
   if (t === 0 && !stopped)
     return (
@@ -844,6 +939,7 @@ function ExplainText({
           {phase}
           {track.hump ? extra : null}
         </p>
+        {forces}
         <p>{practical}</p>
       </>
     );
@@ -853,7 +949,82 @@ function ExplainText({
         {phase} {balance}
         {extra}
       </p>
+      {forces}
       <p>{practical}</p>
     </>
+  );
+}
+
+/** Hva kreftene gjør akkurat nå (vises med «Vis krefter»): tyngden gjør arbeid gjennom G∥, normalkraften gjør ikke arbeid. */
+function ForcesText({
+  kind,
+  track,
+  p,
+  m,
+  h0,
+  friction,
+  stopped,
+  goingDown,
+}: {
+  kind: TrackKind;
+  track: Track;
+  p: TrackSample;
+  m: number;
+  h0: number;
+  friction: boolean;
+  stopped: boolean;
+  goingDown: boolean;
+}) {
+  const w = WORDS[kind];
+  const flat = Math.abs(track.slope(p.x)) < 0.05;
+  const speed = Math.abs(p.v);
+  let now: ReactNode;
+  if (stopped)
+    now = flat ? (
+      <>
+        I bunnen er banen vannrett, så G<Sub>∥</Sub> = 0, og det er ingen kraft langs banen som kan sette {w.subj} i gang igjen.
+      </>
+    ) : (
+      <>
+        G<Sub>∥</Sub> er ikke større enn det friksjonen kan holde igjen, så {w.subj} blir stående.
+      </>
+    );
+  else if (flat)
+    now = (
+      <>
+        I bunnen er banen vannrett, så G<Sub>∥</Sub> = 0: akkurat her gjør ikke tyngden arbeid, og farten er {friction ? 'omtrent størst' : 'størst'}.
+      </>
+    );
+  else if (speed < 0.3)
+    now = (
+      <>
+        I vendepunktet peker G<Sub>∥</Sub> fortsatt ned bakken, så farten snur, og {w.subj} begynner å gli tilbake.
+      </>
+    );
+  else
+    now = goingDown ? (
+      <>
+        På vei ned peker G<Sub>∥</Sub> samme vei som farten. Da gjør tyngden positivt arbeid, og E<Sub>k</Sub> øker like mye som E<Sub>p</Sub>{' '}
+        minker.
+      </>
+    ) : (
+      <>
+        På vei opp peker G<Sub>∥</Sub> mot farten. Da gjør tyngden negativt arbeid, og E<Sub>k</Sub> blir til E<Sub>p</Sub>.
+      </>
+    );
+  return (
+    <p>
+      <strong>Kreftene:</strong> Tyngden G peker rett ned. Det er komponenten langs banen, G<Sub>∥</Sub> (stiplet), som gjør arbeid. {now}{' '}
+      Arbeidet tyngden har gjort siden start, avhenger bare av høydeforskjellen, ikke av formen på banen: W<Sub>G</Sub> = mg(h<Sub>0</Sub> − h)
+      = {fmt(m * G_EARTH * (h0 - p.h), 0)} J, akkurat det E<Sub>p</Sub> har minket med. Normalkraften N fra {w.place} er ikke tegnet: den står
+      vinkelrett på banen og på farten og gjør aldri arbeid.
+      {friction && (
+        <>
+          {' '}
+          Friksjonen og luftmotstanden R peker alltid mot farten og gjør negativt arbeid både på vei ned og på vei opp. R er bare 6 % av G, så
+          pila er kort, men den virker hele veien.
+        </>
+      )}
+    </p>
   );
 }

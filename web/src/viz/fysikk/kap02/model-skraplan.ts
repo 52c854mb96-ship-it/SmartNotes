@@ -47,6 +47,20 @@ export function blockSize(m: number, material: BlockMaterial): { length: number;
   return { length: BLOCK_ASPECT * height, height };
 }
 
+/* ---------- Det vippbare skråplanet ---------- */
+
+/** Målene på skråplanet i laben (m): planken, hvor midten av klossen står før forsøket, og stoppeklossen nederst. */
+export const PLANK = { length: 0.9, start: 0.62, stop: 0.03 } as const;
+
+/**
+ * Hvor langt klossen kan gli (m) før forkanten treffer stoppeklossen: fra start til stoppekant + halve klosslengden.
+ * Aldri negativ.
+ */
+export function slideRoom(blockLength: number): number {
+  const len = Number.isFinite(blockLength) ? Math.max(0, blockLength) : 0;
+  return Math.max(0, PLANK.start - PLANK.stop - len / 2);
+}
+
 /* ---------- Forsøket: planken løftes jevnt til klossen glir ---------- */
 
 export interface TiltInput {

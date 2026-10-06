@@ -60,15 +60,15 @@ export const BIKE_WIDE: BikeLayout = {
 export const BIKE_NARROW: BikeLayout = {
   W: 520,
   H: 600,
-  S: 80,
+  S: 92,
   xc: 262,
   yc: 482,
   road: 34,
   wall: 30,
   horizon: 382,
   hud: { x: 10, y: 10, w: 500, h: 150 },
-  maxArrow: 150,
-  tri: { x: 290, run: 2 },
+  maxArrow: 136,
+  tri: { x: 262, run: 1.5 },
   scaleBar: { x: 506, y: 190 },
   narrow: true,
 };
@@ -136,6 +136,39 @@ export function gradeTriangle(lay: BikeLayout, theta: number): GradeTriangle {
   const x1 = x0 + run * lay.S;
   const y1 = roadLineY(lay, theta, x1, e);
   return { x0, y0, x1, y1, run, rise: run * Math.tan(theta) };
+}
+
+export interface GradeLabels {
+  /** «0,19 m opp» står til høyre for den loddrette kateten (ellers på en egen linje under «… m bortover»). */
+  right: boolean;
+  /** Plass til hele «0,19 m opp» (ellers bare «0,19 m»). */
+  long: boolean;
+  /** Grunnlinjene til «2,5 m bortover», høyden og «stigning … = 7,5 %». */
+  run: { x: number; y: number };
+  rise: { x: number; y: number; anchor: 'start' | 'middle' };
+  ratio: { x: number; y: number };
+}
+
+/** Omtrentlig (romslig) bredde av en etikett med `chars` tegn og relativ størrelse `size` (Txt) ved tekstskaleringen f. */
+export function labelWidth(chars: number, f: number, size = 0.82): number {
+  return chars * 17 * size * 0.6 * f;
+}
+
+/**
+ * Hvor tekstene ved stigningstrekanten står: «… m bortover» midt under den vannrette kateten, høyden til høyre for den
+ * loddrette kateten (som «0,19 m opp», eller «0,19 m» når det er trangt) og «stigning … = 7,5 %» under. Får ikke
+ * høyden plass til høyre, står den på en egen linje. `longLen` og `shortLen` er antall tegn i de to utgavene av
+ * høydeteksten.
+ */
+export function gradeLabelLayout(tri: GradeTriangle, W: number, f: number, longLen: number, shortLen: number): GradeLabels {
+  const room = W - 4 - (tri.x1 + 8);
+  const long = labelWidth(longLen, f) <= room;
+  const right = long || labelWidth(shortLen, f) <= room;
+  const mid = (tri.x0 + tri.x1) / 2;
+  const run = { x: mid, y: tri.y0 + 20 * f };
+  if (right)
+    return { right, long, run, rise: { x: tri.x1 + 8, y: (tri.y0 + tri.y1) / 2 + 5 * f, anchor: 'start' }, ratio: { x: mid, y: tri.y0 + 42 * f } };
+  return { right, long: true, run, rise: { x: mid, y: tri.y0 + 42 * f, anchor: 'middle' }, ratio: { x: mid, y: tri.y0 + 64 * f } };
 }
 
 /**

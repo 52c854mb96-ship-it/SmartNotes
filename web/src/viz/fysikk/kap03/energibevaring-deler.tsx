@@ -1,19 +1,22 @@
 /**
  * Egne gjenstander til «Bevaring av mekanisk energi» (scene-kit-et har person, akebrett og terreng, men ikke
- * skateboard og halfpipe): skateboard, skater på brettet, aker på akebrettet og detaljene på halfpipen
- * (bindingsverk, coping og rekkverk). Samme stil som scene-kit-et: SCENE-farger, toninger fra core.tsx, kontur
- * og myke skygger. Alle mål er i meter gjennom `ppm` (figurenheter per meter), så alt står i samme skala.
+ * skateboard og halfpipe): skateboard, skater på brettet, aker på akebrettet, halfpipen (kryssfinér i sidene,
+ * kjøreflate, coping og rekkverk) og sporene i akebakken. Samme stil som scene-kit-et: SCENE-farger, toninger fra
+ * core.tsx, kontur og myke skygger. Alle mål er i meter gjennom `ppm` (figurenheter per meter), så alt står i samme
+ * skala.
  */
 import { memo } from 'react';
 import {
   Akebrett,
   ContactShadow,
   LinearGradient,
+  PAINTS,
   Person,
   Place,
   RadialGradient,
   SCENE,
   materialStops,
+  mix,
   shade,
   sphereStops,
   tint,
@@ -162,7 +165,7 @@ export function Aker({ fr, ppm }: { fr: RiderFrame; ppm: number }) {
 
 /* ---------- Halfpipe ---------- */
 
-/** Overflaten på halfpipen (m): plattform, U-rampe og plattform. Brukes som punkter til Terreng. */
+/** Overflaten på halfpipen (m): plattform, U-rampe og plattform. */
 export function halfpipeProfile(track: Track, L: Pick<SceneLayout, 'xLeft' | 'xRight'>): [number, number][] {
   const pts: [number, number][] = [[L.xLeft - 0.5, track.top]];
   for (let x = track.xMin; x <= track.xMax + 1e-9; x += 0.1) pts.push([x, track.height(Math.min(x, track.xMax))]);
@@ -170,45 +173,78 @@ export function halfpipeProfile(track: Track, L: Pick<SceneLayout, 'xLeft' | 'xR
   return pts;
 }
 
+/** Kryssfinérplatene i siden er 1,22 m × 2,44 m (standardplater), og skruene sitter i stenderne hver 0,61 m. */
+const SHEET = { w: 1.22, h: 2.44, stud: 0.61, screw: 0.3 };
+
 /**
- * Detaljene på halfpipen oppå Terreng-flaten: bindingsverket (stendere og svill) i siden, coping (stålrør) på
- * kantene og rekkverk bak plattformene. Statisk, så den tegnes én gang.
+ * Halfpipe av tre sett fra siden, som en skaterampe i en skatepark: sidene er kledd med lys, værbitt kryssfinér
+ * (platene og skruerekkene synes), kjøreflaten er et mørkt slitelag oppå finéren, med coping (stålrør) på kantene,
+ * plattformer med rekkverk og en svill på betongen. Sidene er dempet, så energifargene og pilene synes godt.
+ * Alt er i meter gjennom `L` (samme skala px/m som resten av scenen). Statisk, så den tegnes én gang.
  */
-export const HalfpipeDetaljer = memo(function HalfpipeDetaljer({ track, L }: { track: Track; L: SceneLayout }) {
+export const Halfpipe = memo(function Halfpipe({ track, L }: { track: Track; L: SceneLayout }) {
   const ss = useStrokeScale();
   const id = useSvgId('halfpipe');
   const { X, Y, ppm, groundY } = L;
-  const band = 0.16 * ppm;
-  // Stendere hver 1,1 m fra undersiden av ridelaget ned til svillen
-  const sill = groundY - Math.max(4, 0.14 * ppm);
-  const studs: string[] = [];
-  for (let x = L.xLeft + 0.35; x < L.xRight; x += 1.1) {
-    const h = x < track.xMin || x > track.xMax ? track.top : track.height(x);
-    const yTop = Y(h) + band + 2;
-    if (sill - yTop > 6) studs.push(`M${r1(X(x))},${r1(yTop)}L${r1(X(x))},${r1(sill)}`);
+  const prof = halfpipeProfile(track, L).map(([x, h]): [number, number] => [X(x), Y(h)]);
+  const surface = prof.map(([x, y], i) => `${i ? 'L' : 'M'}${r1(x)},${r1(y)}`).join('');
+  const first = prof[0]!;
+  const last = prof[prof.length - 1]!;
+  const body = `${surface}L${r1(last[0])},${r1(groundY)}L${r1(first[0])},${r1(groundY)}Z`;
+
+  const panel = mix(SCENE.woodLight, SCENE.concrete, 0.55);
+  const ride = mix(SCENE.woodDark, PAINTS.svart, 0.4);
+  const xL = L.xLeft - 0.5;
+  const xR = L.xRight + 0.5;
+
+  // Platene: skjøter loddrett hver 1,22 m (symmetrisk om midten) og vannrett 2,44 m over svillen
+  let seams = '';
+  let screws = '';
+  const n0 = Math.floor((xL - track.xBottom) / SHEET.w);
+  for (let i = n0; track.xBottom + i * SHEET.w <= xR; i++) {
+    const x = track.xBottom + i * SHEET.w;
+    seams += `M${r1(X(x))},${r1(Y(track.top))}V${r1(groundY)}`;
+    // Skruer i skjøten og i stenderen midt på plata
+    for (const sx of [x, x + SHEET.stud]) for (let h = -0.2; h < track.top; h += SHEET.screw) screws += `M${r1(X(sx))},${r1(Y(h))}h0.01`;
   }
-  // Ribbe langs undersiden av ridelaget (der platene er skrudd fast)
-  let rib = '';
-  for (let x = track.xMin; x <= track.xMax + 1e-9; x += 0.2) {
-    const h = track.height(x);
-    const k = track.slope(x);
-    const n = Math.sqrt(1 + k * k);
-    const px = X(x) + (k / n) * band;
-    const py = Y(h) + (1 / n) * band;
-    rib += `${rib ? 'L' : 'M'}${r1(px)},${r1(py)}`;
-  }
+  for (let h = -0.3 + SHEET.h; h < track.top; h += SHEET.h) seams += `M${r1(X(xL))},${r1(Y(h))}H${r1(X(xR))}`;
+
+  // Kjøreflaten: slitelag (mørkt) oppå kryssfinér (lys kant); strekene ligger på overflaten og klippes til sida
+  const wear = Math.max(2.4 * ss, 0.07 * ppm);
+  const ply = wear + Math.max(1.6 * ss, 0.05 * ppm);
   const copeR = Math.max(2.6 * ss, 0.07 * ppm);
+  const sill = groundY - Math.max(4, 0.12 * ppm);
   // Rekkverket bak plattformene: stolper ved enden og ved kanten, rør i 0,5 m og 1,0 m høyde
   const rails = [
     [L.xLeft + 0.12, track.xMin - 0.32],
     [track.xMax + 0.32, L.xRight - 0.12],
   ] as const;
   return (
-    <g aria-hidden>
+    <g>
+      <title>Halfpipe av tre</title>
+      <LinearGradient id={`${id}-side`} userSpace x1={0} y1={Y(track.top)} x2={0} y2={groundY} stops={[[0, tint(panel, 0.14)], [0.6, panel], [1, shade(panel, 0.12)]]} />
       <LinearGradient id={`${id}-cope`} stops={materialStops(SCENE.metal, 1.4)} />
-      <path d={studs.join('')} stroke={shade(SCENE.wood, 0.42)} strokeWidth={1.6 * ss} opacity={0.5} />
-      <path d={rib} fill="none" stroke={shade(SCENE.wood, 0.45)} strokeWidth={1.4 * ss} opacity={0.55} strokeLinejoin="round" />
-      <rect x={X(L.xLeft) - 2} y={sill} width={X(L.xRight) - X(L.xLeft) + 4} height={groundY - sill} fill={shade(SCENE.wood, 0.3)} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+      <LinearGradient id={`${id}-skygge`} userSpace x1={0} y1={groundY} x2={0} y2={groundY + 0.35 * ppm} stops={[[0, SCENE.shadow, 0.9], [1, SCENE.shadow, 0]]} />
+      <clipPath id={`${id}-klipp`}>
+        <path d={body} />
+      </clipPath>
+      {/* Skygge på betongen foran rampa */}
+      <rect x={first[0]} y={groundY} width={last[0] - first[0]} height={0.35 * ppm} fill={`url(#${id}-skygge)`} />
+      <path d={body} fill={`url(#${id}-side)`} />
+      <g clipPath={`url(#${id}-klipp)`} aria-hidden>
+        <path d={seams} stroke={shade(panel, 0.3)} strokeWidth={1 * ss} opacity={0.55} fill="none" />
+        <path d={screws} stroke={shade(panel, 0.45)} strokeWidth={1.5 * ss} strokeLinecap="round" opacity={0.4} />
+        {/* Skygge under kanten av kjøreflaten */}
+        <path d={surface} fill="none" stroke={SCENE.shadow} strokeWidth={2 * ply + 0.5 * ppm} strokeLinejoin="round" opacity={0.28} />
+        <path d={surface} fill="none" stroke={SCENE.shadow} strokeWidth={2 * ply + 0.2 * ppm} strokeLinejoin="round" opacity={0.3} />
+        <path d={surface} fill="none" stroke={tint(SCENE.woodLight, 0.1)} strokeWidth={2 * ply} strokeLinejoin="round" />
+        <path d={surface} fill="none" stroke={ride} strokeWidth={2 * wear} strokeLinejoin="round" />
+        <path d={surface} fill="none" stroke={tint(ride, 0.45)} strokeWidth={1.6 * ss} strokeLinejoin="round" opacity={0.7} />
+        {/* Svillen langs bunnen */}
+        <rect x={first[0]} y={sill} width={last[0] - first[0]} height={groundY - sill} fill={shade(panel, 0.32)} />
+      </g>
+      <path d={surface} fill="none" stroke={SCENE.outline} strokeWidth={0.9 * ss} strokeLinejoin="round" opacity={0.8} />
+      <line x1={first[0]} x2={last[0]} y1={sill} y2={sill} stroke={SCENE.outline} strokeWidth={0.8 * ss} opacity={0.6} />
       {rails.map(([a, b], i) => {
         const y0 = Y(track.top);
         const y1 = Y(track.top + 1);
@@ -216,7 +252,7 @@ export const HalfpipeDetaljer = memo(function HalfpipeDetaljer({ track, L }: { t
         const posts = `M${r1(X(a))},${r1(y0)}L${r1(X(a))},${r1(y1)}M${r1(X(b))},${r1(y0)}L${r1(X(b))},${r1(y1)}`;
         const bars = `M${r1(X(a))},${r1(y1)}L${r1(X(b))},${r1(y1)}M${r1(X(a))},${r1(ym)}L${r1(X(b))},${r1(ym)}`;
         return (
-          <g key={i} strokeLinecap="round">
+          <g key={i} strokeLinecap="round" aria-hidden>
             <path d={posts + bars} stroke={SCENE.outline} strokeWidth={3.4 * ss} fill="none" />
             <path d={posts + bars} stroke={SCENE.metal} strokeWidth={2 * ss} fill="none" />
             <path d={bars} stroke={SCENE.metalLight} strokeWidth={0.7 * ss} fill="none" transform={`translate(0 ${-0.5 * ss})`} />
@@ -224,8 +260,34 @@ export const HalfpipeDetaljer = memo(function HalfpipeDetaljer({ track, L }: { t
         );
       })}
       {[track.xMin, track.xMax].map((x) => (
-        <circle key={x} cx={X(x) + (x < 6 ? 0.4 : -0.4) * copeR} cy={Y(track.top) + 0.35 * copeR} r={copeR} fill={`url(#${id}-cope)`} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+        <circle
+          key={x}
+          cx={X(x) + (x < track.xBottom ? 0.4 : -0.4) * copeR}
+          cy={Y(track.top) + 0.35 * copeR}
+          r={copeR}
+          fill={`url(#${id}-cope)`}
+          stroke={SCENE.outline}
+          strokeWidth={0.8 * ss}
+          aria-hidden
+        />
       ))}
+    </g>
+  );
+});
+
+/* ---------- Akebakke ---------- */
+
+/**
+ * Sporene etter akebrettene i snøen: en hardpakket, litt blåere stripe like under overflaten, så bakken ser brukt
+ * ut. `points` er overflaten i figurens enheter (samme punkter som Terreng).
+ */
+export const Akespor = memo(function Akespor({ points, ppm }: { points: [number, number][]; ppm: number }) {
+  const ss = useStrokeScale();
+  const d = points.map(([x, y], i) => `${i ? 'L' : 'M'}${r1(x)},${r1(y)}`).join('');
+  return (
+    <g aria-hidden>
+      <path d={d} fill="none" stroke={SCENE.snowShade} strokeWidth={Math.max(3 * ss, 0.1 * ppm)} strokeLinejoin="round" opacity={0.55} transform={`translate(0 ${r1(Math.max(2.4 * ss, 0.07 * ppm))})`} />
+      <path d={d} fill="none" stroke={tint(SCENE.ice, 0.4)} strokeWidth={1 * ss} strokeLinejoin="round" opacity={0.7} transform={`translate(0 ${r1(Math.max(1.2 * ss, 0.035 * ppm))})`} />
     </g>
   );
 });

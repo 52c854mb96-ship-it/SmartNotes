@@ -17,10 +17,13 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 
 export type Lys = 'rod' | 'gul' | 'gronn' | 'av';
 
-/** Fargen på lampene når de lyser (følger temaet, men er sterke i begge). */
+/**
+ * Fargen på lampene når de lyser. Lampene sender ut lys, så de bygger på de sterke lysfargene (sun, warm, hot) og
+ * ikke på lakkfargene, som er dempet i mørkt tema.
+ */
 export const LAMPE = {
-  rod: mix(PAINTS.rod, SCENE.hot, 0.3),
-  gul: mix(PAINTS.gul, SCENE.warm, 0.45),
+  rod: mix(SCENE.hot, PAINTS.rod, 0.2),
+  gul: mix(SCENE.sun, SCENE.warm, 0.55),
   gronn: mix(PAINTS.gronn, SCENE.cold, 0.25),
 } as const;
 
@@ -95,8 +98,9 @@ export const Trafikklys = memo(function Trafikklys({ x, y, top, size, lys, title
             <RadialGradient
               id={`${id}-glod-${l.key}`}
               stops={[
-                [0, LAMPE[l.key], 0.7],
-                [0.3, LAMPE[l.key], 0.35],
+                [0, LAMPE[l.key], 0.9],
+                [0.3, LAMPE[l.key], 0.5],
+                [0.6, LAMPE[l.key], 0.14],
                 [1, LAMPE[l.key], 0],
               ]}
             />
@@ -118,9 +122,9 @@ export const Trafikklys = memo(function Trafikklys({ x, y, top, size, lys, title
               stops={
                 on
                   ? [
-                      [0, tint(c, 0.5)],
-                      [0.35, tint(c, 0.1)],
-                      [1, shade(c, 0.08)],
+                      [0, tint(c, 0.55)],
+                      [0.32, c],
+                      [1, shade(c, 0.16)],
                     ]
                   : [
                       [0, shade(c, 0.42)],

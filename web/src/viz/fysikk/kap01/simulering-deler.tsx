@@ -3,7 +3,8 @@
  * toninger fra core.tsx, SCENE-farger, tynn kontur og myke overganger.
  *
  *   <FallHimmel w={588} h={380} horisont={318} falt={s} />      // himmel, skyer som glir oppover og dalen langt nede
- *   <Hopper x={cx} y={cy} size={112} hodeNed={false} />          // ankerpunkt i tyngdepunktet
+ *   <Hopper x={cx} y={cy} size={112} stilling="mage" />          // ankerpunkt i tyngdepunktet
+ *   <Hoppefly x={cx} y={90} size={300} />                        // hoppfly, ankerpunkt i dørterskelen
  *   <Hoydemaaler x={700} y={262} r={54} hoyde={3866} />          // armbåndshøydemåler (0–4 000 m)
  */
 import { memo, useMemo } from 'react';
@@ -18,6 +19,7 @@ import {
   alpha,
   materialStops,
   mix,
+  paint,
   personPunkter,
   sceneRandom,
   shade,
@@ -25,6 +27,7 @@ import {
   useStrokeScale,
   useSvgId,
   type Leddvinkler,
+  type PaintName,
 } from '../../kit/scene';
 import { MEK, ObjectText } from '../../kit/scene/mekanikk-felles';
 import { VIZ, fmt } from '../../kit';
@@ -245,20 +248,44 @@ const HODE_NED: Partial<Leddvinkler> = {
 };
 
 /**
- * Hvordan hopperen er dreid: magen ned (liggende, hodet mot høyre) eller hodet ned, litt på skrå (hodet nede til
- * venstre), så de loddrette kraftpilene fra tyngdepunktet går forbi hodet og beina i stedet for langs hele kroppen.
+ * Leddene for vid drakt (magen ned): armene strake fram og litt ut, og beina nesten strake og spredt, så kroppen
+ * strekker seg lenger ut enn i den vanlige magen ned-stillingen (større flate mot lufta).
  */
-function placement(hodeNed: boolean) {
-  return hodeNed ? { rotate: 200, ledd: HODE_NED } : { rotate: 90, ledd: undefined };
+const VID: Partial<Leddvinkler> = {
+  rygg: -8,
+  nakke: -24,
+  venstreSkulder: 132,
+  hoyreSkulder: 146,
+  venstreAlbue: 14,
+  hoyreAlbue: 22,
+  venstreHofte: 16,
+  hoyreHofte: -12,
+  venstreKne: 26,
+  hoyreKne: 36,
+  venstreAnkel: 44,
+  hoyreAnkel: 38,
+};
+
+/** Stillingen hopperen tegnes i (samme navn som forhåndsvalgene i modellen). */
+export type HopperStilling = 'hode' | 'mage' | 'vid';
+
+/**
+ * Hvordan hopperen er dreid: magen ned (liggende, hodet mot høyre), vid drakt (liggende, armer og bein strukket ut)
+ * eller hodet ned, litt på skrå (hodet nede til venstre), så de loddrette kraftpilene fra tyngdepunktet går forbi
+ * hodet og beina i stedet for langs hele kroppen.
+ */
+function placement(stilling: HopperStilling) {
+  if (stilling === 'hode') return { rotate: 200, ledd: HODE_NED };
+  return { rotate: 90, ledd: stilling === 'vid' ? VID : undefined };
 }
 
 /**
  * Fallskjermhopper i fritt fall, med ankerpunktet (x, y) i tyngdepunktet (der G angriper). Gul hoppdress, svart hjelm
- * og fallskjermsekken på ryggen. Magen ned er den vanlige stillingen; med hodet ned er flaten mot lufta mye mindre.
- * `size` er høyden stående (1,75 m i scenens skala).
+ * og fallskjermsekken på ryggen. Magen ned er den vanlige stillingen; med hodet ned er flaten mot lufta mye mindre,
+ * og i vid drakt med armer og bein strukket ut er den større. `size` er høyden stående (1,75 m i scenens skala).
  */
-export function Hopper({ x, y, size, hodeNed }: { x: number; y: number; size: number; hodeNed: boolean }) {
-  const { rotate, ledd } = placement(hodeNed);
+export function Hopper({ x, y, size, stilling }: { x: number; y: number; size: number; stilling: HopperStilling }) {
+  const { rotate, ledd } = placement(stilling);
   return (
     <Person
       x={x}
@@ -279,8 +306,8 @@ export function Hopper({ x, y, size, hodeNed }: { x: number; y: number; size: nu
 }
 
 /** Hvor langt kroppen når opp og til sidene fra tyngdepunktet (til fartsstrekene og plasseringen av pilene). */
-export function hopperOmriss(size: number, hodeNed: boolean): { top: number; left: number; right: number } {
-  const { rotate, ledd } = placement(hodeNed);
+export function hopperOmriss(size: number, stilling: HopperStilling): { top: number; left: number; right: number } {
+  const { rotate, ledd } = placement(stilling);
   const p = personPunkter('falle', size, ledd, { x: 0, y: 0, anker: 'tyngdepunkt', rotate });
   const pts = Object.values(p);
   return {
@@ -307,6 +334,105 @@ export function Luftstrom({ xs, y, length, spread }: { xs: number[]; y: number; 
     </g>
   );
 }
+
+/* ---------------------------------------------------------------- Hoppflyet */
+
+// Flyet tegnes i desimeter (0,1 m) med ankerpunktet midt i dørterskelen og nesen mot høyre: et enmotors turbopropfly
+// med høye vinger og fast understell, slik mange hoppklubber bruker (ca. 12,7 m langt og 4,7 m høyt).
+const PLANE_BODY =
+  'M50,-12.5L42,-17L-12,-17C-26,-17 -44,-14.5 -58,-12L-60,-8.5C-46,-6 -24,1.5 -10,2L54,2C61,2 66,-1 66.5,-5C66,-9.5 60,-12.5 50,-12.5Z';
+const PLANE_STRIPE = 'M68,-5.6L-10,-5.6C-26,-5.6 -44,-8.6 -62,-11.6L-62,-9.2C-44,-6 -26,-2.6 -10,-2.6L68,-2.6Z';
+const PLANE_FIN = 'M-38,-16.4C-45,-22.5 -51,-31 -53.5,-36L-61,-36C-61.6,-28 -61,-18 -59.4,-11.4Z';
+const PLANE_FIN_TOP = 'M-50,-30L-64,-30L-64,-38L-50,-38Z';
+const PLANE_TAILPLANE = 'M-45,-10.8L-62.5,-10.6C-64,-10.4 -64,-8.6 -62.5,-8.4L-45,-8.8Z';
+const PLANE_WING = 'M37,-18.4C37,-20.8 33.6,-22 28.5,-22L14,-20.4C13,-20.2 12.6,-19.4 13,-18.6L13.5,-17.6L37,-17.2Z';
+const PLANE_COCKPIT = 'M48.4,-12.6L42.4,-16.1L36.5,-16.1L36.5,-10L48.4,-10Z';
+const PLANE_WINDOWS: readonly number[] = [29, 21.5, -14, -21.5];
+const PLANE_SPINNER = 'M66.4,-9.4C70.8,-8.6 73.2,-6.6 73.2,-5C73.2,-3.4 70.8,-1.4 66.4,-0.6Z';
+const PLANE_HIGHLIGHT = 'M41,-16L-12,-16C-26,-16 -42,-13.6 -55,-11.4';
+const PLANE_GEAR = 'M12,1.5L8,10M57,1.5L58.5,10.5';
+const PLANE_WHEELS: readonly { x: number; y: number; r: number }[] = [
+  { x: 8, y: 10.8, r: 3.1 },
+  { x: 58.5, y: 11.2, r: 2.6 },
+];
+/** Halv bredde og høyde på døråpningen (dm). */
+const DOOR_HW = 6.5;
+const DOOR_H = 13;
+
+/**
+ * Hoppfly sett fra siden med døra åpen, nesen mot høyre. Ankerpunktet (x, y) er midt i dørterskelen. `pxPerM` er
+ * skalaen (figurenheter per meter) der flyet står: lenger inne i bildet enn hopperen tegnes det mindre (se
+ * PLANE_DEPTH i modellen). Propellen er en uskarp skive, som når den går rundt.
+ */
+export function Hoppefly({ x, y, pxPerM, lakk = 'rod' }: { x: number; y: number; pxPerM: number; lakk?: PaintName | string }) {
+  const id = useSvgId('sim-fly');
+  const ss = useStrokeScale();
+  const k = Math.max(0.01, Number.isFinite(pxPerM) ? pxPerM : 10) / 10;
+  const sw = (w: number) => (w * ss) / k;
+  const body = PAINTS.hvit;
+  const stripe = paint(lakk);
+  const window = 'var(--sc-kjoretoy-window)';
+  const windowSky = 'var(--sc-kjoretoy-window-sky)';
+  return (
+    <g transform={`translate(${r2(x)} ${r2(y)}) scale(${r2(k * 1000) / 1000})`} aria-hidden>
+      <LinearGradient id={`${id}k`} stops={materialStops(body, 1.25)} />
+      <LinearGradient id={`${id}s`} stops={materialStops(stripe, 1.1)} />
+      <LinearGradient id={`${id}g`} stops={[[0, windowSky], [0.55, window], [1, shade(window, 0.2)]]} />
+      <LinearGradient id={`${id}d`} x2={1} y2={0} stops={[[0, shade(SCENE.metalDark, 0.62)], [1, shade(SCENE.metalDark, 0.4)]]} />
+      <RadialGradient id={`${id}m`} fx={0.35} fy={0.3} stops={[[0, SCENE.metalLight], [0.6, SCENE.metal], [1, SCENE.metalDark]]} />
+      <clipPath id={`${id}c`}>
+        <path d={PLANE_BODY} />
+      </clipPath>
+      <clipPath id={`${id}f`}>
+        <path d={PLANE_FIN} />
+      </clipPath>
+      {/* Understellet bak kroppen: fjærbein og hjul */}
+      <path d={PLANE_GEAR} fill="none" stroke={SCENE.metalDark} strokeWidth={sw(2.2)} strokeLinecap="round" />
+      {PLANE_WHEELS.map((w) => (
+        <g key={w.x}>
+          <circle cx={w.x} cy={w.y} r={w.r} fill={SCENE.rubber} stroke={SCENE.outline} strokeWidth={sw(0.8)} />
+          <circle cx={w.x} cy={w.y} r={w.r * 0.45} fill={`url(#${id}m)`} />
+        </g>
+      ))}
+      {/* Haleflata og halefinnen */}
+      <path d={PLANE_TAILPLANE} fill={`url(#${id}k)`} stroke={SCENE.outline} strokeWidth={sw(0.8)} strokeLinejoin="round" />
+      <path d={PLANE_FIN} fill={`url(#${id}k)`} stroke={SCENE.outline} strokeWidth={sw(0.9)} strokeLinejoin="round" />
+      <path d={PLANE_FIN_TOP} fill={`url(#${id}s)`} clipPath={`url(#${id}f)`} />
+      {/* Kroppen med stripe, vinduer og høylys */}
+      <path d={PLANE_BODY} fill={`url(#${id}k)`} />
+      <g clipPath={`url(#${id}c)`}>
+        <path d={PLANE_STRIPE} fill={`url(#${id}s)`} />
+        <path d="M50,-13C49,-6 49,-2 50,3" fill="none" stroke={shade(body, 0.3)} strokeWidth={sw(0.7)} />
+        <path d={PLANE_HIGHLIGHT} fill="none" stroke={SCENE.highlight} strokeWidth={sw(1.4)} strokeLinecap="round" opacity={0.75} />
+      </g>
+      <path d={PLANE_BODY} fill="none" stroke={SCENE.outline} strokeWidth={sw(1)} strokeLinejoin="round" />
+      <path d={PLANE_COCKPIT} fill={`url(#${id}g)`} stroke={shade(body, 0.45)} strokeWidth={sw(0.7)} strokeLinejoin="round" />
+      {PLANE_WINDOWS.map((wx) => (
+        <rect key={wx} x={wx - 2.4} y={-14.6} width={4.8} height={4.8} rx={1.4} fill={`url(#${id}g)`} stroke={shade(body, 0.45)} strokeWidth={sw(0.6)} />
+      ))}
+      {/* Den åpne døra: mørkt inni, med karm og håndtak over */}
+      <rect x={-DOOR_HW} y={-DOOR_H} width={2 * DOOR_HW} height={DOOR_H} rx={1} fill={`url(#${id}d)`} stroke={SCENE.outline} strokeWidth={sw(0.8)} />
+      <path
+        d={`M${-DOOR_HW + 1.2},${-DOOR_H + 1.6}L${DOOR_HW - 1.2},${-DOOR_H + 1.6}`}
+        stroke={SCENE.metal}
+        strokeWidth={sw(1.1)}
+        strokeLinecap="round"
+        opacity={0.8}
+      />
+      {/* Vingen og vingestaget */}
+      <path d="M19,1L26,-17.6" stroke={shade(SCENE.metal, 0.1)} strokeWidth={sw(1.8)} strokeLinecap="round" />
+      <path d="M19,1L26,-17.6" stroke={SCENE.outline} strokeWidth={sw(0.5)} strokeLinecap="round" opacity={0.5} />
+      <path d={PLANE_WING} fill={`url(#${id}k)`} stroke={SCENE.outline} strokeWidth={sw(0.9)} strokeLinejoin="round" />
+      {/* Nesen: spinner og propellen som en uskarp skive */}
+      <path d={PLANE_SPINNER} fill={`url(#${id}m)`} stroke={SCENE.outline} strokeWidth={sw(0.8)} strokeLinejoin="round" />
+      <ellipse cx={69.5} cy={-5} rx={1.8} ry={15.5} fill={alpha(SCENE.metalDark, 0.22)} />
+      <ellipse cx={69.5} cy={-5} rx={0.8} ry={15.5} fill="none" stroke={alpha(SCENE.metalDark, 0.35)} strokeWidth={sw(0.6)} />
+    </g>
+  );
+}
+
+/** Hvor høyt flyet når over og under dørterskelen (dm), til plasseringen i scenen: halefinnen og hjulene. */
+export const HOPPEFLY_DM = { top: -38, bottom: 14, left: -64, right: 74 } as const;
 
 /* ---------------------------------------------------------------- Høydemåler */
 

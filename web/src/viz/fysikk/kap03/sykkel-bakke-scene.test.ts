@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { GRADE_MAX, GRADE_MIN, slopeAngle } from './model-sykkel-bakke';
-import { BIKE_NARROW, BIKE_WIDE, fromRoad, gradeTriangle, hash01, hudLayout, nearEdge, roadLineY, roadSpan, roadsideItems, wrapShift } from './sykkel-bakke-scene';
+import { fmt } from '../../kit/format';
+import {
+  BIKE_NARROW,
+  BIKE_WIDE,
+  fromRoad,
+  gradeLabelLayout,
+  gradeTriangle,
+  hash01,
+  hudLayout,
+  labelWidth,
+  nearEdge,
+  roadLineY,
+  roadSpan,
+  roadsideItems,
+  wrapShift,
+} from './sykkel-bakke-scene';
 
 const LAYOUTS = [BIKE_WIDE, BIKE_NARROW];
 const GRADES = [GRADE_MIN, 5, 7.5, 12, GRADE_MAX];
@@ -69,6 +84,40 @@ describe('stigningstrekanten', () => {
         expect(t.x1).toBeLessThan(lay.W - 60);
         expect(t.y0 + 50).toBeLessThan(lay.H);
       }
+  });
+});
+
+describe('tekstene ved stigningstrekanten', () => {
+  it('høyden står til høyre for kateten uten å overlappe «… m bortover», og alt er inne i figuren', () => {
+    for (const lay of LAYOUTS)
+      for (const f of [1, 1.15, 1.3])
+        for (let grade = GRADE_MIN; grade <= GRADE_MAX; grade += 0.5) {
+          const tri = gradeTriangle(lay, slopeAngle(grade));
+          const rise = `${fmt(tri.rise, 2)} m opp`;
+          const run = `${fmt(tri.run, 1)} m bortover`;
+          const ratio = `stigning ${fmt(tri.rise, 2)} / ${fmt(tri.run, 1)} = ${fmt(grade, 1)} %`;
+          const l = gradeLabelLayout(tri, lay.W, f, rise.length, rise.length - 4);
+          expect(l.right).toBe(true);
+          // Høydeteksten er til høyre for kateten og «… m bortover»
+          const riseLen = l.long ? rise.length : rise.length - 4;
+          expect(l.rise.x).toBeGreaterThan(tri.x1);
+          expect(l.rise.x + labelWidth(riseLen, f)).toBeLessThanOrEqual(lay.W - 4);
+          expect(l.run.x + labelWidth(run.length, f) / 2).toBeLessThan(l.rise.x);
+          // «stigning …» er inne i figuren, under «… m bortover»
+          expect(l.ratio.x - labelWidth(ratio.length, f) / 2).toBeGreaterThan(0);
+          expect(l.ratio.x + labelWidth(ratio.length, f) / 2).toBeLessThan(lay.W);
+          expect(l.ratio.y).toBeGreaterThan(l.run.y + 15 * f);
+          expect(l.ratio.y + 6).toBeLessThan(lay.H);
+        }
+  });
+
+  it('har en reserve med høyden på egen linje når det er for trangt til høyre', () => {
+    const tri = gradeTriangle(BIKE_NARROW, slopeAngle(8));
+    const l = gradeLabelLayout(tri, tri.x1 + 30, 1.3, 10, 6);
+    expect(l.right).toBe(false);
+    expect(l.rise.anchor).toBe('middle');
+    expect(l.rise.y).toBeGreaterThan(l.run.y);
+    expect(l.ratio.y).toBeGreaterThan(l.rise.y);
   });
 });
 
