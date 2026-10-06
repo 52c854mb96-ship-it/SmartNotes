@@ -170,6 +170,38 @@ const viz: VizMeta[] = [
     ],
     load: () => import('./Eksplosjon'),
   },
+  {
+    id: 'eks-ballistisk-pendel',
+    kind: 'eksempel',
+    chapter: '4',
+    sections: ['4A', '4B', '4C', '4D'],
+    title: 'Ballistisk pendel: farten til en luftgeværkule',
+    summary:
+      'En luftgeværkule skytes inn i en trekloss som henger i to snorer. Finn farten til kula fra hvor høyt klossen svinger, hvor mye kinetisk energi som går tapt, kraften i støtet, og forklar hvorfor energien ikke er bevart i selve støtet.',
+    keywords: [
+      'eksempeloppgave',
+      'ballistisk pendel',
+      'luftgevær',
+      'kule',
+      'trekloss',
+      'bevegelsesmengde',
+      'bevaring av bevegelsesmengde',
+      'fullstendig uelastisk støt',
+      'energibevaring',
+      'mekanisk energi',
+      'kinetisk energi',
+      'energitap',
+      'impuls',
+      'impulsloven',
+      'gjennomsnittskraft',
+      'Newtons 3. lov',
+      'kraftpar',
+      'snordrag',
+      'KM7',
+      'KM8',
+    ],
+    load: () => import('./EksBallistiskPendel'),
+  },
 ];
 
 export default viz;

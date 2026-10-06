@@ -3,7 +3,7 @@
  * fysikklaben. En høvlet treplanke er hengslet til en bunnplate, og en gradskive i akryl med låseskrue holder
  * planken på vinkelen. Samme stil som scene-kit-et: toninger fra core, SCENE-farger, tynn kontur og myk skygge.
  */
-import { Txt } from '../../kit';
+import { Txt, VIZ } from '../../kit';
 import {
   ContactShadow,
   LinearGradient,
@@ -119,6 +119,8 @@ function Gradskive({ x, y, r, slot }: { x: number; y: number; r: number; slot: n
   const ss = useStrokeScale();
   const id = useSvgId('gradskive');
   const edge = SCENE.glassEdge;
+  // Strekene og tallene er trykt på akrylen: mørke i lyst tema og lyse i mørkt (blandet med tekstfargen).
+  const print = mix(edge, VIZ.ink, 0.6);
   const ticks = [];
   for (let d = 0; d <= 90; d += 5) {
     const big = d % 30 === 0;
@@ -151,9 +153,9 @@ function Gradskive({ x, y, r, slot }: { x: number; y: number; r: number; slot: n
       {/* Lys kant langs buen (akrylen fanger lyset) */}
       <path d={`M${pt(x + r - 1.5, y)} A${r2(r - 1.5)},${r2(r - 1.5)} 0 0 0 ${pt(x, y - r + 1.5)}`} fill="none" stroke={SCENE.highlight} strokeWidth={1.2 * ss} />
       <path d={slotPath} fill="none" stroke={alpha(shade(edge, 0.35), 0.55)} strokeWidth={4.5 * ss} strokeLinecap="round" />
-      <path d={ticks.join('')} stroke={shade(edge, 0.45)} strokeWidth={0.9 * ss} strokeLinecap="round" />
+      <path d={ticks.join('')} stroke={print} strokeWidth={0.9 * ss} strokeLinecap="round" opacity={0.85} />
       {[30, 60, 90].map((d) => (
-        <Txt key={d} x={x + Math.cos(d * DEG) * labelR} y={y - Math.sin(d * DEG) * labelR + 4} size={0.6} weight={650} color={shade(edge, 0.5)} halo={false}>
+        <Txt key={d} x={x + Math.cos(d * DEG) * labelR} y={y - Math.sin(d * DEG) * labelR + 4} size={0.6} weight={650} color={print} halo={false}>
           {d}°
         </Txt>
       ))}

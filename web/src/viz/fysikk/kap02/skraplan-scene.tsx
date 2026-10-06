@@ -14,11 +14,11 @@ import { useNarrow } from './useNarrow';
 const RAD = Math.PI / 180;
 
 const W = 800;
-const H = 460;
+const H = 470;
 /** Piksler per meter for alle lengder i scenen (planken er 0,90 m). */
 const PX_PER_M = 400;
 /** Benkeplata, og hengselet (oppå bunnplata) der planken dreies. */
-const BENCH = 341;
+const BENCH = 349;
 const BASE_T = 0.025 * PX_PER_M;
 const HX = 205;
 const HY = BENCH - BASE_T;
@@ -151,9 +151,9 @@ function SceneContent({
   const aFrom = add(add(C, u, -(bl / 2 + 10)), n, bh / 2 + 12);
   const aTo = add(aFrom, u, -aLen);
   const aText = `a = ${fmt(r.a, 2)} m/s²`;
-  // Etiketten over midten av pila (ut fra planken), så den ikke havner oppå gradskiva eller klossen.
+  // Etiketten over midten av pila (ut fra planken) og mot venstre, bort fra klossen, G∥ og gradskiva.
   const aMid = add(add(aFrom, u, -aLen / 2), n, 15 * fs);
-  const aLabelFits = aMid.x - labelWidth(aText, fs) / 2 > view.x + 6;
+  const aLabelFits = aMid.x - labelWidth(aText, fs) > view.x + 6;
 
   // Etiketter like forbi spissen, i pilas retning.
   const beyond = (tip: Pt, dir: Pt, d = 15) => ({ x: tip.x + dir.x * d * fs, y: tip.y + dir.y * d * fs + 6 * fs });
@@ -168,7 +168,9 @@ function SceneContent({
   const arcEnd = add(hinge, u, arcR);
   const arcLabel = deg >= 14 ? add(hinge, { x: Math.cos(th / 2), y: -Math.sin(th / 2) }, arcR + 14 * fs) : { x: HX + arcR + 10 * fs, y: HY - 4 };
 
-  const tagY = view.y + 24 * Math.max(1, fs * 0.95);
+  // Statusskiltet oppe til venstre, men nede på benkefronten på mobil (der utsnittet er smalt og klossen kan nå toppen).
+  const narrow = view.w < W;
+  const tagY = narrow ? view.y + view.h - 20 * Math.max(1, fs * 0.95) : view.y + 24 * Math.max(1, fs * 0.95);
 
   return (
     <g>
@@ -246,7 +248,7 @@ function SceneContent({
               color={VIZ.acceleration}
               width={5}
               label={aLabelFits ? aText : 'a'}
-              labelAnchor="middle"
+              labelAnchor={aLabelFits ? 'end' : 'middle'}
               labelX={aMid.x}
               labelY={aMid.y + 5 * fs}
             />

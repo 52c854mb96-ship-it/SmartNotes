@@ -4,6 +4,7 @@
  * mellom G∥ og R er kraftsummen ΣF = ma.
  */
 import { Dot, Figure, Plot, TSub, Txt, VIZ, fmt, linePath, sample, useTextScale } from '../../kit';
+import { useStrokeScale } from '../../kit/scene';
 import { useNarrow } from './useNarrow';
 
 const RAD = Math.PI / 180;
@@ -71,6 +72,7 @@ function GraphContent({
   yMax: number;
 }) {
   const f = useTextScale();
+  const ss = useStrokeScale();
   const mk = Math.min(muK, muS);
   const gPar = (a: number) => G * Math.sin(a * RAD);
   const sMax = (a: number) => muS * G * Math.cos(a * RAD);
@@ -80,10 +82,13 @@ function GraphContent({
   const cx = sx(cEnd);
   const restPart = sample(gPar, 0, cEnd, 80);
   const slidePart = critShown ? sample(kin, crit, alphaMax, 80) : [];
-  const halo = { stroke: VIZ.surface, strokeWidth: 9, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none', opacity: 0.9 };
+  const halo = { stroke: VIZ.surface, strokeWidth: 9 * ss, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none', opacity: 0.9 };
 
   // Sonene: «Ligger i ro» til venstre for grensevinkelen, «Glir» til høyre (bare når det er plass til teksten).
+  // «Ligger i ro» flyttes under μs·N-kurven når den går helt oppe ved toppen (stort μs).
   const zoneY = y1 + 17 * f;
+  const restMidY = sy(sMax(cEnd / 2));
+  const restY = restMidY < zoneY + 10 * f ? restMidY + 28 * f : zoneY;
   const fitsRest = cx - x0 > 100 * f;
   const fitsSlide = x1 - cx > 50 * f;
   // Etiketten for grensevinkelen står til venstre for linja når den får plass der, ellers til høyre (kort på mobil).
@@ -105,6 +110,9 @@ function GraphContent({
   const px = sx(alpha);
   const gNow = gPar(alpha);
   const showSum = moving && gNow - R > yMax * 0.06;
+  // Klammen for ΣF til høyre for hjelpelinja, eller til venstre når teksten ikke får plass før kanten.
+  const sumRight = px + 22 + 'ΣF = ma'.length * 10 * f < x1 + 30;
+  const sd = sumRight ? 1 : -1;
   return (
     <g>
       {critShown && crit >= 0.5 && (
@@ -116,7 +124,7 @@ function GraphContent({
         </>
       )}
       {fitsRest && (
-        <Txt x={(x0 + cx) / 2} y={zoneY} size={0.85} muted weight={650}>
+        <Txt x={(x0 + cx) / 2} y={restY} size={0.85} muted weight={650}>
           Ligger i ro
         </Txt>
       )}
@@ -127,18 +135,18 @@ function GraphContent({
       )}
 
       {/* Største statiske friksjon μs·N (stiplet) */}
-      <path d={linePath(sample(sMax, 0, alphaMax, 120), sx, sy)} fill="none" stroke={VIZ.friction} strokeWidth={2.2} strokeDasharray="7 6" opacity={0.85} />
+      <path d={linePath(sample(sMax, 0, alphaMax, 120), sx, sy)} fill="none" stroke={VIZ.friction} strokeWidth={2.2 * ss} strokeDasharray="7 6" opacity={0.85} />
       {/* G∥ = G · sin α */}
       <path d={linePath(sample(gPar, 0, alphaMax, 120), sx, sy)} {...halo} />
-      <path d={linePath(sample(gPar, 0, alphaMax, 120), sx, sy)} fill="none" stroke={VIZ.gravity} strokeWidth={2.8} />
+      <path d={linePath(sample(gPar, 0, alphaMax, 120), sx, sy)} fill="none" stroke={VIZ.gravity} strokeWidth={3 * ss} />
       {/* Friksjonen R: like stor som G∥ i ro (tegnet tykt under G∥), så μk·N når klossen glir */}
-      <path d={linePath(restPart, sx, sy)} fill="none" stroke={VIZ.friction} strokeWidth={7} strokeLinejoin="round" strokeLinecap="round" />
-      <path d={linePath(restPart, sx, sy)} fill="none" stroke={VIZ.gravity} strokeWidth={2.2} />
+      <path d={linePath(restPart, sx, sy)} fill="none" stroke={VIZ.friction} strokeWidth={7.5 * ss} strokeLinejoin="round" strokeLinecap="round" />
+      <path d={linePath(restPart, sx, sy)} fill="none" stroke={VIZ.gravity} strokeWidth={2.4 * ss} />
       {critShown && (
         <>
-          <line x1={cx} y1={sy(gPar(cEnd))} x2={cx} y2={sy(kin(cEnd))} stroke={VIZ.friction} strokeWidth={2} strokeDasharray="3 4" />
+          <line x1={cx} y1={sy(gPar(cEnd))} x2={cx} y2={sy(kin(cEnd))} stroke={VIZ.friction} strokeWidth={2 * ss} strokeDasharray="3 4" />
           <path d={linePath(slidePart, sx, sy)} {...halo} />
-          <path d={linePath(slidePart, sx, sy)} fill="none" stroke={VIZ.friction} strokeWidth={4} strokeLinejoin="round" strokeLinecap="round" />
+          <path d={linePath(slidePart, sx, sy)} fill="none" stroke={VIZ.friction} strokeWidth={4.5 * ss} strokeLinejoin="round" strokeLinecap="round" />
         </>
       )}
 
@@ -160,10 +168,10 @@ function GraphContent({
       <line x1={px} y1={sy(Math.max(gNow, R))} x2={px} y2={y0} stroke={VIZ.ink} strokeWidth={1.2} strokeDasharray="3 4" opacity={0.55} />
       {showSum && (
         <g>
-          <line x1={px + 12} y1={sy(gNow)} x2={px + 12} y2={sy(R)} stroke={VIZ.ink} strokeWidth={1.6} />
-          <line x1={px + 7} y1={sy(gNow)} x2={px + 17} y2={sy(gNow)} stroke={VIZ.ink} strokeWidth={1.6} />
-          <line x1={px + 7} y1={sy(R)} x2={px + 17} y2={sy(R)} stroke={VIZ.ink} strokeWidth={1.6} />
-          <Txt x={px + 22} y={(sy(gNow) + sy(R)) / 2 + 6} anchor="start" size={0.9} weight={700}>
+          <line x1={px + sd * 12} y1={sy(gNow)} x2={px + sd * 12} y2={sy(R)} stroke={VIZ.ink} strokeWidth={1.6 * ss} />
+          <line x1={px + sd * 7} y1={sy(gNow)} x2={px + sd * 17} y2={sy(gNow)} stroke={VIZ.ink} strokeWidth={1.6 * ss} />
+          <line x1={px + sd * 7} y1={sy(R)} x2={px + sd * 17} y2={sy(R)} stroke={VIZ.ink} strokeWidth={1.6 * ss} />
+          <Txt x={px + sd * 22} y={(sy(gNow) + sy(R)) / 2 + 6} anchor={sumRight ? 'start' : 'end'} size={0.9} weight={700}>
             ΣF = ma
           </Txt>
           <circle cx={px} cy={sy(gNow)} r={9} fill={VIZ.surface} opacity={0.9} />
