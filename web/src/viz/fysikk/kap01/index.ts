@@ -3,30 +3,6 @@ import type { VizMeta } from '../../types';
 /** Kapittel 1 Rettlinjet bevegelse. */
 const viz: VizMeta[] = [
   {
-    id: 'fartskontroll',
-    chapter: '1',
-    sections: ['1B', '1C'],
-    title: 'Streknings-ATK: snittfart og momentanfart',
-    summary:
-      'Styr farten til en bil gjennom en strekning med fartskamera i hver ende og se om sjåføren får bot. Snittfarten er stigningstallet til sekanten i s-t-grafen, momentanfarten stigningstallet til tangenten.',
-    keywords: [
-      'streknings-ATK',
-      'fartskontroll',
-      'snittfart',
-      'gjennomsnittsfart',
-      'momentanfart',
-      'speedometer',
-      'sekant',
-      'tangent',
-      'stigningstall',
-      's-t-graf',
-      'v-t-graf',
-      'trafikk',
-      'KM4',
-    ],
-    load: () => import('./Fartskontroll'),
-  },
-  {
     id: 'bevegelsesgrafer',
     chapter: '1',
     sections: ['1C'],
@@ -49,6 +25,30 @@ const viz: VizMeta[] = [
       'vendepunkt',
     ],
     load: () => import('./Bevegelsesgrafer'),
+  },
+  {
+    id: 'fartskontroll',
+    chapter: '1',
+    sections: ['1B', '1C'],
+    title: 'Streknings-ATK: snittfart og momentanfart',
+    summary:
+      'Styr farten til en bil gjennom en strekning med fartskamera i hver ende og se om sjåføren får bot. Snittfarten er stigningstallet til sekanten i s-t-grafen, momentanfarten stigningstallet til tangenten.',
+    keywords: [
+      'streknings-ATK',
+      'fartskontroll',
+      'snittfart',
+      'gjennomsnittsfart',
+      'momentanfart',
+      'speedometer',
+      'sekant',
+      'tangent',
+      'stigningstall',
+      's-t-graf',
+      'v-t-graf',
+      'trafikk',
+      'KM4',
+    ],
+    load: () => import('./Fartskontroll'),
   },
   {
     id: 'bremselengde',

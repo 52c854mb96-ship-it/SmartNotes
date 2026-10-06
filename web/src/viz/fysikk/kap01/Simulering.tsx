@@ -719,8 +719,15 @@ function explanation({
   else if (share > 0.97)
     now = (
       <>
-        <strong>Steg {st.n}:</strong> farten er nesten terminalfarten. Luftmotstanden L = {nb(st.L, 0, 'N')} er nesten like stor som tyngden G ={' '}
-        {nb(G, 0, 'N')}, så kraftsummen og akselerasjonen er nesten null, og farten øker knapt lenger.
+        <strong>Steg {st.n}:</strong> farten er nesten terminalfarten.{' '}
+        {Math.round(st.L) === Math.round(G) ? (
+          <>Luftmotstanden og tyngden er begge {nb(G, 0, 'N')} med avrundede tall</>
+        ) : (
+          <>
+            Luftmotstanden L = {nb(st.L, 0, 'N')} er nesten like stor som tyngden G = {nb(G, 0, 'N')}
+          </>
+        )}
+        , så kraftsummen og akselerasjonen er nesten null, og farten øker knapt lenger.
       </>
     );
   else
