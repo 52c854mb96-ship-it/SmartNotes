@@ -201,8 +201,9 @@ export function hydroScene(h: number, Q: number, lay: HydroLayout): HydroScene {
   let pool: { x1: number; x2: number };
   const streamBed: Pt[] = [];
   if (stream) {
-    const poolX1 = xDam - clamp(0.42 * xDam, 46, 96);
-    const rise = clamp(0.3 * poolX1, 16, 40);
+    const poolX1 = xDam - clamp(0.36 * xDam, 44, 80);
+    // Bekken kommer høyere oppe fra, men ved liten fallhøyde ikke så høyt at bakken over dammen tar oppmerksomheten fra h
+    const rise = Math.min(clamp(0.3 * poolX1, 16, 40), 0.25 * drop);
     bed = [
       [-60, surfaceY - 1.3 * rise],
       [0, surfaceY - rise],

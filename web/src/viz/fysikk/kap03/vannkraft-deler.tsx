@@ -218,10 +218,10 @@ export const Bekk = memo(function Bekk({ bed, t, k = 1, seed = 3 }: { bed: Pt[];
   const water = poly([...top, ...bottom]);
   // Steiner i bekken: delvis under vann, med lys fra øvre venstre
   const rnd = sceneRandom(seed);
-  const stones = [0.16, 0.47, 0.74].map((f, i) => {
+  const stones = [0.14, 0.46, 0.76].map((f, i) => {
     const a = pointAlong(bed, f * total);
-    const r = (i === 1 ? 6.5 : 4.8 + rnd() * 1.4) * k;
-    return { x: a.x + (rnd() - 0.5) * 6, y: a.y + 0.6, r };
+    const r = (i === 1 ? 8.5 : 6.2 + rnd() * 1.6) * k;
+    return { x: a.x + (rnd() - 0.5) * 6, y: a.y + 1, r };
   });
   const dash = 7 * k;
   const period = 19 * k;

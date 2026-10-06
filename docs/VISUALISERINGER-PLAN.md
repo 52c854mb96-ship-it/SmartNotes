@@ -39,7 +39,7 @@ Merk av her når en del er ferdig, og commit + push. Grenen er `claude/blissful-
   - [x] Referanse: eksempeloppgaven `k2-eks-skraplan` (kapittelagentene oppgraderer og lager nye etter stilguiden)
   - [x] README i `viz/` med stilguide for illustrert realisme og eksempeloppgaver
 - [ ] 2. Fysikk (kapittel 1–10): oppgradere, lage nye, lage eksempler, kontrollere og rette. Startet 5. oktober kl. 17.15 (UTC), én workflow per kapittel; hvert kapittel committes for seg («Fysikk kapittel N: …»)
-  - Ferdige kapitler: 4 (12903f5: 3 oppgraderte, 3 nye, 2 eksempeloppgaver), 2 (fee4538: 6 oppgraderte, 3 nye, 2 eksempeloppgaver)
+  - Ferdige kapitler: 4 (12903f5: 3 oppgraderte, 3 nye, 2 eksempeloppgaver), 2 (fee4538: 6 oppgraderte, 3 nye, 2 eksempeloppgaver), 1 (b95d75d: 4 oppgraderte, 3 nye, 2 eksempeloppgaver)
 - [ ] 2b. Finpuss av kjemi- og biologi-kit-et (startet parallelt)
 - [ ] 3. PR for fysikk, CI grønn, flettet
 - [ ] 4. Kjemi (kapittel 1–8)

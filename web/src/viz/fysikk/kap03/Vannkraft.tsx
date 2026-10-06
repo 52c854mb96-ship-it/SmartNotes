@@ -88,11 +88,12 @@ type Choice = PresetId | 'egne';
 
 /**
  * Plassen utsnittet beholder over demningen og over taket på stasjonen (se viewTop). Teksten i figuren vokser på
- * mobil (useTextScale er ca. 1,2 i den smale utformingen), så der trengs litt mer.
+ * mobil (useTextScale er ca. 1,2 i den smale utformingen), så der trengs mer. I den smale utformingen ligger panelet
+ * med stoppeklokka rett over demningen, så himmelen der gir også plass til etiketten over demningen under panelet
+ * (ellers hopper etiketten når avspillingen starter).
  */
 function viewRoom(narrow: boolean): ViewRoom {
-  const f = narrow ? 1.25 : 1;
-  return { sky: 60 + 30 * f, roof: 84 + 40 * f };
+  return narrow ? { sky: 112, roof: 134 } : { sky: 90, roof: 124 };
 }
 
 /** Tallet og enheten hver for seg: 4 169 250 W → { value: «4,17», unit: «MW» }. */
