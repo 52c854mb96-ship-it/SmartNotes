@@ -11,13 +11,18 @@ import {
   eulerFall,
   friction,
   FRICTION_FLOORS,
+  forceDecimals,
+  ICE_PUSH,
   incline,
   liftPhases,
   liftState,
+  PERSON_MASS,
+  pushLimit,
   pushRamp,
   pushRampEnd,
   pushRampFor,
   RAMP_TASKS,
+  roundForce,
   solveRampTask,
   scaleForce,
   terminalVelocity,
@@ -81,6 +86,47 @@ describe('gulvene i friksjonsvisualiseringen', () => {
       expect(Math.abs(muS / 0.05 - Math.round(muS / 0.05))).toBeLessThan(1e-9);
       expect(Math.abs(muK / 0.05 - Math.round(muK / 0.05))).toBeLessThan(1e-9);
     }
+  });
+
+  it('kreftene rundes likt: én desimal under 100 N, ellers hele newton', () => {
+    expect([forceDecimals(78.46), forceDecimals(99.94), forceDecimals(99.96), forceDecimals(147.15)]).toEqual([1, 1, 0, 0]);
+    expect(roundForce(78.46)).toBe(78.5);
+    expect(roundForce(147.15)).toBe(147);
+    expect(roundForce(99.96)).toBe(100);
+    expect(roundForce(4.905)).toBeCloseTo(4.9, 12);
+    expect(roundForce(Number.NaN)).toBe(0);
+  });
+
+  it('et rundet dytt under avspillingen får aldri kassen i ro til å se ut som den skulle gli (F ≤ μs·N)', () => {
+    for (const m of [10, 17, 30, 40])
+      for (const muS of [0.1, 0.35, 0.5, 1]) {
+        const box = { m, muS, muK: muS / 2 };
+        const ramp = pushRampFor(box, 400);
+        for (let t = 0; t < 3; t += 0.01) {
+          const p = pushRamp(box, ramp, t);
+          if (p.moving) continue;
+          // Det rundede dyttet blir aldri større enn μs·N rundet på samme måte
+          expect(roundForce(p.F)).toBeLessThanOrEqual(roundForce(muS * m * 9.81) + 1e-9);
+        }
+      }
+  });
+
+  it('på blank is kan en person på 70 kg dytte med høyst ca. 69 N før skoene sklir', () => {
+    expect(PERSON_MASS).toBe(70);
+    expect(pushLimit(FRICTION_FLOORS.is.muS)).toBeCloseTo(0.1 * 70 * 9.81, 9);
+    expect(pushLimit(FRICTION_FLOORS.is.muS)).toBeCloseTo(68.67, 2);
+    // På tregulv er grensen mye høyere, så personen står støtt
+    expect(pushLimit(FRICTION_FLOORS.tregulv.muS)).toBeGreaterThan(300);
+    expect(pushLimit(0)).toBe(0);
+    expect(pushLimit(Number.NaN)).toBe(0);
+  });
+
+  it('dyttet som velges når eleven bytter til is, får kassen til å gli og klarer personen uten å skli', () => {
+    for (const m of [10, 20, 30, 40]) {
+      const r = friction({ m, ...FRICTION_FLOORS.is, F: ICE_PUSH });
+      expect(r.moving).toBe(true);
+    }
+    expect(ICE_PUSH).toBeLessThan(pushLimit(FRICTION_FLOORS.is.muS));
   });
 
   it('is har mye lavere friksjon enn tregulv og betong', () => {

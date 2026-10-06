@@ -19,9 +19,9 @@ import {
   useSimClock,
 } from '../../kit';
 import { criticalAngleDeg, incline } from './model';
-import { BLOCK_MATERIALS, TILT_RUN, blockSize, slideRoom, tiltEnd, tiltState, type BlockMaterial } from './model-skraplan';
+import { BLOCK_MATERIALS, TILT_RUN, blockSize, slideRoom, tiltEnd, tiltState, tiltTimes, type BlockMaterial } from './model-skraplan';
 import { ForceGraph } from './skraplan-graf';
-import { SkraplanScene } from './skraplan-scene';
+import { PERP_MIN_DEG, SkraplanScene } from './skraplan-scene';
 
 const RAD = Math.PI / 180;
 const ALPHA_MAX = TILT_RUN.alphaMaxDeg;
@@ -29,6 +29,11 @@ const ALPHA_MAX = TILT_RUN.alphaMaxDeg;
 const T_MAX = 16;
 /** Avspillingen stopper når klossen har glidd så langt (m), før den kommer ned til gradskiva og stoppeklossen. */
 const SLIDE_MAX = 0.25;
+/**
+ * Glidingen varer bare 0,5–0,9 s, så den spilles av i sakte film (en firedel av vanlig fart), og eleven rekker å se
+ * at klossen akselererer og at R faller til μkN. Tiden t er fortsatt den ekte tiden i forsøket.
+ */
+const SLOW = 0.25;
 
 const MATERIALS: BlockMaterial[] = ['tre', 'metall', 'gummi', 'is'];
 const MATERIAL_NAME: Record<BlockMaterial, string> = { tre: 'Tre', metall: 'Aluminium', gummi: 'Gummi', is: 'Is' };
@@ -54,7 +59,12 @@ export default function Skraplan() {
   const room = Math.min(SLIDE_MAX, slideRoom(size.length));
   const input = { m: s.m, muS: s.muS, muK: s.muK };
   const tEnd = useMemo(() => tiltEnd({ m: s.m, muS: s.muS, muK: s.muK }, TILT_RUN, room, T_MAX), [s.m, s.muS, s.muK, room]);
-  const clock = useSimClock({ tMax: tEnd });
+  const { tSlip } = tiltTimes({ muS: s.muS }, TILT_RUN);
+  // Sakte film fra klossen begynner å gli til den er nede (farten på klokka byttes i samme øyeblikk).
+  const [slowMo, setSlowMo] = useState(false);
+  const clock = useSimClock({ tMax: tEnd, speed: slowMo ? SLOW : 1 });
+  const sliding = clock.t > tSlip && clock.t < tEnd;
+  if (sliding !== slowMo) setSlowMo(sliding);
   const p = clock.t > 0 ? tiltState(input, TILT_RUN, clock.t) : null;
 
   // Forsøket starter med vannrett planke, så «Start på nytt» går tilbake dit.
@@ -130,6 +140,7 @@ export default function Skraplan() {
           onChange={(material) => update({ material, ...pick(BLOCK_MATERIALS[material]) })}
         />
         <PlayControls clock={clock} decimals={1} />
+        {sliding && clock.playing && <span className="viz-play-note">Sakte film: glidingen spilles av med en firedel av vanlig fart</span>}
       </Toolbar>
       <Toolbar>
         <Toggle label="Vis krefter" checked={showForces} onChange={setShowForces} />
@@ -146,6 +157,7 @@ export default function Skraplan() {
         showForces={showForces}
         parts={parts}
         status={status}
+        slowMo={sliding && clock.playing}
         label={`${cap(BLOCK_NAME[s.material])} på ${fmt(s.m, 1)} kg på en planke som er løftet til ${aText} grader. ${
           r.moving ? 'Klossen glir nedover.' : 'Klossen ligger i ro.'
         }`}
@@ -292,10 +304,17 @@ export default function Skraplan() {
             </>
           )}
         </p>
-        {showForces && parts && alpha > 0 && (
+        {showForces && parts && alpha > 0 && alpha >= PERP_MIN_DEG && (
           <p>
             De stiplete pilene er bare G delt opp langs og vinkelrett på planken, ikke nye krefter: regn med enten G eller G<Sub>∥</Sub> og G
             <Sub>⊥</Sub>, aldri begge. I ro er R like lang som G<Sub>∥</Sub> og N like lang som G<Sub>⊥</Sub>, så kreftene opphever hverandre.
+          </p>
+        )}
+        {showForces && parts && alpha > 0 && alpha < PERP_MIN_DEG && (
+          <p>
+            Den stiplete pila G<Sub>∥</Sub> = G · sin α er bare komponenten av G langs planken, ikke en ny kraft. Ved så liten vinkel er den
+            kort. Den andre komponenten, G<Sub>⊥</Sub> = G · cos α = {fmt(r.Gperp, 1)} N, er nesten like stor
+            som G og ligger nesten oppå G-pila, så den vises først fra {PERP_MIN_DEG}°.
           </p>
         )}
       </Explain>
@@ -313,8 +332,8 @@ const PRACTICAL: Record<BlockMaterial, ReactNode> = {
   ),
   metall: (
     <>
-      Aluminium mot tre glir lettere enn tre mot tre. Det er derfor en metallboks fort sklir av en skrå hylle eller et panser, mens en trekloss
-      blir liggende.
+      Aluminium mot tre glir lettere enn tre mot tre. Det er derfor en metallboks fort sklir ned et skrått trebrett eller av en skrå trehylle, mens
+      en trekloss blir liggende.
     </>
   ),
   gummi: (

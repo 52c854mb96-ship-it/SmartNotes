@@ -2,7 +2,7 @@
  * Egne gjenstander til «Reaksjonslengde og bremselengde» (k1-bremselengde), i samme stil som scene-kit-et:
  * toninger fra core.tsx, SCENE-farger, kontur og myk skygge. Bare denne visualiseringen trenger dem.
  *
- *   <Elg x={x} y={y} m={12} flip />            elgokse sett fra siden (flip: ser mot venstre, mot bilen)
+ *   <Elg x={x} y={y} m={12} flip glorie />     elgokse sett fra siden (flip: ser mot venstre, mot bilen)
  *   <Veikant y={y} h={40} w={800} type="sno" />  veikanten foran veien (gress eller snø)
  *   <Smell x={x} y={y} r={14} />                 stjerne der bilen treffer elgen
  *
@@ -120,11 +120,35 @@ function hoof(x: number): string {
 }
 
 /**
+ * Lys kant rundt elgen i skumringen (mørkt tema), som fra frontlyktene, så den mørke elgen ikke forsvinner mot
+ * asfalten og skogen. Styrken følger scene-kit-ets nattfaktor (`--sc-bakgrunn-stjerner`: 0 i lyst tema, 0,75 i
+ * mørkt), så kanten bare synes i mørkt tema.
+ */
+const NIGHT_GLOW = 'calc(var(--sc-bakgrunn-stjerner, 0) * 0.85)';
+
+/**
  * Elgokse sett fra siden: mørk brun pels med pukkel over skuldrene, lyse «strømper» på beina, langt hode med
  * overhengende mule og «bjelle» under halsen, og skovlgevir. Ser mot høyre; `flip` speilvender (ser mot venstre).
  * Ankerpunkt: på bakken midt mellom hovene. `m` er piksler per meter (elgen er 2,0 m til manken og 2,5 m med gevir).
+ * `glorie` gir en lys kant rundt elgen i mørkt tema.
  */
-export const Elg = memo(function Elg({ x, y, m, flip = false, dim, title }: { x: number; y: number; m: number; flip?: boolean; dim?: boolean; title?: string }) {
+export const Elg = memo(function Elg({
+  x,
+  y,
+  m,
+  flip = false,
+  glorie = false,
+  dim,
+  title,
+}: {
+  x: number;
+  y: number;
+  m: number;
+  flip?: boolean;
+  glorie?: boolean;
+  dim?: boolean;
+  title?: string;
+}) {
   const ss = useStrokeScale();
   const id = useSvgId('elg');
   const k = Math.max(0.05, fin(m, 12)) / 100;
@@ -149,6 +173,21 @@ export const Elg = memo(function Elg({ x, y, m, flip = false, dim, title }: { x:
         <LinearGradient id={`${id}-bein`} stops={legStops(coat, sock)} />
         <LinearGradient id={`${id}-beinb`} stops={legStops(coatFar, shade(sock, 0.25))} />
         <LinearGradient id={`${id}-gevir`} stops={materialStops(antler, 1.2)} />
+        {/* Lys kant i skumringen: hele silhuetten med tykk, lys strek bak elgen (en bred, svak og en smal, sterkere) */}
+        {glorie && (
+          <g fill={SCENE.snow} stroke={SCENE.snow} strokeLinejoin="round" strokeLinecap="round" style={{ opacity: NIGHT_GLOW }} aria-hidden>
+            {[
+              { w: 5.5, o: 0.35 },
+              { w: 2.6, o: 0.9 },
+            ].map(({ w, o }) => (
+              <g key={w} strokeWidth={sw(w)} opacity={o}>
+                <path d={LEGS.hindFar + LEGS.frontFar + LEGS.hindNear + LEGS.frontNear} />
+                <path d={ELK_ANTLER} transform="translate(12 6) scale(0.94)" />
+                <path d={ELK_TAIL + ELK_BODY + ELK_EAR + ELK_ANTLER} />
+              </g>
+            ))}
+          </g>
+        )}
         {/* Bakerste bein og gevir (mørkere) */}
         <g stroke={SCENE.outline} strokeWidth={sw(0.8)} strokeLinejoin="round">
           <path d={LEGS.hindFar} fill={`url(#${id}-beinb)`} />

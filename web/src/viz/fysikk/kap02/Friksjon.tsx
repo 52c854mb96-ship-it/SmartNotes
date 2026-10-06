@@ -26,7 +26,19 @@ import {
 } from '../../kit';
 import { ForceArrow, Himmel, Kasse, Landskap, Person, Rom, Underlag, ValueTag, type PersonPose } from '../../kit/scene';
 import { Garasjeport } from './friksjon-deler';
-import { FRICTION_FLOORS, friction, pushRamp, pushRampEnd, pushRampFor, type FrictionFloor } from './model';
+import {
+  FRICTION_FLOORS,
+  ICE_PUSH,
+  PERSON_MASS,
+  forceDecimals,
+  friction,
+  pushLimit,
+  pushRamp,
+  pushRampEnd,
+  pushRampFor,
+  roundForce,
+  type FrictionFloor,
+} from './model';
 import { useNarrow } from './useNarrow';
 
 /** Største dytt (N). Med m ≤ 40 kg og μs ≤ 1 er μs·N ≤ 392 N, så kassen kan alltid dyttes i gang. */
@@ -34,8 +46,17 @@ const F_MAX = 400;
 const M_MIN = 10;
 const M_MAX = 40;
 /** Hvor langt kassen får gli under avspillingen (m), og hvor lenge den varer høyst (s). */
-const S_MAX = 1.1;
+const S_MAX = 1.5;
 const T_MAX = 7;
+/** Avspillingen går i sakte film når kassen har rykket løs, så eleven rekker å se friksjonen falle og kassen akselerere. */
+const SLOW = 0.4;
+/** Piler kortere enn dette (figurens enheter) tegnes ikke; da står bare etiketten med verdien. */
+const MIN_ARROW = 10;
+
+/** Alle kreftene vises med samme regel overalt (se forceDecimals): «78,5 N», «147 N». */
+const fmtN = (v: number) => fmt(v, forceDecimals(v));
+/** Hvor hardt en person på 70 kg kan dytte på blank is før skoene sklir (ca. 69 N). */
+const ICE_LIMIT = pushLimit(FRICTION_FLOORS.is.muS);
 
 /* ---------- Scenen: én fast skala for lengder og én for krefter ---------- */
 
@@ -64,6 +85,12 @@ const FLOOR_NAME: Record<FrictionFloor, string> = { tregulv: 'Tregulv', betong: 
 /** Hva kassen står på, til teksten: «en trekasse på …». */
 const FLOOR_PLACE: Record<FrictionFloor, string> = { tregulv: 'tregulvet i stua', betong: 'betonggulvet i garasjen', is: 'isen på vannet' };
 
+/**
+ * Statisk friksjon og glidefriksjon (2C): en person dytter en trekasse over tregulv, betong eller is. N, G og dyttet F
+ * tegnes fra tyngdepunktet til kassen, og friksjonen R langs kontaktflaten mot gulvet, der den virker. Alle kreftene
+ * har én skala (px/N) og vises med samme avrunding overalt, så R = F ser likt ut når kassen står i ro.
+ * Avspillingen øker dyttet jevnt fra null og går i sakte film etter at kassen har rykket løs.
+ */
 interface State {
   F: number;
   m: number;
@@ -80,17 +107,22 @@ export default function Friksjon() {
   // Avspilling: dyttet øker jevnt fra null, og kassen glir til den har kommet S_MAX meter.
   const ramp = useMemo(() => pushRampFor({ m: s.m, muS: s.muS }, F_MAX), [s.m, s.muS]);
   const tEnd = useMemo(() => pushRampEnd({ m: s.m, muS: s.muS, muK: s.muK }, ramp, S_MAX, T_MAX), [s.m, s.muS, s.muK, ramp]);
-  const clock = useSimClock({ tMax: tEnd });
+  const [slow, setSlow] = useState(false);
+  const clock = useSimClock({ tMax: tEnd, speed: slow ? SLOW : 1 });
   const p = clock.t > 0 ? pushRamp({ m: s.m, muS: s.muS, muK: s.muK }, ramp, clock.t) : null;
+  const sliding = p !== null && p.moving;
+  useEffect(() => setSlow(sliding), [sliding]);
 
   // Avspillingen starter fra null dytt, så «Start på nytt» går tilbake til kassen i ro uten dytt.
   useEffect(() => {
     if (clock.playing) setS((prev) => (prev.F === 0 && !prev.moving ? prev : { ...prev, F: 0, moving: false }));
   }, [clock.playing]);
 
-  const F = p ? p.F : s.F;
+  // Under avspillingen rundes dyttet slik det vises, så R = F og utregningen stemmer med tallene eleven ser.
+  // Bevegelsen (hvor langt kassen har glidd) kommer fra pushRamp, som regner med det uavrundede dyttet.
+  const F = p ? roundForce(p.F) : s.F;
   const base = friction({ F, m: s.m, muS: s.muS, muK: s.muK, wasMoving: s.moving });
-  const r = p ? { ...base, moving: p.moving, R: p.R, a: p.a } : base;
+  const r = p ? { ...base, moving: p.moving, R: p.moving ? base.Rk : F, a: p.moving ? Math.max(0, (F - base.Rk) / s.m) : 0 } : base;
 
   // En glidebryter (eller et nytt underlag) stopper avspillingen og tar med seg tilstanden derfra.
   const update = (patch: Partial<State>) => {
@@ -106,13 +138,20 @@ export default function Friksjon() {
     });
   };
 
+  // Krefter som er så små at pilene blir for korte til å synes (bare etiketten med verdien står i figuren).
+  const tiny = [
+    F > 0.05 && F * PX_PER_N < MIN_ARROW ? 'F' : null,
+    r.R > 0.05 && r.R * PX_PER_N < MIN_ARROW ? 'R' : null,
+  ].filter((v): v is string => v !== null);
+  const tinyA = r.moving && r.a > 0.005 && r.a * PX_PER_A < MIN_ARROW;
+
   const preset = FRICTION_FLOORS[s.floor];
   const custom = Math.abs(preset.muS - s.muS) > 1e-9 || Math.abs(preset.muK - s.muK) > 1e-9;
 
   return (
     <VizLayout>
       <Controls>
-        <Slider label="Dytt F" value={F} onChange={(v) => update({ F: v })} min={0} max={F_MAX} step={1} unit="N" decimals={0} />
+        <Slider label="Dytt F" value={F} onChange={(v) => update({ F: v })} min={0} max={F_MAX} step={1} format={(v) => `${fmtN(v)} N`} />
         <Slider label="Masse m" value={s.m} onChange={(m) => update({ m })} min={M_MIN} max={M_MAX} step={1} unit="kg" decimals={0} />
         <Slider
           label={
@@ -148,7 +187,8 @@ export default function Friksjon() {
           label="Velg underlag"
           options={FLOORS.map((fl) => ({ value: fl, label: FLOOR_NAME[fl] }))}
           value={s.floor}
-          onChange={(floor) => update({ floor, ...FRICTION_FLOORS[floor] })}
+          // På is velges et dytt en person klarer uten å skli selv (se ICE_PUSH).
+          onChange={(floor) => update({ floor, ...FRICTION_FLOORS[floor], ...(floor === 'is' ? { F: ICE_PUSH } : {}) })}
         />
         <PlayControls clock={clock} decimals={1} />
         <Toggle label="Vis krefter" checked={showForces} onChange={setShowForces} />
@@ -164,6 +204,7 @@ export default function Friksjon() {
         moving={r.moving}
         travel={p ? p.s * PX_PER_M : 0}
         showForces={showForces}
+        slowMotion={clock.playing && sliding}
       />
 
       <FrictionGraph F={F} R={r.R} Rmax={r.Rmax} Rk={r.Rk} moving={r.moving} />
@@ -175,7 +216,7 @@ export default function Friksjon() {
       />
 
       <Readouts>
-        <Readout label="Normalkraft N = mg" value={fmt(r.N, 0)} unit="N" tone={VIZ.normal} />
+        <Readout label="Normalkraft N = mg" value={fmt(r.N, 1)} unit="N" tone={VIZ.normal} />
         <Readout
           label={
             r.moving ? (
@@ -186,7 +227,7 @@ export default function Friksjon() {
               'Statisk friksjon R = F'
             )
           }
-          value={fmt(r.R, r.R < 100 ? 1 : 0)}
+          value={fmtN(r.R)}
           unit="N"
           tone={VIZ.friction}
         />
@@ -197,16 +238,16 @@ export default function Friksjon() {
         {r.moving ? (
           <>
             <FormulaLine>
-              R = μ<Sub>k</Sub>N = {fmt(s.muK, 2)} · {fmt(r.N, 0)} N = {fmt(r.Rk, 1)} N
+              R = μ<Sub>k</Sub>N = {fmt(Math.min(s.muK, s.muS), 2)} · {fmt(r.N, 1)} N = {fmtN(r.Rk)} N
             </FormulaLine>
             <FormulaLine>
-              a = (F − R)/m = ({fmt(F, 0)} N − {fmt(r.Rk, 1)} N)/{fmt(s.m, 0)} kg = {fmt(r.a, 2)} m/s²
+              a = (F − R)/m = ({fmtN(F)} N − {fmtN(r.Rk)} N)/{fmt(s.m, 0)} kg = {fmt(r.a, 2)} m/s²
             </FormulaLine>
           </>
         ) : (
           <>
             <FormulaLine>
-              R = F = {fmt(F, 0)} N ≤ μ<Sub>s</Sub>N = {fmt(s.muS, 2)} · {fmt(r.N, 0)} N = {fmt(r.Rmax, 1)} N
+              R = F = {fmtN(F)} N ≤ μ<Sub>s</Sub>N = {fmt(s.muS, 2)} · {fmt(r.N, 1)} N = {fmtN(r.Rmax)} N
             </FormulaLine>
             <FormulaLine>ΣF = F − R = 0, så a = 0</FormulaLine>
           </>
@@ -216,18 +257,19 @@ export default function Friksjon() {
       <Explain>
         {r.moving ? (
           <p>
-            <strong>Kassen glir.</strong> Glidefriksjonen er konstant, R = μ<Sub>k</Sub>N = {fmt(r.Rk, 1)} N, uansett hvor hardt du dytter.
+            <strong>Kassen glir.</strong> Glidefriksjonen er konstant, R = μ<Sub>k</Sub>N = {fmtN(r.Rk)} N, uansett hvor hardt du dytter.
             Resten av dyttet gir akselerasjon: a = (F − R)/m = {fmt(r.a, 2)} m/s².{' '}
             {r.Rmax - r.Rk > 0.05 ? (
               <>
-                For å holde kassen i gang er det nok å dytte med {fmt(r.Rk, 1)} N, selv om det trengtes {fmt(r.Rmax, 1)} N for å få den løs.
+                For å holde kassen i gang er det nok å dytte med {fmtN(r.Rk)} N, selv om det trengtes {fmtN(r.Rmax)} N for å få den løs.
               </>
             ) : (
               <>
                 Her er μ<Sub>k</Sub> = μ<Sub>s</Sub>, så det trengs like stort dytt for å holde kassen i gang som for å få den løs.
               </>
             )}{' '}
-            Dytter du svakere enn {fmt(r.Rk, 1)} N, bremser friksjonen kassen til den stopper.
+            Dytter du svakere enn {fmtN(r.Rk)} N, bremser friksjonen kassen til den stopper.
+            {p !== null && <> Etter at kassen har rykket løs, går avspillingen i sakte film.</>}
           </p>
         ) : F <= 0 ? (
           <p>
@@ -236,10 +278,22 @@ export default function Friksjon() {
           </p>
         ) : (
           <p>
-            <strong>Kassen står i ro.</strong> Den statiske friksjonen fra gulvet blir nøyaktig like stor som dyttet, R = F = {fmt(F, 0)} N, så
-            kraftsummen er null. Den kan bli opptil μ<Sub>s</Sub>N = {fmt(r.Rmax, 1)} N. Dytt hardere enn det, så begynner kassen å gli, og
-            friksjonen faller til glidefriksjonen μ<Sub>k</Sub>N = {fmt(r.Rk, 1)} N.
+            <strong>Kassen står i ro.</strong> Den statiske friksjonen fra gulvet blir nøyaktig like stor som dyttet, R = F = {fmtN(F)} N, så
+            kraftsummen er null. Den kan bli opptil μ<Sub>s</Sub>N = {fmtN(r.Rmax)} N. Dytt hardere enn det, så begynner kassen å gli, og
+            friksjonen faller til glidefriksjonen μ<Sub>k</Sub>N = {fmtN(r.Rk)} N.
             {p === null && <> Trykk «Spill av» for å øke dyttet jevnt fra null og se friksjonen følge med.</>}
+          </p>
+        )}
+        {showForces && (tiny.length > 0 || tinyA) && (
+          <p>
+            {tiny.length > 0 && (
+              <>
+                {tiny.length > 1
+                  ? 'F og R er så små her at pilene blir for korte til å tegnes i samme målestokk som N og G, så bare verdiene står ved kassen.'
+                  : `${tiny[0]} er så liten her at pila blir for kort til å tegnes i samme målestokk som N og G, så bare verdien står ved kassen.`}{' '}
+              </>
+            )}
+            {tinyA && <>Akselerasjonen er så liten at pila for a bare er vist med verdien.</>}
           </p>
         )}
         <p>
@@ -257,7 +311,13 @@ export default function Friksjon() {
           {s.floor === 'is' ? (
             <>
               Men pass på: kassen dytter like hardt tilbake på deg (Newtons 3. lov), og det er bare friksjonen under skoene som holder deg igjen.
-              På blank is er den også liten, så du sklir lett bakover. Det er derfor brodder hjelper.
+              På blank is er den også liten: med μ<Sub>s</Sub> ≈ {fmt(FRICTION_FLOORS.is.muS, 2)} under skoene kan en person på {PERSON_MASS} kg
+              dytte med høyst ca. μ<Sub>s</Sub>mg ≈ {fmt(ICE_LIMIT, 0)} N.{' '}
+              {F > ICE_LIMIT ? (
+                <strong>Så hardt som {fmtN(F)} N kan du ikke dytte på blank is uten brodder: da glir du selv bakover.</strong>
+              ) : (
+                <>Dytter du hardere, glir du selv bakover. Det er derfor brodder hjelper.</>
+              )}
             </>
           ) : s.floor === 'betong' ? (
             <>
@@ -289,6 +349,8 @@ interface SceneProps {
   /** Hvor langt kassen har glidd under avspillingen (piksler). */
   travel: number;
   showForces: boolean;
+  /** Avspillingen går i sakte film (kassen glir). */
+  slowMotion: boolean;
 }
 
 /** Utsnittet på mobil (følger kassen når den glir), så personen, kassen og pilene blir store nok. */
@@ -302,7 +364,7 @@ function PushScene(props: SceneProps) {
     <div ref={ref}>
       <Figure
         viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
-        label={`En person dytter en trekasse på ${fmt(m, 0)} kg over ${FLOOR_PLACE[floor]} med ${fmt(F, 0)} N. ${moving ? 'Kassen glir.' : 'Kassen står i ro.'}`}
+        label={`En person dytter en trekasse på ${fmt(m, 0)} kg over ${FLOOR_PLACE[floor]} med ${fmtN(F)} N. ${moving ? 'Kassen glir.' : 'Kassen står i ro.'}`}
         maxHeight={460}
       >
         <Backdrop floor={floor} />
@@ -339,7 +401,7 @@ function labelWidth(text: string, f: number): number {
   return text.length * 17 * f * 0.6;
 }
 
-function SceneContent({ floor, m, F, N, R, a, moving, travel, showForces, view }: SceneProps & { view: { x: number; y: number; w: number; h: number } }) {
+function SceneContent({ floor, m, F, N, R, a, moving, travel, showForces, slowMotion, view }: SceneProps & { view: { x: number; y: number; w: number; h: number } }) {
   const f = useTextScale();
   const k = PX_PER_N;
   const cx = BOX_X0 + travel;
@@ -360,14 +422,22 @@ function SceneContent({ floor, m, F, N, R, a, moving, travel, showForces, view }
   const fest = { hoyreHand: hand, venstreHand: { x: hand.x + (idle ? 8 : 1), y: hand.y - (idle ? 0 : 6) } };
   const look = floor === 'is' ? { jakke: 'rod', lue: 'gul' } : floor === 'betong' ? { jakke: 'graa' } : { jakke: 'gul' };
 
-  // Etikettene viser tallet når det er plass til det, ellers bare symbolet (tallene står også under figuren).
-  const fTip = right + F * k;
-  const fText = `F = ${fmt(F, 0)} N`;
-  const fLabel = fTip + 12 * f + labelWidth(fText, f) < viewRight - 6 ? fText : 'F';
+  // N, G og dyttet F fra tyngdepunktet; friksjonen R langs kontaktflaten, der den virker. Etikettene viser tallet når
+  // det er plass til det, ellers bare symbolet (tallene står også under figuren). Er en pil for kort til å synes,
+  // tegnes den ikke, og etiketten med verdien står alene.
+  const fLen = F * k;
+  const fTip = cx + fLen;
+  const fText = `F = ${fmtN(F)} N`;
+  // Etiketten til F står forbi spissen, men aldri inne i kassen.
+  const fLabelX = Math.max(fTip, right) + 10 * f;
+  const fLabel = fLabelX + labelWidth(fText, f) < viewRight - 6 ? fText : 'F';
   const rY = FLOOR + 13;
-  const rTip = cx - 8 - R * k;
-  const rText = `R = ${fmt(R, R < 100 ? 1 : 0)} N`;
-  const rLabel = rTip - 12 * f - labelWidth(rText, f) > view.x + 6 ? rText : 'R';
+  const rLen = R * k;
+  const rTip = cx - 8 - rLen;
+  const rText = `R = ${fmtN(R)} N`;
+  const rLabelX = rTip - 12 * f;
+  const rLabel = rLabelX - labelWidth(rText, f) > view.x + 6 ? rText : 'R';
+  const rLabelY = rY + 8 + 12 * f;
   const aLen = Math.min(A_MAX_PX, a * PX_PER_A);
   const aY = top - 26;
   const aText = `a = ${fmt(a, 2)} m/s²`;
@@ -381,12 +451,39 @@ function SceneContent({ floor, m, F, N, R, a, moving, travel, showForces, view }
         <g>
           <ForceArrow x1={cx} y1={cy} x2={cx} y2={cy - N * k} color={VIZ.normal} label="N" />
           <ForceArrow x1={cx} y1={cy} x2={cx} y2={cy + N * k} color={VIZ.gravity} label="G" origin />
-          <ForceArrow x1={right} y1={cy} x2={fTip} y2={cy} color={VIZ.applied} label={fLabel} />
-          <ForceArrow x1={cx - 8} y1={rY} x2={rTip} y2={rY} color={VIZ.friction} label={rLabel} labelY={rY + 8 + 12 * f} />
-          {moving && <ForceArrow x1={right + 8} y1={aY} x2={right + 8 + aLen} y2={aY} color={VIZ.acceleration} width={5} label={aLabel} />}
+          {F > 0.05 &&
+            (fLen >= MIN_ARROW ? (
+              <ForceArrow x1={cx} y1={cy} x2={fTip} y2={cy} color={VIZ.applied} label={fLabel} labelAnchor="start" labelX={fLabelX} labelY={cy + 6 * f} />
+            ) : (
+              <Txt x={fLabelX} y={cy + 6 * f} anchor="start" color={VIZ.applied} weight={720}>
+                {fText}
+              </Txt>
+            ))}
+          {R > 0.05 &&
+            (rLen >= MIN_ARROW ? (
+              <ForceArrow x1={cx - 8} y1={rY} x2={rTip} y2={rY} color={VIZ.friction} label={rLabel} labelX={rLabelX} labelY={rLabelY} />
+            ) : (
+              <Txt x={cx - 12 - 4 * f} y={rLabelY} anchor="end" color={VIZ.friction} weight={720}>
+                {rText}
+              </Txt>
+            ))}
+          {moving &&
+            a > 0.005 &&
+            (aLen >= MIN_ARROW ? (
+              <ForceArrow x1={right + 8} y1={aY} x2={right + 8 + aLen} y2={aY} color={VIZ.acceleration} width={5} label={aLabel} />
+            ) : (
+              <Txt x={right + 8} y={aY + 6 * f} anchor="start" color={VIZ.acceleration} weight={720}>
+                {aText}
+              </Txt>
+            ))}
         </g>
       )}
-      <ValueTag x={view.x + 16} y={view.y + 26 * Math.max(1, f * 0.9)} anchor="start" text={moving ? 'Kassen glir' : 'Kassen står i ro'} />
+      <ValueTag
+        x={view.x + 16}
+        y={view.y + 26 * Math.max(1, f * 0.9)}
+        anchor="start"
+        text={moving ? (slowMotion ? 'Kassen glir (sakte film)' : 'Kassen glir') : 'Kassen står i ro'}
+      />
     </g>
   );
 }
@@ -478,10 +575,10 @@ function GraphContent({
       <path d={`M${px},${sy(Rk)} L${x1},${sy(Rk)}`} fill="none" stroke={VIZ.friction} strokeWidth={4} strokeLinecap="round" />
 
       <Txt x={peakRight ? px - 10 : px + 10} y={sy(peak) - 12} anchor={peakRight ? 'end' : 'start'} color={VIZ.friction} weight={700} size={0.95}>
-        μ<TSub>s</TSub>N = {fmt(Rmax, 1)} N
+        μ<TSub>s</TSub>N = {fmtN(Rmax)} N
       </Txt>
       <Txt x={x1 - 4} y={close && Rk > top * 0.18 ? sy(Rk) + 30 * f : sy(Rk) - 12} anchor="end" color={VIZ.friction} weight={700} size={0.95}>
-        μ<TSub>k</TSub>N = {fmt(Rk, 1)} N
+        μ<TSub>k</TSub>N = {fmtN(Rk)} N
       </Txt>
 
       {/* Tilstanden nå, med hjelpelinjer ned til aksene */}

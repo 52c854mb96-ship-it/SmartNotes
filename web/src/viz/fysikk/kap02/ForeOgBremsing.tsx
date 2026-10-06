@@ -213,7 +213,7 @@ export default function ForeOgBremsing() {
         />
         <Readout label="Bremsekraft R = μmg" value={fmt(res.R, 0)} unit="N" tone={VIZ.friction} />
         <Readout label="Bremseakselerasjon a = μg" value={fmt(res.a, 2)} unit="m/s²" tone={VIZ.acceleration} />
-        <Readout label="Bremselengde s" value={fmtLen(res.s)} unit="m" />
+        <Readout label="Bremselengde s" value={fmtLen(res.s, queueOn)} unit="m" />
       </Readouts>
 
       <Formula label="Utregning">
@@ -231,7 +231,7 @@ export default function ForeOgBremsing() {
         </FormulaLine>
         <FormulaLine>
           s = v<Sub>0</Sub>
-          <Sup>2</Sup>/(2a) = ({fmt(v0, 1)} m/s)²/(2 · {fmt(res.a, 2)} m/s²) = {fmtLen(res.s)} m
+          <Sup>2</Sup>/(2a) = ({fmt(v0, 1)} m/s)²/(2 · {fmt(res.a, 2)} m/s²) = {fmtLen(res.s, queueOn)} m
         </FormulaLine>
         <FormulaLine>
           t = v<Sub>0</Sub>/a = ({fmt(v0, 1)} m/s)/({fmt(res.a, 2)} m/s²) = {fmt(res.t, 1)} s
@@ -275,9 +275,12 @@ function timeStep(tStop: number): number {
   return 1;
 }
 
-/** Lengder: én desimal under 100 m, ellers hele meter. */
-function fmtLen(s: number): string {
-  return fmt(s, s < 100 ? 1 : 0);
+/**
+ * Lengder: én desimal under 100 m, ellers hele meter. Med bil i kø (`exact`) alltid én desimal, så bremselengden,
+ * avstanden d og det som er igjen (d − s) henger sammen i samme utregning (100,7 m + 2,3 m = 103 m).
+ */
+function fmtLen(s: number, exact = false): string {
+  return fmt(s, s < 100 || exact ? 1 : 0);
 }
 
 /* ---------- Scenen: bilen på veien, kameraet følger bilen ---------- */
@@ -337,11 +340,12 @@ interface SceneProps {
 function sceneLabel(fore: Fore, bremser: Bremser, st: QueueState, queue: Queue | null): string {
   const what = `En bil bremser fullt på ${FORE_TEKST[fore]} ${bremser === 'abs' ? 'med ABS' : 'med låste hjul'}`;
   const where = queue ? `, og en bil står stille i kø ${fmt(queue.d, 0)} m foran.` : '.';
+  const exact = queue !== null;
   const now = st.crashed
-    ? `Den treffer bilen i køen i ${fmt(msToKmh(queue?.vHit ?? 0), 0)} km/h.`
+    ? `Den treffer bilen i køen i ${fmt(msToKmh(st.v), 0)} km/h.`
     : st.stopped
-      ? `Den står stille etter ${fmtLen(st.s)} m${queue ? `, ${fmtLen(queue.gap)} m før køen` : ''}.`
-      : `Etter ${fmtLen(st.s)} m er farten ${fmt(msToKmh(st.v), 0)} km/h.`;
+      ? `Den står stille etter ${fmtLen(st.s, exact)} m${queue ? `, ${fmtLen(queue.gap, true)} m før køen` : ''}.`
+      : `Etter ${fmtLen(st.s, exact)} m er farten ${fmt(msToKmh(st.v), 0)} km/h.`;
   return `${what}${where} ${now}`;
 }
 
@@ -445,8 +449,9 @@ function RoadContent({ fore, dekk, bremser, res, st, queue, showForces, view }: 
   const skidCallout = skidEnd - skidStart > 60 ? Math.max(skidStart + 12, Math.min(skidEnd - 12, view.x + 70)) : null;
 
   // Skiltene øverst: farten og strekningen til venstre, køen til høyre.
-  const speedText = st.crashed ? 'Kollisjon' : st.stopped ? 'Står stille' : `${fmt(msToKmh(st.v), 0)} km/h`;
-  const distText = `s = ${fmtLen(s)} m`;
+  // I sammenstøtet står ikke bilen stille: skiltet viser farten den treffer med (bildet fryses i det bilene møtes).
+  const speedText = st.stopped ? 'Står stille' : `${fmt(msToKmh(st.v), 0)} km/h`;
+  const distText = `s = ${fmtLen(s, queue !== null)} m`;
   const tagY = view.y + 24 * Math.max(1, f * 0.9);
   const tagX = view.x + 14;
 
@@ -457,11 +462,15 @@ function RoadContent({ fore, dekk, bremser, res, st, queue, showForces, view }: 
   const queueVisible = queueRear !== null && queueRear < view.x + view.w - 26 * f;
   let queueText: string | null = null;
   if (queue) {
-    if (st.crashed) queueText = `Traff i ${fmt(msToKmh(queue.vHit), 0)} km/h`;
-    else if (st.stopped) queueText = queue.gap < 0.05 ? 'Stoppet akkurat i tide' : `Stoppet ${fmtLen(queue.gap)} m før`;
-    else if (!queueVisible) queueText = `Bilen i kø: ${fmtLen(gap)} m →`;
+    // Farten i sammenstøtet står på fartsskiltet til venstre.
+    if (st.crashed) queueText = 'Treffer køen';
+    else if (st.stopped) queueText = queue.gap < 0.05 ? 'Stoppet akkurat i tide' : `Stoppet ${fmtLen(queue.gap, true)} m før`;
+    else if (!queueVisible) queueText = `Bilen i kø: ${fmtLen(gap, true)} m →`;
   }
   const dimY = ROAD_Y - 0.62 * PX_PER_M;
+  // Får ikke køskiltet plass til høyre for de to skiltene (mobil), står det på en egen linje under.
+  const leftEnd = tagX + tagWidth(speedText, f) + 8 * f + tagWidth(distText, f);
+  const queueRow2 = queueText !== null && view.x + view.w - 14 - tagWidth(queueText, f) < leftEnd + 8 * f;
 
   // Etiketten til R står på linje med pila, til venstre for spissen (bare symbolet når det ikke er plass til tallet).
   const rY = ROAD_Y + 9;
@@ -592,7 +601,13 @@ function RoadContent({ fore, dekk, bremser, res, st, queue, showForces, view }: 
       <ValueTag x={tagX} y={tagY} anchor="start" text={speedText} color={st.stopped ? undefined : VIZ.velocity} />
       <ValueTag x={tagX + tagWidth(speedText, f) + 8 * f} y={tagY} anchor="start" text={distText} />
       {queueText !== null && (
-        <ValueTag x={view.x + view.w - 14} y={tagY} anchor="end" text={queueText} color={st.crashed ? VIZ.velocity : undefined} />
+        <ValueTag
+          x={view.x + view.w - 14}
+          y={queueRow2 ? tagY + 34 * Math.max(1, f * 0.9) : tagY}
+          anchor="end"
+          text={queueText}
+          color={st.crashed ? VIZ.velocity : undefined}
+        />
       )}
     </g>
   );
@@ -696,8 +711,17 @@ function ChartContent({ vKmh, fore, dekk, bremser, s, d, narrow, all, top, ch }:
                       const textW = text.length * 17 * f * 0.8 * 0.62;
                       if (lineX !== null && labelX - 4 < lineX && labelX + textW + 4 > lineX) labelX = lineX + 8;
                       return (
-                        <g key={dk} opacity={selectedRow ? 1 : 0.5}>
-                          <rect x={x0} y={cy - bh / 2} width={Math.max(1.5, end - x0)} height={bh} rx={Math.min(4, bh / 3)} fill={TYRE_COLOR[dk]} />
+                        <g key={dk}>
+                          {/* Bare stolpene er dempet i radene som ikke er valgt. Tallene er bare grå, så de kan leses også i mørkt tema. */}
+                          <rect
+                            x={x0}
+                            y={cy - bh / 2}
+                            width={Math.max(1.5, end - x0)}
+                            height={bh}
+                            rx={Math.min(4, bh / 3)}
+                            fill={TYRE_COLOR[dk]}
+                            opacity={selectedRow ? 1 : 0.5}
+                          />
                           {selected && (
                             <>
                               <rect
@@ -804,42 +828,48 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther, queue 
   const sLow = brakingDistance(kmhToMs(vLow), mu);
   const vSame = sameDistanceSpeed(vKmh, muTorr, mu);
   const setup = `på ${FORE_TEKST[fore]} med ${DEKK_NAVN[dekk].toLowerCase()} og ${bremser === 'abs' ? 'ABS' : 'låste hjul'}`;
+  /** Lengder i teksten: med bil i kø alltid én desimal, som i utregningen d − s. */
+  const L = (x: number) => fmtLen(x, queue !== null);
 
   let moment: ReactNode;
   if (st.crashed && queue) {
     const vHit = msToKmh(queue.vHit);
     moment = (
       <p>
-        <strong>Bilen treffer bilen i køen i {fmt(vHit, 0)} km/h.</strong> Bremselengden er {fmtLen(res.s)} m, men køen står bare{' '}
+        <strong>Bilen treffer bilen i køen i {fmt(vHit, 0)} km/h.</strong> Bremselengden er {L(res.s)} m, men køen står bare{' '}
         {fmt(queue.d, 0)} m foran. Der har bilen fortsatt farten v = √(v<Sub>0</Sub>
         <Sup>2</Sup> − 2ad) = {fmt(vHit, 0)} km/h, {fmt((100 * vHit) / vKmh, 0)} % av farten den hadde.{' '}
         {res.s - queue.d < 0.25 * res.s ? (
           <>
-            Bremselengden er bare {fmtLen(res.s - queue.d)} m for lang, men bilen mister mest fart på de siste metrene før den stopper, så
+            Bremselengden er bare {L(res.s - queue.d)} m for lang, men bilen mister mest fart på de siste metrene før den stopper, så
             farten i sammenstøtet blir likevel stor.
           </>
         ) : (
           <>Farten avtar lite på de første metrene, der bilen kjører fort og bruker kort tid, så den har mye fart igjen når den treffer.</>
         )}{' '}
-        (Animasjonen stopper ved sammenstøtet.)
+        (Bildet fryses i det bilene møtes. Pilene viser farten og kreftene akkurat da. Det som skjer i selve sammenstøtet, er ikke
+        med.)
       </p>
     );
   } else if (st.stopped) {
-    const where = queue ? (queue.gap < 0.05 ? ', akkurat ved køen' : `, ${fmtLen(queue.gap)} m før køen`) : '';
+    const where = queue ? (queue.gap < 0.05 ? ', akkurat ved køen' : `, ${L(queue.gap)} m før køen`) : '';
     moment = (
       <p>
         <strong>
-          Bilen står stille etter {fmtLen(res.s)} m og {fmt(res.t, 1)} s{where}.
+          Bilen står stille etter {L(res.s)} m og {fmt(res.t, 1)} s{where}.
         </strong>{' '}
         Nå er friksjonen null: på flat vei er det ingen kraft som prøver å flytte bilen langs veien, så veien trenger ikke å holde
-        igjen. Friksjonen er ikke alltid μN, det er bare den største friksjonen veien kan gi.
+        igjen. Den statiske friksjonen kan være alt fra 0 opp til μ<Sub>s</Sub>N. Glidefriksjonen μ<Sub>k</Sub>N virker bare mens dekkene
+        sklir.
       </p>
     );
   } else if (st.s < 0.05) {
     moment = (
       <p>
         <strong>
-          {queue ? `Føreren ser køen ${fmt(queue.d, 0)} m foran og tråkker bremsen helt ned ved kjeglene.` : 'Føreren tråkker bremsen helt ned ved kjeglene.'}
+          {queue
+            ? `Bremsingen starter ved kjeglene, ${fmt(queue.d, 0)} m før køen (reaksjonslengden er ikke med).`
+            : 'Føreren tråkker bremsen helt ned ved kjeglene.'}
         </strong>{' '}
         Loddrett opphever G og N hverandre, så kraftsummen på bilen er friksjonen R fra veien på dekkene. Den peker bakover, og derfor
         peker akselerasjonen også bakover: farten avtar. Trykk «Spill av».
@@ -849,7 +879,7 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther, queue 
     moment = (
       <p>
         <strong>
-          Etter {fmt(st.t, 1)} s har bilen bremset {fmtLen(st.s)} m, og farten er {fmt(msToKmh(st.v), 0)} km/h.
+          Etter {fmt(st.t, 1)} s har bilen bremset {L(st.s)} m, og farten er {fmt(msToKmh(st.v), 0)} km/h.
         </strong>{' '}
         Farten v peker framover, men kraftsummen R og akselerasjonen a peker bakover: kraften trenger ikke å peke dit bilen kjører.
         {mu <= 0.1 && <> Her er friksjonen bare {fmt(100 * mu, 0)} % av tyngden, så R-pila er knapt synlig ved siden av G.</>} R = μN er
@@ -866,13 +896,13 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther, queue 
         <strong>Med ABS ruller hjulene hele tiden.</strong> Den delen av dekket som er nede mot veien, står et øyeblikk stille mot veien (se
         lupen), så friksjonen er statisk og kan bli opptil μ<Sub>s</Sub>N. ABS letter litt på bremsen akkurat før hjulene låser seg, så friksjonen
         holder seg nær den største verdien, og du kan styre unna. Med låste hjul (μ<Sub>k</Sub> = {fmt(muK, 2)}) ville bremselengden
-        blitt {fmtLen(sOther)} m, {fmtLen(sOther - res.s)} m lenger.
+        blitt {L(sOther)} m, {L(sOther - res.s)} m lenger.
       </p>
     ) : (
       <p>
         <strong>Låste hjul sklir.</strong> Dekkene glir bortover veien og lager bremsespor, så friksjonen er glidefriksjon, μ<Sub>k</Sub>N ={' '}
         {fmt(res.R, 0)} N. Den er mindre enn den største statiske friksjonen μ<Sub>s</Sub>N = {fmt(muS * res.N, 0)} N, så bremselengden blir{' '}
-        {fmtLen(res.s - sOther)} m lenger enn med ABS ({fmtLen(sOther)} m). Og du kan ikke styre: friksjonen på et dekk som sklir, virker
+        {L(res.s - sOther)} m lenger enn med ABS ({L(sOther)} m). Og du kan ikke styre: friksjonen på et dekk som sklir, virker
         alltid mot glideretningen, så det hjelper ikke å vri på rattet. Bilen sklir rett fram.
       </p>
     );
@@ -882,7 +912,7 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther, queue 
     tyres = (
       <>
         <strong>Sommerdekk på {FORE_TEKST[fore]} er farlig.</strong> Friksjonstallet er bare {fmt(mu, 2)}, så bremselengden blir{' '}
-        {fmtLen(res.s)} m. Med vinterdekk ville den blitt {fmtLen(sOtherTyre)} m, omtrent halvparten. Vinterdekk har mykere gummi og mange
+        {L(res.s)} m. Med vinterdekk ville den blitt {L(sOtherTyre)} m, omtrent halvparten. Vinterdekk har mykere gummi og mange
         små spalter (lameller, se lupen) som griper i {fore === 'sno' ? 'snøen' : 'isen'}.
       </>
     );
@@ -890,14 +920,14 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther, queue 
     tyres = (
       <>
         <strong>Vinterdekk griper omtrent dobbelt så godt som sommerdekk på {FORE_TEKST[fore]}:</strong> med sommerdekk ville bremselengden
-        blitt {fmtLen(sOtherTyre)} m.{' '}
+        blitt {L(sOtherTyre)} m.{' '}
         {fore === 'is' ? 'Piggdekk griper enda bedre på blank is.' : 'Mykere gummi og mange små spalter (lameller, se lupen) griper i snøen.'}
       </>
     );
   } else if (dekk === 'vinter') {
     tyres = (
       <>
-        <strong>På bar asfalt er sommerdekk litt bedre</strong> ({fmtLen(sOtherTyre)} m mot {fmtLen(res.s)} m med vinterdekk), fordi den myke
+        <strong>På bar asfalt er sommerdekk litt bedre</strong> ({L(sOtherTyre)} m mot {L(res.s)} m med vinterdekk), fordi den myke
         vintergummien gir etter. Derfor bytter vi tilbake til sommerdekk om våren.
       </>
     );
@@ -936,8 +966,8 @@ function ExplainText({ fore, dekk, bremser, vKmh, m, v0, res, st, sOther, queue 
         <Sup>2</Sup>/(2μg) vokser med kvadratet av farten
         {vLow >= 20 ? (
           <>
-            : med {fmt(vLow, 0)} km/h i stedet for {fmt(vKmh, 0)} km/h blir den {fmtLen(sLow)} m, bare {fmt((100 * sLow) / res.s, 0)} % av{' '}
-            {fmtLen(res.s)} m.
+            : med {fmt(vLow, 0)} km/h i stedet for {fmt(vKmh, 0)} km/h blir den {L(sLow)} m, bare {fmt((100 * sLow) / res.s, 0)} % av{' '}
+            {L(res.s)} m.
           </>
         ) : (
           <>, så dobbel fart gir fire ganger så lang bremselengde.</>

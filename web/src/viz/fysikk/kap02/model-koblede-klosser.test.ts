@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { coupled } from './model';
-import { TOW_RANGES, TOW_T_IDLE, TOW_T_MAX, TOW_V_END, TRAILER, towDuration, towMotion, towSystem, trailerLoad, type TowView } from './model-koblede-klosser';
+import {
+  TOW_RANGES,
+  TOW_T_IDLE,
+  TOW_T_MAX,
+  TOW_V_END,
+  TRAILER,
+  roundSig,
+  towDuration,
+  towMotion,
+  towSystem,
+  trailerLoad,
+  type TowView,
+} from './model-koblede-klosser';
 
 const VIEWS: TowView[] = ['system', 'henger', 'bil'];
 const R = TOW_RANGES;
@@ -164,5 +176,22 @@ describe('bil med tilhenger: bevegelsen fra ro', () => {
       expect(end.v).toBeLessThanOrEqual(TOW_V_END + 1e-9);
       expect(end.s).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe('bil med tilhenger: tre gjeldende siffer', () => {
+  it('G for en bil på 1 400 kg vises som 13 700 N', () => {
+    expect(roundSig(1400 * 9.81)).toEqual({ value: 13700, decimals: 0 });
+    expect(roundSig(200 * 9.81)).toEqual({ value: 1960, decimals: 0 });
+    expect(roundSig(2200 * 9.81)).toEqual({ value: 21600, decimals: 0 });
+  });
+
+  it('små tall får desimaler, og negative tall og null går greit', () => {
+    expect(roundSig(1.2345)).toEqual({ value: 1.23, decimals: 2 });
+    expect(roundSig(0.012345)).toEqual({ value: 0.0123, decimals: 4 });
+    expect(roundSig(-13734)).toEqual({ value: -13700, decimals: 0 });
+    expect(roundSig(0)).toEqual({ value: 0, decimals: 0 });
+    expect(roundSig(Number.NaN)).toEqual({ value: 0, decimals: 0 });
+    expect(roundSig(999.6)).toEqual({ value: 1000, decimals: 0 });
   });
 });

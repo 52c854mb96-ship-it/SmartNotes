@@ -34,21 +34,21 @@ import {
   personPunkter,
   shade,
   useStrokeScale,
+  useSvgId,
   type Leddvinkler,
 } from '../../kit/scene';
-import { pullLayout, type PullLayout } from './arbeid-scene';
+import { areaSpans, pullLayout, shownWork, type PullLayout, type Span } from './arbeid-scene';
+import { arrowHitsBox, boxesOverlap, segmentHitsBox, textBox, textWidth, type Box } from './energibevaring-scene';
 import { SLED_MASS, bestPullAngle, niceCeil, sledWork, type SledResult } from './model';
 import { useNarrow } from './useNarrow';
 
 /* ---------- Skala og mål i scenen ---------- */
 
-/** Piksler per meter i scenen (samme for kjelken, barnet og den voksne). */
-const P = 110;
-/** Piksler per newton for alle kreftene (F, komponentene, R, G og N). */
-const KF = 0.7;
-/** Høyden på scenen og snøflaten. */
-const H = 380;
-const YG = 224;
+/**
+ * Piksler per newton for alle kreftene (F, komponentene, R, G og N). 0,9 px/N gir en friksjonspil som synes også ved
+ * små friksjonstall (R = 26 N blir 23 px), og G = 245 N får plass under kjelken.
+ */
+const KF = 0.9;
 /** Den voksne er 1,75 m, barnet på kjelken 1,05 m. Barnet og kjelken veier til sammen SLED_MASS. */
 const ADULT_H = 1.75;
 const CHILD_H = 1.05;
@@ -71,20 +71,41 @@ interface Frame {
   W: number;
   /** Lengste vannrette avstand fra festet til hendene før personen havner utenfor bildet (m). */
   dMax: number;
+  /** Piksler per meter i scenen (samme for kjelken, barnet og den voksne). */
+  P: number;
+  /** Snøflaten (y). */
+  YG: number;
 }
-const FRAME_WIDE: Frame = { W: 800, dMax: 4.3 };
-const FRAME_NARROW: Frame = { W: 560, dMax: 2.2 };
+/**
+ * PC: hele situasjonen med god plass. Mobil: større skala og personen nærmere kjelken, så kjelken, barnet og den voksne
+ * blir større på den smale skjermen.
+ */
+const FRAME_WIDE: Frame = { W: 800, dMax: 4.3, P: 110, YG: 224 };
+const FRAME_NARROW: Frame = { W: 560, dMax: 2.2, P: 116, YG: 232 };
+
+/**
+ * Høyden på scenen: med tyngde og normalkraft trengs plass til G under kjelken (G = 221 px), ellers holder det med
+ * pila for forflytningen, så det ikke blir mye tom snø nederst.
+ */
+function sceneHeight(fr: Frame, vertical: boolean): number {
+  return fr.YG + (vertical ? 196 : 122);
+}
 
 export default function Arbeid() {
   const [F, setF] = useState(150);
   const [alpha, setAlpha] = useState(30);
   const [s, setS] = useState(10);
-  const [mu, setMu] = useState(0.1);
+  const [mu, setMu] = useState(0.15);
   const [forces, setForces] = useState(true);
   const [vertical, setVertical] = useState(false);
   const { ref, narrow } = useNarrow();
   const r = sledWork({ F, alphaDeg: alpha, s, mu });
+  // Arbeidet slik det vises: av tallene i utregningen, så W = W_F + W_R går opp også etter avrunding
+  const shown = shownWork({ WF: r.WF, N: r.N, mu, s });
+  const rd: SledResult = { ...r, WF: shown.WF, WR: shown.WR, W: shown.W };
   const frame = narrow ? FRAME_NARROW : FRAME_WIDE;
+  // Står personen utenfor bildet, trengs en linje til for teksten om det nederst
+  const H = sceneHeight(frame, vertical) + (fitLayout(alpha, frame).visible ? 0 : 26);
   const diagram = narrow ? { W: 560, H: 700 } : { W: 800, H: 320 };
 
   return (
@@ -104,9 +125,9 @@ export default function Arbeid() {
         <Figure
           viewBox={`0 0 ${frame.W} ${H}`}
           label={`En voksen drar et barn på kjelke ${fmt(s, 0)} m bortover snøen med kraften ${fmt(F, 0)} N i et tau som danner vinkelen ${fmt(alpha, 0)} grader med bevegelsesretningen.`}
-          maxHeight={narrow ? 420 : 470}
+          maxHeight={narrow ? 460 : 470}
         >
-          <Scene F={F} alpha={alpha} s={s} r={r} forces={forces} vertical={vertical} frame={frame} />
+          <Scene F={F} alpha={alpha} s={s} r={r} forces={forces} vertical={vertical} frame={frame} H={H} />
         </Figure>
       </div>
       {(forces || vertical) && (
@@ -133,10 +154,10 @@ export default function Arbeid() {
 
       <Figure
         viewBox={`0 0 ${diagram.W} ${diagram.H}`}
-        label={`Til venstre: kraftkomponentene langs bevegelsen gjennom strekningen, der arealet er arbeidet. Til høyre: arbeidet hver kraft gjør, med fortegn. W F er ${fmt(r.WF, 0)} J, W R er ${fmt(r.WR, 0)} J, og totalt arbeid er ${fmt(r.W, 0)} J.`}
+        label={`Til venstre: kraftkomponentene langs bevegelsen gjennom strekningen, der arealet er arbeidet. Til høyre: arbeidet hver kraft gjør, med fortegn. W F er ${fmt(rd.WF, 0)} J, W R er ${fmt(rd.WR, 0)} J, og totalt arbeid er ${fmt(rd.W, 0)} J.`}
         maxHeight={narrow ? 680 : 340}
       >
-        <WorkDiagram r={r} s={s} narrow={narrow} W={diagram.W} H={diagram.H} />
+        <WorkDiagram r={rd} s={s} narrow={narrow} W={diagram.W} H={diagram.H} />
       </Figure>
 
       <Readouts>
@@ -156,7 +177,7 @@ export default function Arbeid() {
               Arbeid fra F, W<Sub>F</Sub>
             </>
           }
-          value={fmt(r.WF, 0)}
+          value={fmt(rd.WF, 0)}
           unit="J"
           tone={VIZ.applied}
         />
@@ -166,26 +187,26 @@ export default function Arbeid() {
               Friksjonsarbeid W<Sub>R</Sub>
             </>
           }
-          value={fmt(r.WR, 0)}
+          value={fmt(rd.WR, 0)}
           unit="J"
           tone={VIZ.friction}
         />
-        <Readout label="Totalt arbeid W" value={fmt(r.W, 0)} unit="J" />
+        <Readout label="Totalt arbeid W" value={fmt(rd.W, 0)} unit="J" />
       </Readouts>
 
       <Formula label="Arbeidet fra hver kraft">
         <FormulaLine>
-          W<Sub>F</Sub> = F · s · cos α = {fmt(F, 0)} N · {fmt(s, 0)} m · cos {fmt(alpha, 0)}° = {fmt(r.WF, 0)} J
+          W<Sub>F</Sub> = F · s · cos α = {fmt(F, 0)}&nbsp;N · {fmt(s, 0)}&nbsp;m · cos {fmt(alpha, 0)}° = {fmt(rd.WF, 0)}&nbsp;J
         </FormulaLine>
         <FormulaLine>
-          W<Sub>R</Sub> = −R · s = −μ(mg − F sin α) · s = −{fmt(mu, 2)} · {fmt(r.N, 0)} N · {fmt(s, 0)} m = {fmt(r.WR, 0)} J
+          W<Sub>R</Sub> = −R · s = −μ(mg − F sin α) · s = −{fmt(mu, 2)} · {fmt(shown.N, 2)}&nbsp;N · {fmt(s, 0)}&nbsp;m = {fmt(rd.WR, 0)}&nbsp;J
         </FormulaLine>
         <FormulaLine>
-          W = W<Sub>F</Sub> + W<Sub>R</Sub> = {fmt(r.WF, 0)} J + ({fmt(r.WR, 0)} J) = {fmt(r.W, 0)} J
+          W = W<Sub>F</Sub> + W<Sub>R</Sub> = {fmt(rd.WF, 0)}&nbsp;J + ({fmt(rd.WR, 0)}&nbsp;J) = {fmt(rd.W, 0)}&nbsp;J
         </FormulaLine>
       </Formula>
 
-      <Explain>{explanation(F, alpha, mu, r)}</Explain>
+      <Explain>{explanation(F, alpha, mu, rd)}</Explain>
     </VizLayout>
   );
 }
@@ -205,31 +226,62 @@ interface LabelPos extends Pt {
  * Hvor kjelken står (x for midten av meiene), så kjelken, kreftene og personen får plass. Avhenger bare av vinkelen
  * (og bredden), så kjelken står stille når kraften, friksjonstallet eller strekningen endres.
  */
-function sledX(L: PullLayout, frame: Frame): number {
-  const { W } = frame;
-  const margin = 14;
-  // Utstrekningen i meter fra midten av kjelken, på siden der kjelken er og der personen er.
-  const sledSide = 0.5 + (R_MAX * KF) / P + 0.18;
-  const personSide = L.visible ? Math.abs(L.hand.x) + pullerReach(L) : Infinity;
-  if (L.side === 1) {
-    const left = -sledSide;
-    if (!Number.isFinite(personSide)) return margin - left * P;
-    const center = (left + personSide) / 2;
-    const x = W / 2 - center * P;
-    return Math.max(margin - left * P, Math.min(W - margin - personSide * P, x));
+const MARGIN = 14;
+
+/**
+ * Hvor langt kjelken med kreftene rekker (m) på siden bort fra personen. Foran kjelken (personen drar foran) går
+ * friksjonen R bakover fra meien, så der trengs plass til den lengste R (μ = 0,5 og F = 0). Når personen holder igjen
+ * bakfra, går R mot personen, og på den andre siden er det bare nesa på kjelken.
+ */
+function sledSide(L: PullLayout, P: number): number {
+  return L.side === 1 ? 0.5 + (R_MAX * KF) / P + 0.18 : 0.6 + 0.18;
+}
+
+/** Hvor langt personen rekker fra midten av kjelken (m), eller uendelig når personen står utenfor bildet. */
+function personSide(L: PullLayout, P: number): number {
+  return L.visible ? Math.abs(L.hand.x) + pullerReach(L, P) : Infinity;
+}
+
+/**
+ * Tauet og personen for vinkelen α, med personen så nær kjelken som trengs for at alt får plass i bredden: står hen
+ * for langt unna, flyttes hen nærmere (og bøyer knærne om nødvendig), eller ut av bildet ved svært små vinkler.
+ */
+function fitLayout(alpha: number, frame: Frame): PullLayout {
+  const room = (frame.W - 2 * MARGIN) / frame.P;
+  let L = pullLayout(alpha, frame.dMax);
+  for (let i = 0; i < 6 && L.visible; i++) {
+    const over = sledSide(L, frame.P) + personSide(L, frame.P) - room;
+    if (over <= 0) break;
+    L = pullLayout(alpha, Math.max(0, L.d - over - 0.02));
   }
-  const right = sledSide;
-  if (!Number.isFinite(personSide)) return W - margin - right * P;
-  const center = (right - personSide) / 2;
+  return L;
+}
+
+function sledX(L: PullLayout, frame: Frame): number {
+  const { W, P } = frame;
+  const margin = MARGIN;
+  // Utstrekningen i meter fra midten av kjelken, på siden der kjelken er og der personen er.
+  const sledSideM = sledSide(L, P);
+  const personSideM = personSide(L, P);
+  if (L.side === 1) {
+    const left = -sledSideM;
+    if (!Number.isFinite(personSideM)) return margin - left * P;
+    const center = (left + personSideM) / 2;
+    const x = W / 2 - center * P;
+    return Math.max(margin - left * P, Math.min(W - margin - personSideM * P, x));
+  }
+  const right = sledSideM;
+  if (!Number.isFinite(personSideM)) return W - margin - right * P;
+  const center = (right - personSideM) / 2;
   const x = W / 2 - center * P;
-  return Math.min(W - margin - right * P, Math.max(margin + personSide * P, x));
+  return Math.min(W - margin - right * P, Math.max(margin + personSideM * P, x));
 }
 
 /**
  * Hvor langt personen rekker bak hendene (m), regnet med største kraft (mest bakoverlent), så kjelken står stille når
  * F endres. Hodet, skuldrene, hofta og føttene, pluss litt for kroppens tykkelse.
  */
-function pullerReach(L: PullLayout): number {
+function pullerReach(L: PullLayout, P: number): number {
   const size = ADULT_H * P;
   const p = personPunkter('dra', size, pullerPose(L, 200), { x: 0, y: 0, tauvinkel: L.alphaEff, flip: L.side === 1 });
   const pts = [p.hode, p.nakke, p.skulder, p.hofte, p.venstreFot, p.hoyreFot, p.venstreAnkel, p.hoyreAnkel];
@@ -301,6 +353,7 @@ function Scene({
   forces,
   vertical,
   frame,
+  H,
 }: {
   F: number;
   alpha: number;
@@ -309,11 +362,12 @@ function Scene({
   forces: boolean;
   vertical: boolean;
   frame: Frame;
+  H: number;
 }) {
   const f = useTextScale();
   const ss = useStrokeScale();
-  const { W } = frame;
-  const L = pullLayout(alpha, frame.dMax);
+  const { W, P, YG } = frame;
+  const L = fitLayout(alpha, frame);
   const xs = sledX(L, frame);
   /** Fra meter (x fram, y opp, origo midt under meiene) til figuren. */
   const at = (p: Pt): Pt => ({ x: xs + p.x * P, y: YG - p.y * P });
@@ -409,31 +463,17 @@ function Scene({
   // Friksjonen virker langs snøen mot bevegelsen; pila starter bakerst på meien.
   const rearContact = at({ x: -0.37, y: 0 });
   const rY = YG - 3;
-  // Etikettene til F og F⊥ på siden der det er plass: «out» peker bort fra personen (mot kjelken).
+  // Etikettene til F og F⊥: «out» peker bort fra personen (mot kjelken), «tp» mot personen (bort fra barnet).
   const out = -L.side;
+  const tp = L.side;
   const ae = L.alphaEff;
   const nF = L.side === 1 ? { x: u.y, y: -u.x } : { x: -u.y, y: u.x };
   const outAnchor: Anchor = out < 0 ? 'end' : 'start';
-  // F: nesten loddrett → ved siden av spissen, mot kjelken; ellers vinkelrett på pila, på siden mot F⊥.
-  const fLabel: LabelPos =
-    ae >= 75
-      ? { x: (out < 0 ? Math.min(A.x, tip.x) : Math.max(A.x, tip.x)) + out * 10 * f, y: tip.y + 6 * f, anchor: outAnchor }
-      : { x: tip.x + nF.x * 15 * f + u.x * 4, y: tip.y + nF.y * 15 * f + 6 * f, anchor: 'middle' };
-  // F⊥: bratt → midt på pila, mot kjelken; ellers over spissen.
-  const perpLabel: LabelPos =
-    ae >= 50
-      ? { x: A.x + out * 10 * f, y: A.y - (r.Fperp * KF) / 2 + 6 * f, anchor: outAnchor }
-      : { x: A.x, y: perpTip.y - 10 * f, anchor: 'middle' };
-  // F∥: under pila ved spissen. Bak kjelken er friksjonen R der, så da står etiketten inne i parallellogrammet,
-  // eller (når det er for lavt) like forbi spissen.
-  const parLabel: LabelPos =
-    L.side === 1
-      ? { x: parTip.x, y: A.y + 22 * f, anchor: r.Fpar >= 0 ? 'end' : 'start' }
-      : r.Fperp * KF >= 30
-        ? { x: parTip.x + 6 * f, y: A.y - 9 * f, anchor: 'start' }
-        : { x: parTip.x - 8 * f, y: A.y + 6 * f, anchor: 'end' };
-  // N ved siden av G, på siden bort fra tauet og personen, med etiketten på yttersiden.
+  const sideAnchor = (d: number): Anchor => (d > 0 ? 'start' : 'end');
+  // N ved siden av G, på siden bort fra tauet og personen.
   const nX = com.x - L.side * 15;
+  const rTip = { x: rearContact.x - r.R * KF, y: rY };
+  const showR = forces && r.R * KF >= 3;
 
   // Vinkelen α mellom kraften og bevegelsesretningen (mot høyre), ved festet.
   const arcR = 30 + 4 * f;
@@ -443,11 +483,153 @@ function Scene({
   const labelDeg = L.side === 1 ? (ae < 25 || ae >= 80 ? alpha + 20 : alpha / 2) : alpha <= 110 ? alpha + 20 : (90 + alpha) / 2;
   const mid = (labelDeg * Math.PI) / 180;
   const showArc = F > 0 && alpha > 0;
+  const alphaPos = { x: A.x + (arcR + 13 * f) * Math.cos(mid), y: A.y - (arcR + 13 * f) * Math.sin(mid) + 6 * f };
 
-  // Forflytningen: en pil i bevegelsesretningen på snøen, på siden der personen er.
-  const sLen = 120;
-  const sX0 = L.side === 1 ? xs + 0.75 * P : xs - 0.75 * P - sLen;
-  const sY = YG + 66 + 6 * f;
+  // Forflytningen: en kort pil i bevegelsesretningen på snøen, på siden der personen er. Den viser bare retningen
+  // (strekningen er mye lengre enn bildet), og teksten sier hvor langt kjelken flyttes.
+  const sText = `Kjelken flyttes s = ${fmt(s, 0)} m`;
+  const sW = textWidth(sText, 0.85, f);
+  const sLen = 80;
+  const sY = YG + 56 + 6 * f;
+  const sX0 = L.side === 1 ? Math.min(W - 14 - sLen, xs + 0.75 * P) : Math.max(14, xs - 0.75 * P - sLen);
+  const sLabel = { x: Math.min(W - 10 - sW / 2, Math.max(10 + sW / 2, sX0 + sLen / 2)), y: sY - 12 * f };
+  // Massen nederst: på samme side som personen når G og N vises (G går ned under kjelken), ellers på den andre siden.
+  const noteText = `Kjelke og barn: ${SLED_MASS} kg`;
+  const noteRight = vertical ? L.side === 1 : L.side !== 1;
+  const note = { x: noteRight ? W - 14 : 14, y: H - 14, anchor: (noteRight ? 'end' : 'start') as Anchor };
+  const farText = L.side === 1 ? 'Den som drar, står langt foran' : 'Den som holder igjen, står langt bak';
+  // Står personen utenfor bildet, sier en tekst under pila for s hvor hen er
+  const far = { x: L.side === 1 ? W - 14 : 14, y: sY + 24 * f, anchor: (L.side === 1 ? 'end' : 'start') as Anchor };
+
+  // Pilene i scenen, med målene de tegnes med, så etikettene ikke havner oppå skaft eller spiss.
+  const seg = (p: Pt, q: Pt) => ({ x1: p.x, y1: p.y, x2: q.x, y2: q.y });
+  const gTip = { x: com.x, y: com.y + r.G * KF };
+  const nTip = { x: nX, y: YG - r.N * KF };
+  const drawn: { seg: ReturnType<typeof seg>; width: number; dashed?: boolean }[] = [
+    ...(forces && F > 0 ? [{ seg: seg(A, tip), width: 7 }] : []),
+    ...(showPar ? [{ seg: seg(A, parTip), width: 7, dashed: true }] : []),
+    ...(showPerp ? [{ seg: seg(A, perpTip), width: 7, dashed: true }] : []),
+    ...(showR ? [{ seg: seg(rearContact, rTip), width: 5 }] : []),
+    ...(vertical ? [{ seg: seg({ x: nX, y: YG }, nTip), width: 7 }, { seg: seg(com, gTip), width: 7 }] : []),
+    { seg: seg({ x: sX0, y: sY }, { x: sX0 + sLen, y: sY }), width: 3.2 },
+  ];
+  // Det som ellers er i veien: barnet, α, teksten for forflytningen og massen, og buen for α
+  const cp = [child.hode, child.nakke, child.skulder, child.hofte, child.hoyreFot, child.venstreFot, child.hoyreHand, child.venstreHand];
+  const pad = 0.07 * P;
+  const childBox: Box = {
+    x0: Math.min(...cp.map((q) => q.x)) - pad,
+    x1: Math.max(...cp.map((q) => q.x)) + pad,
+    y0: Math.min(...cp.map((q) => q.y)) - pad,
+    y1: Math.max(...cp.map((q) => q.y)),
+  };
+  const obstacles: Box[] = [
+    childBox,
+    ...(showArc ? [textBox(alphaPos.x, alphaPos.y, textWidth('α', 0.95, f), 'middle', 0.95, f)] : []),
+    textBox(sLabel.x, sLabel.y, sW, 'middle', 0.85, f),
+    textBox(note.x, note.y, textWidth(noteText, 0.8, f), note.anchor, 0.8, f),
+    ...(!L.visible ? [textBox(far.x, far.y, textWidth(farText, 0.8, f), far.anchor, 0.8, f)] : []),
+  ];
+  const arcPts = showArc ? Array.from({ length: 9 }, (_, i) => ({ x: A.x + arcR * Math.cos((a * i) / 8), y: A.y - arcR * Math.sin((a * i) / 8) })) : [];
+  const placed: Box[] = [];
+  const free = (bx: Box) =>
+    bx.x0 >= 4 &&
+    bx.x1 <= W - 4 &&
+    bx.y0 >= 2 &&
+    bx.y1 <= H - 2 &&
+    ![...placed, ...obstacles].some((o) => boxesOverlap(bx, o)) &&
+    !drawn.some((d) => arrowHitsBox(d.seg, bx, d.width, ss, { dashed: d.dashed, gap: 0 })) &&
+    !arcPts.some((q, i) => i > 0 && segmentHitsBox(arcPts[i - 1]!, q, bx, 1));
+  type Cand = LabelPos;
+  /** Første ledige kandidat (ellers den første), og plassen holdes av for de neste etikettene. */
+  const place = (text: string, cands: Cand[]): Cand => {
+    const tw = textWidth(text, 1, f);
+    const c = cands.find((q) => free(textBox(q.x, q.y, tw, q.anchor, 1, f))) ?? cands[0]!;
+    placed.push(textBox(c.x, c.y, tw, c.anchor, 1, f));
+    return c;
+  };
+  // Avstand fra pila til etiketten: større enn halve bredden av skaftet, og ved spissen større enn halve spissen
+  const off = 10 * f + 4 * ss;
+  const offHead = 12.2 * ss + 8;
+  const fLabel =
+    forces && F > 0
+      ? place('F', [
+          ae >= 75
+            ? { x: (out < 0 ? Math.min(A.x, tip.x) : Math.max(A.x, tip.x)) + out * off, y: tip.y + 6 * f, anchor: outAnchor }
+            : { x: tip.x + nF.x * (15 * f + 2 * ss) + u.x * 4, y: tip.y + nF.y * (15 * f + 2 * ss) + 6 * f, anchor: 'middle' },
+          { x: tip.x + u.x * 14 * f, y: tip.y + u.y * 14 * f + 6 * f, anchor: u.x > 0.3 ? 'start' : u.x < -0.3 ? 'end' : 'middle' },
+          { x: tip.x - nF.x * (15 * f + 2 * ss), y: tip.y - nF.y * (15 * f + 2 * ss) + 6 * f, anchor: 'middle' },
+          { x: tip.x - out * off, y: tip.y + 6 * f, anchor: sideAnchor(-out) },
+        ])
+      : null;
+  // F∥: foran kjelken under pila ved spissen. Bak kjelken under snølinja ved spissen (R går langs snøen der), forbi
+  // spissen eller inne i parallellogrammet når det er bredt nok.
+  const parLabel = showPar
+    ? place(
+        'F∥',
+        L.side === 1
+          ? [
+              { x: parTip.x, y: A.y + 22 * f, anchor: r.Fpar >= 0 ? 'end' : 'start' },
+              { x: parTip.x + 12 * f, y: A.y + 6 * f, anchor: 'start' },
+              { x: parTip.x, y: YG + 22 * f, anchor: 'middle' },
+            ]
+          : [
+              { x: parTip.x, y: YG + 22 * f, anchor: 'middle' },
+              { x: parTip.x - 12 * f, y: A.y + 6 * f, anchor: 'end' },
+              { x: parTip.x + 6 * f, y: A.y - 9 * f, anchor: 'start' },
+              { x: parTip.x - 6 * f, y: A.y - 12 * f, anchor: 'end' },
+              { x: parTip.x, y: YG + 40 * f, anchor: 'middle' },
+            ],
+      )
+    : null;
+  // F⊥: ved siden av pila, på siden bort fra barnet, eller over spissen
+  const perpMid = A.y - (r.Fperp * KF) / 2 + 6 * f;
+  const perpLabel = showPerp
+    ? place(
+        'F⊥',
+        ae >= 50
+          ? [
+              { x: A.x + tp * off, y: perpMid, anchor: sideAnchor(tp) },
+              { x: A.x, y: perpTip.y - 10 * f, anchor: 'middle' },
+              { x: A.x + tp * off, y: perpTip.y + 8 * f, anchor: sideAnchor(tp) },
+              { x: A.x - tp * off, y: perpMid, anchor: sideAnchor(-tp) },
+            ]
+          : [
+              { x: A.x, y: perpTip.y - 10 * f, anchor: 'middle' },
+              { x: A.x + tp * off, y: perpMid, anchor: sideAnchor(tp) },
+              { x: A.x - tp * off, y: perpMid, anchor: sideAnchor(-tp) },
+            ],
+      )
+    : null;
+  // R: forbi spissen langs snøen, under pila eller over spissen
+  const rLabel = showR
+    ? place('R', [
+        { x: rTip.x - 12 * f, y: rY + 6 * f, anchor: 'end' },
+        { x: (rearContact.x + rTip.x) / 2, y: YG + 22 * f, anchor: 'middle' },
+        { x: rTip.x - 6 * f, y: rY - 12 * f, anchor: 'end' },
+      ])
+    : null;
+  // G og N: ved spissen på yttersiden, ellers på den andre siden
+  const gLabel = vertical
+    ? place('G', [
+        { x: com.x - offHead, y: gTip.y - 4 * f, anchor: 'end' },
+        { x: com.x + offHead, y: gTip.y - 4 * f, anchor: 'start' },
+        { x: com.x - off, y: (com.y + gTip.y) / 2, anchor: 'end' },
+        { x: com.x + off, y: (com.y + gTip.y) / 2, anchor: 'start' },
+      ])
+    : null;
+  const nLabel = vertical
+    ? place('N', [
+        { x: nX - L.side * offHead, y: nTip.y + 14 * f, anchor: sideAnchor(-L.side) },
+        { x: nX + L.side * offHead, y: nTip.y + 14 * f, anchor: sideAnchor(L.side) },
+        { x: nX, y: nTip.y - 8 * f, anchor: 'middle' },
+      ])
+    : null;
+  const forceText = (c: LabelPos | null, color: string, children: ReactNode, key: string) =>
+    c && (
+      <Txt key={key} x={c.x} y={c.y} anchor={c.anchor} color={color} weight={720}>
+        {children}
+      </Txt>
+    );
 
   return (
     <g>
@@ -494,15 +676,8 @@ function Scene({
         />
       )}
       {!L.visible && (
-        <Txt
-          x={L.side === 1 ? W - 14 : 14}
-          y={sY + 30 * f}
-          anchor={L.side === 1 ? 'end' : 'start'}
-          size={0.8}
-          color={SNOW_INK}
-          halo={false}
-        >
-          {L.side === 1 ? 'Den som drar, står langt foran' : 'Den som holder igjen, står langt bak'}
+        <Txt x={far.x} y={far.y} anchor={far.anchor} size={0.8} color={SNOW_INK} halo={false}>
+          {farText}
         </Txt>
       )}
 
@@ -532,7 +707,7 @@ function Scene({
             stroke={VIZ.ink}
             strokeWidth={1.5 * ss}
           />
-          <Txt x={A.x + (arcR + 13 * f) * Math.cos(mid)} y={A.y - (arcR + 13 * f) * Math.sin(mid) + 6 * f} size={0.95} weight={700}>
+          <Txt x={alphaPos.x} y={alphaPos.y} size={0.95} weight={700}>
             α
           </Txt>
         </g>
@@ -541,27 +716,8 @@ function Scene({
       {/* Tyngde og normalkraft på kjelken med barnet */}
       {vertical && (
         <g>
-          <ForceArrow
-            x1={nX}
-            y1={YG}
-            x2={nX}
-            y2={YG - r.N * KF}
-            color={VIZ.normal}
-            label="N"
-            labelX={nX - L.side * 10 * f}
-            labelAnchor={L.side === 1 ? 'end' : 'start'}
-          />
-          <ForceArrow
-            x1={com.x}
-            y1={com.y}
-            x2={com.x}
-            y2={com.y + r.G * KF}
-            color={VIZ.gravity}
-            label="G"
-            labelX={com.x - 10 * f}
-            labelAnchor="end"
-            origin
-          />
+          <ForceArrow x1={nX} y1={YG} x2={nTip.x} y2={nTip.y} color={VIZ.normal} />
+          <ForceArrow x1={com.x} y1={com.y} x2={gTip.x} y2={gTip.y} color={VIZ.gravity} origin />
         </g>
       )}
 
@@ -573,77 +729,43 @@ function Scene({
               <line x1={tip.x} y1={tip.y} x2={perpTip.x} y2={perpTip.y} />
             </g>
           )}
-          {showPar && (
-            <ForceArrow
-              x1={A.x}
-              y1={A.y}
-              x2={parTip.x}
-              y2={parTip.y}
-              color={VIZ.applied}
-              dashed
-              label={
-                <>
-                  F<TSub>∥</TSub>
-                </>
-              }
-              labelY={parLabel.y}
-              labelX={parLabel.x}
-              labelAnchor={parLabel.anchor}
-            />
-          )}
-          {showPerp && (
-            <ForceArrow
-              x1={A.x}
-              y1={A.y}
-              x2={perpTip.x}
-              y2={perpTip.y}
-              color={VIZ.applied}
-              dashed
-              label={
-                <>
-                  F<TSub>⊥</TSub>
-                </>
-              }
-              labelX={perpLabel.x}
-              labelY={perpLabel.y}
-              labelAnchor={perpLabel.anchor}
-            />
-          )}
-          {F > 0 && (
-            <ForceArrow
-              x1={A.x}
-              y1={A.y}
-              x2={tip.x}
-              y2={tip.y}
-              color={VIZ.applied}
-              label="F"
-              labelX={fLabel.x}
-              labelY={fLabel.y}
-              labelAnchor={fLabel.anchor}
-              origin
-            />
-          )}
-          <ForceArrow x1={rearContact.x} y1={rY} x2={rearContact.x - r.R * KF} y2={rY} color={VIZ.friction} label="R" />
+          {showPar && <ForceArrow x1={A.x} y1={A.y} x2={parTip.x} y2={parTip.y} color={VIZ.applied} dashed />}
+          {showPerp && <ForceArrow x1={A.x} y1={A.y} x2={perpTip.x} y2={perpTip.y} color={VIZ.applied} dashed />}
+          {F > 0 && <ForceArrow x1={A.x} y1={A.y} x2={tip.x} y2={tip.y} color={VIZ.applied} origin />}
+          {showR && <ForceArrow x1={rearContact.x} y1={rY} x2={rTip.x} y2={rTip.y} color={VIZ.friction} width={5} />}
         </g>
       )}
 
-      {/* Forflytningen s */}
-      <ForceArrow
-        x1={sX0}
-        y1={sY}
-        x2={sX0 + sLen}
-        y2={sY}
-        color={VIZ.ink}
-        width={3.2}
-        label={`s = ${fmt(s, 0)} m`}
-        labelX={sX0 + sLen / 2}
-        labelY={sY - 12 * f}
-        labelAnchor="middle"
-        labelSize={0.9}
-      />
-      <Txt x={L.side === 1 ? 14 : W - 14} y={H - 14} anchor={L.side === 1 ? 'start' : 'end'} size={0.8} color={SNOW_INK} halo={false}>
-        Kjelke og barn: {SLED_MASS} kg
+      {/* Forflytningen: bare retningen, teksten sier hvor langt */}
+      <ForceArrow x1={sX0} y1={sY} x2={sX0 + sLen} y2={sY} color={SNOW_INK} width={3.2} />
+      <Txt x={sLabel.x} y={sLabel.y} size={0.85} weight={680} color={SNOW_INK} halo={false}>
+        {sText}
       </Txt>
+      <Txt x={note.x} y={note.y} anchor={note.anchor} size={0.8} color={SNOW_INK} halo={false}>
+        {noteText}
+      </Txt>
+
+      {/* Etikettene til kreftene, der de ikke ligger oppå pilene, barnet eller hverandre */}
+      {forceText(fLabel, VIZ.applied, 'F', 'F')}
+      {forceText(
+        parLabel,
+        VIZ.applied,
+        <>
+          F<TSub>∥</TSub>
+        </>,
+        'Fpar',
+      )}
+      {forceText(
+        perpLabel,
+        VIZ.applied,
+        <>
+          F<TSub>⊥</TSub>
+        </>,
+        'Fperp',
+      )}
+      {forceText(rLabel, VIZ.friction, 'R', 'R')}
+      {forceText(gLabel, VIZ.gravity, 'G', 'G')}
+      {forceText(nLabel, VIZ.normal, 'N', 'N')}
     </g>
   );
 }
@@ -667,22 +789,26 @@ function WorkDiagram({ r, s, narrow, W, H: HD }: { r: SledResult; s: number; nar
   );
 }
 
-/** Stablede rektangler: positive verdier stables oppover fra null, negative nedover (som i et stolpediagram med fortegn). */
-function stack(Fpar: number, R: number): { F: [number, number]; R: [number, number] } {
-  if (Fpar >= 0) return { F: [0, Fpar], R: [-R, 0] };
-  return { F: [Fpar, 0], R: [Fpar - R, Fpar] };
-}
-
+/**
+ * Arbeidet som areal: F∥ fra 0 til F∥ (grønt) og friksjonen fra 0 til −R (lilla, skravert), begge gjennom strekningen
+ * s. Linjene står alltid på kraften de viser, så verdiene kan leses av aksen. Når F∥ < 0, ligger begge under aksen
+ * og overlapper; det skraverte feltet viser friksjonen.
+ */
 function AreaPlot({ r, s, w, h }: { r: SledResult; s: number; w: number; h: number }) {
   const f = useTextScale();
-  const st = stack(r.Fpar, r.R);
-  const lowest = Math.min(st.F[0], st.R[0]);
-  const lo = lowest < -200 ? -Math.ceil(-lowest / 100) * 100 : -200;
+  const hatch = useSvgId('friksjon-skravur');
+  const A = areaSpans(r.Fpar, r.R);
+  const lo = A.lowest < -200 ? -Math.ceil(-A.lowest / 100) * 100 : -200;
   const ticks = [];
   for (let v = lo; v <= 200; v += 100) ticks.push(v);
   const top = 34 * f;
   return (
     <g>
+      <defs>
+        <pattern id={hatch} patternUnits="userSpaceOnUse" width={7} height={7} patternTransform="rotate(45)">
+          <line x1={1} y1={0} x2={1} y2={7} stroke={VIZ.friction} strokeWidth={1.8} opacity={0.6} />
+        </pattern>
+      </defs>
       <Txt x={8} y={20 * f} anchor="start" size={0.9} weight={650}>
         Arbeidet er arealet under grafen
       </Txt>
@@ -699,92 +825,127 @@ function AreaPlot({ r, s, w, h }: { r: SledResult; s: number; w: number; h: numb
           height={h - top}
           margin={{ top: 10 * f, right: 14 * f, bottom: 50 * f, left: 74 * f }}
         >
-          {({ sx, sy, x0, x1, y1 }) => {
+          {({ sx, sy, x0, x1, y0, y1 }) => {
             const x1s = sx(s);
-            const rect = (span: [number, number]) => ({
-              y: sy(span[1]),
-              h: Math.abs(sy(span[0]) - sy(span[1])),
-            });
-            const rf = rect(st.F);
-            const rr = rect(st.R);
-            const fEdge = sy(r.Fpar);
-            const label = (box: { y: number; h: number }, text: ReactNode, color: string, key: string, below: boolean) => {
-              const fits = box.h > 24 * f && x1s - x0 > 150 * f;
-              const cy = fits ? box.y + box.h / 2 + 6 * f : below ? box.y + box.h + 18 * f : box.y - 8 * f;
-              return (
-                <Txt
-                  key={key}
-                  x={fits ? (x0 + x1s) / 2 : Math.max(x0 + 8, Math.min(x1s, x0 + 8))}
-                  y={cy}
-                  anchor={fits ? 'middle' : 'start'}
-                  size={0.85}
-                  color={color}
-                  weight={700}
-                >
-                  {text}
+            const rect = (sp: Span) => ({ y: sy(sp[1]), h: Math.abs(sy(sp[0]) - sy(sp[1])) });
+            const rf = rect(A.F);
+            const rr = rect(A.R);
+            const yF = sy(r.Fpar);
+            const yR = sy(-r.R);
+            const showF = rf.h > 0.5;
+            const showR = rr.h > 0.5;
+
+            // Etikettene: første ledige plass av noen kandidater, inne i plottet og ikke oppå hverandre
+            const placed: Box[] = [textBox(x1s + 6, y1 + 14 * f, textWidth('s', 0.85, f), 'start', 0.85, f)];
+            type Cand = { x: number; y: number; anchor: Anchor };
+            const place = (plain: string, size: number, cands: Cand[], optional = false): Cand | null => {
+              const tw = textWidth(plain, size, f);
+              const fits = (c: Cand) => {
+                const b = textBox(c.x, c.y, tw, c.anchor, size, f);
+                return b.x0 >= x0 - 2 && b.x1 <= x1 + 4 && b.y0 >= y1 - 4 && b.y1 <= y0 + 2 && !placed.some((p) => boxesOverlap(b, p));
+              };
+              const c = cands.find(fits) ?? (optional ? null : cands[0]);
+              if (c) placed.push(textBox(c.x, c.y, tw, c.anchor, size, f));
+              return c ?? null;
+            };
+            const roomRight = (tw: number) => x1 - x1s > tw + 16;
+            // Kandidater for arbeidet i et bånd [lav, høy] (N): midt i båndet, til høyre for rektangelet, eller utenfor
+            const wCands = (band: Span, tw: number, outside: Cand[]): Cand[] => {
+              const yt = sy(band[1]);
+              const yb = sy(band[0]);
+              const cy = (yt + yb) / 2 + 6 * f;
+              const out: Cand[] = [];
+              if (yb - yt > 22 * f && x1s - x0 > tw + 16) out.push({ x: (x0 + x1s) / 2, y: cy, anchor: 'middle' });
+              if (roomRight(tw)) out.push({ x: x1s + 8, y: cy, anchor: 'start' });
+              return [...out, ...outside];
+            };
+            const lowestY = Math.max(yF, yR, sy(0));
+            const below = (dy = 0): Cand => ({ x: x0 + 8, y: lowestY + 18 * f + dy, anchor: 'start' });
+            const aboveAxis = (dy = 0): Cand => ({ x: x0 + 8, y: sy(0) - 8 * f - dy, anchor: 'start' });
+
+            // Linjene for F∥ og −R: til høyre for linja for s, eller inne ved enden av linja
+            const lineCands = (y: number, tw: number, up: boolean): Cand[] => [
+              ...(roomRight(tw)
+                ? [
+                    { x: x1s + 7, y: y + 5 * f, anchor: 'start' as const },
+                    { x: x1s + 7, y: y - 7 * f, anchor: 'start' as const },
+                  ]
+                : []),
+              { x: x1s - 6, y: up ? y - 7 * f : y + 18 * f, anchor: 'end' },
+              { x: x1s - 6, y: up ? y + 18 * f : y - 7 * f, anchor: 'end' },
+            ];
+            // Arbeidet (arealet) først, så kreftene (linjene)
+            const wfText = `WF = ${fmt(r.WF, 0)} J`;
+            const wrText = `WR = ${fmt(r.WR, 0)} J`;
+            const wfW = textWidth(wfText, 0.85, f);
+            const wrW = textWidth(wrText, 0.85, f);
+            const wf = showF ? place(wfText, 0.85, wCands(A.bandF, wfW, r.Fpar >= 0 ? [{ x: x0 + 8, y: yF - 8 * f, anchor: 'start' }] : [below(), aboveAxis()])) : null;
+            const wr = showR ? place(wrText, 0.85, wCands(A.bandR, wrW, r.Fpar > 0 ? [below(), below(20 * f)] : [aboveAxis(), below(), aboveAxis(20 * f)])) : null;
+            const fText = `F∥ = ${fmt(r.Fpar, 0)} N`;
+            const rText = `−R = −${fmt(r.R, 0)} N`;
+            const fLine = showF ? place(fText, 0.75, lineCands(yF, textWidth(fText, 0.75, f), r.Fpar >= 0)) : null;
+            const rLine = showR && rr.h > 4 ? place(rText, 0.75, lineCands(yR, textWidth(rText, 0.75, f), false), true) : null;
+
+            const label = (c: Cand | null, color: string, size: number, children: ReactNode, key: string) =>
+              c && (
+                <Txt key={key} x={c.x} y={c.y} anchor={c.anchor} size={size} color={color} weight={key[0] === 'w' ? 700 : 650}>
+                  {children}
                 </Txt>
               );
-            };
             return (
               <g>
-                {rf.h > 0.5 && (
+                {showF && <rect x={x0} y={rf.y} width={x1s - x0} height={rf.h} fill={fade(VIZ.applied, 0.24)} />}
+                {showR && (
                   <>
-                    <rect x={x0} y={rf.y} width={x1s - x0} height={rf.h} fill={fade(VIZ.applied, 0.26)} />
-                    <line x1={x0} x2={x1s} y1={fEdge} y2={fEdge} stroke={VIZ.applied} strokeWidth={3} />
+                    <rect x={x0} y={rr.y} width={x1s - x0} height={rr.h} fill={fade(VIZ.friction, 0.16)} />
+                    <rect x={x0} y={rr.y} width={x1s - x0} height={rr.h} fill={`url(#${hatch})`} />
+                  </>
+                )}
+                {showF && (
+                  <>
+                    <line x1={x0} x2={x1s} y1={yF} y2={yF} stroke={VIZ.applied} strokeWidth={3} />
                     <line x1={x1s} x2={x1s} y1={rf.y} y2={rf.y + rf.h} stroke={VIZ.applied} strokeWidth={1.5} />
                   </>
                 )}
-                {rr.h > 0.5 && (
+                {showR && (
                   <>
-                    <rect x={x0} y={rr.y} width={x1s - x0} height={rr.h} fill={fade(VIZ.friction, 0.26)} />
-                    <line x1={x0} x2={x1s} y1={sy(st.R[0])} y2={sy(st.R[0])} stroke={VIZ.friction} strokeWidth={3} />
+                    <line x1={x0} x2={x1s} y1={yR} y2={yR} stroke={VIZ.friction} strokeWidth={3} />
                     <line x1={x1s} x2={x1s} y1={rr.y} y2={rr.y + rr.h} stroke={VIZ.friction} strokeWidth={1.5} />
                   </>
                 )}
-                {/* Høyden på rektangelet er kraftkomponenten F∥ (samme som den stiplede pila i scenen) */}
-                {rf.h > 0.5 &&
-                  (() => {
-                    const roomRight = x1 - x1s > 96 * f;
-                    // Til høyre for linja (men under «s» øverst), ellers inne ved enden av linja.
-                    const y = roomRight ? Math.max(fEdge + 5 * f, y1 + 32 * f) : r.Fpar >= 0 ? fEdge - 7 * f : fEdge + 18 * f;
-                    return (
-                      <Txt
-                        x={roomRight ? x1s + 7 : x1s - 6}
-                        y={y}
-                        anchor={roomRight ? 'start' : 'end'}
-                        size={0.75}
-                        color={VIZ.applied}
-                        weight={650}
-                      >
-                        F<TSub>∥</TSub> = {fmt(r.Fpar, 0)} N
-                      </Txt>
-                    );
-                  })()}
                 {/* Strekningen s */}
                 <line x1={x1s} x2={x1s} y1={y1} y2={sy(0)} stroke={VIZ.ink} strokeWidth={1.2} strokeDasharray="4 4" opacity={0.6} />
                 <Txt x={x1s + 6} y={y1 + 14 * f} anchor="start" size={0.85} weight={650}>
                   s
                 </Txt>
-                {rf.h > 0.5 &&
-                  label(
-                    rf,
-                    <>
-                      W<TSub>F</TSub> = {fmt(r.WF, 0)} J
-                    </>,
-                    VIZ.applied,
-                    'lf',
-                    r.Fpar < 0,
-                  )}
-                {rr.h > 0.5 &&
-                  label(
-                    rr,
-                    <>
-                      W<TSub>R</TSub> = {fmt(r.WR, 0)} J
-                    </>,
-                    VIZ.friction,
-                    'lr',
-                    true,
-                  )}
+                {label(
+                  fLine,
+                  VIZ.applied,
+                  0.75,
+                  <>
+                    F<TSub>∥</TSub> = {fmt(r.Fpar, 0)} N
+                  </>,
+                  'lf',
+                )}
+                {label(rLine, VIZ.friction, 0.75, <>−R = −{fmt(r.R, 0)} N</>, 'lr')}
+                {label(
+                  wf,
+                  VIZ.applied,
+                  0.85,
+                  <>
+                    W<TSub>F</TSub> = {fmt(r.WF, 0)} J
+                  </>,
+                  'wf',
+                )}
+                {label(
+                  wr,
+                  VIZ.friction,
+                  0.85,
+                  <>
+                    W<TSub>R</TSub> = {fmt(r.WR, 0)} J
+                  </>,
+                  'wr',
+                )}
               </g>
             );
           }}
@@ -901,13 +1062,13 @@ function explanation(F: number, alpha: number, mu: number, r: SledResult): React
     first = (
       <>
         <strong>Positivt arbeid.</strong> Tauet er vannrett, langs bevegelsen. Da er cos 0° = 1, så hele kraften gjør arbeid: W<Sub>F</Sub>{' '}
-        = F · s = {fmt(r.WF, 0)} J. I virkeligheten er det vanskelig, for hendene må være like lavt som festet på kjelken.
+        = F · s = {fmt(r.WF, 0)}&nbsp;J. I virkeligheten er det vanskelig, for hendene må være like lavt som festet på kjelken.
       </>
     );
   else if (alpha < 90)
     first = (
       <>
-        <strong>Positivt arbeid.</strong> Bare komponenten langs bevegelsen, F<Sub>∥</Sub> = F cos α = {fmt(r.Fpar, 1)} N, gjør arbeid. F
+        <strong>Positivt arbeid.</strong> Bare komponenten langs bevegelsen, F<Sub>∥</Sub> = F cos α = {fmt(r.Fpar, 1)}&nbsp;N, gjør arbeid. F
         <Sub>⊥</Sub> står vinkelrett på bevegelsen og gjør ikke arbeid
         {mu > 0 ? ', men den løfter litt i kjelken, så normalkraften og friksjonen blir mindre.' : '.'}
       </>
@@ -916,7 +1077,7 @@ function explanation(F: number, alpha: number, mu: number, r: SledResult): React
     first = (
       <>
         <strong>Null arbeid.</strong> Du drar rett opp, vinkelrett på bevegelsen. Siden cos 90° = 0, gjør F ikke arbeid, selv om kraften er{' '}
-        {fmt(F, 0)} N. Den løfter bare litt i kjelken
+        {fmt(F, 0)}&nbsp;N. Den løfter bare litt i kjelken
         {mu > 0 ? ', så friksjonen blir mindre' : ''}.
       </>
     );
@@ -924,7 +1085,7 @@ function explanation(F: number, alpha: number, mu: number, r: SledResult): React
     first = (
       <>
         <strong>Negativt arbeid.</strong> Nå står du bak kjelken og holder igjen. F<Sub>∥</Sub> peker mot bevegelsesretningen, og cos α er
-        negativ når α er større enn 90°. Da bremser kraften kjelken og tar energi fra den: W<Sub>F</Sub> = {fmt(r.WF, 0)} J.
+        negativ når α er større enn 90°. Da bremser kraften kjelken og tar energi fra den: W<Sub>F</Sub> = {fmt(r.WF, 0)}&nbsp;J.
       </>
     );
   const dEk =
@@ -944,7 +1105,7 @@ function explanation(F: number, alpha: number, mu: number, r: SledResult): React
       <p>
         {alpha === 0
           ? 'Det er derfor det lønner seg å dra med tauet så flatt som mulig: da går hele kraften med til å dra kjelken framover.'
-          : `Det er derfor det lønner seg å dra med tauet ganske flatt: med α = ${fmt(alpha, 0)}° er det bare F cos α, ${fmt(100 * share, 0)} % av kraften, som drar kjelken framover.`}
+          : `Det er derfor det lønner seg å dra med tauet ganske flatt: med α = ${fmt(alpha, 0)}° er det bare F cos α, ${fmt(100 * share, 0)}\u00a0% av kraften, som drar kjelken framover.`}
         {mu > 0 ? (
           <>
             {' '}
@@ -971,7 +1132,7 @@ function explanation(F: number, alpha: number, mu: number, r: SledResult): React
           : F > 0
             ? 'Uten friksjon er F den eneste kraften som gjør arbeid. '
             : ''}
-        G og N står vinkelrett på bevegelsen og gjør ikke arbeid. Totalt arbeid er W = {fmt(r.W, 0)} J, og det er lik endringen i kinetisk
+        G og N står vinkelrett på bevegelsen og gjør ikke arbeid. Totalt arbeid er W = {fmt(r.W, 0)}&nbsp;J, og det er lik endringen i kinetisk
         energi, ΔE
         <Sub>k</Sub>: {dEk}. I diagrammet er arbeidet arealet mellom grafen og strekningsaksen: over aksen positivt, under aksen negativt.
       </p>

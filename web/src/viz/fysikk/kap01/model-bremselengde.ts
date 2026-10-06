@@ -111,11 +111,32 @@ export const VIEW_BEHIND = 7;
 /**
  * Utsnittet av veien (m) som scenen viser: fra litt bak bilen til litt forbi elgen (`elk` er hvor langt elgen og
  * luften bak den rekker forbi D). Er stopplengden lengre, tas den med så lenge utsnittet ikke blir mer enn
- * halvannen gang så langt (ellers blir bilen for liten); da vises resten med en pil. Enden er et helt antall
- * tiere, så skalaen bare endrer seg i sprang når glidebryterne flyttes.
+ * halvannen gang så langt (ellers blir bilen for liten); da vises resten med en pil. Enden rundes opp til et
+ * helt antall femmere (ikke tiere), så utsnittet slutter like bak elgen og bil og elg blir så store som mulig.
  */
 export function sceneRange(D: number, total: number, elk = 5): { min: number; max: number } {
   const need = Math.max(0, D) + elk;
   const end = Number.isFinite(total) && total + 2 > need && total + 2 <= 1.5 * need ? total + 2 : need;
-  return { min: -VIEW_BEHIND, max: Math.ceil(end / 10 - 1e-9) * 10 };
+  return { min: -VIEW_BEHIND, max: Math.ceil(end / 5 - 1e-9) * 5 };
+}
+
+/* ---------- Pilene for v og a over bilen ---------- */
+
+/**
+ * Faste skalaer for pilene i scenen (figurenheter, før mobilfaktoren): v-pila er `v` enheter lang ved startfarten
+ * til bilen med full fart (også i stripen med halv fart), og a-pila er `a` enheter per m/s². Skalaene er like i
+ * begge stripene og hele bevegelsen, og pilene kortes aldri: mangler det plass, flyttes de (`arrowPairCenter`).
+ */
+export const ARROW_SCALE = { v: 110, a: 18 } as const;
+
+/**
+ * Midtpunktet til pilparet over bilen (a-pila mot venstre og v-pila mot høyre, med halene på hver side av
+ * midtpunktet): rett over bilen (`mid`) når begge får plass, ellers flyttet akkurat så langt at de får plass
+ * mellom x0 og x1. `left` og `right` er plassen hver pil trenger (pil, etikett og luften ved midtpunktet).
+ */
+export function arrowPairCenter(mid: number, left: number, right: number, x0: number, x1: number): number {
+  const lo = x0 + Math.max(0, left);
+  const hi = x1 - Math.max(0, right);
+  if (lo > hi) return (lo + hi) / 2;
+  return Math.min(hi, Math.max(lo, Number.isFinite(mid) ? mid : (lo + hi) / 2));
 }

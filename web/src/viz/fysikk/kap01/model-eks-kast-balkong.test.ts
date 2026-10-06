@@ -217,16 +217,17 @@ describe('hjelpefunksjoner', () => {
   it('aksene får plass til begge løsningene og toppunktet, med akseverdier innenfor', () => {
     for (const task of BALCONY_THROW_TASKS) {
       const s = solveBalconyThrow(task);
-      for (const step of [0.5, 1]) {
-        const ax = graphAxes(s, task.h0, step);
+      for (const [step, pad] of [[0.5, 1.5], [1, 1.5], [1, 2.2]] as const) {
+        const ax = graphAxes(s, task.h0, step, pad);
         expect(ax.tMin).toBeLessThan(s.tNeg - 0.15);
         expect(ax.tMax).toBeGreaterThan(s.tLand + 0.1);
-        expect(ax.sMin).toBeLessThan(-task.h0);
+        expect(ax.sMin).toBeCloseTo(-task.h0 - pad, 12);
         expect(ax.sMax).toBeGreaterThan(s.sTop + 1);
         expect(ax.tTicks).toContain(0);
         expect(ax.sTicks).toContain(0);
         for (const t of ax.tTicks) expect(t >= ax.tMin - 1e-9 && t <= ax.tMax + 1e-9).toBe(true);
-        for (const v of ax.sTicks) expect(v >= ax.sMin && v <= ax.sMax).toBe(true);
+        // Ingen akseverdier under plenen: der står tekstene om løsningene
+        for (const v of ax.sTicks) expect(v >= -task.h0 - 1e-9 && v <= ax.sMax).toBe(true);
         expect(ax.tTicks.length).toBeGreaterThanOrEqual(4);
         expect(ax.sTicks.length).toBeGreaterThanOrEqual(5);
         // Ingen «−0»

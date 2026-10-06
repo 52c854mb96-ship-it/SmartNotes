@@ -1,5 +1,5 @@
 /**
- * Gjenstander og bakgrunn til scenen i k1-simulering (fallskjermhopper i fritt fall), i samme stil som scene-kit-et:
+ * Gjenstander og bakgrunn til scenen i k1-simulering (fallskjermhopper før skjermen er ute), i samme stil som scene-kit-et:
  * toninger fra core.tsx, SCENE-farger, tynn kontur og myke overganger.
  *
  *   <FallHimmel w={588} h={380} horisont={318} falt={s} />      // himmel, skyer som glir oppover og dalen langt nede
@@ -271,16 +271,16 @@ export type HopperStilling = 'hode' | 'mage' | 'vid';
 
 /**
  * Hvordan hopperen er dreid: magen ned (liggende, hodet mot høyre), vid drakt (liggende, armer og bein strukket ut)
- * eller hodet ned, litt på skrå (hodet nede til venstre), så de loddrette kraftpilene fra tyngdepunktet går forbi
- * hodet og beina i stedet for langs hele kroppen.
+ * eller hodet ned, ca. 35° på skrå (hodet nede til venstre, beina oppe til høyre), så de loddrette kraftpilene fra
+ * tyngdepunktet går forbi hodet og beina i stedet for langs kroppen.
  */
 function placement(stilling: HopperStilling) {
-  if (stilling === 'hode') return { rotate: 200, ledd: HODE_NED };
+  if (stilling === 'hode') return { rotate: 215, ledd: HODE_NED };
   return { rotate: 90, ledd: stilling === 'vid' ? VID : undefined };
 }
 
 /**
- * Fallskjermhopper i fritt fall, med ankerpunktet (x, y) i tyngdepunktet (der G angriper). Gul hoppdress, svart hjelm
+ * Fallskjermhopper før skjermen er ute, med ankerpunktet (x, y) i tyngdepunktet (der G angriper). Gul hoppdress, svart hjelm
  * og fallskjermsekken på ryggen. Magen ned er den vanlige stillingen; med hodet ned er flaten mot lufta mye mindre,
  * og i vid drakt med armer og bein strukket ut er den større. `size` er høyden stående (1,75 m i scenens skala).
  */
@@ -532,7 +532,7 @@ export function Hoydemaaler({ x, y, r, hoyde, runde = 4000, rodt = 1000 }: { x: 
           </text>
         ))}
       </g>
-      {/* Tallene er kilometer. Oppe til høyre (0–1 000 m) kommer viseren sjelden, for i fritt fall går den fra 4 000 m mot klokka */}
+      {/* Tallene er kilometer. Oppe til høyre (0–1 000 m) kommer viseren sjelden, for i fallet går den fra 4 000 m mot klokka */}
       <text x={r2(dial * 0.3)} y={r2(-dial * 0.24)} textAnchor="middle" fill={ink} fontSize={r2(R * 0.15)} fontWeight={650} opacity={0.85}>
         km
       </text>

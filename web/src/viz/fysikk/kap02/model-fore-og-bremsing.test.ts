@@ -259,16 +259,33 @@ describe('bil i kø foran: rekker bilen å stoppe?', () => {
     expect(queueOutcome(20, 0.5, 0)).toMatchObject({ stops: false, vHit: 20, tEnd: 0 });
   });
 
-  it('queueState: følger brakeState til sammenstøtet, og står ved køen etterpå', () => {
+  it('queueState: følger brakeState til sammenstøtet, og fryser i det bilene møtes (med farten i sammenstøtet)', () => {
     const mu = frictionCoefficient('is', 'vinter', 'abs');
     const out = queueOutcome(v0, mu, 60);
     expect(out.stops).toBe(false);
     const before = queueState(v0, mu, 1400, 0.5 * out.tEnd, 60);
     expect(before.crashed).toBe(false);
     expect(before).toMatchObject(brakeState(v0, mu, 1400, 0.5 * out.tEnd));
+    // I sammenstøtet: bilen står ikke stille, den har farten v_treff og bremser fortsatt med R = μN og a = μg
+    const r = brake(v0, mu, 1400);
     const after = queueState(v0, mu, 1400, out.tEnd + 3, 60);
-    expect(after).toMatchObject({ crashed: true, stopped: true, v: 0, s: 60, R: 0, a: 0 });
+    expect(after).toMatchObject({ crashed: true, stopped: false, s: 60 });
+    expect(after.v).toBeCloseTo(out.vHit, 12);
+    expect(after.v).toBeGreaterThan(0);
+    expect(after.R).toBeCloseTo(r.R, 9);
+    expect(after.a).toBeCloseTo(r.a, 12);
     expect(after.t).toBeCloseTo(out.tEnd, 12);
+    // Rett før sammenstøtet er farten og strekningen (nesten) de samme, så bildet hopper ikke
+    const justBefore = queueState(v0, mu, 1400, out.tEnd - 1e-6, 60);
+    expect(justBefore.crashed).toBe(false);
+    expect(justBefore.v).toBeCloseTo(after.v, 4);
+    expect(justBefore.s).toBeCloseTo(after.s, 4);
+    // Sommerdekk på snø fra 80 km/h med køen 103 m foran: treffer i ca. 57 km/h
+    const muSno = frictionCoefficient('sno', 'sommer', 'abs');
+    const crash = queueState(80 / 3.6, muSno, 1400, 1000, 103);
+    expect(crash.crashed).toBe(true);
+    expect(crash.v * 3.6).toBeCloseTo(Math.sqrt(80 ** 2 - 2 * muSno * g * 103 * 3.6 ** 2), 9);
+    expect(Math.round(crash.v * 3.6)).toBe(57);
     // Fri vei og kø langt unna gir samme bevegelse som uten kø
     expect(queueState(v0, mu, 1400, 100, null)).toMatchObject({ crashed: false, stopped: true });
     expect(queueState(v0, 0.8, 1400, 100, 60)).toMatchObject({ crashed: false, stopped: true });

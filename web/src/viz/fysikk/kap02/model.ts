@@ -52,6 +52,40 @@ export const FRICTION_FLOORS: Record<FrictionFloor, { muS: number; muK: number }
   is: { muS: 0.1, muK: 0.05 },
 };
 
+/**
+ * Dyttet (N) som velges når eleven bytter til is: nok til at kassen glir for alle massene (μs·N ≤ 39 N), men
+ * mindre enn det en person klarer på blank is uten å skli (se pushLimit).
+ */
+export const ICE_PUSH = 40;
+
+/**
+ * Antall desimaler kreftene vises med i friksjonsvisualiseringen: én desimal under 100 N, ellers hele newton.
+ * Samme regel for F, R, μs·N og μk·N overalt, så R = F alltid ser likt ut når kassen står i ro.
+ */
+export function forceDecimals(v: number): number {
+  return Math.abs(v) < 99.95 ? 1 : 0;
+}
+
+/** Kraften rundet slik den vises (se forceDecimals). Dyttet under avspillingen rundes slik før det regnes videre. */
+export function roundForce(v: number): number {
+  if (!Number.isFinite(v)) return 0;
+  const k = 10 ** forceDecimals(v);
+  return Math.round(v * k) / k;
+}
+
+/** Massen til personen som dytter kassen (kg). */
+export const PERSON_MASS = 70;
+
+/**
+ * Det hardeste en person kan dytte vannrett før skoene sklir: kassen dytter like hardt tilbake (Newtons 3. lov), og
+ * bare den statiske friksjonen under skoene holder personen igjen, så F ≤ μs · m · g. På blank is (μs ≈ 0,10) er
+ * det ca. 69 N for en person på 70 kg.
+ */
+export function pushLimit(muShoe: number, mPerson = PERSON_MASS): number {
+  if (!(muShoe > 0) || !(mPerson > 0)) return 0;
+  return muShoe * mPerson * G_EARTH;
+}
+
 /** Et dytt som øker jevnt fra null: F = rate · t opp til Fend, og er konstant etter det. */
 export interface PushRamp {
   /** Hvor fort dyttet øker (N/s). */

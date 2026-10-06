@@ -22,7 +22,7 @@ import {
   useStrokeScale,
   useSvgId,
 } from '../../kit/scene';
-import { facingDirection, groupMarks, isReversing, sceneCamera, secondMarks, speedTrend, position, velocity, type Motion } from './model';
+import { facingDirection, isReversing, layoutMarkLabels, markLabel, sceneCamera, secondMarks, speedTrend, position, velocity, type Motion } from './model';
 
 /*
  * Scenen over bevegelsesgrafene: en bil på en rett vei med et målebånd langs veikanten (s-aksen), merker på
@@ -60,13 +60,16 @@ function sceneLayout(f: number) {
   const k = Math.max(1, f * 0.85);
   const ss = Math.max(1, f * 0.75);
   const hud = 40 * f;
-  const vArrowMax = 100 * Math.min(k, 1.15);
-  const aScale = 20 * Math.min(k, 1.15);
+  // Den største farten i bevegelsen får en pil på 140 enheter (like lang på mobil, der figuren er smalere i
+  // forhold til teksten). Akselerasjonen har sin egen faste skala, høyst 4 m/s² · aScale < vArrowMax.
+  const vArrowMax = 140;
+  const aScale = 22 * Math.min(k, 1.15);
   // Bilens midtpunkt holder seg så langt fra kanten at den lengste pila og etiketten får plass.
   const margin = vArrowMax + 26 * f + 10;
   const inner = W - 2 * margin;
-  const gapCar = 22 * ss + 8;
-  const gapArrows = 26 * f + 8;
+  // Pilene ligger rett over taket på bilen: v nærmest, a over den.
+  const gapCar = 12 * ss + 6;
+  const gapArrows = 20 * f + 6;
   const roadY = hud + 12 * f + gapArrows + gapCar + BIL_MAAL.hoyde * P_MAX;
   const B = 46 * k;
   const roadTop = roadY - 0.7 * B;
@@ -76,13 +79,15 @@ function sceneLayout(f: number) {
   /** Gresskanten foran veien (Vei tegner en smal stripe, resten tegnes her). */
   const vergeY = roadY + 0.48 * B;
   const horizon = roadTop - 12 * k;
+  // To rader med etiketter til sekundmerkene (den andre brukes bare når etikettene ellers ville overlappe)
   const labelY = vergeY + 15 * f;
-  const tapeY = vergeY + 22 * f;
+  const labelY2 = labelY + 14 * f;
+  const tapeY = labelY2 + 7 * f;
   const tapeH = 11.5 * f * 1.75;
   const tagH = 17 * f * 0.9 * 1.55;
   const tagY = tapeY + tapeH + 8 * ss + 5 + tagH / 2;
   const H = Math.round(tagY + tagH / 2 + 10);
-  return { k, ss, hud, vArrowMax, aScale, inner, gapCar, gapArrows, roadY, B, roadTop, nearEdge, markY, vergeY, horizon, labelY, tapeY, tapeH, tagY, H, pMin: P_MIN * k };
+  return { k, ss, hud, vArrowMax, aScale, inner, gapCar, gapArrows, roadY, B, roadTop, nearEdge, markY, vergeY, horizon, labelY, labelY2, tapeY, tapeH, tagY, H, pMin: P_MIN * k };
 }
 
 type Layout = ReturnType<typeof sceneLayout>;
@@ -143,12 +148,16 @@ function SceneContent({ m, t, tEnd, sAxis, showArrows, L }: VeiSceneProps & { L:
   const yV = L.roadY - carH - L.gapCar;
   const yA = yV - L.gapArrows;
 
-  // Merkene hvert hele sekund, med etiketter som slås sammen når de ligger tett (rundt et vendepunkt).
+  // Merkene hvert hele sekund. Merker på samme sted (rundt et vendepunkt) får én etikett, «1 s og 5 s» (ikke
+  // «1, 5 s», som kan leses som 1,5 s), og etiketter som ville overlappe, legges i en rad under.
   const marks = secondMarks(m, t).map((q) => ({ t: q.t, x: X(q.s) }));
   const labelPx = 17 * 0.78 * f;
-  const labelText = (times: number[]) => `${times.join(', ')} s`;
-  const labelWidth = (times: number[]) => labelText(times).length * labelPx * 0.56 + 4;
-  const groups = groupMarks(marks, labelWidth, 6 * f);
+  const labelWidth = (times: number[]) => markLabel(times).length * labelPx * 0.56 + 4;
+  const groups = layoutMarkLabels(marks, labelWidth, {
+    gap: 6 * f,
+    same: 2.5 * 4.6 * ss,
+    visible: (x, w) => Math.abs(x - W / 2) + w / 2 < W / 2 - 2,
+  });
 
   // Fartsstreker bak bilen (i motsatt retning av farten), lengre jo fortere det går.
   const dir: 1 | -1 = v >= 0 ? 1 : -1;
@@ -206,8 +215,9 @@ function SceneContent({ m, t, tEnd, sAxis, showArrows, L }: VeiSceneProps & { L:
           </g>
         )}
 
-        {/* Målebåndet langs veikanten er s-aksen. Det går ut over begge kantene av bildet. */}
-        <Maalebaand x1={-40} x2={W + 37} y={L.tapeY} fra={sAt(-40)} til={sAt(W + 37)} enhet="" />
+        {/* Målebåndet langs veikanten er s-aksen, over hele bredden. Det slutter ved kantene av bildet, så kit-et
+            skyver de ytterste tallene inn på båndet i stedet for å klippe dem («−10», ikke «10»). */}
+        <Maalebaand x1={0} x2={W - 3} y={L.tapeY} fra={sAt(0)} til={sAt(W - 3)} enhet="" />
 
         {/* Avlesning: fra midten av bilen ned på målebåndet, med en spiss over og under båndet (tallene synes) */}
         <line x1={cx} x2={cx} y1={L.roadY + 3} y2={L.tapeY - tri} stroke={VIZ.series[0]} strokeWidth={1.8 * ss} strokeDasharray={`${5 * ss} ${4 * ss}`} />
@@ -227,13 +237,11 @@ function SceneContent({ m, t, tEnd, sAxis, showArrows, L }: VeiSceneProps & { L:
         />
 
         {/* Etikettene til merkene (med glorie oppå avlesningsstreken) */}
-        {groups.map((g) =>
-          Math.abs(g.x - W / 2) + labelWidth(g.times) / 2 < W / 2 - 2 ? (
-            <Txt key={g.times.join('-')} x={g.x} y={L.labelY} size={0.78} color={VIZ.series[0]} weight={680}>
-              {labelText(g.times)}
-            </Txt>
-          ) : null,
-        )}
+        {groups.map((g) => (
+          <Txt key={g.times.join('-')} x={g.x} y={g.row === 0 ? L.labelY : L.labelY2} size={0.78} color={VIZ.series[0]} weight={680}>
+            {markLabel(g.times)}
+          </Txt>
+        ))}
         <ValueTag x={tagX} y={L.tagY} text={tagText} color={VIZ.series[0]} />
 
         {showArrows && (

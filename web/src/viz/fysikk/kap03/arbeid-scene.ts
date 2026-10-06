@@ -94,3 +94,49 @@ export function pullLayout(alphaDeg: number, dMax: number): PullLayout {
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
 }
+
+/* ---------- Arbeid som areal under kraft–strekning-grafen ---------- */
+
+/** Et intervall på kraftaksen (N), [lav, høy]. */
+export type Span = [number, number];
+
+export interface AreaSpans {
+  /** Rektangelet for F∥ går fra 0 til F∥, og rektangelet for friksjonen fra 0 til −R (kraften langs bevegelsen). */
+  F: Span;
+  R: Span;
+  /**
+   * Delen av hvert rektangel som ikke ligger oppå det andre, der etiketten kan stå. Når F∥ < 0, ligger begge under
+   * aksen og overlapper; da er båndet til det grunneste rektangelet hele rektangelet, og det dypeste får resten.
+   */
+  bandF: Span;
+  bandR: Span;
+  /** Den laveste verdien aksen må ha med (N, ≤ 0). */
+  lowest: number;
+}
+
+/** Hvor rektanglene for F∥ og friksjonen står i arealdiagrammet (høyden er kraften langs bevegelsen). */
+export function areaSpans(Fpar: number, R: number): AreaSpans {
+  const r = Math.max(0, R);
+  const F: Span = Fpar >= 0 ? [0, Fpar] : [Fpar, 0];
+  const Rs: Span = [-r, 0];
+  let bandF = F;
+  let bandR = Rs;
+  if (Fpar < 0) {
+    if (-Fpar >= r) bandF = [Fpar, -r];
+    else bandR = [-r, Fpar];
+  }
+  return { F, R: Rs, bandF, bandR, lowest: Math.min(0, Fpar, -r) };
+}
+
+/**
+ * Arbeidet slik det står i utregningen, regnet av tallene som vises der, så hver linje går opp: W_F = F · s · cos α
+ * (hele joule), W_R = −μ · N · s med N med to desimaler, og W = W_F + W_R av de avrundede leddene.
+ */
+export function shownWork({ WF, N, mu, s }: { WF: number; N: number; mu: number; s: number }): { N: number; WF: number; WR: number; W: number } {
+  // Avrunding som på kalkulatoren: −2 452,5 blir −2 453 (Math.round runder halve mot +∞)
+  const rnd = (x: number) => Math.sign(x) * Math.round(Math.abs(x)) || 0;
+  const N2 = Math.round(N * 100) / 100;
+  const wf = rnd(WF);
+  const wr = rnd(-mu * N2 * s);
+  return { N: N2, WF: wf, WR: wr, W: wf + wr };
+}

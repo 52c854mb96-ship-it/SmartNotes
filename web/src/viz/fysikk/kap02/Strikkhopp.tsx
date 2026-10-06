@@ -53,10 +53,14 @@ import {
   type BungeeState,
 } from './model-strikkhopp';
 import { Bru, Fjellvegg, Hoydeskala } from './strikkhopp-scene';
+import { kroppsdeler, ledigX, ledigY } from './kropp-klaring';
 import { useNarrow } from './useNarrow';
 
+/** Over så mange g i det laveste punktet er oppbremsingen brattere enn i ekte strikkhopp (ca. 3–4 g). */
+const G_WARN = 4;
+
 /**
- * Strikkhopp fra en bro over en elv (2E, 2F): fritt fall til strikken strammes, deretter en strikkraft S = k · Δx som
+ * Strikkhopp fra en bru over en elv (2E, 2F): fritt fall til strikken strammes, deretter en strikkraft S = k · Δx som
  * vokser. Eleven velger masse, strikklengde og stivhet, og ser kreftene, grafene for h, v og a og det laveste punktet.
  */
 export default function Strikkhopp() {
@@ -259,6 +263,8 @@ function jumperPoints(size: number, x: number, y: number, rotate: number) {
     hofte: pts.hofte,
     minX: Math.min(...xs),
     maxX: Math.max(...xs),
+    /** Kroppen som linjestykker med radius, så pilene kan holdes klar av den (kropp-klaring.ts). */
+    deler: kroppsdeler(pts, size),
   };
 }
 
@@ -307,7 +313,7 @@ function SceneFigure({ p, k, st, narrow }: { p: BungeeParams; k: BungeeKeyPoints
     <Figure
       viewBox={`0 0 ${W} ${H}`}
       maxHeight={narrow ? 1100 : 560}
-      label={`Strikkhopp fra en bro ${fmt(BRIDGE_HEIGHT, 0)} m over en elv. Hopperen er ${fmt(st.h, 1)} m over vannet med farten ${fmt(Math.abs(st.v), 1)} m/s ${st.v < -0.05 ? 'nedover' : st.v > 0.05 ? 'oppover' : ''}. Strikkraften er ${fmt(st.S, 0)} N og tyngden ${fmt(st.G, 0)} N.`}
+      label={`Strikkhopp fra en bru ${fmt(BRIDGE_HEIGHT, 0)} m over en elv. Hopperen er ${fmt(st.h, 1)} m over vannet med farten ${fmt(Math.abs(st.v), 1)} m/s ${st.v < -0.05 ? 'nedover' : st.v > 0.05 ? 'oppover' : ''}. Strikkraften er ${fmt(st.S, 0)} N og tyngden ${fmt(st.G, 0)} N.`}
     >
       <Overview p={p} k={k} st={st} {...ov} inset={inset} narrow={narrow} />
       <Closeup p={p} k={k} st={st} box={inset} narrow={narrow} />
@@ -352,7 +358,7 @@ function Overview({
 
   // Merker for de tre øyeblikkene, med etikettene spredt så de ikke overlapper.
   const marks = [
-    { y: anchorY + p.L0 * px, color: VIZ.tension, text: narrow ? 'Strikken stram' : 'Strikken strammes' },
+    { y: anchorY + p.L0 * px, color: VIZ.tension, text: narrow ? 'Stram strikk' : 'Strikken strammes' },
     { y: anchorY + k.sEq * px, color: VIZ.velocity, text: 'Størst fart' },
     { y: anchorY + k.sMax * px, color: VIZ.acceleration, text: 'Laveste punkt' },
   ];
@@ -456,6 +462,12 @@ function spreadLabels(ys: number[], gap: number, lo: number, hi: number): number
   return res;
 }
 
+/**
+ * Hvor tykt brudekket er i nærbildet (m). I oversikten er bjelken 4 m, men i nærbildet ville den fylt hele bildet
+ * som en vegg; et tynnere dekk med himmel under viser at det er en bru.
+ */
+const DECK_CLOSE = 1.4;
+
 /** Nærbildet: kameraet følger hopperen. Kreftene G og S og kraftsummen ΣF er tegnet med én fast skala (px/N). */
 function Closeup({ p, k, st, box, narrow }: { p: BungeeParams; k: BungeeKeyPoints; st: BungeeState; box: Box; narrow: boolean }) {
   const f = useTextScale();
@@ -484,17 +496,43 @@ function Closeup({ p, k, st, box, narrow }: { p: BungeeParams; k: BungeeKeyPoint
   const jx = hx + shift;
   const jp = shift === 0 ? j0 : jumperPoints(P, jx, fy, rot);
   const deckY = fy - st.s * pxm;
-  const showDeck = deckY + 4.2 * pxm > box.y && deckY < box.y + box.h + 1.2 * pxm;
+  const showDeck = deckY + (DECK_CLOSE + 0.4) * pxm > box.y && deckY < box.y + box.h + 2.6 * pxm;
 
   // Fartsstriper i lufta som flytter seg oppover når hopperen faller.
   const streaks = useMemo(() => [0.08, 0.2, 0.71, 0.86, 0.94].map((u, i) => ({ x: box.x + u * box.w, y0: ((i * 0.37) % 1) * box.h })), [box.x, box.w, box.h]);
   const speed = Math.abs(st.v);
-  // Kraftsummen til høyre for hopperen, med plass til G-etiketten når hun lener seg ut fra plattformen.
-  // Til venstre for tyngdepunktet når det ikke er plass til høyre (mens hopperen stuper).
-  const sfRight = Math.max(hx + (narrow ? 70 : 54) * ss, jp.tp.x + 46 * f);
-  const sfLeft = sfRight + 34 * f > box.x + box.w - 8;
-  const sfX = sfLeft ? jp.tp.x - 46 * f : sfRight;
+
+  // G angriper i tyngdepunktet. Når hopperen henger med hodet ned, ville pila gått langs hele overkroppen og hodet:
+  // da tegnes den litt til siden (den siden som krever minst flytting), med en stiplet strek inn til tyngdepunktet.
+  const tp = jp.tp;
+  const gLen = k.G * kN;
+  const gOpts = { start: tp.x, fra: tp.y, til: tp.y + gLen, gap: 8 * ss, fri: [tp.y - 0.13 * P, tp.y + 0.13 * P] as [number, number] };
+  const gLeftX = ledigX(jp.deler, { ...gOpts, dir: -1 });
+  const gRightX = ledigX(jp.deler, { ...gOpts, dir: 1 });
+  const gx = gRightX - tp.x < 0.6 * (tp.x - gLeftX) ? gRightX : gLeftX;
+  const gShift = Math.abs(gx - tp.x) > 0.5;
+  const gLeft = gx < tp.x - 0.5;
+
+  // Kraftsummen ved siden av, klar av kroppen og av G med etiketten: helst til høyre, ellers til venstre, og når
+  // hopperen stuper og fyller hele bredden, rett under (eller over) kroppen.
   const sumLen = st.sumF * kN;
+  const sfZero = Math.abs(sumLen) < 8;
+  const sfW = (sfZero ? 62 : 30) * f;
+  const sfGap = 10 * ss;
+  const sfSpan = sfZero ? { fra: tp.y - 12 * f, til: tp.y + 4 * f } : { fra: tp.y, til: tp.y - sumLen };
+  const gRightEdge = !gLeft && gShift ? gx + 26 * f : tp.x;
+  const gLeftEdge = gLeft ? gx - 26 * f : tp.x;
+  const sfRightX = ledigX(jp.deler, { start: Math.max(gRightEdge + sfGap, tp.x + 20 * f), ...sfSpan, gap: sfGap, dir: 1 });
+  const sfLeftX = ledigX(jp.deler, { start: Math.min(gLeftEdge - sfGap, tp.x - 20 * f), ...sfSpan, gap: sfGap, dir: -1 });
+  const fitsRight = sfRightX + 10 * f + sfW <= box.x + box.w - 6;
+  const fitsLeft = sfLeftX - 10 * f - sfW >= box.x + 6;
+  const sfLeft = !fitsRight && fitsLeft;
+  const sfBeside = fitsRight || fitsLeft;
+  const sfX = fitsRight ? sfRightX : fitsLeft ? sfLeftX : Math.min(box.x + box.w - 10 * f - sfW - 6, Math.max(box.x + 14, tp.x + 34 * f));
+  // Under kroppen når kraftsummen peker nedover (fritt fall), over når den peker oppover.
+  const sfY = sfBeside
+    ? tp.y
+    : ledigY(jp.deler, { start: tp.y, fra: sfX - 6 * ss, til: sfX + 6 * ss, gap: 8 * ss, dir: sumLen > 0 ? -1 : 1 });
   const clip = useSvgId('sh-naerbilde');
   return (
     <g>
@@ -513,7 +551,7 @@ function Closeup({ p, k, st, box, narrow }: { p: BungeeParams; k: BungeeKeyPoint
             const len = 10 + speed * 2.6;
             return <line key={i} x1={sk.x} x2={sk.x} y1={y} y2={y + len} stroke={alpha(SCENE.cloud, 0.9)} strokeWidth={2.4 * ss} strokeLinecap="round" />;
           })}
-        {showDeck && <Bru x1={box.x - 4} x2={box.x + box.w + 4} y={deckY} px={pxm} plattformX={hx - 1.5 * pxm} feste={hx - 1} />}
+        {showDeck && <Bru x1={box.x - 4} x2={box.x + box.w + 4} y={deckY} px={pxm} plattformX={hx - 1.5 * pxm} feste={hx - 1} tykkelse={DECK_CLOSE} />}
         <Cord
           ax={hx - 1}
           ay={deckY + 0.2 * pxm}
@@ -532,13 +570,30 @@ function Closeup({ p, k, st, box, narrow }: { p: BungeeParams; k: BungeeKeyPoint
 
       {/* Kreftene: S i anklene (langs strikken), G i tyngdepunktet og kraftsummen ved siden av */}
       <ForceArrow x1={jp.ankel.x} y1={jp.ankel.y} x2={jp.ankel.x} y2={jp.ankel.y - st.S * kN} color={VIZ.tension} label="S" origin minLength={6} />
-      <ForceArrow x1={jp.tp.x} y1={jp.tp.y} x2={jp.tp.x} y2={jp.tp.y + k.G * kN} color={VIZ.gravity} label="G" origin />
-      {Math.abs(sumLen) >= 8 ? (
+      {gShift && (
+        <g>
+          <line x1={tp.x} y1={tp.y} x2={gx} y2={tp.y} stroke={VIZ.surface} strokeWidth={4 * ss} opacity={0.8} strokeLinecap="round" />
+          <line x1={tp.x} y1={tp.y} x2={gx} y2={tp.y} stroke={VIZ.ink} strokeWidth={1.5 * ss} strokeDasharray={`${3 * ss} ${3 * ss}`} />
+          <circle cx={tp.x} cy={tp.y} r={3.6 * ss} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.6 * ss} />
+        </g>
+      )}
+      <ForceArrow
+        x1={gx}
+        y1={tp.y}
+        x2={gx}
+        y2={tp.y + gLen}
+        color={VIZ.gravity}
+        label="G"
+        origin={!gShift}
+        labelAnchor={gLeft ? 'end' : undefined}
+        labelX={gLeft ? gx - 10 * f : undefined}
+      />
+      {!sfZero ? (
         <ForceArrow
           x1={sfX}
-          y1={jp.tp.y}
+          y1={sfY}
           x2={sfX}
-          y2={jp.tp.y - sumLen}
+          y2={sfY - sumLen}
           color={VIZ.ink}
           dashed
           label="ΣF"
@@ -546,7 +601,7 @@ function Closeup({ p, k, st, box, narrow }: { p: BungeeParams; k: BungeeKeyPoint
           labelX={sfLeft ? sfX - 10 * f : undefined}
         />
       ) : (
-        <Txt x={sfLeft ? sfX + 8 : sfX - 8} y={jp.tp.y + 6} anchor={sfLeft ? 'end' : 'start'} size={0.9} weight={700}>
+        <Txt x={sfX} y={tp.y} anchor={sfLeft ? 'end' : 'start'} size={0.9} weight={700}>
           ΣF = 0
         </Txt>
       )}
@@ -784,20 +839,30 @@ function explanation(p: BungeeParams, k: BungeeKeyPoints, st: BungeeState): Reac
     );
   }
   const clearanceWarn = k.headClearance < 12;
+  const gForce = inG(k.aMax);
+  const hardWarn = gForce > G_WARN;
   return (
     <>
       {main}
       <p>
         Positiv retning er oppover, så v og a er negative når de peker nedover. S = k · Δx endrer seg hele tiden, så akselerasjonen er ikke konstant, og bevegelseslikningene for konstant akselerasjon gjelder ikke når
-        strikken drar. Grafene viser løsningen av Newtons 2. lov, ΣF = ma, som en datamaskin finner ved å regne i små tidssteg (2F). Stigningstallet
+        strikken drar. Grafene viser løsningen av Newtons 2. lov, ΣF = ma. Den samme løsningen finner du ved å regne i små tidssteg (2F). Stigningstallet
         i h-grafen er v, og stigningstallet i v-grafen er a: der v-grafen har bunnpunkt, er a = 0.
       </p>
-      {clearanceWarn ? (
+      {clearanceWarn && (
         <p>
           <strong>For nær vannet!</strong> Hodet kommer bare ca. {fmt(k.headClearance, 0)} m over vannet. En tyngre hopper, en lengre strikk eller
           en mykere strikk gir et lavere laveste punkt. Derfor veier de deg før hoppet og velger strikk etter vekta.
         </p>
-      ) : (
+      )}
+      {hardWarn && (
+        <p>
+          <strong>For brå oppbremsing!</strong> I det laveste punktet er a = {fmt(k.aMax, 1)} m/s², hele {fmt(gForce, 1)} g. Ekte strikkhopp holdes
+          under ca. 3–4 g. En lett hopper med en stiv strikk bremses for brått: S = k · Δx blir mange ganger større enn tyngden. Derfor veier de deg
+          før hoppet og velger strikk etter vekta.
+        </p>
+      )}
+      {!clearanceWarn && !hardWarn && (
         <p>
           Prøv en stivere strikk: hoppet blir kortere, men oppbremsingen brå og a<Sub>maks</Sub> stor. En tyngre hopper med samme strikk kommer
           lenger ned, men får mindre akselerasjon. Modellen ser bort fra luftmotstand og regner hopperen som et punkt i enden av strikken.

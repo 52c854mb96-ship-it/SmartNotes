@@ -5,7 +5,7 @@ const viz: VizMeta[] = [
   {
     id: 'arbeid',
     chapter: '3',
-    sections: ['3B'],
+    sections: ['3B', '3D'],
     title: 'Arbeid: dra en kjelke på skrå',
     summary:
       'Dra lillesøster på kjelken med tauet på skrå. Se når arbeidet blir positivt, null eller negativt, hvordan friksjonen gjør negativt arbeid, og at arbeidet er arealet under kraft–strekning-grafen.',

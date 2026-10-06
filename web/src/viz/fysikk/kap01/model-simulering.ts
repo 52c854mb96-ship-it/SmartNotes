@@ -2,8 +2,9 @@
  * Simulering av fall med luftmotstand (1E): det scenen i k1-simulering trenger i tillegg til grunnmodellen i
  * model.ts (`eulerFall`, `exactVelocity`, `exactPosition`, `terminalVelocity`). Ren fysikk uten React.
  *
- * Situasjonen: en fallskjermhopper hopper ut av et fly 4 000 m over bakken og faller fritt med luftmotstand L = kv²
- * før skjermen utløses. Positiv retning er nedover, og s er strekningen hopperen har falt.
+ * Situasjonen: en fallskjermhopper hopper ut av et fly 4 000 m over bakken og faller med luftmotstand L = kv² før
+ * skjermen utløses (ikke fritt fall: i fysikken betyr det at bare tyngden virker). Positiv retning er nedover, og s
+ * er strekningen hopperen har falt.
  */
 import { G_EARTH } from '../../kit/format';
 import { terminalVelocity, type DragFall, type EulerRow } from './model';
@@ -183,4 +184,123 @@ export function extremes(p: DragFall, rows: EulerRow[]): { vMax: number; Lmax: n
     if (Number.isFinite(r.a)) aMin = Math.min(aMin, r.a);
   }
   return { vMax, Lmax: dragForce(p, vMax), aMin };
+}
+
+/* ---------- Plassen til verdien i avviksgrafen ---------- */
+
+/** Plottet etiketten må holde seg inne i (figurenheter, y nedover). */
+export interface LabelBox {
+  x0: number;
+  x1: number;
+  top: number;
+  bottom: number;
+}
+
+export interface LabelSpot {
+  /** Grunnlinjen til teksten og hvilken ende x er. */
+  x: number;
+  y: number;
+  anchor: 'start' | 'end';
+  /** Teksten står så langt fra punktet at den trenger en tynn strek til det: fra (px, py) til (lx, ly). */
+  leader: { x: number; y: number } | null;
+  /** Om teksten krysser kurven (bare når ingen plass i plottet er fri; glorien gjør den lesbar). */
+  crossing: boolean;
+}
+
+/** Om linjestykket a–b treffer rektangelet (Liang–Barsky). */
+function segmentHitsRect(a: [number, number], b: [number, number], r: { left: number; right: number; top: number; bottom: number }): boolean {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  let t0 = 0;
+  let t1 = 1;
+  const edges: [number, number][] = [
+    [-dx, a[0] - r.left],
+    [dx, r.right - a[0]],
+    [-dy, a[1] - r.top],
+    [dy, r.bottom - a[1]],
+  ];
+  for (const [p, q] of edges) {
+    if (p === 0) {
+      if (q < 0) return false;
+      continue;
+    }
+    const t = q / p;
+    if (p < 0) t0 = Math.max(t0, t);
+    else t1 = Math.min(t1, t);
+    if (t0 > t1) return false;
+  }
+  return true;
+}
+
+/**
+ * Hvor verdien ved punktet (px, py) på en kurve skal stå: alltid inne i plottet, uten å krysse kurven eller dekke
+ * punktet, og så nær punktet som mulig (over til venstre foretrekkes ved like avstander, fordi kurven stiger).
+ * Tekstboksen er `w` bred og `h` høy, og y er grunnlinjen (boksen går fra y − h til y + 0,25h). Ved høyre kant av
+ * plottet (største tidssteg) havner teksten til venstre for punktet, flyttet ned eller til siden til den er fri.
+ * Er ingen plass fri, står den nærmest mulig inne i plottet og krysser kurven (`crossing`). `obstacles` er andre
+ * linjer teksten heller ikke skal krysse, f.eks. den stiplede streken fra punktet ned til aksen.
+ */
+export function labelSpot(
+  pts: [number, number][],
+  px: number,
+  py: number,
+  w: number,
+  h: number,
+  box: LabelBox,
+  gap: number,
+  obstacles: [number, number][][] = [],
+): LabelSpot {
+  const pad = gap * 0.3;
+  const dot = gap * 0.7;
+  const rectOf = (x: number, y: number, anchor: 'start' | 'end') => {
+    const left = anchor === 'end' ? x - w : x;
+    return { left, right: left + w, top: y - h, bottom: y + 0.25 * h };
+  };
+  const hitsCurve = (r: ReturnType<typeof rectOf>) => {
+    const e = { left: r.left - pad, right: r.right + pad, top: r.top - pad, bottom: r.bottom + pad };
+    for (const line of [pts, ...obstacles])
+      for (let i = 1; i < line.length; i++) {
+        const a = line[i - 1];
+        const b = line[i];
+        if (a && b && segmentHitsRect(a, b, e)) return true;
+      }
+    return false;
+  };
+  const hitsPoint = (r: ReturnType<typeof rectOf>) =>
+    px > r.left - pad - dot && px < r.right + pad + dot && py > r.top - pad - dot && py < r.bottom + pad + dot;
+  const dist = (r: ReturnType<typeof rectOf>) => Math.hypot(Math.max(r.left - px, 0, px - r.right), Math.max(r.top - py, 0, py - r.bottom));
+
+  let best: { spot: Omit<LabelSpot, 'leader' | 'crossing'>; cost: number; free: boolean } | null = null;
+  const stepY = 0.4 * h;
+  const stepX = 0.5 * h;
+  let order = 0;
+  for (let k = 0; k <= 16; k++)
+    for (let j = 0; j <= 16; j++)
+      for (const [anchor, sx, sy] of [
+        ['end', -1, -1],
+        ['start', 1, -1],
+        ['start', 1, 1],
+        ['end', -1, 1],
+      ] as const) {
+        order++;
+        let x = px + sx * (gap + j * stepX);
+        let y = sy < 0 ? py - gap - k * stepY : py + gap + h + k * stepY;
+        // Hold teksten inne i plottet
+        const r0 = rectOf(x, y, anchor);
+        if (r0.left < box.x0) x += box.x0 - r0.left;
+        else if (r0.right > box.x1) x -= r0.right - box.x1;
+        if (r0.top < box.top) y += box.top - r0.top;
+        else if (r0.bottom > box.bottom) y -= r0.bottom - box.bottom;
+        const r = rectOf(x, y, anchor);
+        if (r.left < box.x0 - 1e-6 || r.right > box.x1 + 1e-6 || r.top < box.top - 1e-6 || r.bottom > box.bottom + 1e-6) continue;
+        if (hitsPoint(r)) continue;
+        const free = !hitsCurve(r);
+        const cost = dist(r) + order * 1e-6 + (free ? 0 : 1e6);
+        if (!best || cost < best.cost) best = { spot: { x, y, anchor }, cost, free };
+      }
+  if (!best) return { x: px - gap, y: py - gap, anchor: 'end', leader: null, crossing: true };
+  const r = rectOf(best.spot.x, best.spot.y, best.spot.anchor);
+  const far = dist(r) > 1.6 * gap;
+  const leader = far ? { x: Math.min(Math.max(px, r.left), r.right), y: Math.min(Math.max(py, r.top), r.bottom) } : null;
+  return { ...best.spot, leader, crossing: !best.free };
 }

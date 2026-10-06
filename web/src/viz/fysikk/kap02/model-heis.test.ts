@@ -5,6 +5,7 @@ import {
   FLOORS,
   FLOOR_HEIGHT,
   LIFT_A0,
+  LIFT_A0_TYPICAL_MAX,
   floorBelow,
   floorHeight,
   liftHeight,
@@ -37,7 +38,7 @@ describe('heisen i blokka', () => {
   });
 
   it('alle valg av a0 gir en tur på et helt antall etasjer, så heisen stopper ved en etasje', () => {
-    expect(A0_VALUES).toHaveLength(11);
+    expect(A0_VALUES).toEqual([0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]);
     for (const a0 of A0_VALUES) {
       const up = nearestFloor(liftHeight('opp', a0, LIFT_T_END));
       expect(up.level).toBe(true);
@@ -48,6 +49,22 @@ describe('heisen i blokka', () => {
     }
     // a0 = 2 m/s²: fra 1. til 9. etasje (24 m)
     expect(nearestFloor(liftHeight('opp', 2, LIFT_T_END))).toEqual({ floor: 9, level: true });
+    // Standardvalget a0 = 1 m/s²: fra 1. til 5. etasje (12 m)
+    expect(nearestFloor(liftHeight('opp', LIFT_A0.start, LIFT_T_END))).toEqual({ floor: 5, level: true });
+  });
+
+  it('realistiske verdier: standardvalget gir en vanlig heis (a0 ≤ 1,5 m/s², toppfart 1–2,5 m/s)', () => {
+    expect(A0_VALUES).toContain(LIFT_A0.start);
+    expect(LIFT_A0.start).toBeLessThanOrEqual(LIFT_A0_TYPICAL_MAX);
+    const vTop = liftMaxSpeed('opp', LIFT_A0.start);
+    expect(vTop).toBeCloseTo(2, 9);
+    expect(vTop).toBeGreaterThanOrEqual(1);
+    expect(vTop).toBeLessThanOrEqual(2.5);
+    // Det største valget er 2 m/s² (toppfart 4 m/s), i overkant av en vanlig heis
+    expect(LIFT_A0.max).toBe(2);
+    expect(liftMaxSpeed('opp', LIFT_A0.max)).toBeCloseTo(4, 9);
+    // Vekta viser 70 · 10,81/9,81 = 77,1 kg når en person på 70 kg starter oppover med standardvalget
+    expect(scaleReading(70, LIFT_A0.start)).toBeCloseTo(77.14, 2);
   });
 
   it('heisen holder seg i sjakta (0–42 m) på alle turer', () => {
@@ -66,7 +83,7 @@ describe('heisen i blokka', () => {
     expect(end).toBeCloseTo(42 - 2 * G_EARTH * 2, 9);
     expect(nearestFloor(end)).toEqual({ floor: 2, level: false });
     // Akselerasjonen ved start og stopp påvirker ikke fallet
-    expect(liftHeight('fritt-fall', 0.5, 4)).toBeCloseTo(liftHeight('fritt-fall', 3, 4), 9);
+    expect(liftHeight('fritt-fall', 0.5, 4)).toBeCloseTo(liftHeight('fritt-fall', 2, 4), 9);
   });
 
   it('etasjen under heisgulvet: «mellom 1. og 2. etasje» når heisen står fast i 2,76 m', () => {
@@ -106,7 +123,7 @@ describe('det vekta viser', () => {
 
   it('Newtons 2. lov holder i alle faser: N − G = m · a', () => {
     for (const trip of TRIPS)
-      for (const a0 of [0.5, 1.75, 3])
+      for (const a0 of A0_VALUES)
         for (const p of liftPhases(trip, a0)) {
           const m = 63;
           expect(scaleForce(m, p.a) - m * G_EARTH).toBeCloseTo(m * p.a, 9);
@@ -121,11 +138,12 @@ describe('skalaene for pilene', () => {
     expect(liftMaxSpeed('fritt-fall', 2)).toBeCloseTo(2 * G_EARTH, 9);
     // Farten underveis er aldri større
     for (const trip of TRIPS)
-      for (const t of times) expect(Math.abs(liftState(liftPhases(trip, 2.5), t).v)).toBeLessThanOrEqual(liftMaxSpeed(trip, 2.5) + 1e-9);
+      for (const a0 of A0_VALUES)
+        for (const t of times) expect(Math.abs(liftState(liftPhases(trip, a0), t).v)).toBeLessThanOrEqual(liftMaxSpeed(trip, a0) + 1e-9);
   });
 
   it('største akselerasjon: a0 på vanlige turer, g når kabelen ryker', () => {
-    expect(liftMaxAcceleration('opp', 2.25)).toBe(2.25);
+    expect(liftMaxAcceleration('opp', 1.25)).toBe(1.25);
     expect(liftMaxAcceleration('ned', 0.5)).toBe(0.5);
     expect(liftMaxAcceleration('fritt-fall', 1)).toBe(G_EARTH);
   });

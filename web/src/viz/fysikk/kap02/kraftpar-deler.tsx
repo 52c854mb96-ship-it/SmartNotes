@@ -22,6 +22,7 @@ import {
   useSvgId,
   type PaintName,
 } from '../../kit/scene';
+import { VIZ } from '../../kit';
 
 type Pt = [number, number];
 const r1 = (v: number) => (Number.isFinite(v) ? Math.round(v * 10) / 10 : 0);
@@ -554,9 +555,11 @@ export function JordSnitt({ x1, x2, y, brudd, cx, cy, vinkel = 56, dim }: JordSn
   // nederste ca. 80 % av radien, så grensene havner ved 0,55/0,8 og 0,19/0,8 av høyden.
   const rOuter = h * 0.68;
   const rInner = h * 0.24;
-  const mantle = mix(SCENE.soilDark, SCENE.stoneDark, 0.45);
-  const outer = mix(mix(SCENE.stone, SCENE.soil, 0.55), SCENE.warm, 0.14);
-  const inner = mix(tint(SCENE.stone, 0.15), SCENE.glow, 0.18);
+  // Mantelen er en lys steinfarge, så kilen skiller seg fra bakgrunnen også i mørkt tema (skumring); kjernen blir
+  // varmere innover. Fargene er dempet, så den oransje G′-pila i sentrum fortsatt synes best.
+  const mantle = tint(mix(SCENE.stone, SCENE.soil, 0.5), 0.12);
+  const outer = mix(mix(SCENE.stone, SCENE.soil, 0.35), SCENE.warm, 0.3);
+  const inner = mix(mix(tint(SCENE.stone, 0.2), SCENE.glow, 0.35), SCENE.warm, 0.1);
   return (
     <g opacity={dim ? SCENE_DIM : undefined} aria-hidden>
       <LinearGradient
@@ -637,6 +640,8 @@ export function JordSnitt({ x1, x2, y, brudd, cx, cy, vinkel = 56, dim }: JordSn
           opacity={0.6}
         />
       </g>
+      {/* Kanten på kilen: en lys strek innenfor konturen, så formen synes mot bakgrunnen i begge temaene */}
+      <path d={wedgePath} fill="none" stroke={VIZ.muted} strokeWidth={2.2 * ss} strokeLinejoin="round" opacity={0.75} />
       <path d={wedgePath} fill="none" stroke={SCENE.outline} strokeWidth={0.9 * ss} strokeLinejoin="round" />
     </g>
   );

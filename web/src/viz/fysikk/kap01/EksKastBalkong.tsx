@@ -172,10 +172,12 @@ function NarrowGraph({ task, sol, view }: { task: BalconyThrowTask; sol: Balcony
   const { W, GH } = NARROW;
   const kind = graphKind(view);
   const tStep = 1;
-  const margin = { top: 22 * f, right: 12, bottom: 58 * f, left: 60 * f };
+  // v-t-grafen har bredere akseverdier (−15, −20), så aksetittelen trenger mer plass.
+  const margin = { top: 22 * f, right: 12, bottom: 58 * f, left: (kind === 'vt' ? 74 : 60) * f };
   if (kind === 'krefter') return <ForceDiagram sol={sol} x={4} y={4} w={W - 8} h={GH - 8} />;
   if (kind === 'vt') return <VelocityGraph task={task} sol={sol} view={view} width={W} height={GH} margin={margin} tStep={tStep} />;
-  return <PositionGraph task={task} sol={sol} view={view} width={W} height={GH} margin={margin} tStep={tStep} />;
+  // Mer plass under plenen enn på PC: teksten er større i forhold til grafen, og tidsaksen står rett under.
+  return <PositionGraph task={task} sol={sol} view={view} width={W} height={GH} margin={margin} tStep={tStep} padBelow={2.2} />;
 }
 
 function sceneLabel(task: BalconyThrowTask, sol: BalconyThrowSolution, view: ThrowView): string {
@@ -210,8 +212,9 @@ function graphLabel(task: BalconyThrowTask, sol: BalconyThrowSolution, view: Thr
 function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
   const { name, h0, v0, m, k } = task;
   const q = sol.quad;
-  const h = `${fmt(h0, 1)} m`;
-  const v0s = `${fmt(v0, 1)} m/s`;
+  // Hardt mellomrom før enheten, så tall og enhet ikke deles på to linjer på mobil.
+  const h = `${fmt(h0, 1)}\u00a0m`;
+  const v0s = `${fmt(v0, 1)}\u00a0m/s`;
   const tRounded = Math.round(sol.tLand * 10) / 10;
   const vRounded = v0 - G * tRounded;
   const beach = equalForceSpeed(BEACH_BALL.m, BEACH_BALL.k);
@@ -286,7 +289,7 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
       answer: <>Ballen kommer {fmtSig(sol.H)} m over plenen.</>,
       pitfall: (
         <>
-          Ikke svar {fmtSig(sol.sTop, 2)} m. Det er høyden over hånda, men spørsmålet gjelder høyden over plenen.
+          Ikke svar {fmtSig(sol.sTop)} m. Det er høyden over hånda, men spørsmålet gjelder høyden over plenen.
         </>
       ),
     },
@@ -299,7 +302,7 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
       body: (
         <p>
           Vi bruker posisjonslikningen s = v<Sub>0</Sub>t + ½at². Plenen er {h} under hånda, og positiv retning er opp, så ballen er på plenen
-          når s = −{h}. Vi setter inn tallene og får en andregradslikning i t.
+          når s = −{h}. Vi setter inn tallene og samler alle leddene på én side. Da får vi en andregradslikning i t.
         </p>
       ),
       math: [
@@ -337,13 +340,12 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
         </>
       ),
       math: [
-        <>t = (−b ± √(b² − 4ac)) / (2a)</>,
+        // Linjene med rottegn er rene strenger, så WorkedExample kan vise √ med vanlig skrift (som i FormulaLine).
+        't = (−b ± √(b² − 4ac)) / (2a)',
         <>
           b² − 4ac = {fmt(v0, 1)}² − 4 · {fmt(q.a, 3)} · (−{fmt(h0, 1)}) = {fmt(q.disc, 1)}
         </>,
-        <>
-          t = ({fmt(v0, 1)} ± √{fmt(q.disc, 1)}) / (2 · {fmt(q.a, 3)}) = ({fmt(v0, 1)} ± {fmt(q.root, 2)}) / {fmt(2 * q.a, 2)}
-        </>,
+        `t = (${fmt(v0, 1)} ± √${fmt(q.disc, 1)}) / (2 · ${fmt(q.a, 3)}) = (${fmt(v0, 1)} ± ${fmt(q.root, 2)}) / ${fmt(2 * q.a, 2)}`,
         <>
           t = {fmt(sol.tLand, 3)} s eller t = {fmt(sol.tNeg, 3)} s
         </>,
@@ -398,7 +400,7 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
           v² = v<Sub>0</Sub>² + 2as = ({v0s})² + 2 · (−9,81 m/s²) · (−{h})
         </>,
         <>v² = {fmt(sol.vSquared, 1)} m²/s²</>,
-        <>|v| = √({fmt(sol.vSquared, 1)} m²/s²)</>,
+        `|v| = √(${fmt(sol.vSquared, 1)} m²/s²)`,
         <>|v| = {fmt(sol.speedLand, 2)} m/s</>,
       ],
       answer: (
@@ -452,8 +454,9 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
             bruker litt kortere tid opp og litt lengre tid ned.
           </p>
           <p>
-            Hvor mye, kan vi finne med en simulering som i 1E: Eulers metode med a = −g − (k/m) · v · |v| og Δt = 0,001 s. v-t-grafen er da
-            ikke lenger en rett linje, fordi akselerasjonen endrer seg med farten.
+            Hvor mye, kan vi finne med en simulering som i 1E: Eulers metode med a = −g − (k/m) · v · |v| og Δt = 0,001{' '}s. Leddet
+            v · |v| har samme størrelse som v², men fortegnet til v, så luftmotstanden alltid peker mot farten. v-t-grafen er da ikke lenger
+            en rett linje, fordi akselerasjonen endrer seg med farten.
           </p>
         </>
       ),

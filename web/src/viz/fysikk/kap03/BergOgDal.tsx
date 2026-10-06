@@ -28,6 +28,7 @@ import {
 } from '../../kit';
 import { Bergbanevogn, Dimension, ForceArrow, Gran, Himmel, Landskap, Lauvtre, Underlag, ValueTag, alpha, useStrokeScale } from '../../kit/scene';
 import { CartShadow, Passasjerer, Skinner, Stotter, coasterBodyLift, useTrackGeometry, type TrackLayout } from './berg-og-dal-deler';
+import { arrowHitsBox, boxesOverlap, textBox, textWidth, type Box } from './energibevaring-scene';
 import {
   COASTER_MU,
   CREST_RISE,
@@ -180,7 +181,7 @@ export default function BergOgDal() {
             color: C_EK,
             label: (
               <span>
-                Fart v og E<Sub>k</Sub>: avstanden fra vogna opp til linja
+                E<Sub>k</Sub> som høyde: v²/2g fra prikken på skinnen (der h måles) opp til linja
               </span>
             ),
           },
@@ -389,30 +390,109 @@ function Scene({
   const placeId = place === 'fri' || place === 'S' ? null : place;
   const atPoint = (p: PointResult) => Math.abs(p.x - state.x) < 0.3;
 
-  // Synlig del av figuren (i verdens koordinater) og fartsetiketten innenfor den
+  // Synlig del av figuren (i verdens koordinater)
   const viewL = cam + 6;
   const viewR = cam + W - 6;
   const tip = { x: a0.x + dir * fwd.x * vLen, y: a0.y + dir * fwd.y * vLen };
   const vText = `v = ${fmt(v, 1)} m/s`;
+
+  // Punktene A–D: markør på skinnen og navn under (bunnene under banen, toppene under buen)
+  const pointMarks = results
+    .filter((p) => X(p.x) >= viewL - 10 && X(p.x) <= viewR + 10)
+    .map((p) => {
+      const on = p.id === placeId;
+      const size = on ? 1 : 0.9;
+      const dy = p.top ? 30 + 16 * f : 18 + 16 * f;
+      const text = `${p.id} ${p.h === 0 ? 'nullnivå' : `${fmt(p.h, 0)} m`}`;
+      const w = textWidth(text, 0.84 * size, f);
+      // Etiketten under punktet, men innenfor figuren (på mobil kan punktet ligge nær kanten av utsnittet)
+      const lx = Math.min(viewR - w / 2, Math.max(viewL + w / 2, X(p.x)));
+      const ly = Y(p.h) + dy;
+      const r = 3.6 * ss;
+      return {
+        p,
+        on,
+        size,
+        lx,
+        ly,
+        boxes: [textBox(lx, ly, w, 'middle', size, f), { x0: X(p.x) - r - 4, x1: X(p.x) + r + 4, y0: Y(p.h) - r - 4, y1: Y(p.h) + r + 4 }],
+      };
+    });
+
+  // E_k som høyde: fra prikken på skinnen midt under vogna (der h måles) opp til linja for hvor høyt energien rekker.
+  // Mållinja står like bak vogna, så den ikke går gjennom vogna og fartspila; en stiplet hjelpelinje viser høyden h.
+  const marginM = reachNow - state.h;
+  const showEk = v > 0.05 && marginM > 0.02;
+  const behind = -dir;
+  const xd = px + behind * (size * 0.55 + 8 + 6 * f);
+  const ekText = `v²/2g = ${fmt(marginM, 1)} m`;
+  const ekW = textWidth(ekText, 0.85, f);
+  const yReachNow = Y(reachNow);
+  const cartBox: Box = { x0: px - size * 0.6, x1: px + size * 0.6, y0: Math.min(py, py + up.y * cartH) - 6, y1: py + 6 };
+
+  // h₀ ved venstre ende av den synlige delen av linja, men til høyre for vogna (når den står nær linja) og mållinja for E_k
+  let xLabel = Math.max(narrow ? 3 : 4.5, viewLeft + 1.5);
+  const h0W = textWidth(`h₀ = ${fmt(h0, 1)} m`, 0.92, f);
+  const lineAt = (x: number) => Y(reachHeight(coaster, Math.min(Math.max(x, 0), lineEnd), mu));
+  const busy: [number, number][] = [];
+  if (Math.abs(Y(state.h) - lineAt(xLabel)) < cartH + 24 * f || showEk) busy.push([cartBox.x0, cartBox.x1]);
+  if (showEk) busy.push([xd - 10, xd + 10]);
+  busy.sort((p1, p2) => p1[0] - p2[0]);
+  for (const [b0, b1] of busy) if (X(xLabel) < b1 + 4 && X(xLabel) + h0W > b0 - 4) xLabel = Math.max(xLabel, L.xLeft + (b1 + 10) / ppm);
+  const yLabel = lineAt(xLabel) - 9 * f;
+  const h0Box = textBox(X(xLabel), yLabel, h0W, 'start', 0.92, f);
+
+  // Etiketten for E_k: ved mållinja, helst på siden bort fra vogna, ellers mellom mållinja og vogna eller over linja
+  const ekLabel = (() => {
+    if (!showEk) return null;
+    const ymid = (py + yReachNow) / 2 + 6 * f;
+    const an = (d: number): 'start' | 'end' => (d > 0 ? 'start' : 'end');
+    const cands = [
+      { x: xd + behind * 8 * f, y: ymid, anchor: an(behind) },
+      { x: xd + behind * 8 * f, y: yReachNow + 18 * f, anchor: an(behind) },
+      { x: xd - behind * 8 * f, y: yReachNow + 18 * f, anchor: an(-behind) },
+      { x: xd, y: yReachNow - 9 * f, anchor: 'middle' as const },
+      { x: xd - behind * 8 * f, y: yReachNow - 9 * f, anchor: an(-behind) },
+      { x: xd + behind * 8 * f, y: yReachNow - 9 * f, anchor: an(behind) },
+      { x: xd - behind * 8 * f, y: ymid, anchor: an(-behind) },
+    ].map((c) => ({ ...c, box: textBox(c.x, c.y, ekW, c.anchor, 0.85, f) }));
+    const inside = (bx: Box) => bx.x0 >= viewL && bx.x1 <= viewR && bx.y0 >= 0;
+    const good = cands.find(
+      (c) => inside(c.box) && !boxesOverlap(c.box, cartBox) && !boxesOverlap(c.box, h0Box) && !pointMarks.some((m) => m.boxes.some((o) => boxesOverlap(c.box, o))),
+    );
+    if (good) return good;
+    const c = cands[3]!;
+    const x = Math.min(viewR - ekW / 2, Math.max(viewL + ekW / 2, c.x));
+    return { x, y: c.y, anchor: 'middle' as const, box: textBox(x, c.y, ekW, 'middle', 0.85, f) };
+  })();
+  const ekBox = ekLabel ? ekLabel.box : null;
+
   const vLabel = placeSpeedLabel({
     a0,
     tip,
     up,
-    cartTop: Math.min(py, py + up.y * cartH) - 6 * f,
     text: vText,
     f,
+    ss,
     viewL,
     viewR,
+    cartBox,
     lineY: (x) => (x >= 0 && x <= lineEnd ? Y(reachHeight(coaster, x, mu)) : null),
     toX: (px2) => L.xLeft + px2 / ppm,
+    obstacles: [
+      ...pointMarks.flatMap((m) => m.boxes),
+      ...(ekBox ? [ekBox] : []),
+      h0Box,
+      // Mållinja for E_k og hjelpelinjene til den
+      ...(showEk
+        ? [
+            { x0: xd - 7, x1: xd + 7, y0: yReachNow - 4, y1: py + 4 },
+            { x0: Math.min(px, xd) - 2, x1: Math.max(px, xd) + 2, y0: py - 3, y1: py + 3 },
+          ]
+        : []),
+    ],
   });
 
-  // h₀ ved venstre ende av den synlige delen av linja, til høyre for vogna når den står der
-  let xLabel = Math.max(narrow ? 3 : 4.5, viewLeft + 1.5);
-  const halfCart = (0.55 * size) / ppm;
-  if (state.x + halfCart > xLabel - 1 && state.x - halfCart < xLabel + 12 && Math.abs(Y(state.h) - Y(reachHeight(coaster, Math.min(Math.max(xLabel, 0), lineEnd), mu))) < cartH + 24 * f)
-    xLabel = state.x + halfCart + 1.5;
-  const yLabel = Y(reachHeight(coaster, Math.min(xLabel, lineEnd), mu)) - 9 * f;
 
   return (
     <g>
@@ -445,51 +525,52 @@ function Scene({
 
         <Skinner geo={geo} rail={L.rail} />
 
-        {/* Punktene A–D: bunnene merkes under banen, toppene under buen */}
-        {results.map((p) => {
-          const on = p.id === placeId;
-          const dy = p.top ? 30 + 16 * f : 18 + 16 * f;
-          // Etiketten under punktet, men innenfor figuren (på mobil kan punktet ligge nær kanten av utsnittet)
-          const half = textWidth(`${p.id} ${p.h === 0 ? 'nullnivå' : `${fmt(p.h, 0)} m`}`, 0.82, f) / 2;
-          const lx = Math.min(viewR - half, Math.max(viewL + half, X(p.x)));
-          if (X(p.x) < viewL - 10 || X(p.x) > viewR + 10) return null;
-          return (
-            <g key={p.id}>
-              {!atPoint(p) && <circle cx={X(p.x)} cy={Y(p.h)} r={3.6 * ss} fill={VIZ.surface} stroke={VIZ.ink} strokeWidth={1.4 * ss} />}
-              <Txt x={lx} y={Y(p.h) + dy} size={on ? 1 : 0.9} weight={700} color={on ? VIZ.ink : undefined}>
-                {p.id}
-                <tspan style={{ fill: VIZ.muted, fontWeight: 560 }} fontSize="0.82em">
-                  {' '}
-                  {p.h === 0 ? 'nullnivå' : `${fmt(p.h, 0)} m`}
-                </tspan>
-              </Txt>
-            </g>
-          );
-        })}
-
         {/* Vendepunkt og hvor mye energien mangler på toppen */}
         {turn && failed && <TurnMarks turn={turn} failed={failed} L={L} viewL={viewL} viewR={viewR} />}
 
-        {/* E_k som avstanden fra vogna opp til linja */}
-        {Y(state.h) - cartH - Y(reachNow) > 10 && (
-          <g stroke={C_EK} strokeWidth={2.2 * ss} strokeLinecap="round">
-            <line x1={px} x2={px} y1={py - cartH} y2={Y(reachNow) + 2} strokeDasharray={`${2 * ss} ${3.5 * ss}`} />
-            <line x1={px - 6 * ss} x2={px + 6 * ss} y1={Y(reachNow) + 2} y2={Y(reachNow) + 2} />
+        {/* E_k som høyde v²/2g: hjelpelinje i høyden h fra prikken under vogna, og mållinja opp til linja */}
+        {showEk && (
+          <g>
+            <line x1={px} x2={xd + behind * 5} y1={py} y2={py} stroke={C_EK} strokeWidth={1.3 * ss} strokeDasharray={`${3 * ss} ${3 * ss}`} opacity={0.9} />
+            <line x1={px} x2={xd + behind * 5} y1={Y(reachNow)} y2={Y(reachNow)} stroke={C_EK} strokeWidth={1.3 * ss} strokeDasharray={`${3 * ss} ${3 * ss}`} opacity={0.9} />
+            <Dimension x1={xd} y1={py} x2={xd} y2={yReachNow} color={C_EK} />
           </g>
         )}
 
         <Passasjerer n={riders} x={px} y={py} size={size} rotate={rot} lift={lift} />
         <Bergbanevogn x={px} y={py} size={size} rotate={rot} krumning={krumning} skinne={L.rail} lakk="gul" hjulvinkel={(state.d / 0.11) * (180 / Math.PI)} />
+        {/* Punktet på skinnen der høyden h måles (midt under vogna) */}
+        <circle cx={px} cy={py} r={2.8 * ss} fill={C_EK} stroke={VIZ.surface} strokeWidth={1.4 * ss} />
 
         {v > 0.05 ? (
-          <>
-            <ForceArrow x1={a0.x} y1={a0.y} x2={tip.x} y2={tip.y} color={C_EK} width={5} />
-            <Txt x={vLabel.x} y={vLabel.y} anchor={vLabel.anchor} color={C_EK} weight={720} size={0.9}>
-              {vText}
-            </Txt>
-          </>
+          <ForceArrow x1={a0.x} y1={a0.y} x2={tip.x} y2={tip.y} color={C_EK} width={5} />
         ) : (
           <ValueTag x={px} y={py - cartH - 16 * f} text="v = 0" color={C_EK} size={0.85} />
+        )}
+
+        {/* Punktene A–D oppå pila, så markøren synes også når vogna kjører forbi */}
+        {pointMarks.map(({ p, on, size: sz, lx, ly }) => (
+          <g key={p.id}>
+            {!atPoint(p) && <circle cx={X(p.x)} cy={Y(p.h)} r={3.6 * ss} fill={VIZ.surface} stroke={VIZ.ink} strokeWidth={1.4 * ss} />}
+            <Txt x={lx} y={ly} size={sz} weight={700} color={on ? VIZ.ink : undefined}>
+              {p.id}
+              <tspan style={{ fill: VIZ.muted, fontWeight: 560 }} fontSize="0.82em">
+                {' '}
+                {p.h === 0 ? 'nullnivå' : `${fmt(p.h, 0)} m`}
+              </tspan>
+            </Txt>
+          </g>
+        ))}
+
+        {ekLabel && (
+          <Txt x={ekLabel.x} y={ekLabel.y} anchor={ekLabel.anchor} color={C_EK} weight={650} size={0.85}>
+            {ekText}
+          </Txt>
+        )}
+        {v > 0.05 && (
+          <Txt x={vLabel.x} y={vLabel.y} anchor={vLabel.anchor} color={C_EK} weight={720} size={0.9}>
+            {vText}
+          </Txt>
         )}
 
         {/* h₀ ved starten av linja (eller der den synlige delen begynner) */}
@@ -538,69 +619,99 @@ function TurnMarks({ turn, failed, L, viewL, viewR }: { turn: TurnPoint; failed:
   );
 }
 
-/** Omtrentlig bredde på en etikett (figurens enheter): Txt er 17 · størrelse · tekstskala høy. */
-function textWidth(text: string, size: number, f: number): number {
-  return text.length * 17 * size * f * 0.58;
-}
-
 /**
- * Plassering av fartsetiketten: like forbi pilspissen, men over pila hvis den ikke får plass før kanten av figuren,
- * og under pila hvis den ellers ville krysset linja for hvor høyt vogna kan komme (på toppene).
+ * Plassering av fartsetiketten: første ledige av noen kandidater (like forbi spissen, over pila, under pila, ved siden
+ * av spissen), innenfor figuren og ikke oppå vogna, pila, punktene A–D med navn, mållinja for E_k eller linja for hvor
+ * høyt vogna kan komme.
  */
 function placeSpeedLabel({
   a0,
   tip,
   up,
-  cartTop,
   text,
   f,
+  ss,
   viewL,
   viewR,
+  cartBox,
   lineY,
   toX,
+  obstacles,
 }: {
   a0: { x: number; y: number };
   tip: { x: number; y: number };
   /** Normalen ut fra banen (bort fra skinnene). */
   up: { x: number; y: number };
-  /** Toppen av vogna (y). */
-  cartTop: number;
   text: string;
   f: number;
+  ss: number;
   viewL: number;
   viewR: number;
+  cartBox: Box;
   lineY: (x: number) => number | null;
   toX: (figX: number) => number;
+  obstacles: Box[];
 }): { x: number; y: number; anchor: 'start' | 'middle' | 'end' } {
   const w = textWidth(text, 0.9, f);
   const len = Math.hypot(tip.x - a0.x, tip.y - a0.y) || 1;
   const ux = (tip.x - a0.x) / len;
   const uy = (tip.y - a0.y) / len;
-  let x: number;
-  let y: number;
-  let anchor: 'start' | 'middle' | 'end';
-  if (Math.abs(uy) > 0.6) {
-    // Bratt pil: ved siden av spissen, på siden bort fra skinnene
-    const side = up.x >= 0 ? 1 : -1;
-    x = tip.x + side * 10 * f;
-    y = tip.y + (uy > 0 ? -2 : 12) * f;
-    anchor = side > 0 ? 'start' : 'end';
-  } else {
-    x = tip.x + ux * 10 * f;
-    y = tip.y + uy * 14 * f + 6 * f;
-    anchor = ux >= 0 ? 'start' : 'end';
+  const seg = { x1: a0.x, y1: a0.y, x2: tip.x, y2: tip.y };
+  const mid = { x: (a0.x + tip.x) / 2, y: (a0.y + tip.y) / 2 };
+  const side = up.x >= 0 ? 1 : -1;
+  type Cand = { x: number; y: number; anchor: 'start' | 'middle' | 'end' };
+  const cands: Cand[] = [
+    // Like forbi spissen
+    Math.abs(uy) > 0.6
+      ? { x: tip.x + side * 10 * f, y: tip.y + (uy > 0 ? -2 : 12) * f, anchor: side > 0 ? 'start' : 'end' }
+      : { x: tip.x + ux * 10 * f, y: tip.y + uy * 14 * f + 6 * f, anchor: ux >= 0 ? 'start' : 'end' },
+    // Over pila (ut fra banen) og under pila
+    { x: mid.x + up.x * 20 * f, y: mid.y + up.y * 20 * f - 2 * f, anchor: 'middle' },
+    { x: mid.x - up.x * 20 * f, y: mid.y - up.y * 20 * f + 14 * f, anchor: 'middle' },
+    { x: mid.x + up.x * 38 * f, y: mid.y + up.y * 38 * f - 2 * f, anchor: 'middle' },
+    // Vannrett ved siden av pila, midt på
+    { x: Math.min(a0.x, tip.x) - 12 * f, y: mid.y + 6 * f, anchor: 'end' },
+    { x: Math.max(a0.x, tip.x) + 12 * f, y: mid.y + 6 * f, anchor: 'start' },
+    // Ved siden av spissen, på begge sider, nær og lenger unna
+    { x: tip.x + 10 * f, y: tip.y - 14 * f, anchor: 'start' },
+    { x: tip.x - 10 * f, y: tip.y - 14 * f, anchor: 'end' },
+    { x: tip.x + 18 * f, y: tip.y + 4 * f, anchor: 'start' },
+    { x: tip.x - 18 * f, y: tip.y + 4 * f, anchor: 'end' },
+    { x: tip.x + 14 * f, y: tip.y - 30 * f, anchor: 'start' },
+    { x: tip.x - 14 * f, y: tip.y - 30 * f, anchor: 'end' },
+    // Over vogna
+    { x: (cartBox.x0 + cartBox.x1) / 2, y: cartBox.y0 - 6 * f, anchor: 'middle' },
+  ];
+  // Hvor mye kandidaten kolliderer (0 = ledig): punktene og vogna teller mest, så pila, så linja
+  const cost = (c: Cand) => {
+    const b = textBox(c.x, c.y, w, c.anchor, 0.9, f);
+    if (b.x0 < viewL || b.x1 > viewR || b.y0 < 0) return Infinity;
+    let k = 0;
+    if (boxesOverlap(b, cartBox)) k += 4;
+    k += 4 * obstacles.filter((o) => boxesOverlap(b, o)).length;
+    if (arrowHitsBox(seg, b, 5, ss)) k += 2;
+    // Linja for hvor høyt vogna kan komme skal helst ikke gå gjennom teksten
+    for (const px of [b.x0 + 4, (b.x0 + b.x1) / 2, b.x1 - 4]) {
+      const ly = lineY(toX(px));
+      if (ly !== null && ly > b.y0 + 2 && ly < b.y1 - 2) {
+        k += 1;
+        break;
+      }
+    }
+    return k;
+  };
+  let best: Cand | null = null;
+  let bestCost = Infinity;
+  for (const c of cands) {
+    const k = cost(c);
+    if (k < bestCost) {
+      best = c;
+      bestCost = k;
+    }
+    if (k === 0) break;
   }
-  const left = anchor === 'start' ? x : x - w;
-  if (left < viewL || left + w > viewR) {
-    // Over vogna, innenfor figuren
-    x = Math.min(viewR - w / 2, Math.max(viewL + w / 2, (a0.x + tip.x) / 2));
-    y = Math.min(cartTop, tip.y - 12 * f);
-    anchor = 'middle';
-  }
-  const x0 = anchor === 'start' ? x : anchor === 'end' ? x - w : x - w / 2;
-  const ly = lineY(toX(x0 + w / 2));
-  if (ly !== null && ly > y - 16 * f && ly < y + 6 * f) y = Math.max(ly + 20 * f, tip.y + 22 * f);
-  return { x, y, anchor };
+  if (best) return best;
+  return { x: Math.min(viewR - w / 2, Math.max(viewL + w / 2, mid.x)), y: Math.min(cartBox.y0 - 4, tip.y - 12 * f), anchor: 'middle' };
 }
 
 /* ---------- Energistolper og fart langs banen ---------- */
@@ -775,8 +886,15 @@ function SpeedPlot({
   // Etter første vendepunkt: resten av turen fra simuleringen (fram og tilbake)
   // Etiketten på kurven uten friksjon: på toppen av den mellom B og C (der den ligger over den andre kurven), ellers ved A
   const refTop = ref?.filter(([x]) => x > 60 && x < 80).sort((a, b) => b[1] - a[1])[0];
-  const refRise = ref?.find(([x]) => x >= 10);
-  const refLabel = refTop ? { x: refTop[0], v: refTop[1], anchor: 'middle' as const, dx: 0, dy: -10 } : refRise ? { x: refRise[0], v: refRise[1], anchor: 'end' as const, dx: -8, dy: 0 } : undefined;
+  // Snur den før B, står etiketten til høyre for kurven der den faller mot vendepunktet (ikke til venstre, der
+  // aksetittelen er)
+  const refMax = ref ? Math.max(...ref.map(([, v]) => v)) : 0;
+  const refFall = ref?.find(([x, v]) => x > 25 && v < 0.6 * refMax);
+  const refLabel = refTop
+    ? { x: refTop[0], v: refTop[1], anchor: 'middle' as const, dx: 0, dy: -10 }
+    : refFall
+      ? { x: refFall[0], v: refFall[1], anchor: 'start' as const, dx: 8, dy: 0 }
+      : undefined;
   const turnT = ride.turnTime;
   const rest = turnT !== null ? ride.samples.filter((s) => s.t >= turnT) : [];
   const after = rest.map((s): [number, number] => [s.x, Math.abs(s.v)]);
@@ -790,10 +908,20 @@ function SpeedPlot({
       height={height}
       margin={{ top: 40 * f, right: 20 * f, bottom: 56 * f, left: 64 * f }}
     >
-      {({ sx, sy, y0 }) => (
+      {({ sx, sy, y0, x1, y1 }) => (
         <g>
           {ref && <path d={linePath(ref, sx, sy)} fill="none" stroke={C_EK} strokeWidth={2} strokeDasharray="6 5" opacity={0.55} />}
           {after.length > 1 && <path d={linePath(after, sx, sy)} fill="none" stroke={C_EK} strokeWidth={1.4} opacity={0.35} />}
+          {/* Forklaring til de svake buene: resten av turen, fram og tilbake i dalen etter vendepunktet (uten friksjon
+              ligger buene oppå kurven for første tur, så da trengs den ikke) */}
+          {after.length > 1 && mu > 0 && (
+            <g>
+              <line x1={x1 - 8 - 26 * f} x2={x1 - 8} y1={y1 + 12 * f} y2={y1 + 12 * f} stroke={C_EK} strokeWidth={1.6} opacity={0.45} />
+              <Txt x={x1 - 14 - 26 * f} y={y1 + 17 * f} anchor="end" size={0.72} color={C_EK}>
+                fram og tilbake etter vendepunktet
+              </Txt>
+            </g>
+          )}
           {afterSoFar.length > 1 && <path d={linePath(afterSoFar, sx, sy)} fill="none" stroke={C_EK} strokeWidth={2} opacity={0.7} />}
           <path d={linePath(main, sx, sy)} fill="none" stroke={C_EK} strokeWidth={3.2} />
           {refLabel && (
@@ -852,13 +980,13 @@ function EnergyFormula({
   const e = p ? energyState({ m, h0, h: p.h, s: p.s, mu }) : state.e;
   const where = p ? (
     <>
-      Fra start til {p.id} ({fmt(p.h, 1)} m over nullnivået, {fmt(s, 1)} m langs banen):
+      Fra start til {p.id} ({fmt(p.h, 1)}&nbsp;m over nullnivået, {fmt(s, 1)}&nbsp;m langs banen):
     </>
   ) : place === 'S' ? (
     <>I startpunktet står vogna i ro:</>
   ) : (
     <>
-      Vogna nå ({fmt(h, 1)} m over nullnivået, {fmt(s, 1)} m kjørt langs banen):
+      Vogna nå ({fmt(h, 1)}&nbsp;m over nullnivået, {fmt(s, 1)}&nbsp;m kjørt langs banen):
     </>
   );
   const name = p ? p.id : '';
@@ -867,26 +995,26 @@ function EnergyFormula({
     <Formula label="Energiregnskapet">
       <FormulaLine>{where}</FormulaLine>
       <FormulaLine>
-        E<Sub>0</Sub> = mgh<Sub>0</Sub> = {fmt(m, 0)} kg · 9,81 m/s² · {fmt(h0, 1)} m = {kJ(e.E0)} kJ
+        E<Sub>0</Sub> = mgh<Sub>0</Sub> = {fmt(m, 0)}&nbsp;kg · 9,81&nbsp;m/s² · {fmt(h0, 1)}&nbsp;m = {kJ(e.E0)}&nbsp;kJ
       </FormulaLine>
       {place !== 'S' && (
         <>
           <FormulaLine>
-            E<Sub>p</Sub> = mgh{name && <Sub>{name}</Sub>} = {fmt(m, 0)} kg · 9,81 m/s² · {fmt(h, 1)} m = {kJ(e.Ep)} kJ
+            E<Sub>p</Sub> = mgh{name && <Sub>{name}</Sub>} = {fmt(m, 0)}&nbsp;kg · 9,81&nbsp;m/s² · {fmt(h, p ? 1 : 2)}&nbsp;m = {kJ(e.Ep)}&nbsp;kJ
           </FormulaLine>
           {mu > 0 && (
             <FormulaLine>
-              −W<Sub>R</Sub> = R · s = {fmt(e.R, 0)} N · {fmt(s, 1)} m = {kJ(e.heat)} kJ
+              −W<Sub>R</Sub> = R · s = {fmt(e.R, 0)}&nbsp;N · {fmt(s, 1)}&nbsp;m = {kJ(e.heat)}&nbsp;kJ
             </FormulaLine>
           )}
           <FormulaLine>
             E<Sub>k</Sub> = E<Sub>0</Sub> − E<Sub>p</Sub>
-            {mu > 0 && <> − R · s</>} = {kJ(e.Ek)} kJ
+            {mu > 0 && <> − R · s</>} = {kJ(e.Ek)}&nbsp;kJ
             {e.Ek < -1 && <> &lt; 0</>}
           </FormulaLine>
           {e.Ek > 0 ? (
             <FormulaLine>
-              v = √(2E<Sub>k</Sub> / m) = √(2 · {fmt(e.Ek, 0)} J / {fmt(m, 0)} kg) = {fmt(e.v, 2)} m/s
+              v = √(2E<Sub>k</Sub> / m) = √(2 · {fmt(e.Ek, 0)}&nbsp;J / {fmt(m, 0)}&nbsp;kg) = {fmt(e.v, 2)}&nbsp;m/s
             </FormulaLine>
           ) : (
             <FormulaLine>
@@ -981,7 +1109,8 @@ function ExplainText({
         ) : (
           <>
             Toppen er {fmt(failed?.h ?? B.h, 1)}&nbsp;m høy, men vogna kan aldri komme høyere enn den startet ({fmt(h0, 1)}&nbsp;m). Den snur i{' '}
-            {fmt(turn.h, 1)}&nbsp;m høyde og triller tilbake. Uten friksjon pendler den mellom startpunktet og {name} for alltid.
+            {fmt(turn.h, 1)}&nbsp;m høyde og triller tilbake. Uten friksjon pendler den for alltid mellom startpunktet og vendepunktet i
+            bakken opp mot {name}, begge i {fmt(h0, 1)}&nbsp;m høyde.
           </>
         )}
       </>

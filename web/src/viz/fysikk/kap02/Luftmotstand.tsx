@@ -175,8 +175,9 @@ function explanation(m: number, k: number, t: number, v: number, a: number, L: n
   const main =
     t < 0.05 ? (
       <p>
-        <strong>Hopperen slipper flyet.</strong> I starten er v = 0, så luftmotstanden L = kv² er null. Den eneste kraften er G, og a = g = 9,81
-        m/s², akkurat som uten luftmotstand. Trykk «Spill av» og se hva som skjer med L når farten øker.
+        <strong>Hopperen slipper flyet.</strong> Vi ser bare på bevegelsen nedover: farten nedover er v = 0 i starten (farten framover fra
+        flyet ser vi bort fra), så luftmotstanden L = kv² er null. Den eneste kraften er G, og a = g = 9,81 m/s², akkurat som uten
+        luftmotstand. Trykk «Spill av» og se hva som skjer med L når farten øker.
       </p>
     ) : v < 0.97 * vT ? (
       <p>

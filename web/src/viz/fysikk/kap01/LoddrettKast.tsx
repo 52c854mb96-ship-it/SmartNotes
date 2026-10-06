@@ -28,6 +28,7 @@ import {
 } from '../../kit';
 import {
   Ball,
+  Callout,
   Dimension,
   ForceArrow,
   Himmel,
@@ -53,7 +54,9 @@ import {
   throwHeight,
   throwPhase,
   throwVelocity,
+  topLabelPlacement,
   topTime,
+  type Box,
   type Throw,
   type ThrowPhase,
 } from './model';
@@ -128,7 +131,7 @@ export default function LoddrettKast() {
           value={v0}
           onChange={(x) => update({ v0: x, h0 })}
           min={-10}
-          max={25}
+          max={18}
           step={0.5}
           unit="m/s"
           decimals={1}
@@ -143,7 +146,7 @@ export default function LoddrettKast() {
           value={h0}
           onChange={(x) => update({ v0, h0: x })}
           min={0}
-          max={40}
+          max={20}
           step={1}
           unit="m"
           decimals={0}
@@ -212,25 +215,26 @@ export default function LoddrettKast() {
 
       {T > 0 && (
         <Formula label="Bevegelseslikningene med a = −g og tallene for tidspunktet t">
-          <FormulaLine>a = −g = −9,81 m/s²</FormulaLine>
+          {/* Hardt mellomrom mellom tall og enhet, så de ikke deles på to linjer på mobil */}
+          <FormulaLine>a = −g = −9,81&nbsp;m/s² (vi ser bort fra luftmotstanden)</FormulaLine>
           <FormulaLine>
-            v = v<Sub>0</Sub> + at = {q(v0, 1, 'm/s')} + (−9,81 m/s²) · {fmt(t, 2)} s = {fmt(v, 1)} m/s
+            v = v<Sub>0</Sub> + at = {q(v0, 1, 'm/s')} + (−9,81&nbsp;m/s²) · {fmt(t, 2)}&nbsp;s = {fmt(v, 1)}&nbsp;m/s
           </FormulaLine>
           <FormulaLine>
             s = s<Sub>0</Sub> + v<Sub>0</Sub>t + ½at², med s<Sub>0</Sub> = h<Sub>0</Sub>
           </FormulaLine>
           <FormulaLine>
-            s = {fmt(h0, 1)} m + {q(v0, 1, 'm/s')} · {fmt(t, 2)} s − ½ · 9,81 m/s² · ({fmt(t, 2)} s)² = {fmt(s, 1)} m
+            s = {fmt(h0, 1)}&nbsp;m + {q(v0, 1, 'm/s')} · {fmt(t, 2)}&nbsp;s − ½&nbsp;·&nbsp;9,81&nbsp;m/s² · ({fmt(t, 2)}&nbsp;s)² = {fmt(s, 1)}&nbsp;m
           </FormulaLine>
           {tTop !== null && (
             <FormulaLine>
-              Toppunkt: v = 0 gir t = v<Sub>0</Sub>/g = {fmt(v0, 1)} m/s / 9,81 m/s² = {fmt(tTop, 2)} s
+              Toppunkt: v = 0 gir t = v<Sub>0</Sub>/g = {fmt(v0, 1)}&nbsp;m/s / 9,81&nbsp;m/s² = {fmt(tTop, 2)}&nbsp;s
             </FormulaLine>
           )}
           {phase === 'slutt' && (
             <FormulaLine>
-              Når ballen tas imot: v² = v<Sub>0</Sub>² + 2gh<Sub>0</Sub> gir |v| = √(({fmt(v0, 1)} m/s)² + 2 · 9,81 m/s² · {fmt(h0, 0)} m) ={' '}
-              {fmt(vImp, 1)} m/s
+              Når ballen tas imot: v² = v<Sub>0</Sub>² + 2gh<Sub>0</Sub> gir |v| = √(({fmt(v0, 1)}&nbsp;m/s)² + 2 · 9,81&nbsp;m/s² ·{' '}
+              {fmt(h0, 0)}&nbsp;m) = {fmt(vImp, 1)}&nbsp;m/s
             </FormulaLine>
           )}
         </Formula>
@@ -241,8 +245,9 @@ export default function LoddrettKast() {
   );
 }
 
+/** Tall med enhet (hardt mellomrom), i parentes når det er negativt: «(−4,0 m/s)». */
 function q(value: number, decimals: number, unit: string): string {
-  const text = `${fmt(value, decimals)} ${unit}`;
+  const text = `${fmt(value, decimals)}\u00a0${unit}`;
   return value < 0 && fmt(value, decimals) !== fmt(0, decimals) ? `(${text})` : text;
 }
 
@@ -457,6 +462,11 @@ function ThrowScene({
   const gableLeft = Math.max(PL, wallX - BLOKK_MAAL.gavl * p);
   const sunVisible = sun.x + sun.r * 2.2 < gableLeft || groundY - (building.roof + 0.3) * p > sun.y + sun.r * 2.2;
 
+  // Navnelapper med strek når personene blir små (høy balkong eller høyt kast), så de er lette å finne
+  const nameTags = size < 40 * k;
+  const jonasW = 5 * 0.8 * 17 * f * 0.62;
+  const jonasRight = jonasX + 16 * f + jonasW <= PR - 4;
+
   // Høydemålet h₀ på gavlen, når det er plass til etiketten
   const h0Text = `h0 = ${fmt(th.h0, 0)} m`;
   const gableW = wallX - gableLeft;
@@ -489,6 +499,25 @@ function ThrowScene({
         <Person x={miaX} y={floorY} size={size} pose="staa" ledd={HENDER} jakke="rod" har="blond" frisyre="hestehale" bukse="svart" title="Mia" />
         {th.h0 > 0 && <Rekkverk wallX={wallX} floorY={floorY} p={p} />}
         {th.h0 > 0 && <Person x={jonasX} y={groundY} size={size} pose="staa" ledd={HENDER} flip jakke="gronn" har="brun" title="Jonas" />}
+        {nameTags && (
+          <Callout x={miaX} y={floorY - 0.97 * size} lx={miaX - 22 * f} ly={floorY - size - 12 * f} anchor="end" size={0.8} strong dot={false}>
+            Mia
+          </Callout>
+        )}
+        {nameTags && th.h0 > 0 && (
+          <Callout
+            x={jonasX + (jonasRight ? 0.12 : -0.12) * size}
+            y={groundY - 0.4 * size}
+            lx={jonasRight ? jonasX + 16 * f : jonasX - 16 * f}
+            ly={groundY + 20 * f}
+            anchor={jonasRight ? 'start' : 'end'}
+            size={0.8}
+            strong
+            dot={false}
+          >
+            Jonas
+          </Callout>
+        )}
 
         {/* Nullnivået: hendene til den som tar imot */}
         <line x1={PL} x2={PR} y1={sy(0)} y2={sy(0)} stroke={VIZ.ink} strokeWidth={1.1 * ss} strokeDasharray={`${6 * ss} ${4 * ss}`} opacity={0.55} />
@@ -584,16 +613,7 @@ function PositionGraph({
         </>
       )}
       {tTop !== null && <line x1={x0} x2={sx(tTop)} y1={sy(sMax)} y2={sy(sMax)} className="viz-guide" />}
-      {tTop !== null && tTop <= tMax && (
-        <>
-          <circle cx={sx(tTop)} cy={sy(sMax)} r={5.5} fill={VIZ.surface} stroke={VIZ.series[0]} strokeWidth={2.2} />
-          {sx(tTop) + 60 * f < x1 && (
-            <Txt x={sx(tTop)} y={sy(sMax) - 12 * f} size={0.8} color={VIZ.muted} weight={650}>
-              toppunkt
-            </Txt>
-          )}
-        </>
-      )}
+      {tTop !== null && tTop <= tMax && <circle cx={sx(tTop)} cy={sy(sMax)} r={5.5} fill={VIZ.surface} stroke={VIZ.series[0]} strokeWidth={2.2} />}
       {t > 0 && <line x1={sx(t)} x2={sx(t)} y1={y1} y2={y0} className="viz-guide" />}
       {tangent && (
         <line
@@ -606,6 +626,12 @@ function PositionGraph({
           strokeDasharray="7 5"
           strokeLinecap="round"
         />
+      )}
+      {/* Etter tangenten, så glorien til teksten ligger over den stiplede linja */}
+      {tTop !== null && tTop <= tMax && sx(tTop) + 60 * f < x1 && (
+        <Txt x={sx(tTop)} y={sy(sMax) - 12 * f} size={0.8} color={VIZ.muted} weight={650}>
+          toppunkt
+        </Txt>
       )}
       <ColorDot x={sx(t)} y={sy(s)} color={VIZ.series[0]} />
     </g>
@@ -672,7 +698,7 @@ function VelocityGraph({
       height={height}
       margin={margin}
     >
-      {({ sx, sy, x0, y0, y1 }) => (
+      {({ sx, sy, x0, x1, y0, y1 }) => (
         <g>
           <Txt x={headerX ?? x0} y={y1 - 14 * f} anchor="start" weight={700} color={T > 0 ? VIZ.acceleration : VIZ.muted}>
             {T > 0 ? 'Stigningstall = a = −9,81 m/s²' : 'Ballen ligger i ro: v = 0 og a = 0'}
@@ -703,9 +729,15 @@ function VelocityGraph({
           {tTop !== null && tTop <= tMax && (
             <>
               <circle cx={sx(tTop)} cy={sy(0)} r={5.5} fill={VIZ.surface} stroke={VIZ.velocity} strokeWidth={2.2} />
-              <Txt x={sx(tTop) - 8 * f} y={sy(0) + 20 * f} anchor="end" size={0.8} color={VIZ.muted} weight={650}>
-                toppunkt
-              </Txt>
+              <TopLabel
+                px={sx(tTop)}
+                py={sy(0)}
+                x0={x0}
+                x1={x1}
+                slope={(sy(-G_EARTH) - sy(0)) / (sx(1) - sx(0))}
+                avoid={showTriangle ? triangleBoxes(th, t1, sx, sy, f) : []}
+                f={f}
+              />
             </>
           )}
           {t > 0 && <line x1={sx(t)} x2={sx(t)} y1={y1} y2={y0} className="viz-guide" />}
@@ -714,6 +746,41 @@ function VelocityGraph({
       )}
     </Plot>
   );
+}
+
+/**
+ * «toppunkt» ved punktet der v-t-grafen krysser t-aksen: under og til venstre for punktet, men aldri oppå
+ * aksetallene. Kommer toppunktet så tidlig at det ikke går, står etiketten over og til høyre (eller sløyfes).
+ */
+function TopLabel({ px, py, x0, x1, slope, avoid, f }: { px: number; py: number; x0: number; x1: number; slope: number; avoid: Box[]; f: number }) {
+  const w = 8 * 0.8 * 17 * f * 0.6;
+  const p = topLabelPlacement({ px, py, w, h: 0.8 * 17 * f * 0.75, pad: 8 * f, x0, x1, slope, avoid });
+  if (!p) return null;
+  return (
+    <Txt x={p.x} y={p.y} anchor={p.anchor} size={0.8} color={VIZ.muted} weight={650}>
+      toppunkt
+    </Txt>
+  );
+}
+
+/**
+ * Det som tegnes for stigningstrekanten over 1 s i v-t-grafen: de to katetene og etikettene «1 s» og «−9,81 m/s».
+ * (Hypotenusen er grafen selv, og innsiden av trekanten er ledig.)
+ */
+function triangleBoxes(th: Throw, t1: number, sx: (v: number) => number, sy: (v: number) => number, f: number): Box[] {
+  const yLeg = sy(throwVelocity(th, t1));
+  const yEnd = sy(throwVelocity(th, t1 + 1));
+  const yLabel = slopeLabelY(sy(throwVelocity(th, t1 + 0.5)), sy(0), f);
+  const textH = 0.85 * 17 * f * 0.75;
+  const charW = 0.85 * 17 * f * 0.6;
+  const xa = sx(t1);
+  const xb = sx(t1 + 1);
+  return [
+    { x: xa, y: yLeg - 3, w: xb - xa, h: 6 },
+    { x: (xa + xb) / 2 - 1.5 * charW, y: yLeg - 8 * f - textH, w: 3 * charW, h: textH },
+    { x: xb - 3, y: Math.min(yLeg, yEnd), w: 6, h: Math.abs(yEnd - yLeg) },
+    { x: xb + 8 * f, y: yLabel - textH, w: 9 * charW, h: textH + 3 },
+  ];
 }
 
 /** Etiketten «−9,81 m/s» ved stigningstrekanten, flyttet opp eller ned så den ikke ligger oppå t-aksen (v = 0). */
@@ -734,7 +801,7 @@ function explanation(th: Throw, T: number, v: number, vImp: number, phase: Throw
       <p>
         <strong>Mia står i skolegården med ballen i hendene.</strong> Gi ballen startfart oppover, eller flytt Mia opp på en balkong (starthøyde
         h<Sub>0</Sub>) for å slippe eller kaste ballen ned til Jonas. Vi måler høyden s fra hendene til den som tar imot ballen, så s = 0 er der
-        ballen tas imot.
+        ballen tas imot. Vi ser bort fra luftmotstanden.
       </p>
     );
   if (phase === 'slutt')
@@ -746,8 +813,9 @@ function explanation(th: Throw, T: number, v: number, vImp: number, phase: Throw
           : th.v0 < 0
             ? `Ballen ble kastet ned med ${fmt(-th.v0, 1)} m/s og blir raskere hele veien ned. `
             : `Ballen falt fritt fra ro ${fmt(th.h0, 0)} m. `}
-        Den tidløse formelen v² − v<Sub>0</Sub>² = 2aΔs med a = −g og Δs = −h<Sub>0</Sub> gir v² = v<Sub>0</Sub>² + 2gh<Sub>0</Sub>. Det er derfor du aldri skal slippe eller kaste ting ned fra en balkong: bare et slipp
-        fra {fmt(th.h0, 0)} m gir {kmh(impactSpeed({ v0: 0, h0: th.h0 }))} km/h når det treffer.
+        Den tidløse formelen v² − v<Sub>0</Sub>² = 2aΔs med a = −g og Δs = −h<Sub>0</Sub> gir v² = v<Sub>0</Sub>² + 2gh<Sub>0</Sub>. Selv
+        en gjenstand som bare slippes, får stor fart: etter {fmt(th.h0, 0)} m fall er farten {kmh(impactSpeed({ v0: 0, h0: th.h0 }))} km/h (når vi
+        ser bort fra luftmotstanden). Derfor skal du aldri slippe eller kaste ting ned fra en balkong.
       </p>
     ) : (
       <p>
@@ -760,8 +828,9 @@ function explanation(th: Throw, T: number, v: number, vImp: number, phase: Throw
     return (
       <p>
         <strong>I toppunktet er v = 0, men akselerasjonen er fortsatt a = −9,81 m/s².</strong> Hadde a vært null her, ville ballen blitt hengende i
-        lufta. I s-t-grafen er tangenten vannrett, og i v-t-grafen krysser linja t-aksen, men stigningstallet er det samme som før og etter. Det er
-        derfor ballen ser ut til å stoppe et øyeblikk på toppen: farten er nesten null en liten stund.
+        lufta. I s-t-grafen er tangenten vannrett, og i v-t-grafen krysser linja t-aksen, men stigningstallet er det samme som før og etter. Fordi
+        v endrer seg jevnt, med 9,81 m/s per sekund, er farten under 0,5 m/s i omtrent en tidel av et sekund rundt toppunktet. Derfor ser ballen
+        ut til å stoppe et øyeblikk på toppen.
       </p>
     );
   if (phase === 'start')
@@ -779,7 +848,8 @@ function explanation(th: Throw, T: number, v: number, vImp: number, phase: Throw
         ) : (
           ''
         )}
-        . Da er a = −g = −9,81 m/s² hele tiden: på vei opp, i toppunktet og på vei ned.
+        . Da er a = −g = −9,81 m/s² hele tiden: på vei opp, i toppunktet og på vei ned. Vi ser bort fra luftmotstanden (se «Simulering av
+        fall med luftmotstand» for hvordan den endrer bevegelsen).
       </p>
     );
   if (phase === 'opp')
@@ -797,7 +867,9 @@ function explanation(th: Throw, T: number, v: number, vImp: number, phase: Throw
       {tTop !== null
         ? 'Akselerasjonen er nøyaktig den samme som på vei opp og i toppunktet.'
         : 'Akselerasjonen er −9,81 m/s² hele veien, enten ballen slippes eller kastes nedover.'}
-      {!fromBalcony && tTop !== null ? ' Bevegelsen er symmetrisk om toppunktet: ballen passerer hver høyde med samme fart opp som ned.' : ''}
+      {!fromBalcony && tTop !== null
+        ? ' Bevegelsen er symmetrisk om toppunktet: ballen passerer hver høyde med like stor fart opp som ned, men med motsatt fortegn.'
+        : ''}
       {v < -0.5 && fromBalcony ? ` Nå er farten ${kmh(-v)} km/h.` : ''}
     </p>
   );

@@ -155,8 +155,9 @@ function edgeX(edge: Pt[], y: number): number {
 
 /**
  * Betongbru sett fra siden: brubjelke med kantdrager, rekkverk og en hoppeplattform i stål midt på, der strikken er
- * festet. `px` er piksler per meter (bjelken er 4 m høy, rekkverket 1,1 m), så brua kan brukes både i oversikten og
- * i nærbildet.
+ * festet. `px` er piksler per meter (bjelken er `tykkelse` m høy, standard 4 m, og rekkverket 1,1 m), så brua kan
+ * brukes både i oversikten og i nærbildet. Undersiden av bjelken er mørk, med en svak skygge under, så bjelken
+ * leses som et dekk med luft under og ikke som en vegg.
  *   <Bru x1={0} x2={500} y={66} px={4.5} plattformX={250} />
  * Ankerpunkt: y er toppen av brudekket (der hopperen står), og strikken er festet i (feste ?? plattformX, y).
  */
@@ -168,6 +169,7 @@ export function Bru({
   plattformX,
   feste,
   plattform = true,
+  tykkelse = 4,
 }: {
   x1: number;
   x2: number;
@@ -177,10 +179,12 @@ export function Bru({
   /** Der strikken er festet (x), standard midt på plattformen. */
   feste?: number;
   plattform?: boolean;
+  /** Hvor høy brubjelken er (m). */
+  tykkelse?: number;
 }) {
   const ss = useStrokeScale();
   const id = useSvgId('sh-bru');
-  const T = 4 * px;
+  const T = Math.max(0.5, tykkelse) * px;
   const rail = 1.1 * px;
   const lip = Math.max(2, 0.45 * px);
   const step = Math.max(6, 2.2 * px);
@@ -205,6 +209,16 @@ export function Bru({
       <rect x={x1} y={y} width={w} height={lip} fill={tint(SCENE.concrete, 0.25)} />
       <rect x={x1} y={y + lip} width={w} height={Math.max(1, lip * 0.5)} fill={shade(SCENE.concrete, 0.3)} opacity={0.6} />
       <rect x={x1} y={y + T - Math.max(1.5, 0.3 * px)} width={w} height={Math.max(1.5, 0.3 * px)} fill={shade(SCENE.concrete, 0.35)} opacity={0.7} />
+      {/* Undersiden: et smalt, mørkt bånd (vi ser litt opp under dekket) og en myk skygge som blekner nedover */}
+      <LinearGradient
+        id={`${id}u`}
+        stops={[
+          [0, SCENE.shadow, 0.28],
+          [1, SCENE.shadow, 0],
+        ]}
+      />
+      <rect x={x1} y={y + T} width={w} height={Math.max(1, 0.18 * px)} fill={shade(SCENE.concrete, 0.5)} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
+      <rect x={x1} y={y + T + Math.max(1, 0.18 * px)} width={w} height={Math.max(2, 0.5 * px)} fill={`url(#${id}u)`} />
       {plattform && (
         <g>
           {/* Portalen */}

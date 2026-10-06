@@ -1,20 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import {
   COM_HEIGHT,
+  arrowHitsBox,
+  GPAR_MIN,
   G_ARROW_M,
   SPEED_ARROW_LIFT,
   barHeight,
   boxesOverlap,
+  cameraX,
   facing,
   framePoint,
+  gparVisible,
   riderFrame,
   sceneForces,
   sceneLayout,
   segmentHitsBox,
+  shownState,
   speedArrow,
   speedLabelPlace,
   textBox,
   textWidth,
+  viewLayout,
 } from './energibevaring-scene';
 import { TRACK_TOP, makeTrack, simulateTrack } from './model';
 
@@ -28,11 +34,17 @@ describe('utformingen av scenen', () => {
       const tr = makeTrack(kind);
       const name = `${kind}, ${narrow ? 'mobil' : 'PC'}`;
 
-      it(`${name}: samme skala vannrett og loddrett, og hele banen innenfor scenen`, () => {
+      it(`${name}: samme skala vannrett og loddrett, og hele banen innenfor scenen (akebakken: innenfor verden)`, () => {
         expect(L.X(1) - L.X(0)).toBeCloseTo(L.ppm, 9);
         expect(L.Y(0) - L.Y(1)).toBeCloseTo(L.ppm, 9);
         expect(L.X(tr.xMin)).toBeGreaterThanOrEqual(0);
-        expect(L.X(tr.xMax)).toBeLessThanOrEqual(L.freeRight);
+        if (kind === 'rampe') {
+          expect(L.X(tr.xMax)).toBeLessThanOrEqual(L.freeRight);
+          expect(L.worldW).toBeCloseTo(L.viewW, 6);
+        } else {
+          expect(L.X(tr.xMax)).toBeLessThanOrEqual(L.worldW);
+          expect(L.worldW).toBeGreaterThan(2 * L.viewW);
+        }
         // Rekkverket (1 m over plattformen) og toppene får plass
         expect(L.Y(TRACK_TOP + 1)).toBeGreaterThan(0);
         expect(L.sceneH).toBeGreaterThan(L.Y(0) + 30);
@@ -61,13 +73,14 @@ describe('utformingen av scenen', () => {
           const h = tr.height(x);
           if (h > 5.5) continue;
           const v = Math.sqrt(2 * G * (5.5 - h));
-          const fr = riderFrame(tr, L, x);
           for (const [sv, lift] of [
             [1, 0],
             [-1, 0],
             [1, SPEED_ARROW_LIFT],
             [-1, SPEED_ARROW_LIFT],
           ] as const) {
+            const V = viewLayout(L, cameraX(L, x, sv * v, tr.slope(x)));
+            const fr = riderFrame(tr, V, x);
             const a = speedArrow(fr, kind, L.ppm, sv * v, lift);
             expect(a.x2).toBeGreaterThan(0);
             expect(a.x2).toBeLessThan(L.freeRight);
@@ -99,6 +112,58 @@ describe('utformingen av scenen', () => {
     }
   });
 
+  it('tallene som vises, går opp: hver linje i utregningen regnet av tallene som står der', () => {
+    // Uten friksjon: E = E₀, E_p av h med to desimaler, E_k = E − E_p
+    const a = shownState({ h: 2.4986, d: 20, m: 50, E0: 50 * G * 4, mu: 0 });
+    expect(a.h).toBe(2.5);
+    expect(a.Ep).toBe(1226); // 50 · 9,81 · 2,50 = 1 226,25, samme som mg · 2,5 m i forklaringen
+    expect(a.E).toBe(1962);
+    expect(a.Ek).toBe(736);
+    expect(a.Epint + a.Ekint).toBe(a.Eint);
+    expect(a.fromEnergy).toBe(false);
+    expect(a.v).toBeCloseTo(Math.sqrt((2 * 736) / 50), 12);
+    // Med friksjon: W_R av s med to desimaler, E = E₀ + W_R med én desimal (E₀ = 490,5 J, som før ga 491 − 471 = 19)
+    const b = shownState({ h: 0, d: 40.0349, m: 20, E0: 490.5, mu: 0.06 });
+    expect(b.s).toBe(40.03);
+    expect(b.heat).toBe(471.2);
+    expect(b.E).toBe(19.3);
+    expect(b.Eint).toBe(19);
+    // I ro med friksjon: E_k = 0 og E_p = E, og h regnes av energien (ellers kunne avrundingen gitt E_p = 2 J og E = 1 J)
+    const c = shownState({ h: 0.0072, d: 41.553, m: 20, E0: 490.5, mu: 0.06, still: true });
+    expect(c.fromEnergy).toBe(true);
+    expect(c.E).toBe(1.4);
+    expect(c.Ep).toBe(1.4);
+    expect(c.Ek).toBe(0);
+    expect(c.v).toBe(0);
+    expect(c.Epint).toBe(c.Eint);
+    expect(c.h).toBe(0.01);
+    // Like ved et vendepunkt (ikke helt i ro) der avrundingen av h ville gitt E_p > E: også da E_k = 0 og h av energien
+    const t = shownState({ h: 2.126, d: 31.23, m: 50, E0: 50 * G * 4, mu: 0.06 });
+    expect(t.fromEnergy).toBe(true);
+    expect(t.Ep).toBe(t.E);
+    expect(t.Epint).toBe(t.Eint);
+    // Uten friksjon er h i ro alltid h₀ (start og vendepunkter), så der brukes E_p = mgh som ellers
+    expect(shownState({ h: 3.9996, d: 30, m: 50, E0: 50 * G * 4, mu: 0, still: true }).fromEnergy).toBe(false);
+    for (let i = 0; i < 400; i++) {
+      const m = 20 + (i % 81);
+      const h0 = 0.5 + ((i * 7) % 51) / 10;
+      const h = (h0 * ((i * 13) % 100)) / 100;
+      const mu = i % 2 ? 0.06 : 0;
+      const E0 = m * G * h0;
+      // Fysisk mulig: friksjonen har ikke tatt mer enn det som er over E_p nå
+      const d = mu ? ((((i * 31) % 100) / 100) * (E0 - m * G * h)) / (mu * m * G) : ((i * 31) % 900) / 10;
+      const S = shownState({ h, d, m, E0, mu });
+      expect(S.Ep).toBe(Math.round(m * G * S.h));
+      expect(Math.abs(S.Ep - m * G * h)).toBeLessThanOrEqual(m * G * 0.005 + 0.5);
+      if (mu) expect(S.E).toBeCloseTo(Math.round(E0 * 10) / 10 - S.heat, 9);
+      else expect(S.E).toBe(Math.round(E0));
+      expect(S.Ep + S.Ek).toBeCloseTo(S.E, 9);
+      expect(S.Epint + S.Ekint).toBe(S.Eint);
+      expect(S.Ek).toBeGreaterThanOrEqual(0);
+      expect(Number.isFinite(S.v)).toBe(true);
+    }
+  });
+
   it('stolpehøyden er aldri negativ eller NaN', () => {
     const B = sceneLayout('rampe', true).bars;
     expect(barHeight(B, -5, 50, G)).toBe(0);
@@ -108,6 +173,52 @@ describe('utformingen av scenen', () => {
 
   it('personene blir større på mobil, men skalaen er lik i begge retninger', () => {
     for (const kind of KINDS) expect(sceneLayout(kind, true).ppm).toBeGreaterThan(sceneLayout(kind, false).ppm);
+  });
+});
+
+describe('kameraet i akebakken', () => {
+  it('står stille i halfpipen', () => {
+    const L = sceneLayout('rampe', true);
+    for (const x of [0, 3, 6, 12]) expect(cameraX(L, x, 5, 0.3)).toBe(0);
+  });
+
+  for (const narrow of [false, true])
+    it(`${narrow ? 'mobil' : 'PC'}: følger akebrettet jevnt, holder det godt inne i utsnittet og går aldri utenfor verden`, () => {
+      const L = sceneLayout('bakke', narrow);
+      const tr = makeTrack('bakke');
+      for (const [h0, mu] of [
+        [5.5, 0],
+        [4, 0.06],
+        [2, 0],
+      ] as const) {
+        const sim = simulateTrack({ track: tr, h0, m: 50, mu, tMax: 40 });
+        let prev: number | null = null;
+        for (const s of sim.samples) {
+          const cam = cameraX(L, s.x, s.v, tr.slope(s.x));
+          expect(cam).toBeGreaterThanOrEqual(0);
+          expect(cam).toBeLessThanOrEqual(L.worldW - L.viewW + 1e-9);
+          const xv = L.X(s.x) - cam;
+          // Personen står mellom 25 % og 75 % av utsnittet (eller nærmere kanten bare helt ute ved toppene)
+          const atEnd = cam < 1e-9 || cam > L.worldW - L.viewW - 1e-9;
+          if (!atEnd) {
+            expect(xv).toBeGreaterThan(0.25 * L.viewW);
+            expect(xv).toBeLessThan(0.75 * L.viewW);
+          }
+          expect(xv).toBeGreaterThan(0.6 * L.ppm);
+          expect(xv).toBeLessThan(L.viewW - 0.6 * L.ppm);
+          // Ingen hopp: høyst ca. 12 m/s · 0,02 s pluss litt for at kameraet ser framover
+          if (prev !== null) expect(Math.abs(cam - prev)).toBeLessThan(0.6 * L.ppm);
+          prev = cam;
+        }
+      }
+    });
+
+  it('ser nedover bakken når akebrettet står i ro i starten, så kulen kommer inn i bildet', () => {
+    const L = sceneLayout('bakke', false);
+    const tr = makeTrack('bakke');
+    const x = 4.27; // h₀ ≈ 4 m
+    const cam = cameraX(L, x, 0, tr.slope(x));
+    expect(L.X(x) - cam).toBeLessThan(0.36 * L.viewW);
   });
 });
 
@@ -159,11 +270,11 @@ describe('personen på banen', () => {
     expect(len(speedArrow(fr, 'rampe', L.ppm, 0))).toBe(0);
   });
 
-  it('simuleringen holder personen innenfor den synlige delen av banen', () => {
+  it('simuleringen holder personen innenfor den delen av verden som tegnes', () => {
     for (const kind of KINDS)
       for (const narrow of [false, true]) {
         const L = sceneLayout(kind, narrow);
-        const sim = simulateTrack({ track: makeTrack(kind), h0: 5.5, m: 50, mu: 0, tMax: 20 });
+        const sim = simulateTrack({ track: makeTrack(kind), h0: 5.5, m: 50, mu: 0, tMax: 30 });
         for (const s of sim.samples) {
           expect(s.x).toBeGreaterThan(L.xLeft + 0.5);
           expect(s.x).toBeLessThan(L.xRight - 0.5);
@@ -183,9 +294,9 @@ describe('kreftene', () => {
             const fr = riderFrame(tr, L, x);
             const F = sceneForces(fr, kind, L.ppm, m, G, 3, 0);
             // Én skala for alle kreftene: k px/N, og G blir G_ARROW_M meter lang
-            expect(F.k * m * G).toBeCloseTo(G_ARROW_M * L.ppm, 9);
+            expect(F.k * m * G).toBeCloseTo(G_ARROW_M[kind] * L.ppm, 9);
             expect(F.G.x2).toBeCloseTo(F.G.x1, 9);
-            expect(F.G.y2 - F.G.y1).toBeCloseTo(G_ARROW_M * L.ppm, 9);
+            expect(F.G.y2 - F.G.y1).toBeCloseTo(G_ARROW_M[kind] * L.ppm, 9);
             // Angrepspunktet er tyngdepunktet over brettet
             const com = framePoint(fr, 0, COM_HEIGHT[kind] * L.ppm);
             expect(F.com.x).toBeCloseTo(com.x, 9);
@@ -194,10 +305,12 @@ describe('kreftene', () => {
             const k = tr.slope(x);
             const sin = k / Math.sqrt(1 + k * k);
             expect(F.GparN).toBeCloseTo(-m * G * sin, 9);
+            expect(!!F.Gpar).toBe(gparVisible(kind, L.ppm, k));
             if (!F.Gpar) {
-              expect(Math.abs(F.GparN) * F.k).toBeLessThanOrEqual(0.5);
+              expect(Math.abs(F.GparN) * F.k).toBeLessThan(GPAR_MIN);
               continue;
             }
+            expect(Math.hypot(F.Gpar.x2 - F.Gpar.x1, F.Gpar.y2 - F.Gpar.y1)).toBeGreaterThanOrEqual(GPAR_MIN - 1e-9);
             const px = F.Gpar.x2 - F.Gpar.x1;
             const py = F.Gpar.y2 - F.Gpar.y1;
             expect(Math.hypot(px, py)).toBeCloseTo(m * G * Math.abs(sin) * F.k, 9);
@@ -258,6 +371,21 @@ describe('plassering av etiketter', () => {
     expect(boxesOverlap({ x0: 0, x1: 10, y0: 0, y1: 10 }, { x0: 10, x1: 20, y0: 0, y1: 10 })).toBe(false);
     // Større tekst på mobil gir høyere boks
     expect(textBox(0, 0, 10, 'start', 1, 1.84).y0).toBeLessThan(a.y0 - 50);
+  });
+
+  it('en pil treffer en boks ved siden av spissen (spissen er bredere enn skaftet), men ikke en boks lenger unna', () => {
+    // Loddrett pil ned, 100 lang, tykkelse 6: spissen er 2 · 8,7 bred, skaftet 6
+    const seg = { x1: 100, y1: 0, x2: 100, y2: 100 };
+    const nearHead = { x0: 111, x1: 150, y0: 85, y1: 100 };
+    const nearShaft = { x0: 107, x1: 150, y0: 20, y1: 35 };
+    expect(arrowHitsBox(seg, nearHead, 6, 1)).toBe(true);
+    expect(arrowHitsBox(seg, nearShaft, 6, 1)).toBe(false);
+    expect(arrowHitsBox(seg, { ...nearHead, x0: 115 }, 6, 1)).toBe(false);
+    // Større strekskala (mobil) gir bredere spiss
+    expect(arrowHitsBox(seg, { ...nearHead, x0: 115 }, 6, 1.6)).toBe(true);
+    // Under spissen
+    expect(arrowHitsBox(seg, { x0: 80, x1: 120, y0: 101, y1: 120 }, 6, 1)).toBe(true);
+    expect(arrowHitsBox(seg, { x0: 80, x1: 120, y0: 106, y1: 120 }, 6, 1)).toBe(false);
   });
 
   it('et linjestykke treffer boksen bare når det går gjennom den', () => {

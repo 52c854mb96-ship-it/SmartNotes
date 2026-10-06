@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { BRAKE_PRESETS, kmhToMs, stopPosition, stopVelocity, stopping, type StopInput } from './model';
 import {
   SURFACES,
+  ARROW_SCALE,
   VIEW_BEHIND,
+  arrowPairCenter,
   carPosition,
   carVelocity,
   msToKmh,
@@ -160,23 +162,63 @@ describe('største fart for en gitt stopplengde', () => {
 });
 
 describe('utsnittet av veien', () => {
-  it('viser bilen bak start og elgen, med enden på et helt antall tiere', () => {
+  it('viser bilen bak start og elgen, med enden på et helt antall femmere', () => {
     for (const [input, D] of allInputs()) {
       const total = stopping(input).total;
       const { min, max } = sceneRange(D, total);
       expect(min).toBe(-VIEW_BEHIND);
       expect(min).toBeLessThan(-4.4);
       expect(max).toBeGreaterThanOrEqual(D + 5);
-      expect(max % 10).toBe(0);
-      expect(max).toBeLessThanOrEqual(Math.ceil((1.5 * (D + 5)) / 10) * 10);
+      expect(max % 5).toBe(0);
+      // Utsnittet slutter like bak elgen (høyst 5 m ekstra), med mindre stopplengden tas med
+      if (total + 2 <= D + 5 || total + 2 > 1.5 * (D + 5)) expect(max).toBeLessThan(D + 10);
+      expect(max).toBeLessThanOrEqual(Math.ceil((1.5 * (D + 5)) / 5) * 5);
     }
   });
 
   it('tar med hele stopplengden når den ikke er mye lengre enn avstanden til elgen', () => {
-    expect(sceneRange(60, 53.1)).toEqual({ min: -VIEW_BEHIND, max: 70 });
-    expect(sceneRange(60, 71.6)).toEqual({ min: -VIEW_BEHIND, max: 80 });
+    expect(sceneRange(60, 53.1)).toEqual({ min: -VIEW_BEHIND, max: 65 });
+    expect(sceneRange(60, 71.6)).toEqual({ min: -VIEW_BEHIND, max: 75 });
     // Is: 269 m får ikke plass
-    expect(sceneRange(60, 269)).toEqual({ min: -VIEW_BEHIND, max: 70 });
-    expect(sceneRange(10, 4)).toEqual({ min: -VIEW_BEHIND, max: 20 });
+    expect(sceneRange(60, 269)).toEqual({ min: -VIEW_BEHIND, max: 65 });
+    expect(sceneRange(10, 4)).toEqual({ min: -VIEW_BEHIND, max: 15 });
+    // Med elgen slik scenen tegner den (1,13 m bak brystet og 3,5 m luft): utsnittet slutter 5 m bak brystet
+    expect(sceneRange(60, 53.1, 1.13 + 3.5)).toEqual({ min: -VIEW_BEHIND, max: 65 });
+  });
+});
+
+describe('pilene for v og a over bilen', () => {
+  it('står rett over bilen når de får plass, og flyttes ellers akkurat nok', () => {
+    expect(arrowPairCenter(400, 150, 120, 4, 796)).toBe(400);
+    // Ved venstre kant: a-pila (150) får ikke plass, paret flyttes til x0 + 150
+    expect(arrowPairCenter(60, 150, 120, 4, 796)).toBe(154);
+    // Ved høyre kant: v-pila (120) får ikke plass
+    expect(arrowPairCenter(760, 150, 120, 4, 796)).toBe(676);
+    // Uten pil på den ene siden trengs ingen plass der
+    expect(arrowPairCenter(10, 0, 120, 4, 796)).toBe(10);
+    expect(arrowPairCenter(Number.NaN, 100, 100, 0, 800)).toBe(400);
+  });
+
+  it('får alltid plass med full lengde, også med største fart, bremseakselerasjon og tekst på mobil', () => {
+    for (const f of [1, 1.4, 1.85]) {
+      const kk = Math.min(Math.max(1, f * 0.85), 1.15);
+      const ss = Math.max(1, f * 0.75);
+      const label = 23 * f;
+      const gap = 9 * ss;
+      const left = 10 * ARROW_SCALE.a * kk + label + gap;
+      const right = ARROW_SCALE.v * kk + label + gap;
+      for (const mid of [-50, 0, 60, 400, 750, 800, 900]) {
+        const c = arrowPairCenter(mid, left, right, 4, 796);
+        expect(c - left).toBeGreaterThanOrEqual(4 - 1e-9);
+        expect(c + right).toBeLessThanOrEqual(796 + 1e-9);
+      }
+    }
+  });
+
+  it('har en fast a-skala der is (1,0 m/s²) gir en pil som synes og tørr asfalt en lang pil', () => {
+    expect(1.0 * ARROW_SCALE.a).toBeGreaterThanOrEqual(18);
+    expect(BRAKE_PRESETS.torr * ARROW_SCALE.a).toBeGreaterThan(ARROW_SCALE.v);
+    // Samme a gir samme pil i begge stripene: skalaen avhenger ikke av farten
+    expect(5 * ARROW_SCALE.a).toBe(90);
   });
 });

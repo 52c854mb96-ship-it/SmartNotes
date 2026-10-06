@@ -259,27 +259,31 @@ export interface GraphAxes {
   /** Tidsaksen (s): fra litt før den negative løsningen til litt etter landingen. */
   tMin: number;
   tMax: number;
-  /** Posisjonsaksen (m): fra 1,5 m under plenen (plass til tekst under plenen) til litt over toppunktet. */
+  /** Posisjonsaksen (m): fra `padBelow` under plenen (plass til tekst under plenen) til litt over toppunktet. */
   sMin: number;
   sMax: number;
-  /** Akseverdier: tid hvert halve (eller hele) sekund, posisjon hver annen meter. */
+  /**
+   * Akseverdier: tid hvert halve (eller hele) sekund, posisjon hver annen meter. Under plenen er det ingen akseverdier
+   * på posisjonsaksen, så tekstene om løsningene under plenen ikke kolliderer med dem.
+   */
   tTicks: number[];
   sTicks: number[];
 }
 
 /**
  * Aksene i s-t-grafen, så begge løsningene av andregradslikningen og toppunktet får plass. `tStep` er avstanden
- * mellom akseverdiene på tidsaksen (standard 1 s).
+ * mellom akseverdiene på tidsaksen (standard 1 s), og `padBelow` er plassen under plenen (m) til tekstene om
+ * løsningene (mer på mobil, der teksten er større i forhold til grafen).
  */
-export function graphAxes(sol: BalconyThrowSolution, h0: number, tStep = 1): GraphAxes {
+export function graphAxes(sol: BalconyThrowSolution, h0: number, tStep = 1, padBelow = 1.5): GraphAxes {
   const tMin = -Math.ceil((Math.abs(sol.tNeg) + 0.2) / 0.5) * 0.5;
   const tMax = Math.ceil((sol.tLand + 0.15) / 0.5) * 0.5;
-  const sMin = -h0 - 1.5;
+  const sMin = -h0 - padBelow;
   const sMax = sol.sTop + 1.3;
   const tTicks: number[] = [];
   for (let v = Math.ceil(tMin / tStep - 1e-9) * tStep; v <= tMax + 1e-9; v += tStep) tTicks.push(round6(v));
   const sTicks: number[] = [];
-  for (let v = Math.ceil(sMin / 2) * 2; v <= sMax + 1e-9; v += 2) sTicks.push(round6(v));
+  for (let v = Math.ceil(-h0 / 2 - 1e-9) * 2; v <= sMax + 1e-9; v += 2) sTicks.push(round6(v));
   return { tMin, tMax, sMin, sMax, tTicks, sTicks };
 }
 

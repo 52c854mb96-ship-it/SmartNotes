@@ -61,6 +61,8 @@ export interface SkraplanSceneProps {
   showForces: boolean;
   parts: boolean;
   status: string;
+  /** Glidingen spilles av i sakte film (et lite skilt ved statusskiltet sier det). */
+  slowMo?: boolean;
   /** Tekst for skjermlesere. */
   label: string;
 }
@@ -110,6 +112,18 @@ function labelWidth(text: string, f: number): number {
   return text.length * 17 * f * 0.6;
 }
 
+/** Bredden på et ValueTag (samme regel som i scene-kit-et), så to skilt kan stå ved siden av hverandre. */
+function tagWidth(text: string, f: number, size = 0.9): number {
+  const fs = 17 * f * size;
+  return Math.max(fs * 1.6, text.length * fs * 0.6 + 16 * f);
+}
+
+/**
+ * Under denne vinkelen (grader) vises ikke G⊥: den ligger nesten oppå G (pilspissene overlapper), og
+ * den er like stor som N, som vises uansett.
+ */
+export const PERP_MIN_DEG = 10;
+
 function SceneContent({
   alphaDeg,
   material,
@@ -120,6 +134,7 @@ function SceneContent({
   showForces,
   parts,
   status,
+  slowMo,
   view,
 }: SkraplanSceneProps & { view: { x: number; y: number; w: number; h: number } }) {
   const fs = useTextScale();
@@ -157,6 +172,19 @@ function SceneContent({
 
   // Etiketter like forbi spissen, i pilas retning.
   const beyond = (tip: Pt, dir: Pt, d = 15) => ({ x: tip.x + dir.x * d * fs, y: tip.y + dir.y * d * fs + 6 * fs });
+
+  // Små vinkler: G∥ og R er så korte at spissene er inne i klossen. Da står etikettene utenfor endene av klossen, på
+  // linje med pila (G∥ til venstre, R til høyre), så de ikke ligger oppå klossen og hjelpelinjene.
+  const parLen = r.Gpar * k;
+  const rLen = r.R * k;
+  const inside = (len: number) => len < bl / 2 + 6;
+  const endLabel = (dir: 1 | -1) => {
+    const p = add(C, u, dir * (bl / 2 + 9 * fs));
+    return { labelX: p.x, labelY: p.y + 6 * fs };
+  };
+  const parLabel = inside(parLen) ? { ...endLabel(-1), labelAnchor: 'end' as const } : { labelX: parTip.x - 8 * fs, labelY: parTip.y + 18 * fs, labelAnchor: 'end' as const };
+  const rLabel = inside(rLen) ? { ...endLabel(1), labelAnchor: 'start' as const } : { ...pos(beyond(rTip, u, 13)), labelAnchor: 'middle' as const };
+  const showPerp = deg >= PERP_MIN_DEG;
 
   // Vinkelen mellom G og G⊥ er også α (vises når den er stor nok til å se).
   const smallR = 44;
@@ -200,8 +228,12 @@ function SceneContent({
         <g>
           {parts && deg > 0.5 && (
             <g>
-              <line x1={parTip.x} y1={parTip.y} x2={gTip.x} y2={gTip.y} className="viz-guide" />
-              <line x1={perpTip.x} y1={perpTip.y} x2={gTip.x} y2={gTip.y} className="viz-guide" />
+              {showPerp && (
+                <>
+                  <line x1={parTip.x} y1={parTip.y} x2={gTip.x} y2={gTip.y} className="viz-guide" />
+                  <line x1={perpTip.x} y1={perpTip.y} x2={gTip.x} y2={gTip.y} className="viz-guide" />
+                </>
+              )}
               {deg >= 25 && (
                 <>
                   <path d={`M${C.x},${C.y + smallR} A${smallR},${smallR} 0 0 0 ${smallEnd.x},${smallEnd.y}`} className="viz-guide" />
@@ -218,27 +250,27 @@ function SceneContent({
                 color={VIZ.gravity}
                 dashed
                 label={<>G∥</>}
-                labelAnchor="end"
-                labelX={parTip.x - 8 * fs}
-                labelY={parTip.y + 18 * fs}
+                {...parLabel}
               />
-              <ForceArrow
-                x1={C.x}
-                y1={C.y}
-                x2={perpTip.x}
-                y2={perpTip.y}
-                color={VIZ.gravity}
-                dashed
-                label={<>G⊥</>}
-                labelAnchor="start"
-                labelX={perpTip.x + 10 * fs}
-                labelY={perpTip.y + 2 * fs}
-              />
+              {showPerp && (
+                <ForceArrow
+                  x1={C.x}
+                  y1={C.y}
+                  x2={perpTip.x}
+                  y2={perpTip.y}
+                  color={VIZ.gravity}
+                  dashed
+                  label={<>G⊥</>}
+                  labelAnchor="start"
+                  labelX={perpTip.x + 10 * fs}
+                  labelY={perpTip.y + 2 * fs}
+                />
+              )}
             </g>
           )}
           <ForceArrow x1={C.x} y1={C.y} x2={gTip.x} y2={gTip.y} color={VIZ.gravity} label="G" labelAnchor="end" labelX={gTip.x - 10 * fs} labelY={gTip.y - 2} />
           <ForceArrow x1={C.x} y1={C.y} x2={nTip.x} y2={nTip.y} color={VIZ.normal} label="N" labelAnchor="middle" {...pos(beyond(nTip, n))} />
-          <ForceArrow x1={C.x} y1={C.y} x2={rTip.x} y2={rTip.y} color={VIZ.friction} label="R" labelAnchor="middle" {...pos(beyond(rTip, u, 13))} minLength={4} />
+          <ForceArrow x1={C.x} y1={C.y} x2={rTip.x} y2={rTip.y} color={VIZ.friction} label="R" {...rLabel} minLength={4} />
           {r.moving && aLen > 4 && (
             <ForceArrow
               x1={aFrom.x}
@@ -258,6 +290,16 @@ function SceneContent({
       )}
 
       <ValueTag x={view.x + 14} y={tagY} anchor="start" text={status} />
+      {slowMo && (
+        <ValueTag
+          x={narrow ? view.x + 14 : view.x + 14 + tagWidth(status, fs) + 8 * fs}
+          y={narrow ? tagY - 32 * Math.max(1, fs * 0.95) : tagY}
+          anchor="start"
+          text="Sakte film"
+          size={0.8}
+          color={VIZ.muted}
+        />
+      )}
     </g>
   );
 }

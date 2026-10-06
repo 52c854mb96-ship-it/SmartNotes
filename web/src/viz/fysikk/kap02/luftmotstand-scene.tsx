@@ -21,6 +21,7 @@ import {
 } from '../../kit/scene';
 import { DRAG_RANGES, type FallState } from './model';
 import { posture, type Posture } from './luftmotstand-positur';
+import { kroppsdeler, ledigX } from './kropp-klaring';
 import { FLY_LENGDE, FjerneFjell, Flyfoto, Hoppfly, Hoydestripe, Silhuett, SkyerUnder } from './luftmotstand-deler';
 
 /* ================================================================================================
@@ -149,6 +150,17 @@ export function LuftScene({ m, k, t, st, vT, showForces, narrow }: LuftSceneProp
 
   const gLen = G * kN;
   const lLen = st.L * kN;
+  // G og L angriper i tyngdepunktet. Når hopperen stuper med hodet først, ville pilene gått langs hele kroppen:
+  // da tegnes de litt til høyre for kroppen, med en stiplet strek inn til tyngdepunktet.
+  const arrowX = ledigX(kroppsdeler(pts, size, 0.03), {
+    start: cx,
+    fra: cy - Math.max(lLen, 0.22 * size),
+    til: cy + gLen,
+    gap: 9 * ss,
+    dir: 1,
+    fri: [cy - 0.13 * size, cy + 0.13 * size],
+  });
+  const shifted = arrowX - cx > 0.5;
   const vLen = st.v * lay.v.scale;
   const aLen = st.a * lay.a.scale;
   const vTy = cy + vT * lay.v.scale;
@@ -212,17 +224,34 @@ export function LuftScene({ m, k, t, st, vT, showForces, narrow }: LuftSceneProp
 
       {showForces && (
         <g>
-          <ForceArrow x1={cx} y1={cy} x2={cx} y2={cy + gLen} color={VIZ.gravity} label="G" labelX={cx + 12 * ss} labelY={cy + gLen - 2} origin />
+          {shifted && (
+            <g>
+              <line x1={cx} y1={cy} x2={arrowX} y2={cy} stroke={VIZ.surface} strokeWidth={4 * ss} opacity={0.8} strokeLinecap="round" />
+              <line x1={cx} y1={cy} x2={arrowX} y2={cy} stroke={VIZ.ink} strokeWidth={1.5 * ss} strokeDasharray={`${3 * ss} ${3 * ss}`} />
+              <circle cx={cx} cy={cy} r={3.6 * ss} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.6 * ss} />
+            </g>
+          )}
           <ForceArrow
-            x1={cx}
+            x1={arrowX}
             y1={cy}
-            x2={cx}
+            x2={arrowX}
+            y2={cy + gLen}
+            color={VIZ.gravity}
+            label="G"
+            labelX={arrowX + 12 * ss}
+            labelY={cy + gLen - 2}
+            origin={!shifted}
+          />
+          <ForceArrow
+            x1={arrowX}
+            y1={cy}
+            x2={arrowX}
             y2={cy - lLen}
             color={VIZ.friction}
             label="L"
-            labelX={cx + 12 * ss}
+            labelX={arrowX + 12 * ss}
             // Over ryggen når L er liten, så etiketten ikke havner oppå hopperen.
-            labelY={Math.min(cy - lLen + 14 * f, cy - 0.2 * size)}
+            labelY={shifted ? Math.min(cy - lLen + 14 * f, cy - 6 * f) : Math.min(cy - lLen + 14 * f, cy - 0.2 * size)}
             minLength={4}
           />
         </g>

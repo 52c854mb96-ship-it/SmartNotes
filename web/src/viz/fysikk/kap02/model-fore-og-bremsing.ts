@@ -203,18 +203,22 @@ export function maxStopSpeed(mu: number, d: number): number {
 }
 
 export interface QueueState extends BrakeState {
-  /** Bilen har truffet bilen foran (og står med fronten mot den). */
+  /** Bilen har nådd bilen foran: fronten treffer bakenden dens akkurat nå. */
   crashed: boolean;
 }
 
 /**
- * Som brakeState, men med en bil i kø d meter foran (`d` = null: fri vei). Treffer bilen, stopper vi bevegelsen ved
- * sammenstøtet: s = d, og etter det regner vi ikke videre (det som skjer i selve sammenstøtet, er ikke med).
+ * Som brakeState, men med en bil i kø d meter foran (`d` = null: fri vei). Treffer bilen, fryser vi bildet i det
+ * øyeblikket bilene møtes: s = d, og bilen har fortsatt farten v = √(v₀² − 2ad) og bremser med a = μg (R = μN), så
+ * `stopped` er false. Etter det regner vi ikke videre (det som skjer i selve sammenstøtet, er ikke med).
  */
 export function queueState(v0: number, mu: number, m: number, t: number, d: number | null): QueueState {
   if (d !== null) {
     const out = queueOutcome(v0, mu, d);
-    if (!out.stops && finite(t) >= out.tEnd) return { t: out.tEnd, v: 0, s: out.sEnd, a: 0, R: 0, stopped: true, crashed: true };
+    if (!out.stops && finite(t) >= out.tEnd) {
+      const r = brake(v0, mu, m);
+      return { t: out.tEnd, v: out.vHit, s: out.sEnd, a: r.a, R: r.R, stopped: false, crashed: true };
+    }
   }
   return { ...brakeState(v0, mu, m, t), crashed: false };
 }

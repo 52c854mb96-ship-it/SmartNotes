@@ -19,7 +19,7 @@ import {
   useSimClock,
 } from '../../kit';
 import { LIFT_T_END, liftPhases, liftState, scaleForce, type LiftPhase, type LiftTrip } from './model';
-import { LIFT_A0, floorBelow, liftHeight, liftMaxAcceleration, liftMaxSpeed, liftStartHeight, nearestFloor, scaleReading } from './model-heis';
+import { LIFT_A0, LIFT_A0_TYPICAL_MAX, floorBelow, liftHeight, liftMaxAcceleration, liftMaxSpeed, liftStartHeight, nearestFloor, scaleReading } from './model-heis';
 import { HeisGraf } from './heis-graf';
 import { HeisScene } from './heis-scene';
 
@@ -35,7 +35,7 @@ const T_START = 2;
 export default function Heis() {
   const [trip, setTrip] = useState<LiftTrip>('opp');
   const [m, setM] = useState(70);
-  const [a0, setA0] = useState(2);
+  const [a0, setA0] = useState<number>(LIFT_A0.start);
   const [showForces, setShowForces] = useState(true);
   const clock = useSimClock({ tMax: LIFT_T_END });
   const { setT, pause } = clock;
@@ -153,6 +153,12 @@ export default function Heis() {
 
       <Explain>
         {explanation(st.phase, trip, st.a, st.v, N, G, m, reading, t, where)}
+        {!fallen && a0 > LIFT_A0_TYPICAL_MAX + 1e-9 && (st.phase.kind === 'akselererer' || st.phase.kind === 'bremser') && (
+          <p>
+            {fmt(a0, 2)} m/s² er kraftigere enn i vanlige heiser i boligblokker. De akselererer med ca. 0,5–1,5 m/s², fordi en
+            kraftigere start og stopp blir ubehagelig, og kjører 1–2,5 m/s. Her blir toppfarten {fmt(liftMaxSpeed(trip, a0), 1)} m/s.
+          </p>
+        )}
         {Math.abs(st.v) > 1e-9 && <p>Kameraet følger heisen, så det er sjakta og etasjene som glir forbi.</p>}
         {(st.a < -1e-9 || st.v < -1e-9) && <p>Positiv retning er oppover, så fart og akselerasjon nedover har negativt fortegn.</p>}
       </Explain>
@@ -214,8 +220,8 @@ function explanation(
       return up ? (
         <p>
           <strong>Heisen øker farten oppover.</strong> Akselerasjonen peker oppover, så kraftsummen må også peke oppover: N må være større
-          enn G. N = m(g + a) = {n(N)}, og vekta viser {kg}. Det vekta viser, kalles den tilsynelatende vekten. Det er derfor du kjenner
-          et trykk i knærne når heisen setter i gang oppover.
+          enn G. N = m(g + a) = {n(N)}, og vekta viser {kg}. Kraften N som vekta måler, kalles ofte den tilsynelatende vekten. Vekta
+          viser den omregnet til kg (N/g). Det er derfor du kjenner et trykk i knærne når heisen setter i gang oppover.
         </p>
       ) : (
         <p>

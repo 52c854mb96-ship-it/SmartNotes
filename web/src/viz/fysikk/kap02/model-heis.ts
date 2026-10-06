@@ -16,8 +16,13 @@ export const LIFT_CAR = { width: 1.1, height: 2.2 } as const;
 /**
  * Akselerasjonen ved start og stopp (m/s²) som eleven kan velge. En tur er 12 · a0 lang (se liftTripLength), så med
  * steg på 0,25 m/s² blir turen et helt antall etasjer (3 m), og heisen stopper alltid ved en etasje.
+ * Heiser i boligblokker akselererer typisk med 0,5–1,5 m/s² og kjører 1–2,5 m/s. Standardvalget 1 m/s² gir toppfarten
+ * 2a0 = 2 m/s, og det største valget (2 m/s², toppfart 4 m/s) er allerede i overkant av hva en vanlig heis gjør.
  */
-export const LIFT_A0 = { min: 0.5, max: 3, step: 0.25 } as const;
+export const LIFT_A0 = { min: 0.5, max: 2, step: 0.25, start: 1 } as const;
+
+/** Over denne akselerasjonen (m/s²) er heisen kraftigere enn vanlige heiser i boligblokker. */
+export const LIFT_A0_TYPICAL_MAX = 1.5;
 
 /** Høyden (m) til gulvet i etasje nummer `floor` (1 = bakkeplan). */
 export function floorHeight(floor: number): number {

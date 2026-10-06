@@ -70,13 +70,16 @@ const BOOK_X = 400;
 const BOOK_W = TEXTBOOK.length * PX_PER_M;
 /**
  * Hvor kreftene angriper (x): N til venstre på boka og N′ litt til høyre for den (begge i kontaktflaten, forskjøvet
- * så de ikke ser ut som én dobbelpil), G midt på, og F og F′ under håndflata.
+ * så de ikke ser ut som én dobbelpil), G midt på, F under håndflata og F′ ved hælen på hånda, så den peker opp i
+ * håndleddet. F og F′ står godt fra hverandre, så de ikke ser ut som én dobbelpil.
  */
 const X_N = 356;
 const X_N2 = 373;
 const X_G = 400;
-const X_F = 418;
-const X_F2 = 436;
+const X_F = 414;
+const X_F2 = 450;
+/** Korteste pil for F og F′ (figurens enheter): et lite dytt tegnes litt lengre enn målestokken, så paret synes. */
+const MIN_F_LEN = 14;
 /** Hælen på håndflata. Fingertuppene når ca. 19 cm til venstre (x ≈ 370). */
 const HAND_X = 450;
 /** Etikettene til dyttparet står til høyre for underarmen. */
@@ -100,9 +103,9 @@ export default function KraftparTredjeLov() {
   const [showForces, setShowForces] = useState(true);
   const r = bookOnTable(m, push);
 
-  // Dyttparet finnes bare når hånda dytter: velger du det uten dytt, presser hånda med 5 N.
+  // Dyttparet finnes bare når hånda dytter: velger du det uten dytt, presser hånda med 10 N, så pilene blir lange nok.
   const chooseMode = (next: Mode) => {
-    if (next === 'dytt' && push === 0) setPush(5);
+    if (next === 'dytt' && push === 0) setPush(10);
     setMode(next);
   };
 
@@ -147,16 +150,32 @@ export default function KraftparTredjeLov() {
           </FormulaLine>
         ) : (
           <>
-            <FormulaLine>ΣF = N − G − F = 0 (boka ligger i ro)</FormulaLine>
-            <FormulaLine>
-              N = G + F = {fmt(r.G, 1)}{NB}N + {fmt(r.F, 1)}{NB}N = {fmt(r.N, 1)}{NB}N
-            </FormulaLine>
+            {r.F > 0 ? (
+              <>
+                <FormulaLine>ΣF = N − G − F = 0 (boka ligger i ro)</FormulaLine>
+                <FormulaLine>
+                  N = G + F = {fmt(r.G, 1)}{NB}N + {fmt(r.F, 1)}{NB}N = {fmt(r.N, 1)}{NB}N
+                </FormulaLine>
+              </>
+            ) : (
+              <>
+                <FormulaLine>ΣF = N − G = 0 (boka ligger i ro)</FormulaLine>
+                <FormulaLine>
+                  N = G = {fmt(r.N, 1)}{NB}N
+                </FormulaLine>
+              </>
+            )}
           </>
         )}
         <FormulaLine>Newtons 3. lov: G′ = G, N′ = N{push > 0 ? ' og F′ = F' : ''}</FormulaLine>
       </Formula>
 
-      <Explain>{explanation(mode, r)}</Explain>
+      <Explain>
+        {explanation(mode, r)}
+        {showForces && r.F > 0 && r.F * PX_PER_N < MIN_F_LEN && mode !== 'gravitasjon' && mode !== 'normal' && (
+          <p>Dyttet er så lite at pilene for F og F′ er tegnet litt lengre enn målestokken, så de synes.</p>
+        )}
+      </Explain>
     </VizLayout>
   );
 }
@@ -236,8 +255,9 @@ function SceneContent({ mode, m, r, showForces, view }: SceneProps & { view: { x
   const n2Tip = TABLE_TOP + r.N * k;
   const gTip = bookMid + r.G * k;
   const g2Tip = EARTH.y - r.G * k;
-  const fTail = bookTop - r.F * k;
-  const f2Tip = bookTop - r.F * k;
+  const fLen = Math.max(r.F * k, MIN_F_LEN);
+  const fTail = bookTop - fLen;
+  const f2Tip = bookTop - fLen;
 
   // Tekstplassering: etikettene skal ikke havne oppå bordplata, boka, hånda eller hverandre.
   const deskBottom = TABLE_TOP + 24;
@@ -522,7 +542,7 @@ function explanation(mode: Mode, r: BookResult): ReactNode {
             <strong>{F > 0 ? 'Tre kraftpar, seks krefter.' : 'To kraftpar, fire krefter.'}</strong> Jorda trekker boka ned (G), og boka
             trekker jorda opp (G′). Bordet presser boka opp (N), og boka presser bordet ned (N′).
             {F > 0 && <> Hånda presser boka ned (F), og boka presser hånda opp (F′).</>} Kreftene i et par er like store, motsatt rettet og
-            virker på <em>hver sin</em> gjenstand. Derfor kan de aldri oppheve hverandre.
+            virker på <em>hver sin</em> gjenstand. Derfor kan de aldri oppheve hverandre på én gjenstand.
           </p>
           <p>
             Velg et av parene for å se det alene, med en sjekkliste over kjennetegnene.{' '}

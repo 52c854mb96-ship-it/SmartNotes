@@ -42,6 +42,7 @@ import {
   eulerStateAt,
   extremes,
   forceScale,
+  labelSpot,
   planeRise,
   sDecimals,
   simTime,
@@ -56,7 +57,7 @@ import { useNarrow } from './useNarrow';
 import { ColorDot, Label } from './marks';
 
 const C_EXACT = VIZ.velocity;
-// Ikke oransje: den fargen er tyngden (fritt fall-linja).
+// Ikke oransje: den fargen er tyngden (linja for fritt fall uten luftmotstand).
 const C_EULER = VIZ.series[0];
 /** Ett steg i Eulers metode: stigningstallet i steget er akselerasjonen. */
 const C_STEP = VIZ.acceleration;
@@ -65,6 +66,12 @@ const TABLE_ROWS = 6;
 const T_START = 4;
 /** Hopperen er 1,75 m høy; i scenen på PC er det 150 figurenheter (86 per meter, se målestokken). */
 const PERSON_M = 1.75;
+
+/** Tall med enhet og hardt mellomrom i utregningen; negative tall i parentes: «(−1,76 m/s²)». */
+function q(value: number, decimals: number, unit: string): string {
+  const text = `${fmt(value, decimals)}\u00a0${unit}`;
+  return value < 0 && fmt(value, decimals) !== fmt(0, decimals) ? `(${text})` : text;
+}
 
 export default function Simulering() {
   const [m, setM] = useState(80);
@@ -210,19 +217,22 @@ export default function Simulering() {
       {step && next && (
         <Formula label={`Ett steg i Eulers metode med tall, fra steg ${fn} til steg ${fn + 1}`}>
           <FormulaLine>
-            G = mg = {fmt(m, 0)} · 9,81 = {fmt(m * G_EARTH, 1)} N
+            G = mg = {q(m, 0, 'kg')} · {q(G_EARTH, 2, 'm/s²')} = {q(m * G_EARTH, 1, 'N')}
           </FormulaLine>
           <FormulaLine>
-            L<Sub>{fn}</Sub> = k · v<Sub>{fn}</Sub>² = {fmt(k, 2)} · {fmt(step.v, 2)}² = {fmt(k * step.v * step.v, 1)} N
+            L<Sub>{fn}</Sub> = k · v<Sub>{fn}</Sub>² = {q(k, 2, 'kg/m')} · ({q(step.v, 2, 'm/s')})² = {q(k * step.v * step.v, 1, 'N')}
           </FormulaLine>
           <FormulaLine>
-            a<Sub>{fn}</Sub> = (G − L<Sub>{fn}</Sub>) / m = ({fmt(m * G_EARTH, 1)} − {fmt(k * step.v * step.v, 1)}) / {fmt(m, 0)} = {fmt(step.a, 2)} m/s²
+            a<Sub>{fn}</Sub> = (G − L<Sub>{fn}</Sub>) / m = ({q(m * G_EARTH, 1, 'N')} − {q(k * step.v * step.v, 1, 'N')}) / {q(m, 0, 'kg')} ={' '}
+            {q(step.a, 2, 'm/s²')}
           </FormulaLine>
           <FormulaLine>
-            v<Sub>{fn + 1}</Sub> = v<Sub>{fn}</Sub> + a<Sub>{fn}</Sub> · Δt = {fmt(step.v, 2)} + {fmt(step.a, 2)} · {fmt(dt, 1)} = {fmt(next.v, 2)} m/s
+            v<Sub>{fn + 1}</Sub> = v<Sub>{fn}</Sub> + a<Sub>{fn}</Sub> · Δt = {q(step.v, 2, 'm/s')} + {q(step.a, 2, 'm/s²')} · {q(dt, 1, 's')} ={' '}
+            {q(next.v, 2, 'm/s')}
           </FormulaLine>
           <FormulaLine>
-            s<Sub>{fn + 1}</Sub> = s<Sub>{fn}</Sub> + v<Sub>{fn + 1}</Sub> · Δt = {fmt(step.s, sDec)} + {fmt(next.v, 2)} · {fmt(dt, 1)} = {fmt(next.s, sDec)} m
+            s<Sub>{fn + 1}</Sub> = s<Sub>{fn}</Sub> + v<Sub>{fn + 1}</Sub> · Δt = {q(step.s, sDec, 'm')} + {q(next.v, 2, 'm/s')} · {q(dt, 1, 's')} ={' '}
+            {q(next.s, sDec, 'm')}
           </FormulaLine>
         </Formula>
       )}
@@ -232,7 +242,7 @@ export default function Simulering() {
   );
 }
 
-/* ---------- Scenen: hopperen i fritt fall ---------- */
+/* ---------- Scenen: hopperen før skjermen er ute ---------- */
 
 interface SceneLayout {
   /** Mobil: scenen over hele bredden og instrumentene under (ellers instrumentene til høyre). */
@@ -300,10 +310,6 @@ function FallScene({ p, rows, st, vT, geo, forces }: { p: DragFall; rows: EulerR
   const kN = forceScale(G, ex.Lmax, up, down, Math.min(up, down) / 1180);
   const L = st.L;
   const lTip = cy - L * kN;
-  // L-etiketten midt over spissen, men aldri inne i kroppen (når pila er kort). G-etiketten ved siden av spissen,
-  // på motsatt side av hodet, så ingen av dem kommer borti kroppen eller skiltene for v og a ute på sidene.
-  const bodyTop = cy + outline.top - 8 * sc;
-  const lLabelY = Math.min(lTip, bodyTop) - 8 * f;
   // Fart og akselerasjon: egne skalaer, faste for tallsettet.
   const room = panel.h - 26 - cy;
   const vAxis = Math.max(ex.vMax, vT);
@@ -311,6 +317,31 @@ function FallScene({ p, rows, st, vT, geo, forces }: { p: DragFall; rows: EulerR
   const ka = (0.62 * room) / G_EARTH;
   const tagAbove = cy - 24 * f;
   const tagBelow = cy + 24 * f;
+  const vText = `v = ${fmt(st.v, 1)} m/s`;
+  // Høyre kant og høyden av skiltet for v (samme mål som ValueTag med size 0,9)
+  const tagFs = 17 * f * 0.9;
+  const vTagW = Math.max(tagFs * 1.6, vText.length * tagFs * 0.6 + 16 * f);
+  const vTagRight = narrow ? 16 + vTagW : geo.vx + vTagW / 2;
+  const tagH = tagFs * 1.55;
+
+  // L-etiketten ved spissen av pila. Med magen ned og i vid drakt midt over spissen, men aldri inne i kroppen (når
+  // pila er kort). Med hodet ned ligger beina oppe til høyre og hodet nede til venstre, så der står den til venstre for
+  // spissen, også når pila er kort; bare hvis den da kommer borti skiltet for v (mobil), flyttes den opp over skiltet.
+  // G-etiketten ved siden av spissen, på motsatt side av hodet.
+  const bodyTop = cy + outline.top - 8 * sc;
+  const lText = `L = ${fmt(L, 0)} N`;
+  const lFs = 17 * f;
+  let lLabel: { x: number; y: number; anchor: 'middle' | 'end' };
+  if (!headDown) lLabel = { x: cx, y: Math.min(lTip, bodyTop) - 8 * f, anchor: 'middle' };
+  else {
+    const x = cx - 10 * f;
+    let y = Math.min(cy - 10 * f, lTip + 6 * f);
+    const left = x - lText.length * 0.6 * lFs;
+    const hitsTag = left < vTagRight + 6 * f && y + 0.25 * lFs > tagAbove - tagH / 2 - 4 * f && y - lFs < tagAbove + tagH / 2 + 4 * f;
+    if (hitsTag) y = tagAbove - tagH / 2 - 6 * f;
+    lLabel = { x, y, anchor: 'end' };
+  }
+  const lLabelTop = lLabel.y - lFs;
 
   const air = (narrow ? 90 : 64) * (st.v / vAxis);
   const nSteps = rows.length - 1;
@@ -319,7 +350,13 @@ function FallScene({ p, rows, st, vT, geo, forces }: { p: DragFall; rows: EulerR
   // flyet synes). Flyet glir oppover og ut av bildet i løpet av det første sekundet.
   const planeK = pxPerM * PLANE_DEPTH;
   const kd = planeK / 10;
-  const planeY0 = Math.min(-HOPPEFLY_DM.top * kd + 8, cy - 36 * f - 6 - HOPPEFLY_DM.bottom * kd, bodyTop - 21 * f - 6 - 2 * kd);
+  // Med hodet ned stikker beina høyt opp; der står de foran flyet (som er lenger inne i bildet), som om hopperen
+  // akkurat har stupt ut av døra, så da er det bare L-etiketten flyet må holde seg over.
+  const planeY0 = Math.min(
+    -HOPPEFLY_DM.top * kd + 8,
+    cy - 36 * f - 6 - HOPPEFLY_DM.bottom * kd,
+    (headDown ? lLabelTop : bodyTop - 21 * f) - 6 - 2 * kd,
+  );
   const planeY = planeY0 - planeRise(st.s, pxPerM);
   const planeVisible = planeY + HOPPEFLY_DM.bottom * kd > 0;
 
@@ -350,8 +387,8 @@ function FallScene({ p, rows, st, vT, geo, forces }: { p: DragFall; rows: EulerR
         <>
           <ForceArrow x1={cx} y1={cy} x2={cx} y2={lTip} color={VIZ.friction} />
           {/* Etiketten står også når pila er for kort til å synes (L = 0 N i starten) */}
-          <Txt x={cx} y={lLabelY} color={VIZ.friction} weight={720}>
-            L = {fmt(L, 0)} N
+          <Txt x={lLabel.x} y={lLabel.y} anchor={lLabel.anchor} color={VIZ.friction} weight={720}>
+            {lText}
           </Txt>
           <ForceArrow
             x1={cx}
@@ -375,7 +412,7 @@ function FallScene({ p, rows, st, vT, geo, forces }: { p: DragFall; rows: EulerR
         x={narrow ? 16 : geo.vx}
         y={tagAbove}
         anchor={narrow ? 'start' : 'middle'}
-        text={`v = ${fmt(st.v, 1)} m/s`}
+        text={vText}
         color={VIZ.velocity}
       />
       <ValueTag
@@ -418,7 +455,7 @@ function ScaleBar({ x, y, pxPerM }: { x: number; y: number; pxPerM: number }) {
 
 function sceneLabel(p: DragFall, st: EulerState, nSteps: number): string {
   return (
-    `Fallskjermhopper i fritt fall, simulert med Eulers metode. Steg ${st.n} av ${nSteps}, t = ${fmt(st.t, 1)} s. ` +
+    `Fallskjermhopper før skjermen er ute, simulert med Eulers metode. Steg ${st.n} av ${nSteps}, t = ${fmt(st.t, 1)} s. ` +
     `Farten er ${fmt(st.v, 1)} m/s og akselerasjonen ${fmt(st.a, 2)} m/s². Tyngden er ${fmt(p.m * G_EARTH, 0)} N og luftmotstanden ` +
     `${fmt(st.L, 0)} N. Høydemåleren viser ${fmt(altitude(st.s), 0)} m over bakken.`
   );
@@ -543,6 +580,8 @@ function ErrorPlot({ curve, dt, err, height }: { curve: [number, number][]; dt: 
     >
       {({ sx, sy, x0, x1, y0, y1 }) => {
         const area = `${linePath(curve, sx, sy)}L${sx(curve[curve.length - 1]?.[0] ?? SIM_DT_MAX)},${y0}L${sx(curve[0]?.[0] ?? 0)},${y0}Z`;
+        // Verdien står alltid inne i plottet, så nær punktet som mulig uten å krysse kurven (med en strek når den må
+        // stå et stykke unna, f.eks. ved Δt = 2,5 s, der punktet ligger i hjørnet oppe til høyre).
         const spot = labelSpot(
           curve.map(([d, e]) => [sx(d), sy(e)]),
           sx(dt),
@@ -550,7 +589,13 @@ function ErrorPlot({ curve, dt, err, height }: { curve: [number, number][]; dt: 
           `${fmt(err, 2)} m/s`.length * 0.6 * 17 * 0.85 * f,
           17 * 0.85 * f,
           { x0, x1, top: y1 + 6 * f, bottom: y0 },
-          f,
+          10 * f,
+          [
+            [
+              [sx(dt), sy(err)],
+              [sx(dt), y0],
+            ],
+          ],
         );
         return (
           <g>
@@ -560,6 +605,9 @@ function ErrorPlot({ curve, dt, err, height }: { curve: [number, number][]; dt: 
             <path d={area} fill={alpha(C_EULER, 0.08)} />
             <path d={linePath(curve, sx, sy)} fill="none" stroke={C_EULER} strokeWidth={3} />
             <line x1={sx(dt)} x2={sx(dt)} y1={y0} y2={sy(err)} stroke={C_EULER} strokeWidth={1.5} strokeDasharray="3 4" />
+            {spot.leader && (
+              <line x1={sx(dt)} y1={sy(err)} x2={spot.leader.x} y2={spot.leader.y} stroke={C_EULER} strokeWidth={1.5} opacity={0.8} />
+            )}
             <ColorDot x={sx(dt)} y={sy(err)} color={C_EULER} />
             <Txt x={spot.x} y={spot.y} anchor={spot.anchor} size={0.85} color={C_EULER} weight={700}>
               {fmt(err, 2)} m/s
@@ -569,50 +617,6 @@ function ErrorPlot({ curve, dt, err, height }: { curve: [number, number][]; dt: 
       }}
     </Plot>
   );
-}
-
-/**
- * Hvor verdien ved punktet (px, py) på avvikskurven skal stå, så teksten ikke krysser kurven eller går ut av plottet:
- * den første plassen (over til venstre, over til høyre, under til høyre, under til venstre, og så det samme litt
- * lenger unna) der tekstboksen (bredde w, høyde h) ikke treffer noen del av kurven. Kurven stiger nesten alltid, så
- * over til venstre er vanligst; helt til venstre i plottet havner teksten over til høyre, høyt nok over kurven.
- */
-function labelSpot(
-  pts: [number, number][],
-  px: number,
-  py: number,
-  w: number,
-  h: number,
-  box: { x0: number; x1: number; top: number; bottom: number },
-  f: number,
-): { x: number; y: number; anchor: 'start' | 'end' } {
-  const gap = 10 * f;
-  const pad = 3 * f;
-  const options: { x: number; y: number; anchor: 'start' | 'end' }[] = [];
-  for (const extra of [0, 0.8 * h, 1.6 * h])
-    options.push(
-      { x: px - gap, y: py - gap - extra, anchor: 'end' },
-      { x: px + gap, y: py - gap - extra, anchor: 'start' },
-      { x: px + gap, y: py + gap + h + extra, anchor: 'start' },
-      { x: px - gap, y: py + gap + h + extra, anchor: 'end' },
-    );
-  const fits = (o: (typeof options)[number]) => {
-    const left = o.anchor === 'end' ? o.x - w : o.x;
-    const right = left + w;
-    const top = o.y - h;
-    const bottom = o.y + 0.25 * h;
-    if (left < box.x0 || right > box.x1 || top < box.top || bottom > box.bottom) return false;
-    for (let i = 1; i < pts.length; i++) {
-      const a = pts[i - 1];
-      const b = pts[i];
-      if (!a || !b || b[0] < left - pad || a[0] > right + pad) continue;
-      const lo = Math.min(a[1], b[1]);
-      const hi = Math.max(a[1], b[1]);
-      if (hi >= top - pad && lo <= bottom + pad) return false;
-    }
-    return true;
-  };
-  return options.find(fits) ?? { x: px + gap, y: py - gap, anchor: 'start' };
 }
 
 /* ---------- Tabell ---------- */
@@ -768,7 +772,7 @@ function explanation({
           </>
         ) : (
           <>
-            Fritt fall fra {fmt(EXIT_HEIGHT, 0)} m ned til {fmt(DEPLOY_HEIGHT, 0)} m, der skjermen må ut, tar ca. {fmt(deploy, 0)} s.
+            Fallet fra {fmt(EXIT_HEIGHT, 0)} m ned til {fmt(DEPLOY_HEIGHT, 0)} m (med luftmotstand), der skjermen må ut, tar ca. {fmt(deploy, 0)} s.
           </>
         )}
       </p>

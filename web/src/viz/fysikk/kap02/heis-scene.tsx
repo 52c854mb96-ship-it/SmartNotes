@@ -32,8 +32,11 @@ const SCALE_TOP = CAR_Y - 0.16 * SCALE_W;
 const PERSON = 1.75 * PX_PER_M;
 /** Lengden på G-pila (piksler). N tegnes i samme skala. */
 const G_LEN = 92;
-/** Lengden på fart- og akselerasjonspila når de er størst på turen. */
-const MOTION_LEN = 100;
+/**
+ * Lengden på fart- og akselerasjonspila når de er størst på turen. Skiltet bak dem (y 160–340) står under
+ * etasjeskiltet på veggen når heisen står ved en etasje (ca. y 125–155), og over lupa.
+ */
+const MOTION_LEN = 80;
 
 const SNITT: SnittGeometri = {
   px: PX_PER_M,
@@ -50,12 +53,12 @@ const SNITT: SnittGeometri = {
 };
 
 /** Høyre del av figuren (trapperommet): fart og akselerasjon, status og den forstørrede vekta. */
-const INFO = { vX: 562, aX: 624, arrowY: 238, statusX: 618, statusY: 32, lupe: { x: 698, y: 392, w: 172, h: 84 } };
+const INFO = { vX: 562, aX: 624, arrowY: 250, statusX: 618, statusY: 32, lupe: { x: 698, y: 392, w: 172, h: 84 } };
 const MAP = { x: 10, y: 10, w: 124, h: H - 20 };
 /** På mobil: bare sjakta og en smal stripe av trapperommet. */
 const NARROW_X = SNITT.shaftL - SNITT.wall - 6;
 const NARROW_W = 500;
-const INFO_NARROW = { vX: 538, aX: 604, arrowY: 238, statusX: NARROW_X + NARROW_W / 2, statusY: 28, lupe: { x: 548, y: 392, w: 172, h: 84 } };
+const INFO_NARROW = { vX: 524, aX: 588, arrowY: 250, statusX: NARROW_X + NARROW_W / 2, statusY: 28, lupe: { x: 548, y: 392, w: 172, h: 84 } };
 
 export interface HeisSceneProps {
   /** Høyden til heisgulvet over 1. etasje (m). */
@@ -196,6 +199,8 @@ function SceneContent({
       {/* Status, fart og akselerasjon i trapperommet ved siden av sjakta */}
       <ValueTag x={info.statusX} y={info.statusY} text={status} size={0.92} />
       {narrow && <ValueTag x={info.statusX} y={info.statusY + 34 * f} text={`${floorText}, h = ${fmt(h, 1)} m`} size={0.8} />}
+      {/* Fart og akselerasjon på et fast skilt, så pilene ikke ser ut til å stikke gjennom etasjeskillene som glir forbi */}
+      <MotionPanel x1={info.vX} x2={info.aX} y={info.arrowY} />
       <MotionArrow x={info.vX} y={info.arrowY} len={vMax > 0 ? (v / vMax) * MOTION_LEN : 0} color={VIZ.velocity} name="v" />
       <MotionArrow x={info.aX} y={info.arrowY} len={aMax > 0 ? (a / aMax) * MOTION_LEN : 0} color={VIZ.acceleration} name="a" />
 
@@ -204,6 +209,37 @@ function SceneContent({
       {!narrow && (
         <Byggkart x={MAP.x} y={MAP.y} w={MAP.w} h={MAP.h} hNow={h} hStart={hStart} hEnd={hEnd} title={floorText} footer={`h = ${fmt(h, 1)} m`} broken={broken} />
       )}
+    </g>
+  );
+}
+
+/**
+ * Rolig skilt bak fart- og akselerasjonspila (søylene i x1 og x2, null i y): lys flate med tynn kontur og en svak
+ * nullstrek. Det står fast i bildet mens bygget glir forbi bak.
+ */
+function MotionPanel({ x1, x2, y }: { x1: number; x2: number; y: number }) {
+  const f = useTextScale();
+  const ss = useStrokeScale();
+  // Plass til etikettene ved siden av pilene og «v = 0» / «a = 0» midt over søylene.
+  const side = 22 * f + 8;
+  const left = x1 - side;
+  const right = x2 + side;
+  const top = y - MOTION_LEN - 10;
+  const bottom = y + MOTION_LEN + 10;
+  return (
+    <g aria-hidden>
+      <rect
+        x={left}
+        y={top}
+        width={right - left}
+        height={bottom - top}
+        rx={10}
+        fill={VIZ.surface}
+        opacity={0.94}
+        stroke={SCENE.outline}
+        strokeWidth={1 * ss}
+      />
+      <line x1={left + 8} y1={y} x2={right - 8} y2={y} stroke={VIZ.grid} strokeWidth={1.4 * ss} strokeDasharray={`${5 * ss} ${4 * ss}`} />
     </g>
   );
 }

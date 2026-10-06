@@ -1,10 +1,8 @@
 /**
  * Egne gjenstander til «Bil med tilhenger» (k2-koblede-klosser) som scene-kit-et ikke har: en enakslet tilhenger med
- * storsekker med ved, hengerfestet (kula) bak på bilen, systemgrensen og en kraftpil med brudd for krefter som er
- * tegnet forkortet. Samme stil som scene-kit-et: toninger fra core, SCENE- og PAINTS-farger, tynn kontur og myk
- * skygge. Ingen filtre og ingen bilder.
+ * storsekker med ved, hengerfestet (kula) bak på bilen, systemgrensen og en lupe på hengerfestet. Samme stil som
+ * scene-kit-et: toninger fra core, SCENE- og PAINTS-farger, tynn kontur og myk skygge. Ingen filtre og ingen bilder.
  */
-import type { ReactNode } from 'react';
 import { VIZ } from '../../kit';
 import {
   ContactShadow,
@@ -302,7 +300,7 @@ export function Hengerfeste({ x, y, pxPerM, dim }: { x: number; y: number; pxPer
 export const KULE = { bak: 2.26, hoyde: HENGER_MAAL.koblingHoyde } as const;
 
 /* ================================================================================================
- * Systemgrense og forkortet kraftpil
+ * Systemgrense
  * ============================================================================================== */
 
 /**
@@ -316,57 +314,6 @@ export function Systemgrense({ x, y, w, h }: { x: number; y: number; w: number; 
     <g aria-hidden className="kk-grense">
       <rect x={x} y={y} width={w} height={h} rx={14} fill={alpha(BOUNDARY, 0.07)} stroke={VIZ.surface} strokeWidth={5 * ss} opacity={0.75} />
       <rect x={x} y={y} width={w} height={h} rx={14} fill="none" stroke={BOUNDARY} strokeWidth={2.2 * ss} strokeDasharray={`${9 * ss} ${6 * ss}`} />
-    </g>
-  );
-}
-
-/**
- * Kraftpil med brudd i skaftet: kraften er mye større enn de andre pilene og er tegnet forkortet (ikke i samme
- * målestokk). Bruddet er et skrått gap i skaftet midt mellom angrepspunktet og spissen.
- */
-export function BruttPil({
-  x1,
-  y1,
-  x2,
-  y2,
-  color,
-  label,
-  labelX,
-  labelY,
-  labelAnchor,
-  origin,
-}: {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  color: string;
-  label?: ReactNode;
-  labelX?: number;
-  labelY?: number;
-  labelAnchor?: 'start' | 'middle' | 'end';
-  origin?: boolean;
-}) {
-  const ss = useStrokeScale();
-  const len = Math.hypot(x2 - x1, y2 - y1);
-  if (!Number.isFinite(len) || len < 24) return null;
-  const ux = (x2 - x1) / len;
-  const uy = (y2 - y1) / len;
-  const nx = -uy;
-  const ny = ux;
-  // Bruddet: to skrå streker over skaftet med et smalt gap i flatefargen mellom.
-  const c = 0.42 * len;
-  const gap = 4.5 * ss;
-  const reach = 9 * ss;
-  const slant = 3.5 * ss;
-  const pt = (t: number, s: number) => `${r2(x1 + ux * t + nx * s)},${r2(y1 + uy * t + ny * s)}`;
-  const cut = (t: number) => `M${pt(t - slant, -reach)}L${pt(t + slant, reach)}`;
-  const gapPath = `M${pt(c - gap / 2 - slant, -reach)}L${pt(c + gap / 2 - slant, -reach)}L${pt(c + gap / 2 + slant, reach)}L${pt(c - gap / 2 + slant, reach)}Z`;
-  return (
-    <g>
-      <ForceArrow x1={x1} y1={y1} x2={x2} y2={y2} color={color} label={label} labelX={labelX} labelY={labelY} labelAnchor={labelAnchor} origin={origin} />
-      <path d={gapPath} fill={VIZ.surface} />
-      <path d={`${cut(c - gap / 2)}${cut(c + gap / 2)}`} stroke={shade(color, 0.2)} strokeWidth={1.6 * ss} strokeLinecap="round" />
     </g>
   );
 }
@@ -394,9 +341,9 @@ interface HengerLupeProps {
 
 /**
  * Lupe som forstørrer hengerfestet: kula på bilen (stålbøyle under støtfangeren), kulekoblingen på hengeren som
- * griper over kula, håndtaket, bruddwiren og ledningen til lysene. Med `showForces` viser to piler kraftparet i
- * kula: bilen drar hengeren fremover og hengeren drar bilen bakover, like store (stiplet når begge er i systemet).
- * Pilene i lupen er et nærbilde av retningene, ikke i samme målestokk som pilene i scenen.
+ * griper over kula, håndtaket og bruddwiren. Med `showForces` viser to piler kraftparet i kula: bilen drar hengeren
+ * fremover og hengeren drar bilen bakover, like store. Pilene står i hver sin høyde, med en stiplet strek ned til
+ * kula (angrepspunktet), som i scenen. De er et nærbilde av retningene, ikke i samme målestokk som pilene i scenen.
  * En ring rundt kula i scenen og en strek viser hva lupen forstørrer. Ankerpunkt: (cx, cy) er midten av lupen.
  */
 export function HengerLupe({ cx, cy, r, tx, ty, tr, lakk, withH, withB, showForces }: HengerLupeProps) {
@@ -407,18 +354,21 @@ export function HengerLupe({ cx, cy, r, tx, ty, tr, lakk, withH, withB, showForc
   const ballId = useSvgId('kulelupe-kule');
   const bgId = useSvgId('kulelupe-vei');
   if (!(r > 8) || ![cx, cy, tx, ty, tr].every(Number.isFinite)) return null;
-  // Lupen viser ca. 36 cm: 1 cm = r/18. Kula ligger litt over midten, så støtfangerkanten og bøylen synes.
-  const z = r / 18;
-  const bx = cx - 2 * z;
-  const by = cy - 5 * z;
+  // Lupen viser ca. 30 cm: 1 cm = r/15, så kula og koblingen blir store nok til å kjennes igjen. Kula ligger midt i
+  // lupen, med støtfangerkanten til høyre og pilene over.
+  const z = r / 15;
+  const bx = cx - 1 * z;
+  const by = cy + 1 * z;
   const P = (x: number, y: number) => `${r2(bx + x * z)},${r2(by + y * z)}`;
   const w = (cm: number) => cm * z;
   const car = { opacity: withB ? 1 : SCENE_DIM };
   const trailer = { opacity: withH ? 1 : SCENE_DIM };
-  const internal = withH && withB;
-  const L = 0.62 * r;
+  const L = 0.6 * r;
+  // Pilene: på bilen (bakover) øverst og på hengeren (fremover) under, begge over kula.
+  const yCar = by - 10 * z;
+  const yTrailer = by - 5 * z;
   // Bøylen på hengerfestet: rett ned fra kula og fram under støtfangeren.
-  const neck = `M${P(0, 2)}L${P(0, 9)}Q${P(0, 21)} ${P(12, 22.5)}L${P(40, 24)}`;
+  const neck = `M${P(0, 2)}L${P(0, 5)}Q${P(0, 11.5)} ${P(8, 12)}L${P(40, 12.5)}`;
 
   // Streken fra ringen rundt kula ut til lupen
   const dx = cx - tx;
@@ -454,25 +404,26 @@ export function HengerLupe({ cx, cy, r, tx, ty, tr, lakk, withH, withB, showForc
       <LinearGradient id={paintId} stops={[[0, tint(lakk, 0.18)], [0.6, lakk], [1, shade(lakk, 0.3)]]} />
       <LinearGradient id={steelId} stops={[[0, SCENE.metalLight], [0.5, SCENE.metal], [1, SCENE.metalDark]]} />
       <RadialGradient id={ballId} fx={0.35} fy={0.3} stops={[[0, SCENE.metalLight], [0.5, SCENE.metal], [1, SCENE.metalDark]]} />
-      <LinearGradient id={bgId} stops={[[0, mix(SCENE.asphalt, SCENE.skyBottom, 0.32)], [1, mix(SCENE.asphalt, SCENE.skyBottom, 0.08)]]} />
+      {/* Bakgrunnen er mørk og rolig (uskarp vei), så det lyse stålet i kula og koblingen skiller seg ut */}
+      <LinearGradient id={bgId} stops={[[0, mix(SCENE.asphalt, SCENE.skyBottom, 0.22)], [1, mix(SCENE.asphalt, SCENE.skyBottom, 0.05)]]} />
       <circle cx={cx + 2} cy={cy + 3} r={r + 1} fill={alpha(SCENE.shadow, 0.35)} />
       <g clipPath={`url(#${clip})`}>
         {/* Bak hengerfestet: veibanen i det andre feltet, lysere innover */}
         <rect x={cx - r} y={cy - r} width={2 * r} height={2 * r} fill={`url(#${bgId})`} />
-        <path d={grains} fill={tint(SCENE.asphalt, 0.35)} opacity={0.6} />
+        <path d={grains} fill={tint(SCENE.asphalt, 0.35)} opacity={0.5} />
 
         {/* Bilen: støtfangeren bak (lakk) med diffusor i svart plast og refleks, bøylen ned under støtfangeren og kula */}
         <g {...car}>
-          <path d={`M${P(12, -40)}L${P(12, 15)}Q${P(12, 21)} ${P(18, 21)}L${P(40, 21)}L${P(40, -40)}Z`} fill={`url(#${paintId})`} stroke={SCENE.outline} strokeWidth={1 * ss} />
-          <path d={`M${P(12.6, 14)}L${P(40, 14)}L${P(40, 21)}L${P(18, 21)}Q${P(12.6, 21)} ${P(12.6, 16)}Z`} fill={TRIM} />
-          <rect x={bx + w(13.4)} y={by + w(-3)} width={w(2.4)} height={w(9)} rx={w(0.8)} fill={TAIL} />
-          <path d={`M${P(13, -40)}L${P(13, 11)}`} stroke={SCENE.highlight} strokeWidth={1.2 * ss} />
-          <path d={neck} fill="none" stroke={SCENE.outline} strokeWidth={w(4.2)} strokeLinecap="round" strokeLinejoin="round" />
-          <path d={neck} fill="none" stroke={TRIM} strokeWidth={w(3.2)} strokeLinecap="round" strokeLinejoin="round" />
-          <path d={`M${P(-1, 4)}L${P(-1, 10)}`} stroke={SCENE.highlight} strokeWidth={0.9 * ss} strokeLinecap="round" />
-          <rect x={bx + w(1.8)} y={by + w(12)} width={w(5.4)} height={w(5.4)} rx={w(1)} fill={TRIM} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
-          <circle cx={bx + w(4.5)} cy={by + w(14.7)} r={w(1.4)} fill={tint(TRIM, 0.25)} />
-          <circle cx={bx} cy={by} r={w(2.5)} fill={`url(#${ballId})`} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+          <path d={`M${P(11, -40)}L${P(11, 4)}Q${P(11, 9)} ${P(16, 9)}L${P(40, 9)}L${P(40, -40)}Z`} fill={`url(#${paintId})`} stroke={SCENE.outline} strokeWidth={1 * ss} />
+          <path d={`M${P(11.6, 3)}L${P(40, 3)}L${P(40, 9)}L${P(16, 9)}Q${P(11.6, 9)} ${P(11.6, 5)}Z`} fill={TRIM} />
+          <rect x={bx + w(12.4)} y={by + w(-10)} width={w(2.4)} height={w(8)} rx={w(0.8)} fill={TAIL} />
+          <path d={`M${P(12, -40)}L${P(12, 1)}`} stroke={SCENE.highlight} strokeWidth={1.2 * ss} />
+          <path d={neck} fill="none" stroke={SCENE.outline} strokeWidth={w(3.8)} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={neck} fill="none" stroke={TRIM} strokeWidth={w(3)} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={`M${P(-0.9, 3)}L${P(-0.9, 6)}`} stroke={SCENE.highlight} strokeWidth={0.9 * ss} strokeLinecap="round" />
+          {/* Kula: blank stål med tydelig kontur og et gjenskinn, så den synes under koblingen */}
+          <circle cx={bx} cy={by} r={w(2.6)} fill={`url(#${ballId})`} stroke={SCENE.metalDark} strokeWidth={1.3 * ss} />
+          <circle cx={bx - w(0.9)} cy={by + w(0.9)} r={w(0.7)} fill={SCENE.highlight} />
         </g>
 
         {/* Hengeren: dragstanga og kulekoblingen som griper over den øvre halvdelen av kula, med håndtak og bruddwire */}
@@ -493,9 +444,11 @@ export function HengerLupe({ cx, cy, r, tx, ty, tr, lakk, withH, withB, showForc
 
         {showForces && (
           <g>
-            {withH && <ForceArrow x1={bx} y1={by} x2={bx + L} y2={by} color={VIZ.tension} width={5} dashed={internal} minLength={0.5} />}
-            {withB && <ForceArrow x1={bx} y1={by} x2={bx - L} y2={by} color={VIZ.tension} width={5} dashed={internal} minLength={0.5} />}
-            <circle cx={bx} cy={by} r={3.2 * ss} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.5 * ss} />
+            <line x1={bx} y1={withB ? yCar : yTrailer} x2={bx} y2={by} stroke={VIZ.surface} strokeWidth={3.6 * ss} strokeLinecap="round" />
+            <line x1={bx} y1={withB ? yCar : yTrailer} x2={bx} y2={by} stroke={VIZ.tension} strokeWidth={1.8 * ss} strokeDasharray={`${3 * ss} ${2.5 * ss}`} />
+            {withH && <ForceArrow x1={bx} y1={yTrailer} x2={bx + L} y2={yTrailer} color={VIZ.tension} width={6} minLength={0.5} />}
+            {withB && <ForceArrow x1={bx} y1={yCar} x2={bx - L} y2={yCar} color={VIZ.tension} width={6} minLength={0.5} />}
+            <circle cx={bx} cy={by} r={3 * ss} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.5 * ss} />
           </g>
         )}
       </g>

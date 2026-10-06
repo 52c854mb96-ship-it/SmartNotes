@@ -40,6 +40,7 @@ import {
 } from '../../kit/scene';
 import {
   BASE_HEIGHT,
+  FLOOR_HEIGHT,
   HAND_OVER_FLOOR,
   buildingFloors,
   floorLevel,
@@ -238,6 +239,13 @@ export function ThrowScene({
   const dimTopX = pathX + 46 * k;
   const dimHX = pathX + 180 * k;
 
+  // Etiketten til h₀ står på gavlen. Legg den i båndet mellom to vinduer (ved et etasjeskille nær midten), ikke oppå et vindu.
+  const hLabelAt = nearestWallBand(task.floor, h0 / 2);
+  const hLabelOffset = (hLabelAt - h0 / 2) * p;
+
+  // «v = 0» over ballen i toppunktet (der er det bare himmel), eller til venstre når det ikke er plass over.
+  const vZeroAbove = topY - rBall - 22 * f >= PT + 2;
+
   const vText = `v = ${fmt(vBall, 1)} m/s`;
   const tagX = Math.min(PR - 6, vx + 12 * k);
 
@@ -306,6 +314,7 @@ export function ThrowScene({
           x2={wallX - 30 * k}
           y2={handY}
           labelSize={0.85}
+          labelOffset={hLabelOffset}
           label={
             <>
               h<TSub>0</TSub> = {fmt(h0, 1)} m
@@ -360,7 +369,14 @@ export function ThrowScene({
           <ForceArrow x1={vx} y1={cv + vLen / 2} x2={vx} y2={cv - vLen / 2} color={VIZ.velocity} width={6} label={inHand ? <>v<TSub>0</TSub></> : 'v'} />
         )}
         {(view === 'topp' || view === 'hoyde' || all) && (
-          <Txt x={pathX - rBall - 6 * k} y={topY + 5 * f} anchor="end" size={0.85} weight={750} color={VIZ.velocity}>
+          <Txt
+            x={vZeroAbove ? pathX : pathX - rBall - 6 * k}
+            y={vZeroAbove ? topY - rBall - 8 * f : topY + 5 * f}
+            anchor={vZeroAbove ? 'middle' : 'end'}
+            size={0.85}
+            weight={750}
+            color={VIZ.velocity}
+          >
             v = 0
           </Txt>
         )}
@@ -388,6 +404,18 @@ export function ThrowScene({
       <rect x={PL} y={PT} width={W} height={Hh} rx={6} fill="none" stroke={VIZ.grid} strokeWidth={1} />
     </g>
   );
+}
+
+/**
+ * Høyden over plenen (m) midt i det tomme båndet på gavlen mellom vinduene i to etasjer (ved et etasjeskille), nærmest
+ * `target`. Vinduene går fra BLOKK.vinduOver til BLOKK.vinduOver + BLOKK.vinduH over hvert gulv.
+ */
+export function nearestWallBand(floor: number, target: number): number {
+  const bands = buildingFloors(floor)
+    .slice(1)
+    .map((lvl) => lvl + BLOKK.vinduOver + (BLOKK.vinduH - FLOOR_HEIGHT) / 2);
+  if (bands.length === 0) return target;
+  return bands.reduce((best, b) => (Math.abs(b - target) < Math.abs(best - target) ? b : best));
 }
 
 /** Ballen et annet sted i banen: svakt, stiplet omriss. */

@@ -41,7 +41,9 @@ import {
 } from '../../kit/scene';
 import { BRAKE_PRESETS, kmhToMs, niceRange, stopVelocity, stopping, type StopInput, type StopResult } from './model';
 import {
+  ARROW_SCALE,
   SURFACES,
+  arrowPairCenter,
   carPosition,
   carVelocity,
   msToKmh,
@@ -63,8 +65,8 @@ const C_BRAKE = VIZ.series[1];
 
 /** Halv fart som tekst, med desimal når farten er et oddetall (25 km/h → «12,5 km/h»). */
 const halfText = (kmh: number): string => `${fmt(kmh / 2, kmh % 2 === 0 ? 0 : 1)} km/h`;
-/** Fart i km/h som tekst, uten desimaler (avrundet fra m/s). */
-const kmhText = (v: number): string => `${fmt(msToKmh(v), 0)} km/h`;
+/** Fart i km/h som tekst, uten desimaler (avrundet fra m/s), med hardt mellomrom før enheten. */
+const kmhText = (v: number): string => `${fmt(msToKmh(v), 0)}\u00a0km/h`;
 
 /** Én bil i scenen: farten den kjører i, utfallet med elgen og etiketten over stripen. */
 interface Lane {
@@ -186,18 +188,19 @@ export default function Bremselengde() {
         )}
       </Readouts>
 
+      {/* Hardt mellomrom mellom tall og enhet, så de ikke deles på to linjer på mobil */}
       <Formula label="Utregning av reaksjonslengde, bremselengde og farten ved elgen">
         <FormulaLine>
-          v<Sub>0</Sub> = {fmt(kmh, 0)} km/h : 3,6 = {fmt(main.v0, 1)} m/s
+          v<Sub>0</Sub> = {fmt(kmh, 0)}&nbsp;km/h : 3,6 = {fmt(main.v0, 1)}&nbsp;m/s
         </FormulaLine>
         <FormulaLine>
-          s<Sub>r</Sub> = v<Sub>0</Sub> · t<Sub>r</Sub> = {fmt(main.v0, 1)} m/s · {fmt(tr, 1)} s = {fmt(r.sr, 1)} m
+          s<Sub>r</Sub> = v<Sub>0</Sub> · t<Sub>r</Sub> = {fmt(main.v0, 1)}&nbsp;m/s · {fmt(tr, 1)}&nbsp;s = {fmt(r.sr, 1)}&nbsp;m
         </FormulaLine>
         <FormulaLine>
           Bremsing: v² − v<Sub>0</Sub>² = 2 · (−a) · s<Sub>b</Sub> med v = 0 gir s<Sub>b</Sub> = v<Sub>0</Sub>² / (2a)
         </FormulaLine>
         <FormulaLine>
-          s<Sub>b</Sub> = ({fmt(main.v0, 1)} m/s)² / (2 · {fmt(a, 1)} m/s²) = {fmt(r.sb, 1)} m
+          s<Sub>b</Sub> = ({fmt(main.v0, 1)}&nbsp;m/s)² / (2 · {fmt(a, 1)}&nbsp;m/s²) = {fmt(r.sb, 1)}&nbsp;m
         </FormulaLine>
         <ElkFormula input={main} r={r} o={o} D={D} />
       </Formula>
@@ -211,23 +214,23 @@ function ElkFormula({ input, r, o, D }: { input: StopInput; r: StopResult; o: Ob
   if (!o.hits)
     return (
       <FormulaLine>
-        Elgen: {fmt(D, 0)} m − {fmt(r.total, 1)} m = {fmt(o.margin, 1)} m igjen når bilen står
+        Elgen: {fmt(D, 0)}&nbsp;m − {fmt(r.total, 1)}&nbsp;m = {fmt(o.margin, 1)}&nbsp;m igjen når bilen står
       </FormulaLine>
     );
   if (o.beforeBraking)
     return (
       <FormulaLine>
-        Elgen: {fmt(D, 0)} m &lt; s<Sub>r</Sub>, så bilen treffer i full fart, {fmt(input.v0, 1)} m/s = {kmhText(input.v0)}
+        Elgen: {fmt(D, 0)}&nbsp;m &lt; s<Sub>r</Sub>, så bilen treffer i full fart, {fmt(input.v0, 1)}&nbsp;m/s = {kmhText(input.v0)}
       </FormulaLine>
     );
   return (
     <>
       <FormulaLine>
-        Elgen: bilen bremser bare s = {fmt(D, 0)} m − {fmt(r.sr, 1)} m = {fmt(o.braked, 1)} m før den treffer
+        Elgen: bilen bremser bare s = {fmt(D, 0)}&nbsp;m − {fmt(r.sr, 1)}&nbsp;m = {fmt(o.braked, 1)}&nbsp;m før den treffer
       </FormulaLine>
       <FormulaLine>
-        v = √(v<Sub>0</Sub>² − 2as) = √(({fmt(input.v0, 1)} m/s)² − 2 · {fmt(input.a, 1)} m/s² · {fmt(o.braked, 1)} m) = {fmt(o.vHit, 1)} m/s ={' '}
-        {kmhText(o.vHit)}
+        v = √(v<Sub>0</Sub>² − 2as) = √(({fmt(input.v0, 1)}&nbsp;m/s)² − 2 · {fmt(input.a, 1)}&nbsp;m/s² · {fmt(o.braked, 1)}&nbsp;m) ={' '}
+        {fmt(o.vHit, 1)}&nbsp;m/s = {kmhText(o.vHit)}
       </FormulaLine>
     </>
   );
@@ -259,8 +262,9 @@ function useContainerTextScale() {
 
 /**
  * Plassen til én stripe (én bil) i scenen, regnet ut fra tekstskaleringen f og skalaen p (figurenheter per meter).
- * Øverst står tittelen (når to biler sammenlignes), så skiltet med farten med pilene for a og v på hver side, så
- * plass til elgen (2,5 m med gevir), veien, mållinjene og til slutt målebåndet i den nederste stripen.
+ * Øverst står tittelen (når to biler sammenlignes), så skiltet med farten, så en egen rad med pilene for a og v
+ * rett over bilen, så plass til elgen (2,5 m med gevir), veien, mållinjene og til slutt målebåndet i den nederste
+ * stripen.
  */
 function stripLayout(f: number, p: number, opts: { titled: boolean; tape: boolean }) {
   const k = Math.max(1, f * 0.85);
@@ -272,8 +276,16 @@ function stripLayout(f: number, p: number, opts: { titled: boolean; tape: boolea
   y += opts.titled ? 24 * f : 8 * f;
   const tagH = 17 * f * 0.9 * 1.55;
   const tagY = y + 2 + tagH / 2;
-  y += tagH + 6;
-  const roadY = y + ELG_MAAL.hoyde * p * obj + 8 * ss;
+  y += tagH + 2;
+  // Raden med pilene: en kort spiss fra skiltet peker ned mellom halene. Over og under midtlinja er det plass til
+  // pilspissen (med glorie) og etiketten «a»/«v», som står litt under linja.
+  const notch = 7 * ss;
+  y += notch;
+  const head = 8.7 * ss + 2 * ss + 1;
+  const arrowY = y + head;
+  y = arrowY + Math.max(head, 6 * f + 2) + 2;
+  const arrowBottom = y;
+  const roadY = y + ELG_MAAL.hoyde * p * obj + 6 * ss;
   const B = 34 * k;
   const roadTop = roadY - 0.7 * B;
   const horizon = roadTop - 9 * k;
@@ -284,7 +296,7 @@ function stripLayout(f: number, p: number, opts: { titled: boolean; tape: boolea
   const tapeY = dimY + 12 * ss;
   const tapeH = 11.5 * f * 1.75;
   const H = Math.round(opts.tape ? tapeY + tapeH + 8 : dimY + 12);
-  return { f, k, ss, obj, titleY, tagY, tagH, roadY, B, roadTop, horizon, vergeY, laneTop, laneBot, dimY, tapeY, H };
+  return { f, k, ss, obj, titleY, tagY, tagH, notch, arrowY, arrowBottom, roadY, B, roadTop, horizon, vergeY, laneTop, laneBot, dimY, tapeY, H };
 }
 
 type StripLayout = ReturnType<typeof stripLayout>;
@@ -379,21 +391,31 @@ function Strip({
   const front = X(s);
   const mid = front - (BIL_MAAL.lengde / 2) * q;
 
-  // Skiltet over bilen med farten nå (eller farten i treffet), med a-pila til venstre og v-pila til høyre.
-  // Bredden er fast for hele bevegelsen, så pilene ikke hopper når tallet får færre sifre.
+  // Skiltet over bilen med farten nå (eller farten i treffet). Bredden er fast for hele bevegelsen.
   const tagText = crashed ? `Treff i ${kmhText(obs.vHit)}` : stopped ? 'Står stille' : kmhText(v);
   const fs = 17 * f * 0.9;
   const widthOf = (txt: string) => Math.max(fs * 1.6, txt.length * fs * 0.6 + 16 * f);
   const tagW = Math.max(widthOf(kmhText(input.v0)), widthOf('Står stille'), obs.hits ? widthOf(`Treff i ${kmhText(obs.vHit)}`) : 0);
   const tagX = Math.min(W - tagW / 2 - 6, Math.max(tagW / 2 + 6, mid));
-  const pointer = Math.max(0, L.roadY - carH - 3 - (L.tagY + L.tagH / 2));
-  // Pilene: én skala for farten (px per m/s) og én for akselerasjonen (px per m/s²), like i begge stripene.
+
+  // Pilene i raden under skiltet: a mot venstre og v mot høyre, med halene på hver side av bilens midtpunkt.
+  // Faste skalaer i begge stripene (v-pila er ARROW_SCALE.v lang ved startfarten til bilen med full fart), og pilene
+  // kortes aldri: får en pil ikke plass ved kanten, flyttes paret sidelengs akkurat så mye som trengs.
   const kk = Math.min(L.k, 1.15);
-  const vx = tagX + tagW / 2 + 5;
-  const ax = tagX - tagW / 2 - 5;
-  const room = 16 * f;
-  const vLen = Math.max(0, Math.min((v * 95 * kk) / Math.max(1, vMax), W - 4 - room - vx));
-  const aLen = braking ? Math.max(0, Math.min(input.a * 7 * kk, ax - 4 - room)) : 0;
+  const moving = !crashed && v > 0.05;
+  const vLen = showArrows && moving ? (v / Math.max(1e-9, vMax)) * ARROW_SCALE.v * kk : 0;
+  const aLen = showArrows && braking ? input.a * ARROW_SCALE.a * kk : 0;
+  // I reaksjonstiden bremser ikke bilen ennå: «a = 0» der a-pila ellers står.
+  const aZero = showArrows && moving && t <= input.tr;
+  const aZeroW = 5 * fs * 0.8 * 0.62;
+  const gap = 9 * L.ss;
+  const lab = 23 * f;
+  const needL = aLen > 0 ? aLen + lab + gap : aZero ? aZeroW + gap + 4 : 0;
+  const needR = vLen > 0 ? vLen + lab + gap : 0;
+  const pc = arrowPairCenter(mid, needL, needR, 4, W - 4);
+  const arrowsShown = vLen > 0 || aLen > 0 || aZero;
+  // Spissen under skiltet: kort når pilene står under det, ellers helt ned til bilen.
+  const pointer = arrowsShown ? L.notch + 1 : Math.max(0, L.roadY - carH - 3 - (L.tagY + L.tagH / 2));
 
   // Mål under veien. Etikettene forkortes eller sløyfes når målet er for kort.
   const edge = X(view.max) + 3;
@@ -428,14 +450,15 @@ function Strip({
         {obs.hits && <WouldBe x0={X(obs.sEnd)} xr={X(res.sr)} xe={Math.min(xe, edge + 6)} top={L.laneTop} bot={L.laneBot} />}
 
         {/* Elgen står i kjørefeltet med brystet D meter foran bilen og ser mot den */}
-        <Elg x={X(D) + ELG_MAAL.bryst * q} y={L.roadY} m={q} flip title="Elg" />
+        <Elg x={X(D) + ELG_MAAL.bryst * q} y={L.roadY} m={q} flip glorie title="Elg" />
 
         {showSight && (
           <g>
             <line x1={driver.x} y1={driver.y} x2={eye.x} y2={eye.y} stroke={VIZ.surface} strokeWidth={3.2 * ss} opacity={0.6} />
             <line x1={driver.x} y1={driver.y} x2={eye.x} y2={eye.y} stroke={VIZ.ink} strokeWidth={1.3 * ss} strokeDasharray={`${4 * ss} ${4 * ss}`} opacity={0.8} />
             {first && fits(eye.x - driver.x, 'Sjåføren ser elgen') && (
-              <Txt x={(driver.x + eye.x) / 2} y={(driver.y + eye.y) / 2 - 7 * ss} size={0.75} weight={600}>
+              // Over siktelinja, men under raden med pilene (ellers kan «v» ved pilspissen havne oppå teksten)
+              <Txt x={(driver.x + eye.x) / 2} y={Math.max((driver.y + eye.y) / 2 - 7 * ss, L.arrowBottom + 0.75 * 17 * f * 0.74 + 2)} size={0.75} weight={600}>
                 Sjåføren ser elgen
               </Txt>
             )}
@@ -456,8 +479,13 @@ function Strip({
         {crashed && <Smell x={X(D)} y={L.roadY - 0.85 * q} r={Math.max(8 * L.k, 0.85 * q)} />}
 
         <ValueTag x={tagX} y={L.tagY} text={tagText} color={crashed ? VIZ.ink : VIZ.velocity} pointer={pointer} />
-        {showArrows && vLen > 3 && <ForceArrow x1={vx} y1={L.tagY} x2={vx + vLen} y2={L.tagY} color={VIZ.velocity} width={6} label="v" />}
-        {showArrows && aLen > 3 && <ForceArrow x1={ax} y1={L.tagY} x2={ax - aLen} y2={L.tagY} color={VIZ.acceleration} width={5} label="a" />}
+        {vLen > 0 && <ForceArrow x1={pc + gap} y1={L.arrowY} x2={pc + gap + vLen} y2={L.arrowY} color={VIZ.velocity} width={6} label="v" />}
+        {aLen > 0 && <ForceArrow x1={pc - gap} y1={L.arrowY} x2={pc - gap - aLen} y2={L.arrowY} color={VIZ.acceleration} width={5} label="a" />}
+        {aZero && (
+          <Txt x={pc - gap} y={L.arrowY + 5 * f} anchor="end" size={0.8} weight={700} color={VIZ.acceleration}>
+            a = 0
+          </Txt>
+        )}
 
         {/* Målene under veien */}
         <MeasureRow
@@ -620,6 +648,16 @@ function SpeedGraph({ lanes, D, t, height }: { lanes: Lane[]; D: number; t: numb
           const vTop = main.v0 * Math.min(1, (sy(0) - (y - 14 * f)) / rectH);
           const xDiag = sx(main.tr) + triW * (1 - vTop / main.v0);
           brake = { x: (sx(main.tr) + xDiag) / 2, y, w: xDiag - sx(main.tr) - 16, h: rectH / 2 - 10 };
+        }
+        // Ved et treff holder etiketten seg til venstre for den loddrette streken der bilen treffer elgen (tEnd):
+        // den flyttes mot venstre, og blir den for trang, brukes bare «s_b» (eller ingen etikett).
+        if (o.hits && !o.beforeBraking) {
+          const lim = sx(o.tEnd) - 8 * f;
+          const left = sx(main.tr) + 4 * f;
+          if (brake.x + brake.w / 2 > lim) {
+            const x = Math.min(brake.x, (left + lim) / 2);
+            brake = { ...brake, x, w: Math.max(0, 2 * Math.min(x - left, lim - x)) };
+          }
         }
         // Ved et treff kjører bilen bare fram til tHit: arealet etter treffet er det bilen ikke rakk å kjøre.
         const tCut = o.hits ? o.tEnd : r.tStop;
@@ -826,9 +864,9 @@ function explanation(kmh: number, tr: number, a: number, D: number, r: StopResul
             : `Her er bremselengden ${fmt(r.sb / r.sr, 1)} ganger så lang som reaksjonslengden.`}
         {a >= BRAKE_PRESETS.torr &&
           tr < 1.8 &&
-          ` Det er derfor fartsgrensen ofte er 30 km/h ved skoler: med samme reaksjonstid og bremser stopper bilen på ${fmt(s30, 1)} m fra 30 km/h, men trenger ${fmt(s50, 1)} m fra 50 km/h.`}
+          ` Fra 30 km/h stopper bilen på ${fmt(s30, 1)} m, fra 50 km/h trenger den ${fmt(s50, 1)} m (samme reaksjonstid og bremser). Derfor er fartsgrensen ofte 30 km/h ved skoler.`}
         {tr >= 1.8
-          ? ` En reaksjonstid på ${fmt(tr, 1)} s er lang, og typisk når sjåføren er uoppmerksom, for eksempel ser på mobilen. Det er derfor det er farlig å bruke mobilen når du kjører: bilen kjører ${fmt(r.sr, 0)} m før du i det hele tatt begynner å bremse.`
+          ? ` En reaksjonstid på ${fmt(tr, 1)} s er lang, og typisk når sjåføren er uoppmerksom, for eksempel ser på mobilen. Da kjører bilen ${fmt(r.sr, 0)} m før sjåføren i det hele tatt begynner å bremse. Derfor er det farlig å se på mobilen bak rattet.`
           : ''}
       </p>
     </>

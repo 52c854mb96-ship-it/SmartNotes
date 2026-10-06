@@ -7,10 +7,11 @@ import {
   exactVelocity,
   facingDirection,
   flightTime,
-  groupMarks,
   isReversing,
   impactSpeed,
   kmhToMs,
+  layoutMarkLabels,
+  markLabel,
   maxHeight,
   maxVelocityError,
   minAxisTopForGround,
@@ -31,6 +32,7 @@ import {
   throwHeight,
   throwPhase,
   throwVelocity,
+  topLabelPlacement,
   topTime,
   turnTime,
   velocity,
@@ -187,33 +189,61 @@ describe('scenen til bevegelsesgrafene (bil på vei)', () => {
     }
   });
 
-  it('etikettene til merker som ligger tett, slås sammen', () => {
+  it('etikettene til sekundmerkene: felles etikett på samme sted, to rader og ingen overlapp', () => {
     const w = (times: number[]) => 10 + 8 * times.length;
-    // 2 s og 4 s på samme sted (vendepunkt), 3 s like ved: alle havner i én gruppe
-    const g = groupMarks(
+    // 2 s og 4 s på samme sted (vendepunkt): én etikett. 3 s like ved: rad 1, så den ikke overlapper.
+    const g = layoutMarkLabels(
       [
         { t: 0, x: 0 },
         { t: 1, x: 200 },
         { t: 2, x: 320 },
         { t: 3, x: 340 },
-        { t: 4, x: 320 },
+        { t: 4, x: 321 },
       ],
       w,
     );
-    expect(g.map((p) => p.times)).toEqual([[0], [1], [2, 3, 4]]);
-    expect(g[2]!.x).toBeCloseTo(330, 12);
-    // Langt fra hverandre: ingen sammenslåing, sortert etter x
-    expect(groupMarks([{ t: 1, x: 100 }, { t: 0, x: 0 }], w).map((p) => p.times)).toEqual([[0], [1]]);
-    expect(groupMarks([], w)).toEqual([]);
-    // Etter sammenslåing overlapper ingen etiketter
-    const many = Array.from({ length: 7 }, (_, i) => ({ t: i, x: i * 12 }));
-    const res = groupMarks(many, w);
-    for (let i = 1; i < res.length; i++) {
-      const a = res[i - 1]!;
-      const b = res[i]!;
-      expect(b.x - w(b.times) / 2 - (a.x + w(a.times) / 2)).toBeGreaterThanOrEqual(4);
+    expect(g.map((p) => p.times)).toEqual([[0], [1], [2, 4], [3]]);
+    expect(g.map((p) => p.row)).toEqual([0, 0, 0, 1]);
+    expect(g[2]!.x).toBeCloseTo(320.5, 12);
+    // Langt fra hverandre: én rad, sortert etter x
+    expect(layoutMarkLabels([{ t: 1, x: 100 }, { t: 0, x: 0 }], w).map((p) => [p.times, p.row])).toEqual([
+      [[0], 0],
+      [[1], 0],
+    ]);
+    expect(layoutMarkLabels([], w)).toEqual([]);
+    // Tett i tett: ingen etiketter overlapper i samme rad, og de som ikke får plass i noen rad, sløyfes
+    const many = Array.from({ length: 7 }, (_, i) => ({ t: i, x: i * 6.5 }));
+    const res = layoutMarkLabels(many, w);
+    for (const row of [0, 1]) {
+      const inRow = res.filter((p) => p.row === row);
+      for (let i = 1; i < inRow.length; i++) {
+        const a = inRow[i - 1]!;
+        const b = inRow[i]!;
+        expect(b.x - w(b.times) / 2 - (a.x + w(a.times) / 2)).toBeGreaterThanOrEqual(4);
+      }
     }
-    expect(res.flatMap((p) => p.times).sort()).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(res.length).toBeLessThan(7);
+    // Etiketter utenfor bildet tar ikke plass
+    const vis = layoutMarkLabels([{ t: 0, x: -50 }, { t: 1, x: 15 }], w, { visible: (x, ww) => x - ww / 2 >= 0 });
+    expect(vis.map((p) => [p.times, p.row])).toEqual([[[1], 0]]);
+    // Bil som er ved s = 5 m både ved t = 1 s og t = 5 s: de to merkene får én etikett, «1 s og 5 s»
+    const m5 = { s0: 0, v0: 6, a: -2 };
+    expect(position(m5, 1)).toBeCloseTo(5, 12);
+    expect(position(m5, 5)).toBeCloseTo(5, 12);
+    const labels = layoutMarkLabels(
+      secondMarks(m5, 5).map((q) => ({ t: q.t, x: 400 + q.s * 40 })),
+      (times) => markLabel(times).length * 8,
+    );
+    expect(labels.find((p) => p.times.includes(1))!.times).toEqual([1, 5]);
+    expect(labels.find((p) => p.times.includes(2))!.times).toEqual([2, 4]);
+  });
+
+  it('etiketten har enhet på hvert tidspunkt, så «1, 5 s» aldri kan leses som 1,5 s', () => {
+    expect(markLabel([3])).toBe('3\u00a0s');
+    expect(markLabel([1, 5])).toBe('1\u00a0s og 5\u00a0s');
+    expect(markLabel([2, 3, 4])).toBe('2\u00a0s, 3\u00a0s og 4\u00a0s');
+    expect(markLabel([])).toBe('');
+    for (const times of [[1, 5], [2, 3, 4], [0, 1, 2, 3]]) expect(markLabel(times)).not.toMatch(/\d, ?\d/);
   });
 });
 
@@ -385,6 +415,46 @@ describe('loddrett kast', () => {
       for (let i = 1; i < b.floors.length; i++) expect(b.floors[i]! - b.floors[i - 1]!).toBeCloseTo(3, 9);
       expect(b.base).toBeLessThan(3);
     }
+  });
+});
+
+describe('etiketten «toppunkt» i v-t-grafen', () => {
+  // Mobil: tekstskalering 1,8, grafen begynner i x0 = 130 og er 310 enheter bred for 2 s, 14,8 enheter per m/s
+  const f = 1.8;
+  const x0 = 130;
+  const x1 = 450;
+  const sx = (t: number) => x0 + 155 * t;
+  const slope = (14.8 * 9.81) / 155;
+  const base = { py: 300, w: 8 * 0.8 * 17 * f * 0.6, h: 0.8 * 17 * f * 0.75, pad: 8 * f, x0, x1, slope };
+
+  it('står under og til venstre for punktet når det er plass (som før)', () => {
+    const p = topLabelPlacement({ ...base, px: sx(1.6) })!;
+    expect(p.anchor).toBe('end');
+    expect(p.x).toBeCloseTo(sx(1.6) - 8 * f, 9);
+    expect(p.y).toBeGreaterThan(300);
+  });
+
+  it('dekker aldri aksetallene når toppunktet kommer tidlig (v₀ = 8 m/s og 5 m/s)', () => {
+    for (const v0 of [8, 5, 3, 1, 0.5]) {
+      const px = sx(v0 / 9.81);
+      const p = topLabelPlacement({ ...base, px })!;
+      expect(p).not.toBeNull();
+      const left = p.anchor === 'end' ? p.x - base.w : p.x;
+      expect(left).toBeGreaterThanOrEqual(x0 + 2);
+      expect(left + base.w).toBeLessThanOrEqual(x1 - 2);
+      if (p.anchor === 'end') {
+        // Under aksen: høyre kant er til venstre for linja ved overkanten av teksten
+        const top = p.y - base.h;
+        expect(p.x).toBeLessThan(px + (top - 300) / slope);
+      } else expect(p.y).toBeLessThan(300);
+    }
+  });
+
+  it('går over til høyre når den ikke får plass under, og sløyfes når noe står i veien der også', () => {
+    const px = sx(0.1);
+    expect(topLabelPlacement({ ...base, px })!.anchor).toBe('start');
+    const blocked = { x: px, y: 200, w: 300, h: 100 };
+    expect(topLabelPlacement({ ...base, px, avoid: [blocked] })).toBeNull();
   });
 });
 

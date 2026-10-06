@@ -110,3 +110,18 @@ export function towMotion(a: number, t: number): { t: number; v: number; s: numb
   const tt = Math.min(Math.max(0, Number.isFinite(t) ? t : 0), towDuration(acc));
   return { t: tt, v: acc * tt, s: 0.5 * acc * tt * tt };
 }
+
+/* ---------- Visning ---------- */
+
+/**
+ * Rund av til `n` gjeldende siffer (standard 3), som i svar: 13 734 N → 13 700 N. Massene er gitt med tre siffer og
+ * g = 9,81 m/s², så G og N vises med tre gjeldende siffer. Gir også antall desimaler til fmt().
+ */
+export function roundSig(v: number, n = 3): { value: number; decimals: number } {
+  if (!Number.isFinite(v) || v === 0) return { value: 0, decimals: 0 };
+  const exp = Math.floor(Math.log10(Math.abs(v)));
+  const decimals = Math.max(0, n - 1 - exp);
+  const step = 10 ** (exp - n + 1);
+  const value = Math.round(v / step) * step;
+  return { value: decimals > 0 ? Number(value.toFixed(decimals)) : value, decimals };
+}

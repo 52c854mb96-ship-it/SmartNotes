@@ -140,11 +140,12 @@ export default function Bevegelsesgrafer() {
         <FormulaLine>
           s = s<Sub>0</Sub> + v<Sub>0</Sub>t + ½at²
         </FormulaLine>
+        {/* Hardt mellomrom mellom tall og enhet, så de ikke deles på to linjer på mobil */}
         <FormulaLine>
-          s = {q(s0, 1, 'm')} + {q(v0, 1, 'm/s')} · {fmt(t, 2)} s + ½ · {q(a, 2, 'm/s²')} · ({fmt(t, 2)} s)² = {fmt(s, 1)} m
+          s = {q(s0, 1, 'm')} + {q(v0, 1, 'm/s')} · {fmt(t, 2)}&nbsp;s + ½&nbsp;·&nbsp;{q(a, 2, 'm/s²')} · ({fmt(t, 2)}&nbsp;s)² = {fmt(s, 1)}&nbsp;m
         </FormulaLine>
         <FormulaLine>
-          v = v<Sub>0</Sub> + at = {q(v0, 1, 'm/s')} + {q(a, 2, 'm/s²')} · {fmt(t, 2)} s = {fmt(v, 1)} m/s
+          v = v<Sub>0</Sub> + at = {q(v0, 1, 'm/s')} + {q(a, 2, 'm/s²')} · {fmt(t, 2)}&nbsp;s = {fmt(v, 1)}&nbsp;m/s
         </FormulaLine>
       </Formula>
 
@@ -153,9 +154,9 @@ export default function Bevegelsesgrafer() {
   );
 }
 
-/** Tall med enhet, i parentes når det er negativt: «(−2,0 m/s²)». */
+/** Tall med enhet (hardt mellomrom), i parentes når det er negativt: «(−2,0 m/s²)». */
 function q(value: number, decimals: number, unit: string): string {
-  const text = `${fmt(value, decimals)} ${unit}`;
+  const text = `${fmt(value, decimals)}\u00a0${unit}`;
   return value < 0 && fmt(value, decimals) !== fmt(0, decimals) ? `(${text})` : text;
 }
 
@@ -417,8 +418,7 @@ function explanation(m: Motion, t: number, v: number, ds: number, dist: number):
         <>
           {' '}
           Areal under t-aksen teller negativt, så forflytningen er mindre i tallverdi enn strekningen bilen faktisk har kjørt,{' '}
-          {fmt(dist, 1)} m. Det er derfor tripptelleren i en bil viser strekningen og ikke forflytningen: den teller opp også når bilen
-          rygger.
+          {fmt(dist, 1)} m. Tripptelleren i en bil viser strekningen, ikke forflytningen: den teller opp også når bilen rygger.
         </>
       )}
     </p>

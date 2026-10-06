@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eulerFall, exactPosition, exactVelocity, terminalVelocity } from './model';
+import { eulerFall, exactPosition, exactVelocity, maxVelocityError, niceRange, terminalVelocity } from './model';
 import {
   BODY_POSITIONS,
   DEPLOY_HEIGHT,
@@ -14,6 +14,7 @@ import {
   extremes,
   forceScale,
   isHeadDown,
+  labelSpot,
   planeRise,
   PLANE_DEPTH,
   rowStep,
@@ -196,7 +197,7 @@ describe('kroppsstilling, høyde og utløsning', () => {
     for (const q of [p, { m: 50, k: 0.5 }, { m: 120, k: 0.1 }])
       for (const t of [0.5, 3, 12, 40]) expect(timeToFall(q, exactPosition(q, t))).toBeCloseTo(t, 6);
     expect(timeToFall(p, 0)).toBe(0);
-    // Fritt fall til 1 000 m (3 000 m) med magen ned tar ca. 1 min; lang tid i forhold til simuleringen
+    // Fallet til 1 000 m (3 000 m) med luftmotstand og magen ned tar ca. 1 min; lang tid i forhold til simuleringen
     const t = timeToFall(p, EXIT_HEIGHT - DEPLOY_HEIGHT);
     expect(t).toBeGreaterThan(55);
     expect(t).toBeLessThan(60);
@@ -241,5 +242,78 @@ describe('skalaer i scenen', () => {
           const e = extremes(q, r);
           expect(e.vMax).toBeLessThan(2 * terminalVelocity(q));
         }
+  });
+});
+
+describe('plassen til verdien i avviksgrafen', () => {
+  /** Avviksgrafen slik ErrorPlot tegner den: PC (f = 1, 800 × 260) og mobil (f = 1,8, 800 × 400). */
+  function plot(q: { m: number; k: number }, f: number, height: number) {
+    const T = simTime(terminalVelocity(q));
+    const curve: [number, number][] = [];
+    for (let d = SIM_DT_MIN; d <= SIM_DT_MAX + 1e-9; d += 0.05) curve.push([d, maxVelocityError(q, eulerFall(q, d, T))]);
+    const peak = Math.max(...curve.map(([, e]) => e), 0.1);
+    const [, yMax] = niceRange(0, peak * 1.05, 4, 0.5);
+    const x0 = 72 * f;
+    const x1 = 800 - 24 * f;
+    const y1 = 34 * f;
+    const y0 = height - 56 * f;
+    const sx = (d: number) => x0 + (d / SIM_DT_MAX) * (x1 - x0);
+    const sy = (e: number) => y0 - (e / yMax) * (y0 - y1);
+    return { curve, pts: curve.map(([d, e]) => [sx(d), sy(e)] as [number, number]), sx, sy, box: { x0, x1, top: y1 + 6 * f, bottom: y0 }, T };
+  }
+
+  it('teksten står alltid inne i plottet, uten å krysse kurven eller dekke punktet, også ved Δt = 2,5 s', () => {
+    for (const [f, height] of [
+      [1, 260],
+      [1.8, 400],
+    ] as const)
+      for (const m of [50, 80, 120])
+        for (const k of [0.1, 0.25, 0.5]) {
+          const q = { m, k };
+          const { pts, sx, sy, box, T } = plot(q, f, height);
+          for (const dt of [SIM_DT_MIN, 0.5, 1, 1.5, 2, 2.4, SIM_DT_MAX]) {
+            const err = maxVelocityError(q, eulerFall(q, dt, T));
+            const px = sx(dt);
+            const py = sy(err);
+            const h = 17 * 0.85 * f;
+            const w = `${err.toFixed(2)} m/s`.length * 0.6 * h;
+            const drop: [number, number][] = [
+              [px, py],
+              [px, box.bottom],
+            ];
+            const spot = labelSpot(pts, px, py, w, h, box, 10 * f, [drop]);
+            const left = spot.anchor === 'end' ? spot.x - w : spot.x;
+            expect(left).toBeGreaterThanOrEqual(box.x0 - 1e-6);
+            expect(left + w).toBeLessThanOrEqual(box.x1 + 1e-6);
+            expect(spot.y - h).toBeGreaterThanOrEqual(box.top - 1e-6);
+            expect(spot.y + 0.25 * h).toBeLessThanOrEqual(box.bottom + 1e-6);
+            expect(spot.crossing).toBe(false);
+            // Punktet og den stiplede streken ned til aksen ligger utenfor teksten
+            const overDrop = px > left && px < left + w && spot.y + 0.25 * h > py;
+            expect(overDrop).toBe(false);
+          }
+        }
+  });
+
+  it('midt på en stigende kurve står teksten rett over til venstre for punktet, uten strek', () => {
+    const pts: [number, number][] = [
+      [0, 200],
+      [400, 100],
+    ];
+    const s = labelSpot(pts, 200, 150, 60, 14, { x0: 0, x1: 400, top: 0, bottom: 200 }, 10);
+    expect(s).toMatchObject({ x: 190, y: 140, anchor: 'end', leader: null, crossing: false });
+  });
+
+  it('i hjørnet oppe til høyre flyttes teksten inn i plottet, med strek til punktet når den står langt unna', () => {
+    // Kurven stiger bratt mot punktet helt oppe i høyre hjørne
+    const pts: [number, number][] = [
+      [0, 200],
+      [300, 120],
+      [400, 6],
+    ];
+    const s = labelSpot(pts, 400, 6, 80, 14, { x0: 0, x1: 400, top: 0, bottom: 200 }, 10);
+    expect(s.anchor === 'end' ? s.x : s.x + 80).toBeLessThanOrEqual(400);
+    expect(s.y - 14).toBeGreaterThanOrEqual(0);
+    expect(s.crossing).toBe(false);
   });
 });
