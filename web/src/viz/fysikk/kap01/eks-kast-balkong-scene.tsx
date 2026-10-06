@@ -10,7 +10,7 @@
  * som scene-kit-et (toninger fra core.tsx, SCENE-farger, tynn kontur, lys fra øvre venstre, myk skygge).
  */
 import { memo } from 'react';
-import { Txt, TSub, VIZ, fmt, useTextScale } from '../../kit';
+import { Txt, TSub, VIZ, useTextScale } from '../../kit';
 import {
   Ball,
   Callout,
@@ -207,7 +207,9 @@ export function ThrowScene({
 
   // Hva som vises
   const all = view === 'alle';
-  const showZero = view !== 'oppgave';
+  // Nullnivået vises også i oppgaven (uten etikett), så det er tydelig at h₀ er høyden til hånda, ikke til balkonggulvet.
+  const showZero = true;
+  const showZeroLabel = view !== 'oppgave';
   const showPlus = view === 'retning';
   const showV = view === 'oppgave' || view === 'retning' || view === 'fart' || view === 'kontroll';
   const showA = view === 'retning' || view === 'topp';
@@ -218,9 +220,11 @@ export function ThrowScene({
   const showGhostHand = !inHand;
   const showGhostTop = view === 'likning' || view === 'losninger' || view === 'fart' || view === 'kontroll' || view === 'krefter' || view === 'simulering';
 
-  // Piler: fartspila i en egen kolonne til høyre for ballen, akselerasjonen til høyre for den.
+  // Piler: fartspila i en egen kolonne til høyre for ballen, akselerasjonen til høyre for den. I toppunktet er v = 0, så
+  // fartskolonnen er ledig: der står a-pila, fra ballen og nedover, til venstre for målet s_topp (ikke oppå etiketten).
   const vx = pathX + rBall + 16 * k;
-  const ax = vx + 44 * k;
+  const aInVColumn = view === 'topp';
+  const ax = aInVColumn ? vx : vx + 44 * k;
   const kv = 4.6 * k; // figurenheter per m/s
   const vLen = vBall * kv;
   const aLen = 42 * k;
@@ -234,9 +238,12 @@ export function ThrowScene({
   };
   const cv = mid(vLen);
   const ca = mid(aLen);
+  const aY1 = aInVColumn ? ballY - 2 * k : ca - aLen / 2;
+  const aY2 = aInVColumn ? ballY - 2 * k + aLen : ca + aLen / 2;
 
-  // Målene: h₀ på gavlen, s_topp (tekst til høyre) og H (tekst til venstre) til høyre for banen.
-  const dimTopX = pathX + 46 * k;
+  // Målene: h₀ på gavlen, s_topp (tekst til høyre) og H (tekst til venstre) til høyre for banen. s_topp står så langt ut
+  // at etiketten «a» til a-pila i fartskolonnen får plass mellom pila og mållinja.
+  const dimTopX = pathX + rBall + 16 * k + 22 * f + 12 * k;
   const dimHX = pathX + 180 * k;
 
   // Etiketten til h₀ står på gavlen. Legg den i båndet mellom to vinduer (ved et etasjeskille nær midten), ikke oppå et vindu.
@@ -246,7 +253,7 @@ export function ThrowScene({
   // «v = 0» over ballen i toppunktet (der er det bare himmel), eller til venstre når det ikke er plass over.
   const vZeroAbove = topY - rBall - 22 * f >= PT + 2;
 
-  const vText = `v = ${fmt(vBall, 1)} m/s`;
+  const vText = `v = ${fmtSig(vBall)} m/s`;
   const tagX = Math.min(PR - 6, vx + 12 * k);
 
   return (
@@ -294,9 +301,11 @@ export function ThrowScene({
         {showZero && (
           <g>
             <line x1={PL} x2={PR} y1={handY} y2={handY} stroke={VIZ.ink} strokeWidth={1.1 * ss} strokeDasharray={`${6 * ss} ${4 * ss}`} opacity={0.6} />
-            <Txt x={PL + 8} y={handY - 7 * f} anchor="start" size={0.8} weight={700}>
-              s = 0
-            </Txt>
+            {showZeroLabel && (
+              <Txt x={PL + 8} y={handY - 7 * f} anchor="start" size={0.8} weight={700}>
+                s = 0
+              </Txt>
+            )}
           </g>
         )}
 
@@ -317,7 +326,7 @@ export function ThrowScene({
           labelOffset={hLabelOffset}
           label={
             <>
-              h<TSub>0</TSub> = {fmt(h0, 1)} m
+              h<TSub>0</TSub> = {fmtSig(h0)} m
             </>
           }
         />
@@ -333,7 +342,7 @@ export function ThrowScene({
             y2={groundY - 2}
             color={VIZ.series[0]}
             width={2.6}
-            label={<>s = −{fmt(h0, 1)} m</>}
+            label={<>s = −{fmtSig(h0)} m</>}
             labelSize={0.85}
             labelY={(handY + groundY) / 2}
           />
@@ -380,21 +389,11 @@ export function ThrowScene({
             v = 0
           </Txt>
         )}
-        {showA && (
-          <ForceArrow
-            x1={ax}
-            y1={ca - aLen / 2}
-            x2={ax}
-            y2={ca + aLen / 2}
-            color={VIZ.acceleration}
-            width={5}
-            label="a"
-          />
-        )}
+        {showA && <ForceArrow x1={ax} y1={aY1} x2={ax} y2={aY2} color={VIZ.acceleration} width={5} label="a" />}
         {(view === 'fart' || view === 'kontroll') && (
           <ValueTag x={tagX} y={cv - Math.abs(vLen) / 2 - 18 * f} anchor="start" text={vText} color={VIZ.velocity} size={0.8} />
         )}
-        {view === 'oppgave' && <ValueTag x={tagX} y={cv - Math.abs(vLen) / 2 - 18 * f} anchor="start" text={`v₀ = ${fmt(v0, 1)} m/s`} color={VIZ.velocity} size={0.8} />}
+        {view === 'oppgave' && <ValueTag x={tagX} y={cv - Math.abs(vLen) / 2 - 18 * f} anchor="start" text={`v₀ = ${fmtSig(v0)} m/s`} color={VIZ.velocity} size={0.8} />}
         {(view === 'krefter' || view === 'simulering') && (
           <Callout x={pathX + rBall * 0.7} y={ballY - rBall * 0.7} lx={pathX + 36 * k} ly={ballY - 46 * k} anchor="start">
             L er størst her

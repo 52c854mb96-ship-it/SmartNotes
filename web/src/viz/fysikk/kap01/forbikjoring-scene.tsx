@@ -406,6 +406,7 @@ function Overview({ o, t, truck, lay }: { o: Overtake; t: number; truck: TruckId
 
 function SideView({ o, t, truck, lay, showArrows }: { o: Overtake; t: number; truck: TruckId; lay: SceneLayout; showArrows: boolean }) {
   const f = useTextScale();
+  const ss = useStrokeScale();
   const clip = useSvgId('fk-scene');
   const { W, top, sceneH, horizon, landH, road, B, m } = lay;
   const L = o.truckLength;
@@ -441,18 +442,44 @@ function SideView({ o, t, truck, lay, showArrows }: { o: Overtake; t: number; tr
 
   // Pilene: én skala for fart (px per m/s) og én for akselerasjon
   const kv = lay.kv;
-  const arrowCarY = yCar - carH - 11 * f;
-  const arrowAccY = arrowCarY - 19 * f;
-  const arrowTruckY = truckTop - 13 * f;
   const xCar = X(front - CAR_LENGTH / 2);
   const xTruck = X(rear + L / 2);
   const xOnc = X(xM + CAR_LENGTH / 2);
   const kmh = (x: number) => `${fmt(msToKmh(x), 0)} km/h`;
+  const arrowTruckY = truckTop - 13 * f;
+  // Når bilen er ved siden av lastebilen, ville pilene til bilen ligget oppå lastebilen. Da løftes de over lastebilen, med
+  // en tynn stiplet strek ned til bilen: på PC over farten til lastebilen, på mobil (der skiltet med den møtende bilen
+  // står over) på samme høyde som den. Pilene løftes når de (med etiketten) kommer inn over lastebilen og senkes når
+  // bakenden av pilene er forbi fronten av lastebilen, så de aldri står halvveis oppe foran førerhuset.
+  const labelW = (text: string) => text.length * 17 * f * 0.82 * 0.62;
+  const aLen = acc > 0 ? Math.max(acc * lay.ka, A_MIN) : 0;
+  const reach = Math.max(v * kv, aLen) + 12 * f + labelW(kmh(v));
+  const overlap = Math.min(xCar + 4, X(rear)) - Math.max(xCar - reach, X(rear + L));
+  const lift = crashNow ? 0 : smooth((overlap + 2) / (10 * f));
+  const lowCarY = yCar - carH - 11 * f;
+  const highCarY = lay.narrow ? arrowTruckY : arrowTruckY - 22 * f;
+  const arrowCarY = lowCarY + (highCarY - lowCarY) * lift;
+  const arrowAccY = arrowCarY - 19 * f;
+  // Pila til lastebilen tones ut når pilene til bilen ville krysset den eller etiketten (mest på mobil, der pilene er
+  // lange i forhold til lastebilen). Lastebilen holder samme fart hele tiden, og farten står også i grafene.
+  const truckBox = { x0: xTruck - o.v0 * kv - 12 * f - labelW(kmh(o.v0)), x1: xTruck + 4, y0: arrowTruckY - 11 * f, y1: arrowTruckY + 11 * f };
+  const carBox = { x0: xCar - reach, x1: xCar + 4, y0: (acc > 0 ? arrowAccY : arrowCarY) - 11 * f, y1: arrowCarY + 11 * f };
+  const clashX = Math.min(truckBox.x1, carBox.x1) - Math.max(truckBox.x0, carBox.x0);
+  const clashY = Math.min(truckBox.y1, carBox.y1) - Math.max(truckBox.y0, carBox.y0);
+  const truckArrowOpacity = crashNow ? 1 : 1 - smooth(Math.min(clashX, clashY) / (4 * f));
   const captionY = 8 + 0.75 * 17 * f * 0.75;
   /** Etiketten står ved spissen av en vannrett pil; går den ut av bildet, flyttes den bak pila. */
-  const keepLabelInside = (x1: number, x2: number, text: string): { labelX?: number; labelAnchor?: 'start' | 'end' } => {
+  /**
+   * Etiketten står ved spissen av en vannrett pil. Går den ut av bildet: for bilen (pil mot venstre) under pila og foran
+   * bilen (`front` er fronten av bilen), så den ikke havner bak pila oppå lastebilen; er det ikke plass der heller, bak
+   * pila. For den møtende bilen (pil mot høyre) bak pila.
+   */
+  const keepLabelInside = (x1: number, x2: number, y: number, text: string, front?: number): { labelX?: number; labelY?: number; labelAnchor?: 'start' | 'end' } => {
     const w = text.length * 17 * f * 0.82 * 0.62;
-    if (x2 < x1 && x2 - 12 * f - w < 4) return { labelX: x1 + 10 * f, labelAnchor: 'start' };
+    if (x2 < x1 && x2 - 12 * f - w < 4) {
+      if (front !== undefined && front - 4 * f - w >= 4) return { labelX: front - 4 * f, labelY: y + 19 * f, labelAnchor: 'end' };
+      return { labelX: x1 + 10 * f, labelAnchor: 'start' };
+    }
     if (x2 > x1 && x2 + 12 * f + w > W - 4) return { labelX: x1 - 10 * f, labelAnchor: 'end' };
     return {};
   };
@@ -490,7 +517,23 @@ function SideView({ o, t, truck, lay, showArrows }: { o: Overtake; t: number; tr
 
         {showArrows && (
           <g>
-            <ForceArrow x1={xTruck} y1={arrowTruckY} x2={xTruck - o.v0 * kv} y2={arrowTruckY} color={VIZ.velocity} width={5.5} label={kmh(o.v0)} labelSize={0.82} />
+            {truckArrowOpacity > 0.02 && (
+              <g opacity={truckArrowOpacity}>
+                <ForceArrow x1={xTruck} y1={arrowTruckY} x2={xTruck - o.v0 * kv} y2={arrowTruckY} color={VIZ.velocity} width={5.5} label={kmh(o.v0)} labelSize={0.82} />
+              </g>
+            )}
+            {lift > 0.02 && (
+              <line
+                x1={xCar}
+                x2={xCar}
+                y1={yCar - carH - 2}
+                y2={arrowCarY + 3}
+                stroke={VIZ.ink}
+                strokeWidth={1.2 * ss}
+                strokeDasharray={`${3 * ss} ${3 * ss}`}
+                opacity={0.7 * lift}
+              />
+            )}
             {!crashNow && (
               <ForceArrow
                 x1={xCar}
@@ -501,12 +544,12 @@ function SideView({ o, t, truck, lay, showArrows }: { o: Overtake; t: number; tr
                 width={5.5}
                 label={kmh(v)}
                 labelSize={0.82}
-                origin={acc > 0}
-                {...keepLabelInside(xCar, xCar - v * kv, kmh(v))}
+                origin={acc > 0 || lift > 0.02}
+                {...keepLabelInside(xCar, xCar - v * kv, arrowCarY, kmh(v), X(front))}
               />
             )}
             {!crashNow && acc > 0 && (
-              <ForceArrow x1={xCar} y1={arrowAccY} x2={xCar - Math.max(acc * lay.ka, A_MIN)} y2={arrowAccY} color={VIZ.acceleration} width={4.5} label="a" labelSize={0.82} />
+              <ForceArrow x1={xCar} y1={arrowAccY} x2={xCar - aLen} y2={arrowAccY} color={VIZ.acceleration} width={4.5} label="a" labelSize={0.82} />
             )}
             {oncomingVisible && !crashNow && (
               <ForceArrow
@@ -518,7 +561,7 @@ function SideView({ o, t, truck, lay, showArrows }: { o: Overtake; t: number; tr
                 width={5.5}
                 label={kmh(o.u)}
                 labelSize={0.82}
-                {...keepLabelInside(xOnc, xOnc + o.u * kv, kmh(o.u))}
+                {...keepLabelInside(xOnc, xOnc + o.u * kv, yNear - carH - 11 * f, kmh(o.u))}
               />
             )}
           </g>
@@ -601,10 +644,10 @@ function RelativeDims({
         xb={X(pTgtFront)}
         y={lay.dim2}
         color={VIZ.ink}
-        chars={30 + name.length}
+        chars={37 + name.length}
         label={
           <>
-            bilen må flytte seg Δs<TSub>rel</TSub> = {fmt(o.rel, 1)} m forbi {name}
+            bilen må flytte seg Δs<TSub>rel</TSub> = {fmt(o.rel, 1)} m i forhold til {name}
           </>
         }
         short={

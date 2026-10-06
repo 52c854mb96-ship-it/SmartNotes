@@ -285,9 +285,19 @@ export const SITUATION_SLIDERS: Record<Situation, { a: SliderSpec; b: SliderSpec
   },
   ko: {
     a: { label: 'Fart utenom køen', min: 60, max: 130, value: 100 },
-    b: { label: 'Fart i køen', min: 10, max: 60, value: 20 },
+    // Høyst 50 km/h, under den laveste farten utenom køen, så det alltid er en kø
+    b: { label: 'Fart i køen', min: 10, max: 50, value: 20 },
   },
 };
+
+/**
+ * Største verdi glidebryter b kan ha når glidebryter a står på `aKmh`. I «Bremser før kameraene» er farten forbi
+ * kameraene høyst farten mellom dem (ellers gir sjåføren gass før kameraene, og navnet på situasjonen passer ikke).
+ */
+export function sliderBMax(situation: Situation, aKmh: number): number {
+  const { b } = SITUATION_SLIDERS[situation];
+  return situation === 'brems' ? Math.max(b.min, Math.min(b.max, aKmh)) : b.max;
+}
 
 export interface SliderSpec {
   label: string;

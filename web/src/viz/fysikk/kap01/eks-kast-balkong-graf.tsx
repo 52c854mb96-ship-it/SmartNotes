@@ -8,6 +8,7 @@
 import { Plot, TSub, Txt, VIZ, fmt, linePath, sample, useTextScale } from '../../kit';
 import { Ball, ForceArrow, useSceneScale, useStrokeScale } from '../../kit/scene';
 import type { ThrowView } from './eks-kast-balkong-scene';
+import { placePassLabel } from './eks-kast-balkong-etiketter';
 import { ColorDot } from './marks';
 import {
   G,
@@ -158,6 +159,9 @@ export function PositionGraph({
 
 /* ---------- v-t-grafen ---------- */
 
+/** Utsnittet i steg 9 viser de siste ZOOM_S sekundene før landingen. */
+export const ZOOM_S = 0.25;
+
 export function VelocityGraph({
   task,
   sol,
@@ -197,21 +201,19 @@ export function VelocityGraph({
       height={height}
       margin={margin}
     >
-      {({ sx, sy, x0, x1 }) => {
-        // Etiketten til simuleringen står over og til venstre for endepunktet. Linja går skrått ned mot høyre, så
-        // teksten må slutte så langt til venstre at linja ikke krysser toppen av den.
-        const rise = (sy(sol.vLand) - sy(task.v0)) / Math.max(1, sx(sol.tLand) - sx(0));
-        // To linjer («med luftmotstand:» og farten), så etiketten får plass også når landingen er langt til høyre.
-        const dragText = `−${fmtSig(sol.dragSpeed)} m/s`;
-        const dragTitle = 'med luftmotstand:';
-        const dragLift = 14 * f;
-        const dragLine = 17 * f;
-        const passText = `forbi hånda: −${fmt(task.v0, 1)} m/s`;
-        const passLeft = sx(tPass) - 12 * f - 1.05 * textWidth(passText, 0.78, f) >= x0 + 4;
-        const dragEnd = Math.max(
-          x0 + 4 + 1.1 * textWidth(dragTitle, 0.78, f),
-          sx(sol.drag.tLand) - (dragLift + dragLine + 13 * f) / Math.max(0.2, rise) - 6 * f,
-        );
+      {({ sx, sy, x0, x1, y1 }) => {
+        const v0 = fmtSig(task.v0);
+        const pass = placePassLabel({
+          px: sx(tPass),
+          py: sy(-task.v0),
+          x0,
+          x1,
+          f,
+          text: `forbi hånda: −${v0} m/s`,
+          head: 'forbi hånda:',
+          tail: `−${v0} m/s`,
+          size: 0.78,
+        });
         return (
           <g>
             {/* Uten luftmotstand: rett linje med stigningstall −g */}
@@ -221,63 +223,50 @@ export function VelocityGraph({
               x2={sx(sol.tLand)}
               y2={sy(sol.vLand)}
               stroke={VIZ.velocity}
-              strokeWidth={(drag ? 5 : 3.5) * ss}
+              strokeWidth={(drag ? 4.5 : 3.5) * ss}
               strokeLinecap="round"
-              opacity={drag ? 0.45 : 1}
+              opacity={drag ? 0.4 : 1}
             />
             <ColorDot x={sx(0)} y={sy(task.v0)} color={VIZ.velocity} r={5.5} />
             <Txt x={sx(0) + 10 * f} y={sy(task.v0) - 8 * f} anchor="start" size={0.8} weight={700} color={VIZ.velocity}>
-              v<TSub>0</TSub> = {fmt(task.v0, 1)} m/s
+              v<TSub>0</TSub> = {v0} m/s
             </Txt>
 
             {/* Toppunktet: v = 0 */}
             <circle cx={sx(sol.tTop)} cy={sy(0)} r={5} fill={VIZ.surface} stroke={VIZ.velocity} strokeWidth={2.2} />
 
-            {/* Forbi hånda på vei ned: v = −v₀ */}
+            {/* Forbi hånda på vei ned: v = −v₀. Etiketten står der v-t-linja går utenom (se placePassLabel). */}
             {view === 'kontroll' && (
               <g>
                 <line x1={sx(0)} x2={sx(tPass)} y1={sy(-task.v0)} y2={sy(-task.v0)} className="viz-guide" />
                 <ColorDot x={sx(tPass)} y={sy(-task.v0)} color={VIZ.velocity} r={5.5} />
-                {/*
-                  Under hjelpelinja til venstre for punktet, eller over den til høyre når det ikke er plass til venstre.
-                  Begge steder går linja (skrått ned mot høyre) utenom teksten.
-                */}
-                <Txt
-                  x={passLeft ? sx(tPass) - 12 * f : sx(tPass) + 12 * f}
-                  y={passLeft ? sy(-task.v0) + 22 * f : sy(-task.v0) - 10 * f}
-                  anchor={passLeft ? 'end' : 'start'}
-                  size={0.78}
-                  weight={700}
-                  color={VIZ.velocity}
-                >
-                  {passText}
-                </Txt>
-              </g>
-            )}
-
-            {/* Farten ved plenen (før simuleringen, så endepunktet med luftmotstand ligger øverst) */}
-            <circle cx={sx(sol.tLand)} cy={sy(sol.vLand)} r={7} fill={VIZ.velocity} stroke={VIZ.surface} strokeWidth={2.5} />
-            <Txt x={Math.min(x1 - 4, sx(sol.tLand) + 4 * f)} y={sy(sol.vLand) + 24 * f} anchor="end" size={0.8} weight={750} color={VIZ.velocity}>
-              {drag ? 'uten: ' : 'v = '}
-              {fmt(sol.vLand, 1)} m/s
-            </Txt>
-
-            {/* Med luftmotstand (simulering) */}
-            {drag && (
-              <g>
-                <path d={linePath(dragPts, sx, sy)} fill="none" stroke={VIZ.friction} strokeWidth={2.4 * ss} strokeLinecap="round" />
-                {['Kurvene skilles først', 'mot slutten, der farten', 'og L er størst.'].map((line, i) => (
-                  <Txt key={i} x={x1 - 6} y={sy(0) - (52 - 18 * i) * f} anchor="end" size={0.75} weight={600} muted>
+                {pass.lines.map((line, i) => (
+                  <Txt key={i} x={pass.x} y={pass.ys[i]!} anchor={pass.anchor} size={0.78} weight={700} color={VIZ.velocity}>
                     {line}
                   </Txt>
                 ))}
-                <circle cx={sx(sol.drag.tLand)} cy={sy(sol.drag.vLand)} r={5.5} fill={VIZ.friction} stroke={VIZ.surface} strokeWidth={2.2} />
-                <Txt x={dragEnd} y={sy(sol.drag.vLand) - dragLift - dragLine} anchor="end" size={0.78} weight={700} color={VIZ.friction}>
-                  {dragTitle}
-                </Txt>
-                <Txt x={dragEnd} y={sy(sol.drag.vLand) - dragLift} anchor="end" size={0.78} weight={700} color={VIZ.friction}>
-                  {dragText}
-                </Txt>
+              </g>
+            )}
+
+            {/* Farten ved plenen (før simuleringen, så kurven med luftmotstand ligger øverst) */}
+            <circle cx={sx(sol.tLand)} cy={sy(sol.vLand)} r={drag ? 5 : 7} fill={VIZ.velocity} stroke={VIZ.surface} strokeWidth={2.5} />
+            <Txt x={Math.min(x1 - 4, sx(sol.tLand) + 4 * f)} y={sy(sol.vLand) + 24 * f} anchor="end" size={0.8} weight={750} color={VIZ.velocity}>
+              {drag ? 'uten: ' : 'v = '}
+              {fmtSig(sol.vLand)} m/s
+            </Txt>
+
+            {/* Med luftmotstand (simulering): stiplet fartskurve, og et forstørret utsnitt av slutten */}
+            {drag && (
+              <g>
+                <path
+                  d={linePath(dragPts, sx, sy)}
+                  fill="none"
+                  stroke={VIZ.velocity}
+                  strokeWidth={2.6 * ss}
+                  strokeDasharray={`${7 * ss} ${5 * ss}`}
+                  strokeLinecap="round"
+                />
+                <DragZoom task={task} sol={sol} dragPts={dragPts} sx={sx} sy={sy} x0={x0} x1={x1} y1={y1} />
               </g>
             )}
 
@@ -287,6 +276,116 @@ export function VelocityGraph({
         );
       }}
     </Plot>
+  );
+}
+
+/**
+ * Forstørret utsnitt av de siste ZOOM_S sekundene i v-t-grafen: kurvene med og uten luftmotstand ligger nesten oppå
+ * hverandre i hele grafen, men her ser eleven at de skilles, og hvor mye (Δv ved landingen). Utsnittet står i det tomme
+ * hjørnet oppe til høyre (over linja), og en stiplet ramme i grafen viser hvor det er hentet fra.
+ */
+function DragZoom({
+  task,
+  sol,
+  dragPts,
+  sx,
+  sy,
+  x0,
+  x1,
+  y1,
+}: {
+  task: BalconyThrowTask;
+  sol: BalconyThrowSolution;
+  dragPts: [number, number][];
+  sx: (t: number) => number;
+  sy: (v: number) => number;
+  x0: number;
+  x1: number;
+  /** Toppen av grafområdet. */
+  y1: number;
+}) {
+  const f = useTextScale();
+  const ss = useStrokeScale();
+  const tB = Math.max(sol.tLand, sol.drag.tLand);
+  const tA = tB - ZOOM_S;
+  const vFree = (t: number) => velocityAt(task, Math.min(t, sol.tLand));
+  const dragAt = (t: number) => {
+    const p = sol.drag.points;
+    let i = p.findIndex((q) => q.t >= t);
+    if (i <= 0) i = 1;
+    const a = p[i - 1]!;
+    const b = p[Math.min(i, p.length - 1)]!;
+    return b.t > a.t ? a.v + ((t - a.t) / (b.t - a.t)) * (b.v - a.v) : a.v;
+  };
+  const vHi = Math.max(vFree(tA), dragAt(tA));
+  const vLo = Math.min(sol.vLand, sol.drag.vLand);
+  const pad = 0.12 * (vHi - vLo);
+  // Rammen i grafen rundt det som forstørres
+  const r = { x: sx(tA) - 3, y: sy(vHi + pad), w: sx(tB) - sx(tA) + 6, h: sy(vLo - pad) - sy(vHi + pad) };
+
+  // Utsnittet: øverste høyre hjørne av grafen, med nedre venstre hjørne over linja (linja går skrått ned mot høyre, så
+  // resten av utsnittet er også over den).
+  const bx0 = x0 + 0.42 * (x1 - x0);
+  const bx1 = x1 - 4;
+  const tAt = (x: number) => (x - sx(0)) / (sx(1) - sx(0));
+  const by1 = sy(velocityAt(task, tAt(bx0))) - 12 * f;
+  const box = { x: bx0, y: y1 + 4, w: bx1 - bx0, h: by1 - (y1 + 4) };
+  if (!(box.w > 120) || !(box.h > 80)) return null;
+
+  // Inni utsnittet: tittel, kurvene og Δv-klammen med «med» og «uten» til høyre
+  const fs = 17 * 0.72 * f;
+  const titleY = box.y + 6 + fs;
+  const labW = 4 * fs * 0.62;
+  const ix0 = box.x + 10;
+  const ix1 = box.x + box.w - 18 - labW;
+  const iy0 = titleY + 10 * f;
+  const iy1 = box.y + box.h - 14 - fs;
+  const zx = (t: number) => ix0 + ((t - tA) / (tB - tA)) * (ix1 - ix0);
+  const zy = (v: number) => iy1 - ((v - (vLo - pad * 0.3)) / (vHi + pad * 0.3 - (vLo - pad * 0.3))) * (iy1 - iy0);
+  const zDrag = dragPts.filter(([t]) => t >= tA - 0.02);
+  const free: [number, number][] = [
+    [tA, vFree(tA)],
+    [sol.tLand, sol.vLand],
+  ];
+  const yMed = zy(sol.drag.vLand);
+  const yUten = zy(sol.vLand);
+  // «med» og «uten» ved hver sin ende av klammen, men aldri nærmere hverandre enn én linje
+  const sep = fs * 1.1;
+  const midY = (yMed + yUten) / 2 + fs * 0.35;
+  const yMedText = Math.min(yMed + fs * 0.35, midY - sep / 2);
+  const yUtenText = Math.max(yUten + fs * 0.35, midY + sep / 2);
+  const bx = zx(tB) + 7;
+  const dv = Math.abs(sol.vLand - sol.drag.vLand);
+  return (
+    <g>
+      {/* Hvor utsnittet er hentet fra */}
+      <rect x={r.x} y={r.y} width={r.w} height={r.h} rx={3} fill="none" stroke={VIZ.muted} strokeWidth={1.2 * ss} strokeDasharray={`${4 * ss} ${3 * ss}`} />
+      <line x1={r.x + r.w / 2} x2={r.x + r.w / 2} y1={r.y} y2={box.y + box.h} stroke={VIZ.muted} strokeWidth={1 * ss} strokeDasharray={`${4 * ss} ${3 * ss}`} />
+      <rect x={box.x} y={box.y} width={box.w} height={box.h} rx={6} fill={VIZ.surface} stroke={VIZ.muted} strokeWidth={1.2 * ss} />
+      <Txt x={box.x + 8} y={titleY} anchor="start" size={0.72} weight={650} muted>
+        Forstørret utsnitt
+      </Txt>
+      {/* Uten luftmotstand: rett linje; med: stiplet */}
+      <path d={linePath(free, zx, zy)} fill="none" stroke={VIZ.velocity} strokeWidth={3 * ss} strokeLinecap="round" opacity={0.55} />
+      <path d={linePath(zDrag, zx, zy)} fill="none" stroke={VIZ.velocity} strokeWidth={2.4 * ss} strokeDasharray={`${6 * ss} ${4 * ss}`} />
+      <circle cx={zx(sol.tLand)} cy={yUten} r={3.5} fill={VIZ.velocity} stroke={VIZ.surface} strokeWidth={1.5} />
+      <circle cx={zx(sol.drag.tLand)} cy={yMed} r={3.5} fill={VIZ.velocity} stroke={VIZ.surface} strokeWidth={1.5} />
+      {/* Klammen mellom endepunktene */}
+      <g stroke={VIZ.ink} strokeWidth={1.2 * ss}>
+        <line x1={bx} x2={bx} y1={yMed} y2={yUten} />
+        <line x1={bx - 3} x2={bx + 3} y1={yMed} y2={yMed} />
+        <line x1={bx - 3} x2={bx + 3} y1={yUten} y2={yUten} />
+      </g>
+      <Txt x={bx + 6} y={yMedText} anchor="start" size={0.72} weight={700} color={VIZ.velocity}>
+        med
+      </Txt>
+      <Txt x={bx + 6} y={yUtenText} anchor="start" size={0.72} weight={700} color={VIZ.velocity}>
+        uten
+      </Txt>
+      <Txt x={box.x + box.w - 8} y={box.y + box.h - 8} anchor="end" size={0.72} weight={700}>
+        Δv = {fmt(dv, 2)} m/s
+      </Txt>
+    </g>
   );
 }
 
@@ -316,14 +415,16 @@ function SlopeTriangle({ sx, sy, t1, v, f }: { sx: (t: number) => number; sy: (v
 export function ForceDiagram({ sol, x, y, w, h }: { sol: BalconyThrowSolution; x: number; y: number; w: number; h: number }) {
   const f = useTextScale();
   const k = useSceneScale();
-  const rBall = 24 * k;
+  // Ballen er liten nok til at L-pila (bare 13–17 % av G) stikker godt ut av den, selv om begge starter i midten.
+  const rBall = 13 * k;
   const titleY = y + 26 * f;
   const cx = x + Math.min(w * 0.4, 150 * f);
-  const cy = titleY + 74 * f + rBall;
-  const LG = Math.max(60, Math.min(240, y + h - 84 * f - cy));
+  const LG = Math.max(60, Math.min(250, y + h - 84 * f - (titleY + 74 * f)));
   const scale = LG / sol.weight;
   const LL = sol.dragMax * scale;
-  const vx = cx - rBall - 28 * k;
+  // Plass over ballen til L-pila og etiketten dens
+  const cy = titleY + 34 * f + Math.max(LL, rBall) + 14 * f;
+  const vx = cx - rBall - 34 * k;
   const vLen = Math.min(LG * 0.55, 5 * sol.speedLand * k);
   return (
     <g>
@@ -331,18 +432,20 @@ export function ForceDiagram({ sol, x, y, w, h }: { sol: BalconyThrowSolution; x
         Kreftene like før ballen lander
       </Txt>
       <Ball x={cx} y={cy} r={rBall} type="golf" spinn={30} title="Golfballen, forstørret" />
-      <ForceArrow x1={cx} y1={cy} x2={cx} y2={cy + LG} color={VIZ.gravity} origin label={<>G = mg = {fmt(sol.weight, 3)} N</>} labelSize={0.85} />
+      {/* Begge kreftene tegnes fra midten av ballen, i samme skala (px per N) */}
+      <ForceArrow x1={cx} y1={cy} x2={cx} y2={cy + LG} color={VIZ.gravity} origin label={<>G = mg = {fmtSig(sol.weight)} N</>} labelSize={0.85} />
       <ForceArrow
         x1={cx}
-        y1={cy - rBall}
+        y1={cy}
         x2={cx}
-        y2={cy - rBall - LL}
+        y2={cy - LL}
         color={VIZ.friction}
         width={6}
         minLength={2}
-        label={<>L = kv² = {fmt(sol.dragMax, 3)} N</>}
+        origin
+        label={<>L = kv² = {fmtSig(sol.dragMax)} N</>}
         labelSize={0.85}
-        labelY={cy - rBall - LL + 4 * f}
+        labelY={cy - LL + 4 * f}
       />
       <ForceArrow x1={vx} y1={cy - vLen / 2} x2={vx} y2={cy + vLen / 2} color={VIZ.velocity} width={5} label="v" labelSize={0.85} />
       <Txt x={x + 8} y={cy + LG + 38 * f} anchor="start" size={0.9} weight={750} color={VIZ.friction}>

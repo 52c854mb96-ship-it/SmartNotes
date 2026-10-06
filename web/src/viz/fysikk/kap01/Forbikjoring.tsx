@@ -121,7 +121,8 @@ export default function Forbikjoring() {
           unit="km/h"
           decimals={0}
         />
-        <Slider label="Akselerasjonen til bilen a" value={a} onChange={setA} min={0.3} max={4} step={0.1} unit="m/s²" decimals={1} />
+        {/* Høyst 3,0 m/s²: mer klarer bare sportsbiler i landeveisfart */}
+        <Slider label="Akselerasjonen til bilen a" value={a} onChange={setA} min={0.3} max={3} step={0.1} unit="m/s²" decimals={1} />
         <Slider label="Avstand til møtende bil D" value={D} onChange={setD} min={100} max={1000} step={10} unit="m" decimals={0} />
         <Slider label="Tid t" value={t} onChange={(x) => setT(x >= o.tEnd - 0.05 ? o.tEnd : x)} min={0} max={tMaxSlider} step={0.1} unit="s" decimals={1} />
       </Controls>
@@ -153,7 +154,7 @@ export default function Forbikjoring() {
       <Legend
         items={[
           { color: C_CAR, label: 'Bilen som kjører forbi' },
-          { color: C_TRUCK, label: truck === 'vogntog' ? 'Vogntoget (båndet er lengden)' : 'Lastebilen (båndet er lengden)' },
+          { color: C_TRUCK, label: truck === 'vogntog' ? 'Vogntoget (bånd fra bakenden til fronten)' : 'Lastebilen (bånd fra bakenden til fronten)' },
           { color: C_TRUCK, label: `Mål: bilen ${fmt(GAP_AHEAD, 0)} m foran`, dashed: true },
           { color: C_ONCOMING, label: `Møtende bil, ${ONCOMING_KMH} km/h` },
           { color: VIZ.muted, label: `Fartsgrensen ${SPEED_LIMIT_KMH} km/h`, dashed: true },
@@ -480,6 +481,8 @@ function Graphs({ o, t, narrow, truck }: { o: Overtake; t: number; narrow: boole
                   <path d={linePath(carPts, sx, sy)} fill="none" stroke={C_CAR} strokeWidth={2.4} opacity={0.35} />
                   {t > 0 && <path d={linePath(sample((x) => carVelocity(o, x), 0, tNow, 80), sx, sy)} fill="none" stroke={C_CAR} strokeWidth={3.5} />}
                 </g>
+                {/* Tidsmarkøren under etikettene, så glorien rundt teksten skjuler den der de krysser */}
+                <line x1={sx(tNow)} x2={sx(tNow)} y1={y1} y2={y0} className="viz-guide" />
                 {showArea && areaBox && !areaInside && (
                   <line x1={areaBox.cx} y1={areaBox.cy - areaBox.h / 2 - 1} x2={triC.x} y2={Math.min(triC.y, sy(o.v0) - 4)} stroke={C_CAR} strokeWidth={1.4} />
                 )}
@@ -492,7 +495,6 @@ function Graphs({ o, t, narrow, truck }: { o: Overtake; t: number; narrow: boole
                 {txt(truckBox, name, C_TRUCK)}
                 {txt(oncBox, oncText, C_ONCOMING)}
                 {txt(carBox, 'bil', C_CAR)}
-                <line x1={sx(tNow)} x2={sx(tNow)} y1={y1} y2={y0} className="viz-guide" />
                 <circle cx={sx(tNow)} cy={sy(o.v0)} r={5 * dot} fill={C_TRUCK} stroke={VIZ.surface} strokeWidth={2} />
                 <circle cx={sx(tNow)} cy={sy(-o.u)} r={5 * dot} fill={C_ONCOMING} stroke={VIZ.surface} strokeWidth={2} />
                 <circle cx={sx(tNow)} cy={sy(carVelocity(o, tNow))} r={6.5 * dot} fill={C_CAR} stroke={VIZ.surface} strokeWidth={2.5} />
@@ -698,27 +700,39 @@ function explanation(o: Overtake, t: number, truck: TruckId): ReactNode {
 
   const aLegal = legalAcceleration(o.v0, o.rel);
   const dv = o.vEnd - o.v0;
+  // Ved kollisjon kommer bilen aldri forbi, så farten «når den er forbi» skrives i kondisjonalis.
+  const crash = o.verdict === 'kollisjon';
+  const whenPast = crash ? (
+    <>Hadde bilen kommet forbi, ville den kjørt {fmt(vEndK, 0)} km/h.</>
+  ) : (
+    <>Når bilen er forbi, kjører den {fmt(vEndK, 0)} km/h.</>
+  );
   let limit: ReactNode;
   if (vEndK > SPEED_LIMIT_KMH + 0.5) {
     if (aLegal > 0) {
       const legal = solveOvertake({ v0: o.v0, a: aLegal, D: o.D, truckLength: o.truckLength, u: o.u });
       limit = (
         <p>
-          Når bilen er forbi, kjører den {fmt(vEndK, 0)} km/h. Fartsgrensen er {SPEED_LIMIT_KMH} km/h, og den gjelder også når du kjører forbi. Bilen startet
-          med samme fart som {name}, så fartsforskjellen til slutt er dobbelt så stor som i snitt: 2 · {fmt(o.rel, 1)} m / {s1(o.T)} = {fmt(dv, 1)} m/s ={' '}
-          {fmt(msToKmh(dv), 0)} km/h. Skal bilen holde seg under {SPEED_LIMIT_KMH} km/h, kan akselerasjonen være høyst {fmt(aLegal, 2)} m/s². Da tar
-          forbikjøringen {s1(legal.T)}, og bilen trenger {m0(legal.needed)} fri vei.
+          {whenPast} Fartsgrensen er {SPEED_LIMIT_KMH} km/h, og den gjelder også når du kjører forbi. Bilen startet med samme fart som {name}, så
+          fartsforskjellen til slutt er dobbelt så stor som i snitt: 2 · {fmt(o.rel, 1)} m / {s1(o.T)} = {fmt(dv, 1)} m/s = {fmt(msToKmh(dv), 0)} km/h.
+          Skal bilen holde seg under {SPEED_LIMIT_KMH} km/h, kan akselerasjonen være høyst {fmt(aLegal, 2)} m/s². Da tar forbikjøringen {s1(legal.T)}, og
+          bilen trenger {m0(legal.needed)} fri vei.
         </p>
       );
     } else
       limit = (
         <p>
-          Når bilen er forbi, kjører den {fmt(vEndK, 0)} km/h. {Name} kjører allerede {fmt(v0K, 0)} km/h, så det er umulig å kjøre forbi uten å bryte
-          fartsgrensen på {SPEED_LIMIT_KMH} km/h. Fartsgrensen gjelder også når du kjører forbi.
+          {whenPast} {Name} kjører allerede {fmt(v0K, 0)} km/h, så det er umulig å kjøre forbi uten å bryte fartsgrensen på {SPEED_LIMIT_KMH} km/h.
+          Fartsgrensen gjelder også når du kjører forbi.
         </p>
       );
   } else
-    limit = (
+    limit = crash ? (
+      <p>
+        Bilen ville holdt seg innenfor fartsgrensen og kjørt {fmt(vEndK, 0)} km/h når den var forbi. Prisen er at forbikjøringen tar lang tid, og da trengs mye
+        fri vei.
+      </p>
+    ) : (
       <p>
         Bilen holder seg innenfor fartsgrensen og kjører {fmt(vEndK, 0)} km/h når den er forbi. Prisen er at forbikjøringen tar lang tid, og da trengs mye fri
         vei.
@@ -727,7 +741,8 @@ function explanation(o: Overtake, t: number, truck: TruckId): ReactNode {
 
   const graphs = (
     <p>
-      I s-t-grafen er stigningstallet farten. {Name} er et bånd med konstant stigningstall, og bredden av båndet er lengden. Bilen er en parabel som blir
+      I s-t-grafen er stigningstallet farten. {Name} er et bånd med konstant stigningstall, og den loddrette avstanden mellom kantene av båndet er lengden
+      av {name}. Bilen er en parabel som blir
       brattere fordi farten øker, og den møtende bilen har negativt stigningstall fordi den kjører i negativ retning. Bilen er forbi når parabelen når den
       stiplede mållinja ved t = T.{' '}
       {o.verdict === 'kollisjon'

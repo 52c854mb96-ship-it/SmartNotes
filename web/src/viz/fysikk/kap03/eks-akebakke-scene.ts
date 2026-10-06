@@ -4,13 +4,14 @@
  *
  * Bakken er tegnet i riktig skala (vinkelen og forholdet mellom h, s og d stemmer), men akeren er tegnet to til tre
  * ganger større enn skalaen, ellers ville hun blitt en prikk i en 30 m lang bakke. Pilene for fart og krefter har
- * hver sin faste skala (px per m/s og px per N) i hele figuren. I e) er kraftskalaen dobbelt så stor, så den lille
+ * hver sin faste skala (px per m/s og px per N) i hele figuren. I e) er kraftskalaen over dobbelt så stor, så den lille
  * luftmotstanden L kan leses; en målestokk i hjørnet viser skalaen hver gang kreftene vises. Tyngden og normalkraften
  * på flaten (d) er ti ganger større enn friksjonen og vises i en lupe med egen skala.
  *
  * Utsnittet følger deloppgaven: bakken (a, b, c, e) eller flaten (d), og hele turen fra A til C når hele løsningen
  * vises. På PC står energipanelet oppe til høyre i himmelen, på mobil i en egen figur under scenen.
  */
+import { fmt } from '../../kit/format';
 import type { SledSolution, SledTask } from './model-eks-akebakke';
 
 export const SCENE_W = 800;
@@ -32,14 +33,15 @@ export const FORCE_PX = 1.3;
 
 /**
  * Hvor langt ned i bakken akeren står når kreftene i bakken tegnes (andel av s), et stykke under midten, så kraftpilene
- * opp langs bakken får plass (også i e), der kraftskalaen er dobbelt så stor).
+ * opp langs bakken får plass (også i e), der kraftskalaen er større).
  */
 export const MID_FRACTION = 0.68;
 /**
- * Kraftskalaen i e) i forhold til resten av figuren, så luftmotstanden L blir en pil og ikke bare en pilspiss. På
- * mobil er pilspissene større (strekene er tykkere), så der er skalaen litt større.
+ * Kraftskalaen i e) i forhold til resten av figuren, så luftmotstanden L blir en pil og ikke bare en pilspiss
+ * (friksjonen R ≈ 170–180 og L ≈ 35–50 figurenheter). På mobil er bakken kortere i figuren, så der er faktoren litt
+ * mindre, ellers går R forbi toppen A i det korteste tallsettet.
  */
-export const E_FORCE_FACTOR = { wide: 2, narrow: 2.4 };
+export const E_FORCE_FACTOR = { wide: 2.5, narrow: 2.25 };
 
 export type Spot = 'A' | 'mid' | 'B' | 'flat' | 'C' | 'Cest';
 export type Camera = 'alt' | 'bakke' | 'flate';
@@ -236,9 +238,13 @@ export interface SceneLayout {
   xCest: number;
   /** Energipanelet i himmelen (PC), ellers null. */
   panel: Box | null;
-  /** Lupen med G og N på flaten (bare i utsnittet av flaten) og midten av skiltet under den. */
+  /**
+   * Lupen med G og N på flaten (bare i utsnittet av flaten) og midten av skiltet «N = G = …» som hører til den. På PC
+   * står lupen rett over akeren (til venstre for energipanelet) med skiltet til venstre for seg, på mobil oppe til
+   * høyre med skiltet under seg, så strekene fra ringen rundt akeren ut til lupen ikke går gjennom skiltet.
+   */
   lupe: Circle | null;
-  lupeTag: { x: number; y: number } | null;
+  lupeTag: { x: number; y: number; text: string } | null;
   /** Målestokken for kreftene oppe til venstre: der teksten («20 N») begynner, og midten av streken (y). */
   scaleBar: { x: number; y: number };
 }
@@ -296,15 +302,28 @@ export function sceneLayout(task: SledTask, sol: SledSolution, opts: { narrow: b
   const panelH = ledgerHeight(f);
   const panel = narrow ? null : { x: W - 8 - panelW, y: 8, w: panelW, h: panelH };
   const flatClear = narrow ? 0 : 8 + panelH + headroom + 6;
-  // Lupen på flaten: oppe til høyre på mobil, til venstre for energipanelet på PC, med et skilt under seg.
-  const lupeR = Math.round((narrow ? 47 : 76) * Math.max(1, f));
-  const lupe =
-    camera === 'flate'
-      ? { x: (panel ? panel.x - 20 : W - 12) - lupeR, y: 10 * f + lupeR, r: lupeR }
-      : null;
-  // Skiltet «N = G = 441 N» (ca. 135 · f bredt) under lupen, inni figuren
-  const lupeTag = lupe ? { x: Math.min(lupe.x, W - 8 - 70 * f), y: lupe.y + lupe.r + 8 * f + tagHeight(f) / 2 } : null;
-  const lupeClear = lupeTag ? lupeTag.y + tagHeight(f) / 2 + 12 * f : 0;
+  // Lupen på flaten med skiltet «N = G = 441 N». Mobil: oppe til høyre (langt til høyre for akeren), skiltet under
+  // lupen, nede på snøen. PC: rett over akeren til venstre for energipanelet, skiltet til venstre for lupen.
+  const lupeR = Math.round((narrow ? LUPE_R.narrow : LUPE_R.wide) * Math.max(1, f));
+  const tagText = `N = G = ${fmt(sol.Nflat, 0)} N`;
+  const tagW = valueTagWidth(tagText, f);
+  const tagH = tagHeight(f);
+  let lupe: Circle | null = null;
+  let lupeTag: SceneLayout['lupeTag'] = null;
+  let lupeClear = 0;
+  if (camera === 'flate') {
+    if (narrow || !panel) {
+      lupe = { x: W - 10 - lupeR, y: 10 * f + lupeR, r: lupeR };
+      lupeTag = { x: Math.min(lupe.x, W - 8 - tagW / 2), y: lupe.y + lupeR + 8 * f + tagH / 2, text: tagText };
+      // Skiltet skal være inni figuren (H = groundY + 50 · f)
+      lupeClear = lupeTag.y + tagH / 2 + 8 * f - 50 * f;
+    } else {
+      lupe = { x: panel.x - 20 - lupeR, y: 10 * f + lupeR, r: lupeR };
+      lupeTag = { x: lupe.x - lupeR - 12 * f - tagW / 2, y: lupe.y + 0.3 * lupeR, text: tagText };
+      // Ringen rundt akeren står rett under lupen
+      lupeClear = lupe.y + lupeR + 12 + 0.75 * RIDER_TOP * rppm + 0.49 * rppm;
+    }
+  }
   // Utsnittet av flaten har ingen bakketopp, så det trenger ikke den høye himmelen (bare plass til akeren og lupen).
   const minGround = camera === 'flate' ? 0 : 150 * f;
   const groundY = Math.round(Math.max(hillTop * ppm + headroom + 10, flatClear, lupeClear, minGround));
@@ -337,6 +356,15 @@ export function sceneLayout(task: SledTask, sol: SledSolution, opts: { narrow: b
     lupeTag,
     scaleBar: { x: 18 * f, y: 22 * f },
   };
+}
+
+/** Radien til lupen på flaten (ganger tekstskalaen på mobil): stor nok til at G og N er minst ca. 35 px lange på mobil. */
+export const LUPE_R = { wide: 76, narrow: 64 };
+
+/** Bredden på et verdiskilt (ValueTag med size 0,9) med teksten `text` og tekstskalaen f. */
+export function valueTagWidth(text: string, f: number): number {
+  const fs = 17 * f * 0.9;
+  return Math.max(fs * 1.6, text.length * fs * 0.6 + 16 * f);
 }
 
 /** Hvor dypt snøjordet bak flaten er (fra flaten opp til horisonten), som andel av høyden til akeren. */
@@ -487,8 +515,8 @@ export function riderRing(L: SceneLayout, fr: Frame): Circle {
 export const S_DIM_OFFSET = 36;
 
 /**
- * Vinkelbuen ved B: en liten bue nær B (radius r) mellom den vannrette linja og bakken, og bokstaven α inne i
- * vinkelen der vinkelen er høy nok til bokstaven (`rho` fra B langs midtlinja). Står akeren der (smal figur), flyttes
+ * Vinkelbuen ved B: en bue nær B (radius r, like innenfor bokstaven og foran brettet) mellom den vannrette linja og
+ * bakken, og bokstaven α inne i vinkelen der vinkelen er høy nok til bokstaven (`rho` fra B langs midtlinja). Står akeren der (smal figur), flyttes
  * bokstaven forbi brettet. Den vannrette hjelpelinja går litt forbi bokstaven (`leg`). Alt ligger nærmere B enn der
  * s-målet krysser den vannrette linja. `glyphW` og `glyphH` er omtrentlig bredde og høyde på bokstaven.
  */
@@ -506,7 +534,24 @@ export function angleMark(L: SceneLayout, task: SledTask, sol: SledSolution): { 
   const front = rider - 0.64 * sled - 6 * f;
   const rear = rider + 0.4 * sled + 6 * f;
   if (rho + glyphW / 2 > front && rho - glyphW / 2 < rear) rho = rear + 4 * f + glyphW / 2;
-  return { r: 40 * f, rho, leg: rho + glyphW / 2 + 12 * f, glyphW, glyphH };
+  // Buen går like innenfor bokstaven, men ender alltid på bakken foran brettet (ikke under det)
+  const r = Math.max(30 * f, Math.min(rho - glyphW / 2 - 6 * f, front - 4 * f));
+  return { r, rho, leg: rho + glyphW / 2 + 12 * f, glyphW, glyphH };
+}
+
+/**
+ * Hvor langt etiketten til s-målet flyttes opp mot A (figurenheter, negativ = mot A), så den ikke står oppå bokstaven
+ * α eller den stiplede linja ved B. `labelW` er bredden på etiketten. Uten vinkelen står etiketten midt på.
+ */
+export function sLabelOffset(L: SceneLayout, task: SledTask, sol: SledSolution, mark: { leg: number } | null, labelW: number): number {
+  if (!mark) return 0;
+  const slopeLen = Math.hypot(L.X(sol.run) - L.X(0), L.Y(0) - L.Y(task.h));
+  return Math.min(0, slopeLen / 2 - labelW / 2 - (mark.leg + 6 * L.f));
+}
+
+/** Omtrentlig bredde på en etikett i figuren (Txt med relativ størrelse `size`). */
+export function labelWidth(text: string, size: number, f: number): number {
+  return text.length * 17 * size * f * 0.6;
 }
 
 /** Der s-målet (forskjøvet `offset` vinkelrett under bakken) krysser den vannrette linja gjennom B, målt fra B. */
@@ -603,8 +648,7 @@ export function riderBox(L: SceneLayout, fr: Frame): Box {
 /** Boksen til et verdiskilt over akeren (samme mål som ValueTag med size 0,9). */
 export function tagBox(L: SceneLayout, fr: Frame, text: string): Box {
   const c = tagCenter(L, fr);
-  const fs = 17 * L.f * 0.9;
-  const w = Math.max(fs * 1.6, text.length * fs * 0.6 + 16 * L.f);
+  const w = valueTagWidth(text, L.f);
   const h = tagHeight(L.f);
   return { x: c.x - w / 2, y: c.y - h / 2, w, h };
 }

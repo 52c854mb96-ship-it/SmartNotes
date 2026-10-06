@@ -15,7 +15,7 @@ import {
   useSvgId,
 } from '../../kit/scene';
 import { Bygg, Byggeplass, KrokOgLast, Stromvei, Taarnkran, useFigureScale } from './eks-kran-deler';
-import { EnergyFlow, flowHeight, flowLabel, kJ3 } from './eks-kran-energi';
+import { EnergyFlow, flowHeight, flowLabel, kJ3, kWh3 } from './eks-kran-energi';
 import {
   CRANE,
   FACADE_X,
@@ -33,7 +33,7 @@ import {
   type CraneLayout,
   type FigureSpec,
 } from './eks-kran-scene';
-import { CRANE_TASKS, LOAD_TEXT, POWER_PRICE, solveCraneTask, type CraneSolution, type CraneTask } from './model-eks-kran';
+import { CRANE_TASKS, LOAD_TEXT, POWER_PRICE, sigDecimals, solveCraneTask, type CraneSolution, type CraneTask } from './model-eks-kran';
 
 /**
  * Eksempeloppgave (3A–3F): en tårnkran løfter en last opp til det øverste dekket på en boligblokk. Kreftene ved jevn
@@ -211,12 +211,12 @@ export default function EksKran() {
       ),
       math: [
         <>
-          E<Sub>el</Sub> = {fmt(s.Eel, 0)} J / (3,6 · 10⁶ J/kWh) = {fmt(s.EelKWh, 4)} kWh
+          E<Sub>el</Sub> = {fmt(s.Eel, 0)} J / (3,6 · 10⁶ J/kWh) = {fmt(s.EelKWh, sigDecimals(s.EelKWh, 4))} kWh
         </>,
       ],
       answer: (
         <>
-          Kranen bruker {kJ3(s.Eel)} ≈ {fmt(s.EelKWh, 3)} kWh elektrisk energi på løftet.
+          Kranen bruker {kJ3(s.Eel)} ≈ {kWh3(s.Eel)} elektrisk energi på løftet.
         </>
       ),
       tip: `Med en strømpris på ${fmt(POWER_PRICE, 2)} kr/kWh koster løftet bare om lag ${fmt(s.costOre, 0)} øre. Den elektriske effekten under løftet er P / η = ${fmt(s.Pel / 1000, 1)} kW.`,

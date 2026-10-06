@@ -180,7 +180,7 @@ const viz: VizMeta[] = [
     sections: ['3B', '3C', '3D', '3E', '3F'],
     title: 'Akebrett ned bakken',
     summary:
-      'Farten nederst uten friksjon, energien som ble termisk energi, gjennomsnittlig friksjonskraft, hvor langt brettet glir på flaten og hvor stor luftmotstanden er, steg for steg.',
+      'Farten nederst uten friksjon, energien som ble termisk energi, den gjennomsnittlige motkraften fra friksjon og luftmotstand, hvor langt brettet glir på flaten og hvor stor luftmotstanden er, steg for steg.',
     keywords: [
       'eksempeloppgave',
       'eksamen',

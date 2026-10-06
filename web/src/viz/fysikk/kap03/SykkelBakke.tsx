@@ -695,7 +695,7 @@ function ExplainText({ c, choice }: { c: Climb; choice: Choice }): ReactNode {
         {grade * 2 <= GRADE_MAX
           ? `Dobler du stigningen til ${fmt(steeper, 1)}\u00a0%, blir G∥ nesten dobbelt så stor, og med samme effekt faller farten til ${fmt(vSteep, 1)}\u00a0km/h.`
           : `I en så bratt bakke er G∥ nesten hele kraften du må overvinne.`}{' '}
-        Kraften fra veien er gitt av bakken, F = {air ? 'G∥ + R + L' : 'G∥ + R'}, og i bratt bakke er den stor. Derfor gir du ned i motbakke: et lavt gir
+        Med jevn fart må kraften fra veien være F = {air ? 'G∥ + R + L' : 'G∥ + R'} uansett gir, og i bratt bakke er den stor. Derfor gir du ned i motbakke: et lavt gir
         gjør at beina kan gi den store kraften på bakhjulet med vanlig pedalkraft og like rask tråkking, selv om hjulet går sakte.
         {unreal &&
           ` Uten luftmotstand blir farten urealistisk høy i slake bakker (${fmt(c.kmh, 0)}\u00a0km/h). Slå på luftmotstand: på nesten flat vei er det lufta du kjemper mest mot.`}

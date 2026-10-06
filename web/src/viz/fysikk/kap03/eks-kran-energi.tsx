@@ -8,7 +8,7 @@
 import { Txt, VIZ, fmt } from '../../kit';
 import { SCENE, mix, useStrokeScale } from '../../kit/scene';
 import type { CraneSolution, CraneTask } from './model-eks-kran';
-import { sigDecimals } from './model-eks-kran';
+import { J_PER_KWH, sigDecimals } from './model-eks-kran';
 
 export type FlowStage = 'up' | 'upKwh' | 'down' | 'round';
 
@@ -20,6 +20,15 @@ const C_HEAT = VIZ.friction;
 export function kJ3(E: number): string {
   const k = E / 1000;
   return `${fmt(k, sigDecimals(k, 3))} kJ`;
+}
+
+/**
+ * Energi i kWh med tre gjeldende siffer, som kJ3, så svaret har like mange siffer i begge enhetene:
+ * 266 832 J → «0,0741 kWh», 463 523 J → «0,129 kWh».
+ */
+export function kWh3(E: number): string {
+  const kwh = E / J_PER_KWH;
+  return `${fmt(kwh, sigDecimals(kwh, 3))} kWh`;
 }
 
 /** Prosent uten desimaler: 0,75 → «75 %». */
@@ -62,7 +71,7 @@ export function EnergyFlow({ task, s, stage, f }: { task: CraneTask; s: CraneSol
     inName: 'Elektrisk energi',
     inColor: C_EL,
     inE: s.Eel,
-    inExtra: stage === 'upKwh' ? `= ${fmt(s.EelKWh, 4)} kWh` : undefined,
+    inExtra: stage === 'upKwh' ? `≈ ${kWh3(s.Eel)}` : undefined,
     outName: 'Potensiell energi',
     outColor: C_EP,
     outE: s.W,

@@ -15,7 +15,7 @@
  * tyngden G = mg. En simulering med Eulers metode som i 1E (a = −g − (k/m)·v·|v|, først farten og så posisjonen,
  * Δt = 0,001 s) viser hvor mye svarene endres.
  */
-import { fmt } from '../../kit/format';
+import { fmt, fmtSci } from '../../kit/format';
 
 export const G = 9.81;
 
@@ -46,14 +46,31 @@ export interface BalconyThrowTask {
 
 /**
  * Tre tallsett. En golfball har massen 46 g og diameteren 4,3 cm. Med ρ = 1,2 kg/m³ og en formfaktor (C_d) på ca. 0,4
- * ved disse fartene blir k = ½ρC_dA ≈ 3 · 10⁻⁴ kg/m. Balkongene er i 2.–4. etasje (5,5–11,3 m), og startfartene
- * 5,0–9,5 m/s er et vanlig håndkast.
+ * ved disse fartene blir k = ½ρC_dA ≈ 3 · 10⁻⁴ kg/m. Balkongene er i 2.–4. etasje (5,50–11,3 m), og startfartene
+ * 5,00–9,40 m/s er et vanlig håndkast.
+ *
+ * Tallene oppgis med tre gjeldende siffer (8,40 m, 7,50 m/s, 46,0 g, 3,00 · 10⁻⁴ kg/m), så svarene får tre og
+ * mellomsvarene fire. Startfarten i tallsett 3 er valgt så alle kontrollregningene i løsningen går opp med tallene
+ * som vises (se testene): med 9,50 m/s havner L = 0,05945 N akkurat på grensen mellom 0,0594 og 0,0595.
  */
 export const BALCONY_THROW_TASKS: BalconyThrowTask[] = [
   { name: 'Elias', floor: 3, h0: 8.4, v0: 7.5, m: 0.046, k: 3.0e-4 },
   { name: 'Sofie', floor: 4, h0: 11.3, v0: 5.0, m: 0.046, k: 3.0e-4 },
-  { name: 'Amir', floor: 2, h0: 5.5, v0: 9.5, m: 0.046, k: 3.0e-4 },
+  { name: 'Amir', floor: 2, h0: 5.5, v0: 9.4, m: 0.046, k: 3.0e-4 },
 ];
+
+/** Gjeldende siffer i tallene i oppgaveteksten, svarene og mellomsvarene. */
+export const SIG_DATA = 3;
+export const SIG_ANSWER = 3;
+export const SIG_STEP = 4;
+
+/**
+ * Bygningen kasteren bor i, med artikkel: «en boligblokk», men «et rekkehus» når kasteren bor i 2. etasje (eller
+ * lavere), for kasteren bor i øverste etasje, og en blokk med bare to etasjer ser ut som et rekkehus.
+ */
+export function dwellingText(floor: number): string {
+  return floor <= 2 ? 'et rekkehus' : 'en boligblokk';
+}
 
 /** Gulvet i etasje `floor` over plenen (m): 1. etasje er grunnmuren. */
 export function floorLevel(floor: number): number {
@@ -305,3 +322,63 @@ export function fmtPercent(fraction: number): string {
   const p = Math.abs(fraction) * 100;
   return `${p < 9.95 ? fmt(p, 1) : fmt(p, 0)} %`;
 }
+
+/**
+ * Tallene slik løsningen viser dem, fra én funksjon så oppgaveteksten, utregningen og svarene alltid stemmer med
+ * hverandre: dataene og svarene med tre gjeldende siffer, mellomsvarene med fire. Testene regner kontrollene i
+ * løsningen på nytt med disse tallene og sjekker at de gir de samme svarene.
+ */
+export function solutionNumbers(task: BalconyThrowTask, sol: BalconyThrowSolution) {
+  const data = (v: number) => fmtSig(v, SIG_DATA);
+  const ans = (v: number) => fmtSig(v, SIG_ANSWER);
+  const step = (v: number) => fmtSig(v, SIG_STEP);
+  const q = sol.quad;
+  const tRounded = Math.round(sol.tLand * 10) / 10;
+  return {
+    /** Oppgitt: h₀ (m), v₀ (m/s), m (g og kg) og k (kg/m). */
+    h0: data(task.h0),
+    v0: data(task.v0),
+    mGram: data(task.m * 1000),
+    mKg: data(task.m),
+    k: fmtSci(task.k, SIG_DATA - 1),
+    /** a) s_topp og H. */
+    sTop: step(sol.sTop),
+    sTopAns: ans(sol.sTop),
+    H: step(sol.H),
+    HAns: ans(sol.H),
+    /** b) Andregradslikningen at² + bt + c = 0 med a = ½g, og løsningene. */
+    qa: fmt(q.a, 3),
+    twoA: fmt(2 * q.a, 2),
+    disc: step(q.disc),
+    root: step(q.root),
+    tLand: step(sol.tLand),
+    tLandAns: ans(sol.tLand),
+    tLand1: fmt(sol.tLand, 1),
+    tNeg: ans(sol.tNeg),
+    /** Kontrollen i b): tiden opp og tiden ned fra toppunktet. */
+    tTop: step(sol.tTop),
+    tFall: step(sol.tFall),
+    tSum: ans(sol.tTop + sol.tFall),
+    /** c) Farten ved plenen. */
+    vLand: step(sol.vLand),
+    vLandAns: ans(sol.vLand),
+    vSquared: step(sol.vSquared),
+    speed: step(sol.speedLand),
+    speedAns: ans(sol.speedLand),
+    /** Omregnet til km/h med to gjeldende siffer («ca. 54 km/h»), så det stemmer også med det avrundede svaret. */
+    speedKmh: fmt(sol.speedLandKmh, 0),
+    /** Den vanlige feilen i c): farten regnet ut med tiden avrundet til én desimal. */
+    tRounded: fmt(tRounded, 1),
+    vRounded: fmt(task.v0 - G * tRounded, 1),
+    /** d) Tyngden, luftmotstanden like før landingen og forholdet. */
+    weight: step(sol.weight),
+    weightAns: ans(sol.weight),
+    drag: step(sol.dragMax),
+    dragAns: ans(sol.dragMax),
+    ratio: fmt(sol.dragRatio, 3),
+    pct: fmtPercent(sol.dragRatio),
+    kOverM: fmtSci(task.k / task.m, 2),
+  };
+}
+
+export type SolutionNumbers = ReturnType<typeof solutionNumbers>;

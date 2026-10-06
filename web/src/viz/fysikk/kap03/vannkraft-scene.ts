@@ -1,10 +1,12 @@
 /**
- * Geometrien i scenen «Vannkraftverk» (ren matematikk uten React, så den kan testes): magasinet med demningen,
- * fjellsida med rørgata, kraftstasjonen, elva og bygda.
+ * Geometrien i scenen «Vannkraftverk» (ren matematikk uten React, så den kan testes): magasinet med demningen
+ * (eller bekken med et lite bekkeinntak når vannføringen er liten), fjellsida med rørgata, kraftstasjonen, elva og
+ * bygda, og utsnittet som viser scenen.
  *
  * Fallhøyden går fra 5 m (elveterskel) til 1 000 m (de høyeste fjellkraftverkene), så scenen kan ikke tegnes i
  * målestokk. Høyden i figuren følger logaritmen til fallhøyden (hver dobling flytter magasinet like langt), og
- * figuren sier fra om det. Alt annet (demningen, stasjonen, trærne) har fast størrelse.
+ * figuren sier fra om det. Alt annet (demningen, stasjonen, trærne) har fast størrelse. Ved liten fallhøyde ligger
+ * alt lavt i figuren, så utsnittet beskjærer himmelen over (`viewTop`).
  */
 import { FLOW_STEPS, HEAD_STEPS } from './model-vannkraft';
 
@@ -79,6 +81,20 @@ function logFraction(v: number, lo: number, hi: number): number {
   return clamp(Math.log(v / lo) / Math.log(hi / lo), 0, 1);
 }
 
+/**
+ * Største vannføring (m³/s) som tegnes som en bekk med et lite bekkeinntak (en lav terskel i betong og en liten
+ * inntaksdam). Større vannføring tegnes som et magasin bak en høy demning. Så lite vann (opptil 200 L/s) tar man fra
+ * en bekk; ingen bygger en stor demning for det.
+ */
+export const STREAM_MAX_Q = 0.2;
+
+export type IntakeKind = 'magasin' | 'bekk';
+
+/** Hva vannet kommer fra: en bekk (liten vannføring) eller et magasin. */
+export function intakeKind(Q: number): IntakeKind {
+  return Q <= STREAM_MAX_Q * (1 + 1e-9) ? 'bekk' : 'magasin';
+}
+
 export interface Dam {
   /** Oppstrøms side (mot magasinet), loddrett. */
   x: number;
@@ -88,10 +104,14 @@ export interface Dam {
   crestW: number;
   /** Nedstrøms fot (der fjellsida begynner). */
   toeX: number;
+  /** Hvor mye den nedstrøms siden heller: vannrett lengde per høyde (px/px). */
+  face: number;
 }
 
 export interface HydroScene {
   lay: HydroLayout;
+  /** Magasin bak en høy demning, eller bekk med et lite bekkeinntak (lav terskel). */
+  kind: IntakeKind;
   /** 0–1 langs glidebryteren for fallhøyden. */
   u: number;
   /** Fallhøyden i figuren (px): fra vannflata i magasinet ned til midten av turbinen. */
@@ -101,6 +121,12 @@ export interface HydroScene {
   dam: Dam;
   /** Overflata av terrenget fra venstre kant til høyre kant (med bunnen av magasinet og elveleiet). */
   terrain: Pt[];
+  /** Hvor mange punkter i `terrain` som hører til bunnen av magasinet eller bekken (til og med foten av demningen). */
+  bedPoints: number;
+  /** Vannflata i magasinet eller inntaksdammen: fra x1 til demningen. */
+  pool: { x1: number; x2: number };
+  /** Bunnen av bekken fra venstre kant ned til inntaksdammen (tom for et magasin). Bekken renner oppå. */
+  streamBed: Pt[];
   /** Fjellsida fra foten av demningen til foten av lia (der rørgata ligger). */
   slope: Pt[];
   /**
@@ -122,8 +148,11 @@ export interface HydroScene {
 
 /** Høyden på turbinen over bakken, som andel av høyden på stasjonen. */
 export const TURBINE_LIFT = 0.19;
-/** Hvor høyt over vannflata kronen på demningen står (px). */
+/** Hvor høyt taket på stasjonen er over veggene, som andel av høyden på veggene. */
+export const ROOF_PITCH = 0.3;
+/** Hvor høyt over vannflata kronen på demningen står (px), og terskelen i et bekkeinntak. */
 const FREEBOARD = 7;
+const FREEBOARD_STREAM = 3;
 
 /**
  * Hele scenen for fallhøyden h og vannføringen Q i utformingen `lay`. Magasinet ligger øverst til venstre bak
@@ -135,15 +164,20 @@ export function hydroScene(h: number, Q: number, lay: HydroLayout): HydroScene {
   const { groundY, stationW, stationH } = lay;
   const turbineY = groundY - TURBINE_LIFT * stationH;
   const surfaceY = turbineY - drop;
+  const kind = intakeKind(Q);
+  const stream = kind === 'bekk';
+  const pipeW = lerp(lay.pipe[0], lay.pipe[1], flowFraction(Q));
 
-  // Demningen: dybden i magasinet vokser med fallhøyden, men demningen er aldri høyere enn 53 px.
-  const lakeDepth = clamp(0.35 * (groundY - surfaceY), 18, 46);
-  const crestY = surfaceY - FREEBOARD;
+  // Demningen: dybden i magasinet vokser med fallhøyden, men demningen er aldri høyere enn 53 px. I et
+  // bekkeinntak er inntaksdammen bare så dyp at røret får plass under vannflata, og terskelen er lav og bred.
+  const lakeDepth = stream ? pipeW + 10 : clamp(0.35 * (groundY - surfaceY), 18, 46);
+  const crestY = surfaceY - (stream ? FREEBOARD_STREAM : FREEBOARD);
   const baseY = surfaceY + lakeDepth;
   const xDam = lerp(lay.xDam[0], lay.xDam[1], u);
-  const crestW = 9;
-  const toeX = xDam + crestW + 0.72 * (baseY - crestY);
-  const dam: Dam = { x: xDam, crestY, baseY, crestW, toeX };
+  const crestW = stream ? 7 : 9;
+  const face = stream ? 0.55 : 0.72;
+  const toeX = xDam + crestW + face * (baseY - crestY);
+  const dam: Dam = { x: xDam, crestY, baseY, crestW, toeX, face };
 
   // Fjellsida: slak ved toppen og foten og brattest midt på (cosinusform), med noen små hyller.
   const footX = toeX + lerp(lay.run[0], lay.run[1], u);
@@ -161,15 +195,45 @@ export function hydroScene(h: number, Q: number, lay: HydroLayout): HydroScene {
   const riverX2 = riverX1 + lay.riverW;
   const river = { x1: riverX1, x2: riverX2, y: groundY + 9, depth: 22 };
 
-  // Terrenget: fjellet til venstre for magasinet, bunnen av magasinet, demningen står på en rygg, fjellsida,
-  // dalbunnen, elveleiet og et flatt jorde der bygda ligger.
-  const shoreX = -30;
+  // Bunnen oppstrøms for demningen. Magasinet: fjellet til venstre, bunnen av magasinet og ryggen demningen står på.
+  // Bekken: bekkeleiet kommer ned fra venstre (med et lite trinn) og munner ut i en kort inntaksdam foran terskelen.
+  let bed: Pt[];
+  let pool: { x1: number; x2: number };
+  const streamBed: Pt[] = [];
+  if (stream) {
+    const poolX1 = xDam - clamp(0.42 * xDam, 46, 96);
+    const rise = clamp(0.3 * poolX1, 16, 40);
+    bed = [
+      [-60, surfaceY - 1.3 * rise],
+      [0, surfaceY - rise],
+      [0.42 * poolX1, surfaceY - 0.62 * rise],
+      [0.6 * poolX1, surfaceY - 0.5 * rise],
+      [0.82 * poolX1, surfaceY - 0.16 * rise],
+      [poolX1, surfaceY + 1],
+      [poolX1 + 0.3 * (xDam - poolX1), baseY - 2],
+      [xDam - 6, baseY],
+      [xDam, baseY],
+    ];
+    pool = { x1: poolX1 - 4, x2: xDam };
+    for (let i = 0; i <= 24; i++) {
+      const x = -4 + ((poolX1 + 4) * i) / 24;
+      streamBed.push([x, terrainY(bed, x)]);
+    }
+  } else {
+    const shoreX = -30;
+    bed = [
+      [-60, surfaceY - 30],
+      [shoreX, surfaceY + 0.55 * lakeDepth],
+      [0.28 * xDam, baseY - 2],
+      [0.7 * xDam, baseY],
+      [xDam, baseY],
+    ];
+    pool = { x1: -4, x2: xDam };
+  }
+
+  // Terrenget: bunnen oppstrøms, fjellsida, dalbunnen, elveleiet og et flatt jorde der bygda ligger.
   const terrain: Pt[] = [
-    [-60, surfaceY - 30],
-    [shoreX, surfaceY + 0.55 * lakeDepth],
-    [0.28 * xDam, baseY - 2],
-    [0.7 * xDam, baseY],
-    [xDam, baseY],
+    ...bed,
     ...slope,
     [station.x + stationW + 2, groundY],
     [riverX1, groundY + 4],
@@ -182,12 +246,11 @@ export function hydroScene(h: number, Q: number, lay: HydroLayout): HydroScene {
 
   // Rørgata: inntaket ligger like over bunnen av magasinet, røret går gjennom foten av demningen og følger
   // fjellsida (litt over bakken, på støtter) ned til stasjonen, der det går vannrett inn til turbinen.
-  const pipeW = lerp(lay.pipe[0], lay.pipe[1], flowFraction(Q));
   const lift = pipeW / 2 + 4;
   const intakeY = baseY - lift;
   const pipe: Pt[] = [[xDam - 16, intakeY]];
   // Der røret kommer ut av den skrå nedstrøms siden av demningen
-  pipe.push([toeX - 0.72 * (baseY - intakeY), intakeY]);
+  pipe.push([toeX - face * (baseY - intakeY), intakeY]);
   // Langs lia: punktene på bakken løftet loddrett, men aldri lavere enn turbinen (røret går ikke under den).
   for (let i = 1; i < slope.length - 1; i++) {
     const [x, y] = slope[i]!;
@@ -199,12 +262,16 @@ export function hydroScene(h: number, Q: number, lay: HydroLayout): HydroScene {
 
   return {
     lay,
+    kind,
     u,
     drop,
     surfaceY,
     turbine: { x: turbineX, y: turbineY },
     dam,
     terrain,
+    bedPoints: bed.length,
+    pool,
+    streamBed,
     slope,
     pipe: smoothCorners(pipe, 1),
     intake: { x: xDam - 16, y: intakeY },
@@ -213,6 +280,25 @@ export function hydroScene(h: number, Q: number, lay: HydroLayout): HydroScene {
     river,
     village: { x1: riverX2 + 10, x2: lay.W },
   };
+}
+
+/* ---------- Utsnittet ---------- */
+
+export interface ViewRoom {
+  /** Himmel over kronen på demningen (px): plass til etikettene over demningen og magasinet, sola og skyene. */
+  sky: number;
+  /** Plass over mønet på stasjonen (px): skiltet med effekten og panelet med stoppeklokka over det. */
+  roof: number;
+}
+
+/**
+ * Toppen av utsnittet (y i figuren). Ved liten fallhøyde ligger magasinet lavt, og øvre del av figuren ville bare
+ * vært himmel. Utsnittet beholder derfor bare `room.sky` himmel over demningen og `room.roof` over mønet på
+ * stasjonen, og beskjærer resten (aldri over toppen av figuren). Hele tall, så viewBox blir ryddig.
+ */
+export function viewTop(sc: HydroScene, room: ViewRoom): number {
+  const ridgeY = sc.station.y - (1 + ROOF_PITCH) * sc.station.h;
+  return Math.max(0, Math.floor(Math.min(sc.dam.crestY - room.sky, ridgeY - room.roof)));
 }
 
 /* ---------- Plassering av etiketter ---------- */

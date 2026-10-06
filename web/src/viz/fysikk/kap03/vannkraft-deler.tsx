@@ -20,7 +20,7 @@ import {
   useSvgId,
   type PaintName,
 } from '../../kit/scene';
-import { polylineLength, pointAlong, terrainY, type Dam, type Pt } from './vannkraft-scene';
+import { ROOF_PITCH, polylineLength, pointAlong, terrainY, type Dam, type Pt } from './vannkraft-scene';
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
 const pts = (p: Pt[]) => p.map(([x, y], i) => `${i ? 'L' : 'M'}${r1(x)},${r1(y)}`).join('');
@@ -47,6 +47,10 @@ function offsetDown(p: Pt[], d: number, wobble = 0, seed = 1): Pt[] {
  * Fjellet i snitt, som kraftstasjonen og rørgata: torv og gress på overflaten (fra Terreng), et tynt lag jord og
  * så fast fjell med lag (sprekker omtrent parallelt med overflaten) og noen loddrette sprekker. Høyt oppe er
  * fjellet lysere (bart fjell), lenger ned mørkere. Klippes til terrenget. Tegnes rett etter Terreng.
+ *
+ * Det lyse øverst kommer fra himmelen (SCENE.skyBottom), ikke fra snøfargen: om dagen blir fjellet lyst grått som
+ * før, og i skumringen (mørkt tema) tar det farge av den mørke kveldshimmelen og blir dempet som resten av scenen,
+ * i stedet for å lyse som betong eller snø. Nederst blandes det litt mot skyggen i fjellene i bakgrunnen.
  */
 export const FjellSnitt = memo(function FjellSnitt({
   terrain,
@@ -98,9 +102,9 @@ export const FjellSnitt = memo(function FjellSnitt({
         x2={0}
         y2={bottom}
         stops={[
-          [0, mix(SCENE.stone, SCENE.snow, 0.3)],
-          [0.45, mix(SCENE.stone, SCENE.snow, 0.12)],
-          [1, mix(SCENE.stone, SCENE.stoneDark, 0.35)],
+          [0, mix(SCENE.stone, SCENE.skyBottom, 0.38)],
+          [0.45, mix(SCENE.stone, SCENE.skyBottom, 0.15)],
+          [1, mix(mix(SCENE.stone, SCENE.stoneDark, 0.35), SCENE.mountainShade, 0.25)],
         ]}
       />
       <g clipPath={`url(#${id}c)`}>
@@ -125,12 +129,13 @@ export const FjellSnitt = memo(function FjellSnitt({
 
 /**
  * Betongdemning sett fra siden (i snitt): loddrett side mot magasinet, skrå side nedstrøms, gangbane med rekkverk
- * på kronen og støpeskjøter. Tegnes etter vannet i magasinet og rørgata (røret går gjennom foten).
+ * på kronen og støpeskjøter. Tegnes etter vannet i magasinet og rørgata (røret går gjennom foten). Uten `rekkverk`
+ * blir den en lav terskel i et bekkeinntak.
  */
-export const Demning = memo(function Demning({ dam }: { dam: Dam }) {
+export const Demning = memo(function Demning({ dam, rekkverk = true }: { dam: Dam; rekkverk?: boolean }) {
   const ss = useStrokeScale();
   const id = useSvgId('vk-dam');
-  const { x, crestY, baseY, crestW, toeX } = dam;
+  const { x, crestY, baseY, crestW, toeX, face } = dam;
   const H = baseY - crestY;
   const outline: Pt[] = [
     [x - 2, baseY + 3],
@@ -143,7 +148,7 @@ export const Demning = memo(function Demning({ dam }: { dam: Dam }) {
   // Støpeskjøter: vannrette linjer hver 8. px, fra den loddrette siden til den skrå
   const joints: string[] = [];
   for (let y = crestY + 8; y < baseY - 3; y += 8) {
-    const xr = x + crestW + 0.72 * (y - crestY);
+    const xr = x + crestW + face * (y - crestY);
     joints.push(`M${r1(x + 1)},${r1(y)}L${r1(xr - 1)},${r1(y)}`);
   }
   // Rekkverket på kronen
@@ -175,7 +180,7 @@ export const Demning = memo(function Demning({ dam }: { dam: Dam }) {
       <path d={joints.join('')} stroke={shade(CONCRETE, 0.3)} strokeWidth={0.7 * ss} opacity={0.55} />
       {/* Våte striper nedover den skrå siden */}
       <path
-        d={`M${r1(x + crestW + 0.72 * H * 0.25)},${r1(crestY + H * 0.25)}l${r1(0.72 * H * 0.5)},${r1(H * 0.5)}`}
+        d={`M${r1(x + crestW + face * H * 0.25)},${r1(crestY + H * 0.25)}l${r1(face * H * 0.5)},${r1(H * 0.5)}`}
         stroke={shade(CONCRETE, 0.35)}
         strokeWidth={2.4 * ss}
         opacity={0.25}
@@ -184,8 +189,98 @@ export const Demning = memo(function Demning({ dam }: { dam: Dam }) {
       <path d={poly(outline)} fill="none" stroke={SCENE.outline} strokeWidth={0.9 * ss} strokeLinejoin="round" />
       {/* Kronen: lys kant og rekkverk */}
       <path d={`M${r1(x)},${r1(crestY + 0.8)}H${r1(x + crestW)}`} stroke={tint(CONCRETE, 0.5)} strokeWidth={1.4 * ss} />
-      <path d={posts.join('')} stroke={SCENE.metalDark} strokeWidth={0.9 * ss} />
-      <path d={`M${r1(x)},${r1(crestY - railH)}H${r1(x + crestW)}`} stroke={SCENE.metalDark} strokeWidth={1.1 * ss} strokeLinecap="round" />
+      {rekkverk && <path d={posts.join('')} stroke={SCENE.metalDark} strokeWidth={0.9 * ss} />}
+      {rekkverk && <path d={`M${r1(x)},${r1(crestY - railH)}H${r1(x + crestW)}`} stroke={SCENE.metalDark} strokeWidth={1.1 * ss} strokeLinecap="round" />}
+    </g>
+  );
+});
+
+/* ---------------------------------------------------------------- Bekken */
+
+/** Høyden på vannet i bekken over bunnen (px) langs bekken: jevn, men tynnere helt nederst der den møter dammen. */
+function streamDepth(s: number, k: number): number {
+  return (s < 0.85 ? 4 : 4 - 2.6 * ((s - 0.85) / 0.15)) * k;
+}
+
+/**
+ * Bekken som renner ned mot inntaksdammen, i snitt: et tynt lag vann oppå bekkeleiet (`bed`, fra venstre kant ned
+ * til dammen), med lys overflate, krusninger som renner nedover (med `t`) og noen runde steiner i og ved bekken.
+ * Tegnes etter terrenget og fjellsnittet.
+ */
+export const Bekk = memo(function Bekk({ bed, t, k = 1, seed = 3 }: { bed: Pt[]; t: number; k?: number; seed?: number }) {
+  const ss = useStrokeScale();
+  const id = useSvgId('vk-bekk');
+  if (bed.length < 2) return null;
+  const L = polylineLength(bed);
+  const total = L[L.length - 1] ?? 1;
+  const top: Pt[] = bed.map(([x, y], i) => [x, y - streamDepth((L[i] ?? 0) / total, k)]);
+  const bottom = bed.map(([x, y]): Pt => [x, y + 1.2]).reverse();
+  const water = poly([...top, ...bottom]);
+  // Steiner i bekken: delvis under vann, med lys fra øvre venstre
+  const rnd = sceneRandom(seed);
+  const stones = [0.16, 0.47, 0.74].map((f, i) => {
+    const a = pointAlong(bed, f * total);
+    const r = (i === 1 ? 6.5 : 4.8 + rnd() * 1.4) * k;
+    return { x: a.x + (rnd() - 0.5) * 6, y: a.y + 0.6, r };
+  });
+  const dash = 7 * k;
+  const period = 19 * k;
+  const offset = -((t * 22) % period);
+  return (
+    <g aria-hidden>
+      <LinearGradient
+        id={`${id}s`}
+        x2={0.6}
+        y2={1}
+        stops={[
+          [0, tint(SCENE.stone, 0.22)],
+          [0.55, SCENE.stone],
+          [1, shade(SCENE.stoneDark, 0.2)],
+        ]}
+      />
+      <LinearGradient
+        id={`${id}v`}
+        stops={[
+          [0, SCENE.waterLight],
+          [0.45, SCENE.water],
+          [1, SCENE.waterDeep],
+        ]}
+      />
+      {stones.map((st, i) => (
+        <path
+          key={i}
+          d={`M${r1(st.x - st.r)},${r1(st.y)}C${r1(st.x - st.r)},${r1(st.y - st.r * 1.25)} ${r1(st.x + st.r * 0.9)},${r1(st.y - st.r * 1.35)} ${r1(st.x + st.r)},${r1(st.y)}Z`}
+          fill={`url(#${id}s)`}
+          stroke={SCENE.outline}
+          strokeWidth={0.7 * ss}
+          strokeLinejoin="round"
+        />
+      ))}
+      <path d={water} fill={`url(#${id}v)`} opacity={0.92} />
+      <path d={pts(top)} fill="none" stroke={tint(SCENE.waterLight, 0.35)} strokeWidth={1.1 * ss} strokeLinecap="round" opacity={0.9} />
+      {/* Krusninger som renner nedover */}
+      <path
+        d={pts(top.map(([x, y]): Pt => [x, y + 1.6 * k]))}
+        fill="none"
+        stroke={tint(SCENE.waterLight, 0.5)}
+        strokeWidth={0.9 * ss}
+        strokeLinecap="round"
+        strokeDasharray={`${r1(dash)} ${r1(period - dash)}`}
+        strokeDashoffset={r1(offset)}
+        opacity={0.8}
+      />
+      {/* Små virvler bak steinene */}
+      {stones.map((st, i) => (
+        <path
+          key={i}
+          d={`M${r1(st.x + st.r * 0.7)},${r1(st.y - streamDepth(0.5, k) + 0.6)}q${r1(st.r * 0.6)},${r1(-1.2 * k)} ${r1(st.r * 1.3)},0`}
+          fill="none"
+          stroke={tint(SCENE.waterLight, 0.55)}
+          strokeWidth={0.8 * ss}
+          strokeLinecap="round"
+          opacity={0.85}
+        />
+      ))}
     </g>
   );
 });
@@ -315,9 +410,9 @@ export function stationPoints(s: StationGeom, turbineX: number, turbineY: number
     generator: { x: turbineX, top: y - 0.76 * h, bottom: y - 0.44 * h, w: genW },
     /** Snittet i veggen (høyre kant av åpningen). */
     cutX: x + 0.66 * w,
-    roof: { left: x - 6, right: x + w + 6, eaveY: y - h, ridgeY: y - h - 0.3 * h },
+    roof: { left: x - 6, right: x + w + 6, eaveY: y - h, ridgeY: y - h - ROOF_PITCH * h },
     /** Gjennomføringene på taket der kraftlinja starter. */
-    bushings: [0, 1, 2].map((i) => ({ x: x + w * (0.6 + 0.1 * i), y: y - h - 0.3 * h - 9 })),
+    bushings: [0, 1, 2].map((i) => ({ x: x + w * (0.6 + 0.1 * i), y: y - h - ROOF_PITCH * h - 9 })),
     /** Utløpet i høyre vegg (der vannet renner ut i elva). */
     outlet: { x: x + w + 1, y: y + 9 },
   };

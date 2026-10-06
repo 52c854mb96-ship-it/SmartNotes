@@ -10,7 +10,10 @@ import {
   boxesOverlap,
   figureSpec,
   flatLupeMap,
+  labelWidth,
   riderRing,
+  sLabelOffset,
+  valueTagWidth,
   scaleBarForce,
   scaleBarTextW,
   ledgerRows,
@@ -24,6 +27,26 @@ import {
   type Spot,
 } from './eks-akebakke-scene';
 import { SLED_TASKS, solveSledTask } from './model-eks-akebakke';
+import { outerTangents } from './trappelop-scene';
+import { fmt } from '../../kit/format';
+
+/** Om linjestykket fra p til q går gjennom boksen b (sjekker punkter tett langs linja). */
+function segmentHitsBox(p: { x: number; y: number }, q: { x: number; y: number }, b: Box): boolean {
+  for (let i = 0; i <= 200; i++) {
+    const x = p.x + ((q.x - p.x) * i) / 200;
+    const y = p.y + ((q.y - p.y) * i) / 200;
+    if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) return true;
+  }
+  return false;
+}
+
+/** Korteste avstand fra punktet c til linjestykket fra p til q. */
+function distToSegment(c: { x: number; y: number }, p: { x: number; y: number }, q: { x: number; y: number }): number {
+  const dx = q.x - p.x;
+  const dy = q.y - p.y;
+  const t = Math.max(0, Math.min(1, ((c.x - p.x) * dx + (c.y - p.y) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(c.x - (p.x + t * dx), c.y - (p.y + t * dy));
+}
 
 const STATES = [...Array.from({ length: STEP_COUNT + 1 }, (_, i) => ({ step: i, showAll: false })), { step: STEP_COUNT, showAll: true }];
 const SCREENS = [
@@ -185,29 +208,52 @@ describe('utformingen av scenen', () => {
           }
 
           if (spec.flatLupe) {
-            it(`${label}: lupen med G og N er inni figuren, fri for akeren, pilene og panelet, og G = N`, () => {
+            it(`${label}: lupen med G og N er inni figuren, fri for akeren, pilene, panelet og skiltet, og G = N`, () => {
               const lupe = L.lupe!;
               const tag = L.lupeTag!;
+              expect(tag.text).toBe(`N = G = ${fmt(s.Nflat, 0)} N`);
               expect(lupe.x - lupe.r).toBeGreaterThan(0);
               expect(lupe.x + lupe.r).toBeLessThan(L.W);
               expect(lupe.y - lupe.r).toBeGreaterThan(0);
               const fr = spotFrame(L, task, s, spec.rider);
               const ring = riderRing(L, fr);
               expect(Math.hypot(ring.x - lupe.x, ring.y - lupe.y)).toBeGreaterThan(ring.r + lupe.r + 10);
-              // Skiltet under lupen er over flaten og ikke oppå akeren
-              const tagBoxL: Box = { x: tag.x - 68 * L.f, y: tag.y - 14 * L.f, w: 136 * L.f, h: 28 * L.f };
-              expect(tagBoxL.y + tagBoxL.h).toBeLessThan(L.groundY);
+              // Skiltet er inni figuren, utenfor lupen, og ikke oppå akerne
+              const w = valueTagWidth(tag.text, L.f);
+              const h = 17 * L.f * 0.9 * 1.55;
+              const tagBoxL: Box = { x: tag.x - w / 2, y: tag.y - h / 2, w, h };
+              expect(tagBoxL.x).toBeGreaterThan(0);
               expect(tagBoxL.x + tagBoxL.w).toBeLessThan(L.W);
+              expect(tagBoxL.y).toBeGreaterThan(0);
+              expect(tagBoxL.y + tagBoxL.h).toBeLessThan(L.H - 4);
+              expect(boxesOverlap(tagBoxL, { x: lupe.x - lupe.r, y: lupe.y - lupe.r, w: 2 * lupe.r, h: 2 * lupe.r }, 4)).toBe(false);
               for (const p of visible) expect(boxesOverlap(riderBox(L, spotFrame(L, task, s, p)), tagBoxL, 4), p).toBe(false);
+              // Strekene fra ringen ut til lupen går ikke gjennom skiltet
+              const t = outerTangents(ring, lupe)!;
+              expect(t).not.toBeNull();
+              for (const [a, b] of t) expect(segmentHitsBox(a, b, tagBoxL)).toBe(false);
               if (L.panel) {
                 expect(lupe.x + lupe.r + 6).toBeLessThan(L.panel.x);
-                expect(tagBoxL.x + tagBoxL.w).toBeLessThan(L.panel.x + L.panel.w);
+                expect(boxesOverlap(tagBoxL, L.panel, 4)).toBe(false);
               }
-              // R og v på flaten går ikke inn i lupen
+              // R og v på flaten går ikke inn i lupen eller skiltet
               const com = framePoint(fr, 0, COM_HEIGHT * L.rppm);
-              expect(com.y - lupe.y).toBeGreaterThan(lupe.r + 10);
+              const rTip = { x: com.x - s.Rflat * L.kF, y: com.y };
+              const v = speedArrow(L, fr, 6.5);
+              for (const [p, q] of [
+                [com, rTip],
+                [
+                  { x: v.x1, y: v.y1 },
+                  { x: v.x2 + 24 * L.f, y: v.y2 },
+                ],
+              ] as const) {
+                expect(distToSegment(lupe, p, q)).toBeGreaterThan(lupe.r + 8);
+                expect(segmentHitsBox(p, q, tagBoxL)).toBe(false);
+              }
+              // G og N er like lange og står inni lupen, side om side, og lange nok til å leses (ca. 35 px på mobil)
               const m = flatLupeMap(lupe, s.G, L.f);
               expect(m.G.y2 - m.G.y1).toBeCloseTo(m.N.y1 - m.N.y2, 9);
+              expect(m.G.y2 - m.G.y1).toBeGreaterThan(screen.narrow ? 85 : 55);
               expect(m.N.x1 - m.G.x1).toBeGreaterThan(24);
               for (const [x, y] of [
                 [m.G.x1, m.G.y1],
@@ -243,6 +289,20 @@ describe('utformingen av scenen', () => {
                 h: framePoint(fr, 0.64 * sled, 0).y - framePoint(fr, -0.4 * sled, 0).y + 12,
               };
               expect(boxesOverlap(glyph, sledBox)).toBe(false);
+              // Buen er stor nok til å se ut som en bue, og ender på bakken foran brettet
+              expect(a.r).toBeGreaterThanOrEqual(30 * L.f - 1e-9);
+              const slopeLen = Math.hypot(L.X(s.run) - L.X(0), L.Y(0) - L.Y(task.h));
+              const riderDist = slopeLen - (fr.x - L.X(0)) / fr.tx;
+              expect(a.r).toBeLessThan(riderDist - 0.64 * sled);
+              // Etiketten til s-målet står ikke oppå bokstaven α eller den stiplede linja: den begynner forbi linja (målt
+              // fra B langs bakken) og slutter før A
+              const sText = `s = ${fmt(task.s, 0)} m`;
+              const lw = labelWidth(sText, spec.dims.s === 'strong' ? 0.95 : 0.85, L.f);
+              const shift = sLabelOffset(L, task, s, a, lw);
+              expect(shift).toBeLessThanOrEqual(0);
+              const center = slopeLen / 2 - shift;
+              expect(center - lw / 2).toBeGreaterThan(a.leg + 4 * L.f);
+              expect(center + lw / 2).toBeLessThan(slopeLen - 10 * L.f);
             });
           }
 

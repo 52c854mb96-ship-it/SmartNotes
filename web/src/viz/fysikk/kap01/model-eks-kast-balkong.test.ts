@@ -16,7 +16,9 @@ import {
   landingQuadratic,
   positionAt,
   roofLevel,
+  dwellingText,
   simulateWithDrag,
+  solutionNumbers,
   solveBalconyThrow,
   timeAtPositionDown,
   velocityAt,
@@ -244,5 +246,72 @@ describe('hjelpefunksjoner', () => {
     expect(fmtSig(-0.751)).toBe('−0,751');
     expect(fmtPercent(0.147)).toBe('15 %');
     expect(fmtPercent(-0.038)).toBe('3,8 %');
+  });
+});
+
+/** Tall slik løsningen viser dem («−14,87», «6,52 · 10⁻³») tilbake til et tall. */
+function num(text: string): number {
+  const t = text.replace(/[\s\u00a0\u202f]/g, '').replace('−', '-').replace(',', '.');
+  const sci = /^(-?[\d.]+)·10([⁻]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+)$/.exec(t);
+  if (sci) {
+    const sup = '⁰¹²³⁴⁵⁶⁷⁸⁹';
+    const exp = Number(sci[2]!.replace('⁻', '-').replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (c) => String(sup.indexOf(c))));
+    return Number(sci[1]) * 10 ** exp;
+  }
+  return Number(t);
+}
+
+describe('tallene i løsningen (tre gjeldende siffer i data og svar, fire i mellomsvar)', () => {
+  it('tallsett 1 vises som i oppgaveteksten: 8,40 m, 7,50 m/s, 46,0 g og 3,00 · 10⁻⁴ kg/m', () => {
+    const n = solutionNumbers(BALCONY_THROW_TASKS[0]!, solveBalconyThrow(BALCONY_THROW_TASKS[0]!));
+    expect([n.h0, n.v0, n.mGram, n.mKg, n.k]).toEqual(['8,40', '7,50', '46,0', '0,0460', '3,00 · 10⁻⁴']);
+    expect([n.sTop, n.H, n.HAns]).toEqual(['2,867', '11,27', '11,3']);
+    expect([n.disc, n.root, n.tLand, n.tLandAns, n.tNeg]).toEqual(['221,1', '14,87', '2,280', '2,28', '−0,751']);
+    expect([n.tTop, n.tFall, n.tSum]).toEqual(['0,7645', '1,516', '2,28']);
+    expect([n.vLand, n.vLandAns, n.speed, n.speedAns, n.speedKmh]).toEqual(['−14,87', '−14,9', '14,87', '14,9', '54']);
+    expect([n.weight, n.drag, n.ratio, n.pct, n.kOverM]).toEqual(['0,4513', '0,06632', '0,147', '15 %', '6,52 · 10⁻³']);
+  });
+
+  it.each(BALCONY_THROW_TASKS.map((t, i) => [i + 1, t] as const))('tallsett %i: kontrollregningene går opp med tallene som vises', (_, task) => {
+    const sol = solveBalconyThrow(task);
+    const n = solutionNumbers(task, sol);
+    const g = 9.81;
+    // Dataene har tre gjeldende siffer og er de samme som i modellen
+    expect(num(n.h0)).toBeCloseTo(task.h0, 9);
+    expect(num(n.v0)).toBeCloseTo(task.v0, 9);
+    expect(num(n.mKg)).toBeCloseTo(task.m, 9);
+    expect(num(n.k)).toBeCloseTo(task.k, 12);
+    for (const s of [n.h0, n.v0, n.mGram]) expect(s.replace(/[^\d]/g, '').replace(/^0+/, '')).toHaveLength(3);
+    // a) H = h₀ + s_topp
+    expect(fmtSig(num(n.h0) + num(n.sTop), 4)).toBe(n.H);
+    expect(fmtSig(num(n.H))).toBe(n.HAns);
+    // b) diskriminanten, løsningene og kontrollen t_topp + √(2H/g)
+    expect(fmtSig(num(n.v0) ** 2 + 4 * num(n.qa) * num(n.h0), 4)).toBe(n.disc);
+    expect(fmtSig(Math.sqrt(num(n.disc)), 4)).toBe(n.root);
+    expect(fmtSig((num(n.v0) + num(n.root)) / num(n.twoA))).toBe(n.tLandAns);
+    expect(fmtSig((num(n.v0) - num(n.root)) / num(n.twoA))).toBe(n.tNeg);
+    expect(fmtSig(num(n.tTop) + num(n.tFall))).toBe(n.tSum);
+    expect(n.tSum).toBe(n.tLandAns);
+    // c) v = v₀ + at med den uavrundede tiden, og den tidløse formelen
+    expect(fmtSig(num(n.v0) - g * num(n.tLand))).toBe(n.vLandAns);
+    expect(fmtSig(num(n.v0) ** 2 + 2 * g * num(n.h0), 4)).toBe(n.vSquared);
+    expect(fmtSig(Math.sqrt(num(n.vSquared)))).toBe(n.speedAns);
+    expect(fmt(num(n.speed) * 3.6, 0)).toBe(n.speedKmh);
+    expect(fmt(num(n.speedAns) * 3.6, 0)).toBe(n.speedKmh);
+    // Med den avrundede tiden blir svaret synlig feil (fallgruven i c)
+    expect(n.vRounded).not.toBe(fmt(sol.vLand, 1));
+    // d) G = mg, L = kv² med farten fra c), og L/G
+    expect(fmtSig(num(n.mKg) * g, 4)).toBe(n.weight);
+    expect(fmtSig(num(n.k) * num(n.speed) ** 2)).toBe(n.dragAns);
+    expect(fmt(num(n.drag) / num(n.weight), 3)).toBe(n.ratio);
+    expect(fmtPercent(num(n.drag) / num(n.weight))).toBe(n.pct);
+    expect(num(n.kOverM)).toBeCloseTo(task.k / task.m, 5);
+  });
+
+  it('bygningen: boligblokk fra 3. etasje, rekkehus i 2. etasje', () => {
+    expect(dwellingText(4)).toBe('en boligblokk');
+    expect(dwellingText(3)).toBe('en boligblokk');
+    expect(dwellingText(2)).toBe('et rekkehus');
+    expect(BALCONY_THROW_TASKS.map((t) => dwellingText(t.floor))).toEqual(['en boligblokk', 'en boligblokk', 'et rekkehus']);
   });
 });

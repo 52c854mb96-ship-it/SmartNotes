@@ -206,7 +206,8 @@ export function instrumentpanelSize(R: number): { w: number; h: number } {
  * Instrumentpanelet i bilen: et speedometer med viser og digitalt tall (momentanfarten) og kjørecomputeren under,
  * som viser snittfarten siden kamera A. Det røde feltet på skiven er over fartsgrensen, og fartsgrenseskiltet
  * (som bilen leser fra skiltene) står oppe til høyre. (x, y) er øverste venstre hjørne, R radien på speedometeret.
- * `fart` og `snitt` i km/h (`snitt` NaN før bilen har kjørt). Viseren har fartsfargen (VIZ.velocity).
+ * `fart` og `snitt` i km/h (`snitt` NaN før bilen har kjørt). Viseren har fartsfargen (VIZ.velocity) og ligger under
+ * tallene på skiven.
  */
 export function Instrumentpanel({
   x,
@@ -288,11 +289,17 @@ export function Instrumentpanel({
       <path d={arc(cx, cy, 0.86 * R, speedoAngle(grense), speedoAngle(SPEEDO_MAX))} fill="none" stroke={tint(PAINTS.rod, 0.15)} strokeWidth={0.06 * R} opacity={0.95} />
       <path d={ticks[1]} stroke={PAINTS.hvit} strokeWidth={Math.max(0.7, 0.012 * R) * ss} opacity={0.75} />
       <path d={ticks[0]} stroke={PAINTS.hvit} strokeWidth={Math.max(1.2, 0.028 * R) * ss} />
+      {/* Viseren under tallene, så tallene kan leses også når viseren peker på dem */}
+      <path d={needle} fill={VIZ.velocity} stroke={shade(VIZ.velocity, 0.45)} strokeWidth={0.8 * ss} strokeLinejoin="round" />
+      <circle cx={cx} cy={cy} r={0.1 * R} fill={`url(#${id}-b)`} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
       {labels.map((v) => {
         const [lx, ly] = polar(cx, cy, 0.53 * R, speedoAngle(v));
         return (
+          // Mørk kant rundt tallet (streken males under fyllet), så det skiller seg fra viseren
           <Txt key={v} x={lx} y={ly + 0.09 * R} px={0.2 * R} weight={650} color={PAINTS.hvit} halo={false}>
-            {v}
+            <tspan stroke={shade(PAINTS.svart, 0.4)} strokeWidth={0.05 * R} strokeLinejoin="round">
+              {v}
+            </tspan>
           </Txt>
         );
       })}
@@ -303,9 +310,6 @@ export function Instrumentpanel({
       <Txt x={cx} y={cy + 0.7 * R} px={0.14 * R} weight={600} color={PAINTS.hvit} halo={false}>
         km/h
       </Txt>
-      {/* Viseren */}
-      <path d={needle} fill={VIZ.velocity} stroke={shade(VIZ.velocity, 0.45)} strokeWidth={0.8 * ss} strokeLinejoin="round" />
-      <circle cx={cx} cy={cy} r={0.1 * R} fill={`url(#${id}-b)`} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
       <path d={arc(cx, cy, 0.86 * R, -2.2, -1.2)} fill="none" stroke={alpha(SCENE.metalLight, 0.9)} strokeWidth={0.035 * R} strokeLinecap="round" opacity={0.35} />
       {/* Fartsgrensen som bilen har lest fra skiltene */}
       <FartsgrenseSkjold cx={signX} cy={signY} r={signR} grense={grense} />

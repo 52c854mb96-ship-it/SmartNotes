@@ -3,6 +3,8 @@ import { FLOW_STEPS, HEAD_STEPS } from './model-vannkraft';
 import {
   HYDRO_NARROW,
   HYDRO_WIDE,
+  ROOF_PITCH,
+  STREAM_MAX_Q,
   flowFraction,
   headFraction,
   hydroScene,
@@ -12,8 +14,11 @@ import {
   polylineLength,
   smoothCorners,
   terrainY,
+  intakeKind,
+  viewTop,
   type Pt,
 } from './vannkraft-scene';
+import { PRESETS } from './model-vannkraft';
 
 const LAYOUTS = [HYDRO_WIDE, HYDRO_NARROW];
 const H_ENDS = [HEAD_STEPS[0]!, HEAD_STEPS[HEAD_STEPS.length - 1]!];
@@ -197,5 +202,110 @@ describe('plassering av etiketter', () => {
     const wall = { x1: 0, y1: 0, x2: 400, y2: 300 };
     const p = placeLabel(spots, 8, 14, [wall], frame);
     expect(p.anchor).toBe('end');
+  });
+});
+
+describe('bekkeinntak ved liten vannføring', () => {
+  it('tegner bekk opp til 0,2 m³/s og magasin over', () => {
+    expect(intakeKind(FLOW_STEPS[0]!)).toBe('bekk');
+    expect(intakeKind(STREAM_MAX_Q)).toBe('bekk');
+    expect(intakeKind(0.25)).toBe('magasin');
+    expect(intakeKind(FLOW_STEPS[FLOW_STEPS.length - 1]!)).toBe('magasin');
+    // Forhåndsvalgene: bare bekken ved hytta har bekkeinntak
+    const kinds = Object.fromEntries(PRESETS.map((p) => [p.id, intakeKind(p.Q)]));
+    expect(kinds).toEqual({ hytte: 'bekk', smaa: 'magasin', elv: 'magasin', fjell: 'magasin' });
+  });
+
+  it('har en lav terskel og en grunn inntaksdam med røret under vann', () => {
+    for (const lay of LAYOUTS) {
+      for (const h of HEAD_STEPS) {
+        for (const Q of [0.01, 0.05, STREAM_MAX_Q]) {
+          const s = hydroScene(h, Q, lay);
+          const lake = hydroScene(h, 1, lay);
+          expect(s.kind).toBe('bekk');
+          const height = s.dam.baseY - s.dam.crestY;
+          expect(height).toBeLessThan(0.6 * (lake.dam.baseY - lake.dam.crestY));
+          expect(s.dam.crestY).toBeLessThan(s.surfaceY);
+          // Røret (med veggen) ligger helt under vannflata og over bunnen
+          expect(s.intake.y - s.pipeW / 2).toBeGreaterThan(s.surfaceY + 2);
+          expect(s.intake.y + s.pipeW / 2).toBeLessThan(s.dam.baseY);
+          expect(s.intake.x).toBeGreaterThan(s.pool.x1);
+          expect(s.intake.x).toBeLessThan(s.dam.x);
+          // Fallhøyden måles fra vannflata i dammen, som før
+          expect(s.turbine.y - s.surfaceY).toBeCloseTo(s.drop, 9);
+          expect(s.surfaceY).toBeCloseTo(lake.surfaceY, 9);
+        }
+      }
+    }
+  });
+
+  it('lar bekken renne nedover fra venstre kant og ut i dammen', () => {
+    for (const lay of LAYOUTS) {
+      for (const h of H_ENDS) {
+        const s = hydroScene(h, 0.02, lay);
+        const bed = s.streamBed;
+        expect(bed.length).toBeGreaterThan(5);
+        expect(bed[0]![0]).toBeLessThanOrEqual(0);
+        for (let i = 1; i < bed.length; i++) {
+          expect(bed[i]![0]).toBeGreaterThan(bed[i - 1]![0]);
+          expect(bed[i]![1]).toBeGreaterThanOrEqual(bed[i - 1]![1]);
+          // Bekkeleiet er en del av terrenget
+          expect(bed[i]![1]).toBeCloseTo(terrainY(s.terrain, bed[i]![0]), 6);
+        }
+        // Ved venstre kant ligger bekken høyere enn dammen, og den munner ut i dammen
+        expect(bed[0]![1]).toBeLessThan(s.surfaceY - 10);
+        expect(Math.abs(bed[bed.length - 1]![1] - s.surfaceY)).toBeLessThan(2);
+        expect(bed[bed.length - 1]![0]).toBeGreaterThanOrEqual(s.pool.x1);
+        // Bunnen i terrenget slutter ved foten av terskelen
+        expect(s.terrain[s.bedPoints - 1]).toEqual([s.dam.x, s.dam.baseY]);
+      }
+    }
+  });
+
+  it('har ingen bekk når vannet kommer fra et magasin', () => {
+    const s = hydroScene(200, 2.5, HYDRO_WIDE);
+    expect(s.kind).toBe('magasin');
+    expect(s.streamBed).toEqual([]);
+    expect(s.pool.x1).toBeLessThan(0);
+    expect(s.terrain[s.bedPoints - 1]).toEqual([s.dam.x, s.dam.baseY]);
+  });
+});
+
+describe('utsnittet', () => {
+  const room = { sky: 90, roof: 124 };
+
+  it('beskjærer himmelen ved liten fallhøyde og viser nesten hele figuren ved stor', () => {
+    for (const lay of LAYOUTS) {
+      const low = viewTop(hydroScene(HEAD_STEPS[0]!, 0.01, lay), room);
+      const high = viewTop(hydroScene(HEAD_STEPS[HEAD_STEPS.length - 1]!, 300, lay), room);
+      // Ved 1 000 m fall vises (nesten) hele figuren
+      expect(high).toBeLessThan(0.1 * lay.H);
+      // Ved 5 m fall blir figuren minst en firedel lavere
+      expect(low).toBeGreaterThan(0.25 * lay.H);
+      expect(Number.isInteger(low)).toBe(true);
+    }
+  });
+
+  it('beholder plassen over demningen og over taket på stasjonen', () => {
+    for (const lay of LAYOUTS) {
+      let prev = Infinity;
+      for (const h of HEAD_STEPS) {
+        for (const Q of Q_ENDS) {
+          const s = hydroScene(h, Q, lay);
+          const top = viewTop(s, room);
+          expect(top).toBeGreaterThanOrEqual(0);
+          if (top > 0) {
+            expect(s.dam.crestY - top).toBeGreaterThanOrEqual(room.sky);
+            expect(s.station.y - (1 + ROOF_PITCH) * s.station.h - top).toBeGreaterThanOrEqual(room.roof);
+          }
+          // Det høyeste punktet på bekkeleiet er også med
+          for (const [, y] of s.streamBed) expect(y).toBeGreaterThan(top + 20);
+        }
+        // Større fallhøyde gir aldri mindre utsnitt
+        const t = viewTop(hydroScene(h, 2.5, lay), room);
+        expect(t).toBeLessThanOrEqual(prev);
+        prev = t;
+      }
+    }
   });
 });

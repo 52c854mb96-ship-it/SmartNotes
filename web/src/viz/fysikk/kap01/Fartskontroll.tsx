@@ -57,6 +57,7 @@ import {
   minLegalTime,
   msToKmh,
   situationProfile,
+  sliderBMax,
   speedRange,
   speedingIntervals,
   speedingTime,
@@ -68,7 +69,7 @@ import {
   type Situation,
   type Trip,
 } from './model-fartskontroll';
-import { boxPoints, placeAlongSegment, segmentPoints, textBox, type Area, type Pt } from './fartskontroll-etiketter';
+import { boxPoints, distToBox, placeAlongSegment, segmentPoints, textBox, type Area, type LabelBox, type Pt } from './fartskontroll-etiketter';
 import { useNarrow } from './useNarrow';
 
 /** Snittfarten og sekanten. */
@@ -79,6 +80,8 @@ const POS = VIZ.series[0];
 const OVER = alpha(PAINTS.rod, 0.28);
 const LIMIT_MS = kmhToMs(SPEED_LIMIT_KMH);
 const T_MIN = minLegalTime();
+/** Toppen av s-aksen: litt over kamera B (4 000 m), så den stiplede linja for kamera B ikke faller sammen med rammen. */
+const S_MAX = ATK_LENGTH * 1.1;
 
 const SITUATIONS: { value: Situation; label: string }[] = [
   { value: 'brems', label: 'Bremser før kameraene' },
@@ -108,8 +111,11 @@ export default function Fartskontroll() {
     setValues((old) => {
       const next: [number, number] = [...old[situation]];
       next[i] = v;
+      // «Bremser før kameraene»: farten forbi kameraene er høyst farten mellom dem
+      next[1] = Math.min(next[1], sliderBMax(situation, next[0]));
       return { ...old, [situation]: next };
     });
+  const bMax = sliderBMax(situation, va);
 
   const trip = useMemo(() => buildTrip(situationProfile(situation, va, vb)), [situation, va, vb]);
   const T = trip.T;
@@ -143,7 +149,7 @@ export default function Fartskontroll() {
       </Toolbar>
       <Controls>
         <Slider label={sliders.a.label} value={va} onChange={setValue(0)} min={sliders.a.min} max={sliders.a.max} step={5} unit="km/h" decimals={0} />
-        <Slider label={sliders.b.label} value={vb} onChange={setValue(1)} min={sliders.b.min} max={sliders.b.max} step={5} unit="km/h" decimals={0} />
+        <Slider label={sliders.b.label} value={Math.min(vb, bMax)} onChange={setValue(1)} min={sliders.b.min} max={bMax} step={5} unit="km/h" decimals={0} />
         {/* Maks rundes opp til et helt steg, så glidebryteren når helt fram til kamera B (t = T). */}
         <Slider label="Tid etter kamera A" value={t} onChange={(x) => setT(x >= T - 0.1 ? T : x)} min={0} max={Math.ceil(T * 10) / 10} step={0.1} unit="s" decimals={1} />
       </Controls>
@@ -171,7 +177,7 @@ export default function Fartskontroll() {
         items={[
           { color: POS, label: 'Posisjon s' },
           { color: VIZ.velocity, label: 'Momentanfart v og tangenten' },
-          { color: SNITT, label: 'Snittfart fra kamera A og sekanten' },
+          { color: SNITT, label: 'Snittfart fra kamera A og sekanten', dashed: true },
           { color: VIZ.muted, label: `Fartsgrensen ${SPEED_LIMIT_KMH} km/h`, dashed: true },
           { color: OVER, label: 'Over fartsgrensen' },
         ]}
@@ -246,7 +252,8 @@ const SCENE_NARROW: SceneLayout = {
   m: 32,
   panelX: 12,
   panelY: 86,
-  R: 76,
+  // Så lite at instrumentpanelet slutter over fartsskiltet ved kamera A (toppen av skiltet er ca. 297)
+  R: 70,
   rail: { x1: 26, x2: 454, y: 42 },
   kv: 3.0,
 };
@@ -468,7 +475,7 @@ function Graphs({ trip, t, narrow }: { trip: Trip; t: number; narrow: boolean })
       {/* s-t */}
       <Plot
         x={{ min: 0, max: tMax, label: '', ticks: tTicks }}
-        y={{ min: 0, max: ATK_LENGTH, label: 'Posisjon s (m)', ticks: [0, 1000, 2000, 3000, 4000] }}
+        y={{ min: 0, max: S_MAX, label: 'Posisjon s (m)', ticks: [0, 1000, 2000, 3000, 4000] }}
         width={800}
         height={h0}
         margin={margin(false)}
@@ -493,7 +500,11 @@ function Graphs({ trip, t, narrow }: { trip: Trip; t: number; narrow: boolean })
           // Den loddrette hjelpelinja ved tiden t
           const guidePts = segmentPoints({ x: P.x, y: y1 }, { x: P.x, y: y0 }, 30);
           const fs = 17 * f * 0.85;
-          const kamB = { cx: x0 + 8 + textBox(8, 17 * f * 0.78).w / 2, cy: sy(ATK_LENGTH) + 14 * f, ...textBox(8, 17 * f * 0.78) };
+          // «Kamera B» over den stiplede linja ved s = 4 000 m, til venstre
+          const kamFs = 17 * f * 0.78;
+          const kamSize = textBox(8, kamFs);
+          const yB = sy(ATK_LENGTH);
+          const kamB = { cx: x0 + 8 + kamSize.w / 2, cy: yB - 5 * f - kamSize.h / 2, ...kamSize };
           const tanBox = placeAlongSegment(ta, tb, textBox(7, fs).w, textBox(7, fs).h, 6 * f, [...curve, ...secPts, ...limPts, ...boxPoints(kamB)], area, {
             fractions: [0.04, 0.12, 0.88, 0.96],
             prefer: 0.96,
@@ -518,7 +529,9 @@ function Graphs({ trip, t, narrow }: { trip: Trip; t: number; narrow: boolean })
               <Txt x={x0} y={y1 - 12 * f} anchor="start" size={0.9} weight={700}>
                 s-t-graf: sekant og tangent
               </Txt>
-              <Txt x={x0 + 8} y={kamB.cy + 17 * f * 0.78 * 0.33} anchor="start" size={0.78} muted>
+              {/* Kamera B: s = 4 000 m */}
+              <line x1={x0} x2={x1} y1={yB} y2={yB} stroke={VIZ.muted} strokeWidth={1.4} strokeDasharray="4 4" />
+              <Txt x={x0 + 8} y={kamB.cy + kamFs * 0.33} anchor="start" size={0.78} weight={650} muted>
                 Kamera B
               </Txt>
               <line x1={P.x} x2={P.x} y1={y1} y2={y0} className="viz-guide" />
@@ -530,7 +543,8 @@ function Graphs({ trip, t, narrow }: { trip: Trip; t: number; narrow: boolean })
               {t > 0 && <path d={linePath(sample((x) => tripPosition(trip, x), 0, t, n), sx, sy)} fill="none" stroke={POS} strokeWidth={3.5} />}
               {t > 0 && (
                 <>
-                  <line x1={O.x} y1={O.y} x2={P.x} y2={P.y} stroke={SNITT} strokeWidth={3.2} strokeDasharray="11 7" />
+                  {/* Sekanten tynnere enn s-grafen og med store mellomrom, så grafen synes også der de ligger oppå hverandre */}
+                  <line x1={O.x} y1={O.y} x2={P.x} y2={P.y} stroke={SNITT} strokeWidth={2.2} strokeDasharray="9 8" />
                   <circle cx={O.x} cy={O.y} r={5 * dot} fill={SNITT} stroke={VIZ.surface} strokeWidth={2} />
                   {Math.hypot(P.x - O.x, P.y - O.y) > 90 * f && (
                     <Txt x={secBox.cx} y={secBox.cy + fs * 0.33} size={0.85} color={SNITT} weight={700}>
@@ -569,8 +583,14 @@ function Graphs({ trip, t, narrow }: { trip: Trip; t: number; narrow: boolean })
             const avgText = `snittfart ${fmt(avgK, 0)} km/h`;
             const avgFs = 17 * f * 0.82;
             const avgSize = textBox(avgText.length, avgFs);
-            const avgBox = placeAlongSegment({ x: sx(0), y: sy(avgK) }, { x: sx(t), y: sy(avgK) }, avgSize.w, avgSize.h, 5 * f, [...vCurve, ...limitPts], area, {
-              prefer: 0.5,
+            const avgBox = placeAvgLabel({
+              a: { x: sx(0), y: sy(avgK) },
+              b: { x: sx(t), y: sy(avgK) },
+              size: avgSize,
+              gap: 5 * f,
+              obstacles: [...vCurve, ...limitPts],
+              dot: { x: sx(t), y: sy(vk(t)), r: 7 * dot + 3 },
+              area,
             });
             return (
               <g>
@@ -586,15 +606,12 @@ function Graphs({ trip, t, narrow }: { trip: Trip; t: number; narrow: boolean })
                 <line x1={x0} x2={x1} y1={sy(SPEED_LIMIT_KMH)} y2={sy(SPEED_LIMIT_KMH)} stroke={VIZ.muted} strokeWidth={2.2} strokeDasharray="8 6" />
                 <path d={linePath(sample(vk, 0, T, n), sx, sy)} fill="none" stroke={VIZ.velocity} strokeWidth={2.2} opacity={0.35} />
                 {t > 0 && <path d={linePath(sample(vk, 0, t, n), sx, sy)} fill="none" stroke={VIZ.velocity} strokeWidth={3.5} />}
-                {t > 0 && (
-                  <>
-                    <line x1={sx(0)} x2={sx(t)} y1={sy(avgK)} y2={sy(avgK)} stroke={SNITT} strokeWidth={3} strokeLinecap="round" />
-                    {sx(t) - sx(0) > avgSize.w * 0.8 && (
-                      <Txt x={avgBox.cx} y={avgBox.cy + avgFs * 0.33} size={0.82} color={SNITT} weight={700}>
-                        {avgText}
-                      </Txt>
-                    )}
-                  </>
+                {/* Snittfartlinja tynnere enn fartsgrafen og stiplet, så momentanfarten synes også når de nesten er like */}
+                {t > 0 && <line x1={sx(0)} x2={sx(t)} y1={sy(avgK)} y2={sy(avgK)} stroke={SNITT} strokeWidth={2.2} strokeDasharray="9 8" />}
+                {t > 0 && avgBox && (
+                  <Txt x={avgBox.cx} y={avgBox.cy + avgFs * 0.33} size={0.82} color={SNITT} weight={700}>
+                    {avgText}
+                  </Txt>
                 )}
                 <circle cx={sx(t)} cy={sy(vk(t))} r={7 * dot} fill={VIZ.velocity} stroke={VIZ.surface} strokeWidth={2.5} />
               </g>
@@ -632,6 +649,42 @@ function clipSegment(a: Pt, b: Pt, area: Area): [Pt, Pt] {
     { x: a.x + dx * t0, y: a.y + dy * t0 },
     { x: a.x + dx * t1, y: a.y + dy * t1 },
   ];
+}
+
+/**
+ * Etiketten til snittfartlinja i v-t-grafen: langs linja der det er ledig, ellers rett etter enden av linja (til høyre
+ * for tidsmarkøren, der grafen ennå ikke er tegnet sterkt). Er det trangt begge steder (f.eks. snittfart 91 km/h klemt
+ * mellom fartsgrafen på 100 km/h og fartsgrensen på 80 km/h), sløyfes etiketten. Linja er forklart i tegnforklaringen.
+ */
+function placeAvgLabel({
+  a,
+  b,
+  size,
+  gap,
+  obstacles,
+  dot,
+  area,
+}: {
+  a: Pt;
+  b: Pt;
+  size: { w: number; h: number };
+  gap: number;
+  obstacles: Pt[];
+  dot: { x: number; y: number; r: number };
+  area: Area;
+}): LabelBox | null {
+  const ring = Array.from({ length: 12 }, (_, i) => ({ x: dot.x + dot.r * Math.cos((i * Math.PI) / 6), y: dot.y + dot.r * Math.sin((i * Math.PI) / 6) }));
+  const all = [...obstacles, ...ring];
+  const clear = (box: LabelBox) => all.reduce((m, p) => Math.min(m, distToBox(p, box)), Infinity);
+  const inside = (box: LabelBox) => box.cx - box.w / 2 >= area.x0 && box.cx + box.w / 2 <= area.x1 && box.cy - box.h / 2 >= area.top && box.cy + box.h / 2 <= area.bottom;
+  const MIN = 3;
+  if (b.x - a.x > size.w * 0.8) {
+    const along = placeAlongSegment(a, b, size.w, size.h, gap, all, area, { prefer: 0.5 });
+    if (inside(along) && clear(along) >= MIN) return along;
+  }
+  const end = { cx: b.x + gap + 4 + size.w / 2, cy: b.y, ...size };
+  if (inside(end) && clear(end) >= MIN) return end;
+  return null;
 }
 
 /* ---------- Utregning ---------- */
@@ -698,7 +751,7 @@ function explanation(situation: Situation, va: number, vb: number, trip: Trip, t
   let story: ReactNode;
   if (situation === 'brems') {
     if (hi <= SPEED_LIMIT_KMH + 1e-9) story = <>Bilen holdt seg på eller under fartsgrensen hele veien. Da kan heller ikke snittfarten bli over grensen.</>;
-    else if (fine && vb > SPEED_LIMIT_KMH)
+    else if (Math.min(va, vb) > SPEED_LIMIT_KMH)
       story = (
         <>
           Her kjørte bilen over fartsgrensen hele veien, også forbi kameraene ({k0(vb)}). Da blir snittfarten også over grensen: den
@@ -762,7 +815,7 @@ function explanation(situation: Situation, va: number, vb: number, trip: Trip, t
         ' Er snittfarten over grensen, må tangenten ha vært brattere enn den stiplede linja et sted (det skraverte feltet i v-t-grafen). Derfor beviser strekningsmålingen at bilen har kjørt for fort.'}
       {!atEnd &&
         t > 0 &&
-        ` Bilen er ikke fram til kamera B ennå: snittfarten hittil er ${k0(avgNow)}, mens speedometeret viser ${k0(msToKmh(tripVelocity(trip, t)))}.`}
+        ` Bilen er ikke fram til kamera B ennå: snittfarten hittil er ${k1(avgNow)}, mens speedometeret viser ${k0(msToKmh(tripVelocity(trip, t)))}.`}
       {t <= 0 && ' Bilen står ved kamera A: snittfarten er ikke definert ennå, for Δt = 0.'}
     </>
   );

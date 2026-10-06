@@ -1,16 +1,17 @@
 import { useState } from 'react';
-import { Figure, Sub, VIZ, WorkedExample, fmt, fmtSci, useTextScale, type ExampleStep, type FigureState } from '../../kit';
+import { Figure, Sub, VIZ, WorkedExample, fmt, useTextScale, type ExampleStep, type FigureState } from '../../kit';
 import { atGround, ballRadius, ThrowScene, viewTime, type SceneGeometry, type ThrowView } from './eks-kast-balkong-scene';
-import { ForceDiagram, PositionGraph, VelocityGraph, graphKind } from './eks-kast-balkong-graf';
+import { ForceDiagram, PositionGraph, VelocityGraph, ZOOM_S, graphKind } from './eks-kast-balkong-graf';
 import {
   BALCONY_THROW_TASKS,
   BEACH_BALL,
-  G,
+  dwellingText,
   equalForceSpeed,
   fmtPercent,
   fmtSig,
   graphAxes,
   positionAt,
+  solutionNumbers,
   solveBalconyThrow,
   type BalconyThrowSolution,
   type BalconyThrowTask,
@@ -30,7 +31,8 @@ export default function EksKastBalkong() {
   const task = BALCONY_THROW_TASKS[variant] ?? BALCONY_THROW_TASKS[0]!;
   const sol = solveBalconyThrow(task);
   const steps = buildSteps(task, sol);
-  const { name, floor, h0, v0, m } = task;
+  const { name, floor } = task;
+  const n = solutionNumbers(task, sol);
 
   return (
     <WorkedExample
@@ -38,33 +40,33 @@ export default function EksKastBalkong() {
       intro={
         <>
           <p>
-            {name} står på balkongen i {floor}. etasje i en boligblokk og kaster en golfball rett opp. Ballen forlater hånda{' '}
-            {fmt(h0, 1)} m over plenen nedenfor, med farten {fmt(v0, 1)} m/s. På vei ned går ballen så vidt klar av balkongen og lander på
-            plenen. Golfballen har massen {fmt(m * 1000, 0)} g.
+            {name} står på balkongen i {floor}. etasje i {dwellingText(floor)} og kaster en golfball rett opp. Ballen forlater hånda{' '}
+            {n.h0} m over plenen nedenfor, med farten {n.v0} m/s. På vei ned går ballen så vidt klar av balkongen og lander på plenen.
+            Golfballen har massen {n.mGram} g.
           </p>
           <p>Se bort fra luftmotstanden i a)–c).</p>
         </>
       }
       given={[
         <>
-          h<Sub>0</Sub> = {fmt(h0, 1)} m
+          h<Sub>0</Sub> = {n.h0} m
         </>,
         <>
-          v<Sub>0</Sub> = {fmt(v0, 1)} m/s (rett opp)
+          v<Sub>0</Sub> = {n.v0} m/s (rett opp)
         </>,
-        <>m = {fmt(m * 1000, 0)} g</>,
+        <>m = {n.mGram} g</>,
         <>g = 9,81 m/s²</>,
       ]}
       parts={[
         { id: 'a', text: 'Hvor høyt over plenen kommer ballen?' },
-        { id: 'b', text: `Vis at ballen lander på plenen ca. ${fmt(sol.tLand, 1)} s etter at den forlot hånda.` },
+        { id: 'b', text: `Vis at ballen lander på plenen ca. ${n.tLand1} s etter at den forlot hånda.` },
         { id: 'c', text: 'Hvor stor fart har ballen når den treffer plenen?' },
         {
           id: 'd',
           text: (
             <>
-              Luftmotstanden på golfballen kan skrives L = kv², der k = {fmtSci(task.k, 1)} kg/m. Drøft om det var rimelig å se bort fra
-              luftmotstanden i a)–c).
+              Luftmotstanden på golfballen kan skrives L = kv², der k = {n.k} kg/m. Drøft om det var rimelig å se bort fra luftmotstanden i
+              a)–c).
             </>
           ),
         },
@@ -107,7 +109,7 @@ function ThrowFigures({ task, sol, state, steps, variant }: { task: BalconyThrow
 }
 
 const WIDE = { W: 800, H: 480, SW: 416, GX: 424, top: 24, bottom: 64, pathX: 192 };
-const NARROW = { W: 440, H: 540, GH: 380, top: 26, bottom: 34, pathX: 222 };
+const NARROW = { W: 440, H: 540, GH: 420, top: 26, bottom: 34, pathX: 222 };
 
 /**
  * y for posisjonen s når s-aksen går fra sMin (bunnen y0) til sMax (toppen y1). Uten `range` brukes aksene i
@@ -181,7 +183,7 @@ function NarrowGraph({ task, sol, view }: { task: BalconyThrowTask; sol: Balcony
 }
 
 function sceneLabel(task: BalconyThrowTask, sol: BalconyThrowSolution, view: ThrowView): string {
-  const start = `${task.name} står på balkongen i ${task.floor}. etasje og kaster en golfball rett opp fra ${fmt(task.h0, 1)} m over plenen med farten ${fmt(task.v0, 1)} m/s.`;
+  const start = `${task.name} står på balkongen i ${task.floor}. etasje og kaster en golfball rett opp fra ${fmtSig(task.h0)} m over plenen med farten ${fmtSig(task.v0)} m/s.`;
   switch (view) {
     case 'oppgave':
     case 'retning':
@@ -192,7 +194,7 @@ function sceneLabel(task: BalconyThrowTask, sol: BalconyThrowSolution, view: Thr
       return `${start} Ballen er i toppunktet ${fmtSig(sol.sTop)} m over hånda, ${fmtSig(sol.H)} m over plenen, med farten 0.`;
     case 'likning':
     case 'losninger':
-      return `${start} Ballen har landet på plenen, i s = −${fmt(task.h0, 1)} m.`;
+      return `${start} Ballen har landet på plenen, i s = −${fmtSig(task.h0)} m.`;
     default:
       return `${start} Ballen er like over plenen med farten ${fmtSig(sol.speedLand)} m/s nedover.`;
   }
@@ -201,25 +203,22 @@ function sceneLabel(task: BalconyThrowTask, sol: BalconyThrowSolution, view: Thr
 function graphLabel(task: BalconyThrowTask, sol: BalconyThrowSolution, view: ThrowView): string {
   const kind = graphKind(view);
   if (kind === 'krefter')
-    return `Kraftdiagram for ballen like før den lander: tyngden ${fmt(sol.weight, 3)} N nedover og luftmotstanden ${fmt(sol.dragMax, 3)} N oppover, ${fmtPercent(sol.dragRatio)} av tyngden.`;
+    return `Kraftdiagram for ballen like før den lander: tyngden ${fmtSig(sol.weight)} N nedover og luftmotstanden ${fmtSig(sol.dragMax)} N oppover, ${fmtPercent(sol.dragRatio)} av tyngden. Begge pilene starter i midten av ballen.`;
   if (kind === 'vt')
-    return `v-t-graf: en rett linje fra ${fmt(task.v0, 1)} m/s ved t = 0 til ${fmt(sol.vLand, 1)} m/s ved t = ${fmtSig(sol.tLand)} s.${view === 'simulering' ? ` Med luftmotstand bøyer kurven av og ender på −${fmtSig(sol.dragSpeed)} m/s.` : ''}`;
-  return `s-t-graf: parabelen s = v₀t − ½gt² med toppunkt i ${fmtSig(sol.sTop)} m og plenen i s = −${fmt(task.h0, 1)} m, som parabelen krysser ved t = ${fmtSig(sol.tLand)} s og t = ${fmtSig(sol.tNeg)} s.`;
+    return `v-t-graf: en rett linje fra ${fmtSig(task.v0)} m/s ved t = 0 til ${fmtSig(sol.vLand)} m/s ved t = ${fmtSig(sol.tLand)} s.${view === 'simulering' ? ` Med luftmotstand (stiplet) ligger kurven nesten oppå linja og ender på −${fmtSig(sol.dragSpeed)} m/s. Et forstørret utsnitt av de siste ${fmt(ZOOM_S, 2)} s viser forskjellen.` : ''}`;
+  return `s-t-graf: parabelen s = v₀t − ½gt² med toppunkt i ${fmtSig(sol.sTop)} m og plenen i s = −${fmtSig(task.h0)} m, som parabelen krysser ved t = ${fmtSig(sol.tLand)} s og t = ${fmtSig(sol.tNeg)} s.`;
 }
 
 /* ---------- Løsningen ---------- */
 
 function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
-  const { name, h0, v0, m, k } = task;
-  const q = sol.quad;
+  const { name } = task;
+  const n = solutionNumbers(task, sol);
   // Hardt mellomrom før enheten, så tall og enhet ikke deles på to linjer på mobil.
-  const h = `${fmt(h0, 1)}\u00a0m`;
-  const v0s = `${fmt(v0, 1)}\u00a0m/s`;
-  const tRounded = Math.round(sol.tLand * 10) / 10;
-  const vRounded = v0 - G * tRounded;
+  const h = `${n.h0} m`;
+  const v0s = `${n.v0} m/s`;
   const beach = equalForceSpeed(BEACH_BALL.m, BEACH_BALL.k);
-  const golfEqual = equalForceSpeed(m, k);
-  const pct = (x: number) => fmtPercent(x);
+  const golfEqual = equalForceSpeed(task.m, task.k);
 
   return [
     /* ---------- a) ---------- */
@@ -267,7 +266,7 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
           v² − v<Sub>0</Sub>² = 2as ⇒ s = (v² − v<Sub>0</Sub>²) / (2a)
         </>,
         <>
-          s<Sub>topp</Sub> = (0 − ({v0s})²) / (2 · (−9,81 m/s²)) = {fmtSig(sol.sTop)} m
+          s<Sub>topp</Sub> = (0 − ({v0s})²) / (2 · (−9,81 m/s²)) = {n.sTop} m
         </>,
       ],
       tip: 'Fortegnene sjekker seg selv: både telleren og nevneren er negative, så s blir positiv. Toppunktet er over hånda, og opp er positiv retning.',
@@ -283,13 +282,17 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
       ),
       math: [
         <>
-          H = h<Sub>0</Sub> + s<Sub>topp</Sub> = {h} + {fmtSig(sol.sTop)} m = {fmt(sol.H, 2)} m
+          H = h<Sub>0</Sub> + s<Sub>topp</Sub> = {h} + {n.sTop} m = {n.H} m
         </>,
       ],
-      answer: <>Ballen kommer {fmtSig(sol.H)} m over plenen.</>,
+      answer: (
+        <>
+          Ballen kommer {n.HAns} m over plenen. Dataene har tre gjeldende siffer, så svaret har også tre.
+        </>
+      ),
       pitfall: (
         <>
-          Ikke svar {fmtSig(sol.sTop)} m. Det er høyden over hånda, men spørsmålet gjelder høyden over plenen.
+          Ikke svar {n.sTopAns} m. Det er høyden over hånda, men spørsmålet gjelder høyden over plenen.
         </>
       ),
     },
@@ -310,16 +313,16 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
           s = v<Sub>0</Sub>t + ½at²
         </>,
         <>
-          −{fmt(h0, 1)} = {fmt(v0, 1)}t + ½ · (−9,81)t²
+          −{n.h0} = {n.v0}t + ½ · (−9,81)t²
         </>,
         <>
-          {fmt(q.a, 3)}t² − {fmt(v0, 1)}t − {fmt(h0, 1)} = 0
+          {n.qa}t² − {n.v0}t − {n.h0} = 0
         </>,
       ],
       pitfall: (
         <>
-          s er forflytningen fra hånda, ikke strekningen ballen går. Ballen går {fmtSig(sol.sTop)} m opp og {fmtSig(sol.H)} m ned, men
-          forflytningen er −{h}. Setter du s = +{h}, spør du når ballen er {h} over hånda, og den likningen har ingen løsning.
+          s er forflytningen fra hånda, ikke strekningen ballen går. Ballen går {n.sTopAns} m opp og {n.HAns} m ned, men forflytningen er −{h}.
+          Setter du s = +{h}, spør du når ballen er {h} over hånda, og den likningen har ingen løsning.
         </>
       ),
     },
@@ -330,8 +333,7 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
       body: (
         <>
           <p>
-            Vi bruker abc-formelen med a = {fmt(q.a, 3)}, b = −{fmt(v0, 1)} og c = −{fmt(h0, 1)}. Her er a, b og c tallene i likningen, ikke
-            akselerasjonen.
+            Vi bruker abc-formelen med a = {n.qa}, b = −{n.v0} og c = −{n.h0}. Her er a, b og c tallene i likningen, ikke akselerasjonen.
           </p>
           <p>
             Likningen har to løsninger fordi parabelen s(t) krysser linja s = −{h} to ganger (se grafen). Den negative løsningen er et
@@ -343,22 +345,28 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
         // Linjene med rottegn er rene strenger, så WorkedExample kan vise √ med vanlig skrift (som i FormulaLine).
         't = (−b ± √(b² − 4ac)) / (2a)',
         <>
-          b² − 4ac = {fmt(v0, 1)}² − 4 · {fmt(q.a, 3)} · (−{fmt(h0, 1)}) = {fmt(q.disc, 1)}
+          b² − 4ac = (−{n.v0})² − 4 · {n.qa} · (−{n.h0}) = {n.disc}
         </>,
-        `t = (${fmt(v0, 1)} ± √${fmt(q.disc, 1)}) / (2 · ${fmt(q.a, 3)}) = (${fmt(v0, 1)} ± ${fmt(q.root, 2)}) / ${fmt(2 * q.a, 2)}`,
+        `t = (${n.v0} ± √${n.disc}) / (2 · ${n.qa}) = (${n.v0} ± ${n.root}) / ${n.twoA}`,
         <>
-          t = {fmt(sol.tLand, 3)} s eller t = {fmt(sol.tNeg, 3)} s
+          t = {n.tLand} s eller t = {n.tNeg} s
         </>,
       ],
       answer: (
         <>
-          t = {fmtSig(sol.tLand)} s ≈ {fmt(sol.tLand, 1)} s, som vi skulle vise. Den negative løsningen er før kastet og forkastes.
+          t = {n.tLandAns} s ≈ {n.tLand1} s, som vi skulle vise. Den negative løsningen er før kastet og forkastes.
         </>
       ),
       tip: (
         <>
-          Kontroller med to enklere steg: opp til toppunktet tar v<Sub>0</Sub>/g = {fmtSig(sol.tTop)} s, og fritt fall fra {fmtSig(sol.H)} m
-          tar √(2H/g) = {fmtSig(sol.tFall)} s. Til sammen {fmtSig(sol.tTop + sol.tFall)} s.
+          Kontroller med to enklere steg: opp til toppunktet tar v<Sub>0</Sub>/g = {n.tTop} s, og fritt fall fra H = {n.H} m tar √(2H/g) ={' '}
+          {n.tFall} s. Til sammen {n.tSum} s.
+        </>
+      ),
+      pitfall: (
+        <>
+          Sett parentes rundt b når du kvadrerer: (−{n.v0})² = +{fmt(task.v0 * task.v0, 2)}. Skriver du −{n.v0}² på kalkulatoren, regner den
+          ut −({n.v0}²) = −{fmt(task.v0 * task.v0, 2)}, og diskriminanten blir feil.
         </>
       ),
     },
@@ -376,12 +384,12 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
       ),
       math: [
         <>
-          v = v<Sub>0</Sub> + at = {v0s} + (−9,81 m/s²) · {fmt(sol.tLand, 3)} s = {fmt(sol.vLand, 2)} m/s
+          v = v<Sub>0</Sub> + at = {v0s} + (−9,81 m/s²) · {n.tLand} s = {n.vLand} m/s
         </>,
       ],
       pitfall: (
         <>
-          Bruker du den avrundede tiden {fmt(tRounded, 1)} s, får du {fmt(vRounded, 1)} m/s. Regn alltid videre med uavrundede mellomsvar.
+          Bruker du den avrundede tiden {n.tRounded} s, får du {n.vRounded} m/s. Regn alltid videre med uavrundede mellomsvar.
         </>
       ),
     },
@@ -399,14 +407,14 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
         <>
           v² = v<Sub>0</Sub>² + 2as = ({v0s})² + 2 · (−9,81 m/s²) · (−{h})
         </>,
-        <>v² = {fmt(sol.vSquared, 1)} m²/s²</>,
-        `|v| = √(${fmt(sol.vSquared, 1)} m²/s²)`,
-        <>|v| = {fmt(sol.speedLand, 2)} m/s</>,
+        <>v² = {n.vSquared} m²/s²</>,
+        `|v| = √(${n.vSquared} m²/s²)`,
+        <>|v| = {n.speed} m/s</>,
       ],
       answer: (
         <>
-          Ballen treffer plenen med farten {fmtSig(sol.speedLand)} m/s ({fmt(sol.speedLandKmh, 0)} km/h). Farten er rettet nedover, og
-          derfor er v = {fmt(sol.vLand, 1)} m/s negativ.
+          Ballen treffer plenen med farten {n.speedAns} m/s (ca. {n.speedKmh} km/h). Farten er rettet nedover, og derfor er v = {n.vLandAns} m/s
+          negativ.
         </>
       ),
       tip: (
@@ -430,13 +438,13 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
       ),
       math: [
         <>
-          G = mg = {fmt(m, 3)} kg · 9,81 m/s² = {fmt(sol.weight, 3)} N
+          G = mg = {n.mKg} kg · 9,81 m/s² = {n.weight} N
         </>,
         <>
-          L = kv² = {fmtSci(k, 1)} kg/m · ({fmt(sol.speedLand, 2)} m/s)² = {fmt(sol.dragMax, 3)} N
+          L = kv² = {n.k} kg/m · ({n.speed} m/s)² = {n.drag} N
         </>,
         <>
-          L / G = {fmt(sol.dragMax, 3)} N / {fmt(sol.weight, 3)} N = {fmt(sol.dragRatio, 3)} = {pct(sol.dragRatio)}
+          L / G = {n.drag} N / {n.weight} N = {n.ratio} = {n.pct}
         </>,
       ],
       pitfall:
@@ -454,27 +462,35 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
             bruker litt kortere tid opp og litt lengre tid ned.
           </p>
           <p>
-            Hvor mye, kan vi finne med en simulering som i 1E: Eulers metode med a = −g − (k/m) · v · |v| og Δt = 0,001{' '}s. Leddet
-            v · |v| har samme størrelse som v², men fortegnet til v, så luftmotstanden alltid peker mot farten. v-t-grafen er da ikke lenger
-            en rett linje, fordi akselerasjonen endrer seg med farten.
+            Hvor mye, kan vi finne med en simulering som i 1E. Først trenger vi akselerasjonen. Med positiv retning opp gir Newtons 2. lov
+            ΣF = ma, der kreftene er tyngden −mg og luftmotstanden −k · v · |v|. Leddet v · |v| har samme størrelse som v², men fortegnet til v,
+            så luftmotstanden alltid peker mot farten. Så regner vi ut farten og posisjonen steg for steg med Eulers metode og Δt = 0,001{' '}s.
+          </p>
+          <p>
+            Strengt tatt er v-t-grafen da ikke lenger en rett linje, fordi akselerasjonen endrer seg med farten. Men for golfballen er
+            forskjellen så liten at kurvene nesten ligger oppå hverandre. Utsnittet forstørrer de siste {fmt(ZOOM_S, 2)} s før landingen.
           </p>
         </>
       ),
       math: [
+        <>ΣF = ma ⇒ −mg − k · v · |v| = ma</>,
         <>
-          H = {fmtSig(sol.dragH)} m (uten luftmotstand {fmtSig(sol.H)} m), {pct(sol.dragChangeH)} lavere
+          a = −g − (k/m) · v · |v|, der k/m = {n.k} kg/m / {n.mKg} kg = {n.kOverM} 1/m
         </>,
         <>
-          |v| = {fmtSig(sol.dragSpeed)} m/s (uten luftmotstand {fmtSig(sol.speedLand)} m/s), {pct(sol.dragChangeSpeed)} mindre
+          H = {fmtSig(sol.dragH)} m (uten luftmotstand {n.HAns} m), {fmtPercent(sol.dragChangeH)} lavere
         </>,
         <>
-          t = {fmt(sol.drag.tLand, 3)} s (uten luftmotstand {fmt(sol.tLand, 3)} s)
+          |v| = {fmtSig(sol.dragSpeed)} m/s (uten luftmotstand {n.speedAns} m/s), {fmtPercent(sol.dragChangeSpeed)} mindre
+        </>,
+        <>
+          t = {fmt(sol.drag.tLand, 3)} s (uten luftmotstand {n.tLand} s)
         </>,
       ],
       answer: (
         <>
-          Ja, det var rimelig. Golfballen er liten og tung i forhold til størrelsen, og farten er moderat, så luftmotstanden er høyst {pct(sol.dragRatio)}{' '}
-          av tyngden, og bare like før ballen lander. Svarene i a) og c) blir litt for store, men bare noen få prosent.
+          Ja, det var rimelig. Golfballen er liten og tung i forhold til størrelsen, og farten er moderat, så luftmotstanden er høyst {n.pct} av
+          tyngden, og bare like før ballen lander. Svarene i a) og c) blir litt for store, men bare noen få prosent.
         </>
       ),
       tip: (
@@ -486,4 +502,3 @@ function buildSteps(task: BalconyThrowTask, sol: BalconyThrowSolution): Step[] {
     },
   ];
 }
-

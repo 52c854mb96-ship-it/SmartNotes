@@ -1,15 +1,34 @@
 import { Fragment, useState, type ReactNode } from 'react';
-import { Figure, Sub, TSub, Txt, VIZ, WorkedExample, fmt, type ExampleStep, type FigureState } from '../../kit';
-import { Callout, Dimension, ForceArrow, Gran, Himmel, Landskap, Terreng, ValueTag } from '../../kit/scene';
-import { Aker, EnergyLedger, HeatTrack, PointMark, SlopeAngle, useFigureScale, type RiderLook } from './eks-akebakke-deler';
+import { Figure, Sub, TSub, VIZ, WorkedExample, fmt, type ExampleStep, type FigureState } from '../../kit';
+import { Callout, ForceArrow, Gran, Himmel, Landskap, Terreng, Underlag, ValueTag } from '../../kit/scene';
+import {
+  Aker,
+  EnergyLedger,
+  FlatLupe,
+  HeatTrack,
+  PointMark,
+  ScaleBar,
+  SlopeAngle,
+  SNOW_INK,
+  SnowDimension,
+  SnowTxt,
+  useFigureScale,
+  type RiderLook,
+} from './eks-akebakke-deler';
 import {
   COM_HEIGHT,
   SLED_LENGTH,
+  S_DIM_OFFSET,
+  angleMark,
   figureSpec,
+  labelWidth,
   framePoint,
   ledgerHeight,
   ledgerRows,
+  riderRing,
   sceneLayout,
+  scaleBarForce,
+  sLabelOffset,
   speedArrow,
   speedMid,
   speedOnFlat,
@@ -17,6 +36,7 @@ import {
   tagCenter,
   terrainPoints,
   type FigureSpec,
+  type Frame,
   type SceneLayout,
   type Spot,
 } from './eks-akebakke-scene';
@@ -31,8 +51,8 @@ const LOOKS: RiderLook[] = [
 
 /**
  * Eksempeloppgave (3B–3F): en aker på et akebrett ned en bakke og ut på flaten. Energibevaring uten friksjon, den
- * målte farten og energien som er blitt termisk energi, gjennomsnittlig friksjonskraft fra W = ΔE = −R · s,
- * glidestrekningen på flaten og en vurdering av luftmotstanden. Oppgaven er laget for appen (egen tekst og egne tall)
+ * målte farten og energien som er blitt termisk energi, den gjennomsnittlige samlede motkraften (friksjon R og
+ * luftmotstand L) fra W = ΔE = −F_mot · s, glidestrekningen på flaten og en vurdering av luftmotstanden. Oppgaven er laget for appen (egen tekst og egne tall)
  * i samme stil som eksamensoppgaver.
  */
 export default function EksAkebakke() {
@@ -163,28 +183,35 @@ export default function EksAkebakke() {
     },
     {
       part: 'c',
-      title: 'Friksjonsarbeidet er lik endringen i mekanisk energi',
+      title: 'Arbeidet til motkreftene er lik endringen i mekanisk energi',
       body: (
         <>
           <p>
-            Når andre krefter enn tyngden gjør arbeid, endres den mekaniske energien like mye som arbeidet de gjør: W<Sub>R</Sub> = ΔE.
+            Når andre krefter enn tyngden gjør arbeid, endres den mekaniske energien like mye som arbeidet de gjør. Her er det friksjonen R fra
+            snøen og luftmotstanden L. Vi slår dem sammen til én gjennomsnittlig motkraft F<Sub>mot</Sub> = R + L, og da er W<Sub>mot</Sub> = ΔE.
           </p>
           <p>
-            Friksjonskraften R virker mot bevegelsen, så vinkelen mellom R og forflytningen er 180°, og arbeidet er negativt. Forflytningen er
-            lengden av bakken, s = {fmt(len, 0)} m.
+            Motkraften virker mot bevegelsen, så vinkelen mellom F<Sub>mot</Sub> og forflytningen er 180°, og arbeidet er negativt.
+            Forflytningen er lengden av bakken, s = {fmt(len, 0)} m.
           </p>
         </>
       ),
       math: [
         <>
-          W<Sub>R</Sub> = ΔE = E<Sub>B</Sub> − E<Sub>A</Sub> = {J(s.EkB)} − {J(s.EA)} = −{J(s.Q)}
+          W<Sub>mot</Sub> = ΔE = E<Sub>B</Sub> − E<Sub>A</Sub> = {J(s.EkB)} − {J(s.EA)} = −{J(s.Q)}
         </>,
-        <>W<Sub>R</Sub> = R · s · cos 180° = −R · s</>,
         <>
-          R = −W<Sub>R</Sub> / s = {J(s.Q)} / {fmt(len, 0)} m = {fmt(s.R, 1)} N
+          W<Sub>mot</Sub> = F<Sub>mot</Sub> · s · cos 180° = −F<Sub>mot</Sub> · s
+        </>,
+        <>
+          F<Sub>mot</Sub> = −W<Sub>mot</Sub> / s = {J(s.Q)} / {fmt(len, 0)} m = {fmt(s.Fmot, 1)} N
         </>,
       ],
-      answer: <>R = {fmt(s.R, 0)} N</>,
+      answer: (
+        <>
+          F<Sub>mot</Sub> = {fmt(s.Fmot, 0)} N
+        </>
+      ),
       tip: 'Dette er en gjennomsnittsverdi. Luftmotstanden øker med farten, så motkraften er minst øverst og størst nederst i bakken.',
       pitfall: 'Bruk strekningen langs bakken, ikke høyden h eller den vannrette lengden. Arbeid er kraft ganger forflytningen langs kraften.',
     },
@@ -239,7 +266,8 @@ export default function EksAkebakke() {
       body: (
         <p>
           Bakken har jevn helning, så vinkelen α finner vi fra høyden og lengden: sin α = h/s. Normalkraften i bakken er like stor som
-          komponenten av tyngden vinkelrett på bakken, og friksjonen fra snøen er μ ganger den.
+          komponenten av tyngden vinkelrett på bakken, og friksjonen R fra snøen er μ ganger den. Den virker under brettet, mot
+          bevegelsen. Kraftpilene er tegnet med større skala enn i c), se målestokken oppe til venstre.
         </p>
       ),
       math: [
@@ -250,32 +278,33 @@ export default function EksAkebakke() {
           N = mg cos α = {fmt(s.G, 0)} N · cos {deg} = {fmt(s.Nslope, 0)} N
         </>,
         <>
-          μN = {fmt(mu, 2)} · {fmt(s.Nslope, 0)} N = {fmt(s.muN, 1)} N
+          R = μN = {fmt(mu, 2)} · {fmt(s.Nslope, 0)} N = {fmt(s.muN, 1)} N
         </>,
       ],
     },
     {
       part: 'e',
-      title: 'Resten av friksjonskraften er luftmotstand',
+      title: 'Resten av motkraften er luftmotstand',
       body: (
         <p>
-          Friksjonskraften R = {fmt(s.R, 1)} N fra c) er summen av friksjonen fra snøen og luftmotstanden. Det som er igjen når vi trekker fra
-          μN, må være luftmotstanden L.
+          Den samlede motkraften F<Sub>mot</Sub> = {fmt(s.Fmot, 1)} N fra c) er summen av friksjonen R fra snøen og luftmotstanden L. Det som er
+          igjen når vi trekker fra R, må være luftmotstanden.
         </p>
       ),
       math: [
         <>
-          L = R − μN = {fmt(s.R, 1)} N − {fmt(s.muN, 1)} N = {fmt(s.L, 1)} N
+          F<Sub>mot</Sub> = R + L ⇒ L = F<Sub>mot</Sub> − R = {fmt(s.Fmot, 1)} N − {fmt(s.muN, 1)} N = {fmt(s.L, 1)} N
         </>,
         <>
-          L / R = {fmt(s.L, 1)} N / {fmt(s.R, 1)} N = {fmt(s.airShare, 2)} = {pct(s.airShare)}
+          L / F<Sub>mot</Sub> = {fmt(s.L, 1)} N / {fmt(s.Fmot, 1)} N = {fmt(s.airShare, 2)} = {pct(s.airShare)}
         </>,
       ],
       answer: (
         <>
-          Luftmotstanden var om lag {fmt(s.L, 0)} N i gjennomsnitt, omtrent {pct(s.airShare)} av friksjonskraften.
+          Luftmotstanden var om lag {fmt(s.L, 0)} N i gjennomsnitt, omtrent {pct(s.airShare)} av den samlede motkraften.
         </>
       ),
+      tip: 'Luftmotstand og friksjon er to forskjellige krefter: friksjonen kommer fra snøen under brettet, luftmotstanden fra lufta rundt kroppen.',
     },
     {
       part: 'e',
@@ -284,12 +313,13 @@ export default function EksAkebakke() {
         <p>
           I d) så vi bort fra luftmotstanden, men den bremser {name} på flaten også. Luftmotstanden avhenger av farten. I bakken økte farten
           fra {fmt(v0, 1)} m/s til {fmt(vB, 1)} m/s, og på flaten avtar den fra {fmt(vB, 1)} m/s til 0, så farten er omtrent like stor i snitt.
-          Da er det rimelig å regne med omtrent like stor luftmotstand på flaten, og vi kan gjøre et overslag.
+          Da er det rimelig å regne med omtrent like stor luftmotstand på flaten, og vi kan gjøre et overslag med friksjonen R = μmg fra d) og
+          luftmotstanden L fra bakken.
         </p>
       ),
       math: [
         <>
-          d′ ≈ ½mv<Sub>B</Sub>² / (μmg + L) = {J(s.EkB)} / ({fmt(s.Rflat, 1)} N + {fmt(s.L, 1)} N) = {fmt(s.dEst, 1)} m
+          d′ ≈ ½mv<Sub>B</Sub>² / (R + L) = {J(s.EkB)} / ({fmt(s.Rflat, 1)} N + {fmt(s.L, 1)} N) = {fmt(s.dEst, 1)} m
         </>,
       ],
       answer: (
@@ -331,7 +361,12 @@ export default function EksAkebakke() {
         { id: 'b', text: 'Hvor mye mekanisk energi ble omdannet til termisk energi på vei ned bakken?' },
         {
           id: 'c',
-          text: `Bestem den gjennomsnittlige friksjonskraften R på ${name} og brettet i bakken. Regn luftmotstanden som en del av friksjonskraften.`,
+          text: (
+            <>
+              Bestem den gjennomsnittlige samlede motkraften F<Sub>mot</Sub> på {name} og brettet i bakken, det vil si friksjonen og
+              luftmotstanden til sammen.
+            </>
+          ),
         },
         { id: 'd', text: `Hvor langt glir ${name} på flaten før ${pronoun} stopper? Se bort fra luftmotstanden.` },
         {
@@ -385,7 +420,15 @@ function figureLabel(task: SledTask, s: SledSolution, spec: FigureSpec): string 
     C: `i C, ${fmt(s.d, 0)} m ut på flaten`,
     Cest: `etter om lag ${fmt(s.dEst, 0)} m på flaten`,
   };
-  return `${task.name} på akebrett ${where[spec.rider]}. Bakken er ${fmt(task.s, 0)} m lang og ${fmt(task.h, 1)} m høy, med en vannrett flate nedenfor.`;
+  const forces: Record<FigureSpec['slopeForces'], string> = {
+    off: '',
+    Fmot: ` Den samlede motkraften F mot = ${fmt(s.Fmot, 0)} N virker opp langs bakken.`,
+    muN: ` Friksjonen R = ${fmt(s.muN, 0)} N fra snøen virker opp langs bakken, under brettet.`,
+    split: ` Friksjonen R = ${fmt(s.muN, 0)} N og luftmotstanden L = ${fmt(s.L, 0)} N virker opp langs bakken.`,
+  };
+  const flat = spec.flatForces ? ` Friksjonen R = ${fmt(s.Rflat, 0)} N virker mot bevegelsen.` : '';
+  const lupe = spec.flatLupe ? ` En lupe viser tyngden G og normalkraften N, like store: ${fmt(s.Nflat, 0)} N.` : '';
+  return `${task.name} på akebrett ${where[spec.rider]}. Bakken er ${fmt(task.s, 0)} m lang og ${fmt(task.h, 1)} m høy, med en vannrett flate nedenfor.${forces[spec.slopeForces]}${flat}${lupe}`;
 }
 
 function Scene({ task, s, look, spec, L }: { task: SledTask; s: SledSolution; look: RiderLook; spec: FigureSpec; L: SceneLayout }) {
@@ -406,11 +449,23 @@ function Scene({ task, s, look, spec, L }: { task: SledTask; s: SledSolution; lo
     [flatEnd, groundY],
   ];
   const tagY = (spot: Spot) => tagCenter(L, fr(spot));
+  // Kraftskalaen: i e) større, så luftmotstanden L blir en pil. Målestokken viser skalaen når det er krefter i scenen.
+  const eForces = spec.slopeForces === 'muN' || spec.slopeForces === 'split';
+  const kF = eForces ? L.kFe : L.kF;
+  const showForces = spec.slopeForces !== 'off' || spec.flatForces;
+  const scaleF = scaleBarForce(kF, 60 * f);
+  const angle = spec.angle ? angleMark(L, task, s) : null;
+  const lupe = spec.flatLupe ? L.lupe : null;
+  const sText = `s = ${fmt(task.s, 0)} m`;
+  const sStrong = spec.dims.s === 'strong';
+  const sShift = sLabelOffset(L, task, s, angle, labelWidth(sText, sStrong ? 0.95 : 0.85, f));
 
   return (
     <g>
       <Himmel w={W} h={groundY + 4} sol={{ x: 0.36 * W, y: 40 * f, r: 16 * f }} skyer={2} seed={6} />
-      <Landskap x={0} y={L.horizon} w={W} h={Math.min(0.34 * groundY, 110)} type="skog" seed={4} />
+      <Landskap x={0} y={L.horizon} w={W} h={Math.min(0.3 * L.horizon, 90 * Math.max(1, 0.8 * f))} type="skog" seed={4} />
+      {/* Snøjordet bak flaten, opp til skogkanten, så akeren og pilene på flaten står mot snø */}
+      <Underlag x1={-10} x2={W + 10} y={groundY} depth={H - groundY + 4} type="sno" horisont={L.horizon} seed={7} />
       <Terreng points={terrain} bottom={H + 2} type="sno" seed={9} title="Akebakke i snø med en vannrett flate nedenfor" />
       {/* Snødekte graner bak toppen, i bakkens skala */}
       {L.camera !== 'flate' && (
@@ -426,16 +481,16 @@ function Scene({ task, s, look, spec, L }: { task: SledTask; s: SledSolution; lo
       {/* Nullnivået gjennom B */}
       {spec.zero && (
         <g>
-          <line x1={0} x2={xB} y1={groundY} y2={groundY} stroke={VIZ.ink} strokeWidth={1.4} strokeDasharray="7 5" opacity={0.75} />
-          <Txt x={6} y={groundY + 22 * f} anchor="start" size={0.8} muted>
+          <line x1={0} x2={xB} y1={groundY} y2={groundY} stroke={SNOW_INK} strokeWidth={1.4} strokeDasharray="7 5" opacity={0.85} />
+          <SnowTxt x={6} y={groundY + 22 * f} anchor="start" size={0.8}>
             nullnivå
-          </Txt>
+          </SnowTxt>
         </g>
       )}
 
-      {/* Mål */}
+      {/* Mål (på snøen) */}
       {spec.dims.h !== 'off' && (
-        <Dimension
+        <SnowDimension
           x1={8 + 14 * f}
           y1={yA}
           x2={8 + 14 * f}
@@ -443,36 +498,24 @@ function Scene({ task, s, look, spec, L }: { task: SledTask; s: SledSolution; lo
           // Etiketten høyt oppe, så den ikke kolliderer med starten av s-målet under A
           labelOffset={Math.min(0, 20 * f - (groundY - yA) / 2)}
           label={`h = ${fmt(task.h, 1)} m`}
-          color={spec.dims.h === 'strong' ? VIZ.ink : VIZ.muted}
-          labelSize={spec.dims.h === 'strong' ? 0.95 : 0.85}
+          strong={spec.dims.h === 'strong'}
         />
       )}
       {spec.dims.s !== 'off' && (
-        <Dimension
-          x1={xA}
-          y1={yA}
-          x2={xB}
-          y2={groundY}
-          offset={-36 * f}
-          label={`s = ${fmt(task.s, 0)} m`}
-          color={spec.dims.s === 'strong' ? VIZ.ink : VIZ.muted}
-          labelSize={spec.dims.s === 'strong' ? 0.95 : 0.85}
-        />
+        <SnowDimension x1={xA} y1={yA} x2={xB} y2={groundY} offset={-S_DIM_OFFSET * f} labelOffset={sShift} label={sText} strong={sStrong} />
       )}
       {spec.dims.d !== 'off' && (
-        <Dimension x1={xB} y1={groundY} x2={xC} y2={groundY} offset={-38 * f} label={`d = ${fmt(s.d, 0)} m`} color={spec.dims.d === 'strong' ? VIZ.ink : VIZ.muted} labelSize={0.95} />
+        <SnowDimension x1={xB} y1={groundY} x2={xC} y2={groundY} offset={-38 * f} label={`d = ${fmt(s.d, 0)} m`} strong={spec.dims.d === 'strong'} />
       )}
-      {spec.dims.dEst !== 'off' && (
-        <Dimension x1={xB} y1={groundY} x2={xCe} y2={groundY} offset={-38 * f} label={`d′ ≈ ${fmt(s.dEst, 0)} m`} color={VIZ.ink} labelSize={0.95} />
-      )}
-      {/* Vinkelen ved B, med bokstaven mellom B og etiketten til s-målet (midt på bakken) */}
-      {spec.angle && <SlopeAngle x={xB} y={groundY} alphaDeg={s.alphaDeg} r={Math.min(130 * f, (L.narrow ? 0.22 : 0.3) * (xB - xA))} />}
+      {spec.dims.dEst !== 'off' && <SnowDimension x1={xB} y1={groundY} x2={xCe} y2={groundY} offset={-38 * f} label={`d′ ≈ ${fmt(s.dEst, 0)} m`} strong />}
+      {/* Vinkelen ved B: en liten bue nær B, innenfor der s-målet krysser den vannrette linja */}
+      {angle && <SlopeAngle x={xB} y={groundY} alphaDeg={s.alphaDeg} r={angle.r} rho={angle.rho} leg={angle.leg} />}
 
-      {/* Punktene */}
+      {/* Punktene (A står mot himmelen, B, C og C′ på snøen) */}
       <PointMark x={xA} y={yA} lx={xA + 9 * f} ly={yA - 8 * f} label="A" />
-      <PointMark x={xB} y={groundY} lx={xB - 9 * f} ly={groundY + 24 * f} label="B" anchor="end" />
-      {spec.pointC && <PointMark x={xC} y={groundY} lx={xC + 8 * f} ly={groundY + 24 * f} label="C" muted={spec.pointCest} />}
-      {spec.pointCest && <PointMark x={xCe} y={groundY} lx={xCe + 8 * f} ly={groundY + 24 * f} label="C′" />}
+      <PointMark x={xB} y={groundY} lx={xB - 9 * f} ly={groundY + 24 * f} label="B" anchor="end" onSnow />
+      {spec.pointC && <PointMark x={xC} y={groundY} lx={xC + 8 * f} ly={groundY + 24 * f} label="C" muted={spec.pointCest} onSnow />}
+      {spec.pointCest && <PointMark x={xCe} y={groundY} lx={xCe + 8 * f} ly={groundY + 24 * f} label="C′" onSnow />}
 
       {/* Etikett til varmen første gang den vises (på mobil står fargeforklaringen rett under figuren) */}
       {spec.heatSlope && !spec.heatFlat && spec.speedB === 'measured' && !L.narrow && <HeatCallout L={L} task={task} s={s} />}
@@ -483,26 +526,36 @@ function Scene({ task, s, look, spec, L }: { task: SledTask; s: SledSolution; lo
       ))}
       <Aker fr={rider} rppm={L.rppm} look={look} />
 
+      {/* Lupen med tyngden og normalkraften på flaten (ti ganger større enn friksjonen, egen skala). Tegnes før pilene,
+          så ringen rundt akeren går under R og v. */}
+      {lupe && L.lupeTag && (
+        <>
+          <FlatLupe lupe={lupe} ring={riderRing(L, rider)} G={s.G} look={look} f={f} />
+          <ValueTag x={L.lupeTag.x} y={L.lupeTag.y} text={L.lupeTag.text} color={VIZ.ink} />
+        </>
+      )}
+
       {/* Fart */}
       {spec.v0 && <SpeedArrow L={L} fr={fr('A')} v={task.v0} />}
       {spec.speedB !== 'off' && <SpeedAtB L={L} task={task} s={s} spec={spec} />}
-      {spec.rider === 'mid' && spec.slopeForces === 'R' && <SpeedArrow L={L} fr={rider} v={speedMid(task)} label="v" />}
+      {spec.rider === 'mid' && spec.slopeForces === 'Fmot' && <SpeedArrow L={L} fr={rider} v={speedMid(task)} label="v" />}
       {spec.flatForces && <SpeedArrow L={L} fr={rider} v={speedOnFlat(task, s, 0.42 * s.d)} label="v" />}
 
-      {/* Krefter */}
-      {spec.slopeForces === 'R' && <SlopeR L={L} fr={rider} R={s.R} />}
-      {spec.slopeForces === 'split' && <SlopeSplit L={L} fr={rider} muN={s.muN} Lair={s.L} />}
+      {/* Krefter: én skala (kF) for alle pilene i scenen, vist med målestokken oppe til venstre */}
+      {spec.slopeForces === 'Fmot' && <SlopeFmot fr={rider} rppm={L.rppm} F={s.Fmot} k={kF} f={f} />}
+      {eForces && <SlopeSplit fr={rider} rppm={L.rppm} R={s.muN} Lair={spec.slopeForces === 'split' ? s.L : 0} k={kF} f={f} />}
       {spec.flatForces && (
         <ForceArrow
           x1={rider.x}
           y1={rider.y - COM_HEIGHT * L.rppm}
-          x2={rider.x - s.Rflat * L.kF}
+          x2={rider.x - s.Rflat * kF}
           y2={rider.y - COM_HEIGHT * L.rppm}
           color={VIZ.friction}
           label="R"
           origin
         />
       )}
+      {showForces && <ScaleBar x={L.scaleBar.x} y={L.scaleBar.y} force={scaleF} k={kF} />}
 
       {/* Verdiskilt over akeren */}
       {spec.v0 && <ValueTag {...tagY('A')} text={`v₀ = ${fmt(task.v0, 1)} m/s`} color={VIZ.velocity} pointer={6 * f} />}
@@ -557,24 +610,65 @@ function SpeedAtB({ L, task, s, spec }: { L: SceneLayout; task: SledTask; s: Sle
   );
 }
 
-/** Den gjennomsnittlige friksjonskraften R midt i bakken, fra tyngdepunktet og opp langs bakken. */
-function SlopeR({ L, fr, R }: { L: SceneLayout; fr: ReturnType<typeof spotFrame>; R: number }) {
-  const c = framePoint(fr, 0, COM_HEIGHT * L.rppm);
-  return <ForceArrow x1={c.x} y1={c.y} x2={c.x - fr.tx * R * L.kF} y2={c.y - fr.ty * R * L.kF} color={VIZ.friction} label="R" origin />;
+/**
+ * Der etiketten til en kraft opp langs bakken står: over pila (mot himmelen), litt bak spissen, så den ikke havner
+ * ved toppen A når pila er lang, men heller ikke ved etiketten til luftmotstanden L.
+ */
+function labelAbove(fr: Frame, x: number, y: number, len: number, f: number): { x: number; y: number } {
+  const p = framePoint({ ...fr, x, y }, Math.min(0.18 * len, 30 * f), 17 * f);
+  return { x: p.x, y: p.y + 6 * f };
+}
+
+/** Den gjennomsnittlige samlede motkraften F_mot (friksjon og luftmotstand) midt i bakken, fra tyngdepunktet og opp langs bakken. */
+function SlopeFmot({ fr, rppm, F, k, f }: { fr: Frame; rppm: number; F: number; k: number; f: number }) {
+  const c = framePoint(fr, 0, COM_HEIGHT * rppm);
+  const tip = { x: c.x - fr.tx * F * k, y: c.y - fr.ty * F * k };
+  const lab = labelAbove(fr, tip.x, tip.y, F * k, f);
+  return (
+    <ForceArrow
+      x1={c.x}
+      y1={c.y}
+      x2={tip.x}
+      y2={tip.y}
+      color={VIZ.friction}
+      label={
+        <>
+          F<TSub>mot</TSub>
+        </>
+      }
+      labelX={lab.x}
+      labelY={lab.y}
+      labelAnchor="middle"
+      origin
+    />
+  );
 }
 
 /**
- * R delt i friksjonen fra snøen (μN, virker i kontaktflaten under brettet) og luftmotstanden (L, virker på kroppen),
- * begge opp langs bakken, mot bevegelsen.
+ * Den samlede motkraften delt i friksjonen R = μN fra snøen (virker i kontaktflaten under brettet) og luftmotstanden L
+ * (virker på kroppen), begge opp langs bakken, mot bevegelsen. Med `Lair` = 0 vises bare friksjonen.
  */
-function SlopeSplit({ L, fr, muN, Lair }: { L: SceneLayout; fr: ReturnType<typeof spotFrame>; muN: number; Lair: number }) {
-  const sled = SLED_LENGTH * L.rppm;
-  const c = framePoint(fr, -0.36 * sled, 0.03 * L.rppm);
-  const b = framePoint(fr, -0.22 * L.rppm, 0.62 * L.rppm);
+function SlopeSplit({ fr, rppm, R, Lair, k, f }: { fr: Frame; rppm: number; R: number; Lair: number; k: number; f: number }) {
+  const sled = SLED_LENGTH * rppm;
+  const c = framePoint(fr, -0.36 * sled, 0.03 * rppm);
+  const b = framePoint(fr, -0.22 * rppm, 0.62 * rppm);
+  // Bokstaven R står over pila et stykke bak spissen (mot himmelen), ikke forbi spissen, der toppen A står.
+  const rTip = { x: c.x - fr.tx * R * k, y: c.y - fr.ty * R * k };
+  const rLabel = labelAbove(fr, rTip.x, rTip.y, R * k, f);
   return (
     <g>
-      <ForceArrow x1={c.x} y1={c.y} x2={c.x - fr.tx * muN * L.kF} y2={c.y - fr.ty * muN * L.kF} color={VIZ.friction} label="μN" />
-      <ForceArrow x1={b.x} y1={b.y} x2={b.x - fr.tx * Lair * L.kF} y2={b.y - fr.ty * Lair * L.kF} color={VIZ.friction} label="L" />
+      <ForceArrow
+        x1={c.x}
+        y1={c.y}
+        x2={rTip.x}
+        y2={rTip.y}
+        color={VIZ.friction}
+        label="R"
+        labelX={rLabel.x}
+        labelY={rLabel.y}
+        labelAnchor="middle"
+      />
+      {Lair > 0 && <ForceArrow x1={b.x} y1={b.y} x2={b.x - fr.tx * Lair * k} y2={b.y - fr.ty * Lair * k} color={VIZ.friction} label="L" />}
     </g>
   );
 }

@@ -58,7 +58,7 @@ import {
   type HydroResult,
   type PresetId,
 } from './model-vannkraft';
-import { Demning, FjellSnitt, Hus, Inntak, Kraftmast, Kraftstasjon, Linjer, Rorgate, Utlop, bygdPlasser, mastPunkter, stationPoints } from './vannkraft-deler';
+import { Bekk, Demning, FjellSnitt, Hus, Inntak, Kraftmast, Kraftstasjon, Linjer, Rorgate, Utlop, bygdPlasser, mastPunkter, stationPoints } from './vannkraft-deler';
 import {
   HYDRO_NARROW,
   HYDRO_WIDE,
@@ -66,9 +66,11 @@ import {
   placeLabel,
   pointAlong,
   polylineLength,
+  viewTop,
   type Box,
   type HydroScene,
   type LabelSpot,
+  type ViewRoom,
 } from './vannkraft-scene';
 import { useNarrow } from './useNarrow';
 
@@ -83,6 +85,15 @@ const LARGEST_NORWEGIAN = 1.24e9;
 const PLAY_SECONDS = 60;
 
 type Choice = PresetId | 'egne';
+
+/**
+ * Plassen utsnittet beholder over demningen og over taket på stasjonen (se viewTop). Teksten i figuren vokser på
+ * mobil (useTextScale er ca. 1,2 i den smale utformingen), så der trengs litt mer.
+ */
+function viewRoom(narrow: boolean): ViewRoom {
+  const f = narrow ? 1.25 : 1;
+  return { sky: 60 + 30 * f, roof: 84 + 40 * f };
+}
 
 /** Tallet og enheten hver for seg: 4 169 250 W → { value: «4,17», unit: «MW» }. */
 function siParts(v: number, unit: string): { value: string; unit: string } {
@@ -121,6 +132,8 @@ export default function Vannkraft() {
   const choice: Choice = matchPreset({ h, Q, eta }) ?? 'egne';
   const lay = narrow ? HYDRO_NARROW : HYDRO_WIDE;
   const sc = useMemo(() => hydroScene(h, Q, lay), [h, Q, lay]);
+  // Ved liten fallhøyde beskjæres himmelen over scenen, så figuren ikke blir halvt tom
+  const top = viewTop(sc, viewRoom(narrow));
 
   const pick = (id: Choice) => {
     const p = PRESETS.find((x) => x.id === id);
@@ -173,12 +186,12 @@ export default function Vannkraft() {
 
       <div ref={ref}>
         <Figure
-          viewBox={`0 0 ${lay.W} ${lay.H}`}
-          label={sceneLabel(h, Q, r)}
+          viewBox={`0 ${top} ${lay.W} ${lay.H - top}`}
+          label={sceneLabel(h, Q, r, sc.kind === 'bekk')}
           maxHeight={narrow ? 620 : 500}
           caption="Høydene er ikke tegnet i målestokk: fallhøyden kan være alt fra 5 m til 1 000 m, så den er tegnet sammentrykt."
         >
-          <Scene sc={sc} h={h} Q={Q} r={r} t={clock.t} />
+          <Scene sc={sc} top={top} h={h} Q={Q} r={r} t={clock.t} />
         </Figure>
       </div>
 
@@ -213,25 +226,29 @@ export default function Vannkraft() {
       </Formula>
 
       <Explain>
-        <ExplainText h={h} Q={Q} eta={eta} r={r} preset={choice} />
+        <ExplainText h={h} Q={Q} eta={eta} r={r} preset={choice} stream={sc.kind === 'bekk'} />
       </Explain>
     </VizLayout>
   );
 }
 
-function sceneLabel(h: number, Q: number, r: HydroResult): string {
-  return `Vannkraftverk i fjellet: vann fra et magasin bak en demning renner gjennom en rørgate ned fjellsida til en kraftstasjon i dalen. Fallhøyden er ${fmt(h, 0)} m og vannføringen ${flowText(Q)} m³/s. I stasjonen driver vannet turbinen, som driver generatoren. Effekten er ${si(r.power, 'W')}, og strømmen går med kraftlinjer til bygda.`;
+function sceneLabel(h: number, Q: number, r: HydroResult, stream: boolean): string {
+  const source = stream
+    ? 'vann fra en bekk demmes opp av en lav terskel i et bekkeinntak og'
+    : 'vann fra et magasin bak en demning';
+  return `Vannkraftverk i fjellet: ${source} renner gjennom en rørgate ned fjellsida til en kraftstasjon i dalen. Fallhøyden er ${fmt(h, 0)} m og vannføringen ${flowText(Q)} m³/s. I stasjonen driver vannet turbinen, som driver generatoren. Effekten er ${si(r.power, 'W')}, og strømmen går med kraftlinjer til bygda.`;
 }
 
 /* ---------- Scenen ---------- */
 
-function Scene({ sc, h, Q, r, t }: { sc: HydroScene; h: number; Q: number; r: HydroResult; t: number }) {
+function Scene({ sc, top, h, Q, r, t }: { sc: HydroScene; top: number; h: number; Q: number; r: HydroResult; t: number }) {
   const f = useTextScale();
   const k = useSceneScale();
   const ss = useStrokeScale();
   const clip = useSvgId('vk-ramme');
   const { lay, dam, surfaceY, turbine, station, river, village, pipe, pipeW } = sc;
   const { W, H, groundY } = lay;
+  const stream = sc.kind === 'bekk';
   const SP = stationPoints(station, turbine.x, turbine.y);
   const lakeDepth = dam.baseY - surfaceY;
   const spin = 0.6;
@@ -260,11 +277,11 @@ function Scene({ sc, h, Q, r, t }: { sc: HydroScene; h: number; Q: number; r: Hy
   const panelTitle = 'Levert energi P · t';
   const panelW = clockR * 2 + 24 + Math.max(panelTitle.length * 0.62 * fs * 0.8, energyText.length * 0.68 * fs * 1.1) + 16;
   const panelH = clockR * 2 + 20;
-  const panel: Box = { x1: W - 10 - panelW, y1: 10, x2: W - 10, y2: 10 + panelH };
+  const panel: Box = { x1: W - 10 - panelW, y1: top + 10, x2: W - 10, y2: top + 10 + panelH };
 
   // Etikettene: plasseres der de ikke kolliderer med stasjonen, demningen, skiltet eller hverandre
   const lf = 17 * 0.85 * f;
-  const frame: Box = { x1: 4, y1: 4, x2: W - 4, y2: H - 4 };
+  const frame: Box = { x1: 4, y1: top + 4, x2: W - 4, y2: H - 4 };
   const stationBox: Box = { x1: station.x - 8, y1: SP.roof.ridgeY - 12, x2: station.x + station.w + 8, y2: groundY + 4 };
   const damBox: Box = { x1: dam.x - 2, y1: dam.crestY - 8, x2: dam.toeX, y2: dam.baseY };
   const pText = `P = ${si(r.power, 'W')}`;
@@ -289,16 +306,28 @@ function Scene({ sc, h, Q, r, t }: { sc: HydroScene; h: number; Q: number; r: Hy
   const obstacles: Box[] = [stationBox, damBox, pTagBox, dimBox, ...pipeBoxes, ...(showPanel ? [panel] : [])];
 
   const hText = `h = ${fmt(h, 0)} m`;
-  // «Magasin» står i vannet når det er plass, ellers over vannet med en strek ned til det
+  // «Magasin» står i vannet når det er plass, ellers over vannet med en strek ned til det. «Bekk» står over bekken
+  // med en strek ned til vannet.
   const lakeY = surfaceY + lakeDepth * 0.5 + lf * 0.35;
-  const lakeLabel = placeLabel(
-    [
-      { lx: (dimX + 10 * f + sc.intake.x - 8) / 2, ly: lakeY, anchor: 'middle', callout: false },
-      { lx: dam.x - 8, ly: lakeY, anchor: 'end', callout: false },
-      { lx: dimX + 12 * f, ly: surfaceY - 22 * f, anchor: 'start', callout: true },
-      { lx: dam.x * 0.5, ly: surfaceY - 40 * f, anchor: 'middle', callout: true },
-    ],
-    7,
+  const lakeName = stream ? 'Bekk' : 'Magasin';
+  const bedLen = polylineLength(sc.streamBed);
+  const streamPt = stream ? pointAlong(sc.streamBed, (bedLen[bedLen.length - 1] ?? 0) * 0.32) : null;
+  const lakePt = streamPt ? { x: streamPt.x, y: streamPt.y - 2.5 * k } : null;
+  const lakeLabel = placeLabel<LabelSpot & { callout: boolean }>(
+    lakePt
+      ? [
+          { lx: lakePt.x + 8 * f, ly: lakePt.y - 28 * f, anchor: 'start', callout: true },
+          { lx: lakePt.x, ly: lakePt.y - 34 * f, anchor: 'middle', callout: true },
+          { lx: lakePt.x + 14 * f, ly: lakePt.y - 14 * f, anchor: 'start', callout: true },
+          { lx: lakePt.x + 10 * f, ly: lakePt.y + 30 * f, anchor: 'start', callout: true },
+        ]
+      : [
+          { lx: (dimX + 10 * f + sc.intake.x - 8) / 2, ly: lakeY, anchor: 'middle', callout: false },
+          { lx: dam.x - 8, ly: lakeY, anchor: 'end', callout: false },
+          { lx: dimX + 12 * f, ly: surfaceY - 22 * f, anchor: 'start', callout: true },
+          { lx: dam.x * 0.5, ly: surfaceY - 40 * f, anchor: 'middle', callout: true },
+        ],
+    lakeName.length,
     lf,
     obstacles,
     frame,
@@ -314,7 +343,8 @@ function Scene({ sc, h, Q, r, t }: { sc: HydroScene; h: number; Q: number; r: Hy
   );
   obstacles.push(hLabel.box);
 
-  const damPt = { x: dam.x + dam.crestW + 0.72 * (dam.baseY - dam.crestY) * 0.45, y: dam.crestY + (dam.baseY - dam.crestY) * 0.45 };
+  const damName = stream ? 'Bekkeinntak' : 'Demning';
+  const damPt = { x: dam.x + dam.crestW + dam.face * (dam.baseY - dam.crestY) * 0.45, y: dam.crestY + (dam.baseY - dam.crestY) * 0.45 };
   const damLabel = placeLabel(
     [
       { lx: dam.toeX + 12 * f, ly: dam.crestY - 6 * f, anchor: 'start' },
@@ -322,7 +352,7 @@ function Scene({ sc, h, Q, r, t }: { sc: HydroScene; h: number; Q: number; r: Hy
       { lx: dam.toeX + 16 * f, ly: damPt.y + 4 * f, anchor: 'start' },
       { lx: dam.x - 10, ly: dam.crestY - 14 * f, anchor: 'end' },
     ],
-    7,
+    damName.length,
     lf,
     obstacles,
     frame,
@@ -402,20 +432,30 @@ function Scene({ sc, h, Q, r, t }: { sc: HydroScene; h: number; Q: number; r: Hy
     <g clipPath={`url(#${clip})`}>
       <defs>
         <clipPath id={clip}>
-          <rect x={0} y={0} width={W} height={H} />
+          <rect x={0} y={top} width={W} height={H - top} />
         </clipPath>
       </defs>
-      <Himmel w={W} h={groundY + 10} sol={{ x: W * 0.6, y: 44, r: 17 }} skyer={2} seed={8} />
-      <Landskap x={0} y={groundY - 4} w={W} h={Math.min(250, (groundY - 40) * 0.62)} type="fjell" seed={5} />
-      {/* Magasinet og elva (terrenget dekker det som er under bunnen) */}
-      <Vann x={-4} y={surfaceY} w={dam.x + 6} h={lakeDepth + 8} />
+      {/* Himmelen og fjellene i bakgrunnen følger utsnittet, så de har samme plass i bildet ved alle fallhøyder */}
+      <Himmel y={top} w={W} h={groundY + 10 - top} sol={{ x: W * 0.6, y: top + 44, r: 17 }} skyer={2} seed={8} />
+      <Landskap x={0} y={groundY - 4} w={W} h={Math.min(250, (groundY - top - 40) * 0.62)} type="fjell" seed={5} />
+      {/* Magasinet (eller inntaksdammen) og elva (terrenget dekker det som er under bunnen) */}
+      <Vann x={sc.pool.x1} y={surfaceY} w={dam.x + 6 - sc.pool.x1} h={lakeDepth + 8} />
       <Vann x={river.x1 - 2} y={river.y} w={river.x2 - river.x1 + 4} h={river.depth} />
-      <Terreng points={sc.terrain} bottom={H + 10} type="gress" seed={6} />
+      {stream ? (
+        <>
+          {/* Bekkeleiet er grus og stein, resten gress */}
+          <Terreng points={sc.terrain.slice(sc.bedPoints - 1)} bottom={H + 10} type="gress" seed={6} />
+          <Terreng points={sc.terrain.slice(0, sc.bedPoints)} bottom={H + 10} type="grus" seed={6} />
+        </>
+      ) : (
+        <Terreng points={sc.terrain} bottom={H + 10} type="gress" seed={6} />
+      )}
       <FjellSnitt terrain={sc.terrain} top={surfaceY} bottom={H} k={k} />
+      {stream && <Bekk bed={sc.streamBed} t={t} k={k} />}
 
       <Rorgate path={pipe} w={pipeW} t={t} ground={sc.terrain} supportsFrom={startSlope} supportsTo={endSlope} />
       <Inntak x={sc.intake.x} y={sc.intake.y} w={pipeW} />
-      <Demning dam={dam} />
+      <Demning dam={dam} rekkverk={!stream} />
 
       <Kraftstasjon s={station} turbineX={turbine.x} turbineY={turbine.y} pipeW={pipeW} t={t} spin={spin} />
       <Utlop x={SP.outlet.x} y={SP.outlet.y + 2} t={t} w={Math.min(28, river.x2 - SP.outlet.x)} />
@@ -446,6 +486,19 @@ function Scene({ sc, h, Q, r, t }: { sc: HydroScene; h: number; Q: number; r: Hy
         opacity={0.6}
       />
       <circle cx={turbine.x} cy={turbine.y} r={3 * ss} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.2 * ss} />
+      {/* Ved et bekkeinntak ligger bekkeleiet over vannflata ved målet, så en hjelpelinje viser vannflata i dammen */}
+      {stream && (
+        <line
+          x1={dimX}
+          y1={surfaceY}
+          x2={sc.pool.x1 + 8}
+          y2={surfaceY}
+          stroke={VIZ.ink}
+          strokeWidth={1.1 * ss}
+          strokeDasharray={`${4 * ss} ${3.5 * ss}`}
+          opacity={0.6}
+        />
+      )}
       <Dimension x1={dimX} y1={surfaceY} x2={dimX} y2={turbine.y} />
       <Txt x={hLabel.lx} y={hLabel.ly} anchor="start" weight={720} size={0.95}>
         {hText}
@@ -453,16 +506,22 @@ function Scene({ sc, h, Q, r, t }: { sc: HydroScene; h: number; Q: number; r: Hy
 
       {/* Navn på delene */}
       {lakeLabel.callout ? (
-        <Callout x={Math.min(dam.x - 10, lakeLabel.lx + 26 * f)} y={surfaceY + lakeDepth * 0.45} lx={lakeLabel.lx} ly={lakeLabel.ly} anchor={lakeLabel.anchor}>
-          Magasin
+        <Callout
+          x={lakePt ? lakePt.x : Math.min(dam.x - 10, lakeLabel.lx + 26 * f)}
+          y={lakePt ? lakePt.y : surfaceY + lakeDepth * 0.45}
+          lx={lakeLabel.lx}
+          ly={lakeLabel.ly}
+          anchor={lakeLabel.anchor}
+        >
+          {lakeName}
         </Callout>
       ) : (
         <Txt x={lakeLabel.lx} y={lakeLabel.ly} anchor={lakeLabel.anchor} size={0.85} weight={650}>
-          Magasin
+          {lakeName}
         </Txt>
       )}
       <Callout x={damPt.x} y={damPt.y} lx={damLabel.lx} ly={damLabel.ly} anchor={damLabel.anchor}>
-        Demning
+        {damName}
       </Callout>
       <Callout x={pipePt.x} y={pipePt.y} lx={pipeLabel.lx} ly={pipeLabel.ly} anchor={pipeLabel.anchor}>
         Rørgate
@@ -682,7 +741,7 @@ function Households({ n, lay }: { n: number; lay: FlowLayout }) {
 
 /* ---------- Forklaringen ---------- */
 
-function ExplainText({ h, Q, eta, r, preset }: { h: number; Q: number; eta: number; r: HydroResult; preset: Choice }) {
+function ExplainText({ h, Q, eta, r, preset, stream }: { h: number; Q: number; eta: number; r: HydroResult; preset: Choice; stream: boolean }) {
   const vol = volumeComparison(Q);
   const one = (n: number) => Math.abs(n - 1) < 0.05;
   const volText =
@@ -715,7 +774,12 @@ function ExplainText({ h, Q, eta, r, preset }: { h: number; Q: number; eta: numb
       </>
     );
   } else if (h >= 300) {
-    context = (
+    context = stream ? (
+      <>
+        Med stor høydeforskjell trengs mye mindre vann for samme effekt. Derfor kan selv en liten fjellbekk gi nyttig strøm når vannet føres i
+        rør langt ned i dalen.
+      </>
+    ) : (
       <>
         Et fjellkraftverk utnytter en stor høydeforskjell, så det klarer seg med mye mindre vann for samme effekt: vannet fra et magasin høyt
         oppe i fjellet føres i rør og tunneler ned til stasjonen i dalen.
@@ -729,7 +793,8 @@ function ExplainText({ h, Q, eta, r, preset }: { h: number; Q: number; eta: numb
     <>
       <p>
         <strong>Hvert sekund renner {flowText(Q)} m³ vann gjennom turbinen</strong>, det vil si {fmt(r.massPerSecond, 0)} kg ({volText}). Vannet
-        faller {fmt(h, 0)} m fra vannflata i magasinet ned til turbinen og mister den potensielle energien mgh = {si(r.inputPower, 'J')} hvert sekund.
+        faller {fmt(h, 0)} m fra vannflata {stream ? 'i inntaksdammen ved bekkeinntaket' : 'i magasinet'} ned til turbinen og mister den
+        potensielle energien mgh = {si(r.inputPower, 'J')} hvert sekund.
         Siden 1 W = 1 J/s, gir vannet kraftverket effekten {si(r.inputPower, 'W')}.
       </p>
       <p>
@@ -750,8 +815,10 @@ function ExplainText({ h, Q, eta, r, preset }: { h: number; Q: number; eta: numb
         Med full effekt hele året gir kraftverket {yearText} elektrisk energi. En norsk husstand bruker rundt {fmt(HOUSEHOLD_KWH_PER_YEAR, 0)} kWh i
         året ({si(HOUSEHOLD_POWER, 'W')} i snitt), så det holder til omtrent {householdsText(r.households)} husstander,{' '}
         {r.households < 1 ? 'altså mindre enn én' : settlementName(r.households)}. Dette er et {PLANT_SIZE_NAMES[size]}
-        {size === 'mikro' ? ' (under 100 kW)' : size === 'mini' ? ' (0,1–1 MW)' : size === 'smaa' ? ' (1–10 MW)' : ''}. Et kraftverk går sjelden
-        for fullt hele året, fordi vannet i magasinet må spares til vinteren, så det virkelige tallet er lavere.
+        {size === 'mikro' ? ' (under 100 kW)' : size === 'mini' ? ' (0,1–1 MW)' : size === 'smaa' ? ' (1–10 MW)' : ''}.{' '}
+        {stream
+          ? 'Et bekkeinntak har ikke noe magasin å spare vann i, så kraftverket går for fullt bare når bekken har nok vann. Om vinteren og i tørre perioder er det lite vann, så det virkelige tallet er lavere.'
+          : 'Et kraftverk går sjelden for fullt hele året, fordi vannet i magasinet må spares til vinteren, så det virkelige tallet er lavere.'}
         {r.power > LARGEST_NORWEGIAN && ' Så stort er ikke noe norsk kraftverk: det største har en effekt på litt over 1 200 MW.'}
         {preset === 'hytte' && ' Det er likevel nok til lys, kjøleskap og lading på hytta.'}
       </p>

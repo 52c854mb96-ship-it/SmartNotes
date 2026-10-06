@@ -1,12 +1,45 @@
 /**
  * Egne deler til eksempeloppgaven «Akebrett ned bakken»: akeren på brettet (scene-kit-ets Akebrett og Person),
- * punktmerkene A, B og C, varmen langs sporet, vinkelbuen og energipanelet («energiregnskapet»). Samme stil som
- * scene-kit-et: VIZ-farger for fysikken, SCENE-farger for gjenstandene, glorie rundt tekst.
+ * punktmerkene A, B og C, varmen langs sporet, mål og vinkelbue på snøen, lupen med G og N på flaten, målestokken
+ * for kreftene og energipanelet («energiregnskapet»). Samme stil som scene-kit-et: VIZ-farger for fysikken,
+ * SCENE-farger for gjenstandene, glorie rundt tekst som står på himmelen, og mørk snøfarge uten glorie på snøen.
  */
-import { useEffect, useRef, useState } from 'react';
-import { TSub, Txt, VIZ, fmt } from '../../kit';
-import { Akebrett, Person, SCENE, alpha, mix, useStrokeScale, type PaintName } from '../../kit/scene';
-import { PERSON_HEIGHT, SLED_LENGTH, framePoint, ledgerHeight, type Box, type Frame, type LedgerKind, type LedgerRow } from './eks-akebakke-scene';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { TSub, Txt, VIZ, fmt, useTextScale } from '../../kit';
+import { Akebrett, ForceArrow, Himmel, Landskap, Person, SCENE, Underlag, alpha, mix, shade, useStrokeScale, useSvgId, type PaintName } from '../../kit/scene';
+import {
+  PERSON_HEIGHT,
+  SLED_LENGTH,
+  flatLupeMap,
+  framePoint,
+  ledgerHeight,
+  scaleBarTextW,
+  type Box,
+  type Circle,
+  type Frame,
+  type LedgerKind,
+  type LedgerRow,
+} from './eks-akebakke-scene';
+import { outerTangents } from './trappelop-scene';
+
+/**
+ * Tekst og mål som står rett på snøen: mørk blågrå i begge temaer (snøen er lys også i skumringen), uten den mørke
+ * glorien fra temaet, så etikettene ikke ser utskårne ut i mørkt tema.
+ */
+export const SNOW_INK = shade(SCENE.snowShade, 0.6);
+
+/**
+ * Tekst på snøen (som <Txt>, samme størrelser): mørk snøfarge med en glorie i snøens egen farge. Glorien synes ikke
+ * mot snøen, men skjuler streker som går bak teksten (nullnivået, sporet).
+ */
+export function SnowTxt({ x, y, children, anchor = 'middle', size = 1, weight = 650, color = SNOW_INK }: { x: number; y: number; children: ReactNode; anchor?: 'start' | 'middle' | 'end'; size?: number; weight?: number; color?: string }) {
+  const style: CSSProperties & Record<'--kj-fs', number> = { fill: color, stroke: SCENE.snow, fontWeight: weight, '--kj-fs': size };
+  return (
+    <text x={x} y={y} textAnchor={anchor} className="kj-txt" style={style}>
+      {children}
+    </text>
+  );
+}
 
 /* ---------- Skalaen før figuren tegnes ---------- */
 
@@ -71,18 +104,116 @@ export function Aker({ fr, rppm, look, ghost }: { fr: Frame; rppm: number; look:
 
 /* ---------- Punktene og sporet ---------- */
 
-/** Punkt på sporet: liten prikk og en bokstav (A, B, C) like ved. */
-export function PointMark({ x, y, lx, ly, label, anchor = 'start', muted }: { x: number; y: number; lx: number; ly: number; label: string; anchor?: 'start' | 'middle' | 'end'; muted?: boolean }) {
+/**
+ * Punkt på sporet: liten prikk og en bokstav (A, B, C) like ved. Med `onSnow` står bokstaven på snøen (mørk snøfarge
+ * uten glorie), ellers på himmelen.
+ */
+export function PointMark({
+  x,
+  y,
+  lx,
+  ly,
+  label,
+  anchor = 'start',
+  muted,
+  onSnow,
+}: {
+  x: number;
+  y: number;
+  lx: number;
+  ly: number;
+  label: string;
+  anchor?: 'start' | 'middle' | 'end';
+  muted?: boolean;
+  onSnow?: boolean;
+}) {
   const ss = useStrokeScale();
+  const ink = onSnow ? SNOW_INK : VIZ.ink;
   return (
     <g opacity={muted ? 0.55 : 1}>
-      <circle cx={x} cy={y} r={3.6 * ss} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.5 * ss} />
-      <Txt x={lx} y={ly} anchor={anchor} size={0.95} weight={760}>
-        {label}
-      </Txt>
+      <circle cx={x} cy={y} r={3.6 * ss} fill={ink} stroke={onSnow ? SCENE.snow : VIZ.surface} strokeWidth={1.5 * ss} />
+      {onSnow ? (
+        <SnowTxt x={lx} y={ly} anchor={anchor} size={0.95} weight={760}>
+          {label}
+        </SnowTxt>
+      ) : (
+        <Txt x={lx} y={ly} anchor={anchor} size={0.95} weight={760}>
+          {label}
+        </Txt>
+      )}
     </g>
   );
 }
+
+/**
+ * Mållinje på snøen («h = 7,5 m», «s = 30 m»), som scene-kit-ets Dimension, men i mørk snøfarge uten glorie og uten
+ * lys kant under streken (den ser dobbel ut på snø i mørkt tema). `offset` flytter linja vinkelrett ut fra punktene
+ * (positiv = til venstre for retningen fra 1 til 2). `strong` = målet deloppgaven handler om.
+ */
+export function SnowDimension({
+  x1,
+  y1,
+  x2,
+  y2,
+  label,
+  offset = 0,
+  labelOffset = 0,
+  strong,
+}: {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  label: ReactNode;
+  offset?: number;
+  labelOffset?: number;
+  strong?: boolean;
+}) {
+  const ss = useStrokeScale();
+  const f = useTextScale();
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  if (!Number.isFinite(len) || len < 2) return null;
+  const ux = dx / len;
+  const uy = dy / len;
+  const nx = uy;
+  const ny = -ux;
+  const ax = x1 + nx * offset;
+  const ay = y1 + ny * offset;
+  const bx = x2 + nx * offset;
+  const by = y2 + ny * offset;
+  const h = Math.min(9 * ss, len / 3);
+  const head = (px: number, py: number, sx: number, sy: number) =>
+    `${r2(px)},${r2(py)} ${r2(px + sx * h - sy * h * 0.42)},${r2(py + sy * h + sx * h * 0.42)} ${r2(px + sx * h + sy * h * 0.42)},${r2(py + sy * h - sx * h * 0.42)}`;
+  const mx = (ax + bx) / 2 + ux * labelOffset;
+  const my = (ay + by) / 2 + uy * labelOffset;
+  const horizontal = Math.abs(uy) < 0.5;
+  const side = offset === 0 ? 1 : Math.sign(offset);
+  const out = (nx >= 0 ? 1 : -1) * side;
+  const lx = horizontal ? mx : mx + out * 8 * f;
+  const ly = horizontal ? my - 9 * f : my + 6 * f;
+  const anchor = horizontal ? 'middle' : out > 0 ? 'start' : 'end';
+  const color = SNOW_INK;
+  return (
+    <g opacity={strong ? 1 : 0.85}>
+      {offset !== 0 && (
+        <g stroke={color} strokeWidth={1 * ss} opacity={0.6}>
+          <line x1={x1} y1={y1} x2={ax + nx * 5 * Math.sign(offset)} y2={ay + ny * 5 * Math.sign(offset)} strokeDasharray="3 3" />
+          <line x1={x2} y1={y2} x2={bx + nx * 5 * Math.sign(offset)} y2={by + ny * 5 * Math.sign(offset)} strokeDasharray="3 3" />
+        </g>
+      )}
+      <line x1={ax} y1={ay} x2={bx} y2={by} stroke={color} strokeWidth={(strong ? 1.8 : 1.4) * ss} />
+      <polygon points={head(ax, ay, ux, uy)} fill={color} />
+      <polygon points={head(bx, by, -ux, -uy)} fill={color} />
+      <SnowTxt x={lx} y={ly} anchor={anchor} size={strong ? 0.95 : 0.85} weight={strong ? 760 : 650}>
+        {label}
+      </SnowTxt>
+    </g>
+  );
+}
+
+const r2 = (v: number) => Math.round(v * 100) / 100;
 
 /**
  * Termisk energi langs sporet: et mykt, lilla bånd i snøen der friksjonen har virket (samme farge som friksjonen og
@@ -101,23 +232,97 @@ export function HeatTrack({ points }: { points: [number, number][] }) {
 }
 
 /**
- * Vinkelbue for helningen α ved B: mellom den vannrette linja gjennom B (stiplet, inn i bakken mot venstre) og
- * bakken (opp mot venstre). Bokstaven står inni vinkelen.
+ * Vinkelbue for helningen α ved B, på snøen: en liten bue med radius `r` nær B mellom den vannrette linja gjennom B
+ * (stiplet, `leg` lang inn i bakken mot venstre) og bakken (opp mot venstre). Bokstaven står inne i vinkelen, `rho`
+ * fra B langs midtlinja (se `angleMark`).
  */
-export function SlopeAngle({ x, y, alphaDeg, r }: { x: number; y: number; alphaDeg: number; r: number }) {
+export function SlopeAngle({ x, y, alphaDeg, r, rho, leg }: { x: number; y: number; alphaDeg: number; r: number; rho: number; leg: number }) {
   const ss = useStrokeScale();
+  const f = useTextScale();
   const a = (alphaDeg * Math.PI) / 180;
   const ex = x - r * Math.cos(a);
   const ey = y - r * Math.sin(a);
   const mid = a / 2;
-  const lr = r * 0.72;
   return (
     <g>
-      <line x1={x} y1={y} x2={x - r - 24 * ss} y2={y} stroke={VIZ.ink} strokeWidth={1.4 * ss} strokeDasharray={`${6 * ss} ${4 * ss}`} opacity={0.75} />
-      <path d={`M${x - r},${y} A${r},${r} 0 0 1 ${ex},${ey}`} fill="none" stroke={VIZ.ink} strokeWidth={2 * ss} />
-      <Txt x={x - lr * Math.cos(mid)} y={y - lr * Math.sin(mid) + 6 * ss} anchor="middle" size={0.95} weight={700}>
+      <line x1={x} y1={y} x2={x - leg} y2={y} stroke={SNOW_INK} strokeWidth={1.3 * ss} strokeDasharray={`${6 * ss} ${4 * ss}`} opacity={0.85} />
+      <path d={`M${r2(x - r)},${r2(y)} A${r2(r)},${r2(r)} 0 0 1 ${r2(ex)},${r2(ey)}`} fill="none" stroke={SNOW_INK} strokeWidth={1.8 * ss} />
+      <SnowTxt x={x - rho * Math.cos(mid)} y={y - rho * Math.sin(mid) + 0.36 * 17 * 0.95 * f} size={0.95} weight={720}>
         α
+      </SnowTxt>
+    </g>
+  );
+}
+
+/* ---------- Lupen på flaten ---------- */
+
+/**
+ * Lupen med akeren på flaten i d): tyngden G fra tyngdepunktet og normalkraften N fra snøen under brettet, like
+ * lange (egen skala i lupen, se `flatLupeMap`), med ringen rundt akeren i scenen og to streker ut til lupen.
+ */
+export function FlatLupe({ lupe, ring, G, look, f }: { lupe: Circle; ring: Circle; G: number; look: RiderLook; f: number }) {
+  const ss = useStrokeScale();
+  const clip = useSvgId('ake-lupe');
+  const m = flatLupeMap(lupe, G, f);
+  const t = outerTangents(ring, lupe);
+  const { x: cx, y: cy, r: R } = lupe;
+  // Snøjordet bak akeren går opp til midt i lupen, så hodet står mot skogen og himmelen og pilene mot snøen.
+  const horizon = cy - 0.42 * R;
+  return (
+    <g>
+      <g aria-hidden>
+        {t?.map(([a, b], i) => (
+          <g key={i}>
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={VIZ.surface} strokeWidth={3.2 * ss} strokeLinecap="round" opacity={0.6} />
+            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={VIZ.ink} strokeWidth={1 * ss} strokeLinecap="round" opacity={0.5} />
+          </g>
+        ))}
+        <circle cx={ring.x} cy={ring.y} r={ring.r} fill="none" stroke={VIZ.surface} strokeWidth={4 * ss} opacity={0.75} />
+        <circle cx={ring.x} cy={ring.y} r={ring.r} fill="none" stroke={VIZ.ink} strokeWidth={1.4 * ss} opacity={0.75} />
+      </g>
+      <circle cx={cx + 2.5} cy={cy + 4} r={R + 3} fill={SCENE.shadow} opacity={0.22} />
+      <defs>
+        <clipPath id={clip}>
+          <circle cx={cx} cy={cy} r={R} />
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${clip})`}>
+        <Himmel x={cx - R} y={cy - R} w={2 * R} h={2 * R} />
+        <Landskap x={cx - R} y={horizon} w={2 * R} h={0.36 * R} type="skog" seed={4} />
+        {/* Snøjordet fra skogkanten og ned under lupen; akeren sitter på det */}
+        <Underlag x1={cx - R - 4} x2={cx + R + 4} y={cy + R + 2} depth={2} type="sno" horisont={horizon} seed={9} />
+        <Aker fr={m.fr} rppm={m.Z} look={look} />
+      </g>
+      <circle cx={cx} cy={cy} r={R} fill="none" stroke={VIZ.surface} strokeWidth={6 * ss} />
+      <circle cx={cx} cy={cy} r={R + 3 * ss} fill="none" stroke={alpha(VIZ.ink, 0.45)} strokeWidth={1.3 * ss} />
+      <circle cx={cx} cy={cy} r={R - 3 * ss} fill="none" stroke={SCENE.outline} strokeWidth={0.8 * ss} opacity={0.6} />
+      {/* G i tyngdepunktet og N fra snøen under brettet, side om side, så du ser at de er like lange */}
+      <ForceArrow {...m.N} color={VIZ.normal} label="N" labelX={m.N.x2 + 10 * ss} labelY={m.N.y2 + 14 * f} labelAnchor="start" />
+      <ForceArrow {...m.G} color={VIZ.gravity} label="G" labelX={m.G.x2 - 10 * ss} labelY={m.G.y2 - 2 * f} labelAnchor="end" origin />
+    </g>
+  );
+}
+
+/* ---------- Målestokken ---------- */
+
+/**
+ * Målestokken for kreftene oppe til venstre: «20 N» og en strek som er like lang som en kraft på 20 N i figuren.
+ * (x, y) er der teksten begynner og midten av streken i høyden.
+ */
+export function ScaleBar({ x, y, force, k }: { x: number; y: number; force: number; k: number }) {
+  const ss = useStrokeScale();
+  const f = useTextScale();
+  const x0 = x + scaleBarTextW(f) + 8 * f;
+  const x1 = x0 + force * k;
+  return (
+    <g>
+      <Txt x={x} y={y + 5 * f} anchor="start" size={0.78} weight={640}>
+        {fmt(force, 0)} N
       </Txt>
+      <line x1={x0} y1={y} x2={x1} y2={y} stroke={VIZ.surface} strokeWidth={5 * ss} opacity={0.8} strokeLinecap="round" />
+      <line x1={x0} y1={y} x2={x1} y2={y} stroke={VIZ.ink} strokeWidth={2 * ss} />
+      <line x1={x0} y1={y - 5 * ss} x2={x0} y2={y + 5 * ss} stroke={VIZ.ink} strokeWidth={1.5 * ss} />
+      <line x1={x1} y1={y - 5 * ss} x2={x1} y2={y + 5 * ss} stroke={VIZ.ink} strokeWidth={1.5 * ss} />
     </g>
   );
 }
@@ -233,6 +438,8 @@ export function EnergyLedger({ box, rows, EA, f, card = true }: { box: Box; rows
         return (
           <g key={kind}>
             <rect x={x} y={legendY - 10 * f} width={10 * f} height={10 * f} rx={2 * f} fill={COLORS[kind]} />
+            {/* Termisk energi har to lilla toner: den mørke fra bakken og den lyse fra flaten (rad C) */}
+            {kind === 'heat' && <rect x={x} y={legendY - 10 * f} width={5 * f} height={10 * f} rx={1 * f} fill={COLORS.heatFlat} />}
             <Txt x={x + 14 * f} y={legendY} anchor="start" size={0.75} muted>
               {text}
             </Txt>

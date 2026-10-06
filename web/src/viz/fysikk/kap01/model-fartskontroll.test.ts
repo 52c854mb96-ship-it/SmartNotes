@@ -7,6 +7,7 @@ import {
   QUEUE_END,
   QUEUE_START,
   SITUATION_SLIDERS,
+  sliderBMax,
   SPEED_LIMIT_KMH,
   arithmeticMean,
   averageSpeed,
@@ -367,5 +368,26 @@ describe('klokkeslett', () => {
       const tenthsA = Math.round(CAMERA_A_CLOCK * 10);
       expect((tenthsB - tenthsA) / 10).toBeCloseTo(Math.round(T * 10) / 10, 9);
     }
+  });
+});
+
+describe('glidebryterne', () => {
+  it('i «Bremser før kameraene» er farten forbi kameraene høyst farten mellom dem', () => {
+    const { a, b } = SITUATION_SLIDERS.brems;
+    expect(sliderBMax('brems', 105)).toBe(b.max);
+    expect(sliderBMax('brems', 80)).toBe(80);
+    expect(sliderBMax('brems', a.min)).toBe(a.min);
+    for (let va = a.min; va <= a.max; va += 5) {
+      expect(sliderBMax('brems', va)).toBeLessThanOrEqual(va);
+      expect(sliderBMax('brems', va)).toBeGreaterThanOrEqual(b.min);
+    }
+    expect(b.value).toBeLessThanOrEqual(sliderBMax('brems', a.value));
+  });
+
+  it('farten i køen er alltid lavere enn farten utenom køen', () => {
+    const { a, b } = SITUATION_SLIDERS.ko;
+    expect(b.max).toBeLessThan(a.min);
+    expect(sliderBMax('ko', a.min)).toBe(b.max);
+    expect(sliderBMax('halvdeler', 30)).toBe(SITUATION_SLIDERS.halvdeler.b.max);
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fmt } from '../../kit/format';
 import { CRANE_TASKS, J_PER_KWH, LOAD_TEXT, POWER_PRICE, roundSig, sigDecimals, solveCraneTask, type CraneTask } from './model-eks-kran';
 
 const g = 9.81;
@@ -183,5 +184,18 @@ describe('roundSig og sigDecimals', () => {
     expect(sigDecimals(11.772, 2)).toBe(0);
     expect(sigDecimals(9.96, 2)).toBe(0); // 9,96 → 10
     expect(sigDecimals(0.45, 2)).toBe(2);
+  });
+});
+
+describe('svaret i d) har like mange gjeldende siffer i kJ og kWh', () => {
+  // Samme regel som kJ3 og kWh3 i eks-kran-energi.tsx: tre gjeldende siffer i begge enhetene
+  const kJ3 = (E: number) => fmt(E / 1000, sigDecimals(E / 1000, 3));
+  const kWh3 = (E: number) => fmt(E / J_PER_KWH, sigDecimals(E / J_PER_KWH, 3));
+  it('gir 267 kJ ≈ 0,0741 kWh, 464 kJ ≈ 0,129 kWh og 161 kJ ≈ 0,0448 kWh', () => {
+    const shown = CRANE_TASKS.map((t) => {
+      const s = solveCraneTask(t);
+      return `${kJ3(s.Eel)} kJ ≈ ${kWh3(s.Eel)} kWh`;
+    });
+    expect(shown).toEqual(['267 kJ ≈ 0,0741 kWh', '464 kJ ≈ 0,129 kWh', '161 kJ ≈ 0,0448 kWh']);
   });
 });
