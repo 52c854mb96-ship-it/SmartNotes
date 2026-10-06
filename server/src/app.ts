@@ -34,6 +34,17 @@ export interface AppContext {
 }
 
 
+/** Byggnummeret Vite skriver i index.html (`<meta name="smartnotes-build">`), eller null uten ferdigbygd web-app. */
+function readWebBuild(webDist: string | null): string | null {
+  if (!webDist) return null;
+  try {
+    const html = fs.readFileSync(path.join(webDist, 'index.html'), 'utf8');
+    return /<meta name="smartnotes-build" content="([^"]+)"/.exec(html)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function buildApp(config: Config, opts: { claude?: ClaudeService; logger?: boolean } = {}): Promise<AppContext> {
   const app = Fastify({
     logger: opts.logger === false ? false : { level: process.env.LOG_LEVEL ?? 'info' },
@@ -83,6 +94,15 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
     if (status === 413) return reply.code(413).send({ error: 'too_large', message: 'Forespørselen er for stor.' });
     return reply.code(status).send({ error: code ?? 'bad_request', message: 'Ugyldig forespørsel.' });
   });
+
+  // Byggnummeret til web-appen følger med hvert API-svar. Da ser appen at serveren har en nyere versjon, også når
+  // service workeren ikke sa fra i tide (web/src/lib/pwa.ts).
+  const webBuild = readWebBuild(config.webDist);
+  if (webBuild) {
+    app.addHook('onRequest', async (req, reply) => {
+      if (req.url.startsWith('/api/')) reply.header('X-SmartNotes-Build', webBuild);
+    });
+  }
 
   registerAuth(app, repo, config);
 
