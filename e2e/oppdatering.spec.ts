@@ -118,6 +118,8 @@ test.afterAll(async () => {
 
 // «underveis»: siden lastes på nytt mens den nye versjonen installeres (nedlastingen holdes igjen i 4 s).
 // «ferdig»: den nye versjonen er installert før siden lastes på nytt. Safari lar den gjerne stå og vente.
+// Installasjonen startes fra en annen fane som holdes åpen: WebKit kan bli stående midt i en installasjon hvis
+// siden som startet den, lastes på nytt mens den pågår.
 for (const [name, delay] of [
   ['installasjonen er underveis når siden lastes', 4000],
   ['ny versjon er ferdig installert når siden lastes', 0],
@@ -149,13 +151,15 @@ for (const [name, delay] of [
     await stopServer();
     installDelay = delay;
     await startServer(path.join(work, 'B'));
-    await page.evaluate(async () => {
+    const other = await page.context().newPage();
+    await other.goto(`http://localhost:${PROXY}/api/health`);
+    await other.evaluate(async () => {
       const r = await navigator.serviceWorker.getRegistration();
       (window as unknown as { oldWorker?: ServiceWorker | null }).oldWorker = r?.active;
       void r?.update();
     });
     // «underveis»: vent til installasjonen er i gang. «ferdig»: vent til den er ferdig (venter eller har tatt over).
-    await page.waitForFunction(
+    await other.waitForFunction(
       async (underway) => {
         const r = await navigator.serviceWorker.getRegistration();
         const replaced = r?.active !== (window as unknown as { oldWorker?: ServiceWorker | null }).oldWorker;
