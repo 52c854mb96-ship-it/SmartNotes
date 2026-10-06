@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { WAGON_TASKS, peakForce, pulseForce, roundSig, sigDecimals, solveWagonTask, type WagonTask } from './model-eks-vognstot';
+import { BUFFER_STROKE, WAGON_TASKS, peakForce, pulseForce, roundSig, sigDecimals, solveWagonTask, type WagonTask } from './model-eks-vognstot';
 
 const g = 9.81;
 
@@ -69,7 +69,7 @@ describe('vognstøt: tallsett 2 (B triller samme vei) og 3 (B triller mot A)', (
     expect(s.aB).toBeCloseTo(2.75463, 5);
   });
 
-  it('tallsett 3: Σp = 64 000 − 11 200 = 52 800 kg·m/s, V = 0,978 m/s, 53,6 % tapt, F = 62,2 kN', () => {
+  it('tallsett 3: Σp = 64 000 − 11 200 = 52 800 kg·m/s, V = 0,978 m/s, 53,6 % tapt, F = 24 889/0,18 = 138 kN', () => {
     const t = WAGON_TASKS[2]!;
     const s = solveWagonTask(t);
     expect(s.pB).toBeCloseTo(-11_200, 9);
@@ -80,8 +80,11 @@ describe('vognstøt: tallsett 2 (B triller samme vei) og 3 (B triller mot A)', (
     expect(s.lost).toBeCloseTo(29_866.67, 2);
     expect(s.lossShare).toBeCloseTo(0.536398, 6);
     expect(s.IB).toBeCloseTo(24_888.89, 2);
-    expect(s.F).toBeCloseTo(62_222.22, 2);
-    expect(s.aB).toBeCloseTo(4.444444, 6);
+    expect(s.F).toBeCloseTo(138_271.6, 1);
+    expect(s.aA).toBeCloseTo(3.456790, 6);
+    expect(s.aB).toBeCloseTo(9.876543, 6);
+    // Omtrent 1 g for den tomme vogna B
+    expect(s.aB / g).toBeCloseTo(1.007, 3);
   });
 
   it('tallsett 3: glemmer du fortegnet til v_B, får du 1,39 m/s i stedet for 0,98 m/s', () => {
@@ -188,12 +191,19 @@ describe('vognstøt: tallsettene er fysisk fornuftige', () => {
       expect(t.vA).toBeGreaterThan(0);
       expect(t.vA).toBeLessThanOrEqual(2.5);
       expect(s.u).toBeGreaterThan(0);
-      // Et støt mellom buffere varer noen tidels sekunder; kraften er titalls kN, akselerasjonen under g/2.
-      expect(t.dt).toBeGreaterThanOrEqual(0.2);
-      expect(t.dt).toBeLessThanOrEqual(0.5);
+      // Et støt mellom buffere varer et par tidels sekunder; kraften er fra noen titalls til vel hundre kN, og
+      // akselerasjonen er høyst om lag 1 g.
+      expect(t.dt).toBeGreaterThanOrEqual(0.15);
+      expect(t.dt).toBeLessThanOrEqual(0.4);
       expect(s.F).toBeGreaterThan(20_000);
-      expect(s.F).toBeLessThan(100_000);
-      expect(s.aB).toBeLessThan(g / 2);
+      expect(s.F).toBeLessThan(160_000);
+      expect(s.aB).toBeLessThan(1.1 * g);
+      // Bufferne trykkes inn u·Δt/2 = ΔE/F, og det kan ikke være mer enn de to bufferne tåler (2 · 0,10 m), pluss
+      // litt fjæring i koblingene og rammene (3 cm).
+      expect(s.compression).toBeCloseTo((s.u * t.dt) / 2, 12);
+      expect(s.compression).toBeCloseTo(s.lost / s.F, 9);
+      expect(s.compression).toBeGreaterThan(BUFFER_STROKE);
+      expect(s.compression).toBeLessThanOrEqual(2 * BUFFER_STROKE + 0.03);
       // Vognene ruller videre i fartsretningen til A, og noe, men ikke all, energi går tapt.
       expect(s.V).toBeGreaterThan(0.5);
       expect(s.lossShare).toBeGreaterThan(0.1);
@@ -224,6 +234,25 @@ describe('hjelpefunksjoner', () => {
     expect(sigDecimals(0.977778, 2)).toBe(2);
     expect(sigDecimals(48_431, 2)).toBe(0);
     expect(sigDecimals(0, 2)).toBe(0);
+  });
+
+  it('bufferne trykkes inn u·Δt/2: den relative farten avtar fra u til 0 med kraften i pulseForce', () => {
+    for (const t of WAGON_TASKS) {
+      const s = solveWagonTask(t);
+      // Integrer den relative farten u(t) = u − ∫F dt / μ (μ = m_A·m_B/(m_A + m_B)) over støtet.
+      const n = 4000;
+      const h = t.dt / n;
+      let urel = s.u;
+      let x = 0;
+      for (let k = 0; k < n; k++) {
+        const Fk = pulseForce((k + 0.5) * h, s.F, t.dt);
+        const next = urel - (Fk * h) / s.mu;
+        x += ((urel + next) / 2) * h;
+        urel = next;
+      }
+      expect(urel).toBeCloseTo(0, 6);
+      expect(x).toBeCloseTo(s.compression, 5);
+    }
   });
 
   it('F-t-grafen: arealet under den halve sinusbølgen er F · Δt = |I|', () => {

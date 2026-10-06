@@ -67,9 +67,13 @@ export default function EksBallistiskPendel() {
         <>
           E<Sub>k</Sub> i bunnen = E<Sub>p</Sub> i toppen
         </>,
-        <>½(m + M)V² = (m + M)gh ⇒ V = √(2gh)</>,
         <>
-          V = √(2 · 9,81 m/s² · {hM} m) = {V3} m/s
+          ½(m + M)V² = (m + M)gh ⇒ V = <Rot />
+          (2gh)
+        </>,
+        <>
+          V = <Rot />
+          (2 · 9,81 m/s² · {hM} m) = {V3} m/s
         </>,
       ],
       answer: <>V = {fmt(s.V, 2)} m/s</>,
@@ -187,8 +191,8 @@ export default function EksBallistiskPendel() {
       ],
       tip: (
         <>
-          Kraften er om lag {fmt(roundSig(s.forceRatio, 2), 0)} ganger tyngden til kula (mg = {fmt(s.Gbullet, 4)} N). Tyngden og snordraget
-          betyr altså ingenting under støtet.
+          Kraften er om lag {fmt(roundSig(s.forceRatio, 2), 0)} ganger tyngden til kula (mg = {fmt(s.Gbullet, 4)} N). Også tyngden av
+          klossen (Mg = {fmt(s.Gblock, 2)} N) og snordraget, som er av samme størrelse, er ubetydelige mot {fmt(s.F, 0)} N under støtet.
         </>
       ),
       pitfall: (
@@ -332,4 +336,12 @@ function PendelFigure({ task, s, state }: { task: PendulumTask; s: PendulumSolut
       </Figure>
     </div>
   );
+}
+
+/**
+ * Rottegnet i en vanlig tekstfont. Matematikkfonten i formlene kan være Latin Modern Math, som tegner √ under
+ * grunnlinja (laget for å settes sammen med en strek over), så tegnet ser ut til å falle ned.
+ */
+function Rot() {
+  return <span style={{ fontFamily: "'Cambria Math', 'STIX Two Math', Cambria, Georgia, 'Times New Roman', serif" }}>√</span>;
 }

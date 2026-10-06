@@ -39,7 +39,7 @@ interface Scenario {
   label: string;
   /** Hva som gir kraften (graf og formel): «underlaget», «hendene». */
   source: string;
-  /** Retningen til impulsen og kraften, motsatt av farten: «oppover», «bakover mot keeperen». */
+  /** Retningen til impulsen og kraften, motsatt av farten: «oppover», «bort fra keeperen». */
   against: string;
   /** Fartsretningen (positiv retning i utregningen): «nedover». */
   along: string;
@@ -83,7 +83,7 @@ const SCENARIOS: Record<ScenarioId, Scenario> = {
   ball: {
     label: 'Keeper tar imot en fotball',
     source: 'hendene',
-    against: 'motsatt vei av farten',
+    against: 'bort fra keeperen',
     along: 'i fartsretningen til ballen',
     m: FOOTBALL.m,
     v: 15,
@@ -452,7 +452,7 @@ function explanation(id: ScenarioId, sc: Scenario, r: ImpactResult, dtMs: number
   const sign = (
     <>
       Impulsen er en vektor med samme retning som kraften, altså {sc.against}. Velger vi fartsretningen som positiv, blir Δp = 0 − m · v
-      <Sub>0</Sub> = −{I}: minustegnet viser at bevegelsesmengden blir mindre.
+      <Sub>0</Sub> = −{I}. Minustegnet viser at impulsen peker motsatt vei av farten, så bevegelsesmengden blir mindre.
     </>
   );
   if (id === 'egg') {

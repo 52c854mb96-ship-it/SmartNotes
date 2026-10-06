@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SHIN, SOLE, THIGH } from '../../kit/scene/figurer-skjelett';
-import { bulletSize, exitTime, skaterHeight, stanceLegs } from './eksplosjon-form';
+import { arrowZoom, barrelCut, bulletSize, exitTime, skaterHeight, stanceLegs } from './eksplosjon-form';
 
 describe('høyden til skøyteløperne', () => {
   it('barn er lavere enn voksne, og høyden øker med massen', () => {
@@ -78,5 +78,61 @@ describe('geværkula', () => {
     expect(bulletSize(0.01).length).toBeCloseTo(0.03, 12);
     expect(bulletSize(0.08).length / bulletSize(0.01).length).toBeCloseTo(2, 12);
     expect(bulletSize(0.005).diameter).toBeLessThan(bulletSize(0.03).diameter);
+  });
+});
+
+describe('lupen inni løpet', () => {
+  const base = { x0: 20, x1: 780, M: 3000, back: 0.04, uA: 0.078, gap: 28 };
+
+  it('er sammenhengende så lenge alt fram til kulespissen får plass', () => {
+    const c = barrelCut({ ...base, uEnd: 0.1 });
+    expect(c.broken).toBe(false);
+    expect(c.offA).toBeCloseTo(20 + 0.04 * 3000, 9);
+    expect(c.hidden).toBe(0);
+    // Sluttstykket (u = 0) og spissen står der skalaen sier
+    expect(c.offA + 0.1 * 3000).toBeLessThanOrEqual(780);
+  });
+
+  it('brytes når kula er langt fram: spissen står ved høyre kant, og det skjulte stykket stemmer', () => {
+    const uEnd = 0.3;
+    const c = barrelCut({ ...base, uEnd });
+    expect(c.broken).toBe(true);
+    expect(c.xA1).toBeCloseTo(c.offA + 0.078 * 3000, 9);
+    expect(c.xB0).toBeCloseTo(c.xA1 + 28, 9);
+    expect(c.offB + uEnd * 3000).toBeCloseTo(780, 9);
+    // Det som vises i A og B, pluss det skjulte, er hele stykket fram til uEnd
+    const shownB = (780 - c.xB0) / 3000;
+    expect(0.078 + c.hidden + shownB).toBeCloseTo(uEnd, 9);
+    expect(c.hidden).toBeGreaterThan(0);
+  });
+
+  it('henger sammen i overgangen (samme plassering like før og like etter bruddet)', () => {
+    const uSwitch = (780 - (20 + 0.04 * 3000)) / 3000;
+    const before = barrelCut({ ...base, uEnd: uSwitch });
+    const after = barrelCut({ ...base, uEnd: uSwitch + 1e-9 });
+    expect(before.broken).toBe(false);
+    expect(after.broken).toBe(true);
+    expect(after.offB).toBeCloseTo(before.offA, 4);
+    expect(after.hidden).toBeCloseTo(28 / 3000, 6);
+  });
+});
+
+describe('forstørret rekylpil', () => {
+  it('velger 1, 2 eller 5 ganger en tierpotens, så pila blir mellom 40 % og 100 % av maks', () => {
+    expect(arrowZoom(0.37, 110)).toBe(200);
+    expect(arrowZoom(0.094, 110)).toBe(1000);
+    expect(arrowZoom(2.25, 110)).toBe(20);
+    for (const len of [0.013, 0.05, 0.37, 1, 2.25, 7, 30]) {
+      const k = arrowZoom(len, 110);
+      expect(len * k).toBeLessThanOrEqual(110);
+      expect(len * k).toBeGreaterThanOrEqual(110 / 2.5 - 1e-9);
+    }
+  });
+
+  it('forstørrer ikke en pil som er lang nok, og tåler null og negative lengder', () => {
+    expect(arrowZoom(80, 110)).toBe(1);
+    expect(arrowZoom(0, 110)).toBe(1);
+    expect(arrowZoom(-0.37, 110)).toBe(200);
+    expect(arrowZoom(Number.NaN, 110)).toBe(1);
   });
 });

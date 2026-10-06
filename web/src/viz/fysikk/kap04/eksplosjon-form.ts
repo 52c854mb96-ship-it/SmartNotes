@@ -95,3 +95,53 @@ export function bulletSize(m: number): { length: number; diameter: number } {
   const k = Math.cbrt(Math.max(1e-6, m) / 0.01);
   return { length: 0.03 * k, diameter: 0.0078 * k };
 }
+
+/* ---------- Lupen inni løpet og rekylpila ---------- */
+
+/**
+ * Utsnittet i lupen som viser løpet forstørret, M piksler per meter. Lengder langs løpet måles fra sluttstykket (u = 0,
+ * bunnen av patronhylsa). Avsnitt A til venstre er fast: `back` meter av sluttstykket og løpet fram til `uA` (patronen og
+ * starten av løpet). Når kula er så langt fram at alt fram til `uEnd` (spissen pluss litt) ikke får plass mellom x0 og
+ * x1, er løpet «brutt»: et mellomrom på `gap` piksler, og avsnitt B fyller resten, slik at `uEnd` står ved x1. Da står
+ * kula stille ved høyre kant mens løpet glir forbi. Overgangen er sammenhengende.
+ */
+export interface BarrelCut {
+  /** x = offA + u · M i avsnitt A (i hele lupen når løpet ikke er brutt). */
+  offA: number;
+  /** Høyre kant av avsnitt A (x). */
+  xA1: number;
+  broken: boolean;
+  /** Venstre kant av avsnitt B (x), og x = offB + u · M i avsnitt B. */
+  xB0: number;
+  offB: number;
+  /** Lengden av løpet som ikke er vist (m). */
+  hidden: number;
+}
+
+export function barrelCut(p: { x0: number; x1: number; M: number; back: number; uA: number; gap: number; uEnd: number }): BarrelCut {
+  const { x0, x1, M, back, uA, gap, uEnd } = p;
+  const offA = x0 + back * M;
+  if (offA + uEnd * M <= x1) return { offA, xA1: x1, broken: false, xB0: x1, offB: offA, hidden: 0 };
+  const xA1 = offA + uA * M;
+  const xB0 = xA1 + gap;
+  const bStart = uEnd - (x1 - xB0) / M;
+  return { offA, xA1, broken: true, xB0, offB: xB0 - bStart * M, hidden: bStart - uA };
+}
+
+/**
+ * Forstørrelsen av en pil som ellers blir for kort til å synes (rekylfarten til geværet i samme skala som kula):
+ * 1, 2, 5, 10, 20, 50 … ganger, den største som gir en pil på høyst `maxLen` (figurens enheter). Lengre piler
+ * forstørres ikke (1).
+ */
+export function arrowZoom(len: number, maxLen: number): number {
+  const a = Math.abs(len);
+  if (!(a > 0) || !(maxLen > 0) || a >= maxLen / 2.5) return 1;
+  let best = 1;
+  for (let e = 0; e <= 9; e++) {
+    for (const s of [1, 2, 5]) {
+      const k = s * 10 ** e;
+      if (a * k <= maxLen) best = k;
+    }
+  }
+  return best;
+}

@@ -193,7 +193,7 @@ export function PendelScene({
   const blockLeft = X_C - bw / 2;
   const muzzle = blockLeft - 0.15 * P;
   const ringR = Math.max(2.4, 0.004 * P);
-  const holderX = muzzle - 0.16 * P;
+  const holderX = muzzle - 0.1 * P;
   const armLeft = X_C - a - 0.03 * P;
   const armR = Math.max(2.2, 0.0055 * P);
 
@@ -242,7 +242,8 @@ export function PendelScene({
   /** Hvor den høyre snora til klossen i toppen er i høyden y, så tekst kan settes til høyre for den. */
   const stringX = (y: number) => X_C + a + ((ghost.cx - X_C) * (y - pivotY)) / Math.max(1, ghostTop - ringR * 1.9 - pivotY);
   const epY = ghostTop - 44;
-  const faseY = pivotY + 0.34 * (ghostTop - pivotY) + 14 * f;
+  /** Et punkt midt på banen, som «Svingningen: E bevart» peker på. */
+  const swingMid = { x: X_C + R * Math.sin(0.5 * s.thetaMax), y: pathCy + R * Math.cos(0.5 * s.thetaMax) };
   const blockMass = `${fmt(task.M * 1000, 0)} g`;
 
   // Kula
@@ -295,7 +296,7 @@ export function PendelScene({
       {/* Stativet og geværet på benken */}
       <Pendelstativ rodX={ROD_X} footY={BENCH_Y} topY={pivotY - 0.03 * P} armY={pivotY} armLeft={armLeft} P={P} />
       <Gevaerholder x={holderX} footY={BENCH_Y} axisY={axis} rBarrel={AIR_RIFLE.rBarrel} P={P} lag="bak" />
-      <Luftgevaer x={muzzle} y={axis} P={P} title="Luftgevær, spent fast i et stativ" />
+      <Luftgevaer x={muzzle} y={axis} P={P} clipX={layout.left - 10} title="Luftgevær, spent fast i et stativ" />
       <Gevaerholder x={holderX} footY={BENCH_Y} axisY={axis} rBarrel={AIR_RIFLE.rBarrel} P={P} lag="foran" />
 
       {/* Skyggen av klossen på benken */}
@@ -312,7 +313,7 @@ export function PendelScene({
         />
       )}
       {vis.topp && pendel(top, true, 'topp')}
-      {pendel(at, false, 'kloss', vis.krefter || zoom ? undefined : blockMass, vis.VPil ? 'oppe-venstre' : 'midt')}
+      {pendel(at, false, 'kloss', vis.krefter || zoom || vis.VPil || vis.energi ? undefined : blockMass)}
       {vis.kule === 'inne' && vis.kloss === 'bunn' && <ellipse cx={blockLeft + 1.2} cy={axis} rx={1.4 * k} ry={2.2 * k} fill={shade(SCENE.woodDark, 0.5)} />}
 
       {/* Kula */}
@@ -342,10 +343,10 @@ export function PendelScene({
             m = {fmt(task.m * 1000, 2)} g
           </Callout>
           <Callout
-            x={layout.narrow ? layout.left + 26 : holderX - 0.09 * P}
+            x={layout.narrow ? layout.left + 26 : muzzle - 0.135 * P}
             y={axis - AIR_RIFLE.rBarrel * P}
-            lx={layout.narrow ? layout.left + 10 : holderX - 0.13 * P}
-            ly={axis - (layout.narrow ? 74 : 52)}
+            lx={layout.narrow ? layout.left + 10 : muzzle - 0.135 * P}
+            ly={axis - (layout.narrow ? 74 : 70)}
             anchor={layout.narrow ? 'start' : 'middle'}
           >
             luftgevær
@@ -374,7 +375,19 @@ export function PendelScene({
       {vis.krefter && <SwingForces cx={real.cx} cy={real.cy} st={mid} />}
 
       {vis.VPil && (
-        <ForceArrow x1={X_C} y1={axis} x2={X_C + s.V * PX_PER_MS} y2={axis} color={VIZ.velocity} width={5} label="V" origin />
+        <ForceArrow
+          x1={X_C}
+          y1={axis}
+          x2={X_C + s.V * PX_PER_MS}
+          y2={axis}
+          color={VIZ.velocity}
+          width={5}
+          label="V"
+          labelX={X_C + bw / 2 + 5}
+          labelY={axis - 8 - 3 * f}
+          labelAnchor="start"
+          origin
+        />
       )}
 
       {vis.energi && (
@@ -437,10 +450,10 @@ export function PendelScene({
             </>
           ) : (
             <>
-              <Callout x={blockLeft + 2} y={axis + 6} lx={blockLeft - 34} ly={BENCH_Y - 14} anchor="end" strong size={0.8}>
+              <Callout x={blockLeft + 2} y={axis + 6} lx={blockLeft - 34} ly={BENCH_Y - 18} anchor="end" strong size={0.8}>
                 Støtet: p bevart
               </Callout>
-              <Callout x={ghost.cx + bw / 2 - 6} y={ghostTop + 4} lx={stringX(faseY - 12 * f) + 12} ly={faseY} anchor="start" strong size={0.8}>
+              <Callout x={swingMid.x} y={swingMid.y} lx={swingMid.x + 16} ly={BENCH_Y - 18} anchor="start" strong size={0.8}>
                 Svingningen: E bevart
               </Callout>
             </>
@@ -476,7 +489,7 @@ function SwingForces({ cx, cy, st }: { cx: number; cy: number; st: ReturnType<ty
     <g>
       <ForceArrow x1={cx} y1={cy} x2={cx} y2={cy + st.G * PX_PER_N} color={VIZ.gravity} label="G" origin />
       <ForceArrow x1={cx} y1={cy} x2={cx + uS.x * st.S * PX_PER_N} y2={cy + uS.y * st.S * PX_PER_N} color={VIZ.tension} label="S" labelAnchor="end" />
-      <ForceArrow x1={cx} y1={cy} x2={cx + uV.x * st.u * PX_PER_MS} y2={cy + uV.y * st.u * PX_PER_MS} color={VIZ.velocity} width={5} />
+      <ForceArrow x1={cx} y1={cy} x2={cx + uV.x * st.u * PX_PER_MS} y2={cy + uV.y * st.u * PX_PER_MS} color={VIZ.velocity} width={5} label="fart" />
       <path d={corner} fill="none" stroke={VIZ.surface} strokeWidth={4 * ss} opacity={0.85} />
       <path d={corner} fill="none" stroke={VIZ.ink} strokeWidth={1.5 * ss} />
       <Callout x={cx + (uS.x + uV.x) * m * 0.75} y={cy + (uS.y + uV.y) * m * 0.75} lx={cx + 44} ly={cy - 64 - 4 * f} anchor="start" size={0.8}>

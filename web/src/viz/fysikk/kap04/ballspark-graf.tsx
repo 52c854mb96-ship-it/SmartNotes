@@ -69,37 +69,133 @@ export function ForceGraph({ sport, Fmax, dtMs, shape, tMs, playing, height }: F
       width={800}
       height={height}
     >
-      {({ sx, sy, x1, y1 }) => {
+      {({ sx, sy, x0, x1, y1 }) => {
         const base = sy(0);
         const area = (pts: [number, number][], end: number) =>
           pts.length > 1 ? `${linePath(pts, sx, sy)} L ${sx(end)} ${base} L ${sx(0)} ${base} Z` : '';
+        const left = sx(0);
         const peakX = sx(dtMs / 2);
         const peakY = sy(u(Fmax));
         const favgY = sy(u(res.Favg));
         const right = sx(dtMs);
-        // F_maks over toppen (til høyre for den, så den ikke dekker kurven), F_gj til høyre for rektangelet
-        const labelRight = right + 10 + 150 * f < x1;
+        const cursorX = sx(Math.min(tNow, sport.tAxisMs));
+        const showCursor = playing || tMs > 0;
+
+        // Etikettene plasseres på første ledige plass: hver har en liste med kandidater, og en kandidat brukes bare hvis
+        // den er inne i grafen og ikke treffer noe som allerede er plassert. Bredden er anslått fra antall tegn.
+        type Box = { x0: number; x1: number; y0: number; y1: number };
+        type Anchor = 'start' | 'middle' | 'end';
+        type Spot = { x: number; y: number; anchor: Anchor };
+        const width = (chars: number, size: number) => chars * 10 * size * f;
+        const boxAt = (p: Spot, w: number, size: number): Box => {
+          const bx = p.anchor === 'start' ? p.x : p.anchor === 'end' ? p.x - w : p.x - w / 2;
+          return { x0: bx - 3, x1: bx + w + 3, y0: p.y - 15 * size * f, y1: p.y + 5 * size * f };
+        };
+        const hits = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+        const fitsIn = (b: Box) => b.x0 >= x0 + 2 && b.x1 <= x1 - 2 && b.y0 >= y1 - 6 && b.y1 <= base - 2;
+
+        // Tekstene øverst til høyre: arealet og farten
         const areaText = `arealet = I = ${impulseText(res.I)}`;
         const nowText = `arealet så langt = ${impulseText(Inow)}`;
-        // F_maks-etiketten står til høyre for toppen, men til venstre for den (eller lenger ned) hvis den ville truffet
-        // tekstene om arealet øverst til høyre. Bredden er anslått fra antall tegn (ca. 10 per tegn ved vanlig størrelse).
+        const topText = playing && tNow < dtMs ? nowText : areaText;
+        const vText = `v = I/m = ${fmt(playing ? Inow / sport.m : res.v, 1)} m/s`;
+
+        // Kontakttiden: målet ligger nede i pulsen når den er høy nok, ellers over toppen (så høyt at F_gj får plass
+        // under det, rett over tidsaksen). Etiketten står midt på målet hvis den får plass, ellers til høyre for det.
+        const dtText = `Δt = ${msText(sport, dtMs)} ms`;
+        const wDt = width(dtText.length, 0.8);
+        const tall = base - peakY > 46 * f;
+        const dimY = tall ? base - 14 * f : Math.min(peakY - 14 * f, base - 30 * f);
+        const dtInside = right - left > wDt + 14;
+        const dtSpot: Spot = dtInside ? { x: (left + right) / 2, y: dimY - 9 * f, anchor: 'middle' } : { x: right + 8, y: dimY + 5 * f, anchor: 'start' };
+        const dtBox = boxAt(dtSpot, wDt, 0.8);
+        // Pulsen selv (under toppen), så etiketten for største kraft ikke legges oppå kurven
+        const pulseBox: Box = { x0: left + 4, x1: right - 4, y0: peakY + 8, y1: base };
+
         const fmaxText = `Fmaks = ${forceText(sport, Fmax, fDecimals(sport))}`;
-        const wF = fmaxText.length * 10.2 * f;
-        const wA = Math.max(areaText.length, nowText.length) * 10.6 * f;
-        const hitsArea = peakX + 10 + wF > x1 - 6 - wA && peakY - 10 - 17 * f < y1 + 54 * f;
-        const peakLabel = !hitsArea
-          ? { x: peakX + 10, y: peakY - 10, anchor: 'start' as const }
-          : peakX - 10 - wF > sx(0) + 6
-            ? { x: peakX - 10, y: peakY - 10, anchor: 'end' as const }
-            : { x: peakX + 10, y: y1 + 54 * f + 24 * f, anchor: 'start' as const };
+        const fgjText = `Fgj = ${forceText(sport, res.Favg)}`;
+        const zeroText = f > 1.3 ? 'F = 0 etter treffet' : 'F = 0: ballen har sluppet';
+        const wZero = width(zeroText.length, 0.85);
+
+        /** Plasserer etikettene med eller uten fartslinja øverst (den droppes hvis F_maks ellers ikke får plass). */
+        const layout = (withV: boolean) => {
+          const taken: Box[] = [];
+          const place = (cands: Spot[], chars: number, size: number, avoid: Box[] = []): Spot | null => {
+            const w = width(chars, size);
+            for (const c of cands) {
+              const b = boxAt(c, w, size);
+              if (fitsIn(b) && !taken.some((t) => hits(b, t)) && !avoid.some((t) => hits(b, t))) {
+                taken.push(b);
+                return c;
+              }
+            }
+            return null;
+          };
+          const wTop = Math.max(width(areaText.length, 1.04), width(nowText.length, 1.04), withV ? width(vText.length, 0.85) : 0);
+          const topBottom = y1 + (withV ? 58 : 32) * f;
+          taken.push({ x0: x1 - 6 - wTop, x1: x1, y0: y1 + 4 * f, y1: topBottom }, dtBox, { x0: left, x1: right, y0: dimY - 5, y1: dimY + 5 });
+
+          // Største kraft ved toppen
+          const dtTop = dtBox.y0;
+          const peak = place(
+            [
+              { x: peakX + 10, y: peakY - 10, anchor: 'start' },
+              { x: peakX - 10, y: peakY - 10, anchor: 'end' },
+              { x: peakX + 10, y: Math.min(peakY - 10, dtTop - 8 * f), anchor: 'start' },
+              { x: peakX, y: Math.min(peakY - 10, dtTop - 8 * f), anchor: 'middle' },
+              { x: peakX + 10, y: topBottom + 24 * f, anchor: 'start' },
+              { x: left + 8, y: topBottom + 24 * f, anchor: 'start' },
+            ],
+            fmaxText.length,
+            1,
+            [pulseBox],
+          );
+
+          // Gjennomsnittskraften: til høyre for rektangelet, ellers midt under den stiplede linja (der er pulsen
+          // bredere enn etiketten, så den krysser ikke kurven), ellers over linja inne i rektangelet
+          const underFgj: Spot[] =
+            width(fgjText.length, 0.85) < 0.5 * (right - left) - 8 ? [{ x: peakX, y: favgY + 19 * f, anchor: 'middle' }] : [];
+          const fgj = place(
+            [
+              { x: right + 8, y: Math.min(favgY + 6, base - 4 - 4.25 * f), anchor: 'start' },
+              ...underFgj,
+              { x: left + 8, y: favgY - 7, anchor: 'start' },
+              { x: right - 8, y: favgY - 7, anchor: 'end' },
+              { x: right + 8, y: favgY - 20 * f, anchor: 'start' },
+              { x: right + 8, y: Math.min(peakY, dtTop) - 10, anchor: 'start' },
+            ],
+            fgjText.length,
+            0.85,
+          );
+
+          // Etter treffet: kraften er null. Rett over tidsaksen til høyre for kontakttiden, ellers under tekstene øverst.
+          const zero =
+            playing && tNow > dtMs
+              ? place(
+                  [
+                    ...[base - 12 * f, base - 36 * f].map((y) => ({ x: x1 - 12, y, anchor: 'end' as const })).filter((c) => c.x - wZero > right + 6),
+                    { x: x1 - 6, y: topBottom + 22 * f, anchor: 'end' },
+                  ],
+                  zeroText.length,
+                  0.85,
+                )
+              : null;
+          return { withV, peak, fgj, zero };
+        };
+        const first = layout(true);
+        const lay = first.peak ? first : layout(false);
+        const peakSpot: Spot = lay.peak ?? { x: peakX + 10, y: peakY - 10, anchor: 'start' };
+        const fgjSpot = lay.fgj;
+        const zeroSpot = lay.zero;
+
         return (
           <g>
             <path d={area(full, dtMs)} fill={VIZ.applied} opacity={playing ? 0.1 : 0.2} />
             {playing && tNow > 0 && <path d={area(done, Math.min(tNow, dtMs))} fill={VIZ.applied} opacity={0.32} />}
             <rect
-              x={sx(0)}
+              x={left}
               y={favgY}
-              width={right - sx(0)}
+              width={right - left}
               height={base - favgY}
               fill="none"
               stroke={VIZ.applied}
@@ -107,32 +203,37 @@ export function ForceGraph({ sport, Fmax, dtMs, shape, tMs, playing, height }: F
               strokeDasharray="7 6"
             />
             <path d={linePath(full, sx, sy)} fill="none" stroke={VIZ.applied} strokeWidth={3.5} strokeLinejoin="round" />
-            {/* Kontakttiden langs tidsaksen */}
-            <Dimension x1={sx(0)} y1={base - 14 * f} x2={right} y2={base - 14 * f} label={`Δt = ${msText(sport, dtMs)} ms`} labelSize={0.8} color={VIZ.ink} />
-            <Txt x={peakLabel.x} y={peakLabel.y} anchor={peakLabel.anchor} color={VIZ.applied} weight={700}>
+            {/* Tidspunktet scenen viser (streken bak etikettene) */}
+            {showCursor && (
+              <line x1={cursorX} y1={base} x2={cursorX} y2={y1} stroke={VIZ.ink} strokeWidth={1.3} strokeDasharray="3 4" opacity={0.6} />
+            )}
+            {/* Kontakttiden */}
+            <Dimension x1={left} y1={dimY} x2={right} y2={dimY} label={dtInside ? dtText : undefined} labelSize={0.8} color={VIZ.ink} />
+            {!dtInside && (
+              <Txt x={dtSpot.x} y={dtSpot.y} anchor="start" size={0.8} color={VIZ.ink} weight={650}>
+                {dtText}
+              </Txt>
+            )}
+            <Txt x={peakSpot.x} y={peakSpot.y} anchor={peakSpot.anchor} color={VIZ.applied} weight={700}>
               F<TSub>maks</TSub> = {forceText(sport, Fmax, fDecimals(sport))}
             </Txt>
-            {labelRight ? (
-              <Txt x={right + 8} y={favgY + 6} anchor="start" size={0.85} color={VIZ.applied} weight={650}>
+            {fgjSpot && (
+              <Txt x={fgjSpot.x} y={fgjSpot.y} anchor={fgjSpot.anchor} size={0.85} color={VIZ.applied} weight={650}>
                 F<TSub>gj</TSub> = {forceText(sport, res.Favg)}
               </Txt>
-            ) : null}
-            {/* Tidspunktet scenen viser */}
-            {(playing || tMs > 0) && (
-              <>
-                <line x1={sx(Math.min(tNow, sport.tAxisMs))} y1={base} x2={sx(Math.min(tNow, sport.tAxisMs))} y2={y1} stroke={VIZ.ink} strokeWidth={1.3} strokeDasharray="3 4" opacity={0.6} />
-                <circle cx={sx(Math.min(tNow, sport.tAxisMs))} cy={sy(u(Fnow))} r={6.5} fill={VIZ.applied} stroke={VIZ.surface} strokeWidth={2.5} />
-              </>
             )}
+            {showCursor && <circle cx={cursorX} cy={sy(u(Fnow))} r={6.5} fill={VIZ.applied} stroke={VIZ.surface} strokeWidth={2.5} />}
             <Txt x={x1 - 6} y={y1 + 22 * f} anchor="end" weight={650}>
-              {playing && tNow < dtMs ? nowText : areaText}
+              {topText}
             </Txt>
-            <Txt x={x1 - 6} y={y1 + 48 * f} anchor="end" size={0.85} color={VIZ.velocity} weight={650}>
-              v = I/m = {fmt(playing ? Inow / sport.m : res.v, 1)} m/s
-            </Txt>
-            {playing && tNow > dtMs && (
-              <Txt x={x1 - 6} y={base - 40 * f} anchor="end" size={0.85} muted>
-                {f > 1.3 ? 'F = 0 etter treffet' : 'F = 0: ballen har sluppet'}
+            {lay.withV && (
+              <Txt x={x1 - 6} y={y1 + 48 * f} anchor="end" size={0.85} color={VIZ.velocity} weight={650}>
+                {vText}
+              </Txt>
+            )}
+            {zeroSpot && (
+              <Txt x={zeroSpot.x} y={zeroSpot.y} anchor={zeroSpot.anchor} size={0.85} muted>
+                {zeroText}
               </Txt>
             )}
           </g>

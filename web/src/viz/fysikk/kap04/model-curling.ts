@@ -17,8 +17,11 @@ export const STONE_DIAMETER = 0.29;
 /** Radiene til ringene i huset (m): 12 fot, 8 fot, 4 fot og midten («knappen», 1 fot). */
 export const HOUSE_RADII = [1.829, 1.219, 0.61, 0.152] as const;
 
-/** Glidebryteren for farten til den røde steinen rett før støtet (m/s). */
-export const SPEED = { min: 0.5, max: 3, step: 0.1, initial: 2 } as const;
+/**
+ * Glidebryteren for farten til den røde steinen rett før støtet (m/s). Startverdien er ikke 2,0 m/s, for da blir
+ * p = 38,0 kg·m/s og E_k = 38,0 J samme tall, og det kan få p og E_k til å se ut som det samme.
+ */
+export const SPEED = { min: 0.5, max: 3, step: 0.1, initial: 2.5 } as const;
 /** Glidebryteren for energitapet i et uelastisk støt (andel av E_k før støtet). Over 0,5 går ikke. */
 export const LOSS = { min: 0.02, max: 0.48, step: 0.01, initial: 0.1 } as const;
 

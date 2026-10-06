@@ -1,6 +1,6 @@
 /**
  * Gjenstander til visualiseringen «ballspark» som ikke finnes i scene-kit-et: et sparkebein med fotballsko (nærbilde),
- * standbeinet, en tennisracket sett skrått forfra, en golfkølle (driver) sett fra tåa, en tee, et golfflagg langt
+ * standbeinet, en tennisracket sett nesten fra siden, en golfkølle (driver) sett fra tåa, en tee, et golfflagg langt
  * unna og straffemerket. Samme stil som kit-et: toninger fra core, SCENE- og PAINTS-farger, tynn kontur og myke skygger.
  *
  * Alle mål er i meter og ganges med `K` (piksler per meter), så gjenstandene får riktige proporsjoner mot ballene.
@@ -307,7 +307,10 @@ export interface RacketProps {
   x: number;
   y: number;
   K: number;
-  /** Hvor skrått vi ser racketen (grader fra kanten; 90 = rett forfra). */
+  /**
+   * Hvor skrått vi ser racketen, i grader fra kanten (0 = rett på kanten, 90 = rett forfra). Strengene vender mot
+   * høyre, så kraften fra dem på ballen (vinkelrett på strengeflaten) peker mot høyre.
+   */
   skraa?: number;
   ramme?: string;
   stripe?: string;
@@ -318,103 +321,103 @@ const HEAD_A = 0.165;
 const HEAD_B = 0.128;
 /** Midten av hodet ligger litt over treffpunktet (m). */
 const HEAD_DY = -0.012;
+/** Rammen: tykkelsen (dybden, på tvers av strengeflaten) og bredden i strengeflaten (m). */
+const FRAME_DEPTH = 0.024;
+const FRAME_BEAM = 0.013;
 
 /**
- * Tennisracket med strenger, sett skrått forfra så strengene synes: hodet er en ellipse som er klemt sammen
- * vannrett. (x, y) er midten av strengene der ballen treffer; skaftet går ned (ut av bildet i et nærbilde).
+ * Tennisracket sett nesten fra siden, med strengeflaten vendt mot høyre (mot ballen). Hodet blir en smal, høy oval:
+ * rammen har dybde, så den bakre og den fremre kanten av rammen ligger litt forskjøvet, og mellom dem synes siden av
+ * rammen. Strengene synes gjennom åpningen. (x, y) er midten av strengene der ballen treffer; halsen og skaftet går
+ * ned (ut av bildet i et nærbilde).
  */
-export const Racket = memo(function Racket({ x, y, K, skraa = 34, ramme = PAINTS.svart, stripe = PAINTS.rod }: RacketProps) {
+export const Racket = memo(function Racket({ x, y, K, skraa = 13, ramme = PAINTS.svart, stripe = PAINTS.rod }: RacketProps) {
   const ss = useStrokeScale();
-  const clip = useSvgId('bs-strenger');
+  const clipBack = useSvgId('bs-aapning-bak');
+  const clipFront = useSvgId('bs-aapning-foran');
   const gFrame = useSvgId('bs-ramme');
   const k = Math.sin(skraa * DEG);
-  const cx = x;
   const cy = y + HEAD_DY * K;
   const A = HEAD_A * K;
-  const B = HEAD_B * K * k;
-  // Rammen er ca. 2,4 cm tykk (dybden), sett skrått: den bakre kanten forskjøvet mot venstre.
-  const depth = 0.024 * K * Math.cos(skraa * DEG);
-  const beam = 0.013 * K;
-  const Ai = A - beam;
-  const Bi = B - beam * k * 0.9;
+  const b = HEAD_B * K * k;
+  const d = FRAME_DEPTH * K * Math.cos(skraa * DEG);
+  const xb = x - d / 2;
+  const xf = x + d / 2;
+  const beamY = FRAME_BEAM * K;
+  const ri = { x: Math.max(1, b - FRAME_BEAM * K * k - 0.6), y: A - beamY };
   const line = SCENE.outline;
+  /** Omrisset av hele rammen: venstre halvdel av den bakre kanten, høyre halvdel av den fremre. */
+  const silhouette = `M${r2(xb)},${r2(cy - A)} A${r2(b)},${r2(A)} 0 0 0 ${r2(xb)},${r2(cy + A)} L${r2(xf)},${r2(cy + A)} A${r2(b)},${r2(A)} 0 0 0 ${r2(xf)},${r2(cy - A)} Z`;
 
-  // Strengene: 16 hovedstrenger (loddrette) og 19 tverrstrenger (vannrette)
+  // Strengene i midtplanet: 16 hovedstrenger (loddrette) og 19 tverrstrenger (vannrette), sett på skrå
   const mains: string[] = [];
   for (let i = 1; i < 16; i++) {
-    const xx = cx - Bi + (2 * Bi * i) / 16;
-    mains.push(`M${r2(xx)},${r2(cy - Ai)} L${r2(xx)},${r2(cy + Ai)}`);
+    const xx = x - ri.x + (2 * ri.x * i) / 16;
+    mains.push(`M${r2(xx)},${r2(cy - ri.y)} L${r2(xx)},${r2(cy + ri.y)}`);
   }
   const crosses: string[] = [];
   for (let i = 1; i < 19; i++) {
-    const yy = cy - Ai + (2 * Ai * i) / 19;
-    crosses.push(`M${r2(cx - Bi)},${r2(yy)} L${r2(cx + Bi)},${r2(yy)}`);
+    const yy = cy - ri.y + (2 * ri.y * i) / 19;
+    crosses.push(`M${r2(x - ri.x)},${r2(yy)} L${r2(x + ri.x)},${r2(yy)}`);
   }
-  // Halsen: to armer fra sidene av hodet ned mot skaftet
-  const ang = 38 * DEG;
-  const lx = cx - B * Math.sin(ang);
-  const rx = cx + B * Math.sin(ang);
-  const yy = cy + A * Math.cos(ang);
+
+  // Halsen (en smal V sett fra siden) og skaftet, bak hodet
+  const neckTop = cy + A * 0.78;
   const shaftTop = cy + A + 0.07 * K;
-  const sw = 0.009 * K;
+  const sw = 0.011 * K;
+  const neck = `M${r2(xb - b * 0.62)},${r2(neckTop)} L${r2(xf + b * 0.62)},${r2(neckTop)} L${r2(x + sw)},${r2(shaftTop)} L${r2(x + sw)},${r2(shaftTop + 0.3 * K)} L${r2(x - sw)},${r2(shaftTop + 0.3 * K)} L${r2(x - sw)},${r2(shaftTop)} Z`;
+  const neckGap = `M${r2(x - b * 0.42)},${r2(neckTop + 0.02 * K)} L${r2(x + b * 0.42)},${r2(neckTop + 0.02 * K)} L${r2(x)},${r2(shaftTop - 0.03 * K)} Z`;
   return (
     <g>
-      <LinearGradient id={gFrame} x1={0} y1={0} x2={1} y2={0} stops={[[0, tint(ramme, 0.32)], [0.5, ramme], [1, shade(ramme, 0.25)]]} />
-      <clipPath id={clip}>
-        <ellipse cx={cx} cy={cy} rx={Bi} ry={Ai} />
+      <LinearGradient id={gFrame} x1={0} y1={0} x2={1} y2={0} stops={[[0, tint(ramme, 0.38)], [0.45, ramme], [1, shade(ramme, 0.3)]]} />
+      <clipPath id={clipBack}>
+        <ellipse cx={xb} cy={cy} rx={ri.x} ry={ri.y} />
       </clipPath>
-      {/* Halsen og skaftet (bak strengene) */}
-      <path
-        d={`M${r2(lx - depth * 0.4)},${r2(yy)} Q${r2(cx - B * 0.2)},${r2(shaftTop - 0.02 * K)} ${r2(cx - sw)},${r2(shaftTop)} L${r2(cx - sw)},${r2(shaftTop + 0.3 * K)} L${r2(cx + sw)},${r2(shaftTop + 0.3 * K)} L${r2(cx + sw)},${r2(shaftTop)} Q${r2(cx + B * 0.2)},${r2(shaftTop - 0.02 * K)} ${r2(rx)},${r2(yy)}`}
-        fill="none"
-        stroke={line}
-        strokeWidth={sw * 1.2 + 2 * ss}
-        strokeLinejoin="round"
-      />
-      <path
-        d={`M${r2(lx - depth * 0.4)},${r2(yy)} Q${r2(cx - B * 0.2)},${r2(shaftTop - 0.02 * K)} ${r2(cx - sw)},${r2(shaftTop)} L${r2(cx - sw)},${r2(shaftTop + 0.3 * K)} L${r2(cx + sw)},${r2(shaftTop + 0.3 * K)} L${r2(cx + sw)},${r2(shaftTop)} Q${r2(cx + B * 0.2)},${r2(shaftTop - 0.02 * K)} ${r2(rx)},${r2(yy)}`}
-        fill="none"
-        stroke={`url(#${gFrame})`}
-        strokeWidth={sw * 1.2}
-        strokeLinejoin="round"
-      />
-      {/* Den bakre kanten av rammen (dybden) */}
-      <ellipse cx={cx - depth} cy={cy} rx={B} ry={A} fill="none" stroke={line} strokeWidth={beam * 0.85 + 2 * ss} />
-      <ellipse cx={cx - depth} cy={cy} rx={B} ry={A} fill="none" stroke={shade(ramme, 0.3)} strokeWidth={beam * 0.85} />
-      {/* Strengene */}
-      <ellipse cx={cx} cy={cy} rx={Bi} ry={Ai} fill={alpha(SCENE.cloud, 0.12)} />
-      <g clipPath={`url(#${clip})`} stroke={mix(PAINTS.hvit, PAINTS.gul, 0.3)} strokeWidth={Math.max(0.9, 0.0022 * K) * ss} opacity={0.9}>
-        <path d={mains.join(' ')} />
-        <path d={crosses.join(' ')} />
+      <clipPath id={clipFront}>
+        <ellipse cx={xf} cy={cy} rx={ri.x} ry={ri.y} />
+      </clipPath>
+      {/* Halsen og skaftet */}
+      <path d={`${neck} ${neckGap}`} fillRule="evenodd" fill={`url(#${gFrame})`} stroke={line} strokeWidth={1 * ss} strokeLinejoin="round" />
+      {/* Rammen sett fra siden */}
+      <path d={silhouette} fill={`url(#${gFrame})`} stroke={line} strokeWidth={1.1 * ss} strokeLinejoin="round" />
+      {/* Åpningen der strengene synes (der både den bakre og den fremre kanten slipper gjennom) */}
+      <g clipPath={`url(#${clipBack})`}>
+        <g clipPath={`url(#${clipFront})`}>
+          <rect x={x - b - d} y={cy - A} width={2 * (b + d)} height={2 * A} fill={alpha(SCENE.cloud, 0.14)} />
+          <g stroke={mix(PAINTS.hvit, PAINTS.gul, 0.3)} strokeWidth={Math.max(0.9, 0.0022 * K) * ss} opacity={0.95}>
+            <path d={mains.join(' ')} />
+            <path d={crosses.join(' ')} />
+          </g>
+          {/* Skygge fra rammen langs kanten av åpningen */}
+          <ellipse cx={xf} cy={cy} rx={ri.x} ry={ri.y} fill="none" stroke={SCENE.shadow} strokeWidth={2.4 * ss} opacity={0.35} />
+        </g>
       </g>
-      {/* Den fremre kanten av rammen, med en farget stripe og en kantbeskytter øverst */}
-      <ellipse cx={cx} cy={cy} rx={B - beam * k * 0.45} ry={A - beam * 0.45} fill="none" stroke={line} strokeWidth={beam + 2 * ss} />
-      <ellipse cx={cx} cy={cy} rx={B - beam * k * 0.45} ry={A - beam * 0.45} fill="none" stroke={`url(#${gFrame})`} strokeWidth={beam} />
-      <ellipse
-        cx={cx}
-        cy={cy}
-        rx={B - beam * k * 0.45}
-        ry={A - beam * 0.45}
+      <ellipse cx={xb} cy={cy} rx={ri.x} ry={ri.y} fill="none" stroke={line} strokeWidth={0.8 * ss} opacity={0.55} />
+      <ellipse cx={xf} cy={cy} rx={ri.x} ry={ri.y} fill="none" stroke={line} strokeWidth={0.8 * ss} opacity={0.55} />
+      {/* Fargestripe langs den fremre kanten, lys kant langs den bakre, og kantbeskytteren øverst */}
+      <path
+        d={`M${r2(xf + b * 0.35)},${r2(cy - A * 0.94)} A${r2(b * 0.92)},${r2(A * 0.97)} 0 0 1 ${r2(xf + b * 0.35)},${r2(cy + A * 0.94)}`}
         fill="none"
         stroke={stripe}
-        strokeWidth={beam * 0.28}
-        strokeDasharray={`${r2(A * 1.1)} ${r2(A * 0.55)}`}
+        strokeWidth={0.004 * K}
+        strokeDasharray={`${r2(A * 0.9)} ${r2(A * 0.4)}`}
+        strokeLinecap="round"
         opacity={0.95}
       />
       <path
-        d={`M${r2(cx - B * 0.55)},${r2(cy - A * 0.84)} Q${r2(cx)},${r2(cy - A * 1.04)} ${r2(cx + B * 0.55)},${r2(cy - A * 0.84)}`}
-        fill="none"
-        stroke={shade(ramme, 0.15)}
-        strokeWidth={beam * 1.15}
-        strokeLinecap="round"
-      />
-      <path
-        d={`M${r2(cx - B * 0.75)},${r2(cy - A * 0.6)} Q${r2(cx - B * 0.98)},${r2(cy)} ${r2(cx - B * 0.75)},${r2(cy + A * 0.55)}`}
+        d={`M${r2(xb - b * 0.55)},${r2(cy - A * 0.8)} A${r2(b * 0.97)},${r2(A * 0.99)} 0 0 0 ${r2(xb - b * 0.55)},${r2(cy + A * 0.8)}`}
         fill="none"
         stroke={SCENE.highlight}
-        strokeWidth={beam * 0.22}
+        strokeWidth={0.003 * K}
         strokeLinecap="round"
-        opacity={0.45}
+        opacity={0.5}
+      />
+      <path
+        d={`M${r2(xb - b * 0.45)},${r2(cy - A * 0.985)} Q${r2(x)},${r2(cy - A * 1.035)} ${r2(xf + b * 0.45)},${r2(cy - A * 0.985)}`}
+        fill="none"
+        stroke={shade(ramme, 0.2)}
+        strokeWidth={beamY * 0.75}
+        strokeLinecap="round"
       />
     </g>
   );

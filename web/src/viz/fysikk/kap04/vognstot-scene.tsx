@@ -323,10 +323,11 @@ export function VognScene({
 
   const vB = task.vB;
 
-  // Systemgrensen
+  // Systemgrensen: rundt begge vognene, men innenfor utsnittet, så alle fire kantene synes (på mobil går vognene ut av
+  // utsnittet).
   const sysTop = topMin - 62 - 6 * f;
-  const sysLeft = xA - half * P - 8;
-  const sysRight = xB + half * P + 8;
+  const sysLeft = Math.max(xA - half * P - 8, left + 6);
+  const sysRight = Math.min(xB + half * P + 8, right - 6);
 
   // Positiv retning øverst til høyre
   const plus = vis.pluss && skyFree && (
@@ -385,7 +386,7 @@ export function VognScene({
             strokeWidth={1.6 * ss}
             strokeDasharray={`${8 * ss} ${6 * ss}`}
           />
-          <Txt x={Math.max(sysLeft, left) + 14} y={sysTop - 8} anchor="start" size={0.9} weight={700}>
+          <Txt x={sysLeft + 14} y={sysTop - 8} anchor="start" size={0.9} weight={700}>
             Systemet: vogn A og vogn B
           </Txt>
         </g>
@@ -606,7 +607,8 @@ function FtGraf({ x, y, w, h, F, dt, I }: { x: number; y: number; w: number; h: 
   const x1 = x + w - 14;
   const y0 = y + h - 26 * f;
   const y1 = y + 12 * f;
-  const tMax = dt * 1.22;
+  // Plass til høyre for rektangelet til gjennomsnittskraften (som i F-t-grafen i «ballspark»).
+  const tMax = dt * 1.5;
   const Fmax = peakForce(F) * 1.1;
   const sx = (t: number) => x0 + (t / tMax) * (x1 - x0);
   const sy = (v: number) => y0 - (v / Fmax) * (y0 - y1);
@@ -638,11 +640,14 @@ function FtGraf({ x, y, w, h, F, dt, I }: { x: number; y: number; w: number; h: 
       <Txt x={sx(dt)} y={y0 + 18 * f} size={0.78} weight={650}>
         Δt = {fmt(dt, 2)} s
       </Txt>
-      {/* Gjennomsnittskraften og arealet */}
-      <Txt x={(sx(0) + sx(dt)) / 2} y={yF + 20 * f} size={0.8} weight={700} color={VIZ.applied}>
-        gjennomsnitt: F = {kN}
+      {/* Gjennomsnittskraften til høyre for rektangelet, ved den stiplede linja, og arealet nede i det fylte feltet */}
+      <Txt x={sx(dt) + 8} y={yF + 5 * f} anchor="start" size={0.8} weight={700} color={VIZ.applied}>
+        F = {kN}
       </Txt>
-      <Txt x={(sx(0) + sx(dt)) / 2} y={yF + 40 * f} size={0.78} weight={650}>
+      <Txt x={sx(dt) + 8} y={yF + 22 * f} anchor="start" size={0.74} weight={600} color={VIZ.applied}>
+        gjennomsnitt
+      </Txt>
+      <Txt x={(sx(0) + sx(dt)) / 2} y={Math.min(y0 - 9 * f, Math.max(yF + 24 * f, (yF + y0) / 2 + 14 * f))} size={0.74} weight={650}>
         areal = I = {fmtPot(Math.abs(I), 2)} N·s
       </Txt>
       <Txt x={sx(dt * 0.62) + 8} y={sy(peakForce(F) * 0.93)} anchor="start" size={0.78} muted>

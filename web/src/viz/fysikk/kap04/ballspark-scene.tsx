@@ -12,9 +12,11 @@ import {
   ForceArrow,
   Himmel,
   Landskap,
+  PAINTS,
   SpeedLines,
   Underlag,
   ValueTag,
+  shade,
   useSvgId,
   type BallType,
 } from '../../kit/scene';
@@ -45,6 +47,12 @@ interface Layout {
   scale: { m: number; label: string; y: number };
   caption: string;
 }
+
+/**
+ * Racketen sett nesten på kant (grader fra kanten): strengene står nesten vinkelrett på bildet og vender mot ballen,
+ * så kraften fra strengene (vinkelrett på strengeflaten) peker mot høyre, som pila.
+ */
+const RACKET_SKRAA = 13;
 
 /** Fotballbeinet i treffet: foten peker ned og vristen treffer midt bak på ballen. */
 const FOT_VINKEL = 70;
@@ -168,6 +176,13 @@ export function BallsparkScene({ shot, sportId, tMs, snapshot, narrow }: Ballspa
 
   const status = snapshot ? 'Midt i treffet' : st.phase === 'for' ? 'Før treffet' : st.phase === 'under' ? 'Under treffet' : 'Etter treffet: F = 0';
   const fTip = ball.back + st.F * kF;
+  // Kraftetiketten står under ballen (ikke oppå racketen eller foten når kraften er liten), til høyre for målestokken
+  // (stor tekst på mobil) og over kanten av bildet.
+  const fLabel = `F = ${forceText(st.F, snapshot)}`;
+  const fLabelW = fLabel.length * 17 * 0.6 * f;
+  const scaleEnd = left + 24 + L.scale.m * K;
+  // Racketen står foran nedre del av tennisballen, så der starter etiketten til høyre for midten av ballen.
+  const fLabelStart = sportId === 'tennis' ? ball.cx + R * 0.6 : ball.back + 4;
   // Ballen etter treffet (øyeblikksbildet) står til høyre for kraftpila, men innenfor utsnittet.
   const ghostX = Math.min(right - R - 8, Math.max(L.ghostX, fTip + R + 26));
   // Fartspila over ballen (avspilling) eller over ballen etter treffet (øyeblikksbildet), alltid innenfor utsnittet
@@ -221,8 +236,8 @@ export function BallsparkScene({ shot, sportId, tMs, snapshot, narrow }: Ballspa
           </g>
         )}
 
-        {/* Ballen, presset flat mot foten, racketen eller kølla. Tennisballen er foran strengene (vi ser racketen
-            skrått forfra), fotballen og golfballen bak foten og kølla. */}
+        {/* Ballen, presset flat mot foten, racketen eller kølla. Tennisballen er foran racketen (vi ser racketen nesten
+            på kant, med strengene vendt mot ballen), fotballen og golfballen bak foten og kølla. */}
         {sportId === 'tennis' && hitter}
         <g transform={`translate(${r2(ball.cx)} ${r2(cy)}) scale(${r2(ball.sx, 4)} ${r2(ball.sy, 4)})`}>
           <Ball x={0} y={0} r={R} type={L.ball} />
@@ -242,9 +257,9 @@ export function BallsparkScene({ shot, sportId, tMs, snapshot, narrow }: Ballspa
             color={VIZ.applied}
             origin
             minLength={8}
-            label={`F = ${forceText(st.F, snapshot)}`}
-            labelX={Math.max(fTip, left + 70 * f)}
-            labelY={L.y0 + R * ball.sy + 26 * f}
+            label={fLabel}
+            labelX={Math.max(fTip, scaleEnd + 12 + fLabelW / 2, fLabelStart + fLabelW / 2)}
+            labelY={Math.min(L.y0 + R * ball.sy + 26 * f, SCENE_H - 7)}
             labelAnchor="middle"
           />
         )}
@@ -288,12 +303,8 @@ const r2 = (v: number, d = 2) => {
 const Bakgrunn = memo(function Bakgrunn({ sport }: { sport: SportId }) {
   const L = LAYOUTS[sport];
   if (sport === 'tennis') {
-    return (
-      <g>
-        <Himmel w={SCENE_W} h={SCENE_H} sol={{ x: 90, y: 60 }} skyer={2} seed={4} />
-        <Landskap x={0} y={SCENE_H + 6} w={SCENE_W} h={64} type="skog" seed={2} />
-      </g>
-    );
+    // Treffet skjer på toppen av kastet, nesten tre meter over banen: bare himmel bak.
+    return <Himmel w={SCENE_W} h={SCENE_H} sol={{ x: 90, y: 60 }} skyer={2} seed={4} />;
   }
   const horizon = L.horizon!;
   const ground = L.ground!;
@@ -309,17 +320,20 @@ const Bakgrunn = memo(function Bakgrunn({ sport }: { sport: SportId }) {
 });
 
 /**
- * Standbeinet står ved siden av ballen, litt lenger unna (mindre og mørkere), med knottene i gresset. Tåa er like
- * bak forkanten av ballen, så foten skjules av ballen til den er sparket.
+ * Standbeinet står på den andre siden av ballen, slik standfoten plasseres i et vristspark: ankelen omtrent rett bak
+ * midten av ballen og tærne mot målet. Det er lenger unna (litt mindre og mørkere), med knottene i gresset. Ballen
+ * skjuler det meste av foten, og leggen heller fram (kneet er bøyd), så den synes over ballen som et eget bein til høyre for
+ * sparkebeinet.
  */
 function Standbein({ L }: { L: Layout }) {
-  const s = 0.93;
-  const gx = L.x0 + 0.11 * L.K - 0.215 * L.K * s;
-  const gy = L.ground! - 7;
+  // Ca. 20 cm lenger unna enn ballen: litt mindre, og den står litt høyere i bildet (nærmere horisonten).
+  const s = 0.88;
+  const gx = L.x0 - 0.01 * L.K;
+  const gy = L.ground! - 16;
   return (
     <g transform={`translate(${r2(gx)} ${r2(gy)}) scale(${s})`}>
-      <ContactShadow cx={0.06 * L.K} cy={0} rx={0.15 * L.K} ry={6} opacity={0.7} />
-      <Fotballbein x={0} y={-ANKLE_HEIGHT * L.K} K={L.K} fotvinkel={0} leggvinkel={-3} fjern knotter={false} />
+      <ContactShadow cx={0.07 * L.K} cy={0} rx={0.16 * L.K} ry={6} opacity={0.6} />
+      <Fotballbein x={0} y={-ANKLE_HEIGHT * L.K} K={L.K} fotvinkel={0} leggvinkel={16} strompe={shade(PAINTS.blaa, 0.22)} fjern knotter={false} />
     </g>
   );
 }
@@ -331,7 +345,7 @@ const Hitter = memo(function Hitter({ L, sport }: { L: Layout; sport: SportId })
     const kp = kickPoint(L.K, FOT_VINKEL, LEGG_VINKEL);
     return <Fotballbein x={c.x - kp.x} y={c.y - kp.y} K={L.K} fotvinkel={FOT_VINKEL} leggvinkel={LEGG_VINKEL} />;
   }
-  if (sport === 'tennis') return <Racket x={c.x} y={c.y} K={L.K} />;
+  if (sport === 'tennis') return <Racket x={c.x} y={c.y} K={L.K} skraa={RACKET_SKRAA} />;
   return <Driver x={c.x} y={c.y} K={L.K} />;
 });
 

@@ -330,7 +330,7 @@ function explanation(sport: SportSpec, shot: { Fmax: number; dtMs: number; shape
   const moreV = res.v > o.v;
   const p3 = (
     <p>
-      Sammenlign med {otherId === 'golf' ? 'et typisk golfslag' : 'et typisk spark'}: {other.hitter} treffer {other.ball} på{' '}
+      Sammenlign med {otherId === 'golf' ? 'et typisk golfslag' : 'et typisk spark'}: {other.hitter} er i kontakt med {other.ball} i{' '}
       {msText(other, other.dtMs.def)} ms med F<Sub>maks</Sub> = {forceText(other, other.F.def, fDecimals(other))}, og {other.ball} på{' '}
       {fmt(other.m * 1000, other.m < 0.1 ? 1 : 0)} g får I = {impulseText(o.I)} og v = {fmt(o.v, 1)} m/s.{' '}
       {moreI !== moreV

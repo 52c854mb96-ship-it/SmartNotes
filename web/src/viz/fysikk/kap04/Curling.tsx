@@ -353,7 +353,8 @@ function explanation(hit: CurlingHit): ReactNode {
       <p>
         <strong>Uelastisk støt: {lossPct}{NB}% av den kinetiske energien går tapt.</strong> {fmt(hit.lost, ed)}{NB}J blir til lyd (det smeller) og
         indre energi (steinene blir litt varmere). Den røde stopper ikke helt, men glir videre med {ms(hit.v1)}, og den gule får {ms(hit.v2)},
-        litt mindre enn den røde hadde. Til sammen er v<Sub>1</Sub>′ + v<Sub>2</Sub>′ = {ms(hit.v)}, akkurat som før støtet.
+        som er {fmt(100 * (1 - hit.a), 0)}{NB}% av farten den røde hadde. Til sammen er v<Sub>1</Sub>′ + v<Sub>2</Sub>′ = {ms(hit.v)}, akkurat
+        som før støtet, men bare fordi massene er like. Generelt er det Σp, ikke summen av fartene, som er bevart.
       </p>
     );
     myth = (

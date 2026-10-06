@@ -22,7 +22,7 @@ import {
 } from '../../kit';
 import { EksPanel, barDecimals, type EGroup } from './eksplosjon-diagram';
 import { RIFLE } from './eksplosjon-deler';
-import { RifleScene, rifleLayout, rifleTimeline } from './eksplosjon-gevaer';
+import { RifleScene, rifleArrows, rifleLayout, rifleTimeline } from './eksplosjon-gevaer';
 import { CartScene, SPRING_TRAVEL, cartLayout, cartTimeline } from './eksplosjon-lab';
 import {
   ARM_PUSH,
@@ -109,6 +109,8 @@ export default function Eksplosjon() {
   const riL = rifleLayout(frame.f, frame.narrow);
   const tl: Timeline = id === 'skoyter' ? skaterTimeline(spec, skL) : id === 'fjaer' ? cartTimeline(spec, caL) : rifleTimeline(spec, riL);
   const H = id === 'skoyter' ? skL.H : id === 'fjaer' ? caL.H : riL.H;
+  // Hvor mange ganger fartspila til geværet er forstørret (står ved pila og i teksten under figuren)
+  const rifleZoom = rifleArrows(spec, riL).zoom;
 
   // Avspillingen: skøyteløperne i ekte tid, vognene i sakte film når de er raske (minst 1,5 s), geværet i sakte film
   // (hele skuddet på ca. 4 s).
@@ -277,7 +279,7 @@ export default function Eksplosjon() {
       </Toolbar>
 
       <div ref={sceneRef}>
-        <Figure viewBox={`0 0 800 ${H}`} label={sceneLabel(id, m1, m2, r)} maxHeight={460} caption={caption(id, speed)}>
+        <Figure viewBox={`0 0 800 ${H}`} label={sceneLabel(id, m1, m2, r)} maxHeight={460} caption={caption(id, speed, rifleZoom)}>
           {id === 'skoyter' ? (
             <SkaterScene spec={spec} layout={skL} tl={tl} t={t} showForces={showForces} />
           ) : id === 'fjaer' ? (
@@ -363,7 +365,7 @@ export default function Eksplosjon() {
         </FormulaLine>
       </Formula>
 
-      <Explain>{explanation(id, m1, m2, r, phase, light, showForces)}</Explain>
+      <Explain>{explanation(id, m1, m2, r, phase, light, showForces, rifleZoom)}</Explain>
     </VizLayout>
   );
 }
@@ -458,11 +460,12 @@ function energy(E: number): string {
 }
 
 /** Teksten under scenen: hva som er tegnet, og hvor mye saktere avspillingen går. */
-function caption(id: ScenarioId, speed: number): string {
+function caption(id: ScenarioId, speed: number, rifleZoom: number): string {
   if (id === 'skoyter') return 'Skøyteløperne er tegnet i riktig størrelse etter massen (barn er lavere). Avspillingen går i ekte tid.';
   if (id === 'fjaer')
     return `Snora holder fjæra sammenpresset til den kuttes. ${speed < 0.95 ? `Avspillingen går i sakte film, ${fmt(1 / speed, 1 / speed >= 10 ? 0 : 1)} ganger saktere.` : 'Avspillingen går i ekte tid.'}`;
-  return `Løpet er tegnet gjennomskåret, så du ser kula og kruttgassen inni. Sakte film: 1 ms tar ${fmt(0.001 / speed, 1)} s.`;
+  const zoom = rifleZoom > 1 ? ` Fartspila til geværet er forstørret ${fmt(rifleZoom, 0)} ganger.` : '';
+  return `Lupen viser løpet gjennomskåret og forstørret (et stykke av løpet kan være tatt ut).${zoom} Sakte film: 1 ms tar ${fmt(0.001 / speed, 1)} s.`;
 }
 
 function sceneLabel(id: ScenarioId, m1: number, m2: number, r: PushResult): string {
@@ -481,6 +484,7 @@ function explanation(
   phase: PushPhase,
   light: 1 | 2,
   showForces: boolean,
+  rifleZoom: number,
 ): ReactNode {
   const p = `${fmt(r.p2, id === 'gevaer' ? 2 : r.p2 >= 10 ? 1 : 2)} kg·m/s`;
   const [n1, n2] = NAMES[id];
@@ -505,7 +509,7 @@ function explanation(
           ? 'Skøyteløper 1 dytter på skøyteløper 2, og skøyteløper 2 dytter tilbake på skøyteløper 1'
           : id === 'fjaer'
             ? 'Fjæra dytter vogn 2 mot høyre og vogn 1 mot venstre'
-            : 'Kruttgassen dytter kula framover og geværet bakover'}{' '}
+            : 'Kruttgassen dytter kula framover og geværet bakover, på sluttstykket bak patronhylsa (se lupen),'}{' '}
         med like store krefter (Newtons 3. lov), F = {forceText(r.F)}. Kreftene virker like lenge, Δt ={' '}
         {id === 'gevaer' ? `${fmt(r.dt * 1000, 1)} ms` : `${fmt(r.dt, 3)} s`}, så begge får like stor impuls, I = F · Δt = {fmt(r.I, 2)}{' '}
         N·s, men i hver sin retning. I modellen er kraften konstant, så farten øker jevnt med tiden: halvveis i tiden (etter Δt/2) har
@@ -517,7 +521,7 @@ function explanation(
     showForces && phase !== 'under' ? (
       <p>
         Med «Vis krefter» ser du kraftparet bare mens det virker: velg «Under», eller spill av og se nøye på
-        {id === 'gevaer' ? ' løpet' : id === 'fjaer' ? ' fjæra' : ' hendene'}.
+        {id === 'gevaer' ? ' lupen' : id === 'fjaer' ? ' fjæra' : ' hendene'}.
       </p>
     ) : null;
 
@@ -528,9 +532,13 @@ function explanation(
         {under}
         <p>
           <strong>Rekyl.</strong> Kula og geværet får like store og motsatt rettede bevegelsesmengder, p = {p}, så Σp = 0 også etter
-          skuddet. Geværet har {fmt(ratio, 0)} ganger så stor masse, så rekylfarten blir bare {fmt(Math.abs(r.v1), 2)} m/s. Fartspila til
-          geværet er så kort at den ikke synes i samme skala som pila til kula. Kula får {fmt(share, 1)} % av energien, fordi E<Sub>k</Sub>{' '}
-          = p²/(2m) er størst for den letteste.
+          skuddet. Geværet har {fmt(ratio, 0)} ganger så stor masse, så rekylfarten blir bare {fmt(Math.abs(r.v1), 2)} m/s.
+          {rifleZoom > 1
+            ? ` I samme skala som pila til kula ville fartspila til geværet vært for kort til å synes, så den er tegnet ${fmt(rifleZoom, 0)} ganger så lang (× ${fmt(rifleZoom, 0)}).`
+            : ''}{' '}
+          Kula får {fmt(share, 1)} % av energien, fordi E<Sub>k</Sub>{' '}
+          = p²/(2m) er størst for den letteste. Glidebryteren gir bare den kinetiske energien: kruttet frigjør omtrent tre ganger
+          så mye energi, og resten blir varme i kruttgassen og løpet.
         </p>
         <p>
           Det er derfor geværet slår tilbake i skulderen. Når du holder geværet inntil skulderen, er det du og geværet sammen som får

@@ -48,6 +48,11 @@ describe('ballistisk pendel: tallsett 1 (0,53 g kule, 95 g kloss, h = 4,4 cm)', 
     expect(s.forceRatio).toBeLessThan(86_000);
   });
 
+  it('d) tyngden av klossen er 0,932 N, og kraften er om lag 470 ganger så stor', () => {
+    expect(s.Gblock).toBeCloseTo(0.93195, 5);
+    expect(s.forceRatioBlock).toBeCloseTo(441.34 / 0.93195, 0);
+  });
+
   it('d) klossen flytter seg bare 0,093 mm mens kula trenger 1,67 cm inn', () => {
     expect(s.sBlock).toBeCloseTo(9.291e-5, 8);
     expect(s.depth).toBeCloseTo(0.016747, 6);
@@ -168,6 +173,14 @@ describe('ballistisk pendel: tallsettene er fysisk fornuftige', () => {
       expect(s.sBlock).toBeLessThan(0.2e-3);
       // Kraften er mange tusen ganger tyngden, så tyngden og snordraget kan ses bort fra under støtet.
       expect(s.forceRatio).toBeGreaterThan(10_000);
+      // Også tyngden av klossen og snordraget er bitte små mot kraften. Snordraget er av samme størrelse som tyngden
+      // av klossen: Mg før støtet og (m + M)(g + V²/L) i bunnen like etter.
+      expect(s.Gblock).toBeCloseTo(t.M * 9.81, 10);
+      expect(s.forceRatioBlock).toBeGreaterThan(200);
+      const S = swingAt(t, s, 0).S;
+      expect(S).toBeGreaterThan(s.Gblock);
+      expect(S).toBeLessThan(1.5 * s.Gblock);
+      expect(s.F / S).toBeGreaterThan(200);
     });
 
     it(`tallsett ${i + 1}: «om lag»-verdien i b) ligger ikke på grensen mellom to avrundinger`, () => {

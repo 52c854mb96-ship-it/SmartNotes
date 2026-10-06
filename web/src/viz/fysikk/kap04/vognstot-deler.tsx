@@ -27,7 +27,7 @@ import {
   useStrokeScale,
   useSvgId,
 } from '../../kit/scene';
-import type { WagonLoad } from './model-eks-vognstot';
+import { BUFFER_STROKE, type WagonLoad } from './model-eks-vognstot';
 
 /** Tall på standardform uansett størrelse: 14 529 → «1,45 · 10⁴» (fmtSci i kit-et skriver tall under 10⁵ vanlig). */
 export function fmtPot(value: number, decimals = 2): string {
@@ -58,8 +58,8 @@ export const VOGN = {
   dekk: 1.2,
   /** Midten av bufferne over skinnetoppen. */
   buffer: 1.04,
-  /** Hvor langt en buffer kan trykkes inn. */
-  bufferslag: 0.1,
+  /** Hvor langt en buffer kan trykkes inn (samme som i modellen). */
+  bufferslag: BUFFER_STROKE,
   hjulradius: 0.46,
   /** Avstanden mellom hjulsatsene. */
   akselavstand: 8.0,

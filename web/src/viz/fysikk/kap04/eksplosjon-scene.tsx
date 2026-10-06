@@ -504,11 +504,12 @@ export function SkaterScene({
 
       <VelocityPair rows={rows} c1={x1} c2={x2} v1={st.v1} v2={st.v2} S={S} d1={2} d2={2} />
 
-      {/* Hvor langt hver har glidd fra der den selv sto (startstreken og begynnelsen av sporene) */}
+      {/* Hvor langt hver har glidd fra der den selv sto (startstreken og begynnelsen av sporene), med hjelpelinjer
+          opp til isen ved startstedet og ved skøyteløperen nå */}
       {showDims && (
         <>
-          <Dimension x1={x1} y1={layout.dimY} x2={base1} y2={layout.dimY} />
-          <Dimension x1={base2} y1={layout.dimY} x2={x2} y2={layout.dimY} />
+          <Dimension x1={x1} y1={iceY} x2={base1} y2={iceY} offset={iceY - layout.dimY} />
+          <Dimension x1={base2} y1={iceY} x2={x2} y2={iceY} offset={iceY - layout.dimY} />
           {dimLabel('1', x1, base1, s1)}
           {dimLabel('2', base2, x2, s2)}
         </>

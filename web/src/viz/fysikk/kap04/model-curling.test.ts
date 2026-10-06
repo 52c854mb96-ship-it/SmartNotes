@@ -61,6 +61,14 @@ describe('curlingHit: kjente verdier', () => {
     expect(r.lossShare).toBeCloseTo(0.1, 12);
   });
 
+  it('startfarten gir ulike tall for p og E_k (2,5 m/s: 47,5 kg·m/s og 59,4 J)', () => {
+    const r = curlingHit(SPEED.initial, 'elastisk');
+    expect(r.p).toBeCloseTo(47.5, 12);
+    expect(r.Ek).toBeCloseTo(59.375, 12);
+    // Ved 2,0 m/s ville begge vært 38,0, og da ser p og E_k ut som det samme.
+    expect(Math.abs(r.Ek - r.p) / r.p).toBeGreaterThan(0.1);
+  });
+
   it('bruker massen som gis inn', () => {
     const r = curlingHit(1.5, 'elastisk', 0, 20);
     expect(r.p).toBeCloseTo(30, 12);
@@ -93,6 +101,17 @@ describe('curlingHit: bevaringslover for alle tallsett', () => {
       expect(curlingHit(v, 'uelastisk', LOSS.min).lost).toBeGreaterThan(0);
       expect(curlingHit(v, 'fullstendig').lost).toBeGreaterThan(0);
     }
+  });
+
+  it('uelastisk: den gule får 60–99 % av farten den røde hadde (teksten regner ut andelen)', () => {
+    for (const loss of losses) {
+      const r = curlingHit(2.5, 'uelastisk', loss);
+      expect(r.v2 / r.v).toBeCloseTo(1 - r.a, 12);
+      expect(Math.round(100 * (1 - r.a))).toBeGreaterThanOrEqual(60);
+      expect(Math.round(100 * (1 - r.a))).toBeLessThanOrEqual(99);
+    }
+    // 48 % tap: a = 0,4, så den gule får 60 % av farten (1,50 m/s av 2,50 m/s)
+    expect(curlingHit(2.5, 'uelastisk', 0.48).v2).toBeCloseTo(1.5, 10);
   });
 
   it('fullstendig uelastisk gir størst tap, og tapet i uelastisk er det som er valgt', () => {

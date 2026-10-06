@@ -24,6 +24,7 @@ import {
   useSvgId,
   useTextScale,
 } from '../../kit';
+import { G_EARTH } from '../../kit/format';
 import { Dimension } from '../../kit/scene';
 import { CrashScene, crashLayout, useCrashFrame } from './krasjtest-scene';
 import {
@@ -55,8 +56,9 @@ function sig(v: number, n = 3): string {
   return fmt(v, d);
 }
 
-/** Kraft i kN med tre gjeldende siffer. */
+/** Kraft i kN med tre gjeldende siffer, og med fire i mellomregninger. */
 const kN = (F: number) => `${sig(F / 1000, 3)} kN`;
+const kN4 = (F: number) => `${sig(F / 1000, 4)} kN`;
 /** Tid i ms: én desimal under 10 ms. */
 const ms = (t: number) => fmt(t * 1000, t < 0.01 ? 1 : 0);
 
@@ -114,14 +116,14 @@ export default function Krasjtest() {
       </div>
 
       <div ref={graphRef}>
-        <Figure viewBox={`0 0 800 ${graphH}`} label="Graf over kraften på passasjeren mot tiden etter treffet. Arealet under grafen er endringen i bevegelsesmengde.">
+        <Figure viewBox={`0 0 800 ${graphH}`} label="Graf over kraften på passasjeren mot tiden etter treffet. Arealet under grafen er størrelsen av endringen i bevegelsesmengde.">
           <ForceGraph r={r} others={others} t={t} height={graphH} showCursor={showCursor} />
         </Figure>
       </div>
       <Legend
         items={[
           { color: VIZ.velocity, label: 'Fart v' },
-          { color: VIZ.applied, label: 'Kraft på passasjeren F (arealet under grafen er Δp)' },
+          { color: VIZ.applied, label: 'Kraft på passasjeren F (arealet under grafen er |Δp|)' },
           { color: VIZ.muted, dashed: true, label: 'Samme krasj med de andre sikringene' },
           { color: VIZ.velocity, dashed: true, label: 'Bilen står stille (v = 0)' },
         ]}
@@ -145,7 +147,7 @@ export default function Krasjtest() {
 
       <Formula label="Impulsloven med levende tall">
         <FormulaLine>
-          Δp = m · v = {fmt(r.m, 0)} kg · {fmt(v0, 2)} m/s = {fmt(r.dp, 0)} N·s
+          Δp = m · 0 − m · v<Sub>0</Sub> = −{fmt(r.m, 0)} kg · {fmt(v0, 2)} m/s = −{fmt(r.dp, 0)} N·s, så |Δp| = {fmt(r.dp, 0)} N·s
         </FormulaLine>
         <FormulaLine>
           {belted ? (
@@ -157,13 +159,13 @@ export default function Krasjtest() {
           )}
         </FormulaLine>
         <FormulaLine>
-          Δt = 2s / v = 2 · {fmt(r.sBrake, 2)} m / {fmt(v0, 2)} m/s = {sig(r.dt, 3)} s
+          Δt = 2s / v<Sub>0</Sub> = 2 · {fmt(r.sBrake, 2)} m / {fmt(v0, 2)} m/s = {sig(r.dt, 3)} s
         </FormulaLine>
         <FormulaLine>
-          F<Sub>gj</Sub> = Δp / Δt = {fmt(r.dp, 0)} N·s / {sig(r.dt, 3)} s = {kN(r.F)}
+          F<Sub>gj</Sub> = |Δp| / Δt = {fmt(r.dp, 0)} N·s / {sig(r.dt, 3)} s = {kN(r.F)} (mot fartsretningen)
         </FormulaLine>
         <FormulaLine>
-          a / g = F<Sub>gj</Sub> / (m · g) = {fmt(r.F, 0)} N / ({fmt(r.m, 0)} kg · 9,81 m/s²) = {sig(r.g, 3)}
+          a / g = F<Sub>gj</Sub> / (m · g) = {kN4(r.F)} / ({fmt(r.m, 0)} kg · 9,81 m/s²) = {kN4(r.F)} / {kN4(r.m * G_EARTH)} = {sig(r.g, 3)}
         </FormulaLine>
       </Formula>
 
@@ -196,7 +198,7 @@ function ForceGraph({ r, others, t, height, showCursor }: { r: CrashResult; othe
         /** Omtrentlig bredde av en tekst med `chars` tegn. */
         const textW = (chars: number, size = 1) => chars * 17 * size * f * 0.56;
         const lineH = 22 * f;
-        const areaText = `areal = Δp = ${fmt(r.dp, 0)} N·s`;
+        const areaText = `areal = |Δp| = ${fmt(r.dp, 0)} N·s`;
         const fChars = 6 + kN(r.F).length;
 
         // F_gj og arealet: ved siden av støtet uten belte, i en kolonne til høyre for grafene, eller over dem.
@@ -218,13 +220,25 @@ function ForceGraph({ r, others, t, height, showCursor }: { r: CrashResult; othe
             areaY = ly + lineH;
             leader = colX - sx(r.tStop * 1000) > 24;
           } else {
+            // Over den høyeste kraften, midt over støtet, men aldri utenfor plottet (mobil har stor tekst).
             const highest = Math.min(...inside.map(fy));
-            lx = sx(((r.tStart + r.tStop) / 2) * 1000);
+            const wMax = Math.max(textW(fChars), textW(areaText.length, 0.85));
+            lx = clamp(sx(((r.tStart + r.tStop) / 2) * 1000), x0 + wMax / 2 + 8, x1 - wMax / 2 - 4);
             anchor = 'middle';
-            ly = highest - 10;
+            // Er det en annen sikring som gir den høyeste kraften, får navnet dens en rad rett over streken.
+            const otherOnTop = fy(r) > highest + 1;
+            ly = highest - 12 - (otherOnTop ? lineH : 0);
             areaY = ly - lineH;
           }
         }
+
+        const dtX0 = sx(r.tStart * 1000);
+        const dtX1 = sx(r.tStop * 1000);
+        const dtLabel = `Δt = ${ms(r.dt)} ms`;
+        const dtW = textW(dtLabel.length, 0.8);
+        // Fet tekst med Δ er bredere enn anslaget, så etiketten må ha god margin for å stå inne i målet.
+        const dtFits = dtX1 - dtX0 > dtW * 1.15 + 16;
+        const dtY = y0 - 12 * f;
 
         // Navn på de andre sikringene: første plass som ikke kolliderer med de andre etikettene eller toppen uten belte.
         type Box = { x0: number; x1: number; y0: number; y1: number };
@@ -235,19 +249,25 @@ function ForceGraph({ r, others, t, height, showCursor }: { r: CrashResult; othe
           y1: y + 5 * f,
         });
         const hits = (p: Box, q: Box) => p.x0 < q.x1 && q.x0 < p.x1 && p.y0 < q.y1 && q.y0 < p.y1;
-        const taken: Box[] = [box(lx, ly, textW(fChars), anchor), box(lx, areaY, textW(areaText.length, 0.85), anchor)];
+        const texts: Box[] = [
+          box(lx, ly, textW(fChars), anchor),
+          box(lx, areaY, textW(areaText.length, 0.85), anchor),
+          dtFits ? box((dtX0 + dtX1) / 2, dtY - 9 * f, dtW, 'middle') : box(dtX1 + 6, dtY + 5 * f, dtW, 'start'),
+        ];
         const spike = (c: CrashResult): Box => ({ x0: sx(c.tStart * 1000) - 5, x1: sx(c.tStop * 1000) + 5, y0: y1, y1: y0 });
-        if (over(r)) taken.push(spike(r));
         const spikes = new Map(others.filter(over).map((c) => [c, spike(c)] as const));
-        taken.push(...spikes.values());
-        const otherLabels = others.map((c) => {
+        const lines: Box[] = [...spikes.values(), ...(over(r) ? [spike(r)] : [])];
+        // Toppen av den valgte grafen: navnene på de andre skal ikke ligge oppå den.
+        const ownTop: Box[] = over(r) ? [] : [{ x0: sx(r.tStart * 1000), x1: sx(r.tStop * 1000), y0: fy(r) - 2, y1: fy(r) + 2 }];
+        const otherLabels = others.flatMap((c) => {
           const text = over(c) ? `${SHORT[c.restraint]}: ${kN(c.F)} ↑` : SHORT[c.restraint];
           const w = textW(text.length, 0.8);
           const right = sx(c.tStop * 1000) + 6;
           const left = sx(c.tStart * 1000) + 10;
+          const edge = x1 - w - 2;
           const yTop = fy(c);
           // Til høyre for alle toppene uten belte, hvis de står i veien
-          const clear = Math.max(right, ...[...spikes.values(), ...(over(r) ? [spike(r)] : [])].map((b) => b.x1 + 4));
+          const clear = Math.max(right, ...lines.map((b) => b.x1 + 4));
           const candidates: [number, number][] = over(c)
             ? [0, 1, 2, 3].map((i) => [right, y1 + 16 * f + i * lineH])
             : [
@@ -258,21 +278,23 @@ function ForceGraph({ r, others, t, height, showCursor }: { r: CrashResult; othe
                 [clear, yTop - 7],
                 [clear, yTop + 17 * f],
                 [clear, yTop + 17 * f + lineH],
+                [edge, yTop - 7],
+                [edge, yTop + 17 * f],
               ];
           const own = spikes.get(c);
-          const ok = (x: number, y: number) =>
-            x + w <= x1 && y - 14 * f >= y1 - 6 && y <= y0 - 4 && !taken.some((t) => t !== own && hits(box(x, y, w, 'start'), t));
-          const [x, y] = candidates.find(([cx, cy]) => ok(cx, cy)) ?? candidates[0]!;
-          // Spissen uten belte er smal, så navnet kan stå ved siden av den selv om det krysser andre streker.
-          if (!over(c)) taken.push(box(x, y, w, 'start'));
-          return { c, x, y, text };
+          const free = (x: number, y: number, boxes: Box[]) =>
+            x + w <= x1 && y - 14 * f >= y1 - 6 && y <= y0 - 4 && !boxes.some((b) => b !== own && hits(box(x, y, w, 'start'), b));
+          // Helst helt fritt; ellers over en strek, men aldri oppå annen tekst. Navnet uten belte (med kraften) vises alltid.
+          const pos =
+            candidates.find(([cx, cy]) => free(cx, cy, [...texts, ...lines, ...ownTop])) ??
+            candidates.find(([cx, cy]) => free(cx, cy, texts)) ??
+            (over(c) ? candidates[0] : undefined);
+          if (!pos) return [];
+          const [x, y] = pos;
+          texts.push(box(x, y, w, 'start'));
+          return [{ c, x, y, text }];
         });
 
-        const dtX0 = sx(r.tStart * 1000);
-        const dtX1 = sx(r.tStop * 1000);
-        const dtLabel = `Δt = ${ms(r.dt)} ms`;
-        const dtFits = dtX1 - dtX0 > textW(dtLabel.length, 0.8) + 12;
-        const dtY = y0 - 12 * f;
         const tCar = sx(r.car.t * 1000);
         const cursorF = forceAt(r, t) / 1000;
         return (
@@ -352,8 +374,9 @@ function explanation(r: CrashResult, speed: number): ReactNode {
     r.restraint === 'ingen' ? (
       <p>
         <strong>Uten belte følger ikke passasjeren med når bilen bremser.</strong> Ingenting holder igjen, så hen fortsetter med {speed} km/h
-        (Newtons 1. lov) mens fronten presses sammen. Etter {ms(r.tStart)} ms treffer hen frontruta og dashbordet. Da har bilen allerede stått
-        stille i {ms(r.tStart - r.car.t)} ms, så knusesonen har ikke hjulpet passasjeren i det hele tatt. Hen stoppes på bare{' '}
+        (Newtons 1. lov) mens fronten presses sammen. Etter {ms(r.tStart)} ms treffer hen frontruta og dashbordet,{' '}
+        {r.tStart - r.car.t < 0.0005 ? 'akkurat i det bilen stopper' : `og da har bilen allerede stått stille i ${ms(r.tStart - r.car.t)} ms`}. Knusesonen
+        har altså ikke hjulpet passasjeren i det hele tatt. Hen stoppes på bare{' '}
         {fmt(r.sBrake * 100, 0)} cm og {ms(r.dt)} ms, og kraften blir {kN(r.F)}: {g} g, like mye som tyngden av {weight}.
       </p>
     ) : (
@@ -365,15 +388,17 @@ function explanation(r: CrashResult, speed: number): ReactNode {
         {r.restraint === 'pute' ? ' og puta presses sammen' : ''} (den stiplede sirkelen viser hvor hodet hadde vært om passasjeren hadde fulgt
         bilen). Det tar {ms(r.dt)} ms, og
         gjennomsnittskraften blir {kN(r.F)}, like mye som tyngden av {weight}. «{g} g» betyr at bremsingen er {g} ganger
-        tyngdeakselerasjonen, så beltet må dra i deg med {g} ganger tyngden din. En «g-kraft» er altså ikke en egen kraft.
+        tyngdeakselerasjonen, så {r.restraint === 'pute' ? 'beltet og puta må til sammen bremse deg' : 'beltet må dra i deg'} med {g} ganger
+        tyngden din. En «g-kraft» er altså ikke en egen kraft.
       </p>
     );
 
   const [gIngen, gBelte, gPute] = RESTRAINT_ORDER.map((x) => sig(crash(r.v0, r.d, x).g, 3));
   const impulse = (
     <p>
-      Δp = m · v = {fmt(r.dp, 0)} N·s er den samme uansett bil og sikring, for farten skal fra {speed} km/h til null. Arealet under F–t-grafen
-      er derfor like stort for alle tre. Det eneste vi kan påvirke, er stoppetiden: F<Sub>gj</Sub> = Δp/Δt, så lang tid gir liten kraft. I
+      Endringen i bevegelsesmengde, Δp = 0 − m · v<Sub>0</Sub> = −{fmt(r.dp, 0)} N·s, er den samme uansett bil og sikring, for farten skal fra{' '}
+      {speed} km/h til null. Arealet under F–t-grafen er størrelsen |Δp| = {fmt(r.dp, 0)} N·s, og det er derfor like stort for alle tre. Det
+      eneste vi kan påvirke, er stoppetiden: F<Sub>gj</Sub> = |Δp|/Δt, så lang tid gir liten kraft. I
       denne bilen og farten gir det {gIngen} g uten belte og pute, {gBelte} g med bilbelte og {gPute} g med belte og pute.
       {r.restraint === 'belte'
         ? ' Kollisjonsputa gir noen centimeter til å bremse på, og den fordeler kraften på hodet og brystet.'

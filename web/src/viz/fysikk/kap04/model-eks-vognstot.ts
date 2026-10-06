@@ -15,8 +15,14 @@
  *     I_A = m_A(V − v_A) < 0,  I_B = m_B(V − v_B) > 0,  I_A + I_B = 0   (Newtons 3. lov: kraftpar i like lang tid)
  *   Gjennomsnittskraften i støtet (varigheten Δt) og akselerasjonen til hver vogn (Newtons 2. lov):
  *     F = |I|/Δt,  a_A = F/m_A,  a_B = F/m_B
+ *   Bufferne trykkes inn mens vognene nærmer seg hverandre. Med kraftkurven i pulseForce (halv sinusbue) avtar den
+ *   relative farten jevnt fra u = v_A − v_B til null, og bufferne trykkes til sammen inn u·Δt/2 = ΔE/F. Det må ikke
+ *   være mer enn bufferne tåler (to buffere etter hverandre, BUFFER_STROKE hver), så Δt kan ikke velges fritt.
  */
 import { G_EARTH } from '../../kit/format';
+
+/** Hvor langt en buffer kan trykkes inn (m). Vanlige buffere på godsvogner har ca. 105 mm slaglengde. */
+export const BUFFER_STROKE = 0.1;
 
 /** Lasten på en vogn: ingen container, én 20-fots container eller én 40-fots container. Bare til teksten og figuren. */
 export type WagonLoad = 'tom' | 'container20' | 'container40';
@@ -41,12 +47,13 @@ export interface WagonTask {
  * Tre tallsett med toakslede containervogner (egenvekt 12–14 t, en full 40-fots container gir 34–40 t). Farten er
  * vanlig ved skifting (1,5–2,0 m/s, 5–7 km/h). I tallsett 1 står B i ro, i tallsett 2 triller B sakte samme vei, og i
  * tallsett 3 triller B mot A, så fortegnet til v_B betyr noe. «Om lag»-farten i a) ligger ikke nær grensen mellom to
- * avrundinger (testet).
+ * avrundinger (testet). Støttiden er valgt så bufferne trykkes inn omtrent så langt de kan (ca. 0,2 m til sammen):
+ * jo større den relative farten er, desto kortere og hardere blir støtet.
  */
 export const WAGON_TASKS: WagonTask[] = [
   { mA: 38_000, vA: 1.5, mB: 13_000, vB: 0, dt: 0.3, loadA: 'container40', loadB: 'tom' },
   { mA: 34_000, vA: 2.0, mB: 20_000, vB: 0.6, dt: 0.32, loadA: 'container40', loadB: 'container20' },
-  { mA: 40_000, vA: 1.6, mB: 14_000, vB: -0.8, dt: 0.4, loadA: 'container40', loadB: 'tom' },
+  { mA: 40_000, vA: 1.6, mB: 14_000, vB: -0.8, dt: 0.18, loadA: 'container40', loadB: 'tom' },
 ];
 
 export interface WagonSolution {
@@ -89,6 +96,8 @@ export interface WagonSolution {
   /** Gjennomsnittsakselerasjonen til A og B i støtet (m/s²), størrelsen: F/m. */
   aA: number;
   aB: number;
+  /** Hvor mye bufferne til sammen trykkes inn i støtet (m): u·Δt/2, som er lik ΔE/F (se toppen av fila). */
+  compression: number;
   /** Tyngden til A og B (N). Bare til figuren (G og N i a). */
   GA: number;
   GB: number;
@@ -154,6 +163,7 @@ export function solveWagonTask({ mA, vA, mB, vB, dt }: WagonTask, g = G_EARTH): 
     F,
     aA: mA > 0 ? F / mA : 0,
     aB: mB > 0 ? F / mB : 0,
+    compression: dt > 0 ? (Math.abs(u) * dt) / 2 : 0,
     GA: mA * g,
     GB: mB * g,
   };

@@ -714,7 +714,15 @@ export function CrashScene({ r, t, f, crop }: CrashSceneProps) {
         labelY={L.vArrowY + 6 * f}
         labelAnchor="end"
       />
-      <PassengerDistance r={r} x0={head0.x} xGhost={ghostHead.x} xNow={headNow.x} y={L.dimY} roofY={L.roofY} f={f} />
+      <PassengerDistance
+        r={r}
+        x0={head0.x}
+        xGhost={rel > 0.04 ? ghostHead.x : null}
+        xNow={headNow.x}
+        y={L.dimY}
+        heads={{ y0: head0.y, yGhost: ghostHead.y, yNow: pp.hode.y, r: 10 * PXR }}
+        f={f}
+      />
       {xc > 0.005 && (
         <g>
           <Maalemerke x={mark0.x} y={mark0.y} r={6 * KC} ghost />
@@ -733,33 +741,63 @@ export function CrashScene({ r, t, f, crop }: CrashSceneProps) {
 /**
  * Mål over bilen: hvor langt hodet til passasjeren har flyttet seg siden treffet. Med belte bremses passasjeren hele
  * veien, og strekningen er knusesonen d (bilen flytter seg) pluss Δx (passasjeren glir fram i bilen). Uten belte er
- * det først en strekning uten bremsing (stiplet) og så en kort strekning der hen bremses.
+ * det først en strekning uten bremsing (stiplet) og så en kort strekning der hen bremses. Hjelpelinjene går ned til
+ * der hodet var i treffet (en liten prikk), til den stiplede sirkelen (der hodet hadde vært om passasjeren hadde fulgt
+ * bilen) og til hodet nå.
  */
-function PassengerDistance({ r, x0, xGhost, xNow, y, roofY, f }: { r: CrashResult; x0: number; xGhost: number; xNow: number; y: number; roofY: number; f: number }) {
+function PassengerDistance({
+  r,
+  x0,
+  xGhost,
+  xNow,
+  y,
+  heads,
+  f,
+}: {
+  r: CrashResult;
+  x0: number;
+  /** Den stiplede sirkelen, eller null når den ikke vises. */
+  xGhost: number | null;
+  xNow: number;
+  y: number;
+  /** Høyden til midten av hodet i treffet, sirkelen og hodet nå, og radien til hodet (px). */
+  heads: { y0: number; yGhost: number; yNow: number; r: number };
+  f: number;
+}) {
   const ss = useStrokeScale();
   const moved = (xNow - x0) / PX_PER_M;
   if (!(moved > 0.005)) return null;
-  const guide = (x: number) => <line x1={x} y1={y + 6} x2={x} y2={roofY - 4} stroke={VIZ.ink} strokeWidth={1 * ss} strokeDasharray="3 3" opacity={0.45} />;
-  const fits = (a: number, b: number, chars: number) => Math.abs(b - a) > chars * 17 * 0.8 * f * 0.56 + 6;
+  const guide = (x: number, yEnd: number) => (
+    <line x1={x} y1={y + 6} x2={x} y2={yEnd} stroke={VIZ.ink} strokeWidth={1.1 * ss} strokeDasharray="3 3" opacity={0.55} />
+  );
+  const start = (
+    <g>
+      {guide(x0, heads.y0)}
+      <circle cx={x0} cy={heads.y0} r={3.2 * ss} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.4 * ss} opacity={0.85} />
+    </g>
+  );
+  const now = guide(xNow, heads.yNow - heads.r - 2);
+  const fits = (a: number, b: number, chars: number) => Math.abs(b - a) > chars * 17 * 0.85 * f * 0.56 + 6;
   if (r.restraint !== 'ingen') {
+    const ghost = xGhost !== null && xGhost > x0 + 2 && xGhost < xNow - 2 ? xGhost : null;
     return (
       <g>
-        {guide(x0)}
-        {guide(xNow)}
-        <Dimension x1={x0} y1={y} x2={xNow} y2={y} label={`bremses over ${fmt(moved, 2)} m`} color={VIZ.ink} labelSize={0.85} />
-        {xGhost > x0 + 2 && xGhost < xNow - 2 && (
+        {start}
+        {now}
+        {ghost !== null && (
           <>
-            {guide(xGhost)}
-            <line x1={xGhost} y1={y - 6} x2={xGhost} y2={y + 6} stroke={VIZ.ink} strokeWidth={1.4 * ss} />
+            {guide(ghost, heads.yGhost - heads.r - 2)}
+            <line x1={ghost} y1={y - 6} x2={ghost} y2={y + 6} stroke={VIZ.ink} strokeWidth={1.4 * ss} />
           </>
         )}
-        {fits(x0, xGhost, 1) && (
-          <Txt x={(x0 + xGhost) / 2} y={y + 19 * f} size={0.8} muted>
+        <Dimension x1={x0} y1={y} x2={xNow} y2={y} label={`bremses over ${fmt(moved, 2)} m`} color={VIZ.ink} labelSize={0.85} />
+        {ghost !== null && fits(x0, ghost, 1) && (
+          <Txt x={(x0 + ghost) / 2} y={y + 20 * f} size={0.85} weight={650}>
             d
           </Txt>
         )}
-        {fits(xGhost, xNow, 2) && (
-          <Txt x={(xGhost + xNow) / 2} y={y + 19 * f} size={0.8} muted>
+        {ghost !== null && fits(ghost, xNow, 2) && (
+          <Txt x={(ghost + xNow) / 2} y={y + 20 * f} size={0.85} weight={650}>
             Δx
           </Txt>
         )}
@@ -771,11 +809,11 @@ function PassengerDistance({ r, x0, xGhost, xNow, y, roofY, f }: { r: CrashResul
   const braking = xNow > xHit + 0.5;
   return (
     <g>
-      {guide(x0)}
-      {guide(xNow)}
-      <line x1={x0} y1={y} x2={freeEnd} y2={y} stroke={VIZ.muted} strokeWidth={1.6 * ss} strokeDasharray="6 4" />
-      <line x1={x0} y1={y - 6} x2={x0} y2={y + 6} stroke={VIZ.muted} strokeWidth={1.4 * ss} />
-      <Txt x={(x0 + freeEnd) / 2} y={y - 9 * f} size={0.85} muted weight={600}>
+      {start}
+      {now}
+      <line x1={x0} y1={y} x2={freeEnd} y2={y} stroke={VIZ.ink} strokeWidth={1.6 * ss} strokeDasharray="6 4" opacity={0.75} />
+      <line x1={x0} y1={y - 6} x2={x0} y2={y + 6} stroke={VIZ.ink} strokeWidth={1.4 * ss} />
+      <Txt x={(x0 + freeEnd) / 2} y={y - 9 * f} size={0.85} weight={620}>
         uten bremsing {fmt((freeEnd - x0) / PX_PER_M, 2)} m
       </Txt>
       {braking && (

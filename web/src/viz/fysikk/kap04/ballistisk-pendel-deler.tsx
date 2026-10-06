@@ -1,6 +1,6 @@
 /**
  * Egne gjenstander til eksempeloppgaven «Ballistisk pendel» (k4-eks-ballistisk-pendel), tegnet i scene-kit-stilen
- * (toninger fra core.tsx, SCENE-farger, kontur og myke skygger): fremre del av et luftgevær, diabolokule, stativ
+ * (toninger fra core.tsx, SCENE-farger, kontur og myke skygger): luftgevær med kikkertsikte, diabolokule, stativ
  * med tverrstang, ringskrue, sandpute, et innfelt panel med zoomring, et forstørret snitt av klossen og
  * energistolper. Ingen av dem finnes i scene-kit-et.
  */
@@ -35,37 +35,88 @@ const LEAD = mix(SCENE.metal, SCENE.metalDark, 0.45);
 
 /** Målene til luftgeværet i meter, fra munningen (x = 0 på løpets akse) og bakover (negativ x). */
 export const AIR_RIFLE = {
-  /** Løpet fra knekkpunktet til munningsvekta. */
-  barrelStart: -0.4,
+  /** Løpet fra låsblokka til munningsvekta (et kort karabinløp, så låsen, siktet og skjeftet kommer med i figuren). */
+  barrelStart: -0.16,
   rBarrel: 0.0085,
   /** Munningsvekta med siktet. */
-  muzzleLen: 0.036,
-  rMuzzle: 0.0112,
-  /** Knekkpunktet (låsblokka) og sylinderen bak. */
-  breechStart: -0.448,
+  muzzleLen: 0.03,
+  rMuzzle: 0.0108,
+  /** Låsblokka (knekkpunktet) og sylinderen bak, som ender inne i skjeftet. */
+  breechStart: -0.195,
   rCylinder: 0.0175,
-  /** Fremre ende av forskjeftet i tre. */
-  forendFront: -0.465,
-  /** Undersiden av forskjeftet (under aksen). */
-  forendBottom: 0.05,
+  cylinderEnd: -0.38,
+  /** Fremre ende av forskjeftet i tre og undersiden av det (under aksen). */
+  forendFront: -0.212,
+  forendBottom: 0.046,
+  /** Avtrekkerbøylen: fremre og bakre feste og hvor langt ned den går. */
+  guardFront: -0.285,
+  guardBack: -0.335,
+  guardBottom: 0.066,
+  /** Kikkertsiktet: aksen (over løpet), radien til røret, fremre og bakre ende og festene. */
+  scopeY: -0.043,
+  rScope: 0.0105,
+  rBell: 0.018,
+  scopeFront: -0.198,
+  scopeBack: -0.47,
+  scopeMounts: [-0.232, -0.322],
+  turret: -0.276,
+  /** Bakenden av kolben. */
+  buttEnd: -0.8,
 } as const;
 
 /**
- * Fremre del av et luftgevær (knekkgevær) sett fra siden, munningen mot høyre: sylinder og forskjefte i tre, låsblokk
- * med skrue, løp, munningsvekt og tunnelsikte. Ankerpunktet (x, y) er munningen på løpets akse, `P` er piksler per
- * meter. Resten av geværet ligger utenfor figuren til venstre.
+ * Et luftgevær (knekkgevær med kort løp) sett fra siden, munningen mot høyre: munningsvekt med tunnelsikte, løp,
+ * låsblokk med skrue, sylinder med kikkertsikte oppå, og skjefte i tre med forskjefte, avtrekkerbøyle, avtrekker,
+ * pistolgrep og kolbe. Ankerpunktet (x, y) er munningen på løpets akse, `P` er piksler per meter. `clipX` klipper
+ * bort det som ligger til venstre for x = clipX (der labbenken slutter), så geværet går ut av bildet sammen med benken.
  */
-export function Luftgevaer({ x, y, P, title }: { x: number; y: number; P: number; title?: string }) {
+export function Luftgevaer({ x, y, P, clipX, title }: { x: number; y: number; P: number; clipX?: number; title?: string }) {
   const id = useSvgId('luftgevaer');
   const ss = useStrokeScale();
   const X = (m: number) => r2(x + m * P);
   const Y = (m: number) => r2(y + m * P);
   const A = AIR_RIFLE;
-  const back = -1.2; // langt utenfor figuren
   const steel = shade(SCENE.metalDark, 0.12);
+  const scopeBody = shade(SCENE.rubber, 0.08);
+  const fb = A.forendBottom;
+  const ff = A.forendFront;
+  // Skjeftet: forskjefte under sylinderen, avtrekkerbøylen, pistolgrep og kolbe (går ut av figuren til venstre)
+  const stock = [
+    `M${X(ff - 0.03)},${Y(-0.002)}`,
+    `Q${X(ff + 0.004)},${Y(0)} ${X(ff + 0.006)},${Y(0.022)}`,
+    `Q${X(ff + 0.004)},${Y(fb - 0.004)} ${X(ff - 0.03)},${Y(fb)}`,
+    `L${X(A.guardBack - 0.004)},${Y(fb + 0.004)}`,
+    `Q${X(A.guardBack - 0.03)},${Y(fb + 0.006)} ${X(-0.395)},${Y(0.068)}`,
+    `L${X(-0.43)},${Y(0.072)}`,
+    `Q${X(-0.455)},${Y(0.072)} ${X(-0.47)},${Y(0.058)}`,
+    `L${X(A.buttEnd + 0.012)},${Y(0.07)}`,
+    `L${X(A.buttEnd)},${Y(0.072)}`,
+    `L${X(A.buttEnd)},${Y(-0.03)}`,
+    `L${X(-0.5)},${Y(-0.027)}`,
+    `Q${X(-0.415)},${Y(-0.026)} ${X(A.cylinderEnd + 0.002)},${Y(-0.004)}`,
+    'Z',
+  ].join(' ');
+  const scope = [
+    `M${X(A.scopeFront)},${Y(A.scopeY - A.rBell)}`,
+    `L${X(A.scopeFront - 0.036)},${Y(A.scopeY - A.rScope)}`,
+    `L${X(A.scopeBack + 0.045)},${Y(A.scopeY - A.rScope)}`,
+    `L${X(A.scopeBack + 0.025)},${Y(A.scopeY - A.rBell * 0.82)}`,
+    `L${X(A.scopeBack)},${Y(A.scopeY - A.rBell * 0.82)}`,
+    `L${X(A.scopeBack)},${Y(A.scopeY + A.rBell * 0.82)}`,
+    `L${X(A.scopeBack + 0.025)},${Y(A.scopeY + A.rBell * 0.82)}`,
+    `L${X(A.scopeBack + 0.045)},${Y(A.scopeY + A.rScope)}`,
+    `L${X(A.scopeFront - 0.036)},${Y(A.scopeY + A.rScope)}`,
+    `L${X(A.scopeFront)},${Y(A.scopeY + A.rBell)}`,
+    'Z',
+  ].join(' ');
   return (
-    <g>
+    <g clipPath={clipX === undefined ? undefined : `url(#${id}c)`}>
       {title && <title>{title}</title>}
+      {clipX !== undefined && (
+        <clipPath id={`${id}c`}>
+          <rect x={r2(clipX)} y={Y(-0.2)} width={r2(x - clipX + 0.05 * P)} height={r2(0.4 * P)} />
+        </clipPath>
+      )}
       <LinearGradient
         id={`${id}m`}
         stops={[
@@ -79,22 +130,31 @@ export function Luftgevaer({ x, y, P, title }: { x: number; y: number; P: number
         id={`${id}w`}
         stops={[
           [0, tint(SCENE.wood, 0.2)],
-          [0.45, SCENE.wood],
+          [0.4, SCENE.wood],
           [1, shade(SCENE.woodDark, 0.25)],
         ]}
       />
-      {/* Sylinderen (stempel og fjær) bak knekkpunktet */}
+      <LinearGradient
+        id={`${id}s`}
+        stops={[
+          [0, tint(scopeBody, 0.16)],
+          [0.4, scopeBody],
+          [1, shade(scopeBody, 0.35)],
+        ]}
+      />
+      {/* Sylinderen (stempel og fjær) bak knekkpunktet; bakre del ligger inne i skjeftet */}
       <rect
-        x={X(back)}
+        x={X(A.cylinderEnd)}
         y={Y(-A.rCylinder)}
-        width={r2((A.breechStart - back) * P)}
+        width={r2((A.breechStart - A.cylinderEnd) * P)}
         height={r2(2 * A.rCylinder * P)}
+        rx={r2(0.003 * P)}
         fill={`url(#${id}m)`}
         stroke={SCENE.outline}
         strokeWidth={0.9 * ss}
       />
       <line
-        x1={X(back)}
+        x1={X(A.cylinderEnd + 0.01)}
         y1={Y(-A.rCylinder * 0.55)}
         x2={X(A.breechStart - 0.004)}
         y2={Y(-A.rCylinder * 0.55)}
@@ -102,29 +162,48 @@ export function Luftgevaer({ x, y, P, title }: { x: number; y: number; P: number
         strokeWidth={1 * ss}
         opacity={0.55}
       />
-      {/* Forskjeftet i tre under sylinderen */}
+      {/* Skjeftet i tre */}
+      <path d={stock} fill={`url(#${id}w)`} stroke={SCENE.outline} strokeWidth={0.9 * ss} strokeLinejoin="round" />
       <path
-        d={`M${X(back)},${Y(-0.002)} L${X(A.forendFront - 0.03)},${Y(-0.002)} Q${X(A.forendFront + 0.004)},${Y(0.0)} ${X(A.forendFront + 0.006)},${Y(0.022)} Q${X(A.forendFront + 0.004)},${Y(A.forendBottom - 0.004)} ${X(A.forendFront - 0.03)},${Y(A.forendBottom)} L${X(back)},${Y(A.forendBottom + 0.008)} Z`}
-        fill={`url(#${id}w)`}
-        stroke={SCENE.outline}
-        strokeWidth={0.9 * ss}
-        strokeLinejoin="round"
-      />
-      <path
-        d={`M${X(back)},${Y(0.004)} L${X(A.forendFront - 0.035)},${Y(0.004)}`}
+        d={`M${X(ff - 0.035)},${Y(0.005)} L${X(A.cylinderEnd)},${Y(0.005)} M${X(-0.52)},${Y(-0.02)} L${X(A.buttEnd + 0.01)},${Y(-0.022)}`}
         stroke={SCENE.highlight}
         strokeWidth={1 * ss}
         opacity={0.45}
       />
-      {/* Riller for grepet i forskjeftet */}
+      {/* Treårer og riller for grepet i forskjeftet */}
       <path
-        d={Array.from({ length: 7 }, (_, i) => {
-          const a = A.forendFront - 0.07 - i * 0.012;
-          return `M${X(a)},${Y(0.016)} L${X(a - 0.008)},${Y(0.04)}`;
+        d={`M${X(ff - 0.02)},${Y(0.03)} Q${X(-0.3)},${Y(0.024)} ${X(-0.4)},${Y(0.04)} M${X(-0.48)},${Y(0.03)} Q${X(-0.6)},${Y(0.02)} ${X(-0.75)},${Y(0.03)}`}
+        fill="none"
+        stroke={shade(SCENE.woodDark, 0.1)}
+        strokeWidth={0.8 * ss}
+        opacity={0.35}
+      />
+      <path
+        d={Array.from({ length: 5 }, (_, i) => {
+          const a = ff - 0.03 - i * 0.009;
+          return `M${X(a)},${Y(0.016)} L${X(a - 0.007)},${Y(0.038)}`;
         }).join(' ')}
         stroke={shade(SCENE.woodDark, 0.2)}
         strokeWidth={0.8 * ss}
         opacity={0.55}
+      />
+      {/* Kolbeplate i gummi bak */}
+      <rect x={X(A.buttEnd - 0.012)} y={Y(-0.031)} width={r2(0.012 * P)} height={r2(0.104 * P)} rx={r2(0.003 * P)} fill={SCENE.rubber} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+      {/* Avtrekkerbøylen og avtrekkeren */}
+      <path
+        d={`M${X(A.guardFront)},${Y(fb + 0.001)} Q${X(A.guardFront - 0.003)},${Y(A.guardBottom)} ${X(A.guardFront - 0.016)},${Y(A.guardBottom)} L${X(A.guardBack + 0.01)},${Y(A.guardBottom)} Q${X(A.guardBack)},${Y(A.guardBottom - 0.001)} ${X(A.guardBack - 0.002)},${Y(fb + 0.004)}`}
+        fill="none"
+        stroke={shade(SCENE.metal, 0.3)}
+        strokeWidth={r2(Math.max(2.2 * ss, 0.0034 * P))}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d={`M${X(-0.303)},${Y(fb + 0.002)} Q${X(-0.305)},${Y(0.057)} ${X(-0.298)},${Y(0.061)}`}
+        fill="none"
+        stroke={shade(SCENE.metal, 0.45)}
+        strokeWidth={r2(Math.max(2 * ss, 0.003 * P))}
+        strokeLinecap="round"
       />
       {/* Låsblokka ved knekkpunktet, med skruen løpet dreier om */}
       <rect
@@ -138,6 +217,43 @@ export function Luftgevaer({ x, y, P, title }: { x: number; y: number; P: number
         strokeWidth={0.9 * ss}
       />
       <circle cx={X(A.breechStart + 0.016)} cy={Y(0.006)} r={r2(Math.max(1.8, 0.0045 * P))} fill={tint(steel, 0.25)} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
+      {/* Kikkertsiktet: to fester på sylinderen, rør med objektiv foran, okular bak og et justeringstårn oppå */}
+      {A.scopeMounts.map((a) => (
+        <rect
+          key={a}
+          x={X(a - 0.008)}
+          y={Y(A.scopeY - A.rScope - 0.003)}
+          width={r2(0.016 * P)}
+          height={r2((A.rScope + 0.003 - A.scopeY - A.rCylinder + 0.002) * P)}
+          rx={r2(0.002 * P)}
+          fill={shade(SCENE.metalDark, 0.4)}
+          stroke={SCENE.outline}
+          strokeWidth={0.7 * ss}
+        />
+      ))}
+      <path d={scope} fill={`url(#${id}s)`} stroke={SCENE.outline} strokeWidth={0.8 * ss} strokeLinejoin="round" />
+      <rect
+        x={X(A.turret - 0.01)}
+        y={Y(A.scopeY - A.rScope - 0.012)}
+        width={r2(0.02 * P)}
+        height={r2(0.014 * P)}
+        rx={r2(0.002 * P)}
+        fill={tint(scopeBody, 0.08)}
+        stroke={SCENE.outline}
+        strokeWidth={0.7 * ss}
+      />
+      <circle cx={X(A.turret)} cy={Y(A.scopeY)} r={r2(0.0072 * P)} fill={tint(scopeBody, 0.12)} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
+      <line
+        x1={X(A.scopeFront - 0.04)}
+        y1={Y(A.scopeY - A.rScope * 0.5)}
+        x2={X(A.scopeBack + 0.05)}
+        y2={Y(A.scopeY - A.rScope * 0.5)}
+        stroke={SCENE.highlight}
+        strokeWidth={0.8 * ss}
+        strokeLinecap="round"
+        opacity={0.5}
+      />
+      <rect x={X(A.scopeFront - 0.003)} y={Y(A.scopeY - A.rBell + 0.002)} width={r2(Math.max(1.2, 0.003 * P))} height={r2((2 * A.rBell - 0.004) * P)} fill={alpha(SCENE.glass, 0.9)} />
       {/* Løpet */}
       <rect
         x={X(A.barrelStart - 0.002)}
@@ -160,7 +276,7 @@ export function Luftgevaer({ x, y, P, title }: { x: number; y: number; P: number
       />
       {/* Munningsvekta med tunnelsikte (fremre sikte) */}
       <path
-        d={`M${X(-A.muzzleLen + 0.004)},${Y(-A.rMuzzle - 0.002)} L${X(-A.muzzleLen + 0.008)},${Y(-A.rMuzzle - 0.016)} L${X(-0.006)},${Y(-A.rMuzzle - 0.016)} L${X(-0.004)},${Y(-A.rMuzzle - 0.002)} Z`}
+        d={`M${X(-A.muzzleLen + 0.004)},${Y(-A.rMuzzle - 0.002)} L${X(-A.muzzleLen + 0.008)},${Y(-A.rMuzzle - 0.014)} L${X(-0.006)},${Y(-A.rMuzzle - 0.014)} L${X(-0.004)},${Y(-A.rMuzzle - 0.002)} Z`}
         fill={shade(steel, 0.2)}
         stroke={SCENE.outline}
         strokeWidth={0.8 * ss}
@@ -194,8 +310,8 @@ export function Gevaerholder({ x, footY, axisY, rBarrel, P, lag }: { x: number; 
   const ss = useStrokeScale();
   const rRod = Math.max(2.6, 0.0065 * P);
   const footH = Math.max(6, 0.016 * P);
-  const footL = x - 0.09 * P;
-  const footR = x + 0.09 * P;
+  const footL = x - 0.07 * P;
+  const footR = x + 0.07 * P;
   const paint = shade(PAINTS.blaa, 0.25);
   const jawW = Math.max(10, 0.026 * P);
   const jawR = rBarrel * P + Math.max(2.5, 0.005 * P);

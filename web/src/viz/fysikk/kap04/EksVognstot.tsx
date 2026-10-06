@@ -40,7 +40,7 @@ export default function EksVognstot() {
   const bSentence = bAtRest
     ? `Vogn B er ${describe(task.loadB)} og har massen ${t(mB)}. Den står i ro med bremsene løst lenger framme på sporet.`
     : bTowards
-      ? `Vogn B er ${describe(task.loadB)} og har massen ${t(mB)}. Den har begynt å trille og kommer mot vogn A med farten ${ms(-vB)}.`
+      ? `Vogn B er ${describe(task.loadB)} og har massen ${t(mB)}. Et annet lokomotiv har skjøvet den ut fra den andre enden av sporet, og nå triller den mot vogn A med farten ${ms(-vB)}.`
       : `Vogn B er ${describe(task.loadB)} og har massen ${t(mB)}. Den ble skjøvet ut litt tidligere og triller sakte i samme retning med farten ${ms(vB)}.`;
 
   const pBLine: ReactNode = bAtRest ? (
@@ -57,7 +57,7 @@ export default function EksVognstot() {
     <>Vogn B står i ro, så den har ingen bevegelsesmengde før støtet.</>
   ) : bTowards ? (
     <>
-      Vogn B triller mot positiv retning, så farten er negativ: v<Sub>B</Sub> = {ms(vB)}.
+      Vogn B triller mot A, altså i negativ retning, så v<Sub>B</Sub> = {ms(vB)}.
     </>
   ) : (
     <>
@@ -110,7 +110,7 @@ export default function EksVognstot() {
       pitfall: bTowards ? (
         <>
           Glemmer du minustegnet på v<Sub>B</Sub>, får du Σp = {fmt(s.pA - s.pB, 0)} kg·m/s og en fart etter støtet på{' '}
-          {fmt(s.vSignWrong, 2)} m/s, altfor mye. Fart mot den positive retningen er negativ.
+          {fmt(s.vSignWrong, 2)} m/s, altfor mye. Fart i motsatt retning av den positive er negativ.
         </>
       ) : bAtRest ? (
         <>Glem ikke å gjøre om tonn til kilogram (1 t = 1000 kg). Ellers får bevegelsesmengden feil enhet.</>
@@ -204,7 +204,7 @@ export default function EksVognstot() {
         </>
       ) : (
         <>
-          Tapet avhenger bare av den relative farten v<Sub>A</Sub> − v<Sub>B</Sub> = {fmt(s.u, 1)} m/s: ΔE = ½ · m<Sub>A</Sub>m<Sub>B</Sub>/(m
+          Med gitte masser avhenger tapet bare av den relative farten v<Sub>A</Sub> − v<Sub>B</Sub> = {fmt(s.u, 1)} m/s: ΔE = ½ · m<Sub>A</Sub>m<Sub>B</Sub>/(m
           <Sub>A</Sub> + m<Sub>B</Sub>) · (v<Sub>A</Sub> − v<Sub>B</Sub>)².{' '}
           {bTowards
             ? 'Når vognene kommer mot hverandre, er den relative farten stor, og mye av energien går tapt.'
@@ -351,13 +351,14 @@ export default function EksVognstot() {
       answer: (
         <>
           F ≈ {fmt(s.F / 1000, 0)} kN. a<Sub>A</Sub> ≈ {fmt(s.aA, 1)} m/s² (A bremses) og a<Sub>B</Sub> ≈ {fmt(s.aB, 1)} m/s². Vogn B er
-          lettest og får det kraftigste rykket, {fmt(ratio, 1)} ganger så stort som A.
+          lettest og får størst akselerasjon, {fmt(ratio, 1)} ganger så stor som A.
         </>
       ),
       tip: (
         <>
-          Kontroll med fartsendringen: a<Sub>A</Sub> = |V − v<Sub>A</Sub>| / Δt = {fmt(-s.dvA, 3)} m/s / {dtS} = {fmt(s.aA, 2)} m/s². Rykket i B
-          er {fmt(s.aB / G_EARTH, 2)} g, så last som ikke er godt sikret, kan skli.
+          Kontroll med fartsendringen: a<Sub>A</Sub> = |V − v<Sub>A</Sub>| / Δt = {fmt(-s.dvA, 3)} m/s / {dtS} = {fmt(s.aA, 2)} m/s². Akselerasjonen
+          til B er {fmt(s.aB / G_EARTH, 2)} g. Et slikt «rykk» kan få last til å skli, og derfor er containere låst fast til vogna i alle fire
+          hjørnene.
         </>
       ),
     },
@@ -411,7 +412,7 @@ export default function EksVognstot() {
         { id: 'd', text: 'Bestem impulsen hver av vognene får i støtet. Forklar hvorfor impulsene er like store og motsatt rettet.' },
         {
           id: 'e',
-          text: `Målinger viser at støtet varer i ${dtS}. Bestem gjennomsnittskraften mellom vognene og gjennomsnittsakselerasjonen til hver vogn under støtet. Hvilken vogn får det kraftigste rykket?`,
+          text: `Målinger viser at støtet varer i ${dtS}. Bestem gjennomsnittskraften mellom vognene og gjennomsnittsakselerasjonen til hver vogn under støtet. Hvilken vogn får størst akselerasjon?`,
         },
       ]}
       steps={steps}

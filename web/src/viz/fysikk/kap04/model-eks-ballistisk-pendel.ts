@@ -79,6 +79,10 @@ export interface PendulumSolution {
   Gbullet: number;
   /** Hvor mange ganger større kraften er enn tyngden til kula. */
   forceRatio: number;
+  /** Tyngden til klossen (N). Snordraget før støtet er like stort, og det endrer seg lite i den korte tiden støtet varer. */
+  Gblock: number;
+  /** Hvor mange ganger større kraften er enn tyngden til klossen. */
+  forceRatioBlock: number;
   /** Hvor langt klossen flytter seg mens kula stopper (m): ½VΔt. */
   sBlock: number;
   /** Hvor langt kula flytter seg mens den stopper (m): ½(v + V)Δt. */
@@ -118,6 +122,7 @@ export function solvePendulumTask({ m, M, h, dt, L }: PendulumTask, g = G_EARTH)
   const Fbullet = dt > 0 ? dpBullet / dt : 0;
   const F = Math.abs(Fbullet);
   const Gbullet = m * g;
+  const Gblock = M * g;
   const sBlock = 0.5 * V * dt;
   const sBullet = 0.5 * (v + V) * dt;
   const depth = sBullet - sBlock;
@@ -142,6 +147,8 @@ export function solvePendulumTask({ m, M, h, dt, L }: PendulumTask, g = G_EARTH)
     F,
     Gbullet,
     forceRatio: Gbullet > 0 ? F / Gbullet : 0,
+    Gblock,
+    forceRatioBlock: Gblock > 0 ? F / Gblock : 0,
     sBlock,
     sBullet,
     depth,
