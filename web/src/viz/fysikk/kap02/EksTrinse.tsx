@@ -316,8 +316,8 @@ export default function EksTrinse() {
       ),
       pitfall: (
         <>
-          Mange tror at snordraget blir mindre når det går tregere. Det er omvendt: snora må nå både akselerere klossen og
-          overvinne friksjonen.
+          Mange tror at snordraget blir mindre når det går tregere. Det er omvendt: for loddet er S = m<Sub>2</Sub>(g − a), så
+          mindre akselerasjon gir større S. Står klossen helt i ro (a = 0), er S lik G<Sub>2</Sub>.
         </>
       ),
     },

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fmt } from '../../kit/format';
 import {
   bookOnTable,
   bookThickness,
@@ -580,6 +581,71 @@ describe('eksempeloppgave: kasse ned en rampe', () => {
       expect(task.alphaDeg).toBeGreaterThan(s.critDeg);
       expect(task.muK).toBeLessThan(task.muS);
       expect(s.a).toBeGreaterThan(0.5);
+    }
+  });
+
+  it('på grensevinkelen α_g er den største statiske friksjonen akkurat lik G∥ (d)', () => {
+    for (const task of RAMP_TASKS) {
+      const { limit, critDeg, G } = solveRampTask(task);
+      expect(limit.alphaDeg).toBeCloseTo(critDeg, 12);
+      expect(Math.tan((limit.alphaDeg * Math.PI) / 180)).toBeCloseTo(task.muS, 12);
+      expect(limit.Rmax).toBeCloseTo(limit.Gpar, 10);
+      expect(limit.N).toBeCloseTo(limit.Gperp, 12);
+      // Komponentene er vinkelrette: G∥² + G⊥² = G²
+      expect(limit.Gpar ** 2 + limit.Gperp ** 2).toBeCloseTo(G ** 2, 8);
+      // Grensevinkelen er mindre enn rampevinkelen, og massen forkortes bort
+      expect(limit.alphaDeg).toBeLessThan(task.alphaDeg);
+      expect(solveRampTask({ ...task, m: task.m * 2 }).limit.alphaDeg).toBeCloseTo(limit.alphaDeg, 12);
+    }
+  });
+
+  it('flat rampe gir N = G og ingen G∥, og glatt rampe gir a = g sin α', () => {
+    const flat = solveRampTask({ m: 10, alphaDeg: 0, muK: 0.3, muS: 0.4, L: 2 });
+    expect(flat.Gpar).toBeCloseTo(0, 12);
+    expect(flat.N).toBeCloseTo(flat.G, 12);
+    expect(flat.a).toBeLessThan(0);
+    expect(flat.v).toBe(0);
+    const glatt = solveRampTask({ m: 10, alphaDeg: 30, muK: 0, muS: 0, L: 2 });
+    expect(glatt.a).toBeCloseTo(9.81 * 0.5, 10);
+    expect(glatt.critDeg).toBe(0);
+    // Uten friksjon er energien bevart: mgh = ½mv²
+    expect(0.5 * glatt.v ** 2).toBeCloseTo(9.81 * 2 * 0.5, 10);
+  });
+});
+
+describe('eksempeloppgave: kasse ned en rampe, utregningene går opp med de viste tallene', () => {
+  // Løsningen viser kreftene med to desimaler og a, v og t med to desimaler. Regner eleven videre med tallene slik de
+  // står, skal hvert svar bli nøyaktig det som står i neste linje (tallsett 1 viste før 66,7 N der 0,30 · 222 N = 66,6 N).
+  const shown = (x: number, d: number) => Number(fmt(x, d).replace(/\s/g, '').replace(',', '.').replace('−', '-'));
+
+  it('b), c) og d) for alle tallsettene', () => {
+    for (const task of RAMP_TASKS) {
+      const s = solveRampTask(task);
+      const al = (task.alphaDeg * Math.PI) / 180;
+      const G = shown(s.G, 2);
+      expect(G).toBe(shown(task.m * 9.81, 2));
+      // b) dekomponering, normalkraft og friksjon
+      expect(shown(G * Math.sin(al), 2)).toBe(shown(s.Gpar, 2));
+      expect(shown(G * Math.cos(al), 2)).toBe(shown(s.Gperp, 2));
+      expect(shown(s.N, 2)).toBe(shown(s.Gperp, 2));
+      const N = shown(s.N, 2);
+      expect(shown(task.muK * N, 2)).toBe(shown(s.R, 2));
+      // b) Newtons 2. lov langs rampa
+      const sumF = shown(s.Gpar, 2) - shown(s.R, 2);
+      expect(shown(sumF, 2)).toBe(shown(s.sumF, 2));
+      const a = shown(s.a, 2);
+      expect(shown(shown(s.sumF, 2) / task.m, 2)).toBe(a);
+      // «Vis at a = …» med én desimal
+      expect(shown(a, 1)).toBe(shown(s.a, 1));
+      // c) v = √(2as), kontroll med t = v/a og s = ½at²
+      expect(shown(Math.sqrt(2 * a * task.L), 2)).toBe(shown(s.v, 2));
+      const v = shown(s.v, 2);
+      expect(shown(v / a, 2)).toBe(shown(s.t, 2));
+      expect(shown(0.5 * a * shown(s.t, 2) ** 2, 1)).toBe(shown(task.L, 1));
+      expect(shown(v * 3.6, 0)).toBe(shown(s.v * 3.6, 0));
+      // d) grensevinkelen med én desimal, og tan α med to desimaler er større enn μs
+      expect(shown((Math.atan(task.muS) * 180) / Math.PI, 1)).toBe(shown(s.critDeg, 1));
+      expect(shown(Math.tan(al), 2)).toBeGreaterThan(task.muS);
     }
   });
 });

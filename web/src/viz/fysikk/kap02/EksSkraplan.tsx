@@ -1,7 +1,6 @@
-import { useState } from 'react';
-import { Figure, Sub, TSub, Txt, VIZ, WorkedExample, fmt, type ExampleStep, type FigureState } from '../../kit';
+import { useState, type ReactNode } from 'react';
+import { Figure, Sub, TSub, Txt, VIZ, WorkedExample, fmt, useTextScale, type ExampleStep, type FigureState } from '../../kit';
 import {
-  Callout,
   Dimension,
   ForceArrow,
   Himmel,
@@ -15,6 +14,7 @@ import {
   materialStops,
   rampePunkt,
   shade,
+  useStrokeScale,
   useSvgId,
 } from '../../kit/scene';
 import { RAMP_TASKS, solveRampTask, type RampSolution, type RampTask } from './model';
@@ -26,6 +26,9 @@ const RAD = Math.PI / 180;
  * Eksempeloppgave (2C, 2E): en kasse sklir ned en rampe fra en lasterampe. Oppgaven er laget for appen
  * (egen tekst og egne tall) i samme stil som eksamensoppgaver: krefter, dekomponering, Newtons 2. lov,
  * bevegelseslikning og grensevinkel.
+ *
+ * Tallene: kreftene vises med to desimaler, så hver linje i utregningen går opp med tallene fra linja over
+ * (model.test.ts sjekker det for alle tallsettene). Alle tall kommer fra solveRampTask.
  */
 export default function EksSkraplan() {
   const [variant, setVariant] = useState(0);
@@ -33,6 +36,12 @@ export default function EksSkraplan() {
   const s = solveRampTask(task);
   const { m, alphaDeg, muK, muS, L } = task;
   const deg = `${fmt(alphaDeg, 0)}°`;
+  const F = (v: number) => `${fmt(v, 2)} N`;
+  const ag = (
+    <>
+      α<Sub>g</Sub>
+    </>
+  );
 
   const steps: ExampleStep[] = [
     {
@@ -64,18 +73,18 @@ export default function EksSkraplan() {
       body: (
         <p>
           Kassen beveger seg langs rampa, så vi legger aksene langs og vinkelrett på rampa. Da må bare tyngden deles opp. Vinkelen mellom G og
-          normalen til rampa er like stor som rampevinkelen α.
+          G<Sub>⊥</Sub> (normalen til rampa) er like stor som rampevinkelen α, se de to buene i figuren.
         </p>
       ),
       math: [
         <>
-          G = mg = {fmt(m, 0)} kg · 9,81 m/s² = {fmt(s.G, 0)} N
+          G = mg = {fmt(m, 0)} kg · 9,81 m/s² = {F(s.G)}
         </>,
         <>
-          G<Sub>∥</Sub> = G · sin α = {fmt(s.G, 0)} N · sin {deg} = {fmt(s.Gpar, 0)} N
+          G<Sub>∥</Sub> = G · sin α = {F(s.G)} · sin {deg} = {F(s.Gpar)}
         </>,
         <>
-          G<Sub>⊥</Sub> = G · cos α = {fmt(s.G, 0)} N · cos {deg} = {fmt(s.Gperp, 0)} N
+          G<Sub>⊥</Sub> = G · cos α = {F(s.G)} · cos {deg} = {F(s.Gperp)}
         </>,
       ],
       tip: 'Sjekk vinkelen: når rampa er flat (α = 0), skal hele G virke vinkelrett på rampa, og cos 0° = 1 gir nettopp det.',
@@ -91,10 +100,10 @@ export default function EksSkraplan() {
       ),
       math: [
         <>
-          N = G<Sub>⊥</Sub> = {fmt(s.N, 0)} N
+          N = G<Sub>⊥</Sub> = {F(s.N)}
         </>,
         <>
-          R = μ<Sub>k</Sub> · N = {fmt(muK, 2)} · {fmt(s.N, 0)} N = {fmt(s.R, 1)} N
+          R = μ<Sub>k</Sub> · N = {fmt(muK, 2)} · {F(s.N)} = {F(s.R)}
         </>,
       ],
       pitfall: (
@@ -113,10 +122,10 @@ export default function EksSkraplan() {
       ),
       math: [
         <>
-          ΣF = G<Sub>∥</Sub> − R = {fmt(s.Gpar, 1)} N − {fmt(s.R, 1)} N = {fmt(s.sumF, 1)} N
+          ΣF = G<Sub>∥</Sub> − R = {F(s.Gpar)} − {F(s.R)} = {F(s.sumF)}
         </>,
         <>
-          a = ΣF / m = {fmt(s.sumF, 1)} N / {fmt(m, 0)} kg = {fmt(s.a, 2)} m/s²
+          a = ΣF / m = {F(s.sumF)} / {fmt(m, 0)} kg = {fmt(s.a, 2)} m/s²
         </>,
       ],
       answer: (
@@ -154,8 +163,8 @@ export default function EksSkraplan() {
       ),
       tip: (
         <>
-          Kontroller med tiden: t = v / a = {fmt(s.v, 2)} / {fmt(s.a, 2)} = {fmt(s.t, 1)} s, og s = ½at² = ½ · {fmt(s.a, 2)} · {fmt(s.t, 2)}² ={' '}
-          {fmt(L, 1)} m.
+          Kontroller med tiden: t = v / a = {fmt(s.v, 2)} m/s / {fmt(s.a, 2)} m/s² = {fmt(s.t, 2)} s, og s = ½at² = ½ · {fmt(s.a, 2)} m/s² · (
+          {fmt(s.t, 2)} s)² = {fmt(L, 1)} m.
         </>
       ),
     },
@@ -164,24 +173,26 @@ export default function EksSkraplan() {
       title: 'Når begynner kassen å gli av seg selv?',
       body: (
         <p>
-          Kassen ligger i ro så lenge den statiske friksjonen klarer å holde igjen: G<Sub>∥</Sub> ≤ μ<Sub>s</Sub>N. På grensen er de like store.
-          Både G<Sub>∥</Sub> og N inneholder mg, som forkortes bort.
+          Kassen ligger i ro så lenge den statiske friksjonen klarer å holde igjen: G<Sub>∥</Sub> ≤ μ<Sub>s</Sub>N. Ved grensevinkelen {ag}{' '}
+          er friksjonen så stor den kan bli, og akkurat like stor som G<Sub>∥</Sub>. Både G<Sub>∥</Sub> og N inneholder mg, som forkortes
+          bort.
         </p>
       ),
       math: [
         <>
-          mg · sin α = μ<Sub>s</Sub> · mg · cos α ⇒ tan α = μ<Sub>s</Sub>
+          mg · sin {ag} = μ<Sub>s</Sub> · mg · cos {ag} ⇒ tan {ag} = μ<Sub>s</Sub>
         </>,
         <>
-          α = tan⁻¹ {fmt(muS, 2)} = {fmt(s.critDeg, 1)}°
+          {ag} = tan⁻¹ {fmt(muS, 2)} = {fmt(s.critDeg, 1)}°
         </>,
       ],
       answer: (
         <>
-          Rampa må være minst {fmt(s.critDeg, 0)}° bratt. Med {deg} glir kassen av seg selv, fordi tan {deg} = {fmt(Math.tan(alphaDeg * RAD), 2)}{' '}
-          er større enn μ<Sub>s</Sub> = {fmt(muS, 2)}.
+          Rampa må være minst {fmt(s.critDeg, 1)}° bratt. Med {deg} glir kassen av seg selv, fordi tan {deg} ={' '}
+          {fmt(Math.tan(alphaDeg * RAD), 2)} er større enn μ<Sub>s</Sub> = {fmt(muS, 2)}.
         </>
       ),
+      tip: 'Figuren viser rampa med grensevinkelen. Den er lengre, fordi lasterampa er like høy.',
       pitfall: 'Her skal du bruke det statiske friksjonstallet, ikke glidefriksjonstallet: spørsmålet er når kassen begynner å gli.',
     },
   ];
@@ -221,12 +232,51 @@ export default function EksSkraplan() {
 
 /* ---------- Figuren ---------- */
 
+/*
+ * Én skala for hele scenen: 128 px per meter (rampa, kassen, lasterampa og porten). Kassen er 0,59 m × 0,45 m.
+ * Kreftene har sin egen skala, G er alltid G_LEN lang. Kanten av lasterampa står fast (TOP_X), så lageret står likt i
+ * alle tallsettene. I d) står rampa med grensevinkelen α_g; den er da lengre, fordi lasterampa er like høy.
+ */
 const W = 800;
-const GROUND = 372;
-/** Piksler per meter langs rampa. */
+const H = 440;
+const GROUND = 392;
+/** Piksler per meter. */
 const PX_PER_M = 128;
+/** Kanten av lasterampa, der rampa ligger an. */
+const TOP_X = 560;
 /** Lengden på G-pila (piksler); de andre kreftene tegnes i samme skala. */
-const G_LEN = 118;
+const G_LEN = 190;
+const BOX_W = 76;
+const BOX_H = 58;
+/** Radius på vinkelbuen ved foten av rampa og ved tyngdepunktet. */
+const ARC_FOOT = 70;
+const ARC_CM = 46;
+
+/** Rampa med vinkelen `alphaDeg` fra bakken opp til kanten av lasterampa, som er `dockH` piksler høy. */
+function rampGeom(alphaDeg: number, dockH: number) {
+  const al = alphaDeg * RAD;
+  const len = dockH / Math.sin(al);
+  const x0 = TOP_X - len * Math.cos(al);
+  const ramp = { x: x0, y: GROUND, lengde: len, vinkel: alphaDeg, retning: 'opp-hoyre' as const, materiale: 'tre' as const };
+  return { alphaDeg, al, len, x0, ramp };
+}
+type RampGeom = ReturnType<typeof rampGeom>;
+
+/** Kassen `sAlong` piksler opp langs rampa: punktet midt på bunnen, midten av kassen og enhetsvektorene. */
+function boxOn(g: RampGeom, sAlong: number) {
+  const p = rampePunkt(g.ramp, sAlong);
+  // Normalen ut fra rampa (opp og til venstre) og retningen ned langs rampa (ned og til venstre).
+  const nx = -Math.sin(g.al);
+  const ny = -Math.cos(g.al);
+  const dx = -Math.cos(g.al);
+  const dy = Math.sin(g.al);
+  return { p, cx: p.x + (nx * BOX_H) / 2, cy: p.y + (ny * BOX_H) / 2, nx, ny, dx, dy };
+}
+
+/** Øverst på rampa (oppgaven, a og b), litt lenger ned i d (så R-pila ikke stikker over kanten), og nederst i c. */
+const sTop = (g: RampGeom) => g.len - BOX_W / 2 - 10;
+const sLimit = (g: RampGeom) => g.len - BOX_W / 2 - 40;
+const sBottom = () => BOX_W / 2 + 4;
 
 function RampFigure({ task, s, state }: { task: RampTask; s: RampSolution; state: FigureState }) {
   const [ref, narrow] = useNarrow<HTMLDivElement>();
@@ -239,77 +289,126 @@ function RampFigure({ task, s, state }: { task: RampTask; s: RampSolution; state
 
 function RampScene({ task, s, state, narrow }: { task: RampTask; s: RampSolution; state: FigureState; narrow: boolean }) {
   const { step, showAll } = state;
-  const al = task.alphaDeg * RAD;
-  const len = task.L * PX_PER_M;
-  // Rampa starter på bakken til venstre og går opp mot høyre til kanten av lasterampa.
-  const x0 = 130;
-  const ramp = { x: x0, y: GROUND, lengde: len, vinkel: task.alphaDeg, retning: 'opp-hoyre' as const, materiale: 'tre' as const };
-  const topX = x0 + len * Math.cos(al);
-  const topY = GROUND - len * Math.sin(al);
+  const dockH = task.L * PX_PER_M * Math.sin(task.alphaDeg * RAD);
+  const gTask = rampGeom(task.alphaDeg, dockH);
+  const gLimit = rampGeom(s.critDeg, dockH);
 
-  // Kassen: øverst mens kreftene finnes (a, b), nederst i c, øverst igjen i d.
+  // d) handler om grensevinkelen: rampa står med α_g, og kassen ligger i ro med R = μs·N = G∥.
+  const limit = !showAll && step === 6;
   const atBottom = !showAll && step === 5;
-  const sAlong = atBottom ? 0.14 * len : 0.6 * len;
-  const p = rampePunkt(ramp, sAlong);
-  const boxW = 92;
-  const boxH = 70;
-  // Midten av kassen ligger en halv kassehøyde ut fra rampa (normalen peker opp og til venstre).
-  const nx = -Math.sin(al);
-  const ny = -Math.cos(al);
-  const cx = p.x + (nx * boxH) / 2;
-  const cy = p.y + (ny * boxH) / 2;
-  // Retning ned langs rampa (mot venstre og ned) og opp langs rampa.
-  const dx = -Math.cos(al);
-  const dy = Math.sin(al);
+  const g = limit ? gLimit : gTask;
+  const b = boxOn(g, limit ? sLimit(g) : atBottom ? sBottom() : sTop(g));
+  const { cx, cy, nx, ny, dx, dy } = b;
+  const f = limit
+    ? { Gpar: s.limit.Gpar, Gperp: s.limit.Gperp, N: s.limit.N, R: s.limit.Rmax }
+    : { Gpar: s.Gpar, Gperp: s.Gperp, N: s.N, R: s.R };
 
   const k = G_LEN / s.G;
-  const showForces = showAll || (step >= 1 && step <= 4) || step === 6;
+  const showForces = showAll || (step >= 1 && step <= 4) || limit;
   const showParts = showAll || (step >= 2 && step <= 4);
   const showSum = !showAll && step === 4;
-  const showVelocity = atBottom;
-  const showAngle = showAll || step === 2 || step === 6;
+  const showFootAngle = showAll || step === 0 || step === 2 || limit;
+  const showCmAngle = showAll || step === 2;
+  // Kassen tones ned når komponentene (stiplet) er tegnet oppå den, så de synes.
+  const dimBox = showParts || limit;
 
-  // På mobil zoomes figuren inn på rampa og kassen, så kreftene blir store nok.
-  const vb = narrow ? `${x0 - 60} ${Math.max(0, topY - 175)} ${topX - x0 + 150} ${GROUND + 40 - Math.max(0, topY - 175)}` : `0 0 ${W} 420`;
+  // På mobil zoomes figuren inn på rampa og kassen. Utsnittet er det samme i alle stegene (også d).
+  const tipY = (gg: RampGeom, sAlong: number, N: number) => {
+    const bb = boxOn(gg, sAlong);
+    return bb.cy + bb.ny * N * k;
+  };
+  const vbTop = Math.max(0, Math.min(tipY(gTask, sTop(gTask), s.N), tipY(gLimit, sLimit(gLimit), s.limit.N)) - 30);
+  // Til venstre: foten av rampa i d), og mållinja og v-pila (med etikett) i oppgaven og c).
+  const vbLeft = Math.min(gTask.x0 - 66, gLimit.x0 - 28);
+  // Til høyre: etiketten på G⊥, som peker inn under kanten av lasterampa.
+  const vbRight = TOP_X + 90;
+  const vb = narrow ? `${vbLeft} ${vbTop} ${vbRight - vbLeft} ${H - vbTop}` : `0 0 ${W} ${H}`;
+  // Vinkelen ved foten: verdien i oppgaven og i d), ellers bare symbolet (b1 viser at den samme vinkelen står ved G).
+  const angleLabel = limit ? (
+    <>
+      α<TSub>g</TSub> = {fmt(s.critDeg, 1)}°
+    </>
+  ) : !showAll && step === 0 ? (
+    `α = ${fmt(task.alphaDeg, 0)}°`
+  ) : (
+    'α'
+  );
+
   return (
     <Figure
       viewBox={vb}
-      label={`En kasse på ${fmt(task.m, 0)} kg på en rampe som danner ${fmt(task.alphaDeg, 0)} grader med bakken, fra en lasterampe ned til bakken.`}
-      maxHeight={440}
+      label={
+        limit
+          ? `Rampa med grensevinkelen ${fmt(s.critDeg, 1)} grader: kassen på ${fmt(task.m, 0)} kg ligger så vidt i ro, og friksjonen er like stor som tyngdens komponent langs rampa.`
+          : `En kasse på ${fmt(task.m, 0)} kg på en rampe som danner ${fmt(task.alphaDeg, 0)} grader med bakken, fra en lasterampe ned til bakken.`
+      }
+      maxHeight={460}
     >
-      <Himmel x={0} y={0} w={W} h={GROUND} skyer={2} seed={4} />
-      <Landskap x={0} y={GROUND} w={W} h={120} type="aaser" seed={2} />
-      <Underlag x1={0} x2={W} y={GROUND} depth={48} type="betong" />
-      <Lasterampe x={topX} y={topY} />
-      <Rampe {...ramp} />
-      <Kasse x={p.x} y={p.y} w={boxW} h={boxH} materiale="papp" rotate={p.rotate} label={`${fmt(task.m, 0)} kg`} labelPlass="oppe-venstre" />
+      {/* Bakgrunnen er bredere enn utsnittet, så den fyller figuren også når den er bredere enn 800:440. */}
+      <Himmel x={-300} y={0} w={W + 600} h={GROUND} skyer={2} seed={4} />
+      <Landskap x={-300} y={GROUND} w={W + 600} h={120} type="aaser" seed={2} />
+      <Underlag x1={-300} x2={W + 300} y={GROUND} depth={H - GROUND + 40} type="betong" />
+      <Lasterampe x={TOP_X} y={GROUND - dockH} />
+      <Rampe {...g.ramp} />
+      <g opacity={dimBox ? 0.5 : 1}>
+        <Kasse x={b.p.x} y={b.p.y} w={BOX_W} h={BOX_H} materiale="papp" rotate={b.p.rotate} />
+        <Fraktlapp x={b.p.x} y={b.p.y} rotate={b.p.rotate} text={`${fmt(task.m, 0)} kg`} />
+      </g>
 
-      {showAngle && <AngleMark x={x0} y={GROUND} alphaDeg={task.alphaDeg} r={70} strong={step === 6} />}
-      {showVelocity && (
+      {showFootAngle && <AngleMark x={g.x0} y={GROUND} alphaDeg={g.alphaDeg} label={angleLabel} />}
+      {!showAll && step === 0 && <RampDim g={gTask} text={`L = ${fmt(task.L, 1)} m`} />}
+      {atBottom && (
         <>
+          <RampDim g={gTask} text={`s = ${fmt(task.L, 1)} m`} />
           <ForceArrow x1={cx} y1={cy} x2={cx + dx * 22 * s.v} y2={cy + dy * 22 * s.v} color={VIZ.velocity} label="v" width={6} />
-          <Dimension x1={x0} y1={GROUND} x2={topX} y2={topY} offset={104} label={`s = ${fmt(task.L, 1)} m`} labelOffset={60} />
         </>
       )}
 
       {showForces && (
         <>
+          {showCmAngle && <CmAngle x={cx} y={cy} alphaDeg={g.alphaDeg} />}
+          {(showParts || limit) && (
+            <ForceArrow
+              x1={cx}
+              y1={cy}
+              x2={cx + dx * f.Gpar * k}
+              y2={cy + dy * f.Gpar * k}
+              color={VIZ.gravity}
+              dashed
+              width={10}
+              label={
+                <>
+                  G<TSub>∥</TSub>
+                </>
+              }
+            />
+          )}
           {showParts && (
-            <>
-              <ForceArrow x1={cx} y1={cy} x2={cx + dx * s.Gpar * k} y2={cy + dy * s.Gpar * k} color={VIZ.gravity} dashed label={<>G∥</>} />
-              <ForceArrow x1={cx} y1={cy} x2={cx - nx * s.Gperp * k} y2={cy - ny * s.Gperp * k} color={VIZ.gravity} dashed label={<>G⊥</>} />
-            </>
+            <ForceArrow
+              x1={cx}
+              y1={cy}
+              x2={cx - nx * f.Gperp * k}
+              y2={cy - ny * f.Gperp * k}
+              color={VIZ.gravity}
+              dashed
+              width={10}
+              label={
+                <>
+                  G<TSub>⊥</TSub>
+                </>
+              }
+            />
           )}
           <ForceArrow x1={cx} y1={cy} x2={cx} y2={cy + G_LEN} color={VIZ.gravity} label="G" origin />
-          <ForceArrow x1={cx} y1={cy} x2={cx + nx * s.N * k} y2={cy + ny * s.N * k} color={VIZ.normal} label="N" />
-          <ForceArrow x1={cx} y1={cy} x2={cx - dx * s.R * k} y2={cy - dy * s.R * k} color={VIZ.friction} label="R" />
+          <ForceArrow x1={cx} y1={cy} x2={cx + nx * f.N * k} y2={cy + ny * f.N * k} color={VIZ.normal} label="N" />
+          <ForceArrow x1={cx} y1={cy} x2={cx - dx * f.R * k} y2={cy - dy * f.R * k} color={VIZ.friction} label="R" />
           {showSum && (
             // Akselerasjonen (egen skala, 40 px per m/s²) foran kassen. Kraftsummen er bare G∥ − R, som er for kort å se.
             <ForceArrow
-              x1={cx + dx * (boxW / 2 + 10) + nx * boxH * 0.62}
-              y1={cy + dy * (boxW / 2 + 10) + ny * boxH * 0.62}
-              x2={cx + dx * (boxW / 2 + 10 + 40 * s.a) + nx * boxH * 0.62}
-              y2={cy + dy * (boxW / 2 + 10 + 40 * s.a) + ny * boxH * 0.62}
+              x1={cx + dx * (BOX_W / 2 + 12) + nx * BOX_H * 0.62}
+              y1={cy + dy * (BOX_W / 2 + 12) + ny * BOX_H * 0.62}
+              x2={cx + dx * (BOX_W / 2 + 12 + 40 * s.a) + nx * BOX_H * 0.62}
+              y2={cy + dy * (BOX_W / 2 + 12 + 40 * s.a) + ny * BOX_H * 0.62}
               color={VIZ.acceleration}
               width={5}
               label="a"
@@ -318,54 +417,139 @@ function RampScene({ task, s, state, narrow }: { task: RampTask; s: RampSolution
         </>
       )}
 
-      {step === 6 && !showAll && (
-        <Callout x={x0 + 40} y={GROUND - 12} lx={x0 + 120} ly={GROUND + 30}>
-          tan α = μ<TSub>s</TSub> ⇒ α = {fmt(s.critDeg, 1)}°
-        </Callout>
-      )}
     </Figure>
   );
 }
 
 /**
- * Lageret med lasterampa (betong) som rampa ligger mot, og en port i veggen bak. (x, y) er hjørnet øverst til venstre
- * på lasterampa.
+ * Lageret med lasterampa (betong) som rampa ligger an mot, og en leddport i veggen bak. (x, y) er hjørnet øverst
+ * til venstre på lasterampa. Veggen og porten (2,6 m høy og 3 m bred) går ut over kanten av figuren, i samme skala
+ * som resten av scenen.
  */
 function Lasterampe({ x, y }: { x: number; y: number }) {
+  const ss = useStrokeScale();
   const ramp = useSvgId('lasterampe');
   const wall = useSvgId('lagervegg');
   const door = useSvgId('lagerport');
-  const wallX = x + 34;
-  const top = 46;
-  const doorX = wallX + 46;
-  const doorW = Math.max(60, Math.min(150, W - doorX - 30));
+  const right = W + 300;
+  const top = -300;
+  const wallX = x + 30;
+  const doorX = wallX + 34;
+  const doorW = 3 * PX_PER_M;
+  const doorH = 2.6 * PX_PER_M;
+  const doorTop = y - doorH;
+  const slat = 0.16 * PX_PER_M;
+  // Veggen er kledd med stående plater, ca. 1 m brede.
+  const seams = Array.from({ length: Math.ceil((right - wallX) / PX_PER_M) }, (_, i) => wallX + (i + 1) * PX_PER_M).filter(
+    (sx) => sx < doorX - 4 || sx > doorX + doorW + 4,
+  );
   return (
     <g>
       <LinearGradient id={wall} stops={materialStops(PAINTS.graa, 0.6)} />
       <LinearGradient id={door} stops={materialStops(shade(SCENE.metal, 0.15), 0.8)} />
-      <rect x={wallX} y={top} width={W - wallX + 2} height={y - top} fill={`url(#${wall})`} stroke={SCENE.outline} strokeWidth={1} />
-      <rect x={wallX - 6} y={top - 10} width={W - wallX + 8} height={12} rx={2} fill={shade(PAINTS.graa, 0.25)} />
-      <rect x={doorX} y={y - 150} width={doorW} height={150} fill={`url(#${door})`} stroke={SCENE.outline} strokeWidth={1} />
-      {Array.from({ length: 9 }, (_, i) => (
-        <line key={i} x1={doorX} x2={doorX + doorW} y1={y - 150 + (i + 1) * 15} y2={y - 150 + (i + 1) * 15} stroke={shade(SCENE.metal, 0.35)} strokeWidth={1} opacity={0.6} />
+      <rect x={wallX} y={top} width={right - wallX} height={y - top} fill={`url(#${wall})`} stroke={SCENE.outline} strokeWidth={1 * ss} />
+      {seams.map((sx) => (
+        <line key={sx} x1={sx} x2={sx} y1={top} y2={y} stroke={shade(PAINTS.graa, 0.3)} strokeWidth={1 * ss} opacity={0.5} />
       ))}
+      {/* Porten med karm og lameller */}
+      <rect x={doorX - 5} y={doorTop - 5} width={doorW + 10} height={doorH + 5} fill={shade(PAINTS.graa, 0.35)} />
+      <rect x={doorX} y={doorTop} width={doorW} height={doorH} fill={`url(#${door})`} stroke={SCENE.outline} strokeWidth={1 * ss} />
+      {Array.from({ length: Math.floor(doorH / slat) }, (_, i) => (
+        <line
+          key={i}
+          x1={doorX}
+          x2={doorX + doorW}
+          y1={y - (i + 1) * slat}
+          y2={y - (i + 1) * slat}
+          stroke={shade(SCENE.metal, 0.35)}
+          strokeWidth={1 * ss}
+          opacity={0.6}
+        />
+      ))}
+      <rect x={doorX + doorW * 0.08} y={y - slat * 0.7} width={doorW * 0.1} height={slat * 0.3} rx={1} fill={shade(SCENE.metal, 0.5)} />
       <LinearGradient id={ramp} stops={materialStops(SCENE.concrete)} />
-      <rect x={x} y={y} width={W - x + 2} height={GROUND - y} fill={`url(#${ramp})`} stroke={SCENE.outline} strokeWidth={1} />
-      <rect x={x} y={y} width={W - x + 2} height={7} fill={shade(SCENE.concrete, 0.18)} />
+      <rect x={x} y={y} width={right - x} height={GROUND - y} fill={`url(#${ramp})`} stroke={SCENE.outline} strokeWidth={1 * ss} />
+      <rect x={x} y={y} width={right - x} height={7} fill={shade(SCENE.concrete, 0.18)} />
     </g>
   );
 }
 
-/** Vinkelbue for rampevinkelen α i hjørnet nede til venstre. */
-function AngleMark({ x, y, alphaDeg, r, strong }: { x: number; y: number; alphaDeg: number; r: number; strong?: boolean }) {
+/**
+ * Mållinje langs hele rampa, et stykke over kassen, med etiketten så langt ut fra linja at den ikke krysser den
+ * (Dimension setter etiketten rett over midten, og en skrå linje går da gjennom teksten).
+ */
+function RampDim({ g, text }: { g: RampGeom; text: string }) {
+  const f = useTextScale();
+  const off = BOX_H + 36;
+  const nx = -Math.sin(g.al);
+  const ny = -Math.cos(g.al);
+  const fs = 17 * f * 0.9;
+  const w = text.length * fs * 0.6;
+  const h = fs * 0.75;
+  // Avstanden fra linja til midten av teksten: nok til at hjørnet nærmest linja går klar.
+  const d = (w / 2) * Math.sin(g.al) + (h / 2) * Math.cos(g.al) + 6 * f;
+  const mx = (g.x0 + TOP_X) / 2 + nx * (off + d);
+  const my = (GROUND + GROUND - g.len * Math.sin(g.al)) / 2 + ny * (off + d);
+  return (
+    <>
+      <Dimension x1={g.x0} y1={GROUND} x2={TOP_X} y2={GROUND - g.len * Math.sin(g.al)} offset={off} />
+      <Txt x={mx} y={my + h / 2} anchor="middle" size={0.9} weight={650}>
+        {text}
+      </Txt>
+    </>
+  );
+}
+
+/** Fraktlapp på kassen, nede til høyre på siden, der ingen kraftpiler går. (x, y, rotate) som for Kasse. */
+function Fraktlapp({ x, y, rotate, text }: { x: number; y: number; rotate: number; text: string }) {
+  const ss = useStrokeScale();
+  const pw = BOX_W * 0.37;
+  const ph = BOX_H * 0.26;
+  const lx = BOX_W * 0.12;
+  const ly = -BOX_H * 0.06 - ph;
+  const fs = Math.min(ph * 0.72, pw / (Math.max(1.6, text.length) * 0.6));
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${rotate})`}>
+      <rect x={lx} y={ly} width={pw} height={ph} rx={1.5} fill={PAINTS.hvit} stroke={shade(PAINTS.hvit, 0.35)} strokeWidth={0.7 * ss} />
+      <text x={lx + pw / 2} y={ly + ph / 2 + fs * 0.36} fontSize={fs} fontWeight={700} textAnchor="middle" fill={PAINTS.svart}>
+        {text}
+      </text>
+    </g>
+  );
+}
+
+/** Vinkelbue for rampevinkelen (eller grensevinkelen) i hjørnet nede til venstre, med glorie så den synes mot treverket. */
+function AngleMark({ x, y, alphaDeg, label }: { x: number; y: number; alphaDeg: number; label: ReactNode }) {
+  const ss = useStrokeScale();
   const al = alphaDeg * RAD;
-  const ex = x + r * Math.cos(al);
-  const ey = y - r * Math.sin(al);
+  const r = ARC_FOOT;
+  const d = `M${x + r},${y} A${r},${r} 0 0 0 ${x + r * Math.cos(al)},${y - r * Math.sin(al)}`;
   const mid = al / 2;
   return (
     <g>
-      <path d={`M${x + r},${y} A${r},${r} 0 0 0 ${ex},${ey}`} fill="none" stroke={strong ? VIZ.ink : VIZ.muted} strokeWidth={strong ? 2.4 : 1.6} />
-      <Txt x={x + (r + 16) * Math.cos(mid)} y={y - (r + 16) * Math.sin(mid) + 6} anchor="start" size={strong ? 1 : 0.9} weight={700}>
+      <path d={d} fill="none" stroke={VIZ.surface} strokeWidth={5 * ss} opacity={0.85} />
+      <path d={d} fill="none" stroke={VIZ.ink} strokeWidth={2.2 * ss} />
+      <Txt x={x + (r + 14) * Math.cos(mid)} y={y - (r + 14) * Math.sin(mid) + 6} anchor="start" size={1} weight={700}>
+        {label}
+      </Txt>
+    </g>
+  );
+}
+
+/** Vinkelen α mellom G (loddrett ned) og G⊥ (vinkelrett inn mot rampa), ved tyngdepunktet. */
+function CmAngle({ x, y, alphaDeg }: { x: number; y: number; alphaDeg: number }) {
+  const ss = useStrokeScale();
+  const al = alphaDeg * RAD;
+  const r = ARC_CM;
+  // G peker rett ned (90° i SVG), G⊥ peker 90° − α (ned og mot høyre).
+  const d = `M${x},${y + r} A${r},${r} 0 0 0 ${x + r * Math.sin(al)},${y + r * Math.cos(al)}`;
+  const mid = Math.PI / 2 - al / 2;
+  const lr = r + 13;
+  return (
+    <g>
+      <path d={d} fill="none" stroke={VIZ.surface} strokeWidth={5 * ss} opacity={0.85} />
+      <path d={d} fill="none" stroke={VIZ.ink} strokeWidth={2 * ss} />
+      <Txt x={x + lr * Math.cos(mid)} y={y + lr * Math.sin(mid) + 6} anchor="middle" size={0.95} weight={700}>
         α
       </Txt>
     </g>

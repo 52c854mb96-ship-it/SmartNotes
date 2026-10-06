@@ -460,6 +460,23 @@ export interface RampSolution {
   t: number;
   /** Den minste vinkelen der kassen begynner å gli av seg selv (grader), tan α = μs. */
   critDeg: number;
+  /** Kreftene når rampa har grensevinkelen α_g (deloppgave d). */
+  limit: RampLimit;
+}
+
+/**
+ * Kassen i ro på en rampe med grensevinkelen α_g (tan α_g = μs): den statiske friksjonen er så stor den kan bli,
+ * μs·N, og akkurat like stor som G∥. Brattere enn dette, og kassen begynner å gli.
+ */
+export interface RampLimit {
+  /** Grensevinkelen α_g (grader). */
+  alphaDeg: number;
+  Gpar: number;
+  Gperp: number;
+  /** Normalkraften (= G⊥). */
+  N: number;
+  /** Den største statiske friksjonen μs·N (oppover langs rampa), lik G∥ på grensen. */
+  Rmax: number;
 }
 
 /** Hele løsningen med uavrundede tall. Visningen runder av; utregningene bruker alltid disse verdiene. */
@@ -474,5 +491,9 @@ export function solveRampTask({ m, alphaDeg, muK, muS, L }: RampTask, g = G_EART
   const a = sumF / m;
   const v = a > 0 ? Math.sqrt(2 * a * L) : 0;
   const t = a > 0 ? v / a : Infinity;
-  return { G, Gpar, Gperp, N, R, sumF, a, v, t, critDeg: criticalAngleDeg(muS) };
+  const critDeg = criticalAngleDeg(muS);
+  const alg = critDeg * RAD;
+  const Nlim = G * Math.cos(alg);
+  const limit: RampLimit = { alphaDeg: critDeg, Gpar: G * Math.sin(alg), Gperp: Nlim, N: Nlim, Rmax: muS * Nlim };
+  return { G, Gpar, Gperp, N, R, sumF, a, v, t, critDeg, limit };
 }
