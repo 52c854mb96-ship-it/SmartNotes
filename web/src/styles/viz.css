@@ -529,8 +529,9 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Ikke Latin Modern Math: den tegner √ under grunnlinja (laget for en strek over), så tegnet ser ut til å falle ned. */
 .viz-root {
-  font-family: var(--font);
+  font-family: 'Cambria Math', 'STIX Two Math', Cambria, Georgia, 'Times New Roman', serif;
   font-size: 0.95em;
 }
 
