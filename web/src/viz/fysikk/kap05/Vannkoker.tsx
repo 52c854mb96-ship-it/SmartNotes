@@ -33,7 +33,7 @@ import {
   type BoilRun,
   type HeatState,
 } from './model-vannkoker';
-import { useNarrow } from './marks';
+import { useNarrow } from './vannkoker-deler';
 import { EnergyBars, TempGraph, barsHeight, type EnergyRow, type GraphLine } from './vannkoker-graf';
 import { KETTLE_COLOR, KitchenScene, LOSS_COLOR, POT_COLOR, P_MAX, SCENE_NARROW, SCENE_WIDE, WATER_COLOR } from './vannkoker-scene';
 
@@ -144,7 +144,7 @@ export default function VannkokerViz() {
           </FormulaLine>
         )}
         <FormulaLine>
-          Strøm til vannkokeren: E = P · t = {fmt(P, 0)}&nbsp;W · {fmt(k.t, 0)}&nbsp;s = {fmt(k.E / 1000, 0)}&nbsp;kJ = {fmt(toKWh(k.E), 3)}&nbsp;kWh
+          Elektrisk energi til vannkokeren: E = P · t = {fmt(P, 0)}&nbsp;W · {fmt(k.t, 0)}&nbsp;s = {fmt(k.E / 1000, 0)}&nbsp;kJ = {fmt(toKWh(k.E), 3)}&nbsp;kWh
         </FormulaLine>
       </Formula>
 
@@ -240,7 +240,7 @@ function explanation({ P, liters, T0, lid, t, k, kState, p, pState }: ExplainInp
   if (!p || !pState) {
     race = kState.done ? (
       <p>
-        Vannkokeren slo seg av etter {s(k.t)} ({minSecText(k.t)}). Den brukte E = P · t = {kJ(k.E)} strøm, og av det gikk {kJ(k.Q)} ({ek}&nbsp;%) til
+        Vannkokeren slo seg av etter {s(k.t)} ({minSecText(k.t)}). Den brukte E = P · t = {kJ(k.E)} elektrisk energi, og av den gikk {kJ(k.Q)} ({ek}&nbsp;%) til
         vannet. De siste {kJ(k.loss)} varmet opp selve vannkokeren og lufta rundt.
       </p>
     ) : (
@@ -259,7 +259,7 @@ function explanation({ P, liters, T0, lid, t, k, kState, p, pState }: ExplainInp
   } else if (!kState.done) {
     race = (
       <p>
-        Begge får like mye elektrisk energi hvert sekund, {W(P)}. I vannkokeren går {W(k.usefulPower)} inn i vannet, men i kasserollen bare{' '}
+        Begge får P = {W(P)}, altså like mye elektrisk energi hvert sekund. I vannkokeren går {W(k.usefulPower)} inn i vannet, men i kasserollen bare{' '}
         {W(p.usefulPower)}. Derfor er vannkokeren allerede kommet til {fmt(kState.T, 0)}&nbsp;°C, mens kasserollen er på {fmt(pState.T, 0)}&nbsp;°C. Resten,{' '}
         {W(k.lossPower)} og {W(p.lossPower)}, er varmetap: de bølgete pilene.
       </p>
@@ -267,14 +267,14 @@ function explanation({ P, liters, T0, lid, t, k, kState, p, pState }: ExplainInp
   } else if (!pState.done) {
     race = (
       <p>
-        Vannkokeren slo seg av etter {s(k.t)} ({minSecText(k.t)}). Kasserollen har fått akkurat like mye strøm, E = P · t = {kJ(pState.E)}, men vannet er bare{' '}
+        Vannkokeren slo seg av etter {s(k.t)} ({minSecText(k.t)}). Kasserollen har fått akkurat like mye elektrisk energi, E = P · t = {kJ(pState.E)}, men vannet er bare{' '}
         {fmt(pState.T, 0)}&nbsp;°C. Av energien er bare {kJ(pState.Q)} gått til vannet, og {kJ(pState.loss)} er tapt. Den trenger {s(p.t - t)} til.
       </p>
     );
   } else {
     race = (
       <p>
-        Kasserollen kokte etter {s(p.t)} ({minSecText(p.t)}), {s(p.t - k.t)} senere enn vannkokeren, og brukte {kJ(p.E - k.E)} mer strøm: {kJ(p.E)} mot {kJ(k.E)}. Varmen til vannet var den
+        Kasserollen kokte etter {s(p.t)} ({minSecText(p.t)}), {s(p.t - k.t)} senere enn vannkokeren, og brukte {kJ(p.E - k.E)} mer elektrisk energi: {kJ(p.E)} mot {kJ(k.E)}. Varmen til vannet var den
         samme, {kJ(k.Q)}. Forskjellen er varmetapet: {kJ(p.loss)} fra kasserollen og plata mot {kJ(k.loss)} fra vannkokeren.
       </p>
     );
@@ -282,8 +282,8 @@ function explanation({ P, liters, T0, lid, t, k, kState, p, pState }: ExplainInp
 
   const why = p ? (
     <p>
-      <strong>Hvorfor taper kasserollen mer?</strong> I vannkokeren sitter varmeelementet i bunnen, i direkte kontakt med vannet, og veggene holder på
-      varmen. På kokeplata må varmen først varme opp selve plata og kasserollen, og den varme plata og sidene på kasserollen gir fra seg mye varme til
+      <strong>Hvorfor taper kasserollen mer?</strong> I vannkokeren sitter varmeelementet i bunnen, rett under vannet, så nesten all varmen går rett inn i
+      vannet. På kokeplata må varmen først varme opp selve plata og kasserollen, og den varme plata og sidene på kasserollen gir fra seg mye varme til
       lufta. {lid ? 'Lokket holder på varm damp og luft, så mindre varme slipper ut, og virkningsgraden blir høyere.' : 'Slå på lokket: da slipper mindre varm damp og luft ut, og kasserollen koker raskere.'}
     </p>
   ) : null;

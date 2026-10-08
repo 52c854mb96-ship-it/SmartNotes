@@ -118,7 +118,7 @@ export default function Rutherford() {
   const H1 = narrow ? L1.counter.y + counterHeight(f1) + 12 : 444;
 
   const L2 = narrow
-    ? { lat: { x: 20, y: 54, w: 760, h: 380, cols: 4, rows: 3 }, lens: { cx: 400, cy: 434 + 50 + 240, R: 240 }, H: 434 + 50 + 480 + 20 }
+    ? { lat: { x: 20, y: 54, w: 760, h: 380, cols: 5, rows: 3 }, lens: { cx: 400, cy: 434 + 60 + 290, R: 290 }, H: 434 + 60 + 580 + 24 }
     : { lat: { x: 16, y: 46, w: 372, h: 300, cols: 5, rows: 4 }, lens: { cx: 604, cy: 198, R: 152 }, H: 360 };
   const geo = useMemo(() => latticeGeometry(L2.lat.x, L2.lat.y, L2.lat.w, L2.lat.h, L2.lat.cols, L2.lat.rows), [L2.lat.x, L2.lat.y, L2.lat.w, L2.lat.h, L2.lat.cols, L2.lat.rows]);
 
@@ -213,6 +213,7 @@ function SizeFormula({ back, n }: { back: number; n: number }) {
   const share = n > 0 ? back / n : 0;
   const perAtom = chancePerAtom(back, n, SETUP);
   const bT = targetRadiusFromCount(back, n, SETUP);
+  const layers = fmt(Math.round(LAYERS / 10) * 10, 0);
   return (
     <Formula label="Hvor liten er kjernen? Regnet ut fra telleren">
       {back === 0 ? (
@@ -223,14 +224,13 @@ function SizeFormula({ back, n }: { back: number; n: number }) {
             Andel kastet tilbake: {fmt(back, 0)} / {fmt(n, 0)} = {fmtSci(share, 1)} (1 av {fmt(roundSig(1 / share), 0)})
           </FormulaLine>
           <FormulaLine>
-            Hver α går gjennom ca. {fmt(Math.round(LAYERS / 10) * 10, 0)} lag med gullatomer: sjanse per atom = {fmtSci(share, 1)} / {fmt(Math.round(LAYERS / 10) * 10, 0)} ={' '}
-            {fmtSci(perAtom, 1)}
+            Sjanse per atom (ca. {layers} lag): {fmtSci(share, 1)} / {layers} = {fmtSci(perAtom, 1)}
           </FormulaLine>
           <FormulaLine>
-            «Blinken» rundt hver kjerne har radius r: π r² = {fmtSci(perAtom, 1)} · {fmtSci(SETUP.a2, 1)} m² (arealet per atom) ⇒ r = {fmtSci(bT, 1)} m
+            «Blinken» rundt kjernen: π r² = {fmtSci(perAtom, 1)} · {fmtSci(SETUP.a2, 1)} m² (flaten per atom)
           </FormulaLine>
           <FormulaLine>
-            Atomet har radius {fmtSci(GOLD.atomRadius, 1)} m, ca. {fmt(roundSig(GOLD.atomRadius / bT), 0)} ganger større. Kjernen må være enda mindre.
+            r = {fmtSci(bT, 1)} m, mens atomet har radius {fmtSci(GOLD.atomRadius, 1)} m: ca. {fmt(roundSig(GOLD.atomRadius / bT), 0)} ganger større
           </FormulaLine>
         </>
       )}
@@ -251,7 +251,7 @@ function ThomsonFormula() {
         Etter ca. {fmt(Math.round(LAYERS / 10) * 10, 0)} atomlag: typisk {fmt(deg(thomsonSigma(SETUP)), 1)}° (de små avbøyningene går hver sin vei)
       </FormulaLine>
       <FormulaLine>
-        Sannsynlighet for mer enn 90°: ca. 10<sup>−{fmt(Math.round(-log / 100) * 100, 0)}</sup>, altså ingen
+        Sannsynlighet for mer enn 90°: ca. 10<sup>−{Math.round(-log / 100) * 100}</sup>, altså ingen
       </FormulaLine>
     </Formula>
   );

@@ -88,6 +88,7 @@ export default function Solcellepanel() {
           h = 90° − φ{altitudeTerm(arstid)} = 90° − {deg(st.lat)}
           {altitudeValue(arstid)} = {deg(st.h)}
         </FormulaLine>
+        <FormulaLine>{arstid === 'jevndogn' ? 'φ = breddegraden' : 'φ = breddegraden, 23,4° = helningen til jordaksen'}</FormulaLine>
         {st.sunUp ? (
           <>
             <FormulaLine>

@@ -3,11 +3,31 @@
  * eik og hvite skapdører, og en bølgete pil for varmetap. Samme stil som kit-et: toninger fra core.tsx, SCENE-farger,
  * kontur og myk skygge. Ingen filtre og ingen bilder.
  */
-import { memo } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { VIZ } from '../../kit';
-import { LinearGradient, SCENE, alpha, mix, shade, tint, useStrokeScale, useSvgId } from '../../kit/scene';
+import { doorLayout } from './vannkoker-layout';
+import { ContactShadow, LinearGradient, PAINTS, SCENE, alpha, mix, shade, tint, useStrokeScale, useSvgId } from '../../kit/scene';
 
 const r1 = (v: number) => Math.round(v * 10) / 10;
+
+/** Om elementet er smalere enn `limit` piksler (mobil eller smal kolonne): da brukes de smale oppsettene. */
+export function useNarrow<T extends HTMLElement>(limit = 560) {
+  const ref = useRef<T>(null);
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const update = () => {
+      const w = el.getBoundingClientRect().width;
+      if (w > 0) setNarrow(w < limit);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [limit]);
+  return [ref, narrow] as const;
+}
 
 export interface KjokkenGeo {
   W: number;
@@ -28,33 +48,6 @@ export interface KjokkenGeo {
   doorCenters?: number[];
 }
 
-/** Skapdørene langs benken: én dør sentrert under hvert apparat, og resten fylt med dører av omtrent lik bredde. */
-export function doorLayout(W: number, doorW: number, centers: number[]): [number, number][] {
-  const fixed: [number, number][] = [...centers]
-    .sort((a, b) => a - b)
-    .map((c) => [Math.max(0, c - doorW / 2), Math.min(W, c + doorW / 2)]);
-  for (let i = 1; i < fixed.length; i++) {
-    const a = fixed[i - 1]!;
-    const b = fixed[i]!;
-    if (b[0] < a[1]) {
-      const mid = (a[1] + b[0]) / 2;
-      a[1] = mid;
-      b[0] = mid;
-    }
-  }
-  const out: [number, number][] = [];
-  let x = 0;
-  for (const d of [...fixed, [W, W] as [number, number]]) {
-    const gap = d[0] - x;
-    if (gap > 1) {
-      const n = Math.max(1, Math.round(gap / doorW));
-      for (let k = 0; k < n; k++) out.push([x + (gap * k) / n, x + (gap * (k + 1)) / n]);
-    }
-    if (d[1] > d[0]) out.push(d);
-    x = d[1];
-  }
-  return out;
-}
 
 /**
  * Kjøkkenbenk foran en flislagt vegg: hvite metrofliser med fuger i forband, benkeplate i eik sett litt ovenfra
@@ -178,6 +171,41 @@ export function VarmetapPil({ x, y, angle, length, color = VIZ.series[1], width 
       <polygon points={tri} fill={VIZ.surface} stroke={VIZ.surface} strokeWidth={3.2 * ss} strokeLinejoin="round" opacity={0.85} />
       <path d={d} fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" />
       <polygon points={tri} fill={color} />
+    </g>
+  );
+}
+
+/**
+ * Kaffekrus i glasert keramikk med hank og en tepose som henger over kanten, sett litt ovenfra.
+ * (x, y) er midt på bunnen; `size` er høyden (en ekte krus er ca. 9 cm, vannkokeren ca. 25 cm).
+ */
+export function Kopp({ x, y, size, farge = PAINTS.blaa }: { x: number; y: number; size: number; farge?: string }) {
+  const ss = useStrokeScale();
+  const id = useSvgId('vk-kopp');
+  const h = size;
+  const w = 0.86 * h;
+  const ry = 0.13 * w;
+  const top = y - h;
+  const l = x - w / 2;
+  const r = x + w / 2;
+  const body = `M${r1(l)},${r1(top)}L${r1(l + 0.03 * w)},${r1(y - ry * 0.6)}Q${r1(x)},${r1(y + ry * 0.7)} ${r1(r - 0.03 * w)},${r1(y - ry * 0.6)}L${r1(r)},${r1(top)}Z`;
+  const handle = `M${r1(r - 0.02 * w)},${r1(top + 0.22 * h)}C${r1(r + 0.42 * w)},${r1(top + 0.14 * h)} ${r1(r + 0.42 * w)},${r1(top + 0.78 * h)} ${r1(r - 0.01 * w)},${r1(top + 0.7 * h)}`;
+  return (
+    <g aria-hidden>
+      <defs>
+        <LinearGradient id={`${id}-k`} x2={1} y2={0} stops={[[0, tint(farge, 0.25)], [0.35, farge], [1, shade(farge, 0.3)]]} />
+      </defs>
+      <ContactShadow cx={x + 0.08 * w} cy={y} rx={0.62 * w} ry={0.1 * w} />
+      <path d={handle} fill="none" stroke={SCENE.outline} strokeWidth={0.2 * w + 1.6 * ss} strokeLinecap="round" />
+      <path d={handle} fill="none" stroke={shade(farge, 0.12)} strokeWidth={0.2 * w} strokeLinecap="round" />
+      <path d={body} fill={`url(#${id}-k)`} stroke={SCENE.outline} strokeWidth={0.9 * ss} strokeLinejoin="round" />
+      {/* Åpningen: lys glasur inni og en tynn kant */}
+      <ellipse cx={x} cy={top} rx={w / 2} ry={ry} fill={tint(farge, 0.55)} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+      <ellipse cx={x} cy={top + 0.25 * ry} rx={w / 2 - 0.06 * w} ry={ry * 0.72} fill={shade(tint(farge, 0.5), 0.18)} />
+      <path d={`M${r1(l + 0.12 * w)},${r1(top + 0.18 * h)}L${r1(l + 0.14 * w)},${r1(y - 0.2 * h)}`} stroke={SCENE.highlight} strokeWidth={0.07 * w} strokeLinecap="round" />
+      {/* Teposen: tråd over kanten og en lapp på utsiden */}
+      <path d={`M${r1(x - 0.12 * w)},${r1(top + 0.3 * ry)}Q${r1(l + 0.02 * w)},${r1(top - 0.5 * ry)} ${r1(l - 0.02 * w)},${r1(top + 0.32 * h)}`} fill="none" stroke={SCENE.woodLight} strokeWidth={0.9 * ss} />
+      <rect x={l - 0.12 * w} y={top + 0.32 * h} width={0.2 * w} height={0.17 * h} rx={1.2} fill={mix(SCENE.gold, PAINTS.hvit, 0.35)} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
     </g>
   );
 }

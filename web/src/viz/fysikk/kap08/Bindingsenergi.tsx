@@ -87,7 +87,7 @@ export default function Bindingsenergi() {
       )}
 
       <div ref={ref}>
-        <Figure viewBox={`0 0 ${W} ${layout.H}`} label={sceneLabel(mode, sel)} maxHeight={narrow ? 700 : 320}>
+        <Figure viewBox={`0 0 ${W} ${layout.H}`} label={sceneLabel(mode, sel)} maxHeight={narrow ? 700 : 360}>
           <BindingScene mode={mode} sel={sel} layout={layout} />
         </Figure>
         <Figure
@@ -187,21 +187,23 @@ function nucRadius(A: number, r: number) {
   return A <= 1 ? r : A <= 4 ? r * 2 : r * (1 + 1.1 * Math.cbrt(A));
 }
 
-/** Kjent kjerne i grafen: den lille kjernen står ved siden av punktet (forskyvning i px før mobilskalering). */
-interface Known {
-  Z: number;
-  A: number;
-  dx: number;
-  dy: number;
+/**
+ * Kjent kjerne i grafen. Den lille kjernen står enten på et fast sted i grafen (`at`: [A, MeV], over kurven der det er
+ * plass) eller forskjøvet fra punktet (`dx`, `dy` i px før mobilskalering). Egne plasseringer på mobil, der teksten er større.
+ */
+interface Place {
+  at?: [number, number];
+  dx?: number;
+  dy?: number;
   label: 'right' | 'left' | 'above';
 }
 
-const KNOWN: Known[] = [
-  { Z: 1, A: 1, dx: 24, dy: -22, label: 'right' },
-  { Z: 2, A: 4, dx: 8, dy: -42, label: 'above' },
-  { Z: 6, A: 12, dx: 26, dy: -40, label: 'right' },
-  { Z: 26, A: 56, dx: 0, dy: -36, label: 'right' },
-  { Z: 92, A: 235, dx: -10, dy: -44, label: 'left' },
+const KNOWN: { Z: number; A: number; pc: Place; mobil: Place }[] = [
+  { Z: 1, A: 1, pc: { dx: 24, dy: -22, label: 'right' }, mobil: { dx: 24, dy: -22, label: 'right' } },
+  { Z: 2, A: 4, pc: { at: [6, 9.8], label: 'above' }, mobil: { at: [12, 9.7], label: 'above' } },
+  { Z: 6, A: 12, pc: { at: [22, 10], label: 'right' }, mobil: { at: [34, 9.9], label: 'above' } },
+  { Z: 26, A: 56, pc: { at: [56, 9.95], label: 'right' }, mobil: { at: [56, 9.95], label: 'right' } },
+  { Z: 92, A: 235, pc: { dx: -10, dy: -44, label: 'left' }, mobil: { dx: -10, dy: -44, label: 'left' } },
 ];
 
 /** Kjerne til grafen: ett proton for ¹H, ellers Atomkjerne. */
@@ -292,23 +294,24 @@ function CurvePlot({ mode, sel, height, narrow }: { mode: Mode; sel: Nuclide; he
                   fisjon
                 </Txt>
                 {/* Kjente kjerner tegnet som små kjerner ved punktet sitt */}
-                {KNOWN.map((k) => {
-                  const n = findNuclide(k.Z, k.A)!;
+                {KNOWN.map((kn) => {
+                  const k = narrow ? kn.mobil : kn.pc;
+                  const n = findNuclide(kn.Z, kn.A)!;
                   const p = pt(n);
                   const r = 3.6 * s;
-                  const R = nucRadius(k.A, r);
-                  const c = { x: p.x + k.dx * s, y: p.y + k.dy * s };
+                  const R = nucRadius(kn.A, r);
+                  const c = k.at ? P(k.at[0], k.at[1]) : { x: p.x + (k.dx ?? 0) * s, y: p.y + (k.dy ?? 0) * s };
                   const len = Math.hypot(c.x - p.x, c.y - p.y);
                   const ux = (c.x - p.x) / len;
                   const uy = (c.y - p.y) / len;
                   const lx = k.label === 'right' ? c.x + R + 6 * f : k.label === 'left' ? c.x - R - 6 * f : c.x;
                   const ly = k.label === 'above' ? c.y - R - 8 * f : c.y + 6 * f;
                   return (
-                    <g key={k.A}>
+                    <g key={kn.A}>
                       <line x1={p.x + ux * 6} y1={p.y + uy * 6} x2={c.x - ux * (R + 2)} y2={c.y - uy * (R + 2)} stroke={VIZ.muted} strokeWidth={1.3} />
-                      <SmallNucleus x={c.x} y={c.y} Z={k.Z} A={k.A} r={r} />
+                      <SmallNucleus x={c.x} y={c.y} Z={kn.Z} A={kn.A} r={r} />
                       <Txt x={lx} y={ly} anchor={k.label === 'right' ? 'start' : k.label === 'left' ? 'end' : 'middle'} weight={700}>
-                        {nuclideText(k.Z, k.A)}
+                        {nuclideText(kn.Z, kn.A)}
                       </Txt>
                     </g>
                   );

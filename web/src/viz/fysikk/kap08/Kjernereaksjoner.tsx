@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { ArrowRight, RotateCcw } from 'lucide-react';
 import {
-  Arrow,
   Explain,
   Figure,
   Formula,
@@ -10,29 +9,35 @@ import {
   Readout,
   Readouts,
   Segmented,
+  Sub,
+  Toggle,
   Toolbar,
   VIZ,
   VizLayout,
   fmt,
   fmtSci,
-  useTextScale,
 } from '../../kit';
-import { elementName, elementSymbol, nuclideWords } from '../kap07/elements';
-import { Lepton, NuclideSymbol, nuclideSymbolWidth, Nucleus, nucleusRadius, PARTICLE, PhotonWave, Txt } from '../kap07/parts';
+import { elementName } from '../kap07/elements';
+import { PARTICLE } from '../kap07/parts';
 import { useFigureTextScale } from '../kap07/useNarrow';
+import { kildeFor } from './kjernereaksjoner-kilder';
+import { Regnskap, regnskapLayout } from './kjernereaksjoner-regnskap';
+import { KjerneScene, qText, sceneLayout } from './kjernereaksjoner-scene';
 import {
-  conservation,
+  alphaKinetics,
   decay,
   decayEnergy,
   EXCITED_INFO,
   gammaPhotons,
   findNuclide,
   isStable,
+  MEV,
   nuclideLabel,
+  U_KG,
+  type AlphaKinetics,
   type Decay,
   type DecayEnergy,
   type DecayType,
-  type Emitted,
 } from './model';
 
 interface Current {
@@ -61,8 +66,6 @@ const TYPES: { value: DecayType; label: string }[] = [
 ];
 
 const TYPE_TEXT: Record<DecayType, string> = { alfa: 'α', 'beta-': 'β⁻', 'beta+': 'β⁺', gamma: 'γ' };
-const COLOR_A = VIZ.series[0]!;
-const COLOR_Z = PARTICLE.proton;
 
 /** Den vanlige henfallstypen for kjernen, eller null for stabile og ukjente kjerner. */
 function naturalMode(c: Current): DecayType | null {
@@ -76,17 +79,21 @@ export default function Kjernereaksjoner() {
   const [type, setType] = useState<DecayType>('alfa');
   /** Henfallene vi har fulgt fra startkjernen. */
   const [history, setHistory] = useState<DecayType[]>([]);
+  const [values, setValues] = useState(true);
   const [ref, f] = useFigureTextScale<HTMLDivElement>();
 
   const dc = decay(cur.Z, cur.A, type, cur.excited);
   const energy = decayEnergy(dc);
+  const kin = alphaKinetics(dc, energy);
   const natural = naturalMode(cur);
   const stable = isStable(cur.Z, cur.A) === true && !cur.excited;
   // Stabile kjerner henfaller ikke, så da vises ingen datterkjerne.
   const shown = dc.possible && !stable;
   // Et henfall som ikke frigjør energi (Q ≤ 0), skjer ikke av seg selv, så det kan ikke følges videre.
-  const canFollow = shown && !(energy && energy.Q <= 0);
+  const blocked = !!energy && energy.Q <= 0;
+  const canFollow = shown && !blocked;
   const preset = PRESETS.find((p) => p.value === start) ?? PRESETS[0]!;
+  const kilde = kildeFor(preset.Z, preset.A);
   const parentLabel = nuclideLabel(cur.Z, cur.A, dc.parent.excited);
   const daughterLabel = nuclideLabel(dc.daughter.Z, dc.daughter.A, dc.daughter.excited);
 
@@ -107,7 +114,15 @@ export default function Kjernereaksjoner() {
     setHistory((h) => [...h, type]);
   };
 
-  const L = layout(f);
+  const L = sceneLayout(f, kilde);
+  const R = regnskapLayout(f);
+  const what = stable
+    ? `${parentLabel} er stabil og henfaller ikke.`
+    : dc.possible
+      ? `${TYPE_TEXT[type]}-henfall: ${parentLabel} blir til ${daughterLabel}.`
+      : type === 'gamma'
+        ? `${parentLabel} er i grunntilstanden og kan ikke sende ut γ-stråling.`
+        : `${TYPE_TEXT[type]}-henfall er ikke mulig for ${parentLabel}.`;
 
   return (
     <VizLayout>
@@ -126,23 +141,12 @@ export default function Kjernereaksjoner() {
             Tilbake til {nuclideLabel(preset.Z, preset.A)}
           </button>
         )}
+        <Toggle label="Vis fart og energi" checked={values} onChange={setValues} />
       </Toolbar>
 
       <div ref={ref}>
-        <Figure
-          viewBox={`0 0 800 ${Math.round(L.height)}`}
-          label={
-            stable
-              ? `${parentLabel} er stabil og henfaller ikke.`
-              : dc.possible
-                ? `${TYPE_TEXT[type]}-henfall: ${parentLabel} blir til ${daughterLabel}. Nukleontall og ladning er bevart.`
-                : type === 'gamma'
-                  ? `${parentLabel} er i grunntilstanden og kan ikke sende ut γ-stråling.`
-                  : `${TYPE_TEXT[type]}-henfall er ikke mulig for ${parentLabel}.`
-          }
-          maxHeight={620}
-        >
-          <ReactionScene dc={dc} scale={f} stable={stable} blocked={!!energy && energy.Q <= 0} />
+        <Figure viewBox={`0 0 800 ${Math.round(L.H)}`} label={`${kilde.beskrivelse} Forstørret: ${what}`} maxHeight={L.narrow ? 900 : 560}>
+          <KjerneScene L={L} kilde={kilde} dc={dc} energy={energy} kin={kin} stable={stable} blocked={blocked} values={values} />
         </Figure>
       </div>
       <Legend
@@ -151,9 +155,24 @@ export default function Kjernereaksjoner() {
           { color: PARTICLE.neutron, label: 'Nøytron' },
           ...(type === 'beta-' && shown ? [{ color: PARTICLE.electron, label: 'Elektron' }] : []),
           ...(type === 'beta+' && shown ? [{ color: PARTICLE.positron, label: 'Positron' }] : []),
+          ...((type === 'beta-' || type === 'beta+') && shown ? [{ color: VIZ.muted, label: type === 'beta-' ? 'Antinøytrino' : 'Nøytrino', dashed: true }] : []),
           ...(type === 'gamma' && shown ? [{ color: PARTICLE.photon, label: 'Foton (γ-stråling)' }] : []),
+          ...(values && shown && type !== 'gamma' ? [{ color: VIZ.velocity, label: type === 'alfa' ? 'Fart v (i skala)' : 'Fartsretning' }] : []),
         ]}
       />
+
+      <Figure
+        viewBox={`0 0 800 ${R.H}`}
+        label={shown ? `Reaksjonslikningen. ${what} Nukleontall og ladning er like før og etter.` : `Reaksjonslikningen: ${what}`}
+        maxHeight={360}
+      >
+        <Regnskap
+          L={R}
+          dc={dc}
+          shown={shown}
+          note={stable ? 'Stabil kjerne: ingen reaksjon' : dc.type === 'gamma' ? 'Ingen γ fra grunntilstanden' : 'Henfallet er ikke mulig'}
+        />
+      </Figure>
 
       <Readouts>
         <Readout label="Datterkjerne" value={shown ? daughterLabel : '–'} />
@@ -162,16 +181,19 @@ export default function Kjernereaksjoner() {
         <Readout label="Vanlig henfall" value={natural ? TYPE_TEXT[natural] : isStable(cur.Z, cur.A) ? 'Stabil' : 'Ukjent'} />
       </Readouts>
 
-      {energy && shown && <Formula label="Energien som frigjøres, regnet fra atommassene">{energyFormula(dc, energy)}</Formula>}
+      {energy && shown && (
+        <Formula label="Energien som frigjøres, regnet fra atommassene">
+          {energyFormula(dc, energy)}
+          {kin && kinFormula(dc, energy, kin)}
+        </Formula>
+      )}
 
-      <Explain>{stable ? stableExplanation(cur, preset, history) : explanation(dc, energy, natural, cur, history.length)}</Explain>
+      <Explain>
+        {stable ? stableExplanation(cur, preset, history) : explanation(dc, energy, kin, natural, cur, history.length)}
+        {history.length === 0 && !cur.excited && <p>{kilde.derfor}</p>}
+      </Explain>
     </VizLayout>
   );
-}
-
-/** Q med tre desimaler under 1 MeV, ellers to. */
-function qText(Q: number): string {
-  return fmt(Q, Math.abs(Q) < 1 ? 3 : 2);
 }
 
 function halfLifeText(c: Current): string {
@@ -181,246 +203,26 @@ function halfLifeText(c: Current): string {
   return n.halfLife ?? 'Stabil';
 }
 
-/** Plass til den største kjernen (A ≈ 240) uansett hvilken kjerne som vises, så figuren ikke hopper. */
-const R_SLOT = 72;
-
-function layout(f: number) {
-  const k = Math.max(1, f * 0.8);
-  // Større kjerner på mobil, der figuren er smal
-  const rSlot = R_SLOT * Math.min(1.4, Math.max(1, f * 0.75));
-  const cy = 26 + rSlot;
-  const lab1 = cy + rSlot + 28 * f;
-  const lab2 = lab1 + 24 * f;
-  const S = 46 * k;
-  const eqY = lab2 + 30 * f + S * 0.85;
-  const cons1 = eqY + S * 0.45 + 28 * f;
-  const cons2 = cons1 + 26 * f;
-  return { k, rSlot, cy, lab1, lab2, S, eqY, cons1, cons2, height: cons2 + 16 };
-}
-
-/** Kulestørrelse så tunge kjerner får plass, mens lette kjerner ikke blir bittesmå. */
-function ballRadius(A: number, rSlot: number): number {
-  return Math.min(14 * (rSlot / R_SLOT), rSlot / (1.02 * Math.sqrt(Math.max(A, 1)) + 0.6));
-}
-
-interface Term {
-  A: number | string;
-  Z: number | string;
-  symbol: string;
-  suffix?: string;
-}
-
-function emittedTerm(e: Emitted): Term {
-  return { A: e.A, Z: e.Z < 0 ? `−${-e.Z}` : e.Z, symbol: e.symbol };
-}
-
-function ReactionScene({ dc, scale, stable, blocked }: { dc: Decay; scale: number; stable: boolean; blocked: boolean }) {
-  const fReal = useTextScale();
-  const L = layout(scale);
-  const f = fReal;
-  const { parent: p, daughter: d } = dc;
-  const r = ballRadius(p.A, L.rSlot);
-  const R = nucleusRadius(p.A, r);
-  const Rd = nucleusRadius(d.A, r);
-  const px = 140;
-  const dx = 430;
-  const ex = 660;
-  const cy = L.cy;
-
-  // Reaksjonslikningen: mor → datter + partikler
-  const terms: (Term | '→' | '+')[] = [{ A: p.A, Z: p.Z, symbol: elementSymbol(p.Z), suffix: p.excited ? '*' : undefined }];
-  if (dc.possible && !stable) {
-    terms.push('→', { A: d.A, Z: d.Z, symbol: elementSymbol(d.Z), suffix: d.excited ? '*' : undefined });
-    for (const e of dc.emitted) terms.push('+', emittedTerm(e));
-  }
-  const gap = 0.36;
-  const unitWidth = terms.reduce<number>((w, t) => {
-    if (t === '→') return w + 1.05 + 2 * gap;
-    if (t === '+') return w + 0.62 + 2 * gap;
-    return w + nuclideSymbolWidth(t.A, t.Z, t.symbol, 1, t.suffix);
-  }, 0);
-  const S = Math.min(L.S, 740 / unitWidth);
-  let x = 400 - (unitWidth * S) / 2;
-  const eq: ReactNode[] = [];
-  terms.forEach((t, i) => {
-    if (t === '→' || t === '+') {
-      const w = (t === '→' ? 1.05 : 0.62) * S;
-      x += gap * S;
-      eq.push(
-        <Txt key={i} x={x + w / 2} y={L.eqY - S * 0.05} size={S * 0.9}>
-          {t}
-        </Txt>,
-      );
-      x += w + gap * S;
-    } else {
-      eq.push(
-        <NuclideSymbol
-          key={i}
-          x={x}
-          y={L.eqY}
-          A={t.A}
-          Z={t.Z}
-          symbol={t.symbol}
-          suffix={t.suffix}
-          size={S}
-          colorA={COLOR_A}
-          colorZ={COLOR_Z}
-        />,
-      );
-      x += nuclideSymbolWidth(t.A, t.Z, t.symbol, S, t.suffix);
-    }
-  });
-  const c = conservation(dc);
-  const sumText = (parts: number[]) => parts.map((v) => (v < 0 ? `(−${-v})` : String(v))).join(' + ');
-  const aParts = [d.A, ...dc.emitted.map((e) => e.A)];
-  const zParts = [d.Z, ...dc.emitted.map((e) => e.Z)];
-
-  const parentText = nuclideLabel(p.Z, p.A, p.excited);
+/** Hvordan Q deles mellom α-partikkelen og datterkjernen, og farten de får. */
+function kinFormula(dc: Decay, e: DecayEnergy, k: AlphaKinetics): ReactNode {
+  const d = nuclideLabel(dc.daughter.Z, dc.daughter.A);
   return (
     <>
-      {/* Morkjernen */}
-      <Nucleus cx={px} cy={cy} Z={p.Z} N={p.A - p.Z} r={r} plus={r >= 6} />
-      {p.excited && <circle cx={px} cy={cy} r={R + 8} fill="none" stroke={PARTICLE.photon} strokeWidth={2} strokeDasharray="5 5" />}
-      <Txt x={px} y={L.lab1} weight={700}>
-        {parentText}
-      </Txt>
-      <Txt x={px} y={L.lab2} muted>
-        {nuclideWords(p.Z, p.A)}
-        {p.excited ? ', eksitert' : ''}
-      </Txt>
-
-      {stable ? (
-        <Txt x={520} y={cy + 6} muted>
-          Stabil kjerne: henfaller ikke
-        </Txt>
-      ) : dc.possible ? (
-        <>
-          <Arrow x1={px + R + 18} y1={cy} x2={dx - Rd - 18} y2={cy} color={VIZ.muted} width={2.5} dashed={blocked} />
-          <Txt x={(px + R + dx - Rd) / 2} y={cy - 14} muted>
-            {TYPE_TEXT[dc.type]}
-          </Txt>
-          {/* Henfall som ikke frigjør energi, skjer ikke: stiplet pil og Q < 0 under */}
-          {blocked && (
-            <Txt x={(px + R + dx - Rd) / 2} y={cy + 30 * f} muted>
-              Q &lt; 0
-            </Txt>
-          )}
-          {/* Et henfall som ikke kan skje (Q < 0), tegnes blekt */}
-          <g opacity={blocked ? 0.4 : 1}>
-            <Nucleus cx={dx} cy={cy} Z={d.Z} N={d.A - d.Z} r={r} plus={r >= 6} />
-            {d.excited && <circle cx={dx} cy={cy} r={Rd + 8} fill="none" stroke={PARTICLE.photon} strokeWidth={2} strokeDasharray="5 5" />}
-            <Txt x={dx} y={L.lab1} weight={700}>
-              {nuclideLabel(d.Z, d.A, d.excited)}
-            </Txt>
-            <Txt x={dx} y={L.lab2} muted>
-              {nuclideWords(d.Z, d.A)}
-              {d.excited ? ', eksitert' : ''}
-            </Txt>
-            <EmittedParticles dc={dc} r={r} x={ex} cy={cy} startX={dx + Rd + 14} f={f} lab1={L.lab1} lab2={L.lab2} />
-          </g>
-        </>
-      ) : (
-        <Txt x={520} y={cy + 6} muted>
-          {dc.type === 'alfa' ? 'For lite kjerne til α-henfall' : dc.type === 'gamma' ? 'Ingen γ fra grunntilstanden' : 'Henfallet er ikke mulig'}
-        </Txt>
-      )}
-
-      {eq}
-      {dc.possible && !stable && (
-        <>
-          <Txt x={400} y={L.cons1} color={COLOR_A} weight={650}>
-            Nukleontall: {c.A[0]} = {sumText(aParts)}
-          </Txt>
-          <Txt x={400} y={L.cons2} color={COLOR_Z} weight={650}>
-            Ladning: {c.Z[0]} = {sumText(zParts)}
-          </Txt>
-        </>
-      )}
-    </>
-  );
-}
-
-function EmittedParticles({
-  dc,
-  r,
-  x,
-  cy,
-  startX,
-  f,
-  lab1,
-  lab2,
-}: {
-  dc: Decay;
-  /** Kulestørrelsen i kjernene. */
-  r: number;
-  x: number;
-  cy: number;
-  startX: number;
-  f: number;
-  lab1: number;
-  lab2: number;
-}) {
-  // Partiklene og pilene blir større på mobil, der figuren er smal (k = 1 på PC)
-  const k = Math.min(1.6, Math.max(1, f * 0.85));
-  if (dc.type === 'gamma')
-    return (
-      <>
-        {dc.emitted.map((_, i) => {
-          const dy = (dc.emitted.length > 1 ? (i === 0 ? -34 : 26) : -20) * Math.min(k, 1.3);
-          return (
-            <PhotonWave
-              key={i}
-              x1={startX}
-              y1={cy + dy * 0.3}
-              x2={x + 80 + 20 * (k - 1)}
-              y2={cy + dy}
-              color={PARTICLE.photon}
-              amplitude={9 * k}
-              wavelength={20 * k}
-              width={3 * k}
-            />
-          );
-        })}
-        <Txt x={x + 10} y={lab1} weight={700} color={PARTICLE.photon}>
-          γ
-        </Txt>
-        <Txt x={x + 10} y={lab2} muted>
-          {dc.emitted.length > 1 ? 'to fotoner' : 'foton'}
-        </Txt>
-      </>
-    );
-  if (dc.type === 'alfa')
-    return (
-      <>
-        <Nucleus cx={x} cy={cy - 10} Z={2} N={2} r={Math.max(9 * k, r)} />
-        <Arrow x1={x + 30 * k} y1={cy - 10} x2={x + 30 * k + 60} y2={cy - 10} color={VIZ.velocity} width={2.5 * k} head={12 * k} />
-        <Txt x={x + 10} y={lab1} weight={700}>
-          ⁴He
-        </Txt>
-        <Txt x={x + 10} y={lab2} muted>
-          alfapartikkel
-        </Txt>
-      </>
-    );
-  const positron = dc.type === 'beta+';
-  const eY = cy - 26 * k;
-  const nuY = cy + 38 * k;
-  return (
-    <>
-      <Lepton x={x} y={eY} r={11 * k} positron={positron} />
-      <Arrow x1={x + 20 * k} y1={eY} x2={x + 20 * k + 66} y2={eY - 18} color={VIZ.velocity} width={2.5 * k} head={12 * k} />
-      <circle cx={x} cy={nuY} r={7 * k} fill="none" stroke={VIZ.muted} strokeWidth={2 * k} />
-      <Arrow x1={x + 16 * k} y1={nuY} x2={x + 16 * k + 60} y2={nuY + 14} color={VIZ.muted} width={2 * k} head={11 * k} dashed />
-      <Txt x={x - 10 - 8 * k} y={nuY + 6 * k} anchor="end" muted>
-        {positron ? 'ν' : 'ν̄'}
-      </Txt>
-      <Txt x={x + 10} y={lab1} weight={700} color={positron ? PARTICLE.positron : PARTICLE.electron}>
-        {positron ? 'e⁺' : 'e⁻'}
-      </Txt>
-      <Txt x={x + 10} y={lab2} muted>
-        {positron ? 'positron' : 'elektron'}
-        {f > 1.4 ? '' : positron ? ' + nøytrino' : ' + antinøytrino'}
-      </Txt>
+      <FormulaLine>
+        Bevegelsesmengden er bevart (kjernen lå i ro): m<Sub>α</Sub>v<Sub>α</Sub> = m<Sub>d</Sub>v<Sub>d</Sub>, så energien deles i
+        omvendt forhold til massene
+      </FormulaLine>
+      <FormulaLine>
+        E<Sub>α</Sub> = Q · m<Sub>d</Sub> / (m<Sub>α</Sub> + m<Sub>d</Sub>) = {qText(e.Q)} MeV · {fmt(k.mdaughter, 2)} u /{' '}
+        {fmt(k.malpha + k.mdaughter, 2)} u = {qText(k.Ealpha)} MeV
+      </FormulaLine>
+      <FormulaLine>
+        v<Sub>α</Sub> = √(2E<Sub>α</Sub> / m<Sub>α</Sub>) = √(2 · {fmtSci(k.Ealpha * MEV, 2)} J / {fmtSci(k.malpha * U_KG, 2)} kg) ={' '}
+        {fmtSci(k.valpha, 2)} m/s
+      </FormulaLine>
+      <FormulaLine>
+        {d} rekylerer motsatt vei: v<Sub>d</Sub> = m<Sub>α</Sub>v<Sub>α</Sub> / m<Sub>d</Sub> = {fmtSci(k.vdaughter, 2)} m/s
+      </FormulaLine>
     </>
   );
 }
@@ -557,7 +359,7 @@ function stableExplanation(cur: Current, preset: { Z: number; A: number }, histo
   );
 }
 
-function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null, cur: Current, steps: number): ReactNode {
+function explanation(dc: Decay, e: DecayEnergy | null, kin: AlphaKinetics | null, natural: DecayType | null, cur: Current, steps: number): ReactNode {
   const parent = nuclideLabel(cur.Z, cur.A, dc.parent.excited);
   const daughter = nuclideLabel(dc.daughter.Z, dc.daughter.A, dc.daughter.excited);
   const newElement = dc.daughter.Z !== cur.Z ? `, et nytt grunnstoff (${elementName(dc.daughter.Z)})` : '';
@@ -569,6 +371,13 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
           Ved <strong>α-henfall</strong> sender kjernen ut en alfapartikkel, ⁴₂He: to protoner og to nøytroner. Nukleontallet synker med 4
           og protontallet med 2, så {parent} blir til {daughter}
           {newElement}.
+          {kin && (
+            <>
+              {' '}
+              Kjernen lå i ro, så den samlede bevegelsesmengden er null også etterpå: α-partikkelen skytes ut med{' '}
+              {fmtSci(kin.valpha, 1)} m/s, mens den tunge datterkjernen rekylerer motsatt vei med bare {fmtSci(kin.vdaughter, 1)} m/s.
+            </>
+          )}
         </>
       );
       break;
@@ -577,7 +386,7 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
         <>
           Ved <strong>β⁻-henfall</strong> blir et nøytron i kjernen til et proton, og det sendes ut et elektron og et antinøytrino. A er
           uendret, men Z øker med 1, så {parent} blir til {daughter}
-          {newElement}.
+          {newElement}. Elektronet og antinøytrinoet deler energien, så elektronet kan få alt fra nesten ingenting opp til nesten hele Q.
         </>
       );
       break;
@@ -586,7 +395,7 @@ function explanation(dc: Decay, e: DecayEnergy | null, natural: DecayType | null
         <>
           Ved <strong>β⁺-henfall</strong> blir et proton i kjernen til et nøytron, og det sendes ut et positron (et antielektron) og et
           nøytrino. A er uendret, men Z synker med 1, så {parent} blir til {daughter}
-          {newElement}.
+          {newElement}. Positronet og nøytrinoet deler energien, akkurat som elektronet og antinøytrinoet ved β⁻.
         </>
       );
       break;

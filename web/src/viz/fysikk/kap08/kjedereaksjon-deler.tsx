@@ -183,8 +183,9 @@ export function Reaktorbasseng({ geo, innsetting, glod }: ReaktorbassengProps) {
       <rect x={x} y={y} width={w} height={floorY - y + 2} fill={`url(#${ids}v)`} />
       <rect x={x} y={y} width={w} height={0.04 * h} fill={SCENE.wallShade} opacity={0.5} />
 
-      {/* Bassengveggene bak vannet (litt mørkere innerside) */}
-      <rect x={pool.x1} y={floorY} width={pool.x2 - pool.x1} height={pool.bottom - floorY} fill={shade(SCENE.concrete, 0.12)} />
+      {/* Bassengveggene over vannflaten og vannet (moderator og kjølevann) */}
+      <rect x={pool.x1} y={floorY} width={pool.x2 - pool.x1} height={waterY - floorY + 2} fill={shade(SCENE.concrete, 0.12)} />
+      <Vann x={pool.x1} y={waterY} w={pool.x2 - pool.x1} h={pool.bottom - waterY} />
 
       {/* Kjernen: bunnplate på bein, staver og topplate */}
       <LinearGradient id={`${ids}f`} x2={1} y2={0} stops={cylinderStops(SCENE.metal)} />
@@ -217,8 +218,8 @@ export function Reaktorbasseng({ geo, innsetting, glod }: ReaktorbassengProps) {
       <rect x={r1(core.x1)} y={r1(core.bottom - 1)} width={r1(core.x2 - core.x1)} height={7} rx={1.5} fill={`url(#${ids}p)`} stroke={SCENE.outline} strokeWidth={0.7 * ss} />
       <rect x={r1(core.x1)} y={r1(core.top - 0.02 * h)} width={r1(core.x2 - core.x1)} height={5} rx={1.5} fill={`url(#${ids}p)`} stroke={SCENE.outline} strokeWidth={0.7 * ss} opacity={0.9} />
 
-      {/* Vannet (moderator og kjølevann) */}
-      <Vann x={pool.x1} y={waterY} w={pool.x2 - pool.x1} h={pool.bottom - waterY} gjennomsiktig />
+      {/* Litt vann foran kjernen, så den ser ut til å stå under vann */}
+      <rect x={pool.x1} y={r1(waterY)} width={r1(pool.x2 - pool.x1)} height={r1(pool.bottom - waterY)} fill={alpha(SCENE.water, 0.2)} />
 
       {/* Blått skjær rundt kjernen når kjedereaksjonen går */}
       {g > 0.01 && (
@@ -231,7 +232,11 @@ export function Reaktorbasseng({ geo, innsetting, glod }: ReaktorbassengProps) {
               [1, SCENE.cold, 0],
             ]}
           />
+          <clipPath id={`${ids}c`}>
+            <rect x={pool.x1} y={waterY} width={pool.x2 - pool.x1} height={pool.bottom - waterY} />
+          </clipPath>
           <ellipse
+            clipPath={`url(#${ids}c)`}
             cx={r1(core.cx)}
             cy={r1((core.top + core.bottom) / 2)}
             rx={r1((core.x2 - core.x1) * (0.75 + 0.25 * g))}
@@ -335,3 +340,32 @@ export function Fisjonsglimt({ x, y, r, styrke }: { x: number; y: number; r: num
     </g>
   );
 }
+
+/** Fargen til urankjerner som ikke er i fokus (blanding av proton- og nøytronfargen i scene-kit-et). */
+export const URAN_COLOR = mix('var(--sc-rom-noytron)', 'var(--sc-rom-proton)', 0.4);
+
+/**
+ * Urankjerner i bakgrunnen av utsnittet (de fleste er U-238): enkle, uskarpe kuler, så treet står fram. Memoisert, så
+ * de tegnes bare når treet eller størrelsen endres.
+ */
+export const Bakgrunnskjerner = memo(function Bakgrunnskjerner({ points, r }: { points: { x: number; y: number }[]; r: number }) {
+  const id = useSvgId('kj-bakgrunn');
+  return (
+    <g opacity={0.36} aria-hidden>
+      <RadialGradient
+        id={id}
+        fx={0.38}
+        fy={0.34}
+        stops={[
+          [0, tint(URAN_COLOR, 0.35)],
+          [0.65, URAN_COLOR],
+          [0.92, shade(URAN_COLOR, 0.2)],
+          [1, shade(URAN_COLOR, 0.2), 0],
+        ]}
+      />
+      {points.map((p, i) => (
+        <circle key={i} cx={r1(p.x)} cy={r1(p.y)} r={r1(r)} fill={`url(#${id})`} />
+      ))}
+    </g>
+  );
+});

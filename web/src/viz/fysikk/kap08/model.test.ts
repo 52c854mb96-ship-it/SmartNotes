@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   activity,
+  alphaKinetics,
   atomicMass,
   atomsInSample,
   bindingEnergy,
@@ -17,6 +18,10 @@ import {
   HALF_LIFE_PRESETS,
   halfLifeSeconds,
   isStable,
+  magnificationExponent,
+  MEV,
+  nuclearRadiusM,
+  U_KG,
   massEnergyMeV,
   NUCLIDES,
   reactionEnergy,
@@ -337,5 +342,60 @@ describe('kjernereaksjoner og bevaringslover', () => {
     }
     // ¹⁴C → ¹⁰Be + α ville krevd ca. 12 MeV
     expect(decayEnergy(decay(6, 14, 'alfa'))!.Q).toBeCloseTo(-12.0, 1);
+  });
+});
+
+describe('fart etter α-henfall og forstørrelse', () => {
+  it('α fra ²³⁸U får nesten hele Q og ca. 1,4 · 10⁷ m/s', () => {
+    const d = decay(92, 238, 'alfa');
+    const e = decayEnergy(d)!;
+    const k = alphaKinetics(d, e)!;
+    // Energien deles i omvendt forhold til massene: 4,28 MeV · 234/238 ≈ 4,21 MeV
+    expect(k.Ealpha).toBeCloseTo(4.208, 2);
+    expect(k.Ealpha + k.Edaughter).toBeCloseTo(e.Q, 10);
+    expect(k.valpha).toBeGreaterThan(1.40e7);
+    expect(k.valpha).toBeLessThan(1.45e7);
+    // Datterkjernen rekylerer ca. 58 ganger saktere
+    expect(k.vdaughter).toBeCloseTo(2.43e5, -3);
+  });
+
+  it('bevegelsesmengden er null etter henfallet, og fartene er langt under lysfarten', () => {
+    for (const [Z, A] of [
+      [92, 238],
+      [88, 226],
+      [95, 241],
+      [84, 210],
+      [86, 222],
+    ] as const) {
+      const d = decay(Z, A, 'alfa');
+      const k = alphaKinetics(d, decayEnergy(d))!;
+      expect(k.malpha * k.valpha).toBeCloseTo(k.mdaughter * k.vdaughter, 6);
+      // E = ½mv² gir tilbake energien
+      expect((0.5 * k.malpha * U_KG * k.valpha ** 2) / MEV).toBeCloseTo(k.Ealpha, 8);
+      expect(k.valpha / 3e8).toBeLessThan(0.07);
+      expect(k.Ealpha / (k.Ealpha + k.Edaughter)).toBeGreaterThan(0.97);
+    }
+  });
+
+  it('gir null for β, γ og α-henfall som ikke frigjør energi', () => {
+    const b = decay(6, 14, 'beta-');
+    expect(alphaKinetics(b, decayEnergy(b))).toBeNull();
+    const g = decay(28, 60, 'gamma', true);
+    expect(alphaKinetics(g, decayEnergy(g))).toBeNull();
+    // ⁴⁰K kan ikke sende ut α (Q < 0 eller ukjent datterkjerne)
+    const a = decay(19, 40, 'alfa');
+    expect(alphaKinetics(a, decayEnergy(a))).toBeNull();
+    expect(alphaKinetics(a, null)).toBeNull();
+  });
+
+  it('kjerneradius og forstørrelse', () => {
+    expect(nuclearRadiusM(1)).toBeCloseTo(1.2e-15, 20);
+    expect(nuclearRadiusM(216)).toBeCloseTo(7.2e-15, 20);
+    // Radius 60 px for A = 216 (7,2 · 10⁻¹⁵ m) i en scene med 1000 px/m: 60 / 7,2 · 10⁻¹⁵ / 1000 ≈ 8,3 · 10¹² → 10¹³
+    expect(magnificationExponent(60, 216, 1000)).toBe(13);
+    // Ti ganger mindre kjerne i figuren: 8,3 · 10¹¹ → 10¹²
+    expect(magnificationExponent(6, 216, 1000)).toBe(12);
+    expect(magnificationExponent(0, 14, 600)).toBe(0);
+    expect(magnificationExponent(55, 14, Number.NaN)).toBe(0);
   });
 });

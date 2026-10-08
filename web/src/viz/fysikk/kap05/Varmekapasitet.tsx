@@ -7,41 +7,28 @@ import {
   FormulaLine,
   Legend,
   PlayControls,
-  Plot,
   Readout,
   Readouts,
   Segmented,
   Slider,
+  Toggle,
   Toolbar,
   VIZ,
   VizLayout,
   fmt,
-  linePath,
-  niceTicks,
   useSimClock,
-  useTextScale,
 } from '../../kit';
-import { MATERIALS, heating, timeToReach, type Material, type MaterialId } from './model';
-import { ColorDot, Tag, Thermometer, useNarrow } from './marks';
+import { MATERIALS, heating, timeToReach, type MaterialId } from './model';
+import { useNarrow } from './marks';
+import { HEAT_COLOR, HeatScene, SCENE_NARROW, SCENE_WIDE, type StationView } from './varmekapasitet-figur';
+import { T0, TempGraph, type Run } from './varmekapasitet-graf';
 
-/** Starttemperatur (°C). */
-const T0 = 20;
 const OPTIONS: { value: MaterialId; label: string }[] = (Object.keys(MATERIALS) as MaterialId[]).map((id) => ({
   value: id,
   label: MATERIALS[id].name,
 }));
-const COLORS = [VIZ.series[0], VIZ.series[1]] as const;
-/** Høyden på hvert av de to feltene når stoffene står under hverandre (smal skjerm). */
-const TALL_H = 470;
-
-interface Run {
-  mat: Material;
-  color: string;
-  /** Tiden det tar å nå ønsket temperatur (Infinity hvis væsken koker først). */
-  tDone: number;
-  /** Tiden det tar å nå kokepunktet (Infinity for metallene). */
-  tBoil: number;
-}
+/** Fargene på de to stoffene (skiltene i scenen, linjene i grafen). Oransje er energien Q. */
+const COLORS = [VIZ.series[0], VIZ.series[3]] as const;
 
 function niceCeil(v: number): number {
   if (!(v > 0)) return 1;
@@ -50,17 +37,13 @@ function niceCeil(v: number): number {
   return 10 * mag;
 }
 
-/** Temperaturen ved tiden t. Varmeelementet slås av når ønsket temperatur er nådd. */
-function tempAt(run: Run, m: number, P: number, t: number): number {
-  return heating(run.mat, m, P, T0, Math.min(t, run.tDone)).T;
-}
-
 export default function Varmekapasitet() {
   const [idA, setIdA] = useState<MaterialId>('vann');
   const [idB, setIdB] = useState<MaterialId>('aluminium');
   const [P, setP] = useState(1000);
   const [m, setM] = useState(1);
   const [T1, setT1] = useState(60);
+  const [showEnergy, setShowEnergy] = useState(true);
   const [graphRef, narrow] = useNarrow<HTMLDivElement>();
   const [sceneRef, sceneNarrow] = useNarrow<HTMLDivElement>();
 
@@ -77,7 +60,8 @@ export default function Varmekapasitet() {
   const ends = runs.map((r) => (Number.isFinite(r.tDone) ? r.tDone : 1.6 * r.tBoil));
   const tEnd = niceCeil(Math.max(...ends) * 1.04);
 
-  const clock = useSimClock({ tMax: tEnd, speed: tEnd / 8 });
+  const speed = tEnd / 8;
+  const clock = useSimClock({ tMax: tEnd, speed });
   const { setT } = clock;
   useEffect(() => setT(60), [setT]);
   // Kortere forsøk enn tiden som er spilt av: hopp til slutten, så tidsvisningen stemmer
@@ -87,6 +71,17 @@ export default function Varmekapasitet() {
   }, [over, tEnd, setT]);
   const t = Math.min(clock.t, tEnd);
   const graphH = narrow ? 440 : 340;
+  const lay = sceneNarrow ? SCENE_NARROW : SCENE_WIDE;
+
+  const stations = runs.map(
+    (r): StationView => ({
+      mat: r.mat,
+      color: r.color,
+      state: heating(r.mat, m, P, T0, Math.min(t, r.tDone)),
+      on: t < r.tDone,
+      tDone: r.tDone,
+    }),
+  ) as [StationView, StationView];
 
   return (
     <VizLayout>
@@ -105,29 +100,16 @@ export default function Varmekapasitet() {
       </div>
       <Toolbar>
         <PlayControls clock={clock} decimals={0} />
+        <Toggle label="Vis energi" checked={showEnergy} onChange={setShowEnergy} />
       </Toolbar>
 
-      {/* På smale skjermer står de to stoffene under hverandre, så figuren blir stor nok */}
       <div ref={sceneRef}>
         <Figure
-          viewBox={sceneNarrow ? `0 0 800 ${2 * TALL_H}` : '0 0 800 330'}
-          label={`${runs[0]!.mat.name} og ${runs[1]!.mat.name}, ${fmt(m, 2)} kg hver, varmes med ${fmt(P, 0)} W. Etter ${fmt(t, 0)} s er temperaturene ${fmt(tempAt(runs[0]!, m, P, t), 1)} °C og ${fmt(tempAt(runs[1]!, m, P, t), 1)} °C.`}
-          maxHeight={sceneNarrow ? 2 * TALL_H : 380}
+          viewBox={`0 0 ${lay.W} ${lay.H}`}
+          label={`To like kokeplater på en labbenk, begge på ${fmt(P, 0)} W. På den ene står ${fmt(m, 2)} kg ${runs[0]!.mat.name.toLowerCase()}, på den andre ${fmt(m, 2)} kg ${runs[1]!.mat.name.toLowerCase()}. Etter ${fmt(t, 0)} s viser termometrene ${fmt(stations[0].state.T, 1)} °C og ${fmt(stations[1].state.T, 1)} °C.`}
+          maxHeight={sceneNarrow ? 640 : 500}
         >
-          {runs.map((r, i) =>
-            sceneNarrow ? (
-              <g key={i} transform={`translate(0 ${TALL_H * i})`}>
-                <Station x0={0} w={800} top={140} bottom={370} run={r} m={m} P={P} t={t} T1={T1} />
-              </g>
-            ) : (
-              <Station key={i} x0={400 * i} w={400} run={r} m={m} P={P} t={t} T1={T1} />
-            ),
-          )}
-          {sceneNarrow ? (
-            <line x1={20} x2={780} y1={TALL_H} y2={TALL_H} stroke={VIZ.grid} strokeWidth={2} />
-          ) : (
-            <line x1={400} x2={400} y1={20} y2={310} stroke={VIZ.grid} strokeWidth={2} />
-          )}
+          <HeatScene lay={lay} stations={stations} m={m} P={P} t={t} T1={T1} anim={t / speed} showEnergy={showEnergy} />
         </Figure>
       </div>
 
@@ -139,6 +121,7 @@ export default function Varmekapasitet() {
       <Legend
         items={[
           ...runs.map((r) => ({ color: r.color, label: `${r.mat.name}, c = ${fmt(r.mat.c, 0)} J/(kg·K)` })),
+          ...(showEnergy ? [{ color: HEAT_COLOR, label: 'Energi Q = P · t fra kokeplata' }] : []),
           { color: VIZ.muted, label: `Ønsket temperatur ${fmt(T1, 0)} °C`, dashed: true },
         ]}
       />
@@ -192,184 +175,6 @@ function TimeReadout({ run, T1 }: { run: Run; T1: number }) {
   );
 }
 
-/** Ett stoff på en varmeplate med termometer, tegnet i feltet x0 … x0 + w. */
-function Station({
-  x0,
-  w,
-  top = 110,
-  bottom = 250,
-  run,
-  m,
-  P,
-  t,
-  T1,
-}: {
-  x0: number;
-  w: number;
-  /** Toppen og bunnen av begeret (og termometeret). */
-  top?: number;
-  bottom?: number;
-  run: Run;
-  m: number;
-  P: number;
-  t: number;
-  T1: number;
-}) {
-  const f = useTextScale();
-  const T = tempAt(run, m, P, t);
-  const st = heating(run.mat, m, P, T0, Math.min(t, run.tDone));
-  const on = t < run.tDone;
-  const liquid = run.mat.boil !== undefined;
-  const cx = x0 + w / 2;
-  const vx = x0 + 0.4 * w;
-  const halfW = Math.min(0.2 * w, 150);
-  const blockW = 1.6 * halfW;
-  const blockH = 0.74 * (bottom - top);
-  const textY = liquid ? top + 0.45 * (bottom - top) + 11 : bottom - 0.56 * blockH;
-  // Litt lavere væskenivå når noe har fordampet
-  const level = top + 22 + (st.evaporated / m) * (bottom - top - 22);
-  const thermoX = x0 + 0.78 * w;
-  const ticks = (f > 1.3 ? [0, 50, 100] : [0, 20, 40, 60, 80, 100]).map((v) => ({ value: v, label: fmt(v, 0) }));
-  return (
-    <g>
-      <Tag x={cx} y={30} color={run.color} weight={700}>
-        {run.mat.name}
-      </Tag>
-      <Tag x={cx} y={30 + 24 * f} muted>
-        c = {fmt(run.mat.c, 0)} J/(kg·K)
-      </Tag>
-
-      {liquid ? (
-        <>
-          <rect x={vx - halfW + 3} y={level} width={2 * halfW - 6} height={bottom - level - 3} rx={4} fill={run.color} opacity={0.22} />
-          <path
-            d={`M ${vx - halfW} ${top} V ${bottom} H ${vx + halfW} V ${top}`}
-            fill="none"
-            stroke={VIZ.muted}
-            strokeWidth={3}
-            strokeLinejoin="round"
-          />
-          {st.boiling &&
-            [0, 1, 2, 3, 4, 5].map((k) => {
-              const phase = (t * 1.3 + k * 0.37) % 1;
-              return (
-                <circle
-                  key={k}
-                  cx={vx - halfW * 0.65 + k * halfW * 0.26}
-                  cy={bottom - 12 - phase * (bottom - level - 24)}
-                  r={4 + (k % 3)}
-                  fill="none"
-                  stroke={run.color}
-                  strokeWidth={2}
-                />
-              );
-            })}
-        </>
-      ) : (
-        <rect x={vx - blockW / 2} y={bottom - blockH} width={blockW} height={blockH} rx={6} fill={VIZ.bodyStrong} className="viz-block" />
-      )}
-      <Tag x={vx} y={textY} weight={700} size={24 * f}>
-        {fmt(T, 1)} °C
-      </Tag>
-      <Tag x={vx} y={textY + 26 * f} muted>
-        Q = {fmt(st.Q / 1000, 1)} kJ
-      </Tag>
-
-      {/* Varmeplate */}
-      <rect x={vx - halfW - 14} y={bottom + 4} width={2 * halfW + 28} height={14} rx={4} fill={VIZ.bodyStrong} className="viz-block" />
-      {on && <rect x={vx - halfW - 8} y={bottom + 4} width={2 * halfW + 16} height={4} rx={2} fill={VIZ.series[4]} />}
-      <Tag x={vx} y={bottom + 20 + 22 * f} muted>
-        {on ? `P = ${fmt(P, 0)} W` : 'slått av'}
-      </Tag>
-
-      <Thermometer x={thermoX} yTop={top} yBottom={bottom - 20} min={0} max={100} value={T} color={run.color} right={ticks} marker={T1} />
-    </g>
-  );
-}
-
-function TempGraph({
-  runs,
-  m,
-  P,
-  T1,
-  t,
-  tEnd,
-  height,
-}: {
-  runs: Run[];
-  m: number;
-  P: number;
-  T1: number;
-  t: number;
-  tEnd: number;
-  height: number;
-}) {
-  const f = useTextScale();
-  return (
-    <Plot
-      x={{ min: 0, max: tEnd, label: 'Tid t (s)', ticks: niceTicks(0, tEnd, f > 1.3 ? 4 : 6) }}
-      y={{ min: 0, max: 110, label: 'Temperatur (°C)', ticks: [0, 20, 40, 60, 80, 100] }}
-      width={800}
-      height={height}
-    >
-      {({ sx, sy, x0, x1, y0 }) => {
-        // Etiketter for når stoffene er ferdige, nede ved tidsaksen. Flytt den ene opp hvis de er for nær hverandre.
-        const doneX = runs.map((r) => (Number.isFinite(r.tDone) ? sx(r.tDone) : NaN));
-        const close = Math.abs((doneX[0] ?? 0) - (doneX[1] ?? 0)) < 80 * f;
-        return (
-          <g>
-            <line x1={x0} x2={x1} y1={sy(T1)} y2={sy(T1)} stroke={VIZ.muted} strokeWidth={1.5} strokeDasharray="6 5" />
-            <Tag x={x0 + 8} y={sy(T1) - 10} anchor="start" muted>
-              {fmt(T1, 0)} °C
-            </Tag>
-            {runs.map((r, i) => {
-              const pts: [number, number][] = [];
-              const stop = Number.isFinite(r.tDone) ? r.tDone : tEnd;
-              const kink = Math.min(stop, r.tBoil);
-              pts.push([0, T0], [kink, tempAt(r, m, P, kink)]);
-              if (stop > kink) pts.push([stop, tempAt(r, m, P, stop)]);
-              const x = doneX[i] ?? NaN;
-              const later = i === 1 ? (doneX[1] ?? 0) >= (doneX[0] ?? 0) : (doneX[0] ?? 0) > (doneX[1] ?? 0);
-              const labelY = y0 - 10 - (close && later ? 28 * f : 0);
-              return (
-                <g key={i}>
-                  <path
-                    d={linePath(pts, sx, sy)}
-                    fill="none"
-                    stroke={r.color}
-                    strokeWidth={3.5}
-                    strokeLinejoin="round"
-                    strokeLinecap="round"
-                  />
-                  {Number.isFinite(x) && (
-                    <>
-                      <line x1={x} x2={x} y1={sy(T1)} y2={y0} className="viz-guide" />
-                      <ColorDot x={x} y={sy(T1)} r={6} color={r.color} />
-                      <Tag x={x > x1 - 90 * f ? x - 8 : x + 8} y={labelY} anchor={x > x1 - 90 * f ? 'end' : 'start'} color={r.color}>
-                        {fmt(r.tDone, 0)} s
-                      </Tag>
-                    </>
-                  )}
-                  {!Number.isFinite(r.tDone) && r.mat.boil !== undefined && (
-                    <Tag x={x1 - 8} y={sy(r.mat.boil) + 26 * f} anchor="end" color={r.color}>
-                      koker ved {fmt(r.mat.boil, 0)} °C
-                    </Tag>
-                  )}
-                </g>
-              );
-            })}
-            {/* Tiden nå */}
-            <line x1={sx(t)} x2={sx(t)} y1={y0} y2={sy(105)} stroke={VIZ.ink} strokeWidth={1.5} opacity={0.5} />
-            {runs.map((r, i) => (
-              <ColorDot key={i} x={sx(t)} y={sy(tempAt(r, m, P, t))} r={8} color={r.color} />
-            ))}
-          </g>
-        );
-      }}
-    </Plot>
-  );
-}
-
 function explanation(runs: Run[], m: number, P: number, T1: number): ReactNode {
   const [a, b] = runs as [Run, Run];
   const same = a.mat.id === b.mat.id;
@@ -378,18 +183,19 @@ function explanation(runs: Run[], m: number, P: number, T1: number): ReactNode {
   const boiling = runs.filter((r) => !Number.isFinite(r.tDone));
   const waterAt100 = runs.some((r) => r.mat.id === 'vann') && T1 >= 100;
   const water = runs.some((r) => r.mat.id === 'vann');
+  const metals = runs.filter((r) => r.mat.boil === undefined);
 
   const main = same ? (
     <p>
       <strong>Samme stoff, samme kurve.</strong> Med samme c, masse og effekt stiger temperaturen like fort, {fmt(P / (a.mat.c * m), 2)} K
-      hvert sekund. Velg et annet stoff for å sammenligne.
+      hvert sekund. Velg et annet stoff på den ene plata for å sammenligne.
     </p>
   ) : (
     <p>
-      <strong>Samme energi, ulik temperaturøkning.</strong> Begge får like mye energi hvert sekund (P = {fmt(P, 0)} W) og har samme masse.{' '}
-      {hi.mat.name} har {fmt(ratio, 1)} ganger så stor spesifikk varmekapasitet som {lo.mat.name.toLowerCase()}, altså trengs{' '}
-      {fmt(ratio, 1)} ganger så mye energi for hver kelvin, og temperaturen stiger {fmt(ratio, 1)} ganger så langsomt. Stigningstallet i
-      grafen er ΔT/Δt = P/(c·m).
+      <strong>Samme energi, ulik temperaturøkning.</strong> Kokeplatene er like (P = {fmt(P, 0)} W), og stoffene har samme masse, så
+      stoppeklokka viser at de får like mye energi Q = P · t. {hi.mat.name} har {fmt(ratio, 1)} ganger så stor spesifikk
+      varmekapasitet som {lo.mat.name.toLowerCase()}: det trengs {fmt(ratio, 1)} ganger så mye energi for hver kelvin, og temperaturen
+      stiger {fmt(ratio, 1)} ganger så langsomt. Stigningstallet i grafen er ΔT/Δt = P/(c · m).
     </p>
   );
 
@@ -398,8 +204,8 @@ function explanation(runs: Run[], m: number, P: number, T1: number): ReactNode {
     const r = boiling[0]!;
     extra = (
       <p>
-        {r.mat.name} koker ved {fmt(r.mat.boil ?? 0, 0)} °C. Da går all tilført energi med til å fordampe væsken, og temperaturen står
-        stille selv om vi varmer videre. Den kommer derfor aldri opp i {fmt(T1, 0)} °C.
+        {r.mat.name} koker ved {fmt(r.mat.boil ?? 0, 0)} °C. Da går all energien fra plata med til å fordampe væska (du ser boblene og at
+        nivået synker), og termometeret står stille selv om vi varmer videre. Det kommer derfor aldri opp i {fmt(T1, 0)} °C.
       </p>
     );
   } else if (waterAt100) {
@@ -409,8 +215,16 @@ function explanation(runs: Run[], m: number, P: number, T1: number): ReactNode {
   } else if (water) {
     extra = (
       <p>
-        Den store varmekapasiteten er grunnen til at vann brukes i radiatorer og kjølesystemer: vannet kan ta opp og frakte mye energi uten
-        at temperaturen endrer seg mye.
+        Det er derfor vann brukes i radiatorer, varmtvannsberedere og kjølesystemer: vannet kan ta opp og frakte mye energi uten at
+        temperaturen endrer seg mye. Og det er derfor sjøen er kald i juni, selv om sand og svaberg allerede er varme i sola.
+      </p>
+    );
+  } else if (metals.length === 2 && !same) {
+    extra = (
+      <p>
+        Legg merke til størrelsen: klossene veier like mye, men et tungt metall tar mindre plass. Det er c (energi per kilogram og
+        kelvin) som avgjør, ikke hvor stor klossen er. I hverdagen teller både c og massen, for energien per kelvin er c · m. Det er
+        derfor en tynn stekepanne i aluminium blir varm fortere enn en tung støpejernsgryte, selv om aluminium har størst c.
       </p>
     );
   }

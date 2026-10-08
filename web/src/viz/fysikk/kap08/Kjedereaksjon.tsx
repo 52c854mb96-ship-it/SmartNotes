@@ -250,8 +250,11 @@ function Calculation({ k, f, tree }: { k: number; f: number; tree: ChainTree }) 
         {fmt(E.EMeV, 0)} MeV
       </FormulaLine>
       <FormulaLine>
-        En reaktor på {fmt(REACTOR_THERMAL_W / 1e6, 0)} MW: {fmtSci(REACTOR_THERMAL_W, 2)} W / {fmtSci(E.EJ, 2)} J = {fmtSci(perS, 2)} fisjoner per
-        sekund, ca. {fmt(u235KgPerDay(REACTOR_THERMAL_W, E.EJ), 1)} kg U-235 i døgnet
+        En reaktor på {fmt(REACTOR_THERMAL_W / 1e6, 0)} MW trenger {fmtSci(REACTOR_THERMAL_W, 2)} W / {fmtSci(E.EJ, 2)} J = {fmtSci(perS, 2)} fisjoner
+        per sekund
+      </FormulaLine>
+      <FormulaLine>
+        Det er ca. {fmt(u235KgPerDay(REACTOR_THERMAL_W, E.EJ), 1)} kg U-235 i døgnet
       </FormulaLine>
     </>
   );

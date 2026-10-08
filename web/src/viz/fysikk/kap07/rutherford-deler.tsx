@@ -279,7 +279,7 @@ export function Chamber({ cx, cy, R, model, exp, tally, n, t, playing, large }: 
       })}
 
       {/* Strålen fra kilden til folien, og videre rett fram. */}
-      <line x1={exitX} y1={cy} x2={cx} y2={cy} stroke={TRACK} strokeWidth={3.2 * k} opacity={0.55} strokeLinecap="round" />
+      <line x1={exitX} y1={cy} x2={cx} y2={cy} stroke={TRACK} strokeWidth={3.2 * k} opacity={n > 0 ? 0.55 : 0.2} strokeLinecap="round" />
       {forward > 0 && (
         <line
           x1={cx}
@@ -839,7 +839,7 @@ export function NucleusLens({
             <Atomkjerne x={cx} y={cy} Z={GOLD.Z} N={GOLD.N} r={nucleusR / 7.4} />
           </g>
         )}
-        {!thomson && fl >= 6 && (
+        {!thomson && fl >= 16 && (
           <ForceArrow
             x1={r2(ax)}
             y1={r2(ay)}
@@ -860,7 +860,7 @@ export function NucleusLens({
       {bFm >= 4 ? (
         <Dimension x1={dimX} y1={cy} x2={dimX} y2={cy - bFm * s} label="b" offset={0} labelSize={0.85} />
       ) : (
-        <Txt x={dimX} y={cy - 10 * f} size={0.85} weight={650}>
+        <Txt x={dimX} y={cy - 30 * f} size={0.85} weight={650}>
           b ≈ 0
         </Txt>
       )}
@@ -870,10 +870,10 @@ export function NucleusLens({
       </Txt>
       {thomson ? (
         <g>
-          <Txt x={cx} y={cy + 0.42 * R} size={0.8} weight={650} color={shade(RUTH.thomson, 0.25)}>
+          <Txt x={cx} y={cy + 0.42 * R} size={0.8} weight={700} color={RUTH.thomson}>
             positiv ladning spredt jevnt
           </Txt>
-          <Txt x={cx} y={cy + 0.42 * R + 20 * f} size={0.8} weight={650} color={shade(RUTH.thomson, 0.25)}>
+          <Txt x={cx} y={cy + 0.42 * R + 20 * f} size={0.8} weight={700} color={RUTH.thomson}>
             kraften er nesten null
           </Txt>
         </g>

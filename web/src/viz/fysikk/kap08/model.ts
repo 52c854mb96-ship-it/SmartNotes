@@ -523,3 +523,47 @@ export function isStable(Z: number, A: number): boolean | undefined {
   return n ? n.mode === undefined : undefined;
 }
 
+
+/* ---------- Fart etter α-henfall og forstørrelsen i figuren ---------- */
+
+export interface AlphaKinetics {
+  /** Bevegelsesenergien (MeV) til α-partikkelen og datterkjernen. Summen er Q. */
+  Ealpha: number;
+  Edaughter: number;
+  /** Farten (m/s), regnet klassisk med E_k = ½mv² (α-partiklene har under 6 % av lysfarten). */
+  valpha: number;
+  vdaughter: number;
+  /** Massene (u) som er brukt: atommassen til ⁴He og til datterkjernen. */
+  malpha: number;
+  mdaughter: number;
+}
+
+/**
+ * Hvordan Q deles ved α-henfall. Kjernen ligger i ro før henfallet, så den samlede bevegelsesmengden er null også
+ * etterpå: m_α · v_α = m_d · v_d, i hver sin retning. Da er E_k = p²/(2m), og energien deles i omvendt forhold til
+ * massene: E_α = Q · m_d / (m_α + m_d). Den lette α-partikkelen får nesten alt.
+ * null når det ikke er et α-henfall som frigjør energi (Q ≤ 0 eller ukjent).
+ */
+export function alphaKinetics(dc: Decay, e: DecayEnergy | null): AlphaKinetics | null {
+  if (dc.type !== 'alfa' || !dc.possible || !e || !(e.Q > 0)) return null;
+  const malpha = atomicMass(2, 4)!;
+  const mdaughter = atomicMass(dc.daughter.Z, dc.daughter.A) ?? dc.daughter.A;
+  const Ealpha = (e.Q * mdaughter) / (malpha + mdaughter);
+  const Edaughter = e.Q - Ealpha;
+  const speed = (E: number, m: number) => Math.sqrt((2 * E * MEV) / (m * U_KG));
+  return { Ealpha, Edaughter, valpha: speed(Ealpha, malpha), vdaughter: speed(Edaughter, mdaughter), malpha, mdaughter };
+}
+
+/** Omtrentlig radius (m) til en atomkjerne med nukleontall A: r ≈ 1,2 · 10⁻¹⁵ m · ∛A. */
+export function nuclearRadiusM(A: number): number {
+  return 1.2e-15 * Math.cbrt(Math.max(1, A));
+}
+
+/**
+ * Hvor mange ganger kjernen er forstørret i figuren, avrundet til en tierpotens: kjernen tegnes med radius
+ * `radiusPx`, mens resten av scenen er tegnet med skalaen `pxPerM`. Gir eksponenten (13 betyr ca. 10¹³ ganger).
+ */
+export function magnificationExponent(radiusPx: number, A: number, pxPerM: number): number {
+  const m = radiusPx / nuclearRadiusM(A) / pxPerM;
+  return Number.isFinite(m) && m > 0 ? Math.round(Math.log10(m)) : 0;
+}

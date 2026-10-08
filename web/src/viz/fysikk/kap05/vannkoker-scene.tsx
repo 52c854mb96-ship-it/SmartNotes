@@ -6,7 +6,7 @@
 import { Txt, VIZ, fmt, useTextScale } from '../../kit';
 import { Kasserolle, Kokeplate, Ledning, Rom, Stikkontakt, Vannkoker } from '../../kit/scene';
 import type { BoilRun, HeatState } from './model-vannkoker';
-import { Kjokken, VarmetapPil } from './vannkoker-deler';
+import { Kjokken, Kopp, VarmetapPil } from './vannkoker-deler';
 
 export const KETTLE_COLOR = VIZ.series[2];
 export const POT_COLOR = VIZ.series[3];
@@ -125,6 +125,8 @@ export function KitchenScene({
   const cordY = backY + 5;
   const sockBot = lay.socketY + 0.75 * lay.socket;
   const pxPerW = lay.arrowMax / LOSS_PER_ARROW_MAX;
+  /** Bred figur: plass til hele navnet og effekten på skapdøra. */
+  const wide = W >= 700;
 
   // Kokeplata og kasserollen (oppskriften i JSDoc til Kokeplate)
   const px = lay.plateX;
@@ -187,6 +189,8 @@ export function KitchenScene({
         tid={anim}
         title={`Vannkoker, ${fmt(kettle.state.T, 0)} °C`}
       />
+      {/* Uten kokeplata: en krus med tepose venter ved siden av vannkokeren */}
+      {!pot && <Kopp x={kx + 0.8 * ks} y={counterY + 2} size={0.38 * ks} />}
       {pot && (
         <>
           <Kokeplate x={px} y={counterY} w={lay.plateW} effekt={pOn ? Math.min(1, P / P_MAX) : 0} />
@@ -209,14 +213,15 @@ export function KitchenScene({
         <>
           <VarmetapPil x={kLeft.x} y={kLeft.y} angle={-ANG} length={kLen} color={LOSS_COLOR} />
           <VarmetapPil x={kRight.x} y={kRight.y} angle={ANG} length={kLen} color={LOSS_COLOR} />
-          <LossLabel x={kTip.x + 6 * f} y={kTip.y - 2} watt={kLoss} anchor="start" />
+          <LossLabel x={kTip.x + 6 * f} y={Math.min(kTip.y - 2, counterY - ks - 6 * f)} watt={kLoss} anchor="start" />
         </>
       )}
       {pot && pOn && (
         <>
           <VarmetapPil x={pLeft.x} y={pLeft.y} angle={-ANG} length={pLen} color={LOSS_COLOR} />
           <VarmetapPil x={pRight.x} y={pRight.y} angle={ANG} length={pLen} color={LOSS_COLOR} />
-          <LossLabel x={pTip.x + 6 * f} y={pTip.y - 2} watt={pLoss} anchor="start" />
+          {/* Over skaftet, også når pilene er korte */}
+          <LossLabel x={pTip.x + 6 * f} y={Math.min(pTip.y - 2, rimY - 34 * f)} watt={pLoss} anchor="start" />
         </>
       )}
 
@@ -225,8 +230,17 @@ export function KitchenScene({
       {pot && <TempTag x={px} y={lay.tagY} view={pot} color={POT_COLOR} />}
 
       {/* Navn og virkningsgrad på skapdørene */}
-      <DeviceLabel x={kx} y={lay.edgeBot + 44 * f} name="Vannkoker" eta={kettle.run.heater.eta} color={KETTLE_COLOR} />
-      {pot && <DeviceLabel x={px} y={lay.edgeBot + 44 * f} name={lid ? 'Kasserolle med lokk' : 'Kasserolle uten lokk'} eta={pot.run.heater.eta} color={POT_COLOR} />}
+      <DeviceLabel x={kx} y={lay.edgeBot + 44 * f} name="Vannkoker" eta={kettle.run.heater.eta} P={wide ? P : undefined} color={KETTLE_COLOR} />
+      {pot && (
+        <DeviceLabel
+          x={px}
+          y={lay.edgeBot + 44 * f}
+          name={wide ? (lid ? 'Kasserolle med lokk' : 'Kasserolle uten lokk') : 'Kasserolle'}
+          eta={pot.run.heater.eta}
+          P={wide ? P : undefined}
+          color={POT_COLOR}
+        />
+      )}
     </g>
   );
 }
@@ -275,7 +289,7 @@ function LossLabel({ x, y, watt, anchor }: { x: number; y: number; watt: number;
   );
 }
 
-function DeviceLabel({ x, y, name, eta, color }: { x: number; y: number; name: string; eta: number; color: string }) {
+function DeviceLabel({ x, y, name, eta, P, color }: { x: number; y: number; name: string; eta: number; P?: number; color: string }) {
   const f = useTextScale();
   return (
     <g>
@@ -283,7 +297,7 @@ function DeviceLabel({ x, y, name, eta, color }: { x: number; y: number; name: s
         {name}
       </Txt>
       <Txt x={x} y={y + 22 * f} size={0.82} muted>
-        η = {fmt(eta * 100, 0)} %
+        {P !== undefined ? `P = ${fmt(P, 0)} W, ` : ''}η = {fmt(eta * 100, 0)} %
       </Txt>
     </g>
   );

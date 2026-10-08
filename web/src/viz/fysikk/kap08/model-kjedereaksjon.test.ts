@@ -27,6 +27,9 @@ import {
   spreadPositions,
   treeEnergyMeV,
   u235KgPerDay,
+  backgroundNuclei,
+  distToSegment,
+  treeNucleusRadius,
   type ChainTree,
 } from './model-kjedereaksjon';
 
@@ -327,6 +330,41 @@ describe('grafen', () => {
       const m = graphMax(k, fissionCounts(k));
       expect(m).toBeGreaterThanOrEqual(expectedFissions(k, 10));
       expect(Number.isFinite(m)).toBe(true);
+    }
+  });
+});
+
+describe('størrelse og bakgrunn', () => {
+  it('treeNucleusRadius gir plass til alle kjernene i den største generasjonen', () => {
+    for (const n of [1, 2, 5, 8]) {
+      const R = treeNucleusRadius(n, 360, 80, 30);
+      expect(2 * R + (n - 1) * 2.6 * R).toBeLessThanOrEqual(360);
+      expect(R).toBeLessThanOrEqual(0.27 * 80 + 1e-9);
+    }
+    expect(treeNucleusRadius(1, 360, 80, 18)).toBe(18);
+  });
+
+  it('distToSegment', () => {
+    expect(distToSegment({ x: 0, y: 5 }, { x: -10, y: 0 }, { x: 10, y: 0 })).toBe(5);
+    expect(distToSegment({ x: 13, y: 4 }, { x: -10, y: 0 }, { x: 10, y: 0 })).toBe(5);
+    expect(distToSegment({ x: 3, y: 4 }, { x: 0, y: 0 }, { x: 0, y: 0 })).toBe(5);
+  });
+
+  it('bakgrunnskjernene ligger ikke oppå treet eller banene', () => {
+    const box = { x: 300, y: 40, w: 480, h: 360 };
+    for (const p of [40, 60, 80]) {
+      const tree = buildChainTree(multiplicationFactor(p / 100), 2);
+      const R = treeNucleusRadius(Math.max(...tree.counts), box.h, box.w / 6, 22);
+      const rA = 0.45 * R;
+      const L = layoutChainTree(tree, box, { R, rA });
+      const bg = backgroundNuclei(L, box, R, rA, 0.6 * R, 1);
+      expect(bg.length).toBeGreaterThan(5);
+      for (const b of bg) {
+        for (const f of L.fissions) expect(Math.hypot(f.x - b.x, f.y - b.y)).toBeGreaterThan(R);
+        for (const n of L.neutrons) expect(distToSegment(b, n.from, n.to)).toBeGreaterThan(0.6 * R);
+        expect(b.x).toBeGreaterThan(box.x);
+        expect(b.y).toBeLessThan(box.y + box.h);
+      }
     }
   });
 });

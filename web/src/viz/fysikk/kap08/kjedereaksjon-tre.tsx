@@ -32,6 +32,14 @@ const nucleonRadius = (Rk: number, A: number) => Rk / (1 + 1.1 * Math.cbrt(A));
 
 const lerp = (a: Point, b: Point, s: number): Point => ({ x: a.x + (b.x - a.x) * s, y: a.y + (b.y - a.y) * s });
 
+/** Nedtonet (0,3) fram til `dur` før tidspunktet `at`, så gradvis helt synlig ved `at`. */
+const DIM = 0.3;
+function fadeIn(t: number, at: number, dur: number): number {
+  if (t >= at) return 1;
+  if (t <= at - dur) return DIM;
+  return DIM + (1 - DIM) * ((t - (at - dur)) / dur);
+}
+
 /** Kjedetreet ved tida t. Kjernene er memoisert, så bare nøytronene, banene og glimtene tegnes på nytt per bilde. */
 export function KjedeTre({ tree, layout, t, R, rA, rn }: KjedeTreProps) {
   const ss = useStrokeScale();
@@ -42,7 +50,7 @@ export function KjedeTre({ tree, layout, t, R, rA, rn }: KjedeTreProps) {
     const rnd = seededRandom(tree.seed * 31 + 7);
     return tree.fissions.map(() => {
       const up = rnd() < 0.5 ? -1 : 1;
-      const a = ((40 + rnd() * 20) * Math.PI) / 180;
+      const a = ((38 + rnd() * 18) * Math.PI) / 180;
       return { ux: Math.cos(a), uy: up * Math.sin(a) };
     });
   }, [tree]);
@@ -121,12 +129,17 @@ export function KjedeTre({ tree, layout, t, R, rA, rn }: KjedeTreProps) {
     const tf = fissionTime(f.gen);
     const p = layout.fissions[f.id]!;
     if (t < tf) {
-      nuclei.push(intact[f.id]!);
+      // Kjernene som ikke er truffet ennå, er nedtonet til nøytronet er på vei mot dem.
+      nuclei.push(
+        <g key={f.id} opacity={r1(fadeIn(t, tf, 0.7))}>
+          {intact[f.id]}
+        </g>,
+      );
       continue;
     }
     const s = Math.min(1, (t - tf) / SPLIT_TIME);
     const e = 1 - (1 - s) * (1 - s);
-    const d = R * 0.62 * e;
+    const d = R * 0.66 * e;
     const u = splits[f.id]!;
     const pair = fragments[f.id]!;
     nuclei.push(
@@ -142,7 +155,13 @@ export function KjedeTre({ tree, layout, t, R, rA, rn }: KjedeTreProps) {
   return (
     <g>
       <g>{tracks}</g>
-      <g>{absorbers}</g>
+      <g>
+        {tree.absorbers.map((a) => (
+          <g key={a.id} opacity={r1(fadeIn(t, layout.neutrons[a.neutron]!.arrive, 0.45))}>
+            {absorbers[a.id]}
+          </g>
+        ))}
+      </g>
       <g>{stuck}</g>
       <g>{flashes}</g>
       <g>{nuclei}</g>
@@ -151,15 +170,21 @@ export function KjedeTre({ tree, layout, t, R, rA, rn }: KjedeTreProps) {
   );
 }
 
-/** Overskriftene over kolonnene: «g = 0», «g = 1» … */
-export function KolonneTitler({ layout, y }: { layout: TreeLayout; y: number }) {
+/** Overskriftene over kolonnene: «Generasjon 0» (fra venstre kant), «1», «2» … */
+export function KolonneTitler({ layout, y, left }: { layout: TreeLayout; y: number; left: number }) {
   return (
     <g>
-      {layout.columns.map((x, g) => (
-        <Txt key={g} x={x} y={y} size={0.78} muted>
-          {g === 0 ? 'Generasjon 0' : String(g)}
-        </Txt>
-      ))}
+      {layout.columns.map((x, g) =>
+        g === 0 ? (
+          <Txt key={g} x={left} y={y} size={0.78} muted anchor="start">
+            Generasjon 0
+          </Txt>
+        ) : (
+          <Txt key={g} x={x} y={y} size={0.78} muted>
+            {String(g)}
+          </Txt>
+        ),
+      )}
     </g>
   );
 }

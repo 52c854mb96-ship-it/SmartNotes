@@ -12,6 +12,7 @@ import { nuclideText } from '../kap07/elements';
 import {
   Energiglod,
   FrieNukleoner,
+  FrittNoytron,
   Fusjonsplasma,
   KjerneBakgrunn,
   LysTxt,
@@ -136,8 +137,8 @@ function SplitPanel({ sel, P, narrow }: { sel: Nuclide; P: Box; narrow: boolean 
   const parts = sel.Z * M_H1_U + N * M_NEUTRON_U;
   const rx = P.w * 0.17;
   const ry = g.avail * 0.46;
-  // Samme radius per nukleon i kjernen og i skyen, så stor at skyen fyller ca. en firedel av ellipsen
-  const r = Math.min(12 * (narrow ? 1.3 : 1), Math.max(3.4, Math.sqrt((0.25 * Math.PI * rx * ry) / (Math.PI * sel.A))));
+  // Samme radius per nukleon i kjernen og i skyen, så stor at skyen fyller ca. en tredel av ellipsen
+  const r = Math.min(12 * (narrow ? 1.3 : 1), Math.max(3.4, Math.sqrt((0.32 * Math.PI * rx * ry) / (Math.PI * sel.A))));
   const iso = nuclideText(sel.Z, sel.A);
   const one = sel.A === 1;
   const Ed = b.E < 10 ? 2 : b.E < 100 ? 1 : 0;
@@ -174,7 +175,7 @@ function SplitPanel({ sel, P, narrow }: { sel: Nuclide; P: Box; narrow: boolean 
 }
 
 function countText(Z: number, N: number, short: boolean): string {
-  if (short) return `${Z} p + ${N} n`;
+  if (short) return N === 0 ? `${Z} p` : `${Z} p + ${N} n`;
   const p = Z === 1 ? '1 proton' : `${Z} protoner`;
   if (N === 0) return p;
   return `${p} og ${N === 1 ? '1 nøytron' : `${N} nøytroner`}`;
@@ -225,72 +226,77 @@ function nucRadius(A: number, r: number) {
 }
 
 /** Fartspil fra kanten av en kjerne i retningen (dx, dy). */
-function VArrow({ x, y, R, dx, dy, len, f }: { x: number; y: number; R: number; dx: number; dy: number; len: number; f: number }) {
+function VArrow({ x, y, R, dx, dy, len, f, label = true }: { x: number; y: number; R: number; dx: number; dy: number; len: number; f: number; label?: boolean }) {
   const l = Math.hypot(dx, dy) || 1;
   const ux = dx / l;
   const uy = dy / l;
   const sx = x + ux * (R + 3);
   const sy = y + uy * (R + 3);
+  const tx = sx + ux * len;
+  const ty = sy + uy * len;
+  // Etiketten over spissen når pila er nesten vannrett, ellers like forbi spissen
+  const flat = Math.abs(uy) < 0.5;
   return (
     <ForceArrow
       x1={sx}
       y1={sy}
-      x2={sx + ux * len}
-      y2={sy + uy * len}
+      x2={tx}
+      y2={ty}
       color={VIZ.velocity}
       width={4.5}
-      label="v"
+      label={label ? 'v' : undefined}
       labelSize={0.85}
-      labelX={sx + ux * (len + 14 * f)}
-      labelY={sy + uy * (len + 14 * f) + 6 * f}
+      labelAnchor="middle"
+      labelX={flat ? tx - ux * 6 * f : tx + ux * 13 * f}
+      labelY={flat ? ty - 13 * f : ty + uy * 13 * f + 6 * f}
     />
   );
 }
 
 function Fission({ g, k, f }: { g: Grid; k: number; f: number }) {
-  const r = 4.4 * k;
+  const r = 5.5 * k;
   const ff = fissionFragments();
-  // Én skala for fartspilene: nøytronene (raskest) får 58 enheter (mer på mobil)
-  const kv = (58 * k) / ff.n.v;
+  // Én skala for fartspilene: nøytronene (raskest) får 50 enheter (mer på mobil)
+  const kv = (50 * k) / ff.n.v;
   const RU = nucRadius(235, r);
   const RBa = nucRadius(141, r);
   const RKr = nucRadius(92, r);
   const ux = g.bx + 22 * k;
-  const nx = g.bx - 62 * k;
-  const ba = { x: g.ax - 30 * k, y: g.cy - 30 * k };
-  const kr = { x: g.ax + 34 * k, y: g.cy + 32 * k };
+  const nx = g.bx - RU - 34 * k;
+  const ba = { x: g.ax - 34 * k, y: g.cy - 28 * k };
+  const kr = { x: g.ax + 38 * k, y: g.cy + 30 * k };
   const neutrons = [
-    { x: g.ax + 64 * k, y: g.cy - 46 * k, dx: 0.75, dy: -0.66 },
-    { x: g.ax - 62 * k, y: g.cy + 46 * k, dx: -0.55, dy: 0.84 },
-    { x: g.ax + 80 * k, y: g.cy + 2 * k, dx: 1, dy: 0.12 },
+    { x: g.ax + 50 * k, y: g.cy - 58 * k, dx: 0.6, dy: -0.8 },
+    { x: g.ax - 76 * k, y: g.cy + 52 * k, dx: -0.5, dy: 0.87 },
+    { x: g.ax + 82 * k, y: g.cy - 8 * k, dx: 0.95, dy: -0.3 },
   ];
   return (
     <g>
       {/* Før: et langsomt nøytron treffer uran-235 */}
-      <SpeedLines x={nx - r} y={g.cy} length={16 * k} spread={7 * k} color={SCENE.star} />
-      <Nukleon x={nx} y={g.cy} r={r} type="noytron" />
-      <Name x={nx} y={g.cy + r + 22 * f}>
+      <SpeedLines x={nx - r - 2} y={g.cy} length={16 * k} spread={7 * k} color={SCENE.star} />
+      <FrittNoytron x={nx} y={g.cy} r={r} />
+      <Name x={nx} y={g.cy + r + 24 * f}>
         n
       </Name>
       <Atomkjerne x={ux} y={g.cy} Z={92} N={143} r={r} seed={3} title="Uran-235" />
       <Name x={ux} y={g.cy + RU + 22 * f}>
         {nuclideText(92, 235)}
       </Name>
-      {/* Etter: to bruddstykker og tre nye nøytroner farer av gårde */}
+      {/* Etter: to bruddstykker og tre nye nøytroner farer av gårde (like stor bevegelsesmengde for bruddstykkene) */}
       <Atomkjerne x={ba.x} y={ba.y} Z={56} N={85} r={r} seed={4} title="Barium-141" />
       <Atomkjerne x={kr.x} y={kr.y} Z={36} N={56} r={r} seed={5} title="Krypton-92" />
-      <VArrow x={ba.x} y={ba.y} R={RBa} dx={-0.5} dy={-0.87} len={ff.ba.v * kv} f={f} />
-      <VArrow x={kr.x} y={kr.y} R={RKr} dx={0.5} dy={0.87} len={ff.kr.v * kv} f={f} />
+      <VArrow x={ba.x} y={ba.y} R={RBa} dx={-0.8} dy={-0.6} len={ff.ba.v * kv} f={f} />
+      <VArrow x={kr.x} y={kr.y} R={RKr} dx={0.8} dy={0.6} len={ff.kr.v * kv} f={f} />
       {neutrons.map((n, i) => (
         <Fragment key={i}>
-          <Nukleon x={n.x} y={n.y} r={r} type="noytron" />
-          <VArrow x={n.x} y={n.y} R={r} dx={n.dx} dy={n.dy} len={ff.n.v * kv} f={f} />
+          <FrittNoytron x={n.x} y={n.y} r={r} />
+          <VArrow x={n.x} y={n.y} R={r} dx={n.dx} dy={n.dy} len={ff.n.v * kv} f={f} label={false} />
         </Fragment>
       ))}
-      <Name x={ba.x - RBa - 6 * k} y={ba.y + RBa + 4 * f}>
+      <Name x={ba.x} y={ba.y - RBa - 8 * f}>
         {nuclideText(56, 141)}
       </Name>
-      <Name x={kr.x + RKr + 26 * f} y={kr.y - RKr + 4 * f}>
+      <Name x={kr.x - 8 * k} y={kr.y + RKr + 22 * f}>
         {nuclideText(36, 92)}
       </Name>
     </g>
@@ -300,11 +306,11 @@ function Fission({ g, k, f }: { g: Grid; k: number; f: number }) {
 function Fusion({ g, k, f }: { g: Grid; k: number; f: number }) {
   const r = 10 * k;
   const ff = fusionFragments();
-  const kv = (92 * k) / ff.n.v;
+  const kv = (80 * k) / ff.n.v;
   const d = { x: g.bx - 40 * k, y: g.cy };
   const t = { x: g.bx + 42 * k, y: g.cy };
-  const he = { x: g.ax - 38 * k, y: g.cy };
-  const n = { x: g.ax + 22 * k, y: g.cy };
+  const he = { x: g.ax - 20 * k, y: g.cy };
+  const n = { x: g.ax + 36 * k, y: g.cy };
   const R2 = nucRadius(2, r);
   const R4 = nucRadius(4, r);
   return (
@@ -320,7 +326,7 @@ function Fusion({ g, k, f }: { g: Grid; k: number; f: number }) {
         {nuclideText(1, 3)}
       </Name>
       <Atomkjerne x={he.x} y={he.y} Z={2} N={2} r={r} title="Helium-4" />
-      <Nukleon x={n.x} y={n.y} r={r} type="noytron" />
+      <FrittNoytron x={n.x} y={n.y} r={r} />
       <VArrow x={he.x} y={he.y} R={R4} dx={-1} dy={0} len={ff.he.v * kv} f={f} />
       <VArrow x={n.x} y={n.y} R={r} dx={1} dy={0} len={ff.n.v * kv} f={f} />
       <Name x={he.x} y={he.y + R4 + 24 * f}>
@@ -329,8 +335,9 @@ function Fusion({ g, k, f }: { g: Grid; k: number; f: number }) {
       <Name x={n.x} y={n.y + r + 24 * f}>
         n
       </Name>
-      <ValueTag x={he.x - 6 * k} y={he.y - R4 - 22 * f} text={`${fmt(ff.he.K, 1)} MeV`} size={0.75} />
-      <ValueTag x={n.x + 46 * k} y={n.y - r - 22 * f} text={`${fmt(ff.n.K, 1)} MeV`} size={0.75} />
+      {/* Bevegelsesenergien til hver: det lette nøytronet får mest */}
+      <ValueTag x={he.x - 20 * k} y={g.cy - R4 - 24 * f} text={`${fmt(ff.he.K, 1)} MeV`} size={0.75} />
+      <ValueTag x={n.x + 24 * k} y={g.cy - R4 - 24 * f} text={`${fmt(ff.n.K, 1)} MeV`} size={0.75} />
     </g>
   );
 }

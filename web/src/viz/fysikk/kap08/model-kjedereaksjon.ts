@@ -433,6 +433,18 @@ export function spreadPositions(desired: number[], gap: number, lo: number, hi: 
   return out;
 }
 
+/** Minste avstand mellom U-235-kjernene i samme generasjon (ganger R), så de to nye kjernene får plass. */
+export const KID_GAP = 2.6;
+
+/**
+ * Største radius R til U-235-kjernene som gir plass til `maxCount` kjerner i høyden `h` og til kontrollstavkjernene
+ * mellom kolonnene (avstand dx), men aldri større enn `cap`.
+ */
+export function treeNucleusRadius(maxCount: number, h: number, dx: number, cap: number): number {
+  const n = Math.max(1, maxCount);
+  return Math.max(4, Math.min(cap, 0.27 * dx, h / (KID_GAP * (n - 1) + 2.2)));
+}
+
 /**
  * Plasseringen av kjernene, kontrollstavkjernene og nøytronbanene i et utsnitt `box`. Generasjonene står i kolonner
  * fra venstre mot høyre. Barna til en fisjon står samlet rett til høyre for den, og kontrollstavkjernene står midt i
@@ -443,7 +455,7 @@ export function layoutChainTree(tree: ChainTree, box: TreeBox, opts: TreeLayoutO
   const { R, rA } = opts;
   const dx = box.w / (G + 1);
   const columns = Array.from({ length: G + 1 }, (_, g) => box.x + dx * (0.55 + g));
-  const childGap = opts.childGap ?? 2.9 * R;
+  const childGap = opts.childGap ?? 3 * R;
   const fa = opts.absorberAt ?? 0.5;
   const pad = 2;
   const loF = box.y + R + pad;
@@ -470,7 +482,7 @@ export function layoutChainTree(tree: ChainTree, box: TreeBox, opts: TreeLayoutO
     if (g < G && kids.length > 0) {
       const ys = spreadPositions(
         kids.map((c) => c.want),
-        2.4 * R,
+        KID_GAP * R,
         loF,
         hiF,
       );
@@ -523,7 +535,7 @@ export function layoutChainTree(tree: ChainTree, box: TreeBox, opts: TreeLayoutO
 
   // Banene og tidene.
   const travel = 1 - EMIT_DELAY;
-  const stub = 0.4 * dx;
+  const stub = 0.32 * dx;
   for (const n of tree.neutrons) {
     if (n.parent < 0) {
       const to = fissions[0]!;
@@ -539,7 +551,7 @@ export function layoutChainTree(tree: ChainTree, box: TreeBox, opts: TreeLayoutO
       neutrons[n.id] = { from, to, depart, arrive: depart + travel * Math.min(1, Math.hypot(to.x - from.x, to.y - from.y) / dx) };
     } else {
       const m = tree.fissions[n.parent]!.out.length;
-      const y = Math.min(box.y + box.h - 4, Math.max(box.y + 4, from.y + (n.order - (m - 1) / 2) * 0.9 * R));
+      const y = Math.min(box.y + box.h - 4, Math.max(box.y + 4, from.y + (n.order - (m - 1) / 2) * 0.75 * R));
       const to = { x: from.x + stub, y };
       neutrons[n.id] = { from, to, depart, arrive: depart + travel * STUB_TIME };
     }
@@ -574,4 +586,39 @@ export function niceCeil(v: number): number {
 /** Toppen av y-aksen i grafen: plass til N₀ · kᵍ i alle generasjonene og til søylene fra treet. */
 export function graphMax(k: number, counts: number[], generations = GRAPH_GENERATIONS): number {
   return niceCeil(Math.max(1.5, expectedFissions(k, generations), ...counts) * 1.04);
+}
+
+/* ---------- Urankjerner i bakgrunnen ---------- */
+
+/** Avstanden fra punktet p til linjestykket ab. */
+export function distToSegment(p: Point, a: Point, b: Point): number {
+  const vx = b.x - a.x;
+  const vy = b.y - a.y;
+  const l2 = vx * vx + vy * vy;
+  const s = l2 > 0 ? Math.min(1, Math.max(0, ((p.x - a.x) * vx + (p.y - a.y) * vy) / l2)) : 0;
+  return Math.hypot(p.x - (a.x + s * vx), p.y - (a.y + s * vy));
+}
+
+/**
+ * Urankjerner i brenselet som ikke blir truffet (de fleste er U-238): et rutenett med litt tilfeldig forskyvning,
+ * uten kjerner oppå treet, kontrollstavkjernene eller nøytronbanene. `rb` er radien de tegnes med.
+ */
+export function backgroundNuclei(layout: TreeLayout, box: TreeBox, R: number, rA: number, rb: number, seed = 1): Point[] {
+  const rnd = seededRandom(seed * 13 + 5);
+  const sp = Math.max(2.4 * rb, 2.7 * R);
+  const out: Point[] = [];
+  const margin = rb + 3;
+  const rows = Math.floor((box.h - 2 * margin) / (sp * 0.87)) + 1;
+  for (let i = 0; i < rows; i++) {
+    const y0 = box.y + margin + i * sp * 0.87;
+    for (let x0 = box.x + margin + (i % 2 ? sp / 2 : 0); x0 <= box.x + box.w - margin; x0 += sp) {
+      const p = { x: x0 + (rnd() - 0.5) * 0.35 * sp, y: y0 + (rnd() - 0.5) * 0.35 * sp };
+      if (p.x < box.x + margin || p.x > box.x + box.w - margin || p.y < box.y + margin || p.y > box.y + box.h - margin) continue;
+      if (layout.fissions.some((f) => Math.hypot(f.x - p.x, f.y - p.y) < 1.45 * R + rb + 2)) continue;
+      if (layout.absorbers.some((a) => Math.hypot(a.x - p.x, a.y - p.y) < rA + rb + 3)) continue;
+      if (layout.neutrons.some((n) => distToSegment(p, n.from, n.to) < rb + 5)) continue;
+      out.push(p);
+    }
+  }
+  return out;
 }

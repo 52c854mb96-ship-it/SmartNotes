@@ -73,112 +73,93 @@ export function LysTxt(props: { x: number; y: number; children: ReactNode; ancho
   return <Txt {...props} color={SCENE.star} halo={false} />;
 }
 
+/** Geometrien til reaktorkjernen: 4 × 4 brenselelementer uten hjørnene, midt i bildet. */
+function reaktorGeom(box: Box) {
+  const cs = Math.min(box.w, box.h) * 0.72;
+  const a = cs / 4;
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h * 0.56;
+  const cells: { x: number; y: number }[] = [];
+  for (let j = 0; j < 4; j++)
+    for (let i = 0; i < 4; i++) {
+      if ((i === 0 || i === 3) && (j === 0 || j === 3)) continue;
+      cells.push({ x: cx + (i - 1.5) * a, y: cy + (j - 1.5) * a });
+    }
+  return { cs, a, cx, cy, cells };
+}
+
 /**
- * Reaktorkjerne sett ovenfra og fra siden: brenselstaver (rør av zirkonium) står i vann som lyser blått
- * (tsjerenkovlys). Den midterste staven er skåret opp, så brenselstablettene av urandioksid synes.
- * Gir tilbake punktet lupen skal stå på (midt på en tablett).
+ * Kjernereaktor sett ovenfra, ned i bassenget: brenselelementer (bunter av brenselstaver med uran) på bunnen av et
+ * basseng med vann, og det blå tsjerenkovlyset rundt kjernen. Lupen står på et av brenselelementene.
  */
 export function Reaktorvann({ box }: { box: Box }) {
   const bg = useSvgId('be-vann');
   const glow = useSvgId('be-tsjerenkov');
-  const rod = useSvgId('be-stav');
-  const pellet = useSvgId('be-tablett');
+  const rodId = useSvgId('be-stavtopp');
   const ss = useStrokeScale();
   const { x, y, w, h } = box;
-  const p = reaktorPunkt(box);
-  const rw = Math.min(26, Math.max(14, w * 0.075));
-  const gap = rw * 1.05;
-  const n = Math.max(3, Math.floor((w - 20) / (rw + gap)));
-  const left = x + (w - (n * rw + (n - 1) * gap)) / 2;
-  const top = y + h * 0.2;
-  const mid = Math.floor(n / 2);
-  const winTop = p.y - rw * 1.9;
-  const winBot = p.y + rw * 1.9;
-  const pelletH = rw * 0.95;
+  const g = reaktorGeom(box);
+  const tile = Math.max(18, g.a * 0.62);
+  const lines: ReactNode[] = [];
+  for (let k = 1; k * tile < w; k++) lines.push(<line key={`v${k}`} x1={x + k * tile} x2={x + k * tile} y1={y} y2={y + h} />);
+  for (let k = 1; k * tile < h; k++) lines.push(<line key={`h${k}`} x1={x} x2={x + w} y1={y + k * tile} y2={y + k * tile} />);
+  const n = 5;
+  const pitch = (g.a * 0.84) / n;
   return (
     <g>
       <LinearGradient
         id={bg}
         stops={[
-          [0, shade(SCENE.waterDeep, 0.35)],
-          [1, shade(SCENE.waterDeep, 0.6)],
+          [0, shade(SCENE.waterDeep, 0.25)],
+          [1, shade(SCENE.waterDeep, 0.55)],
         ]}
       />
       <rect x={x} y={y} width={w} height={h} fill={`url(#${bg})`} />
+      {/* Fliser på bunnen av bassenget */}
+      <g stroke={tint(SCENE.waterLight, 0.2)} strokeWidth={0.8 * ss} opacity={0.22}>
+        {lines}
+      </g>
+      <RadialGradient
+        id={rodId}
+        fx={0.36}
+        fy={0.32}
+        stops={[
+          [0, tint(SCENE.metalLight, 0.4)],
+          [1, SCENE.metal],
+        ]}
+      />
+      {g.cells.map((c, i) => (
+        <g key={i}>
+          <rect x={c.x - g.a * 0.46} y={c.y - g.a * 0.46} width={g.a * 0.92} height={g.a * 0.92} rx={2} fill={shade(SCENE.metalDark, 0.35)} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
+          {Array.from({ length: n * n }, (_, k) => (
+            <circle
+              key={k}
+              cx={r2(c.x + ((k % n) - (n - 1) / 2) * pitch)}
+              cy={r2(c.y + (Math.floor(k / n) - (n - 1) / 2) * pitch)}
+              r={r2(pitch * 0.38)}
+              fill={`url(#${rodId})`}
+            />
+          ))}
+        </g>
+      ))}
+      {/* Tsjerenkovlyset: blått lys fra vannet rundt brenselet */}
       <RadialGradient
         id={glow}
-        cx={0.5}
-        cy={0.62}
-        r={0.6}
         stops={[
-          [0, tint(SCENE.waterLight, 0.35), 0.85],
-          [0.55, SCENE.water, 0.35],
-          [1, SCENE.waterDeep, 0],
+          [0, tint(SCENE.waterLight, 0.55), 0.75],
+          [0.45, tint(SCENE.waterLight, 0.2), 0.45],
+          [1, SCENE.water, 0],
         ]}
       />
-      <rect x={x} y={y} width={w} height={h} fill={`url(#${glow})`} />
-      <LinearGradient
-        id={rod}
-        x1={0}
-        y1={0}
-        x2={1}
-        y2={0}
-        stops={[
-          [0, shade(SCENE.metal, 0.15)],
-          [0.3, tint(SCENE.metalLight, 0.25)],
-          [0.7, SCENE.metal],
-          [1, shade(SCENE.metalDark, 0.2)],
-        ]}
-      />
-      <LinearGradient
-        id={pellet}
-        stops={[
-          [0, tint(SCENE.stoneDark, 0.18)],
-          [0.5, SCENE.stoneDark],
-          [1, shade(SCENE.stoneDark, 0.35)],
-        ]}
-      />
-      {Array.from({ length: n }, (_, i) => {
-        const rx = left + i * (rw + gap);
-        const cut = i === mid;
-        return (
-          <g key={i}>
-            <rect x={rx} y={top} width={rw} height={y + h - top + 4} rx={rw / 2} fill={`url(#${rod})`} stroke={SCENE.outline} strokeWidth={0.8 * ss} />
-            {/* Toppen (endepropp) og en tynn skygge der staven møter avstandsgitteret */}
-            <rect x={rx + rw * 0.18} y={top - rw * 0.25} width={rw * 0.64} height={rw * 0.5} rx={rw * 0.2} fill={SCENE.metalDark} stroke={SCENE.outline} strokeWidth={0.6 * ss} />
-            {cut && (
-              <g>
-                <rect x={rx + rw * 0.14} y={winTop} width={rw * 0.72} height={winBot - winTop} fill={shade(SCENE.metalDark, 0.4)} />
-                {Array.from({ length: Math.ceil((winBot - winTop) / pelletH) }, (_, k) => {
-                  const py = winTop + k * pelletH;
-                  const ph = Math.min(pelletH - 1.2, winBot - py);
-                  if (ph <= 1) return null;
-                  return (
-                    <rect key={k} x={rx + rw * 0.18} y={py + 0.6} width={rw * 0.64} height={ph} rx={1.5} fill={`url(#${pellet})`} stroke={SCENE.outline} strokeWidth={0.5 * ss} />
-                  );
-                })}
-                <rect x={rx + rw * 0.14} y={winTop} width={rw * 0.72} height={winBot - winTop} fill="none" stroke={SCENE.outline} strokeWidth={0.8 * ss} />
-              </g>
-            )}
-          </g>
-        );
-      })}
-      {/* Avstandsgitter som holder stavene */}
-      {[0.42, 0.82].map((k) => (
-        <rect key={k} x={left - gap * 0.5} y={top + (y + h - top) * k} width={n * rw + (n - 1) * gap + gap} height={Math.max(3, rw * 0.28)} fill={alpha(SCENE.metalLight, 0.7)} stroke={SCENE.outline} strokeWidth={0.5 * ss} />
-      ))}
+      <circle cx={g.cx} cy={g.cy} r={g.cs * 0.85} fill={`url(#${glow})`} />
     </g>
   );
 }
 
-/** Der lupen står i reaktorbildet: midt i vinduet på den midterste staven. */
+/** Der lupen står i reaktorbildet: på et brenselelement nær midten. */
 export function reaktorPunkt(box: Box) {
-  const rw = Math.min(26, Math.max(14, box.w * 0.075));
-  const gap = rw * 1.05;
-  const n = Math.max(3, Math.floor((box.w - 20) / (rw + gap)));
-  const left = box.x + (box.w - (n * rw + (n - 1) * gap)) / 2;
-  const mid = Math.floor(n / 2);
-  return { x: left + mid * (rw + gap) + rw / 2, y: box.y + box.h * 0.62, r: rw * 0.95 };
+  const g = reaktorGeom(box);
+  return { x: g.cx + 0.5 * g.a, y: g.cy - 0.5 * g.a, r: g.a * 0.5 };
 }
 
 /**
@@ -353,6 +334,17 @@ export function Energiglod({ x, y, r }: { x: number; y: number; r: number }) {
       />
       <circle cx={x} cy={y} r={r} fill={`url(#${id})`} />
     </>
+  );
+}
+
+/** Fritt nøytron på mørk bunn: en svak lys ring rundt, så det grå nøytronet synes. */
+export function FrittNoytron({ x, y, r }: { x: number; y: number; r: number }) {
+  const ss = useStrokeScale();
+  return (
+    <g>
+      <circle cx={x} cy={y} r={r + 2 * ss} fill={alpha(SCENE.star, 0.18)} stroke={alpha(SCENE.star, 0.7)} strokeWidth={1.2 * ss} />
+      <Nukleon x={x} y={y} r={r} type="noytron" />
+    </g>
   );
 }
 

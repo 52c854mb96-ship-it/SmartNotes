@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Controls,
   Explain,
@@ -6,7 +6,6 @@ import {
   Formula,
   FormulaLine,
   Legend,
-  Plot,
   Readout,
   Readouts,
   Segmented,
@@ -15,80 +14,104 @@ import {
   Sup,
   Toggle,
   Toolbar,
-  VIZ,
   VizLayout,
   fmt,
   fmtSci,
-  linePath,
-  niceTicks,
-  useTextScale,
 } from '../../kit';
-import { VISIBLE, blackbodyRgb, planck, stefanBoltzmann, visibleFraction, wavelengthRgb, wienPeak } from './model';
-import { Tag, useNarrow } from './marks';
-
-type Preset = 'lampe' | 'betelgeuse' | 'sola' | 'sirius' | 'rigel';
-
-const PRESETS: { value: Preset; label: string; T: number }[] = [
-  { value: 'lampe', label: 'Glødelampe', T: 2800 },
-  { value: 'betelgeuse', label: 'Betelgeuse', T: 3500 },
-  { value: 'sola', label: 'Sola', T: 5800 },
-  { value: 'sirius', label: 'Sirius', T: 9900 },
-  { value: 'rigel', label: 'Rigel', T: 12000 },
-];
-
-const T_SUN = 5800;
-const L_MAX_NM = 3000;
-const CURVE = VIZ.ink;
-const SUN = VIZ.series[1];
-/** Toppen på kurven for Sola, som alle intensitetene måles i forhold til. */
-const SUN_PEAK = planck(wienPeak(T_SUN), T_SUN);
+import { planck, stefanBoltzmann, wienPeak } from './model';
+import { LEGEMER, T_MAX, T_MIN, T_STEP, T_SUN, andeler, glodTrinn, legemeVed, type Andeler } from './model-svart-legeme';
+import { useNarrow } from './marks';
+import { CURVE, SUN, SUN_PEAK, SpekterGraf, fordelingHoyde, prosent } from './svart-legeme-graf';
+import { TemperaturScene, sceneHeight } from './svart-legeme-scene';
 
 const nm = (v: number) => v * 1e9;
 
-function niceCeil(v: number): number {
-  if (!(v > 0)) return 1;
-  const mag = 10 ** Math.floor(Math.log10(v));
-  for (const c of [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10]) if (c * mag >= v - 1e-12) return c * mag;
-  return 10 * mag;
+/** Hardt mellomrom, så «2,1 · 10⁻⁴» ikke brytes over to linjer i tallboksene. */
+const nb = (t: string) => t.replace(/ /g, '\u00a0');
+
+/** Tall med tre gjeldende sifre, på standardform når de er store: 13 600, 6,42 · 10⁷. */
+function fmtI(I: number): string {
+  if (I >= 1e5) return fmtSci(I, 2);
+  return fmt(sig3(I), 0);
+}
+
+/** Rundet til tre gjeldende sifre. */
+function sig3(v: number): number {
+  if (!(v > 0)) return 0;
+  const mag = 10 ** (Math.floor(Math.log10(v)) - 2);
+  return Math.round(v / mag) * mag;
+}
+
+/**
+ * Intensiteten i tallboksen med passende prefiks (W, kW eller MW per m²) og tre gjeldende sifre, så tallet er kort
+ * nok til en smal skjerm: 13 600 W/m², 287 kW/m², 64,2 MW/m². Utregningen under viser samme tall på standardform.
+ */
+function intensitetVerdi(I: number): { value: string; unit: string } {
+  const [k, unit] = I < 1e5 ? [1, 'W/m²'] : I < 1e7 ? [1e3, 'kW/m²'] : [1e6, 'MW/m²'];
+  const v = sig3(I / k);
+  return { value: fmt(v, v >= 100 ? 0 : v >= 10 ? 1 : 2), unit };
+}
+
+/** Små forholdstall og prosenter: vanlige desimaler når det går, ellers standardform. */
+function fmtSmall(v: number): string {
+  if (!(v > 0)) return '0';
+  if (v >= 10) return fmt(v, 0);
+  if (v >= 1) return fmt(v, 1);
+  if (v >= 0.01) return fmt(v, v >= 0.1 ? 2 : 3);
+  return fmtSci(v, 1);
 }
 
 export default function SvartLegeme() {
   const [T, setT] = useState(T_SUN);
   const [showSun, setShowSun] = useState(true);
+  const [sceneRef, narrowScene] = useNarrow<HTMLDivElement>();
   const [graphRef, narrow] = useNarrow<HTMLDivElement>();
   const peak = wienPeak(T);
   const I = stefanBoltzmann(T);
-  const vis = visibleFraction(T);
+  const andel = andeler(T);
   const ratioSun = (T / T_SUN) ** 4;
-  const preset = PRESETS.find((p) => p.T === T)?.value ?? ('egen' as Preset);
-  const height = narrow ? 620 : 400;
+  const preset = legemeVed(T)?.id ?? 'egen';
+  const extra = fordelingHoyde(narrow);
+  const height = (narrow ? 580 : 384) + extra;
   // Er Sola mye sterkere, går kurven dens langt over grafen. Da står forholdet i fargeforklaringen i stedet.
   const sunRatio = SUN_PEAK / planck(peak, T);
   const sunOnScale = sunRatio < 2.5;
   const sunVisible = showSun && T !== T_SUN;
+  const sceneH = sceneHeight(narrowScene);
 
   return (
     <VizLayout>
       <Controls>
-        <Slider label="Temperatur T" value={T} onChange={setT} min={2000} max={12000} step={50} unit="K" />
+        <Slider label="Temperatur T" value={T} onChange={setT} min={T_MIN} max={T_MAX} step={T_STEP} unit="K" />
       </Controls>
       <Toolbar>
-        <Segmented
+        <Segmented<string>
           label="Velg et legeme"
-          options={PRESETS}
+          options={LEGEMER.map((l) => ({ value: l.id, label: l.navn }))}
           value={preset}
-          onChange={(v) => setT(PRESETS.find((p) => p.value === v)?.T ?? T)}
+          onChange={(v) => setT(LEGEMER.find((l) => l.id === v)?.T ?? T)}
         />
         <Toggle label="Vis Sola til sammenligning" checked={showSun} onChange={setShowSun} />
       </Toolbar>
 
+      <div ref={sceneRef}>
+        <Figure
+          viewBox={`0 0 800 ${sceneH}`}
+          label={`Glødende ting om kvelden, ordnet etter temperatur på en temperaturlinjal i glødefargen: ${LEGEMER.map((l) => `${l.navn.toLowerCase()} ${fmt(l.T, 0)} K`).join(', ')}. Markøren står på ${fmt(T, 0)} K.`}
+          maxHeight={narrowScene ? 760 : 420}
+          caption="Klikk på en ting eller på temperaturlinjalen for å velge temperaturen."
+        >
+          <TemperaturScene T={T} narrow={narrowScene} onPick={setT} />
+        </Figure>
+      </div>
+
       <div ref={graphRef}>
         <Figure
           viewBox={`0 0 800 ${height}`}
-          label={`Plancks strålingskurve for et svart legeme på ${fmt(T, 0)} K. Toppen ligger ved ${fmt(nm(peak), 0)} nanometer.`}
-          maxHeight={620}
+          label={`Plancks strålingskurve for et svart legeme på ${fmt(T, 0)} K. Toppen ligger ved ${fmt(nm(peak), 0)} nanometer. ${prosent(andel.uv)} av strålingen er ultrafiolett, ${prosent(andel.synlig)} synlig lys og ${prosent(andel.ir)} infrarød.`}
+          maxHeight={narrow ? 720 : 520}
         >
-          <Spectrum T={T} showSun={sunVisible && sunOnScale} height={height} />
+          <SpekterGraf T={T} showSun={sunVisible && sunOnScale} height={height} extra={extra} andel={andel} />
         </Figure>
       </div>
       <Legend
@@ -100,7 +123,7 @@ export default function SvartLegeme() {
                   color: SUN,
                   label: sunOnScale
                     ? `Sola, ${fmt(T_SUN, 0)} K`
-                    : `Sola, ${fmt(T_SUN, 0)} K: toppen er ${fmt(sunRatio, 0)} ganger høyere og går utenfor grafen`,
+                    : `Sola, ${fmt(T_SUN, 0)} K: toppen er ${fmtI(sunRatio)} ganger høyere og går utenfor grafen`,
                   dashed: true,
                 },
               ]
@@ -118,9 +141,9 @@ export default function SvartLegeme() {
           value={fmt(nm(peak), 0)}
           unit="nm"
         />
-        <Readout label="Intensitet I = σT⁴" value={fmtSci(I, 2)} unit="W/m²" />
-        <Readout label="I forhold til Sola" value={fmt(ratioSun, ratioSun < 0.1 ? 3 : ratioSun < 1 ? 2 : 1)} unit="ganger" />
-        <Readout label="Andel synlig lys" value={fmt(vis * 100, vis < 0.1 ? 1 : 0)} unit="%" />
+        <Readout label="Intensitet I = σT⁴" {...intensitetVerdi(I)} />
+        <Readout label="I forhold til Sola" value={nb(fmtSmall(ratioSun))} unit={ratioSun < 0.01 ? undefined : 'ganger'} />
+        <Readout label="Andel synlig lys" value={nb(fmtSmall(andel.synlig * 100))} unit="%" />
       </Readouts>
 
       <Formula label="Wiens forskyvningslov og Stefan–Boltzmanns lov">
@@ -128,163 +151,73 @@ export default function SvartLegeme() {
           λ<Sub>maks</Sub> = b / T = 2,90 · 10<Sup>−3</Sup> m·K / {fmt(T, 0)} K = {fmtSci(peak, 2)} m = {fmt(nm(peak), 0)} nm
         </FormulaLine>
         <FormulaLine>
-          I = σT<Sup>4</Sup> = 5,67 · 10<Sup>−8</Sup> W/(m²·K<Sup>4</Sup>) · ({fmt(T, 0)} K)<Sup>4</Sup> = {fmtSci(I, 2)} W/m²
+          I = σT<Sup>4</Sup> = 5,67 · 10<Sup>−8</Sup> W/(m²·K<Sup>4</Sup>) · ({fmt(T, 0)} K)<Sup>4</Sup> = {fmtI(I)} W/m²
         </FormulaLine>
       </Formula>
 
-      <Explain>{explanation(T, peak, vis)}</Explain>
+      <Explain>{explanation(T, peak, andel)}</Explain>
     </VizLayout>
   );
 }
 
-function Spectrum({ T, showSun, height }: { T: number; showSun: boolean; height: number }) {
-  const f = useTextScale();
-  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, '');
-  const peak = wienPeak(T);
-  const rel = (lambdaNm: number, temp: number) => planck(lambdaNm * 1e-9, temp) / SUN_PEAK;
-  const yMax = niceCeil(1.12 * rel(nm(peak), T));
-  const yTicks = niceTicks(0, yMax, f > 1.3 ? 4 : 5);
-  const step = (yTicks[1] ?? yMax) - (yTicks[0] ?? 0);
-  const decimals = Math.max(0, Math.min(4, -Math.floor(Math.log10(step) + 1e-9)));
-  const pts: [number, number][] = [];
-  const sunPts: [number, number][] = [];
-  for (let i = 0; i <= 500; i++) {
-    const l = 5 + (i * (L_MAX_NM - 5)) / 500;
-    pts.push([l, rel(l, T)]);
-    sunPts.push([l, rel(l, T_SUN)]);
-  }
-  const stops: ReactNode[] = [];
-  for (let l = 380; l <= 750; l += 10) {
-    const [r, g, b] = wavelengthRgb(l);
-    stops.push(<stop key={l} offset={(l - 380) / 370} stopColor={`rgb(${r},${g},${b})`} />);
-  }
-  const [cr, cg, cb] = blackbodyRgb(T);
-  return (
-    <Plot
-      x={{ min: 0, max: L_MAX_NM, label: 'Bølgelengde λ (nm)', ticks: f > 1.3 ? [0, 1000, 2000, 3000] : niceTicks(0, L_MAX_NM, 6) }}
-      y={{ min: 0, max: yMax, label: f > 1.3 ? 'Intensitet (Sola = 1)' : 'Intensitet (toppen for Sola = 1)', ticks: yTicks, decimals }}
-      width={800}
-      height={height}
-      margin={{ top: 46 * f, right: 24 * f, bottom: 56 * f, left: 72 * f + (decimals > 1 ? 16 * f : 0) }}
-    >
-      {({ sx, sy, x0, x1, y0, y1 }) => {
-        const px = sx(nm(peak));
-        const peakY = sy(rel(nm(peak), T));
-        const labelX = Math.min(x1 - 90 * f, Math.max(x0 + 90 * f, px));
-        const area = `${linePath(pts, sx, sy)}L${sx(L_MAX_NM)},${y0}L${sx(5)},${y0}Z`;
-        // Etiketten for UV og IR står der den verken treffer kurven eller den stiplede linja for toppen:
-        // først prøves øverst i grafen, så nederst (under kurven), på noen få steder langs aksen.
-        const font = 17 * f;
-        const fits = (cx: number, base: number, text: string) => {
-          const half = (text.length * 0.56 * font) / 2 + 6;
-          const top = base - 0.8 * font - 3;
-          const bottom = base + 0.25 * font + 3;
-          if (cx - half < x0 || cx + half > x1) return false;
-          // Den stiplede linja for toppen går fra aksen opp til toppen av kurven
-          if (px > cx - half - 4 && px < cx + half + 4 && bottom > peakY) return false;
-          const atTop = base < (y0 + y1) / 2;
-          // Fargeprøven står øverst til høyre
-          if (atTop && cx + half > x1 - 76 * f) return false;
-          for (let k = 0; k <= 12; k++) {
-            const xx = cx - half + (2 * half * k) / 12;
-            const cy = sy(rel(((xx - x0) / (x1 - x0)) * L_MAX_NM, T));
-            // Øverst må kurven ligge under teksten, nederst over den (teksten står da i det skyggelagte feltet)
-            if (atTop ? cy < bottom : cy > top) return false;
-          }
-          return true;
-        };
-        const RegionLabel = ({ xs, text }: { xs: number[]; text: string }) => {
-          const spots = [y1 + 22 * f, y0 - 12].flatMap((base) => xs.map((x) => ({ x: sx(x), base })));
-          const spot = spots.find((p) => fits(p.x, p.base, text)) ?? spots[0]!;
-          return (
-            <Tag x={spot.x} y={spot.base} muted>
-              {text}
-            </Tag>
-          );
-        };
-        return (
-          <g>
-            <defs>
-              <linearGradient id={`${uid}-rainbow`} x1="0" x2="1" y1="0" y2="0">
-                {stops}
-              </linearGradient>
-              <clipPath id={`${uid}-clip`}>
-                <rect x={x0} y={y1} width={x1 - x0} height={y0 - y1} />
-              </clipPath>
-            </defs>
-            {/* Det synlige området */}
-            <rect
-              x={sx(nm(VISIBLE[0]))}
-              y={y1}
-              width={sx(nm(VISIBLE[1])) - sx(nm(VISIBLE[0]))}
-              height={y0 - y1}
-              fill={`url(#${uid}-rainbow)`}
-              opacity={0.45}
-            />
-            <RegionLabel xs={[190, 120, 290]} text="UV" />
-            <RegionLabel xs={[1700, 2200, 1200, 2500]} text="infrarødt (IR)" />
-
-            <path d={area} fill={CURVE} opacity={0.08} />
-            {showSun && (
-              <path
-                d={linePath(sunPts, sx, sy)}
-                fill="none"
-                stroke={SUN}
-                strokeWidth={2.5}
-                strokeDasharray="7 6"
-                clipPath={`url(#${uid}-clip)`}
-              />
-            )}
-            <path d={linePath(pts, sx, sy)} fill="none" stroke={CURVE} strokeWidth={3.5} strokeLinejoin="round" />
-
-            {/* Wiens lov: toppen */}
-            <line x1={px} x2={px} y1={y0} y2={peakY} className="viz-guide" />
-            <Tag x={labelX} y={y1 - 14}>
-              λ
-              <tspan dy="0.32em" fontSize="0.72em">
-                maks
-              </tspan>
-              <tspan dy="-0.32em"> = {fmt(nm(peak), 0)} nm</tspan>
-            </Tag>
-
-            {/* Fargen legemet ser ut til å ha */}
-            <circle cx={x1 - 44 * f} cy={y1 + 42 * f} r={26 * f} fill={`rgb(${cr},${cg},${cb})`} stroke={VIZ.muted} strokeWidth={1.5} />
-            <Tag x={x1 - 44 * f} y={y1 + 42 * f + 26 * f + 22 * f} muted>
-              fargen
-            </Tag>
-          </g>
-        );
-      }}
-    </Plot>
-  );
-}
-
-function explanation(T: number, peak: number, vis: number): ReactNode {
-  const p = nm(peak);
-  const pct = fmt(vis * 100, vis < 0.1 ? 1 : 0);
+function explanation(T: number, peak: number, andel: Andeler): ReactNode {
+  const p = <>λ<Sub>maks</Sub> = {fmt(nm(peak), 0)} nm</>;
+  const vis = prosent(andel.synlig);
   let first: ReactNode;
-  if (p > 750)
-    first = (
-      <p>
-        <strong>Toppen ligger i infrarødt</strong> (λ<Sub>maks</Sub> = {fmt(p, 0)} nm), så det meste av strålingen er usynlig varmestråling,
-        og bare {pct} % er synlig lys. Det synlige lyset er mest rødt og gult, så legemet gløder rødt-oransje.{' '}
-        {T <= 3000 ? 'Derfor gir en glødelampe mest varme og lite lys.' : ''}
-      </p>
-    );
-  else if (p >= 380)
-    first = (
-      <p>
-        <strong>Toppen ligger i det synlige området</strong> (λ<Sub>maks</Sub> = {fmt(p, 0)} nm). Alle fargene er med, så lyset ser hvitt
-        eller gulhvitt ut, og {pct} % av strålingen er synlig lys. {T === 5800 ? 'Sola er et slikt legeme.' : ''}
-      </p>
-    );
-  else
-    first = (
-      <p>
-        <strong>Toppen ligger i ultrafiolett</strong> (λ<Sub>maks</Sub> = {fmt(p, 0)} nm). I det synlige området er det mer blått enn rødt,
-        så legemet ser blåhvitt ut.
-      </p>
-    );
+  switch (glodTrinn(T)) {
+    case 'ingen':
+      first = (
+        <p>
+          <strong>Ingen synlig glød.</strong> Toppen ligger langt inne i infrarødt ({p}), og nesten all strålingen er usynlig
+          varmestråling. Under omtrent 800 K ser du ikke at et legeme gløder, men du kjenner varmen på huden. Det er derfor en
+          kokeplate kan brenne deg selv om den ser svart ut.
+        </p>
+      );
+      break;
+    case 'morkerod':
+      first = (
+        <p>
+          <strong>Svak, mørkerød glød.</strong> Toppen ligger i infrarødt ({p}), og bare {vis} av strålingen er synlig lys, nesten
+          bare den røde enden av spekteret. Slik gløder en kokeplate på full styrke: du kjenner varmen godt, men ser gløden best når
+          det er mørkt i rommet.
+        </p>
+      );
+      break;
+    case 'oransje':
+      first = (
+        <p>
+          <strong>Oransje til gul glød.</strong> Toppen ligger fortsatt i infrarødt ({p}), men nå er {vis} av strålingen synlig
+          lys, med både rødt, oransje og gult. Det er derfor smeden jobber i halvmørke: fargen på jernet viser hvor varmt det er, og rundt
+          1 500 K er det mykt nok til å smis.
+        </p>
+      );
+      break;
+    case 'gulhvit':
+      first = (
+        <p>
+          <strong>Gulhvitt lys, men toppen er fortsatt i infrarødt</strong> ({p}). Bare {vis} av strålingen er synlig lys. Det er
+          derfor en glødelampe (2 800 K) blir så varm: over 90 % av strålingen er usynlig varmestråling. Stjerna Betelgeuse
+          (3 500 K) ser oransjerød ut på himmelen.
+        </p>
+      );
+      break;
+    case 'hvit':
+      first = (
+        <p>
+          <strong>Toppen ligger i det synlige området</strong> ({p}). Alle fargene er med, så lyset ser hvitt ut, og {vis} av
+          strålingen er synlig lys. Sola (5 800 K) er et slikt legeme: sett fra verdensrommet er den hvit.
+        </p>
+      );
+      break;
+    default:
+      first = (
+        <p>
+          <strong>Toppen ligger i ultrafiolett</strong> ({p}). I det synlige området er det mer blått enn rødt, så legemet ser
+          blåhvitt ut, og hele {prosent(andel.uv)} av strålingen er UV. Sirius og Rigel er slike stjerner. Se på stjernebildet Orion
+          en vinterkveld: Rigel er blåhvit, mens Betelgeuse er oransjerød fordi den er mye kaldere.
+        </p>
+      );
+  }
   return (
     <>
       {first}

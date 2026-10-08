@@ -161,7 +161,7 @@ function SceneContent({ water, metal, hot, cold, st, t, showFlow, narrow }: Scen
   } else if (blockGeo) {
     const left = METAL_BLOCK_X - blockGeo.d / 2;
     const right = METAL_BLOCK_X + blockGeo.d / 2;
-    const inside = Math.min(0.8, blockGeo.d * 0.3);
+    const inside = Math.min(0.8, blockGeo.d * 0.15);
     const sub = Math.min(waterLevel, blockGeo.h);
     const rb = (blockGeo.d / 2) * k;
     const y = yF - 0.16 * rb - Math.max(0.35, sub / 2) * k;
@@ -218,7 +218,7 @@ function SceneContent({ water, metal, hot, cold, st, t, showFlow, narrow }: Scen
         geo={geo}
         water={{ level: waterLevel, warm: warmth(st.T2) }}
         cup={water ? { level: cupLevel, warm: warmth(st.T1) } : undefined}
-        block={!water && blockGeo ? { x: METAL_BLOCK_X, d: blockGeo.d, h: blockGeo.h, metal, warm: warmth(st.T1) } : undefined}
+        block={!water && blockGeo ? { x: METAL_BLOCK_X, d: blockGeo.d, h: blockGeo.h, metal } : undefined}
         thermometers={thermos}
       />
 
@@ -274,7 +274,7 @@ export interface GrafProps {
 
 export function BlandingGraf({ input, st, t, narrow, label }: GrafProps) {
   const plotH = narrow ? 440 : 340;
-  const barsH = narrow ? 400 : 340;
+  const barsH = narrow ? 480 : 340;
   const H = narrow ? plotH + 20 + barsH : plotH;
   return (
     <Figure viewBox={`0 0 800 ${H}`} label={label} maxHeight={narrow ? 900 : 420}>
@@ -333,7 +333,7 @@ function MixGraph({ input, st, t, width, height }: { input: MixInput; st: MixSta
             <Txt x={x0 + 12} y={start1 - 10 * f} anchor="start" size={0.9} weight={700} color={HOT}>
               T<TSub>1</TSub>
             </Txt>
-            <Txt x={x0 + 12} y={start2 + 24 * f} anchor="start" size={0.9} weight={700} color={COLD}>
+            <Txt x={x0 + 12} y={start2 + 24 * f <= y0 - 6 ? start2 + 24 * f : start2 - 10 * f} anchor="start" size={0.9} weight={700} color={COLD}>
               T<TSub>2</TSub>
             </Txt>
             <line x1={sx(t)} x2={sx(t)} y1={y0} y2={sy(100)} stroke={VIZ.ink} strokeWidth={1.5 * ss} opacity={0.45} />

@@ -135,11 +135,21 @@ function SceneContent({ st, sted, arstid, L, s }: { st: SolarPanelState; sted: S
     return `${p.x},${p.y} ${b.x + n.x},${b.y + n.y} ${b.x - n.x},${b.y - n.y}`;
   };
 
+  // Tverrsnittet av lysbuntet: A · cos θ. Utenfor strålene, men ikke oppå sola, og innenfor figuren.
+  const sunDist = sunPos ? Math.hypot(sunPos.x - c.x, sunPos.y - c.y) : Infinity;
+  const winD = Math.max(
+    125 * s,
+    Math.min((h < 14 ? 200 : 180) * s, sunDist - 46 * s, (c.x - 60 * f) / Math.max(0.2, u.x), (c.y - 24 * f) / Math.max(0.2, u.y)),
+  );
+  const [w1, w2] = beamWindow(c, h, pw, st.beta, winD);
+  const winLen = Math.hypot(w2.x - w1.x, w2.y - w1.y);
+  // Når vinduet står nesten loddrett (lav sol), står etiketten over den øvre enden i stedet for ved siden av
+  const winUpper = w1.y < w2.y ? w1 : w2;
+  const winLabelAbove = h < 40;
+
   // Normalen og vinkelen θ mellom normalen og retningen mot sola
   const nLen = 120 * s;
   const nEnd = { x: c.x + face.normal.x * nLen, y: c.y + face.normal.y * nLen };
-  const nLabelAnchor = face.normal.x < -0.4 ? 'end' : 'middle';
-  const nLabel = nLabelAnchor === 'end' ? { x: nEnd.x - 5, y: nEnd.y + 2 } : { x: nEnd.x, y: nEnd.y - 9 * f };
   const aSun = sunDirAngle(h);
   const aNorm = normalDirAngle(st.beta);
   const rTheta = 46 * s;
@@ -152,7 +162,17 @@ function SceneContent({ st, sted, arstid, L, s }: { st: SolarPanelState; sted: S
   // en strek til buen.
   const textW = thetaText.length * 8.2 * f;
   const bx0 = bisAnchor === 'end' ? bisPos.x - textW : bisAnchor === 'start' ? bisPos.x : bisPos.x - textW / 2;
-  const segments: [Pt, Pt][] = [...rays.map((r): [Pt, Pt] => [r.start, r.end]), [c, nEnd], [face.e1, face.e2]];
+  const segments: [Pt, Pt][] = [...rays.map((r): [Pt, Pt] => [r.start, r.end]), [c, nEnd], [face.e1, face.e2], [w1, w2]];
+  // Etiketten «normal» ved enden av normalen: første plass som ikke ligger oppå strålene eller vinduet
+  const nW = 6 * 7.4 * f;
+  const nCandidates: { x: number; y: number; anchor: 'start' | 'middle' | 'end'; x0: number }[] = [
+    { x: nEnd.x - 6, y: nEnd.y + 5 * f, anchor: 'end', x0: nEnd.x - 6 - nW },
+    { x: nEnd.x, y: nEnd.y - 9 * f, anchor: 'middle', x0: nEnd.x - nW / 2 },
+    { x: nEnd.x + 6, y: nEnd.y + 5 * f, anchor: 'start', x0: nEnd.x + 6 },
+  ];
+  const nPrefer = face.normal.x < -0.4 ? [0, 1, 2] : [1, 0, 2];
+  const nLabel =
+    nPrefer.map((i) => nCandidates[i]!).find((q) => labelClear(q.x0, q.x0 + nW, q.y - 5 * f, [...segments.slice(0, 3), [w1, w2]], 11 * f)) ?? nCandidates[nPrefer[0]!]!;
   const thetaCallout = st.theta < 12 || !labelClear(bx0, bx0 + textW, bisPos.y, segments, 12 * f);
   const sideA = { x: u.y, y: -u.x }; // ut fra lysbuntet på siden der panelet stiger
   const calloutAnchor = sideA.x > 0.3 ? 'start' : 'middle';
@@ -165,11 +185,6 @@ function SceneContent({ st, sted, arstid, L, s }: { st: SolarPanelState; sted: S
   const hRef = 96 * s;
   const hLow = h < 14;
   const hLabelPos = hLow ? { x: e1.x - rH - 6, y: e1.y + 20 * f } : polar(e1, rH + 10 * f, 180 + h / 2);
-
-  // Tverrsnittet av lysbuntet: A · cos θ
-  // Så langt ut at det ikke krysser strålene, men innenfor figuren (med plass til etiketten ved siden av)
-  const winD = Math.max(130 * s, Math.min((hLow ? 230 : 180) * s, (c.x - 96 * f) / Math.max(0.2, u.x), (c.y - 24 * f) / Math.max(0.2, u.y)));
-  const [w1, w2] = beamWindow(c, h, pw, st.beta, winD);
 
   // Lysbuntet tones inn mot panelet
   const fadeFrom = towardSun(c, h, 520 * s);
@@ -256,7 +271,12 @@ function SceneContent({ st, sted, arstid, L, s }: { st: SolarPanelState; sted: S
           ))}
 
           {/* Tverrsnittet av lysbuntet */}
-          {Math.hypot(w2.x - w1.x, w2.y - w1.y) > 22 * s && <Dimension x1={w1.x} y1={w1.y} x2={w2.x} y2={w2.y} label="A · cos θ" labelSize={0.8} color={SUNLIGHT} />}
+          {winLen > 22 * s && <Dimension x1={w1.x} y1={w1.y} x2={w2.x} y2={w2.y} label={winLabelAbove ? undefined : 'A · cos θ'} labelSize={0.8} color={SUNLIGHT} />}
+          {winLen > 22 * s && winLabelAbove && (
+            <Txt x={winUpper.x + sideA.x * 10 * f} y={winUpper.y + sideA.y * 10 * f - 4 * f} anchor="middle" size={0.8} weight={650} color={SUNLIGHT}>
+              A · cos θ
+            </Txt>
+          )}
 
           {/* Solhøyden h */}
           <line x1={e1.x} y1={e1.y} x2={e1.x - hRef} y2={e1.y} stroke={VIZ.surface} strokeWidth={3.6 * ss} opacity={0.75} />
@@ -270,7 +290,7 @@ function SceneContent({ st, sted, arstid, L, s }: { st: SolarPanelState; sted: S
           <line x1={c.x} y1={c.y} x2={nEnd.x} y2={nEnd.y} stroke={VIZ.surface} strokeWidth={4 * ss} opacity={0.75} />
           <line x1={c.x} y1={c.y} x2={nEnd.x} y2={nEnd.y} stroke={VIZ.ink} strokeWidth={1.5 * ss} strokeDasharray={`${6 * ss} ${4 * ss}`} />
           <circle cx={c.x} cy={c.y} r={3 * ss} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.2 * ss} />
-          <Txt x={nLabel.x} y={nLabel.y} anchor={nLabelAnchor} size={0.78} weight={600} muted>
+          <Txt x={nLabel.x} y={nLabel.y} anchor={nLabel.anchor} size={0.78} weight={600} muted>
             normal
           </Txt>
           <path d={arcPath(c, rTheta, aSun, aNorm)} fill="none" stroke={VIZ.ink} strokeWidth={1.6 * ss} />
@@ -289,7 +309,7 @@ function SceneContent({ st, sted, arstid, L, s }: { st: SolarPanelState; sted: S
       {!st.sunUp && <ValueTag x={0.3 * W} y={hz - 70 * s} text="Mørketid: sola er under horisonten" color={VIZ.ink} />}
 
       {/* Effekten */}
-      <ValueTag x={px + 14 * s} y={gy - face.postH * 0.42} text={`P = ${fmt(st.P, 0)} W`} anchor="start" color={POWER} />
+      <ValueTag x={px + (14 + 10 * Math.sin(st.beta * RAD)) * s} y={gy - face.postH * 0.42} text={`P = ${fmt(st.P, 0)} W`} anchor="start" color={POWER} />
 
       {/* Himmelretningene */}
       <Txt x={16} y={H - 14 * f} anchor="start" size={0.8} weight={650}>

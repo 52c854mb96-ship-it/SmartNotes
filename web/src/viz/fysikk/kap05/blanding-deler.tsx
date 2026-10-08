@@ -7,6 +7,7 @@
  * Vi ser litt ovenfra, så bunnen og vannflatene er halve ellipser (forholdet E mellom høyde og bredde).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Txt, useTextScale } from '../../kit';
 import {
   ContactShadow,
   LinearGradient,
@@ -64,7 +65,7 @@ export function metalColor(metal: MetalId): string {
 
 /** Vannfarge som blir varmere med `warm` (0–1), så begge vannmengdene får samme farge i likevekt. */
 function waterStops(warm: number): GradientStop[] {
-  const t = 0.6 * Math.min(1, Math.max(0, warm));
+  const t = 0.3 * Math.min(1, Math.max(0, warm));
   return [
     [0, mix(SCENE.waterLight, SCENE.hot, t)],
     [0.35, mix(SCENE.water, SCENE.hot, t)],
@@ -72,7 +73,7 @@ function waterStops(warm: number): GradientStop[] {
   ];
 }
 export function waterColor(warm: number): string {
-  return mix(SCENE.water, SCENE.hot, 0.6 * Math.min(1, Math.max(0, warm)));
+  return mix(SCENE.water, SCENE.hot, 0.3 * Math.min(1, Math.max(0, warm)));
 }
 
 /** Kuler i isoporen: små ringer spredt med fast frø i et rektangel (figurens enheter). */
@@ -120,7 +121,7 @@ export interface KalorimeterProps {
   /** Begeret med varmt vann (vannforsøket). */
   cup?: { level: number; warm: number };
   /** Metallbiten (metallforsøket): midten i cm fra midten av karet, diameter og høyde i cm. */
-  block?: { x: number; d: number; h: number; metal: MetalId; warm: number };
+  block?: { x: number; d: number; h: number; metal: MetalId };
   thermometers: ThermoSpec[];
 }
 
@@ -130,6 +131,7 @@ export interface KalorimeterProps {
  */
 export function Kalorimeter({ x, y, k, geo, water, cup, block, thermometers }: KalorimeterProps) {
   const ss = useStrokeScale();
+  const f = useTextScale();
   const id = useSvgId('kalorimeter');
   const Ro = geo.innerR * k;
   const Rw = (geo.innerR + geo.wall) * k;
@@ -247,12 +249,6 @@ export function Kalorimeter({ x, y, k, geo, water, cup, block, thermometers }: K
             strokeWidth={0.9 * ss}
           />
           <ellipse cx={r1(b.bx)} cy={r1(b.yT)} rx={r1(b.rb)} ry={r1(E * b.rb)} fill={tint(metalColor(block.metal), 0.3)} stroke={SCENE.outline} strokeWidth={0.9 * ss} />
-          {block.warm > 0.02 && (
-            <path
-              d={`M${r1(b.bx - b.rb)},${r1(b.yT)}V${r1(b.y0)}A${r1(b.rb)},${r1(E * b.rb)} 0 0 0 ${r1(b.bx + b.rb)},${r1(b.y0)}V${r1(b.yT)}A${r1(b.rb)},${r1(E * b.rb)} 0 0 0 ${r1(b.bx - b.rb)},${r1(b.yT)}Z`}
-              fill={alpha(SCENE.hot, 0.32 * block.warm)}
-            />
-          )}
           <path d={`M${r1(b.bx - b.rb * 0.62)},${r1(b.yT + E * b.rb + 2)}V${r1(b.y0 - 2)}`} stroke={SCENE.highlight} strokeWidth={Math.max(1.2, b.rb * 0.12)} strokeLinecap="round" />
           {/* Liten krok på toppen (biten ble senket ned med den) */}
           <path
@@ -273,6 +269,12 @@ export function Kalorimeter({ x, y, k, geo, water, cup, block, thermometers }: K
       <path d={cutFaces} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} strokeLinejoin="round" />
       <path d={lidSlab} fill="none" stroke={SCENE.outline} strokeWidth={1 * ss} strokeLinejoin="round" />
       <path d={`M${r1(x - Rw + 3)},${r1(yL + 2.5 * ss)}H${r1(x + Rw - 3)}`} stroke={SCENE.highlight} strokeWidth={1.6 * ss} strokeLinecap="round" />
+      {/* «Isopor» langs den venstre snittflaten, som i en lærebokfigur */}
+      <g transform={`rotate(-90 ${r1(x - (Rw + Ro) / 2)} ${r1((yR + y) / 2)})`}>
+        <Txt x={r1(x - (Rw + Ro) / 2)} y={r1((yR + y) / 2 + 5.5 * f)} size={0.72} weight={600} muted>
+          Isopor
+        </Txt>
+      </g>
 
       {/* Gummipropper i lokket og termometrene */}
       {thermometers.map((t, i) => (
