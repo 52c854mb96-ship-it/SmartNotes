@@ -1,6 +1,6 @@
 # Status for SmartNotes
 
-> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 6. oktober 2026, i PR #8 (oppdateringer i Safari på Mac). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
+> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 8. oktober 2026, i PR #9 (overlevering til neste økt). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
 
 Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen dokumentasjon står i [README.md](../README.md) og [OPPSETT.md](OPPSETT.md).
 
@@ -36,7 +36,7 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 
 ## Hva som er gjort
 
-Alt ble bygget 4.–6. oktober 2026 og flettet inn i `main` gjennom disse pull requestene:
+Alt ble bygget 4.–8. oktober 2026 og flettet inn i `main` gjennom disse pull requestene:
 
 | PR | Innhold |
 |---|---|
@@ -48,6 +48,7 @@ Alt ble bygget 4.–6. oktober 2026 og flettet inn i `main` gjennom disse pull r
 | [#6](https://github.com/52c854mb96-ship-it/SmartNotes/pull/6) | Overlevering: denne fila og oppstart for nye økter |
 | [#7](https://github.com/52c854mb96-ship-it/SmartNotes/pull/7) | Illustrerte visualiseringer, del 1: byggeklosser for illustrert realisme (`viz/kit/scene/`), eksempeloppgaver (`viz/kit/eksempel.tsx`, egen gruppe på sidene) og fysikk kapittel 1–4 (16 oppgraderte, 12 nye praktiske og 8 eksempeloppgaver). Resten står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md) |
 | [#8](https://github.com/52c854mb96-ship-it/SmartNotes/pull/8) | Nye versjoner tas i bruk også i Safari på Mac: appen merker selv at serveren har en nyere versjon og sier fra («En ny versjon av SmartNotes er klar»), og ser etter oppdateringer når fanen blir synlig igjen |
+| [#9](https://github.com/52c854mb96-ship-it/SmartNotes/pull/9) | Overlevering: workflow-skriptene og katalogene for resten av visualiseringene i `docs/workflows/`, og planen for neste økt |
 
 **Tester:** omtrent 2 300 enhetstester (77 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 14 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
@@ -105,7 +106,7 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 - **Ikke testet med ekte Claude:** skyøktene har ingen API-nøkkel, så alle tester bruker en falsk Claude (`SMARTNOTES_FAKE_CLAUDE=1`). Det er ennå ikke prøvd hvordan Sonnet 5.5 med middels grundighet konverterer ekte notater, eller hvor gode kortene i flashcards blir. [OPPSETT.md](OPPSETT.md) forklarer hvordan eleven kan gi skyøktene en nøkkel.
 - **Kostnadene er beregnet, ikke målt:** valutakursen (10,50 kr per dollar) og Railway-prisen er omtrentlige, fordi nettverket i økten blokkerte kildene. Det faktiske forbruket står i Anthropic Console under **Usage**.
 - **Kjemi 1 og Biologi 1 mangler delkapitler:** bare kapittel 1 i kjemi har delkapitler (1.1–1.5, der 1.3 er mest usikker). De fire visualiseringene i kjemi kapittel 1 er koblet til delkapitlene. De andre i kjemi og alle i biologi er koblet per kapittel (`sections: []`). Noen kapitteltitler er heller ikke bekreftet: kapittel 2 i kjemi og kapittel 8, 13 og 15 i biologi.
-- **Visualiseringene er halvveis:** fysikk kapittel 5–10 har ennå det gamle utseendet og mangler nye praktiske visualiseringer og eksempeloppgaver. Kjemi og biologi er ikke påbegynt (et halvferdig forsøk på å pusse opp byggeklossene ble tatt ut igjen før PR #7). Planen og elevens valg står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md). Eleven har bedt om at nytt arbeid ikke startes før eleven sier fra.
+- **Visualiseringene er halvveis:** fysikk kapittel 5–10 har ennå det gamle utseendet og mangler nye praktiske visualiseringer og eksempeloppgaver. Kjemi og biologi er ikke påbegynt (et halvferdig forsøk på å pusse opp byggeklossene ble tatt ut igjen før PR #7). Neste økt fortsetter med dette, med fysikk først. Planen og elevens valg står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md), og skriptene står i [docs/workflows/](workflows/README.md).
 - **Rottegnet (√) i `FormulaLine`** står litt for lavt. Kapittel 4 retter det lokalt; det bør rettes i `viz/kit/` for alle.
 - **De nye visualiseringene er ikke prøvd på en ekte iPad eller iPhone,** bare i WebKit-testene i CI.
 - **Bare én bruker:** appen har ett passord og én database. Vil andre bruke den i dag, trenger de hver sin egen server.
@@ -117,7 +118,7 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 
 Dette er bare forslag. Eleven bestemmer rekkefølgen.
 
-1. **Fullføre visualiseringene** etter [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md): fysikk kapittel 5–10, deretter kjemi og biologi. Workflow-skriptene fra økten 5.–6. oktober ligger ikke i repoet, så en ny økt må skrive dem på nytt etter planfila.
+1. **Fullføre visualiseringene** (neste økt, eleven har bestemt det): fysikk kapittel 5–10 først, deretter kjemi og biologi, på samme måte som i økten 5.–6. oktober. Skriptene, katalogene og fremgangsmåten står i [docs/workflows/README.md](workflows/README.md). Fremdriften står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md).
 2. **Prøve med ekte Claude:** konverter noen vanskelige fysikknotater og lag et par kortstokker. Juster så instruksene etter resultatet: `server/src/profiles/physics.ts` og `server/src/flashcards/prompt.ts`.
 3. **Vise faktisk forbruk i appen:** tokenbruken lagres i dag i `notes.usage`, `decks.usage` og `meta.json` i notatmappen, men bare for siste vellykkede kjøring. «Konverter på nytt» og nye forsøk på en kortstokk overskriver tallene, og import av innholdsfortegnelser og mislykkede forsøk lagres ikke. Feltene synkroniseres heller ikke til klienten, og det finnes verken tidsstempel per kall eller pristabell. En riktig månedssum trenger derfor trolig en egen logg (for eksempel tabellen `usage_log` med tid, type, modell og tokens) som alle Claude-kall skriver til, og et eget API-endepunkt. Den falske Claude rapporterer 0 tokens.
 4. **Flere brukere på samme server:** dette gjør at andre elever kan bruke appen. Det krever:

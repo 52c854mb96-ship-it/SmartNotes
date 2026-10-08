@@ -1,8 +1,10 @@
 # Arbeidsplan: bedre visualiseringer (oktober 2026)
 
-> Arbeidsfil for økten som startet 5. oktober 2026. Den viser hva eleven har bestemt, og hvor langt arbeidet har
-> kommet, så arbeidet kan fortsette etter en pause (bruksgrense, ny container). Slettes eller flyttes inn i
-> `docs/STATUS.md` når alt er ferdig. **Det eleven skriver i chatten, går foran denne fila.**
+> Arbeidsfil for arbeidet med visualiseringene, som startet 5. oktober 2026. Den viser hva eleven har bestemt, og
+> hvor langt arbeidet har kommet, så det kan fortsette i en ny økt. Slettes eller flyttes inn i `docs/STATUS.md` når
+> alt er ferdig. **Det eleven skriver i chatten, går foran denne fila.**
+>
+> **Slik fortsetter du:** les [docs/workflows/README.md](workflows/README.md). Der står skriptene som ble brukt, argumentene for hvert kapittel, hvordan arbeidet gjenopptas etter bruksgrensen, og erfaringene fra første økt.
 
 ## Elevens bestilling
 
@@ -24,10 +26,11 @@
    - Kraft- og fartspiler oppå, som kan slås av og på.
    - Ingen nye npm-pakker og ingen 3D. Lyst og mørkt tema, mobil.
 4. **Ingen pilot:** kjør alt med en gang. Én PR per fag, med fysikk først. Flett selv når CI er grønn.
-5. **Fortsett automatisk:**
+5. **Fortsett automatisk (gjaldt økten 5.–6. oktober):**
    - Etter fysikk går arbeidet rett videre med kjemi og biologi.
    - Stopper bruksgrensen arbeidet, skal det fortsette av seg selv når grensen er nullstilt. Det sørget en gjentakende påminnelse i økten for.
 6. **Pause (6. oktober):** eleven ba om at arbeidet stopper når de pågående workflowene er ferdige, og at ikke noe nytt startes før eleven sier fra. Påminnelsen er slått av. Dette går foran punkt 5.
+7. **Neste økt (8. oktober):** eleven vil at neste økt fortsetter med visualiseringene på samme måte som i økten 5.–6. oktober. Rekkefølgen er resten av fysikk først (kapittel 5–10, fysikk prioriteres), deretter kjemi og biologi.
 
 ## Fremdrift
 
@@ -39,12 +42,13 @@ Merk av her når en del er ferdig, og commit + push. Grenen er `claude/blissful-
   - [x] Eksempeloppgaver: `viz/kit/eksempel.tsx`, `kind: 'eksempel'` i `VizMeta`, egen gruppe på sidene
   - [x] Referanse: eksempeloppgaven `k2-eks-skraplan` (kapittelagentene oppgraderer og lager nye etter stilguiden)
   - [x] README i `viz/` med stilguide for illustrert realisme og eksempeloppgaver
-- [ ] 2. Fysikk (kapittel 1–10): oppgradere, lage nye, lage eksempler, kontrollere og rette. Startet 5. oktober kl. 17.15 (UTC), én workflow per kapittel; hvert kapittel committes for seg («Fysikk kapittel N: …»)
-  - Ferdige kapitler: 4 (12903f5: 3 oppgraderte, 3 nye, 2 eksempeloppgaver), 2 (fee4538: 6 oppgraderte, 3 nye, 2 eksempeloppgaver), 1 (b95d75d: 4 oppgraderte, 3 nye, 2 eksempeloppgaver), 3 (69c89ab: 3 oppgraderte, 3 nye, 2 eksempeloppgaver). Gjenstår: kapittel 5–10 (bruk wf-fysikk2.js, slank). Eleven sa 6. oktober: start ikke noe nytt før eleven sier fra.
-- [ ] 2b. Finpuss av kjemi- og biologi-kit-et (startet parallelt, men avbrutt av bruksgrensen før kontroll; tatt ut igjen før PR #7, start på nytt sammen med punkt 4)
-- [ ] 3. PR for fysikk, CI grønn, flettet (PR #7 tar grunnmuren og kapittel 1–4; kapittel 5–10 får en egen PR)
-- [ ] 4. Kjemi (kapittel 1–8)
-- [ ] 5. Biologi (kapittel 1–15)
+- [ ] 2. Fysikk (kapittel 1–10): oppgradere, lage nye, lage eksempler, kontrollere og rette. Én workflow per kapittel, og hvert kapittel committes for seg («Fysikk kapittel N: …»).
+  - Ferdige og flettet i PR #7: kapittel 1 (4 oppgraderte, 3 nye, 2 eksempeloppgaver), 2 (6, 3, 2), 3 (3, 3, 2) og 4 (3, 3, 2).
+  - Gjenstår: kapittel 5–10. Bruk `docs/workflows/fysikk-kapittel.js` med kapittelet fra `docs/workflows/fysikk-katalog.json`. Katalogen under er samme innhold i kortform.
+- [ ] 2b. Finpuss av kjemi- og biologi-kit-et. Et forsøk ble avbrutt av bruksgrensen før kontroll og tatt ut igjen før PR #7. Kjør `docs/workflows/kit-finpuss.js` på nytt før punkt 4, kontroller resultatet og commit.
+- [ ] 3. PR for fysikk, CI grønn, flettet. PR #7 tok grunnmuren og kapittel 1–4. Kapittel 5–10 får en egen PR.
+- [ ] 4. Kjemi (kapittel 1–8): `docs/workflows/kjemi-biologi-kapittel.js` med kapitlene fra `docs/workflows/kjemi-biologi-katalog.json`
+- [ ] 5. Biologi (kapittel 1–15): samme skript og katalog
 - [ ] 6. PR for kjemi og biologi, CI grønn, flettet
 - [ ] 7. `docs/STATUS.md` og `CLAUDE.md` oppdatert, denne fila fjernet
 
