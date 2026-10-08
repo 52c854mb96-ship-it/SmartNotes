@@ -1,12 +1,12 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  Arrow,
   Controls,
   Explain,
   Figure,
   Formula,
   FormulaLine,
   Legend,
+  PlayControls,
   Readout,
   Readouts,
   Segmented,
@@ -17,43 +17,56 @@ import {
   VizLayout,
   fmt,
   fmtSci,
-  useTextScale,
+  useSimClock,
 } from '../../kit';
-import {
-  colorName,
-  levelEnergyEV,
-  levelEnergyJ,
-  REGION_NAMES,
-  seriesName,
-  sigDecimals,
-  spectralRegion,
-  transitionPhoton,
-  VISIBLE_MAX,
-  VISIBLE_MIN,
-  wavelengthColor,
-  wavelengthToRgb,
-} from './model';
-import { PhotonWave, Txt } from './parts';
-import { useNarrow } from './useNarrow';
-
-type Mode = 'emisjon' | 'absorpsjon';
+import { AtomLupe, lightText, type Mode } from './bohr-atom';
+import { WavelengthAxis } from './bohr-bolgelengder';
+import { LabVignett, LupeStreker, SolVignett, labGeometry, sunGeometry, type Box } from './bohr-deler';
+import { LevelDiagram, N_TOP, levelsHeight } from './bohr-nivaer';
+import { BOHR_ANIM, dischargeRgb, orbitRadius, rgbText, type Circle } from './bohr-scene';
+import { REGION_NAMES, colorName, levelEnergyEV, levelEnergyJ, seriesName, sigDecimals, spectralRegion, transitionPhoton, wavelengthColor } from './model';
+import { useFigureTextScale, useNarrow } from './useNarrow';
 
 const MODES: { value: Mode; label: string }[] = [
   { value: 'emisjon', label: 'Emisjon: elektronet faller ned' },
   { value: 'absorpsjon', label: 'Absorpsjon: elektronet løftes opp' },
 ];
 
-/** Høyeste nivå i figuren. */
-const N_TOP = 6;
 /** Farge for hver serie (nederste nivå 1–5). */
 const SERIES_COLOR = [VIZ.series[3]!, VIZ.series[0]!, VIZ.series[1]!, VIZ.series[2]!, VIZ.series[4]!];
 const seriesColor = (nLower: number) => SERIES_COLOR[nLower - 1] ?? VIZ.ink;
+
+/** Fargen hydrogenrøret lyser med (summen av Balmer-linjene) og den røde Hα-fargen i solatmosfæren. */
+const TUBE_RGB = rgbText(dischargeRgb());
+const H_ALPHA_RGB = wavelengthColor(transitionPhoton(3, 2).lambda * 1e9, 'red');
+
+interface SceneLayout {
+  stacked: boolean;
+  H: number;
+  box: Box;
+  lupe: Circle;
+  xEnd: number;
+}
+
+/** Utsnittet til venstre og lupen til høyre på PC; utsnittet over lupen på mobil, der teksten er større. */
+function sceneLayout(f: number): SceneLayout {
+  if (f <= 1.3) return { stacked: false, H: 340, box: { x: 8, y: 8, w: 252, h: 324 }, lupe: { x: 440, y: 170, r: 160 }, xEnd: 792 };
+  const box = { x: 8, y: 8, w: 784, h: 340 };
+  const r = 215;
+  const lupe = { x: 262, y: box.y + box.h + 28 + r, r };
+  return { stacked: true, H: Math.round(lupe.y + r + 14), box, lupe, xEnd: 792 };
+}
 
 export default function BohrHydrogen() {
   const [mode, setMode] = useState<Mode>('emisjon');
   const [upper, setUpper] = useState(3);
   const [lower, setLower] = useState(2);
   const [ref, narrow] = useNarrow<HTMLDivElement>();
+  const [sceneRef, f] = useFigureTextScale<HTMLDivElement>();
+  const clock = useSimClock({ tMax: BOHR_ANIM.total });
+  const { reset } = clock;
+  // Ny overgang eller ny modus: avspillingen starter forfra.
+  useEffect(() => reset(), [mode, upper, lower, reset]);
 
   // Nederste nivå er alltid under øverste: den som flyttes, dytter den andre.
   const changeUpper = (n: number) => {
@@ -69,25 +82,46 @@ export default function BohrHydrogen() {
   const nm = p.lambda * 1e9;
   const region = spectralRegion(nm);
   const [from, to] = mode === 'emisjon' ? [upper, lower] : [lower, upper];
-  const levelsH = narrow ? 900 : 440;
+  const levelsH = levelsHeight(narrow);
+  const lay = sceneLayout(f);
+  const k = Math.max(1, f * 0.85);
+  const lab = useMemo(() => labGeometry(lay.box, k), [lay.box, k]);
+  const sun = useMemo(() => sunGeometry(lay.box, k), [lay.box, k]);
+  const ring = mode === 'emisjon' ? lab.ring : sun.ring;
+  const animating = clock.playing || (clock.t > 0 && clock.t < BOHR_ANIM.total);
+  const color = seriesColor(lower);
+
+  const sceneLabel =
+    mode === 'emisjon'
+      ? `Et spektralrør med hydrogen lyser rosa i et mørkt klasserom. Lupen viser ett hydrogenatom med banene i riktig forhold: elektronet hopper fra bane n = ${upper} til n = ${lower} og sender ut et foton med bølgelengde ${fmt(nm, 0)} nm (${lightText(nm)}).`
+      : `Sollys går gjennom den kaldere gassen i solatmosfæren. Lupen viser ett hydrogenatom som tar opp et foton med bølgelengde ${fmt(nm, 0)} nm, så elektronet hopper fra bane n = ${lower} til n = ${upper}. Fotoner med litt mer og litt mindre energi går rett gjennom.`;
 
   return (
     <VizLayout>
       <Toolbar>
         <Segmented label="Velg emisjon eller absorpsjon" options={MODES} value={mode} onChange={setMode} />
+        <PlayControls clock={clock} decimals={1} />
       </Toolbar>
       <Controls>
         <Slider label="Øverste nivå" value={upper} onChange={changeUpper} min={2} max={N_TOP} step={1} format={(v) => `n = ${v}`} />
         <Slider label="Nederste nivå" value={lower} onChange={changeLower} min={1} max={N_TOP - 1} step={1} format={(v) => `n = ${v}`} />
       </Controls>
 
+      <div ref={sceneRef}>
+        <Figure viewBox={`0 0 800 ${lay.H}`} label={sceneLabel} maxHeight={lay.stacked ? 820 : 400}>
+          {mode === 'emisjon' ? <LabVignett box={lay.box} g={lab} glowRgb={TUBE_RGB} k={k} /> : <SolVignett box={lay.box} g={sun} layerRgb={H_ALPHA_RGB} k={k} />}
+          <LupeStreker ring={ring} lupe={lay.lupe} />
+          <AtomLupe c={lay.lupe} mode={mode} upper={upper} lower={lower} t={animating ? clock.t : null} xEnd={lay.xEnd} color={color} />
+        </Figure>
+      </div>
+
       <div ref={ref}>
         <Figure
           viewBox={`0 0 800 ${levelsH}`}
           label={`Energinivåene i hydrogen. ${mode === 'emisjon' ? 'Emisjon' : 'Absorpsjon'}: elektronet går fra n = ${from} til n = ${to}, og fotonet har bølgelengde ${fmt(nm, 0)} nm.`}
-          maxHeight={narrow ? 900 : 440}
+          maxHeight={levelsH}
         >
-          <LevelDiagram upper={upper} lower={lower} mode={mode} narrow={narrow} height={levelsH} />
+          <LevelDiagram upper={upper} lower={lower} mode={mode} narrow={narrow} height={levelsH} color={color} />
         </Figure>
       </div>
 
@@ -95,7 +129,7 @@ export default function BohrHydrogen() {
         viewBox={`0 0 800 ${narrow ? 430 : 270}`}
         label={`Bølgelengdene til alle overgangene opp til n = 6 på en logaritmisk akse. Det valgte fotonet har ${fmt(nm, 0)} nm (${REGION_NAMES[region]}).`}
       >
-        <WavelengthAxis upper={upper} lower={lower} height={narrow ? 430 : 270} />
+        <WavelengthAxis upper={upper} lower={lower} height={narrow ? 430 : 270} seriesColor={seriesColor} />
       </Figure>
       <Legend
         items={[1, 2, 3, 4, 5].map((n) => ({
@@ -135,329 +169,10 @@ export default function BohrHydrogen() {
   );
 }
 
-interface Panel {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  eMin: number;
-  eMax: number;
-  /** Nivålinjene går fra lineX0 til lineX1. */
-  lineX0: number;
-  lineX1: number;
-}
-
-function yOf(pn: Panel, E: number): number {
-  return pn.y + pn.h - ((E - pn.eMin) / (pn.eMax - pn.eMin)) * pn.h;
-}
-
-function LevelDiagram({
-  upper,
-  lower,
-  mode,
-  narrow,
-  height,
-}: {
-  upper: number;
-  lower: number;
-  mode: Mode;
-  narrow: boolean;
-  height: number;
-}) {
-  const f = useTextScale();
-  const clipId = `bohr-clip-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  const head = 34 * Math.min(f, 1.5);
-
-  const main: Panel = narrow
-    ? { x: 0, y: 24, w: 800, h: 380, eMin: -14.2, eMax: 0.4, lineX0: 200, lineX1: 520 }
-    : { x: 0, y: 24, w: 440, h: 392, eMin: -14.2, eMax: 0.4, lineX0: 116, lineX1: 300 };
-  const zoom: Panel = narrow
-    ? { x: 0, y: 470 + head, w: 800, h: height - 470 - head - 24, eMin: -1.68, eMax: 0.12, lineX0: 200, lineX1: 540 }
-    : { x: 456, y: 24 + head, w: 344, h: height - 48 - head, eMin: -1.68, eMax: 0.12, lineX0: 500, lineX1: 682 };
-
-  // Rammen rundt området som er forstørret
-  const zTop = yOf(main, zoom.eMax);
-  const zBot = yOf(main, zoom.eMin);
-
-  // Overgangene i samme serie (samme nederste nivå) tegnes svakt ved siden av den valgte
-  const seriesUppers: number[] = [];
-  for (let n = lower + 1; n <= N_TOP; n++) seriesUppers.push(n);
-  const color = seriesColor(lower);
-  const nm = transitionPhoton(upper, lower).lambda * 1e9;
-  const photonColor = wavelengthToRgb(nm) ? wavelengthColor(nm, color) : color;
-
-  const arrowX = (pn: Panel, n: number) => {
-    const span = pn.lineX1 - pn.lineX0;
-    const count = N_TOP - lower;
-    return pn.lineX0 + span * 0.14 + (n - lower - 1) * Math.min(36, (span * 0.62) / Math.max(1, count - 1));
-  };
-
-  const transitions = (pn: Panel, clip: boolean) => (
-    <g clipPath={clip ? `url(#${clipId})` : undefined}>
-      {seriesUppers.map((n) => {
-        const selected = n === upper;
-        const x = arrowX(pn, n);
-        const [a, b] = mode === 'emisjon' ? [n, lower] : [lower, n];
-        return (
-          <Arrow
-            key={n}
-            x1={x}
-            y1={yOf(pn, levelEnergyEV(a))}
-            x2={x}
-            y2={yOf(pn, levelEnergyEV(b))}
-            color={color}
-            width={selected ? 4 : 2}
-            head={selected ? 13 : 9}
-            dashed={!selected}
-            minLength={4}
-          />
-        );
-      })}
-    </g>
-  );
-
-  // Fotonet tegnes der overgangen synes best: i forstørrelsen når begge nivåene er med der. Det starter til høyre for
-  // den siste pilen i serien, så bølgen ikke krysser de stiplede overgangene.
-  const inZoom = lower >= 3;
-  const pn = inZoom ? zoom : main;
-  const ax = arrowX(pn, N_TOP);
-  const eTop = inZoom ? levelEnergyEV(upper) : Math.min(levelEnergyEV(upper), zoom.eMin - 0.1);
-  const yPh = (yOf(pn, levelEnergyEV(lower)) + yOf(pn, eTop)) / 2;
-  const phEnd = inZoom ? pn.lineX1 - 6 : pn.lineX1 + (narrow ? 170 : 110);
-  const [px0, px1] = [ax + 16, Math.max(ax + 60, phEnd)];
-
-  const levelLabel = (pnl: Panel, n: number, text: string) => {
-    const y = yOf(pnl, levelEnergyEV(n));
-    const on = n === upper || n === lower;
-    return (
-      <Txt x={pnl.lineX0 - 12} y={y + 6} anchor="end" weight={on ? 700 : 500}>
-        {text}
-      </Txt>
-    );
-  };
-
-  return (
-    <>
-      <defs>
-        <clipPath id={clipId}>
-          <rect x={zoom.x} y={zoom.y - 8} width={zoom.w} height={zoom.h + 16} />
-        </clipPath>
-      </defs>
-
-      {/* Energiakse */}
-      <Arrow x1={22} y1={main.y + main.h} x2={22} y2={main.y} color={VIZ.muted} width={1.5} head={9} />
-      <Txt x={36} y={main.y + 14} anchor="start" muted>
-        E
-      </Txt>
-
-      {/* Hovedfiguren i riktig skala */}
-      {[1, 2, 3, 4, 5, 6].map((n) => (
-        <line
-          key={n}
-          x1={main.lineX0}
-          x2={main.lineX1}
-          y1={yOf(main, levelEnergyEV(n))}
-          y2={yOf(main, levelEnergyEV(n))}
-          stroke={n === upper || n === lower ? VIZ.ink : VIZ.muted}
-          strokeWidth={n === upper || n === lower ? 2.5 : 1.5}
-        />
-      ))}
-      <line x1={main.lineX0} x2={main.lineX1} y1={yOf(main, 0)} y2={yOf(main, 0)} className="viz-guide" />
-      {[1, 2].map((n) => (
-        <g key={n}>
-          {levelLabel(main, n, `n = ${n}`)}
-          <Txt x={main.lineX0 - 12} y={yOf(main, levelEnergyEV(n)) + 6 + 22 * f} anchor="end" muted>
-            {fmt(levelEnergyEV(n), sigDecimals(levelEnergyEV(n)))} eV
-          </Txt>
-        </g>
-      ))}
-      <rect
-        x={main.lineX0 - 6}
-        y={zTop}
-        width={main.lineX1 - main.lineX0 + 12}
-        height={zBot - zTop}
-        fill="none"
-        stroke={VIZ.muted}
-        strokeDasharray="4 4"
-        strokeWidth={1.2}
-        rx={4}
-      />
-      <Txt x={main.lineX0 - 12} y={(zTop + zBot) / 2 + 6} anchor="end" muted>
-        n ≥ 3
-      </Txt>
-      {transitions(main, false)}
-
-      {/* Forstørrelse av nivåene nær null */}
-      <rect
-        x={zoom.x + 4}
-        y={zoom.y - head}
-        width={zoom.w - 8}
-        height={zoom.h + head + 10}
-        rx={10}
-        fill="none"
-        stroke={VIZ.grid}
-        strokeWidth={1.5}
-      />
-      <Txt x={zoom.x + 18} y={zoom.y - head + 24 * Math.min(f, 1.5)} anchor="start" muted>
-        Forstørret: n = 3 til ∞
-      </Txt>
-      {[7, 8, 9, 10, 12, 15].map((n) => (
-        <line
-          key={n}
-          x1={zoom.lineX0}
-          x2={zoom.lineX1}
-          y1={yOf(zoom, levelEnergyEV(n))}
-          y2={yOf(zoom, levelEnergyEV(n))}
-          stroke={VIZ.grid}
-          strokeWidth={1.5}
-        />
-      ))}
-      {[3, 4, 5, 6].map((n) => (
-        <g key={n}>
-          <line
-            x1={zoom.lineX0}
-            x2={zoom.lineX1}
-            y1={yOf(zoom, levelEnergyEV(n))}
-            y2={yOf(zoom, levelEnergyEV(n))}
-            stroke={n === upper || n === lower ? VIZ.ink : VIZ.muted}
-            strokeWidth={n === upper || n === lower ? 2.5 : 1.5}
-          />
-          {levelLabel(zoom, n, narrow ? `n = ${n}` : String(n))}
-          <Txt x={zoom.lineX1 + 8} y={yOf(zoom, levelEnergyEV(n)) + 6} anchor="start" muted>
-            {fmt(levelEnergyEV(n), sigDecimals(levelEnergyEV(n)))} eV
-          </Txt>
-        </g>
-      ))}
-      <line x1={zoom.lineX0} x2={zoom.lineX1} y1={yOf(zoom, 0)} y2={yOf(zoom, 0)} className="viz-guide" />
-      <Txt x={zoom.lineX0 - 12} y={yOf(zoom, 0) + 6} anchor="end">
-        {narrow ? 'n = ∞' : '∞'}
-      </Txt>
-      <Txt x={zoom.lineX1 + 8} y={yOf(zoom, 0) + 6} anchor="start" muted>
-        0 eV
-      </Txt>
-      {transitions(zoom, true)}
-
-      {/* Fotonet: ut fra atomet ved emisjon, inn ved absorpsjon */}
-      {mode === 'emisjon' ? (
-        <PhotonWave x1={px0} y1={yPh} x2={px1} y2={yPh} color={photonColor} />
-      ) : (
-        <PhotonWave x1={px1} y1={yPh} x2={px0} y2={yPh} color={photonColor} />
-      )}
-    </>
-  );
-}
-
-const LOG_MIN = Math.log10(80);
-const LOG_MAX = Math.log10(8000);
-
-function WavelengthAxis({ upper, lower, height }: { upper: number; lower: number; height: number }) {
-  const f = useTextScale();
-  const gradId = `rainbow-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
-  const x0 = 30;
-  const x1 = 770;
-  const sx = (nm: number) => x0 + ((Math.log10(nm) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * (x1 - x0);
-  const barY = 34 * f;
-  const barH = 16;
-  const rowsTop = barY + barH + 18;
-  const axisY = height - 56 * f;
-  const rowH = (axisY - rowsTop - 10) / 5;
-  const selNm = transitionPhoton(upper, lower).lambda * 1e9;
-  const ticks = [100, 200, 500, 1000, 2000, 5000];
-  const stops: ReactNode[] = [];
-  for (let nm = VISIBLE_MIN; nm <= VISIBLE_MAX; nm += 10) {
-    stops.push(
-      <stop key={nm} offset={`${((nm - VISIBLE_MIN) / (VISIBLE_MAX - VISIBLE_MIN)) * 100}%`} stopColor={wavelengthColor(nm, 'black')} />,
-    );
-  }
-  const selX = sx(selNm);
-  const labelAnchor = selX > 680 ? 'end' : selX < 120 ? 'start' : 'middle';
-
-  return (
-    <>
-      <defs>
-        <linearGradient id={gradId} x1="0" x2="1" y1="0" y2="0">
-          {stops}
-        </linearGradient>
-      </defs>
-      {/* Områdene: ultrafiolett, synlig, infrarødt */}
-      <rect x={sx(80)} y={barY} width={sx(VISIBLE_MIN) - sx(80)} height={barH} fill={VIZ.series[3]} opacity={0.18} />
-      <rect x={sx(VISIBLE_MIN)} y={barY} width={sx(VISIBLE_MAX) - sx(VISIBLE_MIN)} height={barH} fill={`url(#${gradId})`} />
-      <rect x={sx(VISIBLE_MAX)} y={barY} width={sx(8000) - sx(VISIBLE_MAX)} height={barH} fill={VIZ.series[1]} opacity={0.18} />
-      {/* Områdenavnet skjules der etiketten til det valgte fotonet står */}
-      {selNm >= VISIBLE_MIN && (
-        <Txt x={(sx(80) + sx(VISIBLE_MIN)) / 2} y={barY - 10} muted>
-          UV
-        </Txt>
-      )}
-      {selNm <= VISIBLE_MAX && (
-        <Txt x={(sx(VISIBLE_MAX) + sx(8000)) / 2} y={barY - 10} muted>
-          infrarødt
-        </Txt>
-      )}
-
-      {/* Én rad per serie */}
-      {[1, 2, 3, 4, 5].map((L) => {
-        const y = rowsTop + (L - 1) * rowH;
-        const uppers: number[] = [];
-        for (let n = L + 1; n <= N_TOP; n++) uppers.push(n);
-        const nms = uppers.map((n) => transitionPhoton(n, L).lambda * 1e9);
-        const longest = Math.max(...nms);
-        const shortest = Math.min(...nms);
-        const right = sx(longest) + 10 < x1 - 120 * f * 0.6;
-        const active = L === lower;
-        return (
-          <g key={L}>
-            {nms.map((v, i) => {
-              const sel = active && uppers[i] === upper;
-              const real = L === 2 && wavelengthToRgb(v);
-              return (
-                <line
-                  key={v}
-                  x1={sx(v)}
-                  x2={sx(v)}
-                  y1={y + 2}
-                  y2={y + rowH - 4}
-                  stroke={real ? wavelengthColor(v, seriesColor(L)) : seriesColor(L)}
-                  strokeWidth={sel ? 5 : 2.5}
-                  opacity={active ? 1 : 0.55}
-                />
-              );
-            })}
-            <Txt
-              x={right ? sx(longest) + 10 : sx(shortest) - 10}
-              y={y + rowH / 2 + 6}
-              anchor={right ? 'start' : 'end'}
-              color={active ? seriesColor(L) : undefined}
-              muted={!active}
-              weight={active ? 700 : 500}
-            >
-              {seriesName(L)}
-            </Txt>
-          </g>
-        );
-      })}
-
-      {/* Valgt linje */}
-      <line x1={selX} x2={selX} y1={barY + barH} y2={rowsTop + (lower - 1) * rowH + 2} className="viz-guide" />
-      <Txt x={selX} y={barY - 10} anchor={labelAnchor} weight={700}>
-        {fmt(selNm, 0)} nm
-      </Txt>
-
-      {/* Akse */}
-      <line x1={x0} x2={x1} y1={axisY} y2={axisY} className="viz-axis" />
-      {ticks.map((t) => (
-        <g key={t}>
-          <line x1={sx(t)} x2={sx(t)} y1={axisY} y2={axisY + 6} className="viz-axis" />
-          <text x={sx(t)} y={axisY + 22 * f} textAnchor="middle" className="viz-tick">
-            {fmt(t, 0)}
-          </text>
-        </g>
-      ))}
-      <text x={x1} y={height - 6} textAnchor="end" className="viz-axis-label">
-        bølgelengde λ (nm, logaritmisk akse)
-      </text>
-    </>
-  );
+/** Radien til bane n som tekst: «0,053 nm», «1,9 nm». */
+function radiusText(n: number): string {
+  const r = orbitRadius(n) * 1e9;
+  return `${fmt(r, sigDecimals(r, 2))} nm`;
 }
 
 function explanation(mode: Mode, upper: number, lower: number, eV: number, nm: number): ReactNode {
@@ -491,21 +206,64 @@ function explanation(mode: Mode, upper: number, lower: number, eV: number, nm: n
         (ionisering, E = 0).
       </>
     ) : null;
-  if (mode === 'emisjon')
-    return (
-      <p>
-        <strong>Emisjon.</strong> Elektronet faller fra n = {upper} til n = {lower} og sender ut ett foton med energi lik forskjellen mellom
-        nivåene: E = hf = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = {fmt(eV, sigDecimals(eV))} eV. Det gir λ = {fmt(nm, 0)} nm, som er{' '}
-        {where}. {seriesText}
-        {ionize} Bohrs modell gir riktige nivåer for hydrogen, men virker ikke for atomer med flere elektroner.
-      </p>
+  const orbits = (
+    <>
+      {' '}
+      I lupen ser du at banene ligger lenger og lenger fra hverandre utover (r = n² · 0,053 nm, så bane {upper} har radius{' '}
+      {radiusText(upper)}), mens energinivåene i diagrammet ligger tettere og tettere.
+    </>
+  );
+  if (mode === 'emisjon') {
+    const why = visibleBalmer ? (
+      <>
+        Det er derfor spektralrøret lyser rosa: lyset er en blanding av rødt fra n = 3 til 2, som er sterkest, og blågrønt og fiolett
+        fra de andre Balmer-overgangene. Ser du på røret gjennom et gitter, får du fire skarpe linjer.
+      </>
+    ) : region === 'uv' ? (
+      <>Det er derfor du ikke ser denne overgangen i spektralrøret: fotonet er ultrafiolett og usynlig for øyet.</>
+    ) : (
+      <>Det er derfor du ikke ser denne overgangen i spektralrøret: fotonet er infrarødt, men et IR-kamera kan fange det opp.</>
     );
+    return (
+      <>
+        <p>
+          <strong>Emisjon.</strong> Elektronet faller fra n = {upper} til n = {lower} og sender ut ett foton med energi lik forskjellen mellom
+          nivåene: E = hf = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = {fmt(eV, sigDecimals(eV))} eV. Det gir λ = {fmt(nm, 0)} nm, som er{' '}
+          {where}. {seriesText}
+          {ionize} Bohrs modell gir riktige nivåer for hydrogen, men virker ikke for atomer med flere elektroner.
+        </p>
+        <p>
+          {why}
+          {orbits}
+        </p>
+      </>
+    );
+  }
+  const why = visibleBalmer ? (
+    <>
+      Det er derfor sollyset har en mørk linje ved {fmt(nm, 0)} nm: hydrogen i solatmosfæren tar opp akkurat disse fotonene, mens resten
+      av lyset går gjennom.
+    </>
+  ) : lower === 1 ? (
+    <>Det er derfor kald hydrogengass bare tar opp ultrafiolett lys: nesten alle atomene er i grunntilstanden n = 1.</>
+  ) : (
+    <>
+      Nesten ingen atomer er i n = {lower} uten at gassen er svært varm, så slike linjer er svake. Fotonet er{' '}
+      {region === 'synlig' ? 'synlig lys' : REGION_NAMES[region]}.
+    </>
+  );
   return (
-    <p>
-      <strong>Absorpsjon.</strong> Atomet tar bare opp et foton som har nøyaktig energien E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> ={' '}
-      {fmt(eV, sigDecimals(eV))} eV (λ = {fmt(nm, 0)} nm, {region === 'synlig' ? `synlig lys med ${colorName(nm)} farge` : REGION_NAMES[region]}). Da løftes elektronet
-      fra n = {lower} til n = {upper}. Fotoner med litt mer eller litt mindre energi går rett gjennom, fordi elektronet ikke kan være mellom
-      nivåene.{ionizeAbs}
-    </p>
+    <>
+      <p>
+        <strong>Absorpsjon.</strong> Atomet tar bare opp et foton som har nøyaktig energien E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> ={' '}
+        {fmt(eV, sigDecimals(eV))} eV (λ = {fmt(nm, 0)} nm, {region === 'synlig' ? `synlig lys med ${colorName(nm)} farge` : REGION_NAMES[region]}). Da
+        løftes elektronet fra n = {lower} til n = {upper}. Fotoner med litt mer eller litt mindre energi går rett gjennom, fordi elektronet ikke kan
+        være mellom nivåene.{ionizeAbs}
+      </p>
+      <p>
+        {why}
+        {orbits}
+      </p>
+    </>
   );
 }

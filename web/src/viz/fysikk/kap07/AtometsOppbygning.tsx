@@ -9,15 +9,39 @@ import {
   Readout,
   Readouts,
   Slider,
-  VIZ,
+  Txt,
   VizLayout,
   fmt,
   useTextScale,
 } from '../../kit';
+import { Dimension, useSceneScale } from '../../kit/scene';
+import {
+  AtomBackdrop,
+  AtomElectrons,
+  NuclideCard,
+  NucleusLens,
+  PitchStrip,
+  TinyNucleus,
+  ZoomCone,
+  nucleusSizeText,
+  occupiedRadius,
+  pitchStripHeight,
+} from './atomets-oppbygning-scene';
+import { PeriodicExcerpt, tableLayout } from './atomets-oppbygning-tabell';
 import { elementNameCap, nuclideText } from './elements';
 import { atomInfo, chargeSuperscript, electronRange, mostCommonA, neutronRange, STABLE_ISOTOPES, type AtomInfo } from './model';
-import { NuclideSymbol, Nucleus, PARTICLE, Txt } from './parts';
-import { useNarrow } from './useNarrow';
+import {
+  EVERYDAY,
+  atomToNucleusRatio,
+  groupOfColumn,
+  outerElectrons,
+  roundSig,
+  scaleObject,
+  scaledNucleus,
+  tablePosition,
+} from './model-atomets-oppbygning';
+import { PARTICLE } from './parts';
+import { useFigureTextScale } from './useNarrow';
 
 interface State {
   Z: number;
@@ -25,21 +49,42 @@ interface State {
   e: number;
 }
 
-/** Radiene til elektronskallene i figuren. Kjernen har radius høyst ca. 63 (A ≤ 50), så den får plass innenfor det første skallet. */
-const SHELL_R = [84, 120, 156, 192];
-const ATOM = { cx: 228, cy: 214 };
-/** Mobil: atomet forstørres og står øverst, med symbolet under. */
-const NARROW_ATOM_SCALE = 1.5;
-const NARROW_ATOM_Y = 306;
-const NARROW_TEXT_Y = 730;
-const NARROW_H = 830;
+/**
+ * Plasseringen av atomet, utsnittet med kjernen, navnekortet og fotballbanen. PC: atomet til venstre, utsnittet i
+ * midten og navnet til høyre, fotballbanen under. Mobil: atomet forstørret øverst, utsnittet og navnet under hverandre
+ * i to kolonner, fotballbanen nederst.
+ */
+interface SceneLayout {
+  atom: { cx: number; cy: number; radii: number[] };
+  lens: { cx: number; cy: number; R: number };
+  card: { x: number; symbolY: number; size: number };
+  stripY: number;
+}
+
+const DESKTOP: SceneLayout = {
+  atom: { cx: 180, cy: 200, radii: [50, 80, 110, 140] },
+  lens: { cx: 430, cy: 152, R: 90 },
+  card: { x: 668, symbolY: 150, size: 86 },
+  stripY: 366,
+};
+
+const MOBILE: SceneLayout = {
+  atom: { cx: 400, cy: 310, radii: [84, 130, 176, 222] },
+  lens: { cx: 205, cy: 726, R: 138 },
+  card: { x: 594, symbolY: 694, size: 118 },
+  stripY: 946,
+};
 
 export default function AtometsOppbygning() {
   const [s, setS] = useState<State>({ Z: 11, N: 12, e: 11 });
   const [nLo, nHi] = neutronRange(s.Z);
   const [eLo, eHi] = electronRange(s.Z);
   const a = atomInfo(s.Z, s.N, s.e);
-  const [ref, narrow] = useNarrow<HTMLDivElement>();
+  const [ref, f] = useFigureTextScale<HTMLDivElement>();
+  const narrow = f > 1.3;
+  const L = narrow ? MOBILE : DESKTOP;
+  const H1 = L.stripY + pitchStripHeight(f);
+  const H2 = tableLayout(f).H;
 
   // Nytt grunnstoff: start med den vanligste stabile isotopen som nøytralt atom.
   const setZ = (Z: number) => setS({ Z, N: mostCommonA(Z) - Z, e: Z });
@@ -54,12 +99,12 @@ export default function AtometsOppbygning() {
 
       <div ref={ref}>
         <Figure
-          viewBox={`0 0 800 ${narrow ? NARROW_H : 430}`}
-          label={`${elementNameCap(a.Z)}-${a.A} med ${a.Z} protoner og ${a.N} nøytroner i kjernen og ${a.electrons} elektroner i skallene ${a.shells.join(', ')}.`}
-          caption="Figuren er ikke i målestokk: kjernen er i virkeligheten rundt 100 000 ganger mindre enn atomet."
-          maxHeight={narrow ? NARROW_H : 430}
+          viewBox={`0 0 800 ${Math.round(H1)}`}
+          label={`${elementNameCap(a.Z)}-${a.A} med ${a.Z} protoner og ${a.N} nøytroner i kjernen og ${a.electrons} elektroner i skallene ${a.shells.join(', ')}. Kjernen er vist forstørret i et utsnitt. Under: hvis atomet var en fotballbane, ville kjernen vært ${scaleObject(scaledNucleus(a.A) * 1000).name} på midtpunktet.`}
+          caption="Kjernen er tegnet forstørret i utsnittet. I riktig målestokk ville den vært et usynlig punkt midt i atomet."
+          maxHeight={narrow ? H1 : H1 + 40}
         >
-          <AtomScene a={a} narrow={narrow} />
+          <AtomScene a={a} L={L} />
         </Figure>
       </div>
       <Legend
@@ -69,6 +114,13 @@ export default function AtometsOppbygning() {
           { color: PARTICLE.electron, label: `Elektroner: ${a.electrons}` },
         ]}
       />
+      <Figure
+        viewBox={`0 0 800 ${Math.round(H2)}`}
+        label={`Utsnitt av periodesystemet med grunnstoffene Z = 1–20. ${elementNameCap(a.Z)} er valgt. Klikk på et grunnstoff for å velge det.`}
+        maxHeight={narrow ? H2 : H2 + 30}
+      >
+        <PeriodicExcerpt Z={a.Z} onPick={setZ} />
+      </Figure>
 
       <Readouts>
         <Readout label="Nukleontall A" value={String(a.A)} />
@@ -92,76 +144,40 @@ export default function AtometsOppbygning() {
   );
 }
 
-function AtomScene({ a, narrow }: { a: AtomInfo; narrow: boolean }) {
+function AtomScene({ a, L }: { a: AtomInfo; L: SceneLayout }) {
   const f = useTextScale();
-  const k = Math.max(1, f * 0.8);
-  // Elektronene fordeles jevnt i hvert skall, med litt forskjøvet start så skallene ikke står på linje.
-  const electrons: ReactNode[] = [];
-  a.shells.forEach((count, i) => {
-    const R = SHELL_R[i] ?? SHELL_R[SHELL_R.length - 1]!;
-    for (let j = 0; j < count; j++) {
-      const ang = -Math.PI / 2 + (2 * Math.PI * j) / count + i * 0.35;
-      const x = ATOM.cx + R * Math.cos(ang);
-      const y = ATOM.cy + R * Math.sin(ang);
-      electrons.push(
-        <g key={`${i}-${j}`}>
-          <circle cx={x} cy={y} r={9} fill={PARTICLE.electron} stroke={VIZ.surface} strokeWidth={2} />
-          <path d={`M${x - 4.5},${y}h9`} stroke={VIZ.surface} strokeWidth={2} />
-        </g>,
-      );
-    }
-  });
-  const descriptor = a.electrons === 0 ? 'Bare kjernen' : a.charge === 0 ? 'Nøytralt atom' : a.charge > 0 ? 'Positivt ion' : 'Negativt ion';
-  // PC: atomet til venstre og symbolet til høyre. Mobil: atomet forstørret øverst, symbol og tekst under.
-  const atomTransform = narrow
-    ? `translate(400 ${NARROW_ATOM_Y}) scale(${NARROW_ATOM_SCALE}) translate(${-ATOM.cx} ${-ATOM.cy})`
-    : undefined;
-  const sym = narrow ? { x: 250, y: NARROW_TEXT_Y, anchor: 'middle' as const } : { x: 600, y: 196, anchor: 'middle' as const };
-  const tx = narrow ? 420 : 600;
-  const ty = narrow ? NARROW_TEXT_Y - 44 * k : 196 + 58 * k;
-  const anchor = narrow ? 'start' : 'middle';
+  const k = useSceneScale();
+  const { cx, cy, radii } = L.atom;
+  const { lens, card } = L;
+  const shells = a.shells.length;
+  const Rocc = occupiedRadius(radii, shells);
+  const ring = 9 * k;
+  const dimY = cy - Rocc - 20 * k;
   return (
     <>
-      <g transform={atomTransform}>
-        {SHELL_R.map((R, i) => (
-          <circle
-            key={R}
-            cx={ATOM.cx}
-            cy={ATOM.cy}
-            r={R}
-            fill="none"
-            stroke={i < a.shells.length ? VIZ.muted : VIZ.grid}
-            strokeWidth={1.5}
-            strokeDasharray={i < a.shells.length ? undefined : '4 6'}
-            opacity={i < a.shells.length ? 0.7 : 1}
-          />
-        ))}
-        <Nucleus cx={ATOM.cx} cy={ATOM.cy} Z={a.Z} N={a.N} r={8} />
-        {electrons}
-      </g>
+      <AtomBackdrop cx={cx} cy={cy} radii={radii} shells={shells} />
+      <ZoomCone x1={cx} y1={cy} r1={ring} x2={lens.cx} y2={lens.cy} r2={lens.R} />
+      <AtomElectrons cx={cx} cy={cy} radii={radii} shells={a.shells} r={9.5 * k} />
+      <TinyNucleus cx={cx} cy={cy} Z={a.Z} N={a.N} ring={ring} />
+      {shells > 0 && <AtomSize cx={cx} y={dimY} R={Rocc} />}
 
-      <Txt x={tx} y={ty} size={26 * k} weight={650} anchor={anchor}>
-        {elementNameCap(a.Z)}-{a.A}
+      <NucleusLens cx={lens.cx} cy={lens.cy} R={lens.R} Z={a.Z} N={a.N} rn={12 * k} />
+      <Txt x={lens.cx} y={lens.cy - lens.R - 12 * f} weight={700}>
+        Kjernen, forstørret
       </Txt>
-      <Txt x={tx} y={ty + 34 * k} size={20 * k} muted anchor={anchor}>
-        {descriptor}
+      <Txt x={lens.cx} y={lens.cy + lens.R + 26 * f} weight={650}>
+        d ≈ {nucleusSizeText(a.A)}
       </Txt>
-      <Txt x={tx} y={ty + 64 * k} size={20 * k} muted anchor={anchor}>
-        Skall: {a.shells.length ? a.shells.join(', ') : 'ingen elektroner'}
-      </Txt>
-      {/* Symbolet tegnes sist, så teksten «Na» ikke havner rett foran «Natrium» i dokumentet (leses som «NaN» av sjekken). */}
-      <NuclideSymbol
-        x={sym.x}
-        y={sym.y}
-        A={a.A}
-        Z={a.Z}
-        symbol={a.symbol}
-        suffix={chargeSuperscript(a.charge) || undefined}
-        size={narrow ? 120 : 104}
-        anchor={sym.anchor}
-      />
+
+      <NuclideCard a={a} x={card.x} symbolY={card.symbolY} size={card.size} />
+      <PitchStrip y0={L.stripY} A={a.A} />
     </>
   );
+}
+
+/** Mållinje over atomet: «Atomet: ca. 10⁻¹⁰ m». */
+function AtomSize({ cx, y, R }: { cx: number; y: number; R: number }) {
+  return <Dimension x1={cx - R} y1={y} x2={cx + R} y2={y} label="Atomet: ca. 10⁻¹⁰ m" labelSize={0.85} />;
 }
 
 function chargeText(q: number): string {
@@ -255,24 +271,55 @@ function explanation(a: AtomInfo): ReactNode {
     );
   }
 
+  const pos = tablePosition(a.Z);
+  const outer = outerElectrons(a.Z);
+  const shellsNeutral = pos?.period ?? 0;
+  let table: ReactNode = null;
+  if (pos) {
+    table =
+      a.Z === 2 ? (
+        <>
+          I periodesystemet står helium i periode 1 (ett skall) og i gruppe 18 sammen med de andre edelgassene. Det har bare to
+          elektroner, men det ytterste (og eneste) skallet er fullt med to.
+        </>
+      ) : (
+        <>
+          I periodesystemet står {name} i periode {pos.period} og gruppe {groupOfColumn(pos.col)}: det nøytrale atomet har{' '}
+          {count(shellsNeutral)} skall, og {plural(outer, 'elektron', 'elektroner')} i det ytterste. Klikk på et annet grunnstoff i
+          periodesystemet for å bytte.
+        </>
+      );
+  }
+
+  const ratio = roundSig(atomToNucleusRatio(a.A), 2);
+  const mm = scaledNucleus(a.A) * 1000;
+  const thing = scaleObject(mm).name;
+  const everyday = EVERYDAY[a.Z];
+
   return (
     <>
       <p>
         Det er antall protoner som bestemmer grunnstoffet: alle atomer med Z = {a.Z} er {name}. {isotope} {charge}
       </p>
-      {a.electrons > 0 ? (
+      {table && <p>{table}</p>}
+      <p>
+        Kjernen er bare ca. {nucleusSizeText(a.A)} bred, mens et atom er ca. 10⁻¹⁰ m, altså rundt {fmt(ratio, 0)} ganger bredere. Hvis
+        atomet var en fotballbane, ville kjernen vært {thing} på midtpunktet, og likevel sitter {fmt(a.nucleusMassFraction * 100, 2)} %
+        av massen der{a.electrons === 0 ? ' (her er alle elektronene fjernet, så hele massen er i kjernen)' : ''}. Det er derfor vi sier at
+        atomet nesten bare er tomrom.
+      </p>
+      {everyday && (
         <p>
-          Nesten all massen ({fmt(a.nucleusMassFraction * 100, 2)} %) sitter i kjernen, som bare er ca. 10⁻¹⁵ m, mens hele atomet er ca.
-          10⁻¹⁰ m. Atomet er altså nesten bare tomrom.
-        </p>
-      ) : (
-        <p>
-          Kjernen er bare ca. 10⁻¹⁵ m. Med elektroner rundt seg blir atomet ca. 10⁻¹⁰ m, så et atom er nesten bare tomrom, men nesten all
-          massen sitter i kjernen.
+          <strong>I hverdagen:</strong> {everyday}
         </p>
       )}
     </>
   );
+}
+
+/** Tallord for små tall (antall skall). */
+function count(n: number): string {
+  return ['null', 'ett', 'to', 'tre', 'fire'][n] ?? String(n);
 }
 
 /** Edelgassene i figuren (helium, neon og argon) har fullt ytterste skall. */

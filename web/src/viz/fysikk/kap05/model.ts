@@ -19,8 +19,11 @@ export const toCelsius = (kelvin: number): number => kelvin - ZERO_CELSIUS;
 /** Gassen i sylinderen: 0,10 mol nitrogen (N₂, 28 u), som er det meste av lufta. */
 export const GAS_N = 0.1;
 export const GAS_MOLAR_U = 28;
-/** Tverrsnittsarealet til sylinderen (m²), 50 cm². */
-export const PISTON_AREA = 0.005;
+/**
+ * Tverrsnittsarealet til sylinderen (m²), 200 cm² (innvendig diameter 16 cm). Da er gass-søylen V/A = 5–15 cm høy
+ * for 1–3 L, så sylinderen kan tegnes i riktige proporsjoner på en kokeplate.
+ */
+export const PISTON_AREA = 0.02;
 
 /** Tilstandslikningen for idealgass, pV = nRT ⇒ p = nRT/V. T i kelvin, V i m³, svar i Pa. */
 export function gasPressure(n: number, T: number, V: number): number {
