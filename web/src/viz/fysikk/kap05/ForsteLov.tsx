@@ -16,7 +16,7 @@ import {
   useSimClock,
 } from '../../kit';
 import { AIR_HEAT_CAPACITY, toCelsius } from './model';
-import { ENERGY_MAX, ENERGY_STEP, P_START, T_START, V_START, processState, sceneLayout } from './forstelov-prosess';
+import { ENERGY_MAX, ENERGY_STEP, P_START, T_START, V_START, processState, sceneLayout, supportFor, type Support } from './forstelov-prosess';
 import { COLOR_Q, COLOR_U, COLOR_W, ForsteLovScene, signed } from './forstelov-scene';
 import { Energiregnskap, diagramHeight } from './forstelov-diagram';
 import { PlayToggle, useNarrow } from './marks';
@@ -29,6 +29,13 @@ const PRESETS: { value: Preset; label: string; W: number; Q: number }[] = [
   { value: 'utvidelse', label: 'Utvidelse', W: -600, Q: 0 },
   { value: 'isoterm', label: 'Varme inn, arbeid ut', W: -600, Q: 600 },
 ];
+
+const SUPPORT_TEXT: Record<Support, string> = {
+  kokeplate: 'en kokeplate som står på',
+  is: 'en isblokk',
+  torris: 'en blokk med tørris',
+  isopor: 'en isoporplate',
+};
 
 /** Lengden på prosessen i animasjonen (s). */
 const T_ANIM = 3;
@@ -50,8 +57,8 @@ export default function ForsteLov() {
   const dU = end.dU;
   const T1 = end.T;
   const preset = PRESETS.find((x) => x.W === W && x.Q === Q)?.value ?? ('egen' as Preset);
-  const support = Q > 0 ? 'en kokeplate som står på' : Q < 0 ? 'en isblokk' : 'en isoporplate';
-  const sceneLabel = `Glassylinder med 1,0 mol luft og et stempel, på ${support}. Arbeid på gassen ${signed(W)} joule, tilført varme ${signed(Q)} joule, endring i indre energi ${signed(dU)} joule. Temperaturen er ${fmt(now.T, 0)} kelvin og volumet ${fmt(now.V * 1000, 1)} liter.`;
+  const support = supportFor(W, Q);
+  const sceneLabel = `Glassylinder med 1,0 mol luft og et stempel, på ${SUPPORT_TEXT[support]}. Arbeid på gassen ${signed(W)} joule, tilført varme ${signed(Q)} joule, endring i indre energi ${signed(dU)} joule. Temperaturen er ${fmt(now.T, 0)} kelvin og volumet ${fmt(now.V * 1000, 1)} liter.`;
 
   const choose = (v: Preset) => {
     const x = PRESETS.find((y) => y.value === v);
@@ -105,23 +112,25 @@ export default function ForsteLov() {
         </FormulaLine>
       </Formula>
 
-      <Explain>{explanation(W, Q, dU, T1, end.V, end.p)}</Explain>
+      <Explain>{explanation(W, Q, dU, T1, end.V, end.p, support)}</Explain>
     </VizLayout>
   );
 }
 
-function explanation(W: number, Q: number, dU: number, T1: number, V1: number, p1: number): ReactNode {
+function explanation(W: number, Q: number, dU: number, T1: number, V1: number, p1: number, support: Support): ReactNode {
   const wText =
     W > 0
       ? `Du presser stempelet ned, så du gjør arbeid på gassen: W = ${signed(W)} J.`
       : W < 0
         ? `Gassen utvider seg og skyver stempelet opp. Da gjør gassen arbeid på omgivelsene, så arbeidet på gassen er negativt: W = ${signed(W)} J.`
-        : 'Stempelet står i ro, så det gjøres ikke noe arbeid: W = 0.';
+        : 'Stempelet er låst, så volumet er fast, og det gjøres ikke noe arbeid: W = 0.';
   const qText =
     Q > 0
       ? `Kokeplata varmer bunnen, og gassen får tilført varme: Q = ${signed(Q)} J.`
       : Q < 0
-        ? `Isblokka er kaldere enn gassen, så gassen avgir varme gjennom bunnen: Q = ${signed(Q)} J.`
+        ? support === 'torris'
+          ? `Sylinderen står på tørris (−78 °C), som er kaldere enn gassen hele tiden, så gassen avgir varme gjennom bunnen: Q = ${signed(Q)} J. (En isblokk på 0 °C ville ikke virket her: gassen blir kaldere enn isen.)`
+          : `Isblokka (0 °C) er kaldere enn gassen, så gassen avgir varme gjennom bunnen: Q = ${signed(Q)} J.`
         : 'Sylinderen står på isopor, så ingen varme går inn eller ut: Q = 0. (Det stemmer best når prosessen går fort, så varmen ikke rekker å gå gjennom glasset.)';
   let uText: string;
   if (W === 0 && Q === 0) uText = 'Ingen energi går inn eller ut, så den indre energien er uendret.';

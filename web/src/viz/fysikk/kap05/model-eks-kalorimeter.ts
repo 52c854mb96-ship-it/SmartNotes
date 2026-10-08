@@ -72,7 +72,7 @@ export interface CalorimeterTask {
 export const CALORIMETER_TASKS: CalorimeterTask[] = [
   { metal: 'aluminium', mMetal: 0.25, mWater: 0.4, TWater: 18, TMetal: 100, TEnd: 27.2 },
   { metal: 'jern', mMetal: 0.5, mWater: 0.45, TWater: 16, TMetal: 100, TEnd: 24.6 },
-  { metal: 'bly', mMetal: 1.5, mWater: 0.5, TWater: 15, TMetal: 100, TEnd: 21.8 },
+  { metal: 'bly', mMetal: 1.2, mWater: 0.4, TWater: 15, TMetal: 100, TEnd: 21.8 },
 ];
 
 export interface TableMatch {

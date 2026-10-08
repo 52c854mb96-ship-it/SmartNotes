@@ -3,6 +3,7 @@ import { elementName, elementSymbol, nuclideText, nuclideWords, Z_MAX } from './
 import { placeLabels } from './labels';
 import {
   atomInfo,
+  BALMER_STRENGTH,
   colorName,
   chargeSuperscript,
   electronRange,
@@ -13,7 +14,10 @@ import {
   mostCommonA,
   nearestLine,
   neutronRange,
+  H_PLANCK,
   photonFromWavelength,
+  photonSteps,
+  roundSig,
   seriesName,
   shellConfig,
   sigDecimals,
@@ -221,6 +225,44 @@ describe('farger og spektre', () => {
     const yellow = wavelengthToRgb(589)!;
     expect(yellow[0]).toBe(255);
     expect(yellow[1]).toBeGreaterThan(180);
+  });
+
+  it('roundSig runder til gjeldende siffer', () => {
+    expect(roundSig(7465.2, 3)).toBe(7470);
+    expect(roundSig(656.93, 3)).toBe(657);
+    expect(roundSig(93.78, 3)).toBeCloseTo(93.8, 10);
+    expect(roundSig(0.16734, 3)).toBeCloseTo(0.167, 10);
+    expect(roundSig(-2.4222e-19, 4)).toBeCloseTo(-2.422e-19, 30);
+    expect(roundSig(0, 3)).toBe(0);
+  });
+
+  it('mellomregningene i formelboksen gir samme svar som den uavrundede utregningen, for alle overganger', () => {
+    for (let upper = 2; upper <= 6; upper++)
+      for (let lower = 1; lower < upper; lower++) {
+        const s = photonSteps(upper, lower);
+        const p = transitionPhoton(upper, lower);
+        expect(s.nm).toBe(roundSig(p.lambda * 1e9, 3));
+        expect(s.eV).toBe(roundSig(p.eV, 3));
+        expect(roundSig(s.f, 3)).toBe(roundSig(p.f, 3));
+        expect(roundSig(s.E, 3)).toBe(roundSig(p.E, 3));
+        // Regner eleven videre med tallene som står, får hun det samme
+        expect(roundSig(s.E / H_PLANCK, 4)).toBe(s.f);
+        expect(roundSig(s.Eupper - s.Elower, 4)).toBe(s.E);
+      }
+    // Hα: 3,028 · 10⁻¹⁹ J, 4,567 · 10¹⁴ Hz, 657 nm
+    const ha = photonSteps(3, 2);
+    expect(ha.E).toBeCloseTo(3.028e-19, 30);
+    expect(ha.f).toBeCloseTo(4.567e14, 0);
+    expect(ha.nm).toBe(657);
+    expect(photonSteps(6, 5).nm).toBe(7470);
+  });
+
+  it('Balmer-linjene har samme styrke som i hydrogenrøret, og bare Hα–Hδ er tydelige', () => {
+    const lines = hydrogenVisibleLines();
+    lines.forEach((l, i) => expect(l.I).toBe(BALMER_STRENGTH[i]));
+    expect(lines[0]!.I / lines[1]!.I).toBeGreaterThan(2.5);
+    expect(lines.filter((l) => !l.faint).map((l) => l.name)).toEqual(['Hα', 'Hβ', 'Hγ', 'Hδ']);
+    for (const l of lines.filter((l) => l.faint)) expect(l.nm).toBeLessThan(400);
   });
 
   it('hydrogenlinjene fra Bohrs modell ligger i det synlige området og blir svakere', () => {

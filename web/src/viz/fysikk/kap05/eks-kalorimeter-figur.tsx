@@ -70,7 +70,7 @@ export interface KalView {
   /** Piler for varmetap fra metallbiten i lufta. */
   lossAir: boolean;
   /** Energisøylene. */
-  energy: 'tom' | 'vann' | 'like' | 'tap' | 'delt';
+  energy: 'tom' | 'vann' | 'like' | 'tap' | 'ideal' | 'delt';
   measured: boolean;
   highlight: boolean;
   /** Pil som viser at den ekte verdien er større (d). */
@@ -101,7 +101,7 @@ export function viewFor(step: number, showAll: boolean, task: CalorimeterTask, s
   if (st === STEP.lossAir)
     return { ...base, metalAt: 'luft', thermo: task.TWater, waterTag: `${T(task.TWater)} °C`, metalTag: 'Under 100 °C', lossAir: true, energy: 'tap' };
   if (st === STEP.ideal)
-    return { ...base, thermo: s.TIdeal, waterTag: `Uten tap: ${T(s.TIdeal)} °C`, metalTag: `${T(task.TMetal)} → ${T(s.TIdeal)} °C`, energy: 'tap' };
+    return { ...base, thermo: s.TIdeal, waterTag: `Uten tap: ${T(s.TIdeal)} °C`, metalTag: `${T(task.TMetal)} → ${T(s.TIdeal)} °C`, energy: 'ideal' };
   if (st === STEP.lossCal) return { ...base, lossCal: 'Varmetap', energy: 'tap' };
   if (st === STEP.lossFrac)
     return {
@@ -122,20 +122,26 @@ export function viewFor(step: number, showAll: boolean, task: CalorimeterTask, s
 
 /* ---------------------------------------------------------------- Scenen */
 
-const K_CM = 9;
-const THERMO_LEN = 24;
-const THERMO_MIN = 0;
+const K_CM = 11;
+const THERMO_LEN = 26;
+/** Skalaen på termometeret: −20 til 50 °C, så 15–30 °C står over lokket og kan leses. */
+const THERMO_MIN = -20;
 const THERMO_MAX = 50;
 /** Metallbiten står litt til venstre for midten av kalorimeteret, termometeret til høyre (cm fra midten). */
 const BLOCK_X = -1.6;
 const THERMO_X = 3.2;
-/** Vannstanden i kasserollen (0–1, som i Kasserolle). */
-const POT_WATER = 0.92;
+/** Vannstanden i kasserollen (0–1, som i Kasserolle). Biten må dekkes også i den minste kasserollen. */
+const POT_WATER = 0.95;
 
+/**
+ * Plasseringene. Kasserollen er 14,5 cm (13 cm på mobil) bred og står midt på kokeplata (Kokeplate-målene i
+ * scene-kit-et: kasserollen er 0,62 · bredden på plata). Skaftet peker mot kalorimeteret.
+ */
 function sceneLayout(narrow: boolean) {
+  const potW = (narrow ? 12 : 14.5) * K_CM;
   return narrow
-    ? { W: 560, H: 460, bench: 380, potX: 116, plateW: 196, calX: 428 }
-    : { W: 800, H: 420, bench: 352, potX: 168, plateW: 210, calX: 600 };
+    ? { W: 490, H: 470, bench: 380, potX: 108, potW, plateW: potW / 0.62, calX: 372 }
+    : { W: 800, H: 440, bench: 360, potX: 172, potW, plateW: potW / 0.62, calX: 616 };
 }
 
 export function KalorimeterFigur({
@@ -152,7 +158,7 @@ export function KalorimeterFigur({
   return (
     <div ref={ref}>
       <KalorimeterScene task={task} view={view} narrow={narrow} />
-      <Regnskap task={task} s={s} view={view} narrow={narrow} />
+      <Regnskap s={s} view={view} narrow={narrow} />
     </div>
   );
 }
@@ -169,7 +175,7 @@ function KalorimeterScene({ task, view, narrow }: { task: CalorimeterTask; view:
     <Figure
       viewBox={`0 0 ${L.W} ${L.H}`}
       label={`${where} Kalorimeteret er et isoporbeger med lokk og ${fmt(task.mWater, 3)} kg vann. Termometeret viser ${fmt(view.thermo, 1)} grader celsius.`}
-      maxHeight={460}
+      maxHeight={520}
     >
       <SceneBody task={task} view={view} L={L} />
     </Figure>
@@ -192,7 +198,7 @@ function SceneBody({ task, view, L }: { task: CalorimeterTask; view: KalView; L:
   const thermoTop = thermoBase - THERMO_LEN * k;
 
   // Kasserollen på kokeplata (Kokeplate/Kasserolle-mål fra scene-kit-et)
-  const potW = 0.62 * L.plateW;
+  const potW = L.potW;
   const kp = potW / 100;
   const potY = L.bench - 0.25 * L.plateW;
   const rimY = potY - 58 * kp;
@@ -204,8 +210,9 @@ function SceneBody({ task, view, L }: { task: CalorimeterTask; view: KalView; L:
 
   // Metallbiten i kasserollen (henger like over bunnen) eller i lufta (på vei over, høyt over benken)
   const potBlockY = floorY - 4;
-  const airX = narrow(L) ? L.potX + 0.55 * (L.calX - L.potX) : L.potX + 0.52 * (L.calX - L.potX);
-  const airY = cp.yL - 70;
+  const handleEnd = L.potX + 1.29 * potW;
+  const airX = (handleEnd + L.calX - cp.Rw) / 2 - (narrow(L) ? 6 : 20);
+  const airY = cp.yL - (narrow(L) ? 92 : 104);
 
   // Merkelappen for metallet: til venstre for kalorimeteret på bred skjerm, over det på mobil
   const tagFs = 17 * 0.9 * f;
@@ -219,7 +226,8 @@ function SceneBody({ task, view, L }: { task: CalorimeterTask; view: KalView; L:
       : { x: L.potX, y: metallbitTop(potBlockY, bd, bh) };
   const mtPos = narrow(L)
     ? { x: Math.max(mtW / 2 + 6, Math.min(thermoX - 16 - mtW / 2, L.calX - 30)), y: cp.yL - 64 }
-    : { x: cp.Rw > 0 ? L.calX - cp.Rw - 26 - mtW / 2 : L.calX, y: cp.yL - 26 };
+    : { x: L.calX - cp.Rw - 20 - mtW / 2, y: cp.yL - 44 };
+  // I lufta: skiltet står under biten, under pilene for varmetap
   const mtAir = view.metalAt === 'luft' ? { x: airX, y: airY + 30 + tagFs } : null;
 
   const wtW = tagW(view.waterTag);
@@ -228,7 +236,7 @@ function SceneBody({ task, view, L }: { task: CalorimeterTask; view: KalView; L:
 
   // Pilene for varmetap fra kalorimeteret: ut gjennom veggene og lokket
   const lossY = cp.yF - 0.45 * level * k;
-  const lossLen = 30 + 6 * f;
+  const lossLen = Math.min(30 + 6 * f, L.W - (L.calX + cp.Rw + 3) - 4);
 
   return (
     <g>
@@ -283,7 +291,7 @@ function SceneBody({ task, view, L }: { task: CalorimeterTask; view: KalView; L:
             const y1 = cy + dy! * (bh / 2 + 4);
             return <ForceArrow key={i} x1={x1} y1={y1} x2={x1 + dx! * 24} y2={y1 + dy! * 24} color={HOT} width={4.5} />;
           })}
-          <Txt x={airX} y={airY + 30 + 2 * tagFs} size={0.85} weight={650} color={HOT}>
+          <Txt x={airX - bd / 2 - 36} y={airY - 0.08 * bd - bh / 2 + 6 * f} anchor="end" size={0.85} weight={650} color={HOT}>
             Varmetap til lufta
           </Txt>
         </g>
@@ -369,7 +377,6 @@ function MetalTag({
 /** Stiplet bue fra kasserollen til kalorimeteret med pil og teksten «Flyttes raskt over». */
 function TransferArc({ x1, y1, x2, y2, narrow: nar }: { x1: number; y1: number; x2: number; y2: number; narrow: boolean }) {
   const ss = useStrokeScale();
-  const id = useSvgId('flytt');
   const top = Math.min(y1, y2) - (nar ? 70 : 90);
   const cx = (x1 + x2) / 2;
   const d = `M${x1},${y1}C${x1 + 0.1 * (x2 - x1)},${top} ${x2 - 0.15 * (x2 - x1)},${top} ${x2},${y2}`;
@@ -382,7 +389,7 @@ function TransferArc({ x1, y1, x2, y2, narrow: nar }: { x1: number; y1: number; 
   const a = 11 * ss;
   const head = `${x2},${y2} ${x2 - ux * a - uy * a * 0.55},${y2 - uy * a + ux * a * 0.55} ${x2 - ux * a + uy * a * 0.55},${y2 - uy * a - ux * a * 0.55}`;
   return (
-    <g id={id}>
+    <g>
       <path d={d} fill="none" stroke={VIZ.surface} strokeWidth={5 * ss} opacity={0.75} />
       <path d={d} fill="none" stroke={VIZ.ink} strokeWidth={2 * ss} strokeDasharray={`${7 * ss} ${5 * ss}`} />
       <polygon points={head} fill={VIZ.ink} />
@@ -395,30 +402,36 @@ function TransferArc({ x1, y1, x2, y2, narrow: nar }: { x1: number; y1: number; 
 
 /* ---------------------------------------------------------------- Energi og tabell */
 
-function Regnskap({ task, s, view, narrow: nar }: { task: CalorimeterTask; s: CalorimeterSolution; view: KalView; narrow: boolean }) {
-  const W = nar ? 560 : 800;
+function Regnskap({ s, view, narrow: nar }: { s: CalorimeterSolution; view: KalView; narrow: boolean }) {
+  const W = nar ? 490 : 800;
   const H = nar ? 560 : 250;
   return (
     <Figure
       viewBox={`0 0 ${W} ${H}`}
-      label={`Til venstre energien metallet avgir og vannet mottar. Til høyre spesifikk varmekapasitet for ${METAL_TABLE.map((m) => `${m.name.toLowerCase()} ${m.c}`).join(', ')} J/(kg·K)${view.measured ? `, og den målte verdien ${fmt(s.c, 0)}` : ''}.`}
+      label={`Energien metallet avgir og vannet mottar, og spesifikk varmekapasitet for ${METAL_TABLE.map((m) => `${m.name.toLowerCase()} ${m.c}`).join(', ')} J/(kg·K)${view.measured ? `, og den målte verdien ${fmt(s.c, 0)}` : ''}.`}
       maxHeight={nar ? 620 : 300}
     >
       {nar ? (
         <>
-          <EnergyBars s={s} view={view} x0={10} y0={0} w={540} h={232} />
-          <TableBars task={task} s={s} view={view} x0={0} y0={246} w={560} h={300} narrow />
+          <EnergyBars s={s} view={view} x0={8} y0={0} w={474} h={232} />
+          <TableBars s={s} view={view} x0={0} y0={246} w={486} h={300} narrow />
         </>
       ) : (
         <>
-          <EnergyBars s={s} view={view} x0={10} y0={0} w={300} h={H} />
-          <TableBars task={task} s={s} view={view} x0={340} y0={0} w={460} h={H} narrow={false} />
+          <EnergyBars s={s} view={view} x0={10} y0={0} w={320} h={H} />
+          <TableBars s={s} view={view} x0={366} y0={0} w={428} h={H} narrow={false} />
         </>
       )}
     </Figure>
   );
 }
 
+/**
+ * Energiregnskapet som to søyler: det metallet avgir (oransje) og det vannet mottar (blått), i én skala (kJ).
+ * - «vann»: bare vannet (a). «like»: like store uten varmetap (b, c). «tap»: metallet avgir mer enn vannet mottar,
+ *   ukjent hvor mye (d). «ideal»: uten varmetap med tabellverdien (e). «delt»: metallet avgir Q_m, vannet får Q_v og
+ *   resten er tap (e).
+ */
 function EnergyBars({ s, view, x0, y0, w, h }: { s: CalorimeterSolution; view: KalView; x0: number; y0: number; w: number; h: number }) {
   const f = useTextScale();
   const ss = useStrokeScale();
@@ -426,19 +439,25 @@ function EnergyBars({ s, view, x0, y0, w, h }: { s: CalorimeterSolution; view: K
   const titleY = y0 + 20 * f;
   const base = y0 + h - 44 * f;
   const top = titleY + 34 * f;
-  const qMax = s.QMetal * 1.08;
+  const qMax = s.QMetal * 1.06;
   const sy = (q: number) => ((base - top) * q) / qMax;
-  const bw = Math.min(78, w * 0.24);
-  const xm = x0 + w * 0.3;
-  const xv = x0 + w * 0.72;
+  const bw = Math.min(76, w * 0.22);
+  // Metallet til venstre med plass til etiketten for tapet til høyre for søyla; vannet helt til høyre
+  const xm = x0 + bw / 2 + 34;
+  const xv = Math.min(x0 + w - bw / 2 - 14, xm + 240);
   const kJ = (q: number) => `${fmt(q / 1000, 1)} kJ`;
-  const showWater = view.energy !== 'tom';
-  const showMetal = view.energy === 'like' || view.energy === 'tap' || view.energy === 'delt';
-  const metalQ = view.energy === 'delt' ? s.QMetal : s.Qw;
-  const hW = sy(s.Qw);
-  const hM = sy(metalQ);
-  const lossH = view.energy === 'tap' ? Math.max(14, sy(s.QLoss)) : view.energy === 'delt' ? sy(s.QLoss) : 0;
+  const mode = view.energy;
+  const water = mode === 'ideal' ? s.QIdeal : s.Qw;
+  const metal = mode === 'delt' ? s.QMetal : mode === 'ideal' ? s.QIdeal : s.Qw;
+  const showWater = mode !== 'tom';
+  const showMetal = mode !== 'tom' && mode !== 'vann';
+  const hW = sy(water);
+  const hM = sy(metal);
+  // Tapet: ukjent i d) (stiplet boks, litt høyere enn det egentlig er, så den synes), regnet ut i e)
+  const lossH = mode === 'tap' ? Math.max(16, sy(s.QLoss)) : mode === 'delt' ? sy(s.QLoss) : 0;
+  const metalTop = base - hM - (mode === 'tap' ? lossH : 0);
   const labelY = base + 20 * f;
+  const lossLabelX = xm + bw / 2 + 6;
   return (
     <g>
       <defs>
@@ -448,22 +467,29 @@ function EnergyBars({ s, view, x0, y0, w, h }: { s: CalorimeterSolution; view: K
         </pattern>
       </defs>
       <Txt x={x0} y={titleY} anchor="start" size={0.9} weight={700}>
-        Energi
+        {mode === 'ideal' ? 'Energi uten varmetap' : 'Energi'}
       </Txt>
       <line x1={x0} x2={x0 + w} y1={base} y2={base} stroke={VIZ.muted} strokeWidth={1.4 * ss} />
 
       {/* Metallet avgir */}
       {showMetal ? (
         <g>
-          <rect x={xm - bw / 2} y={base - (view.energy === 'delt' ? hM : hW)} width={bw} height={view.energy === 'delt' ? hM - lossH : hW} fill={HOT} opacity={0.85} />
-          {view.energy === 'delt' && (
-            <rect x={xm - bw / 2} y={base - hM} width={bw} height={lossH} fill={`url(#${hatch})`} stroke={HOT} strokeWidth={1.2 * ss} />
+          {mode === 'delt' ? (
+            <>
+              <rect x={xm - bw / 2} y={base - hM + lossH} width={bw} height={hM - lossH} fill={HOT} opacity={0.85} />
+              <rect x={xm - bw / 2} y={base - hM} width={bw} height={lossH} fill={`url(#${hatch})`} stroke={HOT} strokeWidth={1.2 * ss} />
+              <Txt x={lossLabelX} y={base - hM + lossH / 2 + 5 * f} anchor="start" size={0.78} weight={650} color={HOT}>
+                tap {kJ(s.QLoss)}
+              </Txt>
+            </>
+          ) : (
+            <rect x={xm - bw / 2} y={base - hM} width={bw} height={hM} fill={HOT} opacity={0.85} />
           )}
-          {view.energy === 'tap' && (
-            <g>
+          {mode === 'tap' && (
+            <>
               <rect
                 x={xm - bw / 2}
-                y={base - hW - lossH}
+                y={base - hM - lossH}
                 width={bw}
                 height={lossH}
                 fill={alpha(HOT, 0.12)}
@@ -471,18 +497,13 @@ function EnergyBars({ s, view, x0, y0, w, h }: { s: CalorimeterSolution; view: K
                 strokeWidth={1.6 * ss}
                 strokeDasharray={`${4 * ss} ${3 * ss}`}
               />
-              <Txt x={xm + bw / 2 + 6} y={base - hW - lossH / 2 + 5 * f} anchor="start" size={0.8} weight={650} color={HOT}>
+              <Txt x={lossLabelX} y={base - hM - lossH / 2 + 5 * f} anchor="start" size={0.78} weight={650} color={HOT}>
                 + tap
               </Txt>
-            </g>
+            </>
           )}
-          {view.energy === 'delt' && (
-            <Txt x={xm + bw / 2 + 6} y={base - hM + lossH / 2 + 5 * f} anchor="start" size={0.8} weight={650} color={HOT}>
-              tap {fmt(s.QLoss / 1000, 1)} kJ
-            </Txt>
-          )}
-          <Txt x={xm} y={base - (view.energy === 'delt' ? hM : view.energy === 'tap' ? hW + lossH : hW) - 8} size={0.9} weight={700} color={HOT}>
-            {view.energy === 'tap' ? `> ${kJ(s.Qw)}` : kJ(metalQ)}
+          <Txt x={xm} y={metalTop - 8} size={0.9} weight={700} color={HOT}>
+            {mode === 'tap' ? `> ${kJ(s.Qw)}` : kJ(metal)}
           </Txt>
         </g>
       ) : (
@@ -496,7 +517,7 @@ function EnergyBars({ s, view, x0, y0, w, h }: { s: CalorimeterSolution; view: K
         <g>
           <rect x={xv - bw / 2} y={base - hW} width={bw} height={hW} fill={COLD} opacity={0.85} />
           <Txt x={xv} y={base - hW - 8} size={0.9} weight={700} color={COLD}>
-            {kJ(s.Qw)}
+            {kJ(water)}
           </Txt>
         </g>
       ) : (
@@ -504,7 +525,7 @@ function EnergyBars({ s, view, x0, y0, w, h }: { s: CalorimeterSolution; view: K
           ?
         </Txt>
       )}
-      {view.energy === 'like' && (
+      {(mode === 'like' || mode === 'ideal') && (
         <Txt x={(xm + xv) / 2} y={base - hW / 2 + 8} size={1.4} weight={700}>
           =
         </Txt>
@@ -521,7 +542,6 @@ function EnergyBars({ s, view, x0, y0, w, h }: { s: CalorimeterSolution; view: K
 }
 
 function TableBars({
-  task,
   s,
   view,
   x0,
@@ -530,7 +550,6 @@ function TableBars({
   h,
   narrow: nar,
 }: {
-  task: CalorimeterTask;
   s: CalorimeterSolution;
   view: KalView;
   x0: number;
@@ -545,12 +564,14 @@ function TableBars({
   const titleY = y0 + 20 * f;
   const tagY = titleY + 26 * f;
   const rowsTop = tagY + 20 * f;
-  const rowsBottom = y0 + h - (view.higher ? 34 : 12) * f;
+  // Plass under radene til pila i d), også når den ikke vises, så tabellen står stille mellom stegene
+  const rowsBottom = y0 + h - 32 * f;
   const n = METAL_TABLE.length;
   const rowH = (rowsBottom - rowsTop) / n;
-  const labelW = 80 * f;
+  const ls = nar ? 0.92 : 0.82;
+  const labelW = (nar ? 90 : 80) * f;
   const bx0 = x0 + labelW + 8;
-  const valueW = 112 * f;
+  const valueW = (nar ? 122 : 112) * f;
   const bx1 = x0 + w - valueW;
   const cMax = 1000;
   const sx = (c: number) => bx0 + ((bx1 - bx0) * Math.min(c, cMax)) / cMax;
@@ -559,7 +580,13 @@ function TableBars({
   const best = s.best.entry.id;
   const below = s.closeBelow?.entry.id;
   const pct = (v: number) => `${v < 0 ? '−' : '+'}${fmt(Math.abs(v) * 100, 1)} %`;
-  void task;
+  const rows = METAL_TABLE.map((m, i) => ({
+    m,
+    cy: rowsTop + (i + 0.5) * rowH,
+    isBest: view.highlight && m.id === best,
+    faded: view.fadeBelow && m.id === below,
+    x1: sx(m.c),
+  }));
   return (
     <g>
       <defs>
@@ -574,65 +601,58 @@ function TableBars({
       <Txt x={x0 + w} y={titleY} anchor="end" size={0.78} muted>
         J/(kg·K)
       </Txt>
-      {METAL_TABLE.map((m, i) => {
-        const cy = rowsTop + (i + 0.5) * rowH;
-        const isBest = view.highlight && m.id === best;
-        const faded = view.fadeBelow && m.id === below;
-        const x1 = sx(m.c);
-        return (
-          <g key={m.id} opacity={faded ? 0.4 : 1}>
-            <Txt x={bx0 - 8} y={cy + 5.5 * f} anchor="end" size={0.82} weight={isBest ? 700 : 520}>
-              {m.name}
-            </Txt>
-            {isBest ? (
-              <>
-                <rect x={bx0} y={cy - barH / 2} width={Math.max(0, Math.min(xc, x1) - bx0)} height={barH} fill={MATCH} opacity={0.85} />
-                <rect x={Math.min(xc, x1)} y={cy - barH / 2} width={Math.abs(x1 - xc)} height={barH} fill={`url(#${gap})`} stroke={MATCH} strokeWidth={1 * ss} />
-              </>
-            ) : (
-              <rect x={bx0} y={cy - barH / 2} width={x1 - bx0} height={barH} fill={VIZ.muted} opacity={0.35} />
-            )}
-            <Txt x={x1 + 7} y={cy + 5.5 * f} anchor="start" size={0.8} weight={isBest ? 700 : 520} color={isBest ? MATCH : undefined}>
-              {isBest ? `${m.c}  (${pct(s.best.dev)})` : String(m.c)}
-            </Txt>
-          </g>
-        );
-      })}
-      {view.measured && (
-        <g>
-          <line
-            x1={xc}
-            x2={xc}
-            y1={tagY + 10 * f}
-            y2={rowsBottom + 2}
-            stroke={VIZ.ink}
-            strokeWidth={2 * ss}
-            strokeDasharray={`${5 * ss} ${3.5 * ss}`}
-          />
-          <ValueTag
-            x={Math.min(x0 + w - 70 * f, Math.max(bx0 + 50 * f, xc))}
-            y={tagY}
-            text={`Målt: ${fmt(s.c, 0)}`}
-            size={0.82}
-          />
+      {/* Søylene, så den målte verdien (stiplet strek), og tekstene øverst (med glorie), så streken ikke dekker tallene */}
+      {rows.map(({ m, cy, isBest, faded, x1 }) => (
+        <g key={m.id} opacity={faded ? 0.4 : 1}>
+          {isBest ? (
+            <>
+              <rect x={bx0} y={cy - barH / 2} width={Math.max(0, Math.min(xc, x1) - bx0)} height={barH} fill={MATCH} opacity={0.85} />
+              <rect x={Math.min(xc, x1)} y={cy - barH / 2} width={Math.abs(x1 - xc)} height={barH} fill={`url(#${gap})`} stroke={MATCH} strokeWidth={1 * ss} />
+            </>
+          ) : (
+            <rect x={bx0} y={cy - barH / 2} width={x1 - bx0} height={barH} fill={VIZ.muted} opacity={0.35} />
+          )}
         </g>
+      ))}
+      {view.measured && (
+        <line
+          x1={xc}
+          x2={xc}
+          y1={tagY + 10 * f}
+          y2={rowsBottom + 2}
+          stroke={VIZ.ink}
+          strokeWidth={2 * ss}
+          strokeDasharray={`${5 * ss} ${3.5 * ss}`}
+        />
+      )}
+      {rows.map(({ m, cy, isBest, faded, x1 }) => (
+        <g key={m.id} opacity={faded ? 0.4 : 1}>
+          <Txt x={bx0 - 8} y={cy + 5.5 * f} anchor="end" size={ls} weight={isBest ? 700 : 520}>
+            {m.name}
+          </Txt>
+          <Txt x={x1 + 7} y={cy + 5.5 * f} anchor="start" size={ls} weight={isBest ? 700 : 520} color={isBest ? MATCH : undefined}>
+            {isBest ? `${m.c}  (${pct(s.best.dev)})` : String(m.c)}
+          </Txt>
+        </g>
+      ))}
+      {view.measured && (
+        <ValueTag x={Math.min(x0 + w - 70 * f, Math.max(bx0 + 50 * f, xc))} y={tagY} text={`Målt: ${fmt(s.c, 0)}`} size={0.82} />
       )}
       {view.measured && view.higher && (
-        <HigherArrow x={xc} y={rowsBottom + 16 * f} minX={bx0} maxX={x0 + w} narrow={nar} />
+        <HigherArrow x={xc} y={rowsBottom + 16 * f} minX={bx0} />
       )}
     </g>
   );
 }
 
 /** Pil mot høyre fra den målte verdien: den ekte verdien er større (varmetapet gjør målingen for lav). */
-function HigherArrow({ x, y, minX, maxX, narrow: nar }: { x: number; y: number; minX: number; maxX: number; narrow: boolean }) {
+function HigherArrow({ x, y, minX }: { x: number; y: number; minX: number }) {
   const f = useTextScale();
   const len = 42;
   const text = 'Ekte verdi er større';
   const tw = text.length * 17 * 0.8 * f * 0.56;
+  // Teksten til venstre for streken når det er plass (over navnene i tabellen går greit), ellers etter pila
   const left = x - 10 - tw >= minX - 60;
-  void nar;
-  void maxX;
   return (
     <g>
       <ForceArrow x1={x} y1={y} x2={x + len} y2={y} color={VIZ.ink} width={4} />

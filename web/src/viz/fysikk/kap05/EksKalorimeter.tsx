@@ -325,8 +325,8 @@ export default function EksKalorimeter() {
           En elev vil finne ut hva en ukjent metallbit er laget av. Biten har massen {kg(mMetal)}. Eleven henger den i en tynn tråd ned i en
           kasserolle med kokende vann og lar den ligge der i ti minutter. Så løfter hun biten raskt over i et kalorimeter av isopor med{' '}
           {kg(mWater)} vann som holder {T(TWater)}, og setter på lokket. Hun rører forsiktig om. Termometeret stiger og stopper på {T(TEnd)}. Se
-          bort fra varmekapasiteten til selve kalorimeteret og termometeret. Tabellen under figuren viser spesifikk varmekapasitet for noen
-          metaller.
+          bort fra varmekapasiteten til selve kalorimeteret og termometeret. Tabellen under bildet av forsøket viser spesifikk varmekapasitet
+          for noen metaller.
         </p>
       }
       given={[

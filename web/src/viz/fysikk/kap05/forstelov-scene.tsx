@@ -23,7 +23,7 @@ import {
   useSvgId,
 } from '../../kit/scene';
 import { Bunnplate, DigitalTermometer, Foler, Gass, Rim, Slange, Stempel, SylinderBak, SylinderForan } from './gassmodell-deler';
-import { Underplate } from './forstelov-deler';
+import { Laasebom, Underplate } from './forstelov-deler';
 import {
   MAAL,
   PX_PER_M,
@@ -37,8 +37,10 @@ import {
   particlePoint,
   plateEffect,
   spreadLabels,
+  supportFor,
   type ProcessState,
   type SceneLayout,
+  type Support,
 } from './forstelov-prosess';
 import { useGasSim } from './marks';
 import { toCelsius } from './model';
@@ -54,6 +56,20 @@ export function signed(v: number, d = 0): string {
   if (Math.abs(v) < 0.5 * 10 ** -d) return fmt(0, d);
   return v > 0 ? `+${fmt(v, d)}` : fmt(v, d);
 }
+
+const SUPPORT_SHORT: Record<Support, string> = { kokeplate: 'Kokeplate', is: 'Isblokk', torris: 'Tørris', isopor: 'Isopor' };
+const SUPPORT_LONG: Record<Support, string> = {
+  kokeplate: 'Kokeplate: varme inn',
+  is: 'Isblokk (0 °C): varme ut',
+  torris: 'Tørris (−78 °C): varme ut',
+  isopor: 'Isopor: ingen varme',
+};
+const SUPPORT_TITLE: Record<Support, string> = {
+  kokeplate: 'Kokeplate som står på',
+  is: 'Isblokk som tar opp varme fra gassen',
+  torris: 'Tørrisblokk som tar opp varme fra gassen',
+  isopor: 'Isoporplate som isolerer',
+};
 
 const PARTICLES = 32;
 const PARTICLE_R = 5.5;
@@ -111,7 +127,7 @@ export function ForsteLovScene({
   const flensBottom = g.supportTop;
   const flensT = flensBottom - g.flensTop;
   const heat = plateEffect(Q);
-  const support = Q > 0 ? 'kokeplate' : Q < 0 ? 'is' : 'isopor';
+  const support = supportFor(W, Q);
   const slabD = 2 * MAAL.flensR * PX_PER_M * e * 1.25;
   const slabH = benchY - g.supportTop - slabD / 2;
 
@@ -137,30 +153,26 @@ export function ForsteLovScene({
   // Etikettene til høyre: W ved pila over stempelet, ΔU midt i gassen, Q ved bunnen. Tekstlinja er 0,95 · 17 · f høy.
   const lineH = 17 * f;
   const twoLines = !layout.narrow;
-  const gap = (twoLines ? 2.25 : 1.6) * lineH;
+  const gap = (twoLines ? 2.6 : 1.9) * lineH;
   const labelX = cx + g.rOuter + (layout.narrow ? 10 : 20);
   const callY = benchY - 12;
   const wMid = Math.abs(W) > 0 ? (wArrow.y1 + wArrow.y2) / 2 : g.pistonTop - 8;
   const qMid = Math.abs(Q) > 0 ? (qArrow.y1 + qArrow.y2) / 2 : g.flensTop - 6;
-  const [wY, uY, qY] = spreadLabels([wMid, (g.gasTop + g.flensTop) / 2, qMid], gap, layout.top + 28 * f, callY - (twoLines ? 1.9 : 1.5) * lineH - 4);
+  // Q-etiketten står over nippelen på bunnplata og over etiketten til kokeplata, isblokka eller isoporen
+  const labelsBottom = Math.min(callY - (twoLines ? 1.9 : 1.5) * lineH - 4, g.flensTop - (twoLines ? 1.3 : 0.5) * lineH);
+  const [wY, uY, qY] = spreadLabels([wMid, (g.gasTop + g.flensTop) / 2, qMid], gap, layout.top + 28 * f, labelsBottom);
 
   // «Før»: der stempelet startet
   const moved = Math.abs(g.gasTop - g0.gasTop) > 6;
   const dimX = cx - g.rOuter;
-  const dimOffset = 14 + 4 * f;
+  const dimOffset = layout.narrow ? 10 : 14 + 4 * f;
   const tTag = `T = ${fmt(state.T, 0)} K`;
+  // Skiltet over termometeret holder seg innenfor venstre kant (samme bredde som ValueTag regner ut)
+  const tagFs = 17 * f * 0.9;
+  const tagHalf = Math.max(tagFs * 1.6, tTag.length * tagFs * 0.6 + 16 * f) / 2;
+  const tagX = Math.max(layout.left + tagHalf + 6, thermo.x);
 
-  const supportName = layout.narrow
-    ? support === 'kokeplate'
-      ? 'Kokeplate'
-      : support === 'is'
-        ? 'Isblokk'
-        : 'Isopor'
-    : support === 'kokeplate'
-      ? 'Kokeplate: varme inn'
-      : support === 'is'
-        ? 'Isblokk: varme ut'
-        : 'Isopor: ingen varme';
+  const supportName = layout.narrow ? SUPPORT_SHORT[support] : SUPPORT_LONG[support];
 
   return (
     <>
@@ -168,7 +180,7 @@ export function ForsteLovScene({
 
       {/* Det sylinderen står på */}
       {support === 'kokeplate' ? (
-        <Kokeplate x={cx} y={benchY} w={g.supportW} effekt={heat} title="Kokeplate som står på" />
+        <Kokeplate x={cx} y={benchY} w={g.supportW} effekt={heat} title={SUPPORT_TITLE.kokeplate} />
       ) : (
         <Underplate
           x={cx}
@@ -177,7 +189,7 @@ export function ForsteLovScene({
           h={slabH}
           d={slabD}
           type={support}
-          title={support === 'is' ? 'Isblokk som tar opp varme fra gassen' : 'Isoporplate som isolerer'}
+          title={SUPPORT_TITLE[support]}
         />
       )}
       <Bunnplate cx={cx} top={g.flensTop} R={g.flensR} thick={flensT} e={e} heat={heat * 0.8} portX={portX} />
@@ -206,6 +218,8 @@ export function ForsteLovScene({
       <Stempel cx={cx} r={g.r - 0.5} top={g.pistonTop} bottom={g.gasTop} e={e} rodTop={g.rodTop} rodW={MAAL.stang * PX_PER_M} />
       <SylinderForan cx={cx} r={g.r} rOuter={g.rOuter} rimY={g.rimY} bottom={g.flensTop} e={e} />
       <Rim cx={cx} rOuter={g.rOuter} top={g.rimY} bottom={g.flensTop} amount={frostAmount(state.T)} />
+      {/* Uten arbeid er stempelet låst, så volumet er fast også når trykket endrer seg */}
+      {W === 0 && <Laasebom cx={cx} y={g.rimY} half={g.rOuter + 10} rodW={MAAL.stang * PX_PER_M} />}
 
       {/* Termometeret */}
       <Slange d={cable} width={3.4 * Math.min(1.3, ss)} color={SCENE.rubber} />
@@ -217,7 +231,7 @@ export function ForsteLovScene({
         tekst={`${fmt(toCelsius(state.T), 0)} °C`}
         title={`Digitalt termometer som viser ${fmt(toCelsius(state.T), 0)} °C`}
       />
-      <ValueTag x={thermo.x} y={benchY - thermo.h - 20 - 14 * f} text={tTag} pointer={8} />
+      <ValueTag x={tagX} y={benchY - thermo.h - 20 - 14 * f} text={tTag} pointer={8} />
 
       {/* Startposisjonen og volumet */}
       {moved && (
@@ -257,6 +271,11 @@ export function ForsteLovScene({
       <Callout x={cx + g.supportW * 0.36} y={benchY - slabH * 0.45} lx={labelX + 10} ly={callY} anchor="start" size={0.8}>
         {supportName}
       </Callout>
+      {W === 0 && (
+        <Callout x={cx - g.rOuter - 6} y={g.rimY - 7} lx={cx - g.rOuter - 40} ly={g.rimY - 34 * f} anchor="end" size={0.8}>
+          {layout.narrow ? 'Låst' : 'Låst stempel: fast volum'}
+        </Callout>
+      )}
     </>
   );
 }

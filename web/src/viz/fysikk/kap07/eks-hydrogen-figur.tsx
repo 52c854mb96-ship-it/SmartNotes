@@ -517,8 +517,8 @@ function diagramGeom(b: Box, f: number) {
     Lw,
     breakY: y2 + 0.36 * gap,
     xt: lx0 + 0.14 * Lw,
-    xi1: lx0 + 0.6 * Lw,
-    xiL: lx0 + 0.76 * Lw,
+    xi1: lx0 + 0.56 * Lw,
+    xiL: lx0 + 0.72 * Lw,
   };
 }
 

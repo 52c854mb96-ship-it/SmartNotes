@@ -3,7 +3,7 @@
  * banene i riktig forhold (r = n² · a₀), målestokken, fargen til et hydrogenrør, lupens tangenter, fotonene som
  * går forbi ved absorpsjon og avspillingen (elektronet som hopper og fotonet som flyr).
  */
-import { C_LIGHT, E_CHARGE, H_PLANCK, hydrogenVisibleLines, levelEnergyEV, wavelengthToRgb, type Photon } from './model';
+import { BALMER_STRENGTH, C_LIGHT, E_CHARGE, H_PLANCK, hydrogenVisibleLines, levelEnergyEV, wavelengthToRgb, type Photon } from './model';
 
 /* ---------- Banene ---------- */
 
@@ -40,10 +40,10 @@ export function scaleBar(pxNm: number, maxPx: number): { nm: number; px: number 
 /* ---------- Fargen til et hydrogenrør ---------- */
 
 /**
- * Relativ styrke til de synlige Balmer-linjene i en gassutladning (Hα, Hβ, Hγ, Hδ, Hε). Hα er omtrent tre ganger så
- * sterk som Hβ (Balmer-dekrementet), og linjene blir raskt svakere mot fiolett.
+ * Relativ styrke til de synlige Balmer-linjene i en gassutladning (Hα, Hβ, Hγ, Hδ, Hε, Hζ, Hη): de samme vektene som
+ * spekteret i «Spektre» bruker (BALMER_STRENGTH i model.ts). Hα er omtrent tre ganger så sterk som Hβ.
  */
-export const BALMER_WEIGHTS = [1, 0.35, 0.16, 0.09, 0.05] as const;
+export const BALMER_WEIGHTS = BALMER_STRENGTH;
 
 /**
  * Fargen et hydrogenrør lyser med: summen av de synlige Balmer-linjene (fargene lagt sammen som lys), skalert så den
@@ -51,8 +51,8 @@ export const BALMER_WEIGHTS = [1, 0.35, 0.16, 0.09, 0.05] as const;
  */
 export function dischargeRgb(): [number, number, number] {
   const sum = [0, 0, 0];
-  hydrogenVisibleLines().forEach((line, i) => {
-    const w = BALMER_WEIGHTS[i] ?? 0;
+  hydrogenVisibleLines().forEach((line) => {
+    const w = line.I;
     const rgb = wavelengthToRgb(line.nm);
     if (!rgb || w === 0) return;
     for (let c = 0; c < 3; c++) sum[c]! += w * rgb[c]!;

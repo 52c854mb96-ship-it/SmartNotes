@@ -38,7 +38,8 @@ export function Energiregnskap({ W, Q, p, narrow }: { W: number; Q: number; p: n
     { key: 'Q', from: W, to: dU, color: COLOR_Q, symbol: '+ Q', name: 'tilført varme' },
     { key: 'U', from: 0, to: dU, color: COLOR_U, symbol: '= ΔU', name: 'endring i indre energi' },
   ];
-  const step = M <= 1000 ? 250 : 500;
+  // Tallene på aksen: tettere på PC enn på mobil, der teksten er større
+  const step = M <= 500 ? 250 : narrow ? (M <= 1500 ? 500 : 1000) : M <= 1000 ? 250 : 500;
   const ticks: number[] = [];
   for (let v = -M; v <= M + 1e-9; v += step) ticks.push(v);
   const fs = 17 * f * 0.9;

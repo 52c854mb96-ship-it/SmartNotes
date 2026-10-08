@@ -6,6 +6,7 @@
 import { useId, type ReactNode } from 'react';
 import { Txt, VIZ, fmt, useTextScale } from '../../kit';
 import { SCENE, alpha, useStrokeScale } from '../../kit/scene';
+import { nmText } from './bohr-atom';
 import { N_TOP } from './bohr-nivaer';
 import { seriesName, transitionPhoton, VISIBLE_MAX, VISIBLE_MIN, wavelengthColor, wavelengthToRgb } from './model';
 
@@ -125,7 +126,7 @@ export function WavelengthAxis({
         strokeWidth={0.9 * ss}
       />
       <Txt x={selX} y={barY - 10} anchor={labelAnchor} weight={700}>
-        {fmt(selNm, 0)} nm
+        {nmText(selNm)} nm
       </Txt>
 
       {/* Akse */}

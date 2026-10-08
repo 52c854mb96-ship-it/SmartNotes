@@ -23,7 +23,9 @@ import {
   plateEffect,
   processState,
   sceneLayout,
+  sinkTemperature,
   spreadLabels,
+  supportFor,
 } from './forstelov-prosess';
 
 const nR = AIR_MOL * R_GAS;
@@ -200,6 +202,25 @@ describe('scenen', () => {
     expect(spreadLabels([100, 105, 110], 30)).toEqual([100, 130, 160]);
     const s = spreadLabels([380, 390, 400], 30, 0, 400);
     expect(s).toEqual([340, 370, 400]);
+  });
+});
+
+describe('det sylinderen står på', () => {
+  it('kokeplate for Q > 0, isopor for Q = 0, og isblokk eller tørris for Q < 0', () => {
+    expect(supportFor(0, 600)).toBe('kokeplate');
+    expect(supportFor(600, 0)).toBe('isopor');
+    expect(supportFor(500, -200)).toBe('is');
+    expect(supportFor(-1000, -1000)).toBe('torris');
+  });
+
+  it('varmen går fra varmt til kaldt: det som tar imot varmen, er kaldere enn gassen gjennom hele prosessen', () => {
+    for (const [W, Q] of ALL) {
+      if (Q >= 0) continue;
+      const support = supportFor(W, Q);
+      for (let i = 0; i <= 20; i++) {
+        expect(processState(W, Q, i / 20).T).toBeGreaterThan(sinkTemperature(support));
+      }
+    }
   });
 });
 

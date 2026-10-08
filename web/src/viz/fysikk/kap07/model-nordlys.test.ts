@@ -14,7 +14,11 @@ import {
   N2_IONIZATION_EV,
   airDensity,
   auroraProfile,
+  collisionCount,
   decimalsFor,
+  GRAPH_GAINS,
+  graphGains,
+  roundSig,
   deposition,
   depositionMono,
   dominantLine,
@@ -359,5 +363,54 @@ describe('visning', () => {
     expect(decimalsFor(557.7)).toBe(0);
     expect(decimalsFor(0)).toBe(0);
     expect(decimalsFor(Number.NaN)).toBe(0);
+  });
+});
+
+describe('grafen «Lys fra hver høyde»', () => {
+  it('den sterkeste kurven får ingen forstørrelse, og en forstørret kurve holder seg innenfor grafen', () => {
+    for (const keV of ENERGY_STEPS) {
+      const p = auroraProfile(keV, 5);
+      const g = graphGains(p);
+      const peaks = LINE_ORDER.map((id) => Math.max(...p.I[id]) / p.max);
+      expect(Math.max(...peaks)).toBeCloseTo(1, 10);
+      LINE_ORDER.forEach((id, i) => {
+        const peak = peaks[i]!;
+        expect(g[id] === 1 || GRAPH_GAINS.includes(g[id])).toBe(true);
+        if (peak >= 0.3) expect(g[id]).toBe(1);
+        else expect(g[id]).toBeGreaterThan(1);
+        expect(peak * g[id]).toBeLessThanOrEqual(0.95 + 1e-12);
+        // Forstørret kurve blir tydelig (minst 40 % av bredden), men aldri sterkere enn den sterkeste
+        if (g[id] > 1) expect(peak * g[id]).toBeGreaterThanOrEqual(0.4);
+      });
+    }
+  });
+
+  it('ved 5 keV er den røde toppen svak (under 10 % av den grønne) og vises × 10', () => {
+    const p = auroraProfile(5, 5);
+    const red = Math.max(...p.I.rod) / Math.max(...p.I.gronn);
+    expect(red).toBeLessThan(0.1);
+    expect(graphGains(p).rod).toBe(10);
+    expect(graphGains(p).gronn).toBe(1);
+  });
+});
+
+describe('antall støt ett elektron rekker', () => {
+  it('regnes med den viste energien og to gjeldende siffer', () => {
+    expect(roundSig(1190.48, 2)).toBe(1200);
+    expect(roundSig(18.749999, 3)).toBeCloseTo(18.7, 10);
+    expect(roundSig(18.75, 3)).toBeCloseTo(18.8, 10);
+    expect(collisionCount('gronn', 5)).toEqual({ eV: 4.2, count: 1200 });
+    expect(collisionCount('gronn', 10).count).toBe(2400);
+    expect(collisionCount('rod', 5)).toEqual({ eV: 1.97, count: 2500 });
+    expect(collisionCount('gronn', 0.3).count).toBe(71);
+    // N₂⁺: 15,6 eV + 3,2 eV ≈ 18,8 eV, som i formelen
+    expect(collisionCount('blaa', 5).eV).toBeCloseTo(18.8, 10);
+    expect(collisionCount('blaa', 5).count).toBe(270);
+    for (const id of LINE_ORDER)
+      for (const keV of ENERGY_STEPS) {
+        const c = collisionCount(id, keV);
+        expect(c.count).toBe(roundSig((keV * 1000) / c.eV, 2));
+        expect(Math.abs(c.eV - excitationEnergy(id))).toBeLessThan(0.051);
+      }
   });
 });

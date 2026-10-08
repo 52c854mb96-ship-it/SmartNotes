@@ -31,6 +31,7 @@
    - Stopper bruksgrensen arbeidet, skal det fortsette av seg selv når grensen er nullstilt. Det sørget en gjentakende påminnelse i økten for.
 6. **Pause (6. oktober):** eleven ba om at arbeidet stopper når de pågående workflowene er ferdige, og at ikke noe nytt startes før eleven sier fra. Påminnelsen er slått av. Dette går foran punkt 5.
 7. **Neste økt (8. oktober):** eleven vil at neste økt fortsetter med visualiseringene på samme måte som i økten 5.–6. oktober. Rekkefølgen er resten av fysikk først (kapittel 5–10, fysikk prioriteres), deretter kjemi og biologi. Dette opphever pausen i punkt 6. Om arbeidet skal fortsette av seg selv etter bruksgrensen (punkt 5), sier eleven i prompten for økten. [docs/workflows/README.md](workflows/README.md) forklarer hvordan.
+8. **Pause (8. oktober, ettermiddag):** eleven ba om at workflowene ikke fortsetter, fordi eleven trenger bruken til et annet prosjekt. Påminnelsen (`trig_01NDg3fCZAaWpLgojJsVA5qn`) er slått av, ikke slettet. Ikke start noe nytt før eleven sier fra. Dette går foran punkt 7.
 
 ## Fremdrift
 
@@ -44,6 +45,7 @@ Merk av her når en del er ferdig, og commit + push. Grenen er den som øktinstr
   - [x] README i `viz/` med stilguide for illustrert realisme og eksempeloppgaver
 - [ ] 2. Fysikk (kapittel 1–10): oppgradere, lage nye, lage eksempler, kontrollere og rette. Én workflow per kapittel, og hvert kapittel committes for seg («Fysikk kapittel N: …»).
   - Ferdige og flettet i PR #7: kapittel 1 (4 oppgraderte, 3 nye, 2 eksempeloppgaver), 2 (6, 3, 2), 3 (3, 3, 2) og 4 (3, 3, 2).
+  - Økten 8. oktober (gren `claude/sharp-sagan-fgvge6`): kapittel 5–8 ble startet, men bruksgrensen stoppet alle fire før de var ferdige. Det halvferdige arbeidet ligger i øyeblikksbilder på grenen. Stoppet i: kapittel 5 og 6 under kontrollen (alt bygget), kapittel 7 under rettingen (bygget og kontrollert), kapittel 8 under byggingen (bare `eks-aktivitet` mangler). I samme økt kan de gjenopptas med kjøre-id-ene i `<scratch>/kjoringer.md`; i en ny økt må kapitlene fullføres for hånd eller kjøres på nytt (se «Bare i samme økt» i workflows/README.md).
   - Gjenstår: kapittel 5–10. Bruk `docs/workflows/fysikk-kapittel.js` med kapittelet fra `docs/workflows/fysikk-katalog.json`. Katalogen under er samme innhold i kortform.
 - [ ] 3. PR for fysikk, CI grønn, flettet. PR #7 tok grunnmuren og kapittel 1–4. Kapittel 5–10 får en egen PR.
 - [ ] 3b. Finpuss av kjemi- og biologi-kit-et. Et forsøk ble avbrutt av bruksgrensen før kontroll og tatt ut igjen før PR #7. Kjør `docs/workflows/kit-finpuss.js` på nytt (gjerne mens fysikk 9–10 går), kontroller resultatet og commit det etter at fysikk-PR-en er flettet. Det kommer med i kjemi-PR-en.

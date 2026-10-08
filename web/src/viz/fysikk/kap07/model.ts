@@ -177,6 +177,14 @@ export function sigDecimals(v: number, sig = 3): number {
   return Math.max(0, sig - 1 - Math.floor(Math.log10(Math.abs(v))));
 }
 
+/** `v` avrundet til `sig` gjeldende siffer: roundSig(7465, 3) = 7470, roundSig(0,1673, 3) = 0,167. */
+export function roundSig(v: number, sig = 3): number {
+  if (!Number.isFinite(v) || v === 0) return v;
+  const p = sig - 1 - Math.floor(Math.log10(Math.abs(v)));
+  const m = 10 ** Math.abs(p);
+  return p >= 0 ? Math.round(v * m) / m : Math.round(v / m) * m;
+}
+
 /** Energinivå n i hydrogen (J): E_n = −B/n². */
 export function levelEnergyJ(n: number): number {
   return -BOHR_B / (n * n);
@@ -203,6 +211,33 @@ export function transitionPhoton(nA: number, nB: number): Photon {
   const E = Math.abs(levelEnergyJ(nA) - levelEnergyJ(nB));
   const f = E / H_PLANCK;
   return { E, eV: E / E_CHARGE, f, lambda: C_LIGHT / f };
+}
+
+/**
+ * Mellomregningene i formelboksen for overgangen upper → lower, slik eleven kan regne dem på kalkulatoren:
+ * mellomsvarene har fire gjeldende siffer (ett ekstra), så avrundingen underveis ikke endrer svaret med tre siffer.
+ * (Med tre siffer i mellomsvarene blir Hα 656 nm i stedet for 657 nm.)
+ */
+export interface PhotonSteps {
+  /** Energinivåene (J), fire gjeldende siffer. */
+  Eupper: number;
+  Elower: number;
+  /** Fotonenergien E = E_upper − E_lower (J), fire gjeldende siffer. */
+  E: number;
+  /** E/(1,60 · 10⁻¹⁹ J/eV), tre gjeldende siffer. */
+  eV: number;
+  /** f = E/h (Hz), fire gjeldende siffer. */
+  f: number;
+  /** λ = c/f (nm), tre gjeldende siffer. */
+  nm: number;
+}
+
+export function photonSteps(upper: number, lower: number): PhotonSteps {
+  const Eupper = roundSig(levelEnergyJ(upper), 4);
+  const Elower = roundSig(levelEnergyJ(lower), 4);
+  const E = roundSig(Math.abs(Eupper - Elower), 4);
+  const f = roundSig(E / H_PLANCK, 4);
+  return { Eupper, Elower, E, eV: roundSig(E / E_CHARGE, 3), f, nm: roundSig((C_LIGHT / f) * 1e9, 3) };
 }
 
 /** Fotonet med bølgelengde λ (nm): E = hc/λ. */
@@ -300,18 +335,30 @@ export interface SpectralLine {
   to?: number;
   /** Grunnstoffet linja kommer fra (for sollys). */
   element?: string;
+  /** Linja er så svak (og så langt ut mot fiolett) at den knapt synes for øyet: ingen etikett i spekteret. */
+  faint?: boolean;
 }
+
+/**
+ * Relativ styrke til Balmer-linjene Hα, Hβ, Hγ, Hδ, Hε, Hζ, Hη i en hydrogenlampe (Balmer-dekrementet): Hα er omtrent
+ * tre ganger så sterk som Hβ, og linjene blir raskt svakere mot fiolett. Brukes både i «Spektre» og i fargen til
+ * hydrogenrøret i «Bohrs atommodell», så linjestyrken er den samme overalt.
+ */
+export const BALMER_STRENGTH = [1, 0.35, 0.16, 0.09, 0.056, 0.037, 0.026] as const;
+
+/** De fire Balmer-linjene øyet ser tydelig (Hα–Hδ, fra n = 3–6). Linjene fra n = 7 og oppover ligger under 400 nm og er svake. */
+export const BALMER_CLEAR = 4;
 
 /** Synlige linjer i hydrogen fra Bohrs modell: overgangene ned til n = 2 (Balmer-serien) innenfor 380–750 nm. */
 export function hydrogenVisibleLines(): SpectralLine[] {
   const NAMES = ['Hα', 'Hβ', 'Hγ', 'Hδ', 'Hε', 'Hζ', 'Hη'];
-  const I = [1, 0.75, 0.55, 0.42, 0.3, 0.22, 0.16];
   const lines: SpectralLine[] = [];
   // Opp til n = 9 (Hη). Linjene over det ligger så tett inntil 380 nm at de ikke kan skilles i figuren.
   for (let n = 3; n <= 9; n++) {
     const nm = transitionPhoton(n, 2).lambda * 1e9;
     if (nm < VISIBLE_MIN) break;
-    lines.push({ nm, I: I[n - 3] ?? 0.12, name: NAMES[n - 3] ?? 'H', from: n, to: 2 });
+    const i = n - 3;
+    lines.push({ nm, I: BALMER_STRENGTH[i] ?? 0.02, name: NAMES[i] ?? 'H', from: n, to: 2, ...(i >= BALMER_CLEAR ? { faint: true } : {}) });
   }
   return lines;
 }

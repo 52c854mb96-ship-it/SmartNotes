@@ -190,6 +190,36 @@ const viz: VizMeta[] = [
     ],
     load: () => import('./EksHydrogen'),
   },
+  {
+    id: 'eks-foton',
+    kind: 'eksempel',
+    chapter: '7',
+    sections: ['7C'],
+    title: 'Laserpekere og UV-stråling: energien til ett foton',
+    summary:
+      'Fotonenergien fra bølgelengden, antall fotoner per sekund fra effekten, en rød og en grønn laserpeker med samme effekt, og hvorfor UV-B kan skade DNA i huden når synlig lys ikke kan, steg for steg.',
+    keywords: [
+      'eksempeloppgave',
+      'foton',
+      'fotonenergi',
+      'E = hf',
+      'E = hc/λ',
+      'bølgelengde',
+      'elektronvolt',
+      'effekt',
+      'fotoner per sekund',
+      'laser',
+      'laserpeker',
+      'ultrafiolett',
+      'UV-B',
+      'solbrent',
+      'DNA',
+      'synlig lys',
+      'KM2',
+      'KM13',
+    ],
+    load: () => import('./EksFoton'),
+  },
 ];
 
 export default viz;

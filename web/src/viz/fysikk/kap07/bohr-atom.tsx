@@ -4,7 +4,7 @@
  * fotoner med litt mer og litt mindre energi, og de går rett gjennom. Når den innerste banen blir for liten til å
  * synes, viser en liten lupe kjernen og bane n = 1 (eller 2) forstørret.
  */
-import { Txt, fmt, useTextScale } from '../../kit';
+import { Txt, VIZ, fmt, useTextScale } from '../../kit';
 import { Elektron, Foton, Nukleon, RadialGradient, SCENE, ValueTag, alpha, shade, tint, useSceneScale, useStrokeScale, useSvgId } from '../../kit/scene';
 import {
   BOHR_ANIM,
@@ -22,7 +22,7 @@ import {
   type Pt,
 } from './bohr-scene';
 import { LupeKant, NightTxt } from './bohr-deler';
-import { REGION_NAMES, colorName, spectralRegion, transitionPhoton } from './model';
+import { REGION_NAMES, colorName, roundSig, sigDecimals, spectralRegion, transitionPhoton } from './model';
 
 export type Mode = 'emisjon' | 'absorpsjon';
 
@@ -40,6 +40,18 @@ export interface AtomLupeProps {
   xEnd: number;
   /** Fargen til serien (spranget). */
   color: string;
+}
+
+/** Bølgelengden med tre gjeldende siffer, uten enhet: «657», «93,8», «7 470». */
+export function nmText(nm: number): string {
+  const r = roundSig(nm, 3);
+  return fmt(r, sigDecimals(r));
+}
+
+/** Fotonenergien med tre gjeldende siffer, uten enhet: «1,89», «0,167», «13,2». */
+export function eVText(eV: number): string {
+  const r = roundSig(eV, 3);
+  return fmt(r, sigDecimals(r));
 }
 
 /** Tekst som beskriver lyset: «rødt lys», «ultrafiolett (usynlig)». */
@@ -104,17 +116,27 @@ export function AtomLupe({ c, mode, upper, lower, t, xEnd, color }: AtomLupeProp
     if (r >= rp + 2) orbits.push(n);
   }
   const fsPx = 17 * f * 0.78;
+  // Etiketten står like over banen (utenfor den), så streken aldri går gjennom teksten. Den trenger plass opp til
+  // neste bane (eller kanten av lupen).
+  const labelGap = 4 * ss;
+  const labelRoom = labelGap + fsPx * 0.78 + 3 * ss;
   const labelled: number[] = [];
-  let lastR = -Infinity;
-  for (const n of orbits) {
+  orbits.forEach((n, i) => {
     const r = rPx(n);
     const sel = n === upper || n === lower;
-    if (r < minR || r - lastR < fsPx * 1.25) continue;
-    if (!sel && (r < 26 * k || r > 0.86 * Rb)) continue;
+    const next = i + 1 < orbits.length ? rPx(orbits[i + 1]!) : Rb;
+    if (r < minR || next - r < labelRoom) return;
+    if (!sel && r < 26 * k) return;
     labelled.push(n);
-    lastR = r;
-  }
-  const bar = scaleBar(pxPerNm(upper, rFit), 0.34 * Rb);
+  });
+  // Målestokken nederst, i ringen mellom den ytterste banen (0,7 R) og kanten av lupen, med teksten til venstre
+  const barFs = 17 * f * 0.7;
+  const barText = (nm: number) => `${fmt(nm, nm < 0.1 ? 2 : nm < 1 ? 1 : 0)} nm`;
+  const barY = cy + 0.8 * Rb;
+  const barHalf = Math.sqrt(Math.max(0, (Rb - 8 * ss) ** 2 - (barY - cy + 5 * ss) ** 2));
+  const bar = scaleBar(pxPerNm(upper, rFit), Math.min(0.34 * Rb, 2 * barHalf - 8 * ss - barFs * 0.58 * 6));
+  const barTextW = barText(bar.nm).length * barFs * 0.58;
+  const barX0 = cx - (bar.px + 8 * ss + barTextW) / 2 + barTextW + 8 * ss;
 
   return (
     <g>
@@ -145,7 +167,7 @@ export function AtomLupe({ c, mode, upper, lower, t, xEnd, color }: AtomLupeProp
         {labelled.map((n) => {
           const sel = n === upper || n === lower;
           return (
-            <NightTxt key={n} x={cx} y={cy - rPx(n) + fsPx * 0.34} size={0.78} weight={sel ? 700 : 500} muted={!sel}>
+            <NightTxt key={n} x={cx} y={cy - rPx(n) - labelGap} size={0.78} weight={sel ? 700 : 500} muted={!sel}>
               {sel ? `n = ${n}` : n}
             </NightTxt>
           );
@@ -155,12 +177,12 @@ export function AtomLupe({ c, mode, upper, lower, t, xEnd, color }: AtomLupeProp
 
         {/* Målestokk */}
         <g>
-          <line x1={cx - 0.62 * Rb} x2={cx - 0.62 * Rb + bar.px} y1={cy + 0.64 * Rb} y2={cy + 0.64 * Rb} stroke={SCENE.star} strokeWidth={2 * ss} strokeLinecap="round" />
+          <line x1={barX0} x2={barX0 + bar.px} y1={barY} y2={barY} stroke={SCENE.star} strokeWidth={2 * ss} strokeLinecap="round" />
           {[0, bar.px].map((dx) => (
-            <line key={dx} x1={cx - 0.62 * Rb + dx} x2={cx - 0.62 * Rb + dx} y1={cy + 0.64 * Rb - 5 * ss} y2={cy + 0.64 * Rb + 5 * ss} stroke={SCENE.star} strokeWidth={1.6 * ss} />
+            <line key={dx} x1={barX0 + dx} x2={barX0 + dx} y1={barY - 5 * ss} y2={barY + 5 * ss} stroke={SCENE.star} strokeWidth={1.6 * ss} />
           ))}
-          <NightTxt x={cx - 0.62 * Rb + bar.px / 2} y={cy + 0.64 * Rb - 10 * ss} size={0.7} muted>
-            {fmt(bar.nm, bar.nm < 0.1 ? 2 : bar.nm < 1 ? 1 : 0)} nm
+          <NightTxt x={barX0 - 8 * ss} y={barY + barFs * 0.34} size={0.7} anchor="end" muted>
+            {barText(bar.nm)}
           </NightTxt>
         </g>
       </g>
@@ -276,7 +298,7 @@ function InsetLupe({ Ci, lower, rIn, rp, ring }: { Ci: Circle; lower: number; rI
           <circle key={n} cx={Ci.x} cy={Ci.y} r={rIn(n)} fill="none" stroke={alpha(SCENE.star, n === lower ? 0.8 : 0.3)} strokeWidth={(n === lower ? 1.6 : 1) * ss} />
         ))}
         <Nukleon x={Ci.x} y={Ci.y} r={rp} type="proton" />
-        <NightTxt x={Ci.x} y={Ci.y + rIn(lower) + fsPx * 0.34} size={0.72} weight={700}>
+        <NightTxt x={Ci.x} y={Ci.y + rIn(lower) + 3 * ss + fsPx * 0.78} size={0.72} weight={700}>
           {`n = ${lower}`}
         </NightTxt>
       </g>
@@ -292,7 +314,7 @@ function EmissionPhoton({ from, re, nm, eV, c, xEnd, t, tJ }: { from: Pt; re: nu
   const x0 = from.x + re + 6 * k;
   const L = Math.min(230 * k, 0.75 * (xEnd - x0));
   const span = t === null ? ([x0, x0 + L] as [number, number]) : emittedPhoton(t, x0, xEnd, L, emissionSpeed(x0, xEnd, L, tJ), tJ);
-  const text = `${fmt(nm, 0)} nm · ${fmt(eV, eV >= 10 ? 1 : 2)} eV`;
+  const text = `${nmText(nm)} nm · ${eVText(eV)} eV`;
   // Samme bredde som ValueTag regner ut, så skiltet ikke går ut over kanten av figuren
   const fs = 17 * f * 0.9;
   const tagW = Math.max(fs * 1.6, text.length * fs * 0.6 + 16 * f);
@@ -347,14 +369,14 @@ function AbsorptionPhotons({
 }) {
   const f = useTextScale();
   const k = useSceneScale();
+  const ss = useStrokeScale();
   const { more, less } = passingPhotons(upper, lower);
-  const dy = 0.8 * c.r;
+  // Utenfor den ytterste banen (0,7 R) og målestokken (0,8 R), så banene deres går forbi atomet
+  const dy = 0.89 * c.r;
   const pass = [
-    { y: c.y - dy, nm: more.lambda * 1e9 },
-    { y: c.y + dy, nm: less.lambda * 1e9 },
+    { y: c.y - dy, nm: more.lambda * 1e9, below: true },
+    { y: c.y + dy, nm: less.lambda * 1e9, below: false },
   ];
-  // Ligger linjene tett (nær seriegrensen), trengs én desimal for å se forskjell på bølgelengdene.
-  const dec = pass.some((q) => Math.abs(q.nm - nm) < 5) ? 1 : 0;
   // Det riktige fotonet tas opp i det det treffer elektronet: pakken blekner bort på et øyeblikk.
   const hit = t === null || t >= tHit ? ([Math.max(xStart, xHit - L), xHit] as [number, number]) : incomingPhoton(t, xStart, xHit, tHit, L, v, { stop: xHit });
   const hitOpacity = t === null || t < tHit ? 1 : Math.max(0, 1 - (t - tHit) / 0.2);
@@ -368,18 +390,28 @@ function AbsorptionPhotons({
       )}
       {hitOpacity > 0 && (
         <NightTxt x={Math.max(xStart + 30 * f, xHit - L / 2)} y={y + 14 * k + 17 * f} size={0.75} weight={700} anchor="middle">
-          {fmt(nm, dec)} nm
+          {nmText(nm)} nm
         </NightTxt>
       )}
       {pass.map((p, i) => {
-        const span = t === null ? ([xEnd - 4 - L, xEnd - 4] as [number, number]) : incomingPhoton(t, chordLeft(p.y), xHit, tHit, L, v, { xEnd });
+        const x0 = chordLeft(p.y);
+        const span = t === null ? ([xEnd - 4 - L, xEnd - 4] as [number, number]) : incomingPhoton(t, x0, xHit, tHit, L, v, { xEnd });
+        const region = spectralRegion(p.nm);
+        const fs = 17 * f * 0.75;
+        // Teksten står mellom de to fotonene (under det øverste, over det nederste), så den ikke går ut av figuren
+        const ty = p.below ? p.y + 6 * k + 8 * f + fs * 0.78 : p.y - 6 * k - 8 * f;
+        const xOut = 2 * c.x - x0;
+        const dash = `${2 * ss} ${5 * ss}`;
         return (
           <g key={i}>
+            {/* Svak, rett bane gjennom gassen: fotonet går forbi atomet uten å bli tatt opp (lys inne i lupen, grå utenfor) */}
+            <line x1={x0 + 2} x2={xOut - 2} y1={p.y} y2={p.y} stroke={SCENE.star} strokeWidth={1.3 * ss} strokeDasharray={dash} strokeLinecap="round" opacity={0.55} />
+            <line x1={xOut + 4} x2={xEnd - 4} y1={p.y} y2={p.y} stroke={VIZ.muted} strokeWidth={1.3 * ss} strokeDasharray={dash} strokeLinecap="round" opacity={0.7} />
             {span && span[1] - span[0] >= 16 && (
               <Foton x1={span[0]} y1={p.y} x2={span[1]} y2={p.y} bolgelengde={p.nm} amplitude={6 * k} fase={t === null ? 0 : -t * 14} />
             )}
-            <Txt x={labelX} y={p.y - 14 * k - 8 * f} size={0.75} muted>
-              {fmt(p.nm, dec)} nm går gjennom
+            <Txt x={labelX} y={ty} size={0.75} muted>
+              {`${nmText(p.nm)} nm${region === 'synlig' ? '' : ` (${REGION_NAMES[region]})`} går gjennom`}
             </Txt>
           </g>
         );

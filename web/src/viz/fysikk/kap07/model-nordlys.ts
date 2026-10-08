@@ -441,6 +441,45 @@ export function lowerEdge(keV: number): number {
   return i < 0 ? NaN : p.h[i]!;
 }
 
+/* ---------- Grafen «Lys fra hver høyde» ---------- */
+
+/** Forstørrelsene en svak kurve kan få i grafen (alltid med etikett, f.eks. «rødt × 10»). */
+export const GRAPH_GAINS: readonly number[] = [2, 5, 10, 20];
+
+/**
+ * Hvor mye hver kurve forstørres i grafen. Alle kurvene tegnes på samme skala (delt på profile.max), så en svak farge
+ * også ser svak ut. En kurve med topp under 30 % av den sterkeste forstørres med den største faktoren i GRAPH_GAINS
+ * som holder toppen under 95 % av bredden, ellers 1.
+ */
+export function graphGains(profile: AuroraProfile): Record<LineId, number> {
+  const out = {} as Record<LineId, number>;
+  for (const id of LINE_ORDER) {
+    const peak = profile.max > 0 ? Math.max(...profile.I[id]) / profile.max : 0;
+    let gain = 1;
+    if (peak > 0 && peak < 0.3) for (const g of GRAPH_GAINS) if (peak * g <= 0.95) gain = g;
+    out[id] = gain;
+  }
+  return out;
+}
+
+/** Antall gjeldende siffer i `v` (avrundet): roundSig(1190,5, 2) = 1200, roundSig(18,75, 3) = 18,8. */
+export function roundSig(v: number, sig: number): number {
+  if (!Number.isFinite(v) || v === 0) return v;
+  const p = sig - 1 - Math.floor(Math.log10(Math.abs(v)));
+  const m = 10 ** Math.abs(p);
+  return p >= 0 ? Math.round(v * m) / m : Math.round(v / m) * m;
+}
+
+/**
+ * Energien (eV) som vises for støtet som lager linja, med tre gjeldende siffer (4,20 eV, 1,97 eV, 18,8 eV), og
+ * hvor mange slike støt ett elektron med energi `keV` i beste fall rekker, regnet med den viste energien og avrundet
+ * til to gjeldende siffer (5 000 eV / 4,20 eV ≈ 1 200).
+ */
+export function collisionCount(id: LineId, keV: number): { eV: number; count: number } {
+  const eV = roundSig(excitationEnergy(id), 3);
+  return { eV, count: roundSig((keV * 1000) / eV, 2) };
+}
+
 /* ---------- Fargen vi ser ---------- */
 
 export type Rgb = [number, number, number];

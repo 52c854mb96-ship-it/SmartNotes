@@ -291,8 +291,9 @@ function SpectrumDiagram({
   L: Layout;
 }) {
   const fReal = useTextScale();
-  // Etiketter over linjene (de sterkeste), i to rader så de ikke overlapper
-  const labelled = mode === 'kontinuerlig' ? [] : mergeClose(lines.filter((l) => l.I >= 0.3));
+  // Etiketter over linjene (de sterkeste), i to rader så de ikke overlapper. Hydrogen: de fire Balmer-linjene øyet ser
+  // tydelig (Hα–Hδ), ikke de svake under 400 nm.
+  const labelled = mode === 'kontinuerlig' ? [] : mergeClose(lines.filter(hasLabel));
   const fontPx = 17 * fReal;
   // De sterkeste linjene får etikett først, så de viktigste ikke faller bort når det er trangt (mobil)
   const rows = placeLabels(
@@ -411,6 +412,12 @@ function SpectrumDiagram({
       </g>
     </>
   );
+}
+
+/** Linjer som får bølgelengden skrevet over seg: de sterke, og hydrogenlinjene som ikke er svake. */
+function hasLabel(l: SpectralLine): boolean {
+  if (l.faint) return false;
+  return l.from !== undefined || l.I >= 0.3;
 }
 
 /** Slår sammen linjer som ligger nærmere enn `gap` nm (f.eks. natriumets D-linjer), og beholder den sterkeste. */
@@ -554,7 +561,8 @@ function emissionPractical(el: SpectrumElement): ReactNode {
     return (
       <>
         Det er derfor hydrogenrøret lyser rosa-lilla: øyet ser blandingen av linjene, og den røde Hα-linja er sterkest. Prismet skiller
-        dem fra hverandre igjen.
+        dem fra hverandre igjen. Du ser fire tydelige linjer, Hα–Hδ. Linjene under 400 nm (Hε og videre) er så svake og så langt ut
+        mot fiolett at øyet knapt ser dem.
       </>
     );
   if (el === 'natrium')
@@ -612,6 +620,7 @@ function hitText(hit: SpectralLine | null, absorption = false): ReactNode {
     ) : (
       <>
         Markøren står på {hit.name}, overgangen fra n = {hit.from} til n = {hit.to}.
+        {hit.faint ? ' Linja er svak og knapt synlig for øyet.' : ''}
       </>
     );
   return hit.name ? (

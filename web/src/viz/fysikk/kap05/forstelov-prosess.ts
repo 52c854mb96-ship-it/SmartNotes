@@ -77,6 +77,31 @@ const EXTREMES = volumeExtremes();
 export const V_MIN = EXTREMES.min;
 export const V_MAX = EXTREMES.max;
 
+/* ------------------------------------------------------------------ Det sylinderen står på */
+
+/** Smeltepunktet til is og temperaturen til tørris (fast CO₂ som sublimerer), i kelvin. */
+export const ICE_T = 273.15;
+export const DRY_ICE_T = 194.65;
+
+export type Support = 'kokeplate' | 'is' | 'torris' | 'isopor';
+
+/**
+ * Hva sylinderen står på: en kokeplate når gassen får varme (Q > 0), isopor når Q = 0, og ellers noe som er
+ * kaldere enn gassen gjennom hele prosessen, så varmen faktisk går fra gassen og ut: en isblokk (0 °C) når gassen
+ * holder seg over 2 °C, ellers tørris (−78,5 °C). Temperaturen endrer seg jevnt, så den laveste er T₀ eller T etter.
+ */
+export function supportFor(W: number, Q: number): Support {
+  if (Q > 0) return 'kokeplate';
+  if (Q === 0) return 'isopor';
+  const coldest = Math.min(T_START, processState(W, Q, 1).T);
+  return coldest > ICE_T + 2 ? 'is' : 'torris';
+}
+
+/** Temperaturen (K) til det som tar imot varmen når Q < 0 (isblokka eller tørrisen). */
+export function sinkTemperature(support: Support): number {
+  return support === 'torris' ? DRY_ICE_T : ICE_T;
+}
+
 /* ------------------------------------------------------------------ Scenen */
 
 /** Piksler per meter i scenen (5 px per cm). */
@@ -95,7 +120,7 @@ export const MAAL = {
   /** Stempelet: tykkelse. Stempelstanga: diameter og lengde over stempelet. */
   stempelT: 0.03,
   stang: 0.022,
-  stangL: 0.13,
+  stangL: 0.21,
   /** Kokeplata (bredde); isblokka og isoporplata er like høye, så sylinderen står like høyt på alle tre. */
   kokeplate: 0.5,
 } as const;
@@ -139,10 +164,10 @@ export function sceneLayout(narrow: boolean): SceneLayout {
   if (!narrow) {
     return { narrow, viewBox: `0 0 ${SCENE_W} ${SCENE_H}`, left: 0, right: SCENE_W, top: 0, bottom: SCENE_H, benchY: BENCH_Y, cx: CX, thermoX: 122 };
   }
-  const left = CX - 200;
+  const left = CX - 222;
   const right = CX + 240;
-  const top = 26;
-  return { narrow, viewBox: `${left} ${top} ${right - left} ${SCENE_H - top}`, left, right, top, bottom: SCENE_H, benchY: BENCH_Y, cx: CX, thermoX: CX - 158 };
+  const top = 14;
+  return { narrow, viewBox: `${left} ${top} ${right - left} ${SCENE_H - top}`, left, right, top, bottom: SCENE_H, benchY: BENCH_Y, cx: CX, thermoX: CX - 174 };
 }
 
 export interface CylinderGeometry {

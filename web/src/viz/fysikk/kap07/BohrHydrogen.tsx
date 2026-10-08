@@ -19,12 +19,24 @@ import {
   fmtSci,
   useSimClock,
 } from '../../kit';
-import { AtomLupe, lightText, type Mode } from './bohr-atom';
+import { AtomLupe, eVText, lightText, nmText, type Mode } from './bohr-atom';
 import { WavelengthAxis } from './bohr-bolgelengder';
 import { LabVignett, LupeStreker, SolVignett, labGeometry, sunGeometry, type Box } from './bohr-deler';
 import { LevelDiagram, N_TOP, levelsHeight } from './bohr-nivaer';
 import { BOHR_ANIM, dischargeRgb, orbitRadius, rgbText, type Circle } from './bohr-scene';
-import { REGION_NAMES, colorName, levelEnergyEV, levelEnergyJ, seriesName, sigDecimals, spectralRegion, transitionPhoton, wavelengthColor } from './model';
+import {
+  REGION_NAMES,
+  colorName,
+  levelEnergyEV,
+  nearestLine,
+  photonSteps,
+  seriesName,
+  sigDecimals,
+  spectralRegion,
+  sunLinesOf,
+  transitionPhoton,
+  wavelengthColor,
+} from './model';
 import { useFigureTextScale, useNarrow } from './useNarrow';
 
 const MODES: { value: Mode; label: string }[] = [
@@ -79,6 +91,7 @@ export default function BohrHydrogen() {
   };
 
   const p = transitionPhoton(upper, lower);
+  const steps = photonSteps(upper, lower);
   const nm = p.lambda * 1e9;
   const region = spectralRegion(nm);
   const [from, to] = mode === 'emisjon' ? [upper, lower] : [lower, upper];
@@ -93,8 +106,8 @@ export default function BohrHydrogen() {
 
   const sceneLabel =
     mode === 'emisjon'
-      ? `Et spektralrør med hydrogen lyser rosa i et mørkt klasserom. Lupen viser ett hydrogenatom med banene i riktig forhold: elektronet hopper fra bane n = ${upper} til n = ${lower} og sender ut et foton med bølgelengde ${fmt(nm, 0)} nm (${lightText(nm)}).`
-      : `Sollys går gjennom den kaldere gassen i solatmosfæren. Lupen viser ett hydrogenatom som tar opp et foton med bølgelengde ${fmt(nm, 0)} nm, så elektronet hopper fra bane n = ${lower} til n = ${upper}. Fotoner med litt mer og litt mindre energi går rett gjennom.`;
+      ? `Et spektralrør med hydrogen lyser rosa i et mørkt klasserom. Lupen viser ett hydrogenatom med banene i riktig forhold: elektronet hopper fra bane n = ${upper} til n = ${lower} og sender ut et foton med bølgelengde ${nmText(nm)} nm (${lightText(nm)}).`
+      : `Sollys går gjennom den kaldere gassen i solatmosfæren. Lupen viser ett hydrogenatom som tar opp et foton med bølgelengde ${nmText(nm)} nm, så elektronet hopper fra bane n = ${lower} til n = ${upper}. Fotoner med litt mer og litt mindre energi går rett gjennom.`;
 
   return (
     <VizLayout>
@@ -118,7 +131,7 @@ export default function BohrHydrogen() {
       <div ref={ref}>
         <Figure
           viewBox={`0 0 800 ${levelsH}`}
-          label={`Energinivåene i hydrogen. ${mode === 'emisjon' ? 'Emisjon' : 'Absorpsjon'}: elektronet går fra n = ${from} til n = ${to}, og fotonet har bølgelengde ${fmt(nm, 0)} nm.`}
+          label={`Energinivåene i hydrogen. ${mode === 'emisjon' ? 'Emisjon' : 'Absorpsjon'}: elektronet går fra n = ${from} til n = ${to}, og fotonet har bølgelengde ${nmText(nm)} nm.`}
           maxHeight={levelsH}
         >
           <LevelDiagram upper={upper} lower={lower} mode={mode} narrow={narrow} height={levelsH} color={color} />
@@ -127,7 +140,7 @@ export default function BohrHydrogen() {
 
       <Figure
         viewBox={`0 0 800 ${narrow ? 430 : 270}`}
-        label={`Bølgelengdene til alle overgangene opp til n = 6 på en logaritmisk akse. Det valgte fotonet har ${fmt(nm, 0)} nm (${REGION_NAMES[region]}).`}
+        label={`Bølgelengdene til alle overgangene opp til n = 6 på en logaritmisk akse. Det valgte fotonet har ${nmText(nm)} nm (${REGION_NAMES[region]}).`}
       >
         <WavelengthAxis upper={upper} lower={lower} height={narrow ? 430 : 270} seriesColor={seriesColor} />
       </Figure>
@@ -142,25 +155,26 @@ export default function BohrHydrogen() {
         <Readout label="Fotonenergi" value={fmt(p.eV, sigDecimals(p.eV))} unit="eV" />
         <Readout label="Fotonenergi i joule" value={fmtSci(p.E, 2)} unit="J" />
         <Readout label="Frekvens f" value={fmtSci(p.f, 2)} unit="Hz" />
-        <Readout label="Bølgelengde λ" value={fmt(nm, 0)} unit="nm" />
+        <Readout label="Bølgelengde λ" value={nmText(nm)} unit="nm" />
       </Readouts>
 
       <Formula label="Fotonenergi, frekvens og bølgelengde">
         <FormulaLine>
           E<Sub>n</Sub> = −2,18 · 10⁻¹⁸ J / n²
         </FormulaLine>
+        {/* Mellomsvarene har fire gjeldende siffer (ett ekstra), så tallene som står, gir svaret med tre (photonSteps) */}
         <FormulaLine>
-          E<Sub>foton</Sub> = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = ({fmtSci(levelEnergyJ(upper), 2)} J) − (
-          {fmtSci(levelEnergyJ(lower), 2)} J)
+          E<Sub>foton</Sub> = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = ({fmtSci(steps.Eupper, 3)} J) − ({fmtSci(steps.Elower, 3)} J) ={' '}
+          {fmtSci(steps.E, 3)} J
         </FormulaLine>
         <FormulaLine>
-          E<Sub>foton</Sub> = {fmtSci(p.E, 2)} J = {fmt(p.eV, sigDecimals(p.eV))} eV
+          E<Sub>foton</Sub> = {fmtSci(steps.E, 3)} J / (1,60 · 10⁻¹⁹ J/eV) = {eVText(steps.eV)} eV
         </FormulaLine>
         <FormulaLine>
-          f = E/h = {fmtSci(p.E, 2)} J / 6,63 · 10⁻³⁴ J·s = {fmtSci(p.f, 2)} Hz
+          f = E/h = {fmtSci(steps.E, 3)} J / 6,63 · 10⁻³⁴ J·s = {fmtSci(steps.f, 3)} Hz
         </FormulaLine>
         <FormulaLine>
-          λ = c/f = 3,00 · 10⁸ m/s / {fmtSci(p.f, 2)} Hz = {fmt(nm, 0)} nm
+          λ = c/f = 3,00 · 10⁸ m/s / {fmtSci(steps.f, 3)} Hz = {nmText(steps.nm)} nm
         </FormulaLine>
       </Formula>
 
@@ -228,7 +242,7 @@ function explanation(mode: Mode, upper: number, lower: number, eV: number, nm: n
       <>
         <p>
           <strong>Emisjon.</strong> Elektronet faller fra n = {upper} til n = {lower} og sender ut ett foton med energi lik forskjellen mellom
-          nivåene: E = hf = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = {fmt(eV, sigDecimals(eV))} eV. Det gir λ = {fmt(nm, 0)} nm, som er{' '}
+          nivåene: E = hf = E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> = {fmt(eV, sigDecimals(eV))} eV. Det gir λ = {nmText(nm)} nm, som er{' '}
           {where}. {seriesText}
           {ionize} Bohrs modell gir riktige nivåer for hydrogen, men virker ikke for atomer med flere elektroner.
         </p>
@@ -239,10 +253,14 @@ function explanation(mode: Mode, upper: number, lower: number, eV: number, nm: n
       </>
     );
   }
+  const sunLine = visibleBalmer ? nearestLine(sunLinesOf('hydrogen'), nm, 2) : null;
+  const sunNm = sunLine ? nmText(sunLine.nm) : null;
   const why = visibleBalmer ? (
     <>
-      Det er derfor sollyset har en mørk linje ved {fmt(nm, 0)} nm: hydrogen i solatmosfæren tar opp akkurat disse fotonene, mens resten
-      av lyset går gjennom.
+      Det er derfor sollyset har en mørk linje ved {sunNm && sunNm !== nmText(nm) ? `ca. ${sunNm} nm (Bohrs modell gir ${nmText(nm)} nm med avrundede konstanter)` : `${nmText(nm)} nm`}:
+      hydrogen i solatmosfæren tar opp akkurat disse fotonene, mens resten av lyset går gjennom. Atomene må da være i n = 2 fra før.
+      Solatmosfæren er så varm (ca. {'5\u00a0000–6\u00a0000\u00a0K'}) at en liten andel av hydrogenatomene er det, og det er så mye hydrogen at linjene
+      likevel synes.
     </>
   ) : lower === 1 ? (
     <>Det er derfor kald hydrogengass bare tar opp ultrafiolett lys: nesten alle atomene er i grunntilstanden n = 1.</>
@@ -256,7 +274,7 @@ function explanation(mode: Mode, upper: number, lower: number, eV: number, nm: n
     <>
       <p>
         <strong>Absorpsjon.</strong> Atomet tar bare opp et foton som har nøyaktig energien E<Sub>{upper}</Sub> − E<Sub>{lower}</Sub> ={' '}
-        {fmt(eV, sigDecimals(eV))} eV (λ = {fmt(nm, 0)} nm, {region === 'synlig' ? `synlig lys med ${colorName(nm)} farge` : REGION_NAMES[region]}). Da
+        {fmt(eV, sigDecimals(eV))} eV (λ = {nmText(nm)} nm, {region === 'synlig' ? `synlig lys med ${colorName(nm)} farge` : REGION_NAMES[region]}). Da
         løftes elektronet fra n = {lower} til n = {upper}. Fotoner med litt mer eller litt mindre energi går rett gjennom, fordi elektronet ikke kan
         være mellom nivåene.{ionizeAbs}
       </p>

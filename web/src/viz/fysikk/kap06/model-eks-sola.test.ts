@@ -83,7 +83,7 @@ describe('Sola som svart legeme: d) intensiteten ved planeten', () => {
 });
 
 describe('Sola som svart legeme: e) strålingsbalansen for planeten', () => {
-  it('jorda: (1 − 0,30) · 1381 / 4 = 241,8 W/m², T = 256 K (−17 °C), 32 K under målt 288 K', () => {
+  it('jorda: (1 − 0,30) · 1381 / 4 ≈ 242 W/m², T = 256 K (−17 °C), 32 K under målt 288 K', () => {
     const s = earth!.s;
     expect(s.absorbedAvg).toBeCloseTo(241.75, 2);
     expect(s.Teq).toBeCloseTo(255.53, 2);
