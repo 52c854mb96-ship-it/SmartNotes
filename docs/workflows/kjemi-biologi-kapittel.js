@@ -15,6 +15,10 @@ export const meta = {
 if (!args || !args.fag || !args.chapters || !args.scratch || !args.branch || !args.trailers) {
   throw new Error('args må ha fag, chapters, scratch, branch og trailers (se docs/workflows/README.md)')
 }
+if (!['kjemi', 'biologi'].includes(args.fag)) throw new Error(`args.fag må være 'kjemi' eller 'biologi', ikke ${args.fag}`)
+if (!args.trailers.includes('\n') || args.trailers.includes('\\n')) {
+  throw new Error('args.trailers må være to linjer skilt med et ekte linjeskift (Co-Authored-By og Claude-Session)')
+}
 const ROOT = args.root || '/home/user/SmartNotes'
 const SCRATCH = args.scratch
 const BIN = `${ROOT}/docs/workflows/bin`
@@ -34,6 +38,16 @@ const BUILD_SCHEMA = {
     openIssues: { type: 'string' },
   },
   required: ['id', 'status', 'files', 'summary', 'openIssues'],
+}
+
+const FINAL_SCHEMA = {
+  type: 'object',
+  properties: {
+    commit: { type: 'string', description: 'Full sha for commiten med kapittelet, eller tom hvis den mangler' },
+    pushed: { type: 'boolean' },
+    report: { type: 'string' },
+  },
+  required: ['commit', 'pushed', 'report'],
 }
 
 const FINDINGS_SCHEMA = {
@@ -68,13 +82,13 @@ function common(ch) {
 
 KAPITTEL ${ch.no} ${ch.title}. Mappe: ${DIR}/. Delkapitlene i dette faget er ikke bekreftet (bortsett fra kjemi kapittel 1), så nye oppføringer bruker sections: [] (kjemi kapittel 1: velg blant 1.1–1.5 som de eksisterende).
 
-LES FØRST (grundig):
-- web/src/viz/README.md: «Illustrert realisme (scene-kit)», «Eksempeloppgaver», «Regler» og hele avsnittet om ${FAG === 'kjemi' ? 'Kjemi' : 'Biologi'} (byggeklosser, farger, konvensjoner, fallgruver).
-- Kit-et for faget, web/src/viz/${FAG}/kit/ (finpusset i illustrert stil med kit-finpuss.js før kapitlene). Les JSDoc.
-- Scene-kit-et, web/src/viz/kit/scene/ (index.ts og JSDoc i familiefilene). Bruk det for scener og bakgrunner: laboratorium (Rom, Underlag type labbenk, Bord), natur (Himmel, Landskap, Terreng, Vann, Gran, Lauvtre), personer (Person), varme og elektrisitet (lab).
-- Skjermbilder av galleriet, eller ta egne: cd ${ROOT}/web && PW_CHROMIUM=/opt/pw-browsers/chromium node scripts/galleri-shot.mjs --port 5173 --galleri alle --themes light --widths 1000 --out ${OUT}/galleri
-- web/src/viz/kit/eksempel.tsx og mønsteret web/src/viz/fysikk/kap02/EksSkraplan.tsx (for eksempeloppgaver).
-- Alle filene i kapittelmappen din.
+LES FØRST (og spar på lesingen, bruksgrensen er knapp):
+- web/src/viz/README.md: «Illustrert realisme (scene-kit)», «Eksempeloppgaver», «Regler» og avsnittet om ${FAG === 'kjemi' ? 'Kjemi' : 'Biologi'} (byggeklosser, farger, konvensjoner, fallgruver).
+- Kit-et for faget, web/src/viz/${FAG}/kit/ (finpusset i illustrert stil med kit-finpuss.js før kapitlene). Les JSDoc for det du bruker.
+- web/src/viz/kit/scene/API.md: kort oversikt over scene-kit-et (laboratorium: Rom, Underlag type labbenk og Bord; natur: Himmel, Landskap, Terreng, Vann, Gran og Lauvtre; Person; varme og elektrisitet i lab). Les bare kildefila (JSDoc og props) for de komponentene du faktisk bruker.
+- Galleriet: se bare bildet av familien du trenger, i ${SCRATCH}/galleri-alle/ (galleri-<familie>-light-1000.png). Hovedøkten lager dem før start. Mangler et bilde, gå videre uten det (ikke lag galleribilder selv).
+- web/src/viz/kit/eksempel.tsx og mønsteret web/src/viz/fysikk/kap02/EksSkraplan.tsx (bare for eksempeloppgaver).
+- Filene i kapittelmappen din som oppgaven gjelder.
 
 ARBEIDSREGLER
 - Endre bare filer i ${DIR}/. Ikke endre kit/, ${FAG}/kit/, scene-kit-et, styles, README eller andre kapitler. Mangler en byggekloss, lag den lokalt i kapittelmappa (egen fil, samme stil), og nevn det i rapporten.
@@ -88,7 +102,7 @@ ARBEIDSREGLER
   - Faglig riktig først: all regning i rene funksjoner med vitest-tester.
 - Språk: bokmål, stor forbokstav bare først, ingen emojier, desimalkomma via fmt eller fmtSig, ekte minus (−).
 - Opphavsrett: alt innhold er eget. Kopier aldri ekte eksamens- eller læreboksoppgaver eller figurer.
-- Ende-til-ende-testene (e2e/) bruker noen titler og tekster, for eksempel «Syre-base-titrering» i kjemi kapittel 7 og «Vaksiner og flokkimmunitet» i biologi kapittel 15. Sjekk med grep -rn i e2e/ før du endrer en title eller en tekst eleven ser, og la det som testene bruker, stå.
+- Ende-til-ende-testene (e2e/) bruker noen titler og tekster, for eksempel «Syre-base-titrering» i kjemi kapittel 7 og «Vaksiner og flokkimmunitet» i biologi kapittel 15. Sjekk med grep -rn i e2e/ før du endrer en title eller en tekst eleven ser, og la det som testene bruker, stå. Nye titler og sammendrag må heller ikke inneholde de samme tekstene: en test som finner to lenker, feiler.
 - Verktøy: maskinen deles av mange agenter, så bruk disse.
   - Typesjekk: ${BIN}/tsc-sjekk.sh src/viz/${FAG}/kap${NN}
   - Tester: cd ${ROOT}/web && npx vitest run src/viz/${FAG}/kap${NN}
@@ -200,6 +214,7 @@ Les koden og testene, og kjør testene. Sjekk:
 - for eksempeloppgaver: eksamensnivå, at oppgaven er original, begrunnede steg, gjeldende siffer og alle tallsettene
 - pensum, språk og stor forbokstav bare først
 blocking = feil fag, feil tall, misvisende forklaring eller brudd på reglene. polish = konkrete forbedringer.
+Bruk id-ene fra index.ts (${ids.join(', ')}) i funnene. Gjelder et funn hele kapittelet, bruk id «kapittel».
 Byggerapportene: ${reports}`
 
   const visuell = (ids) => `${c.text}
@@ -214,6 +229,7 @@ Ta skjermbilder: ${BIN}/shot.sh --fag ${FAG} --ids ${ids.map((i) => `k${ch.no}-$
 - konsistens med resten av faget og scene-kit-galleriet
 - NaN og feil i konsollen
 blocking = stygt, uleselig, overlapp, feil eller forvirrende. polish = konkrete forbedringer.
+Bruk id-ene fra index.ts (${ids.join(', ')}) i funnene. Gjelder et funn hele kapittelet, bruk id «kapittel».
 Byggerapportene: ${reports}`
 
   const reviewJobs = []
@@ -228,20 +244,21 @@ Byggerapportene: ${reports}`
     const id = String(f.id).replace(/^k\d+-/, '')
     ;(byId[id] = byId[id] || []).push(f)
   }
-  for (const id of Object.keys(byId)) {
+  for (const ids of chunks(Object.keys(byId), 3)) {
+    const list = ids.map((id) => ({ id, funn: byId[id] }))
     const fixed = await agent(
       `${c.text}
 
-DIN OPPGAVE: rett funnene fra kontrollen av «${id}» (nøkkel k${ch.no}-${id}).
+DIN OPPGAVE: rett funnene fra kontrollen av ${ids.map((i) => `k${ch.no}-${i}`).join(', ')} (id «kapittel» gjelder hele kapittelet).
 - Rett alle blokkerende funn.
 - Rett også forbedringene som gjør resultatet tydelig bedre. Begrunn kort de du lar være.
 - Kontrollørene kan ta feil: er du sikker på at et funn er feil, så forklar hvorfor i stedet for å rette.
-- Kjør typesjekk og tester, og ta nye skjermbilder (--extremes, og --steps for eksempeloppgaver) til alt er i orden.
-Funn: ${JSON.stringify(byId[id], null, 1)}
+- Kjør typesjekk og tester, og ta nye skjermbilder (--extremes, og --steps for eksempeloppgaver) av det du har endret, til alt er i orden.
+Funn: ${JSON.stringify(list, null, 1)}
 Svar kort med hva du rettet og hva du lot være.`,
-      { label: `rett:${L}-${id}`, phase: 'Retting' },
+      { label: `rett:${L}-${ids[0]}…`, phase: 'Retting' },
     )
-    need(fixed, `rett:${L}-${id}`)
+    need(fixed, `rett:${L}-${ids.join(',')}`)
   }
 
   const final = await agent(
@@ -251,20 +268,37 @@ DIN OPPGAVE: sluttsjekk av ${FAGNAVN} kapittel ${ch.no} før commit.
 1. Kjør typesjekk og testene for kapittelet, og rett feil i kapittelmappa.
 2. Ta skjermbilder: ${BIN}/shot.sh --fag ${FAG} --chapter ${ch.no} --extremes --out ${c.OUT}/slutt. Det skal ikke være noen FEIL (konsollfeil, NaN eller sidelengs scrolling). Rett tydelige feil.
 3. Sjekk at rekkefølgen i index.ts er fornuftig og at det ikke ligger løse filer igjen.
-4. Commit kapittelet, bare din mappe. Andre kapitler committer kanskje samtidig, så prøv på nytt med noen sekunders pause ved låsfeil (index.lock). Bruk nøyaktig denne meldingen (tittel, tom linje, signaturlinjene), for eksempel med git commit -F og en heredoc:
------
-${FAG === 'kjemi' ? 'Kjemi' : 'Biologi'} kapittel ${ch.no}: finpuss i illustrert stil og ny visualisering
+4. Commit og push kapittelet. Bare din mappe skal med, og andre kapitler kan committe samtidig (derfor løkka). Heredoc-en er commit-meldingen: tittel, tom linje og signaturlinjene. Kjør nøyaktig dette:
+cd ${ROOT}
+for i in 1 2 3 4 5 6; do git add ${c.DIR} && git commit -q -F - -- ${c.DIR} <<'MELDING' && break
+${FAG === 'kjemi' ? 'Kjemi' : 'Biologi'} kapittel ${ch.no}: finpuss i illustrert stil og ${ch.news.some((n) => n.kind === 'eksempel') ? 'ny eksempeloppgave' : 'ny visualisering'}
 
 ${TRAILERS}
------
-   cd ${ROOT} && git add ${c.DIR} && git commit -F <fil eller heredoc> -- ${c.DIR}
-   for i in 1 2 3 4; do git push -q origin ${BRANCH} && break; sleep $((2**i)); done
-Svar med en kort rapport på bokmål: hva som er nytt og finpusset, hva som ble rettet og hva som er usikkert.`,
-    { label: `slutt:${L}`, phase: 'Avslutning' },
+MELDING
+sleep $((i*3)); done
+for i in 1 2 3 4; do git push -q origin ${BRANCH} && break; sleep $((2**i)); done
+git log -1 --format=%H -- ${c.DIR}; git status --short ${c.DIR}; git status -sb | head -1
+5. Sjekk at commiten finnes, at git status for mappa er tom, og at grenen ikke ligger foran origin (ingen «ahead»).
+Svar med commit (full sha), pushed (true bare hvis push lyktes og mappa er ren) og en kort rapport på bokmål: hva som er nytt og finpusset, hva som ble rettet og hva som er usikkert.`,
+    { label: `slutt:${L}`, phase: 'Avslutning', schema: FINAL_SCHEMA },
   )
   need(final, `slutt:${L}`)
+  if (!final.commit || !final.pushed) {
+    throw new Error(`Avbrutt: ${FAGNAVN} kapittel ${ch.no} ble ikke committet og pushet (${final.report}). Commit og push mappa for hånd.`)
+  }
   return { chapter: ch.no, built: built.map((b) => ({ id: b.id, status: b.status })), findings: findings.length, final }
 }
 
-const results = await pipeline(args.chapters, (ch) => doChapter(ch))
+// Et kapittel som kaster inne i pipeline() blir null. De andre kapitlene får gjøre seg ferdige (og havner i
+// hurtigbufferen), og så stopper workflowen, så den kan gjenopptas med samme args.
+const results = await pipeline(args.chapters, async (ch) => {
+  try {
+    return await doChapter(ch)
+  } catch (e) {
+    log(`${FAGNAVN} kapittel ${ch.no}: ${e.message}`)
+    throw e
+  }
+})
+const failed = args.chapters.filter((ch, i) => !results[i]).map((ch) => ch.no)
+if (failed.length) throw new Error(`Avbrutt: ${FAGNAVN} kapittel ${failed.join(', ')} ble ikke ferdig. Gjenoppta med samme args.`)
 return { fag: FAG, results }

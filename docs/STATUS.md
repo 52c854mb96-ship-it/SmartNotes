@@ -78,7 +78,7 @@ Ikke endre disse uten å spørre først.
   - Still dem samlet, med det anbefalte valget først.
 - **Når noe er ferdig:** gi en kort rapport. Si tydelig hva som ikke er testet, for eksempel med ekte Claude.
 - **Git:**
-  - Jobb på grenen som øktinstruksene oppgir. Hittil har det vært `claude/smartnotes-offline-app-j25mqo`.
+  - Jobb på grenen som øktinstruksene oppgir. Hver økt har fått sin egen, for eksempel `claude/smartnotes-offline-app-j25mqo` og `claude/blissful-lamport-eh0x58`.
   - Lag en PR mot `main`, og flett den selv når CI er grønn. Eleven har godkjent dette: «Ja, flett inn selv».
   - Etter flettingen nullstilles arbeidsgrenen fra `main`.
 - **Commit- og PR-tekst:** skriv på bokmål. Bruk attribusjonslinjene som systemet oppgir, og nevn ellers ikke hvilken modell du selv kjører på. Modellene appen bruker (for eksempel `claude-sonnet-5-5` i `server/src/config.ts`), kan nevnes som vanlig.

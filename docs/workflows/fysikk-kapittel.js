@@ -20,6 +20,11 @@ const BIN = `${ROOT}/docs/workflows/bin`
 const BRANCH = args.branch
 const TRAILERS = args.trailers
 
+if (!args.trailers.includes('\n') || args.trailers.includes('\\n')) {
+  throw new Error('args.trailers må være to linjer skilt med et ekte linjeskift (Co-Authored-By og Claude-Session)')
+}
+if (args.chapter.done) throw new Error(`Kapittel ${args.chapter.no} er allerede ferdig (done i fysikk-katalog.json)`)
+
 const CH = args.chapter
 const NN = CH.no.padStart(2, '0')
 const DIR = `web/src/viz/fysikk/kap${NN}`
@@ -33,7 +38,7 @@ KAPITTEL ${CH.no} ${CH.title}. Delkapitler: ${SECTIONS}. Mappe: ${DIR}/.
 LES FØRST (og spar på lesingen, bruksgrensen er knapp):
 - web/src/viz/README.md, særlig «Illustrert realisme (scene-kit)», «Eksempeloppgaver», «Oppbygning av én visualisering» og «Regler».
 - web/src/viz/kit/scene/API.md: kort oversikt over alt i scene-kit-et. Les bare kildefila (JSDoc og props) for de komponentene du faktisk bruker. Ikke les hele familiefilene.
-- Galleriet: se bare bildet av familien du trenger, i ${SCRATCH}/galleri-alle/ (galleri-<familie>-light-1000.png). Finnes de ikke, lag dem: cd ${ROOT}/web && PW_CHROMIUM=/opt/pw-browsers/chromium node scripts/galleri-shot.mjs --port 5173 --galleri alle --themes light --widths 1000 --out ${SCRATCH}/galleri-alle
+- Galleriet: se bare bildet av familien du trenger, i ${SCRATCH}/galleri-alle/ (galleri-<familie>-light-1000.png). Hovedøkten lager dem før start. Mangler et bilde, gå videre uten det (ikke lag galleribilder selv).
 - Mønstre: web/src/viz/kit/eksempel.tsx og web/src/viz/fysikk/kap02/EksSkraplan.tsx (bare for eksempeloppgaver). Gjerne én ferdig oppgradert visualisering i kap01–kap04 for å se stilen.
 - Filene i kapittelmappen din som oppgaven gjelder.
 
@@ -50,7 +55,7 @@ ARBEIDSREGLER
 - Fysikken skal være riktig: all regning i rene funksjoner med vitest-tester (kjente verdier, grensetilfeller, bevaringslover og alle tallsett).
 - Språk: bokmål, stor forbokstav bare først (aldri bare store bokstaver), ingen emojier. Desimalkomma via fmt(), ekte minus (−) og mellomrom før enhet.
 - Opphavsrett: eksempeloppgaver og situasjoner er egne, med egen tekst og egne tall. Kopier aldri ekte eksamens- eller læreboksoppgaver, og gjenfortell dem heller ikke.
-- Ende-til-ende-testene (e2e/) bruker noen titler og tekster i visualiseringene. Sjekk med grep -rn i e2e/ før du endrer en title eller en tekst eleven ser, og la det som testene bruker, stå.
+- Ende-til-ende-testene (e2e/) bruker noen titler og tekster i visualiseringene. Sjekk med grep -rn i e2e/ før du endrer en title eller en tekst eleven ser, og la det som testene bruker, stå. Nye titler og sammendrag må heller ikke inneholde de samme tekstene: en test som finner to lenker, feiler.
 - Verktøy: maskinen deles av mange agenter, så bruk disse i stedet for å kjøre tsc og Playwright direkte.
   - Typesjekk: ${BIN}/tsc-sjekk.sh src/viz/fysikk/kap${NN}
   - Tester: cd ${ROOT}/web && npx vitest run src/viz/fysikk/kap${NN}
@@ -69,6 +74,16 @@ const BUILD_SCHEMA = {
     openIssues: { type: 'string', description: 'Det som ikke ble bra nok eller må sjekkes, ellers tom' },
   },
   required: ['id', 'status', 'files', 'summary', 'openIssues'],
+}
+
+const FINAL_SCHEMA = {
+  type: 'object',
+  properties: {
+    commit: { type: 'string', description: 'Full sha for commiten med kapittelet, eller tom hvis den mangler' },
+    pushed: { type: 'boolean' },
+    report: { type: 'string' },
+  },
+  required: ['commit', 'pushed', 'report'],
 }
 
 const FINDINGS_SCHEMA = {
@@ -257,17 +272,23 @@ DIN OPPGAVE: sluttsjekk av hele kapittel ${CH.no} før commit.
 1. Kjør typesjekk (${BIN}/tsc-sjekk.sh src/viz/fysikk/kap${NN}) og testene for kapittelet. Rett eventuelle feil i kapittelmappa.
 2. Ta skjermbilder av hele kapittelet: ${BIN}/shot.sh --chapter ${CH.no} --extremes --themes light,dark --out ${OUT}/slutt. Skriptet skal avslutte uten FEIL, altså uten konsollfeil, uten NaN og uten sidelengs scrolling. Se raskt over bildene for tydelige feil og rett dem.
 3. Sjekk at index.ts har en fornuftig rekkefølge (det grunnleggende først, nye praktiske der de hører hjemme, eksempeloppgavene sist), at alle id-er og delkapitler stemmer, og at det ikke ligger løse filer igjen (for eksempel ubrukte filer eller testskript).
-4. Commit kapittelet, bare din mappe. Andre kapitler committer kanskje samtidig, så prøv på nytt med noen sekunders pause ved låsfeil (index.lock). Bruk nøyaktig denne meldingen (tittel, tom linje, signaturlinjene), for eksempel med git commit -F og en heredoc:
------
+4. Commit og push kapittelet. Bare din mappe skal med, og andre kapitler kan committe samtidig (derfor løkka). Heredoc-en er commit-meldingen: tittel, tom linje og signaturlinjene. Kjør nøyaktig dette:
+cd ${ROOT}
+for i in 1 2 3 4 5 6; do git add ${DIR} && git commit -q -F - -- ${DIR} <<'MELDING' && break
 Fysikk kapittel ${CH.no}: illustrerte visualiseringer, nye praktiske og eksempeloppgaver
 
 ${TRAILERS}
------
-   cd ${ROOT} && git add ${DIR} && git commit -F <fil eller heredoc> -- ${DIR}
-   Push deretter med nye forsøk ved feil: for i in 1 2 3 4; do git push -q origin ${BRANCH} && break; sleep $((2**i)); done
-Svar med en kort rapport på bokmål: hva kapittelet nå inneholder (nye, oppgraderte og eksempeloppgaver), hva som ble rettet, og det som fortsatt er usikkert eller ikke testet.`,
-  { label: `slutt:k${CH.no}`, phase: 'Avslutning' },
+MELDING
+sleep $((i*3)); done
+for i in 1 2 3 4; do git push -q origin ${BRANCH} && break; sleep $((2**i)); done
+git log -1 --format=%H -- ${DIR}; git status --short ${DIR}; git status -sb | head -1
+5. Sjekk at commiten finnes, at git status for mappa er tom, og at grenen ikke ligger foran origin (ingen «ahead»).
+Svar med commit (full sha), pushed (true bare hvis push lyktes og mappa er ren) og en kort rapport på bokmål: hva kapittelet nå inneholder (nye, oppgraderte og eksempeloppgaver), hva som ble rettet, og det som fortsatt er usikkert eller ikke testet.`,
+  { label: `slutt:k${CH.no}`, phase: 'Avslutning', schema: FINAL_SCHEMA },
 )
 
 need(final, `slutt:k${CH.no}`)
+if (!final.commit || !final.pushed) {
+  throw new Error(`Avbrutt: kapittel ${CH.no} ble ikke committet og pushet (${final.report}). Commit og push mappa for hånd.`)
+}
 return { chapter: CH.no, built, findings: findings.length, fixes: fixes.map((f) => f.ids), final }

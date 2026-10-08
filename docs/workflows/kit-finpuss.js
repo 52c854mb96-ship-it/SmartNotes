@@ -37,7 +37,7 @@ MÅL: ${k.goal}
 REGLER
 - API-ene skal ikke endres: ingen props fjernes eller får ny betydning, og ingen eksporterte navn forsvinner. Nye valgfrie props er greit. Alle ${k.fag}visualiseringene (kapittel ${k.chapters}) bruker kit-et og må fortsatt se riktige ut, med samme plassering og størrelse, så etiketter og piler fortsatt treffer.
 - Bare filene i ${k.files}. Endre ikke kapittelmappene, og ikke andre fag.
-  - styles/viz.css: endre bare variabler og klasser med prefikset til faget (--${k.fag === 'kjemi' ? 'kj' : 'bio'}-*, .${k.fag === 'kjemi' ? 'kj' : 'bio'}-*). Andre agenter endrer ikke viz.css nå. Ny CSS kan også ligge i en egen fil i kit-mappa.
+  - styles/viz.css: endre bare variabler og klasser med prefikset til faget (--${k.fag === 'kjemi' ? 'kj' : 'bio'}-*, .${k.fag === 'kjemi' ? 'kj' : 'bio'}-*). Kit-agenten for det andre faget endrer viz.css samtidig, i sin egen del. Bruk derfor bare små Edit-endringer, les fila rett før hver endring, og skriv aldri hele fila med Write. Legg helst ny CSS i en egen fil i kit-mappa.
 - Farger fra CSS-variabler, så både lyst og mørkt tema og fagtemaet virker. Ingen SVG-filtre og ingen <image>. Ytelsen må holde, siden partikler og celler animeres med mange elementer.
 - Mobil: sjekk 390 px.
 - Ikke commit.
@@ -66,20 +66,28 @@ const REVIEW = {
   required: ['blocking', 'polish'],
 }
 
+// Dør en agent (f.eks. bruksgrensen), stopper workflowen, så den kan gjenopptas fra hurtigbufferen med samme args.
+function need(r, what) {
+  if (r === null || r === undefined) throw new Error(`Avbrutt: ${what} ga ikke noe resultat`)
+  return r
+}
+
 const results = await pipeline(
   ['kjemi', 'biologi'],
-  (fag) => agent(`${COMMON(KITS[fag])}\n\nGjør finpussen. Jobb komponent for komponent og ta skjermbilder underveis. Svar med endrede komponenter, et sammendrag og en vurdering av risiko for regresjoner.`, { label: `kit:${fag}`, phase: 'Bygg', schema: SCHEMA }),
+  async (fag) => need(await agent(`${COMMON(KITS[fag])}\n\nGjør finpussen. Jobb komponent for komponent og ta skjermbilder underveis. Svar med endrede komponenter, et sammendrag og en vurdering av risiko for regresjoner.`, { label: `kit:${fag}`, phase: 'Bygg', schema: SCHEMA }), `kit:${fag}`),
   (built, fag) =>
     agent(
       `${COMMON(KITS[fag])}\n\nDIN OPPGAVE: streng kontroll av finpussen som nettopp er gjort (rapport: ${JSON.stringify(built)}). Ikke rett noe selv. Ta skjermbilder av ALLE ${fag}visualiseringene i lyst og mørkt tema (1000 px), og et utvalg i 390 px. Se gjennom dem. Sjekk:\n- regresjoner: ting som har flyttet seg, overlapper, er borte eller har feil farge\n- om resultatet faktisk er realistisk og pent\n- at API-et er uendret (les git diff for kit-filene)\n- ytelse: antall elementer i partikkelbilder\nblocking = regresjon, stygt eller feil. polish = konkrete forbedringer.`,
       { label: `kontroll:${fag}`, phase: 'Kontroll', schema: REVIEW },
-    ).then((review) => ({ built, review })),
+    ).then((review) => ({ built, review: need(review, `kontroll:${fag}`) })),
   (prev, fag) =>
-    !prev || !prev.review || (prev.review.blocking.length === 0 && prev.review.polish.length === 0)
+    prev.review.blocking.length === 0 && prev.review.polish.length === 0
       ? prev
       : agent(
           `${COMMON(KITS[fag])}\n\nDIN OPPGAVE: rett funnene fra kontrollen av finpussen.\n- Rett alle blokkerende funn og de forbedringene som gjør resultatet tydelig bedre.\n- Ta nye skjermbilder av hele faget som regresjonssjekk.\nFunn: ${JSON.stringify(prev.review, null, 1)}\nSvar kort.`,
           { label: `retting:${fag}`, phase: 'Retting' },
-        ).then((fixed) => ({ ...prev, fixed })),
+        ).then((fixed) => ({ ...prev, fixed: need(fixed, `retting:${fag}`) })),
 )
+const failed = ['kjemi', 'biologi'].filter((fag, i) => !results[i])
+if (failed.length) throw new Error(`Avbrutt: kit-finpussen ble ikke ferdig for ${failed.join(' og ')}. Gjenoppta med samme args.`)
 return results
