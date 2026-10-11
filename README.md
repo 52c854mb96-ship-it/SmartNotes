@@ -111,7 +111,7 @@ Appen kan bruke en lokal modell via [Ollama](https://ollama.com) i stedet for Cl
 | `AI_PROVIDER` | `anthropic` | `anthropic` (Claude), `ollama` (lokal modell på samme maskin som serveren) eller `remote` (hjemmemaskinen, se under) for alle oppgaver |
 | `AI_PROVIDER_CONVERT` / `AI_PROVIDER_FLASHCARDS` / `AI_PROVIDER_TOC` | som `AI_PROVIDER` | Unntak per oppgave: konvertering (og retting av LaTeX), kortstokker, innholdsfortegnelser (og kompetansemål) |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Adressen til Ollama |
-| `OLLAMA_MODEL` | `qwen2.5vl:7b` | Modellen som leser bilder (må støtte bilder) |
+| `OLLAMA_MODEL` | `qwen3.5:9b` | Modellen som leser bilder (må støtte bilder). Bruk modeller med en lisens som tillater salg, for eksempel Apache 2.0 (Qwen3.5, Qwen3-VL, Gemma 4, Ministral 3). Unngå Llama-bildemodellene og Qwen2.5-VL 3B |
 | `OLLAMA_TEXT_MODEL` | som `OLLAMA_MODEL` | Modellen for ren tekst: retting av LaTeX, kortstokker og kompetansemål |
 | `OLLAMA_IMAGE_MAX_EDGE` | `1600` | Lengste kant på sidebildene som sendes (piksler). Mindre er raskere, men gir dårligere lesing |
 | `OLLAMA_NUM_CTX` | `16384` | Minste kontekstvindu i tokens. Appen gjør det større for store notater, opp til `OLLAMA_MAX_CTX` |
@@ -119,13 +119,14 @@ Appen kan bruke en lokal modell via [Ollama](https://ollama.com) i stedet for Cl
 | `OLLAMA_THINK` | `false` | `true` lar modeller som kan tenke, tenke før de svarer. Det tar tid og plass, så det er av som standard |
 | `OLLAMA_MAX_TOKENS` | `8192` | Maks lengde på svaret |
 | `OLLAMA_TIMEOUT_MS` | `900000` | Hvor lenge serveren venter på svar (15 minutter). Svaret strømmes, så lange svar avbrytes ikke underveis |
-| `OLLAMA_BOX_UNITS` | `pixels` | Hvordan modellen oppgir figurbokser: `pixels` (f.eks. Qwen2.5-VL) eller `thousandths`, tusendeler 0–1000 (f.eks. Qwen3-VL) |
+| `OLLAMA_BOX_UNITS` | `thousandths` | Hvordan modellen oppgir figurbokser: `thousandths`, tusendeler 0–1000 som [x0, y0, x1, y1] (Qwen3.5, Qwen3-VL), `thousandths-yx` (samme, men y først) eller `pixels` (Qwen2.5-VL) |
+| `OLLAMA_PAGES_PER_CALL` | `1` | Sider per kall ved konvertering. Små modeller gjør det bedre med én side om gangen; `0` sender alle sidene samtidig |
 | `OLLAMA_KEEP_ALIVE` | `10m` | Hvor lenge Ollama holder modellen i minnet etter et kall |
 
 Eksempel: konverter lokalt, men lag kortstokker med Claude:
 
 ```bash
-ollama pull qwen2.5vl:7b
+ollama pull qwen3.5:9b
 AI_PROVIDER_CONVERT=ollama npm run dev
 ```
 

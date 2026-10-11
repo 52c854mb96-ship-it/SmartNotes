@@ -171,7 +171,17 @@ export class Converter {
     for (let attempt = 0; !outcome.ok && attempt < this.config.maxFixAttempts; attempt++) {
       if (!this.stillExists(id)) return;
       this.repo.setStage(id, 'fixing');
-      const fixed = await this.ai.fix({ profile, body, errorReport: errorExcerpt(body, outcome.errors, outcome.bodyStartLine) });
+      let fixed: { body: string; usage: Usage };
+      try {
+        fixed = await this.ai.fix({ profile, body, errorReport: errorExcerpt(body, outcome.errors, outcome.bodyStartLine) });
+      } catch (err) {
+        // Klarer ikke AI-en å rette (for eksempel fordi notatet er for langt for en lokal modell), lagres notatet som
+        // utkast som kan rettes for hånd, i stedet for å feile. Midlertidige feil prøves igjen som før.
+        if (!(err instanceof ConversionError) || err.retryable) throw err;
+        if (err.usage) usage.push(err.usage);
+        this.log.warn({ noteId: id, msg: err.message }, 'automatisk retting feilet – lagres som utkast');
+        break;
+      }
       usage.push(fixed.usage);
       body = replaceMissingFigures(sanitizeBody(fixed.body), figures);
       this.repo.setStage(id, 'compiling');

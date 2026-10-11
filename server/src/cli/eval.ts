@@ -1,7 +1,7 @@
 /**
  * Måleverktøy: sammenlign modeller på dine egne notater. Se docs/MALING.md.
  *
- *   npm run eval --workspace server -- <mappe med notater> --models "anthropic:claude-sonnet-5-5,ollama:qwen2.5vl:7b"
+ *   npm run eval --workspace server -- <mappe med notater> --models "anthropic:claude-sonnet-5-5,ollama:qwen3.5:9b"
  *     [--subject physics|chemistry|biology] [--out mappe] [--reference modell] [--flashcards] [--chapters "1 Tittel;2 Tittel"]
  *
  * Hver undermappe i notatmappen er ett notat (sidene i alfabetisk rekkefølge), og hver løse fil er et eget notat.
@@ -22,8 +22,8 @@ const SUBJECTS: Record<string, SubjectProfile> = {
   biologi: 'biology',
 };
 
-const USAGE = `Bruk: npm run eval --workspace server -- <mappe med notater> --models "anthropic:claude-sonnet-5-5,ollama:qwen2.5vl:7b"
-  --models       kommaliste med modeller: anthropic:<modell>, ollama:<modell> (valgfritt @pixels eller @thousandths), eller fake
+const USAGE = `Bruk: npm run eval --workspace server -- <mappe med notater> --models "anthropic:claude-sonnet-5-5,ollama:qwen3.5:9b"
+  --models       kommaliste med modeller: anthropic:<modell>, ollama:<modell> (valgfritt @pixels, @thousandths eller @thousandths-yx), eller fake
   --subject      physics (standard), chemistry eller biology
   --out          mappe for resultatene (standard: maling-<dato> der du står)
   --reference    modellen de andre sammenlignes med (standard: den første)

@@ -36,11 +36,20 @@ Bilder (JPEG, PNG, HEIC) og PDF-er fungerer, akkurat som i appen.
 2. Åpne en terminal (PowerShell på Windows, Terminal på Mac) og hent modellene du vil teste, for eksempel:
 
 ```bash
-ollama pull qwen2.5vl:7b
-ollama pull qwen3-vl:8b
+ollama pull qwen3.5:9b
+ollama pull qwen3.5:4b
+ollama pull gemma4:e4b-it-qat
+ollama pull ministral-3:8b
 ```
 
-Hvilke modeller som passer for maskinene dine, står i [PLAN-GRATIS-OG-PRO.md](PLAN-GRATIS-OG-PRO.md). På et skjermkort med 8 GB minne (RTX 4060) bør modellen være på rundt 8 milliarder parametre eller mindre.
+Dette passer for maskinene dine (navnene er fra oktober 2026; feiler en nedlasting, sjekk navnet på [ollama.com/library](https://ollama.com/library)):
+
+- **Start med `qwen3.5:9b`** (leser bilder, Apache 2.0-lisens, omtrent 6–7 GB). Den passer akkurat på RTX 4060 med 8 GB og går fint på en Mac med 16 GB.
+- **`qwen3.5:4b`** er raskere og mindre, til sammenligning.
+- **`gemma4:e4b-it-qat` og `ministral-3:8b`** er andre modeller med Apache 2.0-lisens som er verdt å prøve. Havner figurene feil for dem, prøv `@thousandths-yx` eller `@pixels` etter navnet i målingen.
+- **Unngå** Llama-bildemodellene (lisensen har egne regler for EU/EØS) og Qwen2.5-VL 3B (bare for forskning). Appen skal selges, så lisensen må tillate det.
+
+Anslaget er 45–90 sekunder per side på RTX 4060 og 1,5–3 minutter per side på M4. Det er ikke målt, så målingen viser hva som faktisk gjelder.
 
 ## 3. Kjør målingen
 
@@ -53,7 +62,7 @@ Docker-bildet til appen har LaTeX innebygd. Kjør dette fra mappen der repoet li
 ```bash
 docker build -t smartnotes .
 docker run --rm -v "$PWD/maling:/data" -e OLLAMA_URL=http://host.docker.internal:11434 smartnotes \
-  node server/dist/cli/eval.js /data/notater --models "ollama:qwen2.5vl:7b,ollama:qwen3-vl:8b@thousandths" --out /data/resultat
+  node server/dist/cli/eval.js /data/notater --models "ollama:qwen3.5:9b,ollama:qwen3.5:4b" --out /data/resultat
 ```
 
 Legg notatmappen i `maling/notater` først. Rapporten havner i `maling/resultat/rapport.html`. På Windows (PowerShell) skriver du `${PWD}` i stedet for `$PWD`. På Linux legger du til `--add-host=host.docker.internal:host-gateway`.
@@ -66,7 +75,7 @@ Installer LaTeX først: MacTeX på Mac ([tug.org/mactex](https://tug.org/mactex/
 
 ```bash
 npm ci
-npm run eval --workspace server -- notater --models "ollama:qwen2.5vl:7b,ollama:qwen3-vl:8b@thousandths"
+npm run eval --workspace server -- notater --models "ollama:qwen3.5:9b,ollama:qwen3.5:4b"
 ```
 
 ### Med Claude som sammenligning
@@ -84,7 +93,7 @@ Med Docker legger du til `-e ANTHROPIC_API_KEY` i `docker run`. Eksempel med Son
 
 ```bash
 npm run eval --workspace server -- notater --flashcards \
-  --models "anthropic:claude-sonnet-5-5,anthropic:claude-haiku-5-5,ollama:qwen2.5vl:7b,ollama:qwen3-vl:8b@thousandths"
+  --models "anthropic:claude-sonnet-5-5,anthropic:claude-haiku-5-5,ollama:qwen3.5:9b,ollama:qwen3.5:4b"
 ```
 
 20 sider koster omtrent 5 kr med Sonnet 5.5 og rundt 25 øre med Haiku 5.5 (beregnet, ikke målt). Det er ikke bekreftet at Haiku 5.5 leser bilder i like høy oppløsning som Sonnet 5.5, så figurene kan bli klippet litt feil med Haiku. Se derfor særlig på figurene.
@@ -93,14 +102,14 @@ npm run eval --workspace server -- notater --flashcards \
 
 | Valg | Betydning |
 |---|---|
-| `--models` | Kommaliste. `anthropic:<modell>`, `ollama:<modell>` eller `fake` (testinnhold, for å prøve verktøyet). Etter en Ollama-modell kan du skrive `@thousandths` hvis modellen oppgir figurbokser i tusendeler (for eksempel Qwen3-VL), eller `@pixels` (standard, for eksempel Qwen2.5-VL) |
+| `--models` | Kommaliste. `anthropic:<modell>`, `ollama:<modell>` eller `fake` (testinnhold, for å prøve verktøyet). Etter en Ollama-modell kan du skrive hvordan den oppgir figurbokser: `@thousandths` (standard, Qwen3.5 og Qwen3-VL), `@thousandths-yx` (y før x, prøv det hvis figurene havner feil med Gemma) eller `@pixels` (Qwen2.5-VL) |
 | `--subject` | `physics` (standard), `chemistry` eller `biology`, altså hvilke instrukser og hvilken PDF-mal som brukes |
 | `--reference` | Modellen de andre sammenlignes med. Standard er den første i listen |
 | `--flashcards` | Lag også kortstokker |
 | `--chapters` | Kapitler modellen kan velge mellom, for eksempel `"1 Bevegelse;2 Krefter"`. Uten dette er kapittelet fast, og modellen kan bare konsentrere seg om å lese |
 | `--out` | Mappen for resultatene. Standard er `maling-<dato og tid>` der du står |
 
-Ollama-innstillingene fra README gjelder også her, for eksempel `OLLAMA_IMAGE_MAX_EDGE` og `OLLAMA_NUM_CTX`.
+Ollama-innstillingene fra README gjelder også her, for eksempel `OLLAMA_IMAGE_MAX_EDGE`, `OLLAMA_NUM_CTX` og `OLLAMA_PAGES_PER_CALL` (standard én side per kall).
 
 ## 4. Les rapporten
 

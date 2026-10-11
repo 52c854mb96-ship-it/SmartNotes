@@ -33,8 +33,13 @@ export interface OllamaConfig {
   /** Maks antall tokens i svaret (num_predict). */
   maxTokens: number;
   timeoutMs: number;
-  /** Hvordan modellen oppgir figurbokser: piksler i bildet den fikk, eller tusendeler (0–1000) av bredde og høyde. */
-  boxUnits: 'pixels' | 'thousandths';
+  /**
+   * Hvordan modellen oppgir figurbokser: piksler i bildet den fikk, tusendeler (0–1000) av bredde og høyde
+   * ([x0, y0, x1, y1], som Qwen3-VL og Qwen3.5), eller tusendeler med y først ([y0, x0, y1, x1]).
+   */
+  boxUnits: 'pixels' | 'thousandths' | 'thousandths-yx';
+  /** Sider per kall ved konvertering. Små modeller gjør det bedre med én side om gangen. 0 = alle sidene samtidig. */
+  pagesPerCall: number;
   /** Hvor lenge Ollama holder modellen i minnet etter et kall (keep_alive), f.eks. «10m». */
   keepAlive: string;
 }
@@ -142,9 +147,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     flashcards: provider('AI_PROVIDER_FLASHCARDS', defaultProvider),
     toc: provider('AI_PROVIDER_TOC', defaultProvider),
   };
-  const boxUnits = env.OLLAMA_BOX_UNITS?.trim().toLowerCase() || 'pixels';
-  if (boxUnits !== 'pixels' && boxUnits !== 'thousandths') throw new Error('OLLAMA_BOX_UNITS må være «pixels» eller «thousandths».');
-  const ollamaModel = env.OLLAMA_MODEL?.trim() || 'qwen2.5vl:7b';
+  // Standardmodellen (Qwen3.5) oppgir figurbokser i tusendeler.
+  const boxUnits = env.OLLAMA_BOX_UNITS?.trim().toLowerCase() || 'thousandths';
+  if (boxUnits !== 'pixels' && boxUnits !== 'thousandths' && boxUnits !== 'thousandths-yx') {
+    throw new Error('OLLAMA_BOX_UNITS må være «pixels», «thousandths» eller «thousandths-yx».');
+  }
+  // Qwen3.5 9B: leser bilder, Apache 2.0-lisens, passer på et skjermkort med 8 GB. Se docs/MALING.md.
+  const ollamaModel = env.OLLAMA_MODEL?.trim() || 'qwen3.5:9b';
   const workerToken = env.WORKER_TOKEN?.trim() || null;
   if (workerToken && workerToken.length < 32) throw new Error('WORKER_TOKEN må være minst 32 tegn lang.');
   if (Object.values(aiProviders).includes('remote') && !workerToken) {
@@ -186,6 +195,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       maxTokens: int(env.OLLAMA_MAX_TOKENS, 8192),
       timeoutMs: int(env.OLLAMA_TIMEOUT_MS, 15 * 60_000),
       boxUnits,
+      pagesPerCall: Math.max(0, int(env.OLLAMA_PAGES_PER_CALL, 1)),
       keepAlive: env.OLLAMA_KEEP_ALIVE?.trim() || '10m',
     },
     remote: {

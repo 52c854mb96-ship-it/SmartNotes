@@ -163,12 +163,13 @@ export interface ModelPrice {
 const standard = (input: number, output: number): ModelPrice => ({ input, output, cacheRead: input / 10, cacheWrite: input * 1.25 });
 
 /**
- * Listepriser fra Anthropic (oktober 2026). De eldre modellene er med fordi et svar kan komme fra en reservemodell når
+ * Listepriser fra Anthropic (prissiden, sjekket 11. oktober 2026). Sonnet 5.5 og Opus 5.5 leser fra hurtigbufferen for
+ * 0,05 × inndata, de andre for 0,1 ×. De eldre modellene er med fordi et svar kan komme fra en reservemodell når
  * hovedmodellen avslår (server-side fallback). Haiku 5.5 har høyere pris for forespørsler over 100 000 tokens; det
  * regnes med i `costUsd`.
  */
 export const MODEL_PRICES: Record<string, ModelPrice> = {
-  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5 },
+  'claude-sonnet-5-5': { input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5 },
   'claude-opus-5-5': { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
   'claude-haiku-5-5': standard(0.1, 0.5),
   'claude-sonnet-5': standard(2, 10),

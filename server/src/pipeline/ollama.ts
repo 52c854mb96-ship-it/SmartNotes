@@ -67,9 +67,10 @@ export function scaleFigures(figures: FigureBox[], pages: SentPage[], units: Oll
     if (!p) continue;
     // Noen modeller svarer med andeler (0–1) uansett hva de blir bedt om.
     const fractions = Math.max(...f.box) <= 1;
-    const sx = fractions ? p.page.width : units === 'thousandths' ? p.page.width / 1000 : p.page.width / p.sent.width;
-    const sy = fractions ? p.page.height : units === 'thousandths' ? p.page.height / 1000 : p.page.height / p.sent.height;
-    const [x0, y0, x1, y1] = f.box;
+    const thousandths = units !== 'pixels';
+    const sx = fractions ? p.page.width : thousandths ? p.page.width / 1000 : p.page.width / p.sent.width;
+    const sy = fractions ? p.page.height : thousandths ? p.page.height / 1000 : p.page.height / p.sent.height;
+    const [x0, y0, x1, y1] = units === 'thousandths-yx' ? [f.box[1], f.box[0], f.box[3], f.box[2]] : f.box;
     const box: FigureBox['box'] = [
       Math.round(Math.min(x0, x1) * sx),
       Math.round(Math.min(y0, y1) * sy),
@@ -96,7 +97,28 @@ export class OllamaAi implements AiService {
     return this.cfg.model;
   }
 
+  /**
+   * Konverterer notatet, `pagesPerCall` sider om gangen (standard én), og setter delene sammen: teksten etter hverandre,
+   * metadata fra den første delen som har den, figurene nummerert fortløpende og merknadene samlet.
+   */
   async convert(req: ConvertRequest): Promise<ConvertResult> {
+    const per = this.cfg.pagesPerCall > 0 ? this.cfg.pagesPerCall : req.pages.length;
+    if (req.pages.length <= per) return this.convertPages(req, 0);
+    const parts: ConvertResult[] = [];
+    try {
+      for (let start = 0; start < req.pages.length; start += per) {
+        parts.push(await this.convertPages({ ...req, pages: req.pages.slice(start, start + per) }, start, req.pages.length));
+      }
+    } catch (err) {
+      // Forbruket fra delene som lyktes, regnes med når en senere del feiler.
+      if (err instanceof ConversionError && parts.length) err.usage = sumUsage([...parts.map((p) => p.usage), ...(err.usage ? [err.usage] : [])]);
+      throw err;
+    }
+    return mergeParts(parts, req.pages.length, per);
+  }
+
+  /** Én forespørsel med sidene i `req.pages`. `offset` og `total` sier hvor i notatet de hører hjemme. */
+  private async convertPages(req: ConvertRequest, offset: number, total = req.pages.length): Promise<ConvertResult> {
     const pages: SentPage[] = [];
     const images: string[] = [];
     for (const p of req.pages) {
@@ -106,12 +128,18 @@ export class OllamaAi implements AiService {
     }
     const sizes = pages.map((p, i) => `Side ${i + 1}: ${p.sent.width}×${p.sent.height} piksler`).join('\n');
     const boxes =
-      this.cfg.boxUnits === 'thousandths'
-        ? 'Oppgi "box" for figurer i tusendeler (0–1000) av sidens bredde og høyde, ikke i piksler.'
-        : 'Oppgi "box" for figurer i piksler i bildet av siden, med størrelsene over.';
+      this.cfg.boxUnits === 'pixels'
+        ? 'Oppgi "box" for figurer i piksler i bildet av siden, med størrelsene over.'
+        : this.cfg.boxUnits === 'thousandths-yx'
+          ? 'Oppgi "box" for figurer som [y0, x0, y1, x1] i tusendeler (0–1000) av sidens høyde og bredde, ikke i piksler.'
+          : 'Oppgi "box" for figurer i tusendeler (0–1000) av sidens bredde og høyde, ikke i piksler.';
+    const part =
+      total > req.pages.length
+        ? `Dette er ${req.pages.length === 1 ? `side ${offset + 1}` : `side ${offset + 1}–${offset + req.pages.length}`} av ${total} i notatet. Konverter bare disse sidene; resten settes sammen etterpå. "page" for figurer gjelder bildene her (1 = det første).`
+        : `Notatet har ${req.pages.length} ${req.pages.length === 1 ? 'side' : 'sider'}.`;
     const user = [
       buildContext(req),
-      `Notatet har ${req.pages.length} ${req.pages.length === 1 ? 'side' : 'sider'}. Bildene kommer i samme rekkefølge:\n${sizes}`,
+      `${part} Bildene kommer i samme rekkefølge:\n${sizes}`,
       boxes,
       'Konverter notatet. Svar med <metadata> og <latex> som beskrevet.',
     ].join('\n\n');
@@ -123,13 +151,16 @@ export class OllamaAi implements AiService {
     return this.withLocal(res.usage, () => {
       checkDone(res.doneReason);
       const { meta, body } = parseConversion(res.content);
-      return { meta: { ...meta, figures: scaleFigures(meta.figures, pages, this.cfg.boxUnits) }, body, usage: res.usage };
+      const figures = total > req.pages.length ? meta.figures.map((f) => ({ ...f, page: partPage(f.page, offset, req.pages.length) })) : meta.figures;
+      return { meta: { ...meta, figures: scaleFigures(figures, pages, this.cfg.boxUnits) }, body, usage: res.usage };
     });
   }
 
   async fix(req: FixRequest): Promise<{ body: string; usage: Usage }> {
     const user = `${req.profile.fixInstructions}\n\n<compile_errors>\n${req.errorReport}\n</compile_errors>\n\n<latex>\n${req.body}\n</latex>`;
-    const res = await this.chat('fix', this.cfg.textModel, req.profile.systemPrompt, user, { outputTokens: this.cfg.maxTokens });
+    // Rettingen skriver hele kroppen på nytt. Med én side per kall kan et langt notat bli lengre enn OLLAMA_MAX_TOKENS.
+    const outputTokens = Math.max(this.cfg.maxTokens, Math.ceil(req.body.length / 3) + 1_000);
+    const res = await this.chat('fix', this.cfg.textModel, req.profile.systemPrompt, user, { outputTokens });
     return this.withLocal(res.usage, () => {
       checkDone(res.doneReason);
       const body = extractLatex(res.content);
@@ -245,7 +276,7 @@ export class OllamaAi implements AiService {
     const needed = Math.ceil(((system?.length ?? 0) + user.length) / 3) + (opts.imageTokens ?? 0) + (opts.outputTokens ?? this.cfg.maxTokens);
     if (needed > this.cfg.maxCtx) {
       throw new ConversionError(
-        `Notatet er for stort for den lokale AI-en (omtrent ${needed.toLocaleString('nb-NO')} tokens, grensen er ${this.cfg.maxCtx.toLocaleString('nb-NO')}). Del det opp i færre sider, eller øk OLLAMA_MAX_CTX.`,
+        `Dette er for stort for den lokale AI-en (omtrent ${needed.toLocaleString('nb-NO')} tokens, grensen er ${this.cfg.maxCtx.toLocaleString('nb-NO')}). Øk OLLAMA_MAX_CTX på maskinen med Ollama, eller bruk Claude til dette.`,
       );
     }
     const numCtx = Math.max(this.cfg.numCtx, Math.ceil(needed / 2048) * 2048);
@@ -258,7 +289,7 @@ export class OllamaAi implements AiService {
       keep_alive: this.cfg.keepAlive,
       ...(this.cfg.think ? {} : { think: false }),
       ...(opts.schema ? { format: z.toJSONSchema(opts.schema) } : {}),
-      options: { temperature: 0, num_ctx: numCtx, num_predict: this.cfg.maxTokens },
+      options: { temperature: 0, num_ctx: numCtx, num_predict: Math.max(this.cfg.maxTokens, opts.outputTokens ?? 0) },
     };
     let text: string;
     let status: number;
@@ -315,9 +346,57 @@ export function imageTokens(width: number, height: number): number {
   return Math.ceil(width / 28) * Math.ceil(height / 28);
 }
 
+function sumUsage(usages: Usage[]): Usage {
+  return usages.reduce((a, u) => ({
+    ...a,
+    inputTokens: a.inputTokens + u.inputTokens,
+    outputTokens: a.outputTokens + u.outputTokens,
+    cacheReadTokens: a.cacheReadTokens + u.cacheReadTokens,
+    cacheWriteTokens: a.cacheWriteTokens + u.cacheWriteTokens,
+  }));
+}
+
+const FIGURE_REF = /(\\originalfigur\s*(?:\[[^\]]*\])?\s*\{)([^}]*)(\})/g;
+
+/**
+ * Setter sammen delene av et notat som er konvertert noen sider om gangen. Figur-id-ene gis nye, fortløpende navn
+ * (fig1, fig2, …) i både metadata og LaTeX, så to deler som begge har «fig1», ikke kolliderer.
+ */
+export function mergeParts(parts: ConvertResult[], total: number, per: number): ConvertResult {
+  let next = 1;
+  const bodies: string[] = [];
+  const figures: ConvertResult['meta']['figures'] = [];
+  const remarks: string[] = [];
+  for (const [i, part] of parts.entries()) {
+    const rename = new Map<string, string>();
+    const idFor = (id: string) => {
+      const key = id.trim();
+      if (!rename.has(key)) rename.set(key, `fig${next++}`);
+      return rename.get(key)!;
+    };
+    for (const f of part.meta.figures) figures.push({ ...f, id: idFor(f.id), page: Math.min(total, f.page + i * per) });
+    bodies.push(part.body.replace(FIGURE_REF, (_m, open: string, id: string, close: string) => `${open}${idFor(id)}${close}`).trim());
+    remarks.push(...part.meta.remarks);
+  }
+  const first = <K extends keyof ConvertResult['meta']>(key: K) => parts.map((p) => p.meta[key]).find((v) => v !== null) ?? null;
+  return {
+    meta: {
+      title: first('title') as string | null,
+      chapter: first('chapter') as string | null,
+      section: first('section') as string | null,
+      newChapter: first('newChapter') as ConvertResult['meta']['newChapter'],
+      date: first('date') as string | null,
+      figures,
+      remarks: remarks.slice(0, 20),
+    },
+    body: bodies.join('\n\n'),
+    usage: sumUsage(parts.map((p) => p.usage)),
+  };
+}
+
 function checkDone(reason: string | null): void {
   if (reason === 'length') {
-    throw new ConversionError('Notatet ble for langt for den lokale AI-en. Del det opp i færre sider per opplasting.');
+    throw new ConversionError('Svaret ble for langt for den lokale AI-en. Øk OLLAMA_MAX_TOKENS på maskinen med Ollama, eller bruk Claude til dette notatet.');
   }
 }
 
@@ -336,10 +415,47 @@ export function ollamaError(status: number, message: string, model: string): Con
   return new ConversionError(`Den lokale AI-en avviste forespørselen: ${message || `HTTP ${status}`}`);
 }
 
+/**
+ * Sidenummeret til en figur i en del av notatet. Instruksen sier at «page» gjelder bildene i delen, men en modell kan
+ * likevel oppgi sidenummeret i hele notatet (side 3 av 5). Er det tydelig, regnes det om.
+ */
+export function partPage(page: number, offset: number, count: number): number {
+  if (count === 1) return 1;
+  if (page > count && page - offset >= 1 && page - offset <= count) return page - offset;
+  return page;
+}
+
+/** Matematikk i korttekst: `$…$` og `$$…$$`. */
+const MATH = /\$\$[\s\S]*?\$\$|\$[^$]*\$/g;
+
+/**
+ * Retter LaTeX som en liten modell har skrevet feil i JSON. Skriver den `\frac` i stedet for `\\frac`, leser JSON det som
+ * sideskift + «rac», og `\theta` blir tabulator + «heta». Ollama tillater disse escape-tegnene, så ingenting feiler,
+ * men kortene blir feil. Sideskift og backspace hører aldri hjemme i teksten og gjøres alltid om. Linjeskift,
+ * tabulator og vognretur gjøres om bare inne i `$…$` og foran bokstaver (`\nu`, `\neq`, `\rho`), siden et ekte
+ * linjeskift foran et ord er vanlig i vanlig tekst.
+ */
+export function repairLatexEscapes<T>(value: T): T {
+  if (typeof value === 'string') {
+    return value
+      .replace(/\f/g, '\\f')
+      .replace(/\x08/g, '\\b')
+      .replace(MATH, (math) =>
+        math
+          .replace(/\n(?=[A-Za-z])/g, '\\n')
+          .replace(/\t(?=[A-Za-z])/g, '\\t')
+          .replace(/\r(?=[A-Za-z])/g, '\\r'),
+      ) as T;
+  }
+  if (Array.isArray(value)) return value.map((v) => repairLatexEscapes(v)) as T;
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, repairLatexEscapes(v)])) as T;
+  return value;
+}
+
 function parseJson<T extends z.ZodType>(schema: T, text: string, failure: string): z.infer<T> {
   let data: unknown;
   try {
-    data = JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
+    data = repairLatexEscapes(JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')));
   } catch {
     throw new ConversionError(failure);
   }

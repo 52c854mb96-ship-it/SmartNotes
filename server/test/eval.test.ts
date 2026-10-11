@@ -39,7 +39,7 @@ describe('måleverktøyet', () => {
       boxUnits: 'thousandths',
     });
     expect(() => parseModelSpec('openai:gpt')).toThrow('Ukjent modell');
-    expect(() => parseModelSpec('ollama:qwen@prosent')).toThrow('@pixels eller @thousandths');
+    expect(() => parseModelSpec('ollama:qwen@prosent')).toThrow('@pixels, @thousandths eller @thousandths-yx');
     expect(() => parseModelSpec('ollama:')).toThrow('Mangler modellnavn');
   });
 

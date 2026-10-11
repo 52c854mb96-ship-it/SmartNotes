@@ -7,7 +7,9 @@ import { loadConfig, type OllamaConfig } from '../src/config.js';
 import { ConversionError } from '../src/errors.js';
 import type { ConvertRequest } from '../src/pipeline/ai.js';
 import { AnthropicClaude, FakeClaude } from '../src/pipeline/claude.js';
-import { OllamaAi, ollamaError, scaleFigures, stripThinking } from '../src/pipeline/ollama.js';
+import { OllamaAi, mergeParts, ollamaError, partPage, repairLatexEscapes, scaleFigures, stripThinking } from '../src/pipeline/ollama.js';
+import { supportsServerFallback } from '../src/pipeline/claude.js';
+import { parseMeta } from '../src/pipeline/parse.js';
 import { RoutedAi, aiConfigured, createAi, describeAi } from '../src/pipeline/providers.js';
 import { getProfile } from '../src/profiles/index.js';
 
@@ -22,6 +24,7 @@ const CFG: OllamaConfig = {
   maxTokens: 8192,
   timeoutMs: 60_000,
   boxUnits: 'pixels',
+  pagesPerCall: 0,
   keepAlive: '10m',
 };
 
@@ -169,6 +172,27 @@ describe('OllamaAi', () => {
     await expect(new OllamaAi(CFG, bad.fetchImpl).generateFlashcards(req)).rejects.toThrow('Den lokale AI-en svarte ikke med kort');
   });
 
+  it('retter LaTeX som modellen skrev med enkel backslash i JSON', async () => {
+    // Slik en liten modell ofte skriver det: \frac blir sideskift + «rac» når JSON leses, \theta blir tabulator + «heta».
+    const raw =
+      '{"cards": [{"note": "n1", "kind": "concept", "front": "$v = \\frac{s}{t}$ og $\\theta$", "back": ["$\\nu \\neq \\rho$", "$\\beta$"], "detail": "Første linje\\nneste linje"}]}';
+    const ok = fakeOllama(() => answer(raw));
+    const req = { subjectName: 'Fysikk 1', subjectLabel: 'Fysikk', difficulty: 'medium', count: null, notes: [] } as never;
+    const [card] = (await new OllamaAi(CFG, ok.fetchImpl).generateFlashcards(req)).cards;
+    expect(card).toMatchObject({ front: '$v = \\frac{s}{t}$ og $\\theta$', back: ['$\\nu \\neq \\rho$', '$\\beta$'], detail: 'Første linje\nneste linje' });
+  });
+
+  it('repairLatexEscapes lar riktig LaTeX og vanlig tekst være', () => {
+    // Utenfor $…$ er linjeskift og tabulator vanlig tekst, også foran ord som «u-land» og «mid».
+    const plain = ['$\\frac{1}{2}$', 'linje\nNeste', 'linje\ni dag', 'Dette er\nu-land', 'linje\nmid', 'tab\t1', '1 u\n= 1,66'];
+    expect(repairLatexEscapes({ a: plain, n: 3, b: null })).toEqual({ a: plain, n: 3, b: null });
+    // Sideskift og backspace alltid, resten bare inne i matematikk.
+    expect(repairLatexEscapes('\f og \x08')).toBe('\\f og \\b');
+    expect(repairLatexEscapes('$\tx + \rho + \nabla + a \ne b + \neg c$ og $$\theta$$')).toBe(
+      '$\\tx + \\rho + \\nabla + a \\ne b + \\neg c$ og $$\\theta$$',
+    );
+  });
+
   it('leser innholdsfortegnelse og kompetansemål som JSON', async () => {
     const toc = { chapters: [{ number: '1', title: 'Bevegelse', sections: [{ code: '1.1', title: 'Fart', aims: [] }] }] };
     const { calls, fetchImpl } = fakeOllama((c) => (c.body.messages.at(-1)!.images ? answer(JSON.stringify(toc)) : answer('{"sections":[{"code":"1.1","aims":["KM2"]}]}')));
@@ -237,14 +261,95 @@ describe('OllamaAi', () => {
     expect(calls[1]!.body.think).toBeUndefined();
   });
 
+  it('konverterer én side om gangen og setter delene sammen', async () => {
+    const part = (n: number) =>
+      `<metadata>{"title":${n === 1 ? 'null' : '"Fart"'},"chapter":"k1","section":null,"new_chapter":null,"date":null,` +
+      `"figures":[{"id":"fig1","page":1,"box":[100,100,500,500]}],"remarks":["Merknad ${n}"]}</metadata>` +
+      `<latex>\\section*{Del ${n}}\n\\originalfigur[0.5]{fig1}{Figur ${n}}</latex>`;
+    let n = 0;
+    const { calls, fetchImpl } = fakeOllama(() => answer(part(++n)));
+    const req = convertRequest();
+    const res = await new OllamaAi({ ...CFG, boxUnits: 'thousandths', pagesPerCall: 1 }, fetchImpl).convert({ ...req, pages: [req.pages[0]!, req.pages[0]!] });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]!.body.messages[1]!.images).toHaveLength(1);
+    expect(calls[0]!.body.messages[1]!.content).toContain('Dette er side 1 av 2');
+    expect(calls[1]!.body.messages[1]!.content).toContain('Dette er side 2 av 2');
+    expect(res.body).toBe('\\section*{Del 1}\n\\originalfigur[0.5]{fig1}{Figur 1}\n\n\\section*{Del 2}\n\\originalfigur[0.5]{fig2}{Figur 2}');
+    expect(res.meta.figures.map((f) => [f.id, f.page])).toEqual([
+      ['fig1', 1],
+      ['fig2', 2],
+    ]);
+    expect(res.meta).toMatchObject({ title: 'Fart', chapter: 'k1', remarks: ['Merknad 1', 'Merknad 2'] });
+    expect(res.usage).toMatchObject({ inputTokens: 8400, outputTokens: 1800 });
+  });
+
+  it('figurene på side 2 og utover finnes også når modellen oppgir sidenummeret i hele notatet', async () => {
+    let n = 0;
+    const { fetchImpl } = fakeOllama(() => {
+      n += 1;
+      // Modellen svarer «page»: 2 for den andre siden, selv om delen bare har ett bilde.
+      return answer(`<metadata>{"title":"T","figures":[{"id":"fig1","page":${n},"box":[100,100,500,500]}],"remarks":[]}</metadata><latex>\\originalfigur[0.5]{fig1}{F}</latex>`);
+    });
+    const req = convertRequest();
+    const res = await new OllamaAi({ ...CFG, boxUnits: 'thousandths', pagesPerCall: 1 }, fetchImpl).convert({ ...req, pages: [req.pages[0]!, req.pages[0]!] });
+    expect(res.meta.figures.map((f) => [f.id, f.page])).toEqual([
+      ['fig1', 1],
+      ['fig2', 2],
+    ]);
+    expect([partPage(2, 1, 1), partPage(4, 2, 2), partPage(2, 2, 2), partPage(9, 2, 2)]).toEqual([1, 2, 2, 9]);
+  });
+
+  it('rettingen av et langt notat får plass til hele kroppen i svaret', async () => {
+    const { calls, fetchImpl } = fakeOllama(() => answer('<latex>\\section*{Rettet}</latex>'));
+    const body = 'x'.repeat(30_000);
+    await new OllamaAi(CFG, fetchImpl).fix({ profile: getProfile('physics'), body, errorReport: '' });
+    expect(calls[0]!.body.options.num_predict).toBe(11_000);
+    const short = fakeOllama(() => answer('<latex>\\section*{Rettet}</latex>'));
+    await new OllamaAi(CFG, short.fetchImpl).fix({ profile: getProfile('physics'), body: 'kort', errorReport: '' });
+    expect(short.calls[0]!.body.options.num_predict).toBe(8192);
+  });
+
+  it('mergeParts: figurer som ikke er i metadata, får også nye navn', () => {
+    const usage = { kind: 'convert' as const, model: 'm', inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 };
+    const meta = { title: null, chapter: null, section: null, newChapter: null, date: null, figures: [], remarks: [] };
+    const merged = mergeParts(
+      [
+        { meta: { ...meta, figures: [{ id: 'a', page: 2, box: [0, 0, 1, 1] }] }, body: '\\originalfigur{a}{A} \\originalfigur{b}{B}', usage },
+        { meta: { ...meta, date: '2026-10-11' }, body: '\\originalfigur [0.4] {a}{C}', usage },
+      ],
+      4,
+      2,
+    );
+    expect(merged.body).toBe('\\originalfigur{fig1}{A} \\originalfigur{fig2}{B}\n\n\\originalfigur [0.4] {fig3}{C}');
+    expect(merged.meta.figures).toEqual([{ id: 'fig1', page: 2, box: [0, 0, 1, 1] }]);
+    expect(merged.meta.date).toBe('2026-10-11');
+    expect(merged.usage.inputTokens).toBe(2);
+  });
+
   it('hjelpere: fjerner tenkning og ugyldige bokser', () => {
     expect(stripThinking('<think>\nhmm\n</think>\n\nSvar')).toBe('Svar');
     const page = { sent: { width: 100, height: 100 }, page: { width: 200, height: 200 } };
     expect(scaleFigures([{ id: 'a', page: 1, box: [50, 50, 10, 10] }], [page], 'pixels')).toEqual([{ id: 'a', page: 1, box: [20, 20, 100, 100] }]);
     expect(scaleFigures([{ id: 'b', page: 2, box: [0, 0, 10, 10] }], [page], 'pixels')).toEqual([]);
     expect(scaleFigures([{ id: 'c', page: 1, box: [5, 5, 5, 50] }], [page], 'pixels')).toEqual([]);
+    // [y0, x0, y1, x1] i tusendeler
+    expect(scaleFigures([{ id: 'e', page: 1, box: [100, 200, 500, 600] }], [page], 'thousandths-yx')).toEqual([{ id: 'e', page: 1, box: [40, 20, 120, 100] }]);
     // Andeler (0–1) forstås uansett innstilling.
     expect(scaleFigures([{ id: 'd', page: 1, box: [0.1, 0.2, 0.5, 0.6] }], [page], 'thousandths')).toEqual([{ id: 'd', page: 1, box: [20, 40, 100, 120] }]);
+  });
+});
+
+describe('små ting for lokale modeller', () => {
+  it('leser figurbokser i Qwens eget format (bbox_2d)', () => {
+    expect(parseMeta('{"figures":[{"id":"fig1","page":1,"bbox_2d":[1,2,3,4]}]}').figures).toEqual([{ id: 'fig1', page: 1, box: [1, 2, 3, 4] }]);
+  });
+  it('sender ikke server-side fallback til Haiku', () => {
+    expect(supportsServerFallback('claude-sonnet-5-5')).toBe(true);
+    expect(supportsServerFallback('claude-haiku-5-5')).toBe(false);
+  });
+  it('standard: Qwen3.5 9B, figurbokser i tusendeler, én side per kall', () => {
+    const c = loadConfig({ ...process.env, NODE_ENV: 'test', APP_PASSWORD: 'x' });
+    expect(c.ollama).toMatchObject({ model: 'qwen3.5:9b', textModel: 'qwen3.5:9b', boxUnits: 'thousandths', pagesPerCall: 1 });
   });
 });
 
