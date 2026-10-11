@@ -69,7 +69,8 @@ export function PdfTab({ note, onDownload }: { note: Note; onDownload: () => voi
         )}
         <PdfViewer
           blob={asBlob(cached.blob, 'application/pdf')}
-          docKey={`${note.id}:${cached.rev}`}
+          // Nøkkelen skal beskrive PDF-en som faktisk vises, så den lages fra den lagrede PDF-en, ikke fra notatet.
+          docKey={`${cached.noteId}:${cached.rev}`}
           label={`PDF: ${note.title}`}
           toolbarExtra={
             <button type="button" className="btn btn-ghost btn-sm" onClick={onDownload}>

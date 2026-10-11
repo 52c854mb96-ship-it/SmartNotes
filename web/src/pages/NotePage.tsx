@@ -45,8 +45,16 @@ const TABS: { id: Tab; label: string; icon: typeof FileText }[] = [
 ];
 const OFFLINE_HINT = 'Krever nett';
 
+/**
+ * Hvert notat får sin egen visning (`key`). Byttes notatet uten å forlate siden (notatlisten, søket), starter alt på
+ * nytt, i stedet for at faner, PDF-visning og tilstand fra forrige notat blir hengende igjen.
+ */
 export function NotePage() {
   const { noteId } = useParams();
+  return <NoteView key={noteId} noteId={noteId} />;
+}
+
+function NoteView({ noteId }: { noteId: string | undefined }) {
   const note = useNote(noteId);
   const subject = useSubject(note?.subjectId);
   const chapters = useChapters(note?.subjectId);

@@ -1,6 +1,6 @@
 # Status for SmartNotes
 
-> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 8. oktober 2026, i PR #9 (overlevering til neste økt). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
+> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 11. oktober 2026, i PR #10 (feilretting i notatvisningen). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
 
 Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen dokumentasjon står i [README.md](../README.md) og [OPPSETT.md](OPPSETT.md).
 
@@ -36,7 +36,7 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 
 ## Hva som er gjort
 
-Alt ble bygget 4.–8. oktober 2026 og flettet inn i `main` gjennom disse pull requestene:
+Alt ble bygget 4.–11. oktober 2026 og flettet inn i `main` gjennom disse pull requestene:
 
 | PR | Innhold |
 |---|---|
@@ -49,8 +49,9 @@ Alt ble bygget 4.–8. oktober 2026 og flettet inn i `main` gjennom disse pull r
 | [#7](https://github.com/52c854mb96-ship-it/SmartNotes/pull/7) | Illustrerte visualiseringer, del 1: byggeklosser for illustrert realisme (`viz/kit/scene/`), eksempeloppgaver (`viz/kit/eksempel.tsx`, egen gruppe på sidene) og fysikk kapittel 1–4 (16 oppgraderte, 12 nye praktiske og 8 eksempeloppgaver). Resten står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md) |
 | [#8](https://github.com/52c854mb96-ship-it/SmartNotes/pull/8) | Nye versjoner tas i bruk også i Safari på Mac: appen merker selv at serveren har en nyere versjon og sier fra («En ny versjon av SmartNotes er klar»), og ser etter oppdateringer når fanen blir synlig igjen |
 | [#9](https://github.com/52c854mb96-ship-it/SmartNotes/pull/9) | Overlevering: workflow-skriptene og katalogene for resten av visualiseringene i `docs/workflows/`, og planen for neste økt |
+| [#10](https://github.com/52c854mb96-ship-it/SmartNotes/pull/10) | Feilretting: når eleven byttet notat i notatlisten eller søket, kunne PDF-en til forrige notat bli stående. Hvert notat får nå sin egen visning (`key` i `NotePage.tsx`) |
 
-**Tester:** omtrent 2 300 enhetstester (77 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 14 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
+**Tester:** omtrent 2 300 enhetstester (77 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 16 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk og at riktig PDF vises når man bytter notat) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 
