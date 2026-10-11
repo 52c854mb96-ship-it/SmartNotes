@@ -14,6 +14,7 @@ import type { Converter } from '../pipeline/converter.js';
 import { MIME_BY_KIND, sniffKind, type FileKind, type PageImage } from '../pipeline/images.js';
 import { latexToText, replaceMissingFigures, sanitizeBody } from '../pipeline/latex.js';
 import type { Worker } from '../pipeline/worker.js';
+import type { RemoteHub } from '../remote/hub.js';
 import { exists, isId, type Storage } from '../storage.js';
 import { parse, sendPdf } from './library.js';
 
@@ -22,6 +23,8 @@ interface Deps {
   storage: Storage;
   converter: Converter;
   worker: Worker;
+  /** Køen for hjemmemaskinen, så et slettet notat ikke konverteres der. */
+  hub?: RemoteHub;
 }
 
 const EXT_BY_KIND: Record<FileKind, string> = { pdf: 'pdf', jpeg: 'jpg', png: 'png', webp: 'webp', heic: 'heic', gif: 'gif', tiff: 'tiff' };
@@ -32,7 +35,7 @@ const dateField = z
   .nullable();
 
 export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
-  const { repo, storage, converter, worker } = d;
+  const { repo, storage, converter, worker, hub } = d;
 
   const requireNote = (id: string) => {
     const row = isId(id) ? repo.getNoteRow(id) : null;
@@ -159,6 +162,8 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
   app.delete<{ Params: { id: string } }>('/api/notes/:id', async (req) => {
     const row = requireNote(req.params.id);
     repo.deleteNote(row.id);
+    // Venter notatet på hjemmemaskinen, trengs ikke svaret lenger.
+    hub?.cancel((ref) => ref.noteId === row.id);
     await storage.removeNote(row.id).catch(() => undefined);
     return { ok: true };
   });

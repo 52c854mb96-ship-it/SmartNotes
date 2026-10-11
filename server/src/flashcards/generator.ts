@@ -1,7 +1,7 @@
 import fsp from 'node:fs/promises';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Repo } from '../db.js';
-import { ConversionError } from '../errors.js';
+import { AbortedError, ConversionError } from '../errors.js';
 import type { AiService } from '../pipeline/ai.js';
 import { getProfile } from '../profiles/index.js';
 import type { Storage } from '../storage.js';
@@ -121,6 +121,8 @@ export class FlashcardGenerator {
         await this.generate(deckId);
         return;
       } catch (err) {
+        // Avbrutt av serveren selv, eller serveren stenger: kortstokken fortsetter ved neste oppstart.
+        if (err instanceof AbortedError || (this.stopped && err instanceof ConversionError && err.retryable)) return;
         const e = err instanceof ConversionError ? err : new ConversionError('Uventet feil da kortene skulle lages. Prøv igjen.');
         if (!(err instanceof ConversionError)) this.log.error({ err, deckId }, 'uventet feil i generering av kort');
         if (e.retryable && attempt < MAX_ATTEMPTS) {
@@ -129,9 +131,8 @@ export class FlashcardGenerator {
           if (this.stopped) return;
           continue;
         }
-        if (this.stopped && e.retryable) return;
         // Meldingene for midlertidige feil lover et nytt forsøk; her må eleven selv trykke «Prøv igjen».
-        this.repo.failDeck(deckId, e.retryable ? 'Fikk ikke kontakt med Claude. Trykk «Prøv igjen» om litt.' : e.message);
+        this.repo.failDeck(deckId, e.retryable ? 'Fikk ikke kontakt med AI-en. Trykk «Prøv igjen» om litt.' : e.message);
         return;
       }
     }

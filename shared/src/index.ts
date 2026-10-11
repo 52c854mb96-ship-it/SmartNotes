@@ -15,7 +15,8 @@ export type SubjectProfile = 'physics' | 'chemistry' | 'biology';
 export type NoteStatus = 'queued' | 'processing' | 'done' | 'failed';
 
 /** Detaljert steg mens status er `processing`. */
-export type NoteStage = 'preparing' | 'reading' | 'compiling' | 'fixing';
+/** «waiting»: venter på at hjemmemaskinen med den lokale AI-en skal bli ledig. */
+export type NoteStage = 'preparing' | 'waiting' | 'reading' | 'compiling' | 'fixing';
 
 /** Felter alle synkroniserte rader har. */
 export interface SyncedRow {
@@ -353,6 +354,19 @@ export interface UsageSummaryResponse {
   /** Per dag (norsk tid), eldste først. Bare dager med kall. */
   byDay: (UsageTotals & { day: string })[];
   byModel: (UsageTotals & { provider: string; model: string })[];
+}
+
+/** GET /api/ai/status – hjemmemaskinene som henter AI-kall fra serveren (bare når en oppgave bruker dem). */
+export interface AiStatusResponse {
+  remote: {
+    /** `online`: har vært i kontakt nylig (serveren avgjør, så klokken på enheten ikke spiller inn). */
+    workers: { name: string; lastSeenAt: string; models: string[]; busy: boolean; online: boolean }[];
+    /** AI-kall som venter på en ledig hjemmemaskin. */
+    waiting: number;
+    running: number;
+    /** Om kallene går til Claude når ingen hjemmemaskin er på nett. */
+    fallback: boolean;
+  } | null;
 }
 
 export interface ApiError {

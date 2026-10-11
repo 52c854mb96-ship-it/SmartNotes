@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { CheckCircle2, CloudDownload, LogOut, RefreshCw, XCircle } from 'lucide-react';
-import type { HealthResponse, UsageKind, UsageSummaryResponse } from '@smartnotes/shared';
+import type { AiStatusResponse, HealthResponse, UsageKind, UsageSummaryResponse } from '@smartnotes/shared';
 import { api, errorMessage } from '../api';
 import { Spinner } from '../components/Status';
 import { ThemeSwitch } from '../components/ThemeSwitch';
@@ -70,6 +70,46 @@ const TASK_LABELS: Record<NonNullable<HealthResponse['ai']>[number]['task'], str
   toc: 'Innholdsfortegnelser',
 };
 
+const PROVIDER_LABELS: Record<string, string> = { anthropic: 'Claude', ollama: 'lokal (Ollama)', remote: 'hjemmemaskin' };
+
+/** Hjemmemaskinene som henter AI-kall fra serveren, og hvor mange kall som venter. */
+function RemoteStatus() {
+  const [status, setStatus] = useState<AiStatusResponse['remote']>(null);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const load = () =>
+      api
+        .aiStatus(ctrl.signal)
+        .then((s) => setStatus(s.remote))
+        .catch(() => {});
+    void load();
+    // Hjemmemaskinen kan komme og gå mens siden er åpen.
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, 30_000);
+    return () => {
+      clearInterval(timer);
+      ctrl.abort();
+    };
+  }, []);
+  if (!status) return null;
+  const online = status.workers.filter((w) => w.online);
+  const queue = status.waiting > 0 ? `${plural(status.waiting, 'kall venter', 'kall venter')}` : 'ingen kall venter';
+  return (
+    <StatusLine
+      ok={online.length > 0}
+      label={online.length > 0 ? `Hjemmemaskin på nett: ${online.map((w) => w.name).join(', ')}` : 'Ingen hjemmemaskin på nett'}
+      detail={
+        online.length > 0
+          ? queue
+          : `${queue}${status.fallback ? ', Claude brukes i mellomtiden' : ''}${
+              status.workers.length ? ` · sist sett ${formatTimestamp(Math.max(...status.workers.map((w) => Date.parse(w.lastSeenAt))))}` : ''
+            }`
+      }
+    />
+  );
+}
+
 function ServerCard() {
   const { online } = useOnline();
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -107,7 +147,7 @@ function ServerCard() {
         <ul className="status-lines" role="list">
           <StatusLine ok={health.ok} label={health.ok ? 'Serveren svarer' : 'Serveren har problemer'} detail={`versjon ${health.version}`} />
           <StatusLine ok={health.latex} label={health.latex ? 'LaTeX er installert' : 'LaTeX mangler på serveren'} />
-          {(health.ai ?? []).every((t) => t.provider !== 'ollama') ? (
+          {(health.ai ?? []).every((t) => t.provider === 'anthropic' || t.provider === 'fake') ? (
             <StatusLine
               ok={health.claudeConfigured}
               label={health.claudeConfigured ? 'Claude er satt opp' : 'Claude er ikke satt opp (mangler API-nøkkel)'}
@@ -123,11 +163,10 @@ function ServerCard() {
               )}
               <StatusLine
                 ok={null}
-                label="Lokal AI (Ollama)"
-                detail={health
-                  .ai!.map((t) => `${TASK_LABELS[t.task]}: ${t.provider === 'ollama' ? 'lokal' : 'Claude'}, ${t.model}`)
-                  .join(' · ')}
+                label="AI per oppgave"
+                detail={health.ai!.map((t) => `${TASK_LABELS[t.task]}: ${PROVIDER_LABELS[t.provider] ?? t.provider}, ${t.model}`).join(' · ')}
               />
+              {health.ai!.some((t) => t.provider === 'remote') && <RemoteStatus />}
             </>
           )}
           {health.fakeClaude && <StatusLine ok={null} label="Testmodus: falsk Claude (ingen ekte konvertering)" />}

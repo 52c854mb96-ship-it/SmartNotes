@@ -5,8 +5,12 @@ import { DEFAULT_SEED_TEXTBOOKS } from './textbooks.js';
 
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
-/** Hvem som kjører AI-modellen: Claude hos Anthropic, eller en lokal modell via Ollama. */
-export type AiProviderId = 'anthropic' | 'ollama';
+/**
+ * Hvem som kjører AI-modellen: Claude hos Anthropic, en lokal modell via Ollama på samme maskin som serveren, eller
+ * hjemmemaskinen («remote»), som henter AI-kallene fra serveren og kjører dem med sin egen lokale modell.
+ */
+export type AiProviderId = 'anthropic' | 'ollama' | 'remote';
+const PROVIDERS: AiProviderId[] = ['anthropic', 'ollama', 'remote'];
 /** Oppgavene som kan bruke hver sin leverandør. «convert» omfatter også retting av LaTeX, «toc» også kompetansemål. */
 export type AiTask = 'convert' | 'flashcards' | 'toc';
 export const AI_TASKS: AiTask[] = ['convert', 'flashcards', 'toc'];
@@ -35,6 +39,21 @@ export interface OllamaConfig {
   keepAlive: string;
 }
 
+export interface RemoteConfig {
+  /** Hemmelig nøkkel hjemmemaskinen logger inn med (WORKER_TOKEN). Uten den er hjemmemaskin-API-et avslått. */
+  token: string | null;
+  /** Hva som skjer når ingen hjemmemaskin er på nett: vente, eller bruke Claude (REMOTE_FALLBACK). */
+  fallback: 'none' | 'anthropic';
+  /** Hvor lenge et notat eller en kortstokk kan vente på hjemmemaskinen før det gir opp. */
+  maxWaitMs: number;
+  /** Hvor lenge en henting er reservert uten livstegn fra hjemmemaskinen. */
+  leaseMs: number;
+  /** Hvor lenge hjemmemaskinen kan jobbe med ett kall før det stoppes (fanger kall som henger). */
+  maxRunMs: number;
+  /** En hjemmemaskin regnes som på nett hvis den har vært i kontakt så nylig. */
+  onlineWithinMs: number;
+}
+
 export interface Config {
   port: number;
   host: string;
@@ -52,6 +71,7 @@ export interface Config {
   /** Leverandør per oppgave (AI_PROVIDER, og AI_PROVIDER_CONVERT / _FLASHCARDS / _TOC for unntak). Standard: Claude. */
   aiProviders: Record<AiTask, AiProviderId>;
   ollama: OllamaConfig;
+  remote: RemoteConfig;
   /** Lærebok (id i TEXTBOOKS) som faget og kapitlene lages fra ved første oppstart, eller null for et tomt «Fysikk». */
   /** Læreboksett som legges inn (én gang hver). Tom liste = bare et tomt fag ved første oppstart. */
   seedTextbooks: string[];
@@ -113,8 +133,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const provider = (name: string, fallback: AiProviderId): AiProviderId => {
     const v = env[name]?.trim().toLowerCase();
     if (!v) return fallback;
-    if (v !== 'anthropic' && v !== 'ollama') throw new Error(`${name} må være «anthropic» eller «ollama».`);
-    return v;
+    if (!(PROVIDERS as string[]).includes(v)) throw new Error(`${name} må være «anthropic», «ollama» eller «remote».`);
+    return v as AiProviderId;
   };
   const defaultProvider = provider('AI_PROVIDER', 'anthropic');
   const aiProviders: Record<AiTask, AiProviderId> = {
@@ -125,6 +145,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const boxUnits = env.OLLAMA_BOX_UNITS?.trim().toLowerCase() || 'pixels';
   if (boxUnits !== 'pixels' && boxUnits !== 'thousandths') throw new Error('OLLAMA_BOX_UNITS må være «pixels» eller «thousandths».');
   const ollamaModel = env.OLLAMA_MODEL?.trim() || 'qwen2.5vl:7b';
+  const workerToken = env.WORKER_TOKEN?.trim() || null;
+  if (workerToken && workerToken.length < 32) throw new Error('WORKER_TOKEN må være minst 32 tegn lang.');
+  if (Object.values(aiProviders).includes('remote') && !workerToken) {
+    throw new Error('WORKER_TOKEN må være satt når en oppgave bruker hjemmemaskinen (AI_PROVIDER … = remote).');
+  }
+  const fallback = env.REMOTE_FALLBACK?.trim() || 'none';
+  if (fallback !== 'none' && fallback !== 'anthropic') throw new Error('REMOTE_FALLBACK må være «none» eller «anthropic».');
 
   const defaultWebDist = path.resolve(SERVER_ROOT, '..', 'web', 'dist');
   const webDist = env.WEB_DIST ?? (fs.existsSync(path.join(defaultWebDist, 'index.html')) ? defaultWebDist : null);
@@ -160,6 +187,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       timeoutMs: int(env.OLLAMA_TIMEOUT_MS, 15 * 60_000),
       boxUnits,
       keepAlive: env.OLLAMA_KEEP_ALIVE?.trim() || '10m',
+    },
+    remote: {
+      token: workerToken,
+      fallback,
+      maxWaitMs: int(env.REMOTE_MAX_WAIT_MS, 12 * 60 * 60_000),
+      // Nedre grenser: hjemmemaskinen sender livstegn hvert kvarter av reservasjonen og spør etter oppgaver hvert 25. s.
+      leaseMs: Math.max(10_000, int(env.REMOTE_LEASE_MS, 60_000)),
+      maxRunMs: Math.max(60_000, int(env.REMOTE_MAX_RUN_MS, 2 * 60 * 60_000)),
+      onlineWithinMs: Math.max(60_000, int(env.REMOTE_ONLINE_MS, 2 * 60_000)),
     },
     seedTextbooks: parseSeedList(env.SEED_TEXTBOOKS ?? env.SEED_TEXTBOOK),
     webDist,

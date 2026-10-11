@@ -4,7 +4,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import type { Chapter, Section } from '@smartnotes/shared';
 import type { Config } from '../config.js';
 import type { NoteRow, Repo } from '../db.js';
-import { ConversionError } from '../errors.js';
+import { AbortedError, ConversionError } from '../errors.js';
 import { getProfile, readPreamble, type Profile } from '../profiles/index.js';
 import { exists, type Storage } from '../storage.js';
 import { usageScope, type Usage } from '../usage.js';
@@ -80,6 +80,10 @@ export class Converter {
       await usageScope({ noteId: id, subjectId: row.subject_id }, () => this.run(row));
       this.log.info({ noteId: id, ms: Date.now() - started }, 'notat konvertert');
     } catch (err) {
+      if (err instanceof AbortedError) {
+        this.log.info({ noteId: id, msg: err.message }, 'konvertering avbrutt');
+        return;
+      }
       const e = err instanceof ConversionError ? err : new ConversionError('Uventet feil under konverteringen.');
       if (!(err instanceof ConversionError)) this.log.error({ err, noteId: id }, 'uventet feil i konvertering');
       else this.log.warn({ noteId: id, msg: e.message, retryable: e.retryable }, 'konvertering feilet');
@@ -231,7 +235,8 @@ export class Converter {
     const ok = new Set<string>();
     for (const f of meta.figures) {
       const page = pages[f.page - 1];
-      if (!page) continue;
+      // Id-en blir et filnavn; parseMeta slipper bare gjennom trygge tegn, men sjekk igjen her.
+      if (!page || !/^[A-Za-z0-9_-]{1,40}$/.test(f.id)) continue;
       try {
         if (await cropFigure(path.join(this.storage.pagesDir(id), page.file), page, f.box, path.join(dir, `${f.id}.png`))) ok.add(f.id);
       } catch (err) {

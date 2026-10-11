@@ -4,7 +4,7 @@ import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
-import type { HealthResponse } from '@smartnotes/shared';
+import type { AiStatusResponse, HealthResponse } from '@smartnotes/shared';
 import { registerAuth } from './auth.js';
 import { AI_TASKS, type Config } from './config.js';
 import { Repo } from './db.js';
@@ -21,6 +21,8 @@ import { registerFlashcardRoutes } from './routes/flashcards.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerNoteRoutes } from './routes/notes.js';
 import { registerUsageRoutes } from './routes/usage.js';
+import { registerWorkerRoutes } from './routes/worker.js';
+import { RemoteHub } from './remote/hub.js';
 import { Storage } from './storage.js';
 import { TEXTBOOKS } from './textbooks.js';
 import { MeteredAi } from './usage.js';
@@ -30,6 +32,7 @@ export interface AppContext {
   repo: Repo;
   storage: Storage;
   ai: AiService;
+  hub: RemoteHub;
   converter: Converter;
   worker: Worker;
   bundler: Bundler;
@@ -68,7 +71,24 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
       (entry) => repo.logUsage(entry),
       (err) => app.log.warn({ err }, 'kunne ikke skrive til forbruksloggen'),
     );
-  const ai = opts.ai ? metered(opts.ai) : createAi(config, metered);
+  // Kø for AI-kall som kjøres på hjemmemaskinen. Notatet viser «venter» til en hjemmemaskin henter kallet.
+  const hub = new RemoteHub({
+    leaseMs: config.remote.leaseMs,
+    maxWaitMs: config.remote.maxWaitMs,
+    interactiveWaitMs: 3 * 60_000,
+    maxRunMs: config.remote.maxRunMs,
+    maxAttempts: 3,
+    onlineWithinMs: config.remote.onlineWithinMs,
+    fallback: config.remote.fallback === 'anthropic',
+    // Bare selve lesingen vises som «venter»; rettingen av LaTeX-feil fortsetter å vise «retter».
+    onWaiting: (ref, method) => {
+      if (ref.noteId && method === 'convert') repo.setStage(ref.noteId, 'waiting');
+    },
+    onWaitEnded: (ref, method) => {
+      if (ref.noteId && method === 'convert') repo.setStage(ref.noteId, 'reading');
+    },
+  });
+  const ai = opts.ai ? metered(opts.ai) : createAi(config, metered, hub);
   const converter = new Converter(repo, storage, ai, config, app.log);
   const worker = new Worker(repo, converter, config.workerConcurrency, app.log);
   const bundler = new Bundler(repo, storage, config, app.log);
@@ -78,6 +98,9 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   const missing = AI_TASKS.filter((t) => !aiConfigured(ai, t));
   if (missing.length > 0) app.log.warn({ tasks: missing }, 'ANTHROPIC_API_KEY mangler – disse oppgavene kan ikke kjøres med Claude.');
   const aiTasks = opts.ai ? [] : describeAi(config);
+  if (aiTasks.some((t) => t.provider === 'remote') && config.remote.fallback === 'anthropic' && !config.anthropicApiKey && !config.fakeClaude) {
+    app.log.warn('REMOTE_FALLBACK=anthropic, men ANTHROPIC_API_KEY mangler – reserven virker ikke.');
+  }
   if (aiTasks.some((t) => t.provider === 'ollama')) app.log.info({ ai: aiTasks, ollama: config.ollama.url }, 'bruker lokal AI (Ollama)');
 
   await app.register(fastifyCookie);
@@ -130,9 +153,14 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   }));
 
   registerLibraryRoutes(app, { repo, storage, ai, converter, bundler });
-  registerNoteRoutes(app, { repo, storage, converter, worker });
+  registerNoteRoutes(app, { repo, storage, converter, worker, hub });
   registerFlashcardRoutes(app, { repo, storage, ai, generator });
   registerUsageRoutes(app, { repo, config });
+  if (config.remote.token) registerWorkerRoutes(app, { hub, token: config.remote.token });
+  const usesRemote = aiTasks.some((t) => t.provider === 'remote');
+  app.get('/api/ai/status', async (): Promise<AiStatusResponse> => ({
+    remote: usesRemote ? { ...hub.status(), fallback: config.remote.fallback === 'anthropic' } : null,
+  }));
 
   // Ferdigbygd web-app (PWA) med SPA-fallback.
   if (config.webDist && fs.existsSync(path.join(config.webDist, 'index.html'))) {
@@ -165,8 +193,10 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   }
 
   app.addHook('onClose', async () => {
+    // Stopp køene først, så avbrytes kallene som venter på hjemmemaskinen uten at noe lagres.
     await worker.stop();
     generator.stop();
+    hub.close();
     await generator.idle();
     // Rekompileringer i bakgrunnen skriver til databasen – la dem bli ferdige før den lukkes.
     await converter.idle();
@@ -174,5 +204,5 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   });
 
   void storage.cleanTmp();
-  return { app, repo, storage, ai, converter, worker, bundler, generator };
+  return { app, repo, storage, ai, hub, converter, worker, bundler, generator };
 }

@@ -31,3 +31,13 @@ export class ConversionError extends Error {
     super(message);
   }
 }
+
+/**
+ * AI-kallet ble avbrutt av serveren selv: den stenger, eller notatet ble slettet. Ingenting skal lagres; et avbrutt
+ * notat konverteres på nytt fra køen etter omstart.
+ */
+export class AbortedError extends ConversionError {
+  constructor(message: string) {
+    super(message, true);
+  }
+}
