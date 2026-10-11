@@ -12,6 +12,7 @@ import { fitScale, sniffKind } from '../pipeline/images.js';
 import { getProfile, isProfile } from '../profiles/index.js';
 import { isId, type Storage } from '../storage.js';
 import { cleanChapterInputs, parseTocText } from '../toc.js';
+import { usageScope } from '../usage.js';
 
 interface Deps {
   repo: Repo;
@@ -143,7 +144,8 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
     // Delkapitler fra teksten kobles til kompetansemålene av Claude. Går det ikke, får de bare ingen mål.
     if (s.aims.length && claude.configured && chapters.some((c) => c.sections?.length)) {
       try {
-        return { chapters: cleanChapterInputs(await claude.mapSectionAims(getProfile(s.profile), chapters, s.aims), s.aims) };
+        const mapped = await usageScope({ subjectId: s.id }, () => claude.mapSectionAims(getProfile(s.profile), chapters, s.aims));
+        return { chapters: cleanChapterInputs(mapped.chapters, s.aims) };
       } catch (err) {
         req.log.warn({ err }, 'kunne ikke koble delkapitler til kompetansemål');
       }
@@ -177,7 +179,8 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
     }
     if (images.length === 0) throw badRequest('Last opp minst ett bilde av innholdsfortegnelsen.');
     try {
-      return { chapters: cleanChapterInputs(await claude.extractToc(getProfile(s.profile), images, s.aims), s.aims) };
+      const read = await usageScope({ subjectId: s.id }, () => claude.extractToc(getProfile(s.profile), images, s.aims));
+      return { chapters: cleanChapterInputs(read.chapters, s.aims) };
     } catch (err) {
       if (err instanceof ConversionError) throw new HttpError(err.retryable ? 503 : 422, 'claude_failed', err.message);
       throw err;

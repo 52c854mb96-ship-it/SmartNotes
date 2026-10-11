@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Chapter, ChapterInput, Note, SaveLatexResponse, Subject, SyncResponse } from '@smartnotes/shared';
+import type { Chapter, ChapterInput, Note, SaveLatexResponse, Subject, SyncResponse, UsageSummaryResponse } from '@smartnotes/shared';
 import { buildApp, type AppContext } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { FakeClaude } from '../src/pipeline/claude.js';
@@ -316,5 +316,32 @@ describe('fag, kapitler og notater', () => {
     const done = await waitFor(res.body.id, (n) => n.status === 'done' || n.status === 'failed');
     const chapter = (await sync()).chapters.find((c) => c.id === done.chapterId);
     expect(chapter).toMatchObject({ subjectId: s.body.id, number: '1', title: 'Fysikk og måling' });
+  });
+});
+
+describe('forbrukslogg', () => {
+  it('logger hvert AI-kall med hva det gjaldt, og oppsummerer per type', async () => {
+    const entries = ctx.repo.usageSince(0);
+    const converted = (await sync()).notes.filter((n) => n.status === 'done');
+    // Hver konvertering, rettingen av «FEIL»-notatet og lesingen av innholdsfortegnelsen er logget.
+    const kinds = new Set(entries.map((e) => e.kind));
+    expect(kinds).toEqual(new Set(['convert', 'fix', 'toc']));
+    for (const n of converted) expect(entries.some((e) => e.kind === 'convert' && e.noteId === n.id)).toBe(true);
+    expect(entries.filter((e) => e.kind === 'toc').every((e) => e.subjectId && e.noteId === null)).toBe(true);
+    expect(entries.every((e) => e.provider === 'fake' && e.model === 'fake-claude' && e.ok)).toBe(true);
+
+    const res = await call<UsageSummaryResponse>('GET', '/api/usage?days=7');
+    expect(res.status).toBe(200);
+    expect(res.body.days).toBe(7);
+    expect(res.body.total.calls).toBe(entries.length);
+    expect(res.body.total.costNok).toBe(0);
+    const convert = res.body.byKind.find((k) => k.kind === 'convert');
+    expect(convert?.calls).toBe(entries.filter((e) => e.kind === 'convert').length);
+    expect(res.body.byModel).toEqual([expect.objectContaining({ provider: 'fake', model: 'fake-claude', calls: entries.length })]);
+  });
+
+  it('krever innlogging og gyldig periode', async () => {
+    expect((await call('GET', '/api/usage', { auth: false })).status).toBe(401);
+    expect((await call('GET', '/api/usage?days=0')).status).toBe(400);
   });
 });

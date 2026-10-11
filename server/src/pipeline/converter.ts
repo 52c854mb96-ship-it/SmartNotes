@@ -7,6 +7,7 @@ import type { NoteRow, Repo } from '../db.js';
 import { ConversionError } from '../errors.js';
 import { getProfile, readPreamble, type Profile } from '../profiles/index.js';
 import { exists, type Storage } from '../storage.js';
+import { usageScope } from '../usage.js';
 import type { ChapterRef, ClaudeService, Usage } from './claude.js';
 import { cropFigure, preparePages, type FileKind, type PageImage } from './images.js';
 import {
@@ -76,7 +77,7 @@ export class Converter {
     const id = row.id;
     const started = Date.now();
     try {
-      await this.run(row);
+      await usageScope({ noteId: id, subjectId: row.subject_id }, () => this.run(row));
       this.log.info({ noteId: id, ms: Date.now() - started }, 'notat konvertert');
     } catch (err) {
       const e = err instanceof ConversionError ? err : new ConversionError('Uventet feil under konverteringen.');

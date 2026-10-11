@@ -25,6 +25,7 @@ import type {
   UpdateFlashcardRequest,
   UpdateNoteRequest,
   UpdateSubjectRequest,
+  UsageSummaryResponse,
 } from '@smartnotes/shared';
 import { asBlob, type StoredBytes } from './db';
 import { authStore, markReachable } from './lib/connectivity';
@@ -199,6 +200,8 @@ export const urls = {
 
 export const api = {
   health: (signal?: AbortSignal) => json<HealthResponse>('GET', '/health', { signal, timeoutMs: 10_000 }),
+  usage: (days: number, signal?: AbortSignal) =>
+    json<UsageSummaryResponse>('GET', `/usage?days=${days}`, { signal, timeoutMs: 15_000 }),
 
   login: (password: string) =>
     json<{ ok: boolean }>('POST', '/auth/login', { json: { password }, allow401: true, timeoutMs: 20_000 }),

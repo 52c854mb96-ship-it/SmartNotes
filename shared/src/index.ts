@@ -325,6 +325,34 @@ export interface HealthResponse {
   fakeClaude: boolean;
 }
 
+/** Hva et AI-kall gjaldt: konvertering, retting av LaTeX, innholdsfortegnelse, kompetansemål eller kortstokk. */
+export type UsageKind = 'convert' | 'fix' | 'toc' | 'aims' | 'flashcards';
+
+export interface UsageTotals {
+  calls: number;
+  failed: number;
+  /** Inndata inkludert hurtigbuffer. */
+  inputTokens: number;
+  outputTokens: number;
+  /** Beregnet etter listepris (kroner, avrundet til øre). Lokale og falske modeller koster 0. */
+  costNok: number;
+  /** Kall med en modell uten kjent pris (ikke med i `costNok`). */
+  unpricedCalls: number;
+}
+
+/** GET /api/usage?days=N – forbruket av AI de siste N dagene. */
+export interface UsageSummaryResponse {
+  days: number;
+  since: string;
+  /** Kursen som er brukt fra dollar til kroner. */
+  usdNok: number;
+  total: UsageTotals;
+  byKind: (UsageTotals & { kind: UsageKind })[];
+  /** Per dag (norsk tid), eldste først. Bare dager med kall. */
+  byDay: (UsageTotals & { day: string })[];
+  byModel: (UsageTotals & { provider: string; model: string })[];
+}
+
 export interface ApiError {
   error: string;
   /** Norsk, brukervennlig melding. */
