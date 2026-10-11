@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { CheckCircle2, CloudDownload, LogOut, RefreshCw, XCircle } from 'lucide-react';
-import type { HealthResponse } from '@smartnotes/shared';
+import type { HealthResponse, UsageKind, UsageSummaryResponse } from '@smartnotes/shared';
 import { api, errorMessage } from '../api';
 import { Spinner } from '../components/Status';
 import { ThemeSwitch } from '../components/ThemeSwitch';
@@ -24,6 +24,7 @@ export function SettingsPage() {
       </header>
       <AppearanceCard />
       <ServerCard />
+      <UsageCard />
       <SyncCard />
       <StorageCard />
       <AccountCard />
@@ -107,6 +108,86 @@ function ServerCard() {
           />
           {health.fakeClaude && <StatusLine ok={null} label="Testmodus: falsk Claude (ingen ekte konvertering)" />}
         </ul>
+      )}
+    </section>
+  );
+}
+
+const USAGE_DAYS = 30;
+const KIND_LABELS: Record<UsageKind, string> = {
+  convert: 'Konvertering',
+  fix: 'Retting av LaTeX',
+  flashcards: 'Kortstokker',
+  toc: 'Innholdsfortegnelser',
+  aims: 'Kompetansemål',
+};
+const kroner = (n: number) => `${n.toLocaleString('nb-NO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`;
+
+function UsageCard() {
+  const { online } = useOnline();
+  const [usage, setUsage] = useState<UsageSummaryResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!online) return;
+    const ctrl = new AbortController();
+    api
+      .usage(USAGE_DAYS, ctrl.signal)
+      .then((u) => {
+        setUsage(u);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (!ctrl.signal.aborted) setError(errorMessage(err, 'Kunne ikke hente forbruket.'));
+      });
+    return () => ctrl.abort();
+  }, [online]);
+
+  return (
+    <section className="card" aria-labelledby="usage-h">
+      <div className="card-head">
+        <h2 id="usage-h" className="card-title">
+          Forbruk av AI
+        </h2>
+        <p className="card-text">
+          Hva AI-kallene de siste {USAGE_DAYS} dagene har kostet, beregnet etter listeprisen. Lokale modeller koster ingenting
+          her.
+        </p>
+      </div>
+      {!online ? (
+        <p className="muted">Du er offline, så forbruket kan ikke hentes nå.</p>
+      ) : error ? (
+        <p className="form-error">{error}</p>
+      ) : !usage ? (
+        <div className="skeleton skeleton-line" />
+      ) : usage.total.calls === 0 ? (
+        <p className="muted">Ingen AI-kall de siste {USAGE_DAYS} dagene.</p>
+      ) : (
+        <>
+          <dl className="kv">
+            <dt>Totalt</dt>
+            <dd>
+              {kroner(usage.total.costNok)} · {plural(usage.total.calls, 'kall', 'kall')}
+              {usage.total.failed > 0 && <span className="muted"> ({usage.total.failed} feilet)</span>}
+            </dd>
+            {usage.byKind.map((k) => (
+              <Fragment key={k.kind}>
+                <dt>{KIND_LABELS[k.kind] ?? k.kind}</dt>
+                <dd>
+                  {kroner(k.costNok)} · {plural(k.calls, 'kall', 'kall')}
+                </dd>
+              </Fragment>
+            ))}
+            <dt>Modeller</dt>
+            <dd>{usage.byModel.map((m) => `${m.model} (${m.calls})`).join(', ')}</dd>
+          </dl>
+          <p className="muted small">
+            {usage.total.unpricedCalls > 0 &&
+              `${plural(usage.total.unpricedCalls, 'kall', 'kall')} med ukjent pris er ikke regnet med. `}
+            Kurs: 1 dollar = {usage.usdNok.toLocaleString('nb-NO')} kr. Den faktiske regningen står i Anthropic Console under
+            Usage.
+          </p>
+        </>
       )}
     </section>
   );

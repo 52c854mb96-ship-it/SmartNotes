@@ -5,6 +5,7 @@ import { ConversionError } from '../errors.js';
 import type { ClaudeService } from '../pipeline/claude.js';
 import { getProfile } from '../profiles/index.js';
 import type { Storage } from '../storage.js';
+import { usageScope } from '../usage.js';
 import { cleanFlashcards, noteSourceText, type FlashcardSourceNote } from './prompt.js';
 
 /** Hvor mange ganger en midlertidig feil (overbelastning, nett) prøves før kortstokken markeres som feilet. */
@@ -146,13 +147,15 @@ export class FlashcardGenerator {
     if (notes.length === 0) throw new ConversionError('Notatene finnes ikke lenger, eller er ikke ferdig konvertert.');
     const profile = getProfile(subject.profile);
     const started = Date.now();
-    const { cards, usage } = await this.claude.generateFlashcards({
-      subjectName: subject.name,
-      subjectLabel: profile.label,
-      difficulty: deck.difficulty,
-      count: row.requested_count,
-      notes,
-    });
+    const { cards, usage } = await usageScope({ deckId, subjectId: subject.id }, () =>
+      this.claude.generateFlashcards({
+        subjectName: subject.name,
+        subjectLabel: profile.label,
+        difficulty: deck.difficulty,
+        count: row.requested_count,
+        notes,
+      }),
+    );
     const clean = cleanFlashcards(cards, aliases);
     if (clean.length === 0) throw new ConversionError('Claude fant ikke noe å lage kort av i disse notatene.');
     const done = this.repo.completeDeck(deckId, clean, usage);

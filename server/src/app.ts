@@ -19,8 +19,10 @@ import { Worker } from './pipeline/worker.js';
 import { registerFlashcardRoutes } from './routes/flashcards.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerNoteRoutes } from './routes/notes.js';
+import { registerUsageRoutes } from './routes/usage.js';
 import { Storage } from './storage.js';
 import { TEXTBOOKS } from './textbooks.js';
+import { MeteredAi } from './usage.js';
 
 export interface AppContext {
   app: FastifyInstance;
@@ -58,7 +60,12 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
   if (unknown.length > 0) app.log.warn({ unknown }, 'ukjente læreboksett i SEED_TEXTBOOKS – hoppes over');
   const created = repo.seed(config.seedTextbooks.flatMap((id) => (TEXTBOOKS[id] ? [TEXTBOOKS[id]] : [])));
   if (created.length > 0) app.log.info({ created }, 'la inn fag fra læreboksett');
-  const claude = opts.claude ?? createClaude(config);
+  // Hvert AI-kall logges i forbruksloggen (usage_log), også når det feiler.
+  const claude = new MeteredAi(
+    opts.claude ?? createClaude(config),
+    (entry) => repo.logUsage(entry),
+    (err) => app.log.warn({ err }, 'kunne ikke skrive til forbruksloggen'),
+  );
   const converter = new Converter(repo, storage, claude, config, app.log);
   const worker = new Worker(repo, converter, config.workerConcurrency, app.log);
   const bundler = new Bundler(repo, storage, config, app.log);
@@ -118,6 +125,7 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
   registerLibraryRoutes(app, { repo, storage, claude, converter, bundler });
   registerNoteRoutes(app, { repo, storage, converter, worker });
   registerFlashcardRoutes(app, { repo, storage, claude, generator });
+  registerUsageRoutes(app, { repo, config });
 
   // Ferdigbygd web-app (PWA) med SPA-fallback.
   if (config.webDist && fs.existsSync(path.join(config.webDist, 'index.html'))) {

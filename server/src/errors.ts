@@ -1,3 +1,5 @@
+import type { Usage } from './usage.js';
+
 /** Feil som sendes til klienten med en norsk, brukervennlig melding. */
 export class HttpError extends Error {
   constructor(
@@ -19,6 +21,9 @@ export const offlineFeature = (message: string) => new HttpError(503, 'unavailab
  * og at notatet legges tilbake i køen automatisk.
  */
 export class ConversionError extends Error {
+  /** Forbruket når modellen svarte, men svaret ikke kunne brukes (for forbruksloggen). */
+  usage?: Usage;
+
   constructor(
     message: string,
     readonly retryable = false,

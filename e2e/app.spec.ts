@@ -96,6 +96,12 @@ test('logg inn, last opp, les PDF – også uten nett', async ({ page, context }
   await expect(main(page).getByText('Venter på nett')).toHaveCount(0, SLOW);
   await openConvertedNote(page, offlineTitle);
 
+  // 4) Forbruket av AI vises i innstillingene (falsk Claude koster ingenting).
+  await page.goto('/innstillinger');
+  const usage = page.getByRole('region', { name: 'Forbruk av AI' });
+  await expect(usage.getByText('Konvertering')).toBeVisible();
+  await expect(usage.getByText(/^0,00 kr/).first()).toBeVisible();
+
   expect(errors).toEqual([]);
 });
 

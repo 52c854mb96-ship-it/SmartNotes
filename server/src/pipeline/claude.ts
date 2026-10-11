@@ -14,7 +14,10 @@ import {
 } from '../flashcards/prompt.js';
 import type { Profile } from '../profiles/index.js';
 import { aimsForPrompt } from '../toc.js';
+import { withUsage, zeroUsage, type Usage } from '../usage.js';
 import { extractLatex, parseConversion, type NoteMeta } from './parse.js';
+
+export type { Usage } from '../usage.js';
 
 export interface ChapterRef {
   /** Kort alias som Claude svarer med, f.eks. «k3». */
@@ -40,15 +43,6 @@ export interface ConvertRequest {
   pages: { path: string; width: number; height: number }[];
 }
 
-export interface Usage {
-  kind: 'convert' | 'fix' | 'toc' | 'flashcards';
-  model: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
-}
-
 export interface ConvertResult {
   meta: NoteMeta;
   body: string;
@@ -65,12 +59,18 @@ export interface ClaudeService {
   readonly configured: boolean;
   readonly model: string;
   readonly fake: boolean;
+  /** Hvem som kjører modellen: «anthropic» eller «fake» (for forbruksloggen og prisberegningen). */
+  readonly provider: string;
   convert(req: ConvertRequest): Promise<ConvertResult>;
   fix(req: FixRequest): Promise<{ body: string; usage: Usage }>;
   /** Leser kapitler og delkapitler fra bilder av innholdsfortegnelsen, og kobler delkapitlene til `aims` (hvis noen). */
-  extractToc(profile: Profile, images: { data: Buffer; mediaType: 'image/jpeg' | 'image/png' }[], aims?: CompetenceAim[]): Promise<ChapterInput[]>;
+  extractToc(
+    profile: Profile,
+    images: { data: Buffer; mediaType: 'image/jpeg' | 'image/png' }[],
+    aims?: CompetenceAim[],
+  ): Promise<{ chapters: ChapterInput[]; usage: Usage }>;
   /** Kobler delkapitlene (fra innlimt tekst) til kompetansemålene. Gir tilbake de samme kapitlene med `aims` fylt inn. */
-  mapSectionAims(profile: Profile, chapters: ChapterInput[], aims: CompetenceAim[]): Promise<ChapterInput[]>;
+  mapSectionAims(profile: Profile, chapters: ChapterInput[], aims: CompetenceAim[]): Promise<{ chapters: ChapterInput[]; usage: Usage }>;
   /** Lager flashcards fra notatene (LaTeX). */
   generateFlashcards(req: FlashcardRequest): Promise<{ cards: RawFlashcard[]; usage: Usage }>;
 }
@@ -184,6 +184,7 @@ function checkStop(stop: string | null): void {
 
 export class AnthropicClaude implements ClaudeService {
   readonly fake = false;
+  readonly provider = 'anthropic';
   private readonly client: Anthropic | null;
 
   constructor(private readonly config: Config) {
@@ -232,9 +233,12 @@ export class AnthropicClaude implements ClaudeService {
       { type: 'text', text: 'Konverter notatet. Svar med <metadata> og <latex> som beskrevet.' },
     ];
     const msg = await this.stream(req.profile.systemPrompt, content, this.config.effort);
-    checkStop(msg.stop_reason);
-    const { meta, body } = parseConversion(textOf(msg.content));
-    return { meta, body, usage: usageOf('convert', msg) };
+    const usage = usageOf('convert', msg);
+    return withUsage(usage, () => {
+      checkStop(msg.stop_reason);
+      const { meta, body } = parseConversion(textOf(msg.content));
+      return { meta, body, usage };
+    });
   }
 
   async fix(req: FixRequest): Promise<{ body: string; usage: Usage }> {
@@ -244,17 +248,20 @@ export class AnthropicClaude implements ClaudeService {
     ];
     const effort: Effort = this.config.effort === 'low' ? 'low' : 'medium';
     const msg = await this.stream(req.profile.systemPrompt, content, effort);
-    checkStop(msg.stop_reason);
-    const body = extractLatex(textOf(msg.content));
-    if (body === null) throw new ConversionError('Claude klarte ikke å rette LaTeX-koden.');
-    return { body, usage: usageOf('fix', msg) };
+    const usage = usageOf('fix', msg);
+    return withUsage(usage, () => {
+      checkStop(msg.stop_reason);
+      const body = extractLatex(textOf(msg.content));
+      if (body === null) throw new ConversionError('Claude klarte ikke å rette LaTeX-koden.');
+      return { body, usage };
+    });
   }
 
   async extractToc(
     profile: Profile,
     images: { data: Buffer; mediaType: 'image/jpeg' | 'image/png' }[],
     aims: CompetenceAim[] = [],
-  ): Promise<ChapterInput[]> {
+  ): Promise<{ chapters: ChapterInput[]; usage: Usage }> {
     const client = this.requireClient();
     try {
       const msg = await client.messages.parse({
@@ -274,16 +281,23 @@ export class AnthropicClaude implements ClaudeService {
           },
         ],
       });
-      checkStop(msg.stop_reason);
-      const parsed = msg.parsed_output;
-      if (!parsed) throw new ConversionError('Klarte ikke å lese innholdsfortegnelsen.');
-      return parsed.chapters.map((c) => ({ number: c.number, title: c.title, sections: c.sections }));
+      const usage = usageOf('toc', msg);
+      return withUsage(usage, () => {
+        checkStop(msg.stop_reason);
+        const parsed = msg.parsed_output;
+        if (!parsed) throw new ConversionError('Klarte ikke å lese innholdsfortegnelsen.');
+        return { chapters: parsed.chapters.map((c) => ({ number: c.number, title: c.title, sections: c.sections })), usage };
+      });
     } catch (err) {
       throw mapApiError(err);
     }
   }
 
-  async mapSectionAims(profile: Profile, chapters: ChapterInput[], aims: CompetenceAim[]): Promise<ChapterInput[]> {
+  async mapSectionAims(
+    profile: Profile,
+    chapters: ChapterInput[],
+    aims: CompetenceAim[],
+  ): Promise<{ chapters: ChapterInput[]; usage: Usage }> {
     const client = this.requireClient();
     const schema = z.object({ sections: z.array(z.object({ code: z.string(), aims: z.array(z.string()) })) });
     const list = chapters
@@ -301,12 +315,16 @@ export class AnthropicClaude implements ClaudeService {
           },
         ],
       });
-      checkStop(msg.stop_reason);
+      const usage = usageOf('aims', msg);
+      withUsage(usage, () => checkStop(msg.stop_reason));
       const byCode = new Map((msg.parsed_output?.sections ?? []).map((s) => [s.code.trim(), s.aims]));
-      return chapters.map((c) => ({
-        ...c,
-        sections: c.sections?.map((s) => ({ ...s, aims: byCode.get(s.code) ?? s.aims })),
-      }));
+      return {
+        chapters: chapters.map((c) => ({
+          ...c,
+          sections: c.sections?.map((s) => ({ ...s, aims: byCode.get(s.code) ?? s.aims })),
+        })),
+        usage,
+      };
     } catch (err) {
       throw mapApiError(err);
     }
@@ -334,7 +352,8 @@ export class AnthropicClaude implements ClaudeService {
     } catch (err) {
       throw flashcardError(err);
     }
-    return { cards: parseFlashcardMessage(msg), usage: usageOf('flashcards', msg) };
+    const usage = usageOf('flashcards', msg);
+    return { cards: withUsage(usage, () => parseFlashcardMessage(msg)), usage };
   }
 }
 
@@ -373,11 +392,12 @@ export class FakeClaude implements ClaudeService {
   readonly fake = true;
   readonly configured = true;
   readonly model = 'fake-claude';
+  readonly provider: string = 'fake';
 
   constructor(private readonly delayMs = Number(process.env.FAKE_CLAUDE_DELAY_MS ?? 800)) {}
 
   private usage(kind: Usage['kind']): Usage {
-    return { kind, model: this.model, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+    return zeroUsage(kind, this.model);
   }
 
   async convert(req: ConvertRequest): Promise<ConvertResult> {
@@ -409,9 +429,10 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
     return { body, usage: this.usage('fix') };
   }
 
-  async extractToc(profile: Profile, _images: unknown, aims: CompetenceAim[] = []): Promise<ChapterInput[]> {
+  async extractToc(profile: Profile, _images: unknown, aims: CompetenceAim[] = []): Promise<{ chapters: ChapterInput[]; usage: Usage }> {
     await new Promise((r) => setTimeout(r, this.delayMs));
-    return this.mapSectionAims(profile, FAKE_TOC[profile.id], aims);
+    const { chapters } = await this.mapSectionAims(profile, FAKE_TOC[profile.id], aims);
+    return { chapters, usage: this.usage('toc') };
   }
 
   /**
@@ -457,9 +478,12 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
   }
 
   /** Kobler hvert delkapittel til det første målet som ikke går på tvers av kapitlene. */
-  async mapSectionAims(_profile: Profile, chapters: ChapterInput[], aims: CompetenceAim[]): Promise<ChapterInput[]> {
+  async mapSectionAims(_profile: Profile, chapters: ChapterInput[], aims: CompetenceAim[]): Promise<{ chapters: ChapterInput[]; usage: Usage }> {
     const first = aims.find((a) => !a.cross)?.code;
-    return chapters.map((c) => ({ ...c, sections: c.sections?.map((s) => ({ ...s, aims: first ? [first] : [] })) }));
+    return {
+      chapters: chapters.map((c) => ({ ...c, sections: c.sections?.map((s) => ({ ...s, aims: first ? [first] : [] })) })),
+      usage: this.usage('aims'),
+    };
   }
 }
 

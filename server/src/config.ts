@@ -33,6 +33,8 @@ export interface Config {
   secureCookies: boolean;
   /** Hvor lenge en innlogging varer (dager). */
   sessionDays: number;
+  /** Kurs fra dollar til kroner i oversikten over AI-forbruk (USD_NOK). */
+  usdNok: number;
   version: string;
 }
 
@@ -43,6 +45,11 @@ export const SERVER_ROOT = path.resolve(here, '..');
 function bool(v: string | undefined, fallback: boolean): boolean {
   if (v === undefined || v === '') return fallback;
   return ['1', 'true', 'yes', 'on', 'ja'].includes(v.toLowerCase());
+}
+
+function num(v: string | undefined, fallback: number): number {
+  const n = v ? Number.parseFloat(v.replace(',', '.')) : Number.NaN;
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 function int(v: string | undefined, fallback: number): number {
@@ -101,6 +108,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     maxOutputTokens: int(env.CLAUDE_MAX_TOKENS, 64_000),
     secureCookies: bool(env.COOKIE_SECURE, production),
     sessionDays: int(env.SESSION_DAYS, 365),
+    usdNok: num(env.USD_NOK, 10.5),
     version,
   };
 }

@@ -16,7 +16,9 @@ import type {
   Section,
   Subject,
   SubjectProfile,
+  UsageKind,
 } from '@smartnotes/shared';
+import type { UsageEntry } from './usage.js';
 
 type DB = Database.Database;
 
@@ -150,6 +152,27 @@ const MIGRATIONS: string[] = [
   CREATE INDEX cards_rev ON cards(rev);
   CREATE INDEX cards_deck ON cards(deck_id);
   `,
+  // Forbrukslogg: én rad per AI-kall. Bare på serveren (synkroniseres ikke), så den trenger ingen rev.
+  `
+  CREATE TABLE usage_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    model TEXT NOT NULL,
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+    cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    ok INTEGER NOT NULL,
+    error TEXT,
+    note_id TEXT,
+    deck_id TEXT,
+    subject_id TEXT
+  );
+  CREATE INDEX usage_log_at ON usage_log(at);
+  `,
 ];
 
 // ---------- Rad-typer (slik de ligger i SQLite) ----------
@@ -242,6 +265,23 @@ interface CardRow {
   deleted: number;
   created_at: string;
   updated_at: string;
+}
+
+interface UsageLogRow {
+  at: number;
+  kind: string;
+  provider: string;
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  duration_ms: number;
+  ok: number;
+  error: string | null;
+  note_id: string | null;
+  deck_id: string | null;
+  subject_id: string | null;
 }
 
 export interface NoteFileRow {
@@ -433,6 +473,53 @@ export class Repo {
   currentRev(): number {
     const row = this.db.prepare(`SELECT value FROM meta WHERE key = 'rev'`).get() as { value: string };
     return Number(row.value);
+  }
+
+  // ---------- Forbrukslogg ----------
+
+  logUsage(e: UsageEntry): void {
+    this.db
+      .prepare(
+        `INSERT INTO usage_log (at, kind, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
+           duration_ms, ok, error, note_id, deck_id, subject_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        e.at,
+        e.kind,
+        e.provider,
+        e.model,
+        e.inputTokens,
+        e.outputTokens,
+        e.cacheReadTokens,
+        e.cacheWriteTokens,
+        e.durationMs,
+        e.ok ? 1 : 0,
+        e.error,
+        e.noteId,
+        e.deckId,
+        e.subjectId,
+      );
+  }
+
+  /** AI-kallene fra og med `since` (ms), eldste først. */
+  usageSince(since: number): UsageEntry[] {
+    const rows = this.db.prepare(`SELECT * FROM usage_log WHERE at >= ? ORDER BY at, id`).all(since) as UsageLogRow[];
+    return rows.map((r) => ({
+      at: r.at,
+      kind: r.kind as UsageKind,
+      provider: r.provider,
+      model: r.model,
+      inputTokens: r.input_tokens,
+      outputTokens: r.output_tokens,
+      cacheReadTokens: r.cache_read_tokens,
+      cacheWriteTokens: r.cache_write_tokens,
+      durationMs: r.duration_ms,
+      ok: r.ok === 1,
+      error: r.error,
+      noteId: r.note_id,
+      deckId: r.deck_id,
+      subjectId: r.subject_id,
+    }));
   }
 
   // ---------- Synk ----------
