@@ -308,7 +308,7 @@ describe('fag, kapitler og notater', () => {
   });
 
   it('foreslår og oppretter kapittel når faget ikke har noen', async () => {
-    const s = await call<Subject>('POST', '/api/subjects', { json: { name: 'Fysikk 2', profile: 'physics', textbook: 'Ergo Fysikk 2' } });
+    const s = await call<Subject>('POST', '/api/subjects', { json: { name: 'Fysikk 2', profile: 'physics', textbook: 'Min lærebok 2' } });
     expect(s.status).toBe(201);
     const res = await call<Note>('POST', '/api/notes', {
       form: uploadForm({ subjectId: s.body.id, clientId: 'klient-ny' }, [{ data: pngPage, name: 's.png', type: 'image/png' }]),
