@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "convert": "tsx src/cli/convert.ts",
-    "eval": "tsx src/cli/eval.ts"
+    "eval": "tsx src/cli/eval.ts",
+    "homeworker": "tsx src/cli/homeworker.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

@@ -1,4 +1,5 @@
 import type {
+  AiStatusResponse,
   BulkChaptersRequest,
   Chapter,
   ChapterInput,
@@ -200,6 +201,7 @@ export const urls = {
 
 export const api = {
   health: (signal?: AbortSignal) => json<HealthResponse>('GET', '/health', { signal, timeoutMs: 10_000 }),
+  aiStatus: (signal?: AbortSignal) => json<AiStatusResponse>('GET', '/ai/status', { signal, timeoutMs: 10_000 }),
   usage: (days: number, signal?: AbortSignal) =>
     json<UsageSummaryResponse>('GET', `/usage?days=${days}`, { signal, timeoutMs: 15_000 }),
 

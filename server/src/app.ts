@@ -4,7 +4,7 @@ import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import fastifyCookie from '@fastify/cookie';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
-import type { HealthResponse } from '@smartnotes/shared';
+import type { AiStatusResponse, HealthResponse } from '@smartnotes/shared';
 import { registerAuth } from './auth.js';
 import { AI_TASKS, type Config } from './config.js';
 import { Repo } from './db.js';
@@ -21,6 +21,8 @@ import { registerFlashcardRoutes } from './routes/flashcards.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerNoteRoutes } from './routes/notes.js';
 import { registerUsageRoutes } from './routes/usage.js';
+import { registerWorkerRoutes } from './routes/worker.js';
+import { RemoteHub } from './remote/hub.js';
 import { Storage } from './storage.js';
 import { TEXTBOOKS } from './textbooks.js';
 import { MeteredAi } from './usage.js';
@@ -30,6 +32,7 @@ export interface AppContext {
   repo: Repo;
   storage: Storage;
   ai: AiService;
+  hub: RemoteHub;
   converter: Converter;
   worker: Worker;
   bundler: Bundler;
@@ -68,7 +71,21 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
       (entry) => repo.logUsage(entry),
       (err) => app.log.warn({ err }, 'kunne ikke skrive til forbruksloggen'),
     );
-  const ai = opts.ai ? metered(opts.ai) : createAi(config, metered);
+  // Kø for AI-kall som kjøres på hjemmemaskinen. Notatet viser «venter» til en hjemmemaskin henter kallet.
+  const hub = new RemoteHub({
+    leaseMs: config.remote.leaseMs,
+    maxWaitMs: config.remote.maxWaitMs,
+    interactiveWaitMs: 3 * 60_000,
+    maxAttempts: 3,
+    onlineWithinMs: config.remote.onlineWithinMs,
+    onWaiting: (ref, method) => {
+      if (ref.noteId && (method === 'convert' || method === 'fix')) repo.setStage(ref.noteId, 'waiting');
+    },
+    onClaimed: (ref, method) => {
+      if (ref.noteId && (method === 'convert' || method === 'fix')) repo.setStage(ref.noteId, method === 'fix' ? 'fixing' : 'reading');
+    },
+  });
+  const ai = opts.ai ? metered(opts.ai) : createAi(config, metered, hub);
   const converter = new Converter(repo, storage, ai, config, app.log);
   const worker = new Worker(repo, converter, config.workerConcurrency, app.log);
   const bundler = new Bundler(repo, storage, config, app.log);
@@ -133,6 +150,11 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   registerNoteRoutes(app, { repo, storage, converter, worker });
   registerFlashcardRoutes(app, { repo, storage, ai, generator });
   registerUsageRoutes(app, { repo, config });
+  if (config.remote.token) registerWorkerRoutes(app, { hub, token: config.remote.token });
+  const usesRemote = aiTasks.some((t) => t.provider === 'remote');
+  app.get('/api/ai/status', async (): Promise<AiStatusResponse> => ({
+    remote: usesRemote ? { ...hub.status(), fallback: config.remote.fallback === 'anthropic' } : null,
+  }));
 
   // Ferdigbygd web-app (PWA) med SPA-fallback.
   if (config.webDist && fs.existsSync(path.join(config.webDist, 'index.html'))) {
@@ -166,6 +188,7 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
 
   app.addHook('onClose', async () => {
     await worker.stop();
+    hub.close();
     generator.stop();
     await generator.idle();
     // Rekompileringer i bakgrunnen skriver til databasen – la dem bli ferdige før den lukkes.
@@ -174,5 +197,5 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   });
 
   void storage.cleanTmp();
-  return { app, repo, storage, ai, converter, worker, bundler, generator };
+  return { app, repo, storage, ai, hub, converter, worker, bundler, generator };
 }

@@ -288,7 +288,7 @@ describe('valg av leverandør', () => {
   });
 
   it('avviser ukjente verdier med norsk melding', () => {
-    expect(() => loadConfig({ ...base, AI_PROVIDER: 'openai' })).toThrow('AI_PROVIDER må være «anthropic» eller «ollama».');
+    expect(() => loadConfig({ ...base, AI_PROVIDER: 'openai' })).toThrow('AI_PROVIDER må være «anthropic», «ollama» eller «remote».');
     expect(() => loadConfig({ ...base, OLLAMA_BOX_UNITS: 'prosent' })).toThrow('OLLAMA_BOX_UNITS');
   });
 });

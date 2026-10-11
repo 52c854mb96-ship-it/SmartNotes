@@ -480,7 +480,8 @@ const STEPS: { stage: string; label: string }[] = [
 
 function ProgressCard({ note }: { note: Note }) {
   const queued = note.status === 'queued';
-  const stage = note.stage === 'fixing' ? 'compiling' : note.stage;
+  // Venting på hjemmemaskinen hører til lesesteget; retting hører til PDF-steget.
+  const stage = note.stage === 'fixing' ? 'compiling' : note.stage === 'waiting' ? 'reading' : note.stage;
   const current = queued ? -1 : STEPS.findIndex((s) => s.stage === stage);
   return (
     <section className="progress-card" role="status" aria-live="polite">

@@ -216,7 +216,7 @@ async function scheduleNext(): Promise<void> {
 export async function countNotesInProgress(): Promise<number> {
   const keys = new Set<string>();
   for (const k of await db.notes.where('status').anyOf('queued', 'processing').primaryKeys()) keys.add(k);
-  for (const k of await db.notes.where('stage').anyOf('preparing', 'reading', 'compiling', 'fixing').primaryKeys()) {
+  for (const k of await db.notes.where('stage').anyOf('preparing', 'waiting', 'reading', 'compiling', 'fixing').primaryKeys()) {
     keys.add(k);
   }
   return keys.size;

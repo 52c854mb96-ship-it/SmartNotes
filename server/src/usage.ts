@@ -44,6 +44,11 @@ export function usageScope<T>(ref: UsageRef, fn: () => Promise<T>): Promise<T> {
   return scope.run({ ...scope.getStore(), ...ref }, fn);
 }
 
+/** Hva AI-kallene som gjøres nå, gjelder (satt med `usageScope`). */
+export function currentUsageRef(): UsageRef {
+  return { ...scope.getStore() };
+}
+
 /** Legger forbruket ved en feil som oppstår etter at modellen har svart (avslag, avkuttet eller ugyldig svar). */
 export function withUsage<T>(usage: Usage, fn: () => T): T {
   try {

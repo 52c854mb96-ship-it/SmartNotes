@@ -61,7 +61,8 @@ export function registerAuth(app: FastifyInstance, repo: Repo, config: Config): 
     if (mutating && req.headers[CSRF_HEADER] !== '1') {
       throw new HttpError(403, 'csrf', 'Forespørselen ble avvist (mangler sikkerhetsheader).');
     }
-    if (PUBLIC_PATHS.has(url)) return;
+    // Hjemmemaskinen logger inn med WORKER_TOKEN i stedet (routes/worker.ts).
+    if (PUBLIC_PATHS.has(url) || url.startsWith('/api/worker/')) return;
     if (!sessionValid(req)) throw new HttpError(401, 'unauthorized', 'Du må logge inn.');
   });
 

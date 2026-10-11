@@ -104,6 +104,8 @@ export function stageText(stage: NoteStage | null): string {
   switch (stage) {
     case 'preparing':
       return 'Forbereder sidene …';
+    case 'waiting':
+      return 'Venter på AI-maskinen …';
     case 'reading':
       return 'Leser håndskrift …';
     case 'compiling':
@@ -118,13 +120,15 @@ export function stageText(stage: NoteStage | null): string {
 export function stageDescription(stage: NoteStage | null): string {
   switch (stage) {
     case 'preparing':
-      return 'Sidene gjøres klare for Claude.';
+      return 'Sidene gjøres klare for AI-en.';
+    case 'waiting':
+      return 'Den lokale AI-en er opptatt eller ikke på nett. Notatet konverteres når den er ledig.';
     case 'reading':
-      return 'Claude tolker notatene og skriver LaTeX. Det tar gjerne et par minutter.';
+      return 'AI-en tolker notatene og skriver LaTeX. Det tar gjerne et par minutter.';
     case 'compiling':
       return 'LaTeX-koden settes til en PDF.';
     case 'fixing':
-      return 'Det oppsto en kompileringsfeil, som Claude nå retter.';
+      return 'Det oppsto en kompileringsfeil, som AI-en nå retter.';
     default:
       return 'Notatet konverteres.';
   }

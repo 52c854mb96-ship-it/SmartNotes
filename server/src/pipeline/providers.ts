@@ -10,6 +10,7 @@ import type { Profile } from '../profiles/index.js';
 import type { AiService, ConvertRequest, FixRequest } from './ai.js';
 import { AnthropicClaude, FakeClaude } from './claude.js';
 import { OllamaAi } from './ollama.js';
+import { RemoteAi, RemoteWithFallback, type RemoteHub } from '../remote/hub.js';
 
 /** Sender hver oppgave til sin leverandør. Retting av LaTeX følger konverteringen, kompetansemål følger innholdsfortegnelsen. */
 export class RoutedAi implements AiService {
@@ -55,15 +56,23 @@ export function aiConfigured(ai: AiService, task: AiTask): boolean {
 
 /**
  * AI-tjenesten appen bruker. `wrap` legges rundt hver leverandør (for eksempel forbruksloggen), én gang per leverandør.
- * Med SMARTNOTES_FAKE_CLAUDE=1 brukes den falske AI-en til alt.
+ * Med SMARTNOTES_FAKE_CLAUDE=1 brukes den falske AI-en til alt. Hjemmemaskinen («remote») trenger køen `hub`, og med
+ * REMOTE_FALLBACK=anthropic går kallene til Claude når ingen hjemmemaskin er på nett.
  */
-export function createAi(config: Config, wrap: (ai: AiService) => AiService = (ai) => ai): AiService {
+export function createAi(config: Config, wrap: (ai: AiService) => AiService = (ai) => ai, hub?: RemoteHub): AiService {
   if (config.fakeClaude) return wrap(new FakeClaude());
   const instances = new Map<AiProviderId, AiService>();
+  const make = (id: AiProviderId): AiService => {
+    if (id === 'ollama') return wrap(new OllamaAi(config.ollama));
+    if (id === 'anthropic') return wrap(new AnthropicClaude(config));
+    if (!hub) throw new Error('Hjemmemaskinen (remote) trenger en kø (RemoteHub).');
+    const remote = wrap(new RemoteAi(hub));
+    return config.remote.fallback === 'anthropic' ? new RemoteWithFallback(remote, get('anthropic'), hub) : remote;
+  };
   const get = (id: AiProviderId): AiService => {
     let ai = instances.get(id);
     if (!ai) {
-      ai = wrap(id === 'ollama' ? new OllamaAi(config.ollama) : new AnthropicClaude(config));
+      ai = make(id);
       instances.set(id, ai);
     }
     return ai;
@@ -78,6 +87,9 @@ export function describeAi(config: Config): { task: AiTask; provider: AiProvider
     if (config.fakeClaude) return { task, provider: 'fake' as const, model: 'fake-claude' };
     const provider = config.aiProviders[task];
     if (provider === 'anthropic') return { task, provider, model: config.model };
+    if (provider === 'remote') {
+      return { task, provider, model: config.remote.fallback === 'anthropic' ? `hjemmemaskin, ellers ${config.model}` : 'hjemmemaskin' };
+    }
     return { task, provider, model: task === 'flashcards' ? config.ollama.textModel : config.ollama.model };
   });
 }

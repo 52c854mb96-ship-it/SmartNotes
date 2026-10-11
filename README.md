@@ -108,7 +108,7 @@ Appen kan bruke en lokal modell via [Ollama](https://ollama.com) i stedet for Cl
 
 | Variabel | Standard | Beskrivelse |
 |---|---|---|
-| `AI_PROVIDER` | `anthropic` | `anthropic` (Claude) eller `ollama` (lokal) for alle oppgaver |
+| `AI_PROVIDER` | `anthropic` | `anthropic` (Claude), `ollama` (lokal modell på samme maskin som serveren) eller `remote` (hjemmemaskinen, se under) for alle oppgaver |
 | `AI_PROVIDER_CONVERT` / `AI_PROVIDER_FLASHCARDS` / `AI_PROVIDER_TOC` | som `AI_PROVIDER` | Unntak per oppgave: konvertering (og retting av LaTeX), kortstokker, innholdsfortegnelser (og kompetansemål) |
 | `OLLAMA_URL` | `http://127.0.0.1:11434` | Adressen til Ollama |
 | `OLLAMA_MODEL` | `qwen2.5vl:7b` | Modellen som leser bilder (må støtte bilder) |
@@ -129,7 +129,20 @@ ollama pull qwen2.5vl:7b
 AI_PROVIDER_CONVERT=ollama npm run dev
 ```
 
-Lokal AI koster ingenting i forbruksoversikten (strømmen regnes ikke med). Kvaliteten avhenger mye av modellen og maskinen; mål den på dine egne notater før du bytter for alvor.
+Lokal AI koster ingenting i forbruksoversikten (strømmen regnes ikke med). Kvaliteten avhenger mye av modellen og maskinen; mål den på dine egne notater før du bytter for alvor ([docs/MALING.md](docs/MALING.md)).
+
+### Hjemmemaskin (valgfritt)
+
+Serveren på Railway kan sende AI-kallene til en PC eller Mac hjemme som kjører Ollama. Hjemmemaskinen henter kallene selv over HTTPS, så ingen porter må åpnes. Oppsett trinn for trinn: [docs/HJEMMEMASKIN.md](docs/HJEMMEMASKIN.md).
+
+| Variabel (serveren) | Standard | Beskrivelse |
+|---|---|---|
+| `WORKER_TOKEN` | – | Hemmelig nøkkel (minst 32 tegn) som hjemmemaskinen logger inn med. Uten den er hjemmemaskin-API-et av |
+| `AI_PROVIDER_CONVERT` osv. | – | `remote` sender oppgaven til hjemmemaskinen |
+| `REMOTE_FALLBACK` | `none` | `anthropic` bruker Claude når ingen hjemmemaskin er på nett |
+| `REMOTE_MAX_WAIT_MS` | `43200000` | Hvor lenge et notat kan vente på hjemmemaskinen før det gir opp (12 timer) |
+| `REMOTE_LEASE_MS` | `60000` | Hvor lenge et kall er reservert uten livstegn fra hjemmemaskinen |
+| `REMOTE_ONLINE_MS` | `120000` | En hjemmemaskin regnes som på nett hvis den har vært i kontakt så nylig |
 
 ## Hva koster det?
 
