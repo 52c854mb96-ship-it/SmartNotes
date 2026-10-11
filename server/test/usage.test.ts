@@ -103,9 +103,9 @@ describe('MeteredAi', () => {
 
 describe('pris', () => {
   it('regner listepris for Sonnet 5.5 med hurtigbuffer', () => {
-    // 10 000 inn × $2 + 2 000 ut × $10 + 50 000 lest × $0,20 + 5 000 skrevet × $2,50 (per million)
+    // 10 000 inn × $2 + 2 000 ut × $10 + 50 000 lest × $0,10 + 5 000 skrevet × $2,50 (per million)
     const usd = costUsd('anthropic', sonnet({ inputTokens: 10_000, outputTokens: 2_000, cacheReadTokens: 50_000, cacheWriteTokens: 5_000 }));
-    expect(usd).toBeCloseTo((20_000 + 20_000 + 10_000 + 12_500) / 1_000_000, 10);
+    expect(usd).toBeCloseTo((20_000 + 20_000 + 5_000 + 12_500) / 1_000_000, 10);
   });
 
   it('Haiku 5.5 har høyere pris over 100 000 tokens inn', () => {

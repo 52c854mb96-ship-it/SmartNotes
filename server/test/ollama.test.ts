@@ -7,7 +7,7 @@ import { loadConfig, type OllamaConfig } from '../src/config.js';
 import { ConversionError } from '../src/errors.js';
 import type { ConvertRequest } from '../src/pipeline/ai.js';
 import { AnthropicClaude, FakeClaude } from '../src/pipeline/claude.js';
-import { OllamaAi, mergeParts, ollamaError, scaleFigures, stripThinking } from '../src/pipeline/ollama.js';
+import { OllamaAi, mergeParts, ollamaError, repairLatexEscapes, scaleFigures, stripThinking } from '../src/pipeline/ollama.js';
 import { supportsServerFallback } from '../src/pipeline/claude.js';
 import { parseMeta } from '../src/pipeline/parse.js';
 import { RoutedAi, aiConfigured, createAi, describeAi } from '../src/pipeline/providers.js';
@@ -170,6 +170,25 @@ describe('OllamaAi', () => {
 
     const bad = fakeOllama(() => answer('{"kort": []}'));
     await expect(new OllamaAi(CFG, bad.fetchImpl).generateFlashcards(req)).rejects.toThrow('Den lokale AI-en svarte ikke med kort');
+  });
+
+  it('retter LaTeX som modellen skrev med enkel backslash i JSON', async () => {
+    // Slik en liten modell ofte skriver det: \frac blir sideskift + «rac» når JSON leses, \theta blir tabulator + «heta».
+    const raw =
+      '{"cards": [{"note": "n1", "kind": "concept", "front": "$v = \\frac{s}{t}$ og $\\theta$", "back": ["$\\nu \\neq \\rho$", "$\\beta$"], "detail": "Første linje\\nneste linje"}]}';
+    const ok = fakeOllama(() => answer(raw));
+    const req = { subjectName: 'Fysikk 1', subjectLabel: 'Fysikk', difficulty: 'medium', count: null, notes: [] } as never;
+    const [card] = (await new OllamaAi(CFG, ok.fetchImpl).generateFlashcards(req)).cards;
+    expect(card).toMatchObject({ front: '$v = \\frac{s}{t}$ og $\\theta$', back: ['$\\nu \\neq \\rho$', '$\\beta$'], detail: 'Første linje\nneste linje' });
+  });
+
+  it('repairLatexEscapes lar riktig LaTeX og vanlig tekst være', () => {
+    expect(repairLatexEscapes({ a: ['$\\frac{1}{2}$', 'linje\nNeste', 'linje\ni dag', 'linje\neg', 'tab\t1'], n: 3, b: null })).toEqual({
+      a: ['$\\frac{1}{2}$', 'linje\nNeste', 'linje\ni dag', 'linje\neg', 'tab\t1'],
+      n: 3,
+      b: null,
+    });
+    expect(repairLatexEscapes('\f\x08\tx\rho\nabla')).toBe('\\f\\b\\tx\\rho\\nabla');
   });
 
   it('leser innholdsfortegnelse og kompetansemål som JSON', async () => {

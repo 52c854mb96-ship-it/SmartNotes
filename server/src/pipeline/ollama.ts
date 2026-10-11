@@ -412,10 +412,38 @@ export function ollamaError(status: number, message: string, model: string): Con
   return new ConversionError(`Den lokale AI-en avviste forespørselen: ${message || `HTTP ${status}`}`);
 }
 
+/**
+ * Kommandoer som begynner på «n», der `\n` i JSON (linjeskift) egentlig var LaTeX. JSON bruker opp n-en, så `\nabla`
+ * blir linjeskift + «abla». Listen har resten av navnet. Korte ord som også er vanlige ord (`\ni` = «i», `\neg` = «eg»),
+ * er utelatt.
+ */
+const NEWLINE_COMMANDS = /\n(u|eq|abla|otin|leq|geq|leqslant|geqslant|mid|exists|ewline|oindent|olimits|parallel|subseteq|supseteq|cong|sim)(?![A-Za-z])/g;
+
+/**
+ * Retter LaTeX som en liten modell har skrevet feil i JSON. Skriver den `\frac` i stedet for `\\frac`, leser JSON det som
+ * sideskift + «rac», og `\theta` blir tabulator + «heta». Ollama tillater disse escape-tegnene, så ingenting feiler,
+ * men kortene blir feil. Sideskift og backspace hører aldri hjemme i teksten og gjøres alltid om; tabulator og
+ * linjeskift bare foran bokstaver (linjeskift bare foran kjente kommandoer som `\nu` og `\neq`, siden et ekte
+ * linjeskift foran et ord er vanlig).
+ */
+export function repairLatexEscapes<T>(value: T): T {
+  if (typeof value === 'string') {
+    return value
+      .replace(/\f/g, '\\f')
+      .replace(/\x08/g, '\\b')
+      .replace(/\t(?=[A-Za-z])/g, '\\t')
+      .replace(/\r(?=[A-Za-z])/g, '\\r')
+      .replace(NEWLINE_COMMANDS, '\\n$1') as T;
+  }
+  if (Array.isArray(value)) return value.map((v) => repairLatexEscapes(v)) as T;
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, repairLatexEscapes(v)])) as T;
+  return value;
+}
+
 function parseJson<T extends z.ZodType>(schema: T, text: string, failure: string): z.infer<T> {
   let data: unknown;
   try {
-    data = JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
+    data = repairLatexEscapes(JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')));
   } catch {
     throw new ConversionError(failure);
   }
