@@ -5,6 +5,32 @@ import { DEFAULT_SEED_TEXTBOOKS } from './textbooks.js';
 
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
+/** Hvem som kjører AI-modellen: Claude hos Anthropic, eller en lokal modell via Ollama. */
+export type AiProviderId = 'anthropic' | 'ollama';
+/** Oppgavene som kan bruke hver sin leverandør. «convert» omfatter også retting av LaTeX, «toc» også kompetansemål. */
+export type AiTask = 'convert' | 'flashcards' | 'toc';
+export const AI_TASKS: AiTask[] = ['convert', 'flashcards', 'toc'];
+
+export interface OllamaConfig {
+  /** Adressen til Ollama, f.eks. http://127.0.0.1:11434. */
+  url: string;
+  /** Modell som leser bilder (konvertering og innholdsfortegnelse). */
+  model: string;
+  /** Modell for ren tekst (retting av LaTeX, kortstokker, kompetansemål). */
+  textModel: string;
+  /** Lengste kant på sidebildene som sendes (piksler). */
+  imageMaxEdge: number;
+  /** Kontekstvindu i tokens (num_ctx). */
+  numCtx: number;
+  /** Maks antall tokens i svaret (num_predict). */
+  maxTokens: number;
+  timeoutMs: number;
+  /** Hvordan modellen oppgir figurbokser: piksler i bildet den fikk, eller tusendeler (0–1000) av bredde og høyde. */
+  boxUnits: 'pixels' | 'thousandths';
+  /** Hvor lenge Ollama holder modellen i minnet etter et kall (keep_alive), f.eks. «10m». */
+  keepAlive: string;
+}
+
 export interface Config {
   port: number;
   host: string;
@@ -19,6 +45,9 @@ export interface Config {
   useFallbacks: boolean;
   /** Bruk en falsk Claude (for utvikling og tester uten API-nøkkel). */
   fakeClaude: boolean;
+  /** Leverandør per oppgave (AI_PROVIDER, og AI_PROVIDER_CONVERT / _FLASHCARDS / _TOC for unntak). Standard: Claude. */
+  aiProviders: Record<AiTask, AiProviderId>;
+  ollama: OllamaConfig;
   /** Lærebok (id i TEXTBOOKS) som faget og kapitlene lages fra ved første oppstart, eller null for et tomt «Fysikk». */
   /** Læreboksett som legges inn (én gang hver). Tom liste = bare et tomt fag ved første oppstart. */
   seedTextbooks: string[];
@@ -77,6 +106,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error(`CLAUDE_EFFORT må være en av ${EFFORTS.join(', ')}`);
   }
 
+  const provider = (name: string, fallback: AiProviderId): AiProviderId => {
+    const v = env[name]?.trim().toLowerCase();
+    if (!v) return fallback;
+    if (v !== 'anthropic' && v !== 'ollama') throw new Error(`${name} må være «anthropic» eller «ollama».`);
+    return v;
+  };
+  const defaultProvider = provider('AI_PROVIDER', 'anthropic');
+  const aiProviders: Record<AiTask, AiProviderId> = {
+    convert: provider('AI_PROVIDER_CONVERT', defaultProvider),
+    flashcards: provider('AI_PROVIDER_FLASHCARDS', defaultProvider),
+    toc: provider('AI_PROVIDER_TOC', defaultProvider),
+  };
+  const boxUnits = env.OLLAMA_BOX_UNITS?.trim() || 'pixels';
+  if (boxUnits !== 'pixels' && boxUnits !== 'thousandths') throw new Error('OLLAMA_BOX_UNITS må være «pixels» eller «thousandths».');
+  const ollamaModel = env.OLLAMA_MODEL?.trim() || 'qwen2.5vl:7b';
+
   const defaultWebDist = path.resolve(SERVER_ROOT, '..', 'web', 'dist');
   const webDist = env.WEB_DIST ?? (fs.existsSync(path.join(defaultWebDist, 'index.html')) ? defaultWebDist : null);
 
@@ -98,6 +143,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     effort,
     useFallbacks: bool(env.CLAUDE_FALLBACKS, true),
     fakeClaude,
+    aiProviders,
+    ollama: {
+      url: (env.OLLAMA_URL?.trim() || 'http://127.0.0.1:11434').replace(/\/+$/, ''),
+      model: ollamaModel,
+      textModel: env.OLLAMA_TEXT_MODEL?.trim() || ollamaModel,
+      imageMaxEdge: int(env.OLLAMA_IMAGE_MAX_EDGE, 1600),
+      numCtx: int(env.OLLAMA_NUM_CTX, 16_384),
+      maxTokens: int(env.OLLAMA_MAX_TOKENS, 8192),
+      timeoutMs: int(env.OLLAMA_TIMEOUT_MS, 15 * 60_000),
+      boxUnits,
+      keepAlive: env.OLLAMA_KEEP_ALIVE?.trim() || '10m',
+    },
     seedTextbooks: parseSeedList(env.SEED_TEXTBOOKS ?? env.SEED_TEXTBOOK),
     webDist,
     latexTimeoutMs: int(env.LATEX_TIMEOUT_MS, 120_000),

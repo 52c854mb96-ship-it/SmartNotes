@@ -7,8 +7,8 @@ import type { NoteRow, Repo } from '../db.js';
 import { ConversionError } from '../errors.js';
 import { getProfile, readPreamble, type Profile } from '../profiles/index.js';
 import { exists, type Storage } from '../storage.js';
-import { usageScope } from '../usage.js';
-import type { ChapterRef, ClaudeService, Usage } from './claude.js';
+import { usageScope, type Usage } from '../usage.js';
+import type { AiService, ChapterRef } from './ai.js';
 import { cropFigure, preparePages, type FileKind, type PageImage } from './images.js';
 import {
   assembleNoteDoc,
@@ -67,7 +67,7 @@ export class Converter {
   constructor(
     private readonly repo: Repo,
     private readonly storage: Storage,
-    private readonly claude: ClaudeService,
+    private readonly ai: AiService,
     private readonly config: Config,
     private readonly log: FastifyBaseLogger,
   ) {}
@@ -120,7 +120,7 @@ export class Converter {
       sections: c.sections.map((x) => ({ code: x.code, title: x.title })),
     }));
     const fixed = row.chapter_auto === 0 ? (row.chapter_id ? this.repo.getChapter(row.chapter_id) : null) : null;
-    const result = await this.claude.convert({
+    const result = await this.ai.convert({
       profile,
       subjectName: subject.name,
       textbook: subject.textbook,
@@ -167,7 +167,7 @@ export class Converter {
     for (let attempt = 0; !outcome.ok && attempt < this.config.maxFixAttempts; attempt++) {
       if (!this.stillExists(id)) return;
       this.repo.setStage(id, 'fixing');
-      const fixed = await this.claude.fix({ profile, body, errorReport: errorExcerpt(body, outcome.errors, outcome.bodyStartLine) });
+      const fixed = await this.ai.fix({ profile, body, errorReport: errorExcerpt(body, outcome.errors, outcome.bodyStartLine) });
       usage.push(fixed.usage);
       body = replaceMissingFigures(sanitizeBody(fixed.body), figures);
       this.repo.setStage(id, 'compiling');

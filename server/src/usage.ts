@@ -8,7 +8,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ChapterInput, CompetenceAim, UsageKind, UsageSummaryResponse } from '@smartnotes/shared';
 import { ConversionError } from './errors.js';
-import type { ClaudeService, ConvertRequest, ConvertResult, FixRequest } from './pipeline/claude.js';
+import type { AiService, ConvertRequest, ConvertResult, FixRequest } from './pipeline/ai.js';
 import type { FlashcardRequest, RawFlashcard } from './flashcards/prompt.js';
 import type { Profile } from './profiles/index.js';
 
@@ -67,9 +67,9 @@ export const zeroUsage = (kind: UsageKind, model: string): Usage => ({
  * AI-tjenesten med logging rundt hvert kall. Oppfører seg ellers helt likt som tjenesten den pakker inn.
  * Feil fra loggingen stopper aldri selve arbeidet.
  */
-export class MeteredAi implements ClaudeService {
+export class MeteredAi implements AiService {
   constructor(
-    private readonly inner: ClaudeService,
+    private readonly inner: AiService,
     private readonly record: (entry: UsageEntry) => void,
     private readonly onRecordError: (err: unknown) => void = () => {},
   ) {}

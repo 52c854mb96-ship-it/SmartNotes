@@ -64,6 +64,12 @@ function StatusLine({ ok, label, detail }: { ok: boolean | null; label: string; 
   );
 }
 
+const TASK_LABELS: Record<NonNullable<HealthResponse['ai']>[number]['task'], string> = {
+  convert: 'Konvertering',
+  flashcards: 'Kortstokker',
+  toc: 'Innholdsfortegnelser',
+};
+
 function ServerCard() {
   const { online } = useOnline();
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -101,11 +107,29 @@ function ServerCard() {
         <ul className="status-lines" role="list">
           <StatusLine ok={health.ok} label={health.ok ? 'Serveren svarer' : 'Serveren har problemer'} detail={`versjon ${health.version}`} />
           <StatusLine ok={health.latex} label={health.latex ? 'LaTeX er installert' : 'LaTeX mangler på serveren'} />
-          <StatusLine
-            ok={health.claudeConfigured}
-            label={health.claudeConfigured ? 'Claude er satt opp' : 'Claude er ikke satt opp (mangler API-nøkkel)'}
-            detail={health.claudeConfigured ? health.model : undefined}
-          />
+          {(health.ai ?? []).every((t) => t.provider !== 'ollama') ? (
+            <StatusLine
+              ok={health.claudeConfigured}
+              label={health.claudeConfigured ? 'Claude er satt opp' : 'Claude er ikke satt opp (mangler API-nøkkel)'}
+              detail={health.claudeConfigured ? health.model : undefined}
+            />
+          ) : (
+            <>
+              {health.ai!.some((t) => t.provider === 'anthropic') && (
+                <StatusLine
+                  ok={health.claudeConfigured}
+                  label={health.claudeConfigured ? 'Claude er satt opp' : 'Claude er ikke satt opp (mangler API-nøkkel)'}
+                />
+              )}
+              <StatusLine
+                ok={null}
+                label="Lokal AI (Ollama)"
+                detail={health
+                  .ai!.map((t) => `${TASK_LABELS[t.task]}: ${t.provider === 'ollama' ? 'lokal' : 'Claude'}, ${t.model}`)
+                  .join(' · ')}
+              />
+            </>
+          )}
           {health.fakeClaude && <StatusLine ok={null} label="Testmodus: falsk Claude (ingen ekte konvertering)" />}
         </ul>
       )}

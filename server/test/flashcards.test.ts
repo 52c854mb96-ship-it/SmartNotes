@@ -59,7 +59,7 @@ async function waitReady(deckId: string): Promise<Deck> {
 beforeAll(async () => {
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-flashcards-'));
   const config = loadConfig({ ...process.env, NODE_ENV: 'test', DATA_DIR: dataDir, APP_PASSWORD: 'pw', WEB_DIST: '', SEED_TEXTBOOKS: 'ergo-fysikk-1' });
-  ctx = await buildApp({ ...config, webDist: null }, { claude: new FakeClaude(5), logger: false });
+  ctx = await buildApp({ ...config, webDist: null }, { ai: new FakeClaude(5), logger: false });
   const login = await ctx.app.inject({
     method: 'POST',
     url: '/api/auth/login',

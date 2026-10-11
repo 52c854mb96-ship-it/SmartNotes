@@ -100,6 +100,34 @@ Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du m�
 | `WORKER_CONCURRENCY` | `1` | Antall notater som konverteres samtidig |
 | `COOKIE_SECURE` | `true` i produksjon | Krever HTTPS for innloggingen |
 | `SMARTNOTES_FAKE_CLAUDE` | `0` | `1` gir testinnhold uten å kalle Claude |
+| `USD_NOK` | `10.5` | Kurs fra dollar til kroner i oversikten «Forbruk av AI» i innstillingene |
+
+### Lokal AI med Ollama (valgfritt)
+
+Appen kan bruke en lokal modell via [Ollama](https://ollama.com) i stedet for Claude, for én oppgave eller for alle. Claude er fortsatt standard. Ollama må kjøre på en maskin serveren når fram til (for eksempel samme maskin under utvikling).
+
+| Variabel | Standard | Beskrivelse |
+|---|---|---|
+| `AI_PROVIDER` | `anthropic` | `anthropic` (Claude) eller `ollama` (lokal) for alle oppgaver |
+| `AI_PROVIDER_CONVERT` / `AI_PROVIDER_FLASHCARDS` / `AI_PROVIDER_TOC` | som `AI_PROVIDER` | Unntak per oppgave: konvertering (og retting av LaTeX), kortstokker, innholdsfortegnelser (og kompetansemål) |
+| `OLLAMA_URL` | `http://127.0.0.1:11434` | Adressen til Ollama |
+| `OLLAMA_MODEL` | `qwen2.5vl:7b` | Modellen som leser bilder (må støtte bilder) |
+| `OLLAMA_TEXT_MODEL` | som `OLLAMA_MODEL` | Modellen for ren tekst: retting av LaTeX, kortstokker og kompetansemål |
+| `OLLAMA_IMAGE_MAX_EDGE` | `1600` | Lengste kant på sidebildene som sendes (piksler). Mindre er raskere, men gir dårligere lesing |
+| `OLLAMA_NUM_CTX` | `16384` | Kontekstvindu i tokens. Må ha plass til instruksene, bildene og svaret |
+| `OLLAMA_MAX_TOKENS` | `8192` | Maks lengde på svaret |
+| `OLLAMA_TIMEOUT_MS` | `900000` | Hvor lenge serveren venter på svar (15 minutter) |
+| `OLLAMA_BOX_UNITS` | `pixels` | Hvordan modellen oppgir figurbokser: `pixels` (f.eks. Qwen2.5-VL) eller `thousandths`, tusendeler 0–1000 (f.eks. Qwen3-VL) |
+| `OLLAMA_KEEP_ALIVE` | `10m` | Hvor lenge Ollama holder modellen i minnet etter et kall |
+
+Eksempel: konverter lokalt, men lag kortstokker med Claude:
+
+```bash
+ollama pull qwen2.5vl:7b
+AI_PROVIDER_CONVERT=ollama npm run dev
+```
+
+Lokal AI koster ingenting i forbruksoversikten (strømmen regnes ikke med). Kvaliteten avhenger mye av modellen og maskinen; mål den på dine egne notater før du bytter for alvor.
 
 ## Hva koster det?
 
