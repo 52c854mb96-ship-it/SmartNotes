@@ -1,6 +1,6 @@
 # Status for SmartNotes
 
-> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 11. oktober 2026, i PR #10 (feilretting i notatvisningen). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
+> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 12. oktober 2026, i PR #14 (lokal AI og ny prioritering). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
 
 Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen dokumentasjon står i [README.md](../README.md) og [OPPSETT.md](OPPSETT.md).
 
@@ -28,9 +28,13 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 | Samle-PDF | Et helt kapittel eller hele faget som én PDF med innholdsliste. | `server/src/pipeline/bundle.ts` |
 | Offline og synk | Dexie (IndexedDB) er kilden lokalt. Opplastinger uten nett havner i en kø, og PDF-ene hentes på forhånd. | `web/src/db.ts`, `web/src/sync.ts` |
 | Rediger LaTeX | Eleven kan se og endre LaTeX-koden og kompilere på nytt. | `web/src/pages/note/LatexTab.tsx` |
+| Forbruk av AI | Hvert AI-kall logges med tokens og beregnet pris, også når det feiler. Innstillingene viser forbruket per måned, per type og per modell. | `server/src/usage.ts`, tabellen `usage_log` |
+| AI-leverandør per oppgave | Claude eller en lokal modell gjennom Ollama, valgt per oppgave (konvertering, kort, innholdsfortegnelse). Claude er standard. | `server/src/pipeline/providers.ts`, `ollama.ts` |
+| Hjemmemaskin | Serveren kan sende AI-kallene til en PC eller Mac hjemme som kjører Ollama. Av som standard. | `server/src/remote/`, [HJEMMEMASKIN.md](HJEMMEMASKIN.md) |
+| Måleverktøy | Sammenligner modeller på elevens egne sider og lager en rapport med karakterfelter. | `npm run eval`, [MALING.md](MALING.md) |
 | Design | Tre kolonner på store skjermer, og lyst, mørkt eller systemtema. Hvert fag har sine egne farger og sin egen PDF-mal: fysikk «Blekk» og «Klassisk», kjemi «Tavle» og «Moderne», biologi «Salvie» og «Lærebok». | `web/src/styles/`, `server/latex/` |
 
-**Claude-oppsett nå:** Claude Sonnet 5.5 med middels grundighet (`effort: medium`) ved konvertering. Eleven valgte dette for å holde kostnadene nede. Opus 5.5 er grundigere, men koster det dobbelte, og kan slås på med `CLAUDE_MODEL=claude-opus-5-5`. Se `server/src/config.ts`.
+**Claude-oppsett nå:** alle oppgaver går til Claude, med mindre `AI_PROVIDER…` er satt i Railway (se README). Claude Sonnet 5.5 med middels grundighet (`effort: medium`) ved konvertering. Eleven valgte dette for å holde kostnadene nede. Opus 5.5 er grundigere, men koster det dobbelte, og kan slås på med `CLAUDE_MODEL=claude-opus-5-5`. Se `server/src/config.ts`.
 
 **Kostnad (beregnet, ikke målt):** en side koster ca. 0,25 kr, og et notat på 5 sider ca. 1,35 kr. En kortstokk koster 0,50–2 kr, og opptil ca. 5 kr for de største. Vanlig bruk i tre fag koster rundt 40 kr i måneden til Claude, og mindre med bare Fysikk 1. Railway-abonnementet (ca. 55 kr i måneden) har eleven fra før, og forbruket til serveren dekkes helt eller delvis av det som er inkludert i abonnementet. Alle tallene står i dokumentet [Kostnader for SmartNotes](https://claude.ai/code/artifact/e5b19b9d-07c0-4c20-bc21-d453fe1ada01), som er privat for eleven. Det er et Claude Docs-dokument: les det med Claude Docs-verktøyet (`read` med ref `{"object":"project","id":"e5b19b9d-07c0-4c20-bc21-d453fe1ada01"}`, deretter fanen). Artifact-verktøyet viser ikke innholdet.
 
@@ -50,8 +54,12 @@ Alt ble bygget 4.–11. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#8](https://github.com/52c854mb96-ship-it/SmartNotes/pull/8) | Nye versjoner tas i bruk også i Safari på Mac: appen merker selv at serveren har en nyere versjon og sier fra («En ny versjon av SmartNotes er klar»), og ser etter oppdateringer når fanen blir synlig igjen |
 | [#9](https://github.com/52c854mb96-ship-it/SmartNotes/pull/9) | Overlevering: workflow-skriptene og katalogene for resten av visualiseringene i `docs/workflows/`, og planen for neste økt |
 | [#10](https://github.com/52c854mb96-ship-it/SmartNotes/pull/10) | Feilretting: når eleven byttet notat i notatlisten eller søket, kunne PDF-en til forrige notat bli stående. Hvert notat får nå sin egen visning (`key` i `NotePage.tsx`) |
+| [#11](https://github.com/52c854mb96-ship-it/SmartNotes/pull/11) | Forbrukslogg: hvert AI-kall logges (`usage_log`), og forbruket vises i innstillingene |
+| [#12](https://github.com/52c854mb96-ship-it/SmartNotes/pull/12) | AI-lag: Claude eller lokal AI (Ollama) per oppgave, og måleverktøyet `npm run eval` |
+| [#13](https://github.com/52c854mb96-ship-it/SmartNotes/pull/13) | Hjemmemaskin: kø på serveren og klienten `npm run homeworker`, med rettelser etter en sikkerhetsgjennomgang. Av som standard |
+| [#14](https://github.com/52c854mb96-ship-it/SmartNotes/pull/14) | Lokal AI: Qwen3.5 som standard, én side per kall, reparasjon av LaTeX i JSON, riktig cache-pris for Sonnet 5.5, og denne fila |
 
-**Tester:** omtrent 2 300 enhetstester (77 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 16 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk og at riktig PDF vises når man bytter notat) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
+**Tester:** omtrent 2 350 enhetstester (141 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 16 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk og at riktig PDF vises når man bytter notat) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 
@@ -66,6 +74,10 @@ Ikke endre disse uten å spørre først.
   - Kortstokkene lagres på serveren og synkroniseres.
   - Øvingsreglene og effektene er hentet fra en flashcard-fil eleven laget tidligere. Fila ligger ikke i repoet, men reglene står i `web/src/flashcards/model.ts` og effektene i `web/src/flashcards/effects.ts`. Eleven har sagt at effektene var bra.
 - **Kostnad:** Sonnet 5.5 med middels grundighet ([PR #5](https://github.com/52c854mb96-ship-it/SmartNotes/pull/5)).
+- **Prioritet (11. oktober):** å få ned kostnadene, så flere kan bruke appen, går foran visualiseringene. Fysikk kapittel 5–10 haster ikke. Målet er ingen eller lav kostnad, dekket av pro-brukere: en gratisversjon og en betalt pro-versjon med kvoter per dag, og lokal AI der det lønner seg. Planen står på en [privat side for eleven](https://claude.ai/artifact/RyN9UDgBgDiHQdXaFRpvck). Les den med Artifact-verktøyet (`action: "read"`). Den ligger ikke i repoet, fordi repoet er offentlig og planen handler om alder, familie og juss.
+- **Første brukere:** venner og klassen.
+- **Maskiner for lokal AI:** en PC med RTX 4060 (8 GB) og elevens Mac med M4 og 16 GB. En Mac mini som står på hele døgnet, kan bli aktuell senere. Maskinene står bare på deler av dagen foreløpig.
+- **Opphavsrett:** forlagsnavn og bøkenes innholdsfortegnelser skal ut. Bruk bare kilder vi har lov til, som kompetansemålene fra Udir (NLOD). Navneoppryddingen ligger i en egen PR som eleven skal se over før den flettes.
 - **Drift:** Railway, ikke Fly.io, fordi eleven allerede har abonnement der. Railway deployer fra `main` med «Wait for CI».
 - **Innholdsfortegnelser:** importen for Kjemi 1 og Biologi 1 er utsatt, fordi eleven ikke har de fagene.
 
@@ -88,6 +100,7 @@ Ikke endre disse uten å spørre først.
 - **Manuelt arbeid:** eleven ordner selv det som skjer i Railway og Anthropic Console. Gi trinnvise instrukser med nøyaktige verdier som kan kopieres rett inn.
 - **Store oppgaver:**
   - Workflows og agenter er greit, så lenge oppgavene er strukturerte og ikke går i beina på hverandre.
+  - Natt til 12. oktober fikk Claude lov til å flette alt som er grønt, etter grundig egenkontroll. Store valg som krever eleven (Railway, betaling, juss, navneoppryddingen), venter på eleven.
   - Hvis eleven ber deg jobbe lenge, for eksempel over natten, sørger du for at arbeidet fortsetter av seg selv når bruksgrensen er nullstilt.
   - Legg vekt på feilsøking og finpuss underveis.
 - **Denne fila:** oppdater `docs/STATUS.md` når en større oppgave er ferdig. Oppdater også `CLAUDE.md` når arkitekturen endres.
@@ -101,40 +114,38 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
    - Legg til variabelen `SEED_TEXTBOOKS` med verdien `ergo-fysikk-1`.
    - Er Kjemi 1 og Biologi 1 allerede lagt inn, slettes de i appen: tannhjulet på fagsiden → **Slett faget**. Et slettet fag kommer ikke tilbake.
 3. **Variabler:** `CLAUDE_MODEL` og `CLAUDE_EFFORT` bør ikke være satt, ellers overstyrer de de nye standardverdiene.
+4. **Lokal AI og hjemmemaskin** trenger ingen nye variabler før eleven vil prøve dem. Alt er av som standard, og forbruksloggen virker uten oppsett.
 
 ## Kjente begrensninger og åpne spørsmål
 
+- **Lokal AI og hjemmemaskinen er ikke prøvd med en ekte modell:** ollama.com og Hugging Face er blokkert i skyøkten, så alt er testet med en falsk AI. Målingen i [MALING.md](MALING.md) må kjøres på elevens egne maskiner.
 - **Ikke testet med ekte Claude:** skyøktene har ingen API-nøkkel, så alle tester bruker en falsk Claude (`SMARTNOTES_FAKE_CLAUDE=1`). Det er ennå ikke prøvd hvordan Sonnet 5.5 med middels grundighet konverterer ekte notater, eller hvor gode kortene i flashcards blir. [OPPSETT.md](OPPSETT.md) forklarer hvordan eleven kan gi skyøktene en nøkkel.
 - **Kostnadene er beregnet, ikke målt:** valutakursen (10,50 kr per dollar) og Railway-prisen er omtrentlige, fordi nettverket i økten blokkerte kildene. Det faktiske forbruket står i Anthropic Console under **Usage**.
 - **Kjemi 1 og Biologi 1 mangler delkapitler:** bare kapittel 1 i kjemi har delkapitler (1.1–1.5, der 1.3 er mest usikker). De fire visualiseringene i kjemi kapittel 1 er koblet til delkapitlene. De andre i kjemi og alle i biologi er koblet per kapittel (`sections: []`). Noen kapitteltitler er heller ikke bekreftet: kapittel 2 i kjemi og kapittel 8, 13 og 15 i biologi.
-- **Visualiseringene er halvveis:** fysikk kapittel 5–10 har ennå det gamle utseendet og mangler nye praktiske visualiseringer og eksempeloppgaver. Kjemi og biologi er ikke påbegynt (et halvferdig forsøk på å pusse opp byggeklossene ble tatt ut igjen før PR #7). Neste økt fortsetter med dette, med fysikk først. Planen og elevens valg står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md), og skriptene står i [docs/workflows/](workflows/README.md).
+- **Visualiseringene er halvveis:** fysikk kapittel 5–10 har ennå det gamle utseendet og mangler nye praktiske visualiseringer og eksempeloppgaver. Kjemi og biologi er ikke påbegynt (et halvferdig forsøk på å pusse opp byggeklossene ble tatt ut igjen før PR #7). Dette venter til kostnadsarbeidet har kommet lenger, etter elevens ønske. Planen og elevens valg står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md), og skriptene står i [docs/workflows/](workflows/README.md).
 - **Rottegnet (√) i `FormulaLine`** står litt for lavt. Kapittel 4 retter det lokalt; det bør rettes i `viz/kit/` for alle.
 - **De nye visualiseringene er ikke prøvd på en ekte iPad eller iPhone,** bare i WebKit-testene i CI.
-- **Bare én bruker:** appen har ett passord og én database. Vil andre bruke den i dag, trenger de hver sin egen server.
+- **Bare én bruker:** appen har ett passord og én database. Vil andre bruke den i dag, trenger de hver sin egen server. Kontoer er bolk 4 i planen.
+- **Repoet er offentlig og har ingen lisens.** Planen anbefaler en lisens som sier at alle rettigheter er forbeholdt, og eventuelt privat repo senere. Privat repo nå ville trolig bruke opp de gratis CI-minuttene. Eleven bestemmer.
 - **Flashcards:** trykker eleven «Angre forrige» etter at en ny beste rekke er sendt til serveren, blir rekka ikke lavere igjen, fordi serveren beholder den høyeste.
 - **Stor hovedbunt:** hovedbunten i web-appen er rundt 710 kB (ca. 220 kB komprimert). KaTeX og visualiseringene lastes allerede først når de trengs.
 - **Sikkerhetskopi:** de eneste sikkerhetskopiene er volumbackupen i Railway (hvis abonnementet har den) og samle-PDF-ene. Det finnes ingen eksport av hele databasen.
 
 ## Naturlige neste steg
 
-Dette er bare forslag. Eleven bestemmer rekkefølgen.
+Dette er bare forslag. Eleven bestemmer rekkefølgen. Detaljene står i bolkene i [planen](https://claude.ai/artifact/RyN9UDgBgDiHQdXaFRpvck).
 
-1. **Fullføre visualiseringene** (neste økt, eleven har bestemt det): fysikk kapittel 5–10 først, deretter kjemi og biologi, på samme måte som i økten 5.–6. oktober. Skriptene, katalogene og fremgangsmåten står i [docs/workflows/README.md](workflows/README.md). Fremdriften står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md).
-2. **Prøve med ekte Claude:** konverter noen vanskelige fysikknotater og lag et par kortstokker. Juster så instruksene etter resultatet: `server/src/profiles/physics.ts` og `server/src/flashcards/prompt.ts`.
-3. **Vise faktisk forbruk i appen:** tokenbruken lagres i dag i `notes.usage`, `decks.usage` og `meta.json` i notatmappen, men bare for siste vellykkede kjøring. «Konverter på nytt» og nye forsøk på en kortstokk overskriver tallene, og import av innholdsfortegnelser og mislykkede forsøk lagres ikke. Feltene synkroniseres heller ikke til klienten, og det finnes verken tidsstempel per kall eller pristabell. En riktig månedssum trenger derfor trolig en egen logg (for eksempel tabellen `usage_log` med tid, type, modell og tokens) som alle Claude-kall skriver til, og et eget API-endepunkt. Den falske Claude rapporterer 0 tokens.
-4. **Flere brukere på samme server:** dette gjør at andre elever kan bruke appen. Det krever:
-   - brukerkontoer, med `user_id` på fag, notater og kortstokker
-   - synk per bruker
-   - invitasjon eller registrering
-   - en avklaring av hvem som betaler for Claude, og eventuelt kvoter
-
-   Oppgaven er stor, så still oppklaringsspørsmål før du begynner.
-5. **Delkapitler for Kjemi 1 og Biologi 1:** når noen har bøkene, importeres innholdsfortegnelsen. Etterpå kan visualiseringene kobles til delkapitlene.
-6. **Mer i flashcards:**
-   - «Lag flere kort» i en kortstokk som finnes fra før
-   - eksport, for eksempel til CSV eller Anki
-7. **Mindre hovedbunt:** del koden opp i flere biter.
-8. **Sikkerhetskopi fra appen:** eksport av hele databasen og filene fra innstillingene.
+1. **Elevens beslutninger:** eleven leser planen og svarer på beslutningene i del 7, særlig motoren i betaen (Haiku eller lokal AI), repoet (lisens eller privat) og hvem som eier API-kontoen.
+2. **Navneoppryddingen:** eleven ser over PR-en og bestemmer rekkefølgen i Fysikk 1 (beslutning 18). Ta backup av volumet i Railway før den deployes.
+3. **Måling (bolk 1):** eleven kjører `npm run eval` med Sonnet, Haiku og 3–5 lokale modeller på 10–20 egne sider, setter karakterer og sender CSV-fila. Uten dette er alle tall om kvalitet gjetninger.
+4. **Haiku som kandidat (bolk 2):** riktig bildestørrelse og figurbokser per modell, og tak på kildetekst til kortstokker.
+5. **Kontoer, kvoter og personvern (bolk 4–6)** før venner og klassen inviteres. Store oppgaver, så still oppklaringsspørsmål først.
+6. **Reserven for hjemmemaskinen (bolk 8):** ventetid per nivå og Haiku i stedet for Sonnet. Til da bør `REMOTE_FALLBACK` stå på `none`.
+7. **Visualiseringene:** fysikk kapittel 5–10, deretter kjemi og biologi. Skriptene og fremgangsmåten står i [docs/workflows/README.md](workflows/README.md), og fremdriften i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md).
+8. **Prøve med ekte Claude:** konverter noen vanskelige fysikknotater og lag et par kortstokker. Juster så instruksene etter resultatet: `server/src/profiles/physics.ts` og `server/src/flashcards/prompt.ts`.
+9. **Delkapitler for Kjemi 1 og Biologi 1:** når noen har bøkene, importeres innholdsfortegnelsen. Etterpå kan visualiseringene kobles til delkapitlene.
+10. **Mer i flashcards:** «Lag flere kort» i en kortstokk som finnes fra før, og eksport, for eksempel til CSV eller Anki.
+11. **Mindre hovedbunt** og **sikkerhetskopi fra appen** (eksport av hele databasen og filene).
 
 ## Nyttige kommandoer
 
