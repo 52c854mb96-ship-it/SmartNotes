@@ -10,8 +10,8 @@
  *   Arbeidet til motkreftene i bakken:          W_mot = ΔE = −Q = −F_mot · s    ⇒ F_mot = Q / s (gjennomsnitt)
  *   Flaten (N = mg, se bort fra luftmotstand):  −μmg · d = 0 − ½mv_B²            ⇒ d = v_B² / (2μg)
  *
- * F_mot er den samlede motkraften: friksjonen R fra snøen og luftmotstanden L til sammen (som i ERGO er R friksjon og
- * L luftmotstand). Vurderingen i e): med samme friksjonstall i bakken er friksjonen fra snøen μN = μmg cos α
+ * F_mot er den samlede motkraften: friksjonen R fra snøen og luftmotstanden L til sammen (R for friksjon og L for
+ * luftmotstand, som i norsk skolefysikk). Vurderingen i e): med samme friksjonstall i bakken er friksjonen fra snøen μN = μmg cos α
  * (sin α = h/s), og resten av F_mot er luftmotstand: L = F_mot − μN. Snittet av v² langs strekningen er omtrent like stort på flaten (v_B²/2) som i
  * bakken ((v₀² + v_B²)/2), så luftmotstanden er i snitt omtrent like stor der. Et overslag over glidestrekningen
  * blir da d′ = ½mv_B² / (μmg + L), som er kortere enn d.

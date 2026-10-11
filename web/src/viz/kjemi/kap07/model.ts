@@ -1,7 +1,7 @@
 /**
  * Ren kjemi for kapittel 7 Syrer og baser (ingen React), så den kan testes for seg.
  *
- * Konstanter og data som i Kjemi 1 (Aschehoug) og vanlige norske tabeller (Aylward og Findlay, SI Chemical Data;
+ * Konstanter og data fra vanlige norske tabeller (Aylward og Findlay, SI Chemical Data;
  * «Tabeller og formler i kjemi»): K_w = 1,0 · 10⁻¹⁴ ved 25 °C, K_a for eddiksyre 1,8 · 10⁻⁵, maursyre 1,8 · 10⁻⁴,
  * flussyre 6,8 · 10⁻⁴, hypoklorsyrling 4,0 · 10⁻⁸ (pK_a 7,40), ammoniumion 5,6 · 10⁻¹⁰, hydrogenkarbonation
  * 4,7 · 10⁻¹¹, hydrogensulfation 1,0 · 10⁻², K_b for ammoniakk 1,8 · 10⁻⁵.

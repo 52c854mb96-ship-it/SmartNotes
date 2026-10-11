@@ -1,5 +1,5 @@
 /**
- * Kommunikasjon og bevegelse i planter (Bi 1 kapittel 12, KM3 og KM5): ren modell uten React.
+ * Kommunikasjon og bevegelse i planter (KM3 og KM5): ren modell uten React.
  *
  * 1. Fototropisme og gravitropisme: auksin flyttes til skyggesiden (eller undersiden), cellene der strekker seg mer
  *    (i stengelen) eller mindre (i rota), og planten bøyer seg. De klassiske forsøkene til Darwin (1880),

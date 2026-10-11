@@ -1,5 +1,5 @@
 /**
- * Transportsystemer i mennesket (Bi 1 kapittel 9, KM3): ren modell uten React.
+ * Transportsystemer i mennesket (KM3): ren modell uten React.
  *
  * 1. Hjertet og kretsløpet: hjertesyklusen (forkammersystole, hjertekammersystole, diastole) med tider som avhenger
  *    av pulsen, volumet i hjertekammeret, klaffene og minuttvolumet (puls · slagvolum, ca. 5 L/min i hvile).

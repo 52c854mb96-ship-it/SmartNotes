@@ -1,5 +1,5 @@
 /**
- * Biologisk mangfold (Bi 1 kapittel 3, KM10 og KM11): artsmangfold (Simpsons og Shannons indeks), arter og areal
+ * Biologisk mangfold (KM10 og KM11): artsmangfold (Simpsons og Shannons indeks), arter og areal
  * (S = c · A^z, øybiogeografi og oppstykking av skog) og et næringsnett fra norsk barskog med enkel kaskadelogikk og
  * energipyramide. Ren modell uten React.
  */

@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
-import { DEFAULT_SEED_TEXTBOOKS } from './textbooks.js';
+import { DEFAULT_SEED_PRESETS } from './presets.js';
 
 export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
@@ -83,8 +83,7 @@ export interface Config {
   aiProviders: Record<AiTask, AiProviderId>;
   ollama: OllamaConfig;
   remote: RemoteConfig;
-  /** Lærebok (id i TEXTBOOKS) som faget og kapitlene lages fra ved første oppstart, eller null for et tomt «Fysikk». */
-  /** Læreboksett som legges inn (én gang hver). Tom liste = bare et tomt fag ved første oppstart. */
+  /** Fagoppsett (id i SUBJECT_PRESETS) som legges inn (én gang hver). Tom liste = bare et tomt fag ved første oppstart. */
   seedTextbooks: string[];
   /** Mappe med ferdigbygd web-app som serveres statisk, eller null. */
   webDist: string | null;
@@ -236,9 +235,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   };
 }
 
-/** «ergo-fysikk-1,aschehoug-kjemi-1» → liste; «none» eller tom → ingen; ikke satt → alle kjente læreboksett. */
+/** «fysikk-1-lk20,kjemi-1-lk20» → liste; «none» eller tom → ingen; ikke satt → alle oppsettene. */
 function parseSeedList(value: string | undefined): string[] {
-  if (value === undefined) return [...DEFAULT_SEED_TEXTBOOKS];
+  if (value === undefined) return [...DEFAULT_SEED_PRESETS];
   const v = value.trim();
   if (!v || v === 'none') return [];
   return v

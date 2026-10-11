@@ -473,7 +473,7 @@ export function exactPosition(p: DragFall, t: number, g = G_EARTH): number {
 }
 
 /**
- * Eulers metode som i ERGO 1E: regn ut a fra farten, oppdater farten først og så posisjonen:
+ * Eulers metode: regn ut a fra farten, oppdater farten først og så posisjonen:
  *   a = g − (k/m)v²,  v = v + a·Δt,  s = s + v·Δt,  t = t + Δt
  * Raden for steg n viser t, v, s og akselerasjonen som brukes i neste steg.
  */

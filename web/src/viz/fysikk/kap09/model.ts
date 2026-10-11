@@ -1,6 +1,6 @@
 /** Ren fysikk for kapittel 9 Astrofysikk (ingen React), så den kan testes for seg. */
 
-/* ---------- Konstanter (verdiene i ERGO Fysikk 1) ---------- */
+/* ---------- Konstanter (vanlige tabellverdier) ---------- */
 
 /** Lysfarten (m/s). */
 export const C_LIGHT = 3.0e8;

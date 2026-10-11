@@ -28,6 +28,7 @@ export function SettingsPage() {
       <SyncCard />
       <StorageCard />
       <AccountCard />
+      <AboutCard />
     </div>
   );
 }
@@ -423,6 +424,27 @@ function StorageCard() {
           {busy ? <Spinner size={14} /> : <CloudDownload size={17} aria-hidden />} Last ned alt for offline
         </button>
       </div>
+    </section>
+  );
+}
+
+/** Kilder og lisens for kompetansemålene (NLOD krever kildehenvisning). */
+function AboutCard() {
+  return (
+    <section className="card" aria-labelledby="about-h">
+      <div className="card-head">
+        <h2 id="about-h" className="card-title">
+          Om SmartNotes
+        </h2>
+      </div>
+      <p className="card-text">
+        Kompetansemålene er hentet fra læreplanene i LK20 og inneholder data under Norsk lisens for offentlige data (NLOD),
+        tilgjengeliggjort av Utdanningsdirektoratet på data.udir.no. Temaene og deltemaene i fagene er SmartNotes&apos; egne.
+      </p>
+      <p className="card-text">
+        SmartNotes er ikke tilknyttet Utdanningsdirektoratet eller noe forlag. En innholdsfortegnelse du importerer fra din
+        egen lærebok, er bare synlig for deg.
+      </p>
     </section>
   );
 }

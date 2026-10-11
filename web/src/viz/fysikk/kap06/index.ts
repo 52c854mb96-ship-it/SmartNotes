@@ -5,7 +5,7 @@ const viz: VizMeta[] = [
   {
     id: 'bolger',
     chapter: '6',
-    sections: ['6A'],
+    sections: ['6.1'],
     title: 'Bølger: bølgelengde, frekvens og fart',
     summary:
       'Endre amplitude, bølgelengde og frekvens, og se at bølgen flytter seg mens partiklene bare svinger. Sammenlign øyeblikksbildet med grafen for én partikkel.',
@@ -15,7 +15,7 @@ const viz: VizMeta[] = [
   {
     id: 'svart-legeme',
     chapter: '6',
-    sections: ['6B'],
+    sections: ['6.2'],
     title: 'Stråling fra svarte legemer',
     summary:
       'Endre temperaturen og se Planck-kurven flytte seg: toppen følger Wiens lov, og arealet under kurven følger Stefan–Boltzmanns lov.',
@@ -25,7 +25,7 @@ const viz: VizMeta[] = [
   {
     id: 'stralingsbalanse',
     chapter: '6',
-    sections: ['6C'],
+    sections: ['6.3'],
     title: 'Strålingsbalansen til jorda',
     summary: 'Endre albedoen og hvor mye varmestråling atmosfæren tar opp, og se hvordan temperaturen ved bakken finner en ny likevekt.',
     keywords: ['drivhuseffekt', 'albedo', 'solarkonstant', 'S/4', 'σT⁴', '255 K', '288 K', 'klima', 'énlagsmodell'],

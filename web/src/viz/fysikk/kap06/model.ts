@@ -1,6 +1,6 @@
 /** Ren fysikk for kapittel 6 Bølger og stråling (ingen React), så den kan testes for seg. */
 
-/* ---------- Konstanter (verdiene i ERGO Fysikk 1) ---------- */
+/* ---------- Konstanter (vanlige tabellverdier) ---------- */
 
 /** Plancks konstant h (J·s). */
 export const H_PLANCK = 6.63e-34;

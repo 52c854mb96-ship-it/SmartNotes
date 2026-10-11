@@ -214,8 +214,10 @@ function NoteHeader({
   const sectionCode = noteSectionCode(note);
   const aimCodes = noteAimCodes(note, chapter);
   const aims = useMemo(() => aimMap(subject), [subject]);
-  // Etter delkapittelet, eller alle i kapittelet når notatet ikke har delkapittel (f.eks. før delkapitlene er lagt inn).
-  const vizEntries = sectionCode ? vizForSection(subject?.profile, sectionCode) : vizForChapter(subject?.profile, chapter?.number);
+  // Etter delkapittelet, eller alle i kapittelet når notatet ikke har delkapittel, eller når ingen visualisering er koblet
+  // til akkurat det delkapittelet (for eksempel med delkapitler fra elevens egen lærebok).
+  const bySection = sectionCode ? vizForSection(subject?.profile, sectionCode) : [];
+  const vizEntries = bySection.length ? bySection : vizForChapter(subject?.profile, chapter?.number);
 
   const patch = async (req: Parameters<typeof updateNote>[1], success?: string) => {
     try {

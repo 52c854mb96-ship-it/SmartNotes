@@ -74,7 +74,7 @@ export function vizChapterNumbers(profile: Profile): string[] {
   return [...new Set(vizEntries(profile).map((e) => e.chapter))].sort((a, b) => Number(a) - Number(b));
 }
 
-/** Visualiseringene er laget etter kapitlene i læreboka til hver fagtype (ERGO Fysikk 1, Kjemi 1, Bi 1). */
+/** Visualiseringene er ordnet etter temaene i SmartNotes' eget oppsett for hver fagtype (server/src/presets.ts). */
 export function hasVisualizations(subject: Pick<Subject, 'profile'> | null | undefined): boolean {
   return vizEntries(subject?.profile).length > 0;
 }

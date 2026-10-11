@@ -5,7 +5,7 @@ const viz: VizMeta[] = [
   {
     id: 'impuls',
     chapter: '4',
-    sections: ['4B'],
+    sections: ['4.1'],
     title: 'Impulsloven: kort eller lang støttid',
     summary:
       'Et egg faller på en tynn matte, et håndkle eller en pute, og en keeper tar imot en fotball med stive armer eller myke hender. Arealet under F-t-grafen er det samme, men kort støttid gir stor kraft. Spill av støtet i sakte film.',
@@ -31,7 +31,7 @@ const viz: VizMeta[] = [
   {
     id: 'ballspark',
     chapter: '4',
-    sections: ['4A', '4B'],
+    sections: ['4.1'],
     title: 'Ballspark: impulsen gir ballen fart',
     summary:
       'Foten sparker en fotball, racketen treffer en tennisball, eller kølla slår en golfball. Endre kontakttiden og den største kraften, og se at arealet under F-t-grafen er impulsen, som gir farten v = I/m.',
@@ -60,7 +60,7 @@ const viz: VizMeta[] = [
   {
     id: 'krasjtest',
     chapter: '4',
-    sections: ['4A', '4B'],
+    sections: ['4.1'],
     title: 'Krasjtest: knusesone, belte og kollisjonspute',
     summary:
       'Kjør en bil inn i en betongvegg og se hvordan knusesonen, beltet og puta forlenger bremsestrekningen og stoppetiden. Impulsloven gir kraften på passasjeren og «g-kreftene».',
@@ -86,7 +86,7 @@ const viz: VizMeta[] = [
   {
     id: 'sentrale-stot',
     chapter: '4',
-    sections: ['4C', '4D'],
+    sections: ['4.2', '4.3'],
     title: 'Sentrale støt mellom to labvogner',
     summary:
       'To labvogner med fjær, gummidemper eller borrelås støter sammen på en bane med målebånd. Velg masser og farter, og se støtet i sakte film: Σp er bevart hele tiden, også midt i støtet, men kinetisk energi bare i elastiske støt.',
@@ -116,7 +116,7 @@ const viz: VizMeta[] = [
   {
     id: 'curling',
     chapter: '4',
-    sections: ['4A', '4C', '4D'],
+    sections: ['4.1', '4.2', '4.3'],
     title: 'Curling: rett treff på en stein som ligger i ro',
     summary:
       'En curlingstein treffer en like tung stein midt i huset. Velg hvor elastisk støtet er, og se hvorfor den første steinen stopper helt i et elastisk støt, mens bevegelsesmengden alltid er bevart.',
@@ -144,7 +144,7 @@ const viz: VizMeta[] = [
   {
     id: 'eksplosjon',
     chapter: '4',
-    sections: ['4B', '4C'],
+    sections: ['4.1', '4.2'],
     title: 'Eksplosjon og rekyl',
     summary:
       'To skøyteløpere dytter hverandre fra hverandre på isen, en fjær skyver to labvogner fra hverandre, eller et gevær skyter ut en kule. Σp er null før, under og etter, og den letteste får størst fart og mest energi.',
@@ -176,7 +176,7 @@ const viz: VizMeta[] = [
     id: 'eks-ballistisk-pendel',
     kind: 'eksempel',
     chapter: '4',
-    sections: ['4A', '4B', '4C', '4D'],
+    sections: ['4.1', '4.2', '4.3'],
     title: 'Ballistisk pendel: farten til en luftgeværkule',
     summary:
       'En luftgeværkule skytes inn i en trekloss som henger i to snorer. Finn farten til kula fra hvor høyt klossen svinger, hvor mye kinetisk energi som går tapt, kraften i støtet, og forklar hvorfor energien ikke er bevart i selve støtet.',
@@ -208,7 +208,7 @@ const viz: VizMeta[] = [
     id: 'eks-vognstot',
     kind: 'eksempel',
     chapter: '4',
-    sections: ['4A', '4B', '4C', '4D'],
+    sections: ['4.1', '4.2', '4.3'],
     title: 'Godsvogner som kobles sammen',
     summary:
       'En godsvogn med en full container triller inn i en annen vogn på en godsterminal, og koblingene låser seg. Finn farten etter støtet, hvor mange prosent av den kinetiske energien som går tapt, hva slags støt det er, og impulsen og kraften på hver vogn.',

@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 11 Transportsystemer i planter (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 6 (Transport og regulering hos dyr og planter). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'vann-og-mineraler',
-    chapter: '11',
+    chapter: '6',
     sections: [],
     title: 'Vann og mineraler fra rota',
     summary:
@@ -36,7 +36,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'transpirasjon',
-    chapter: '11',
+    chapter: '6',
     sections: [],
     title: 'Transpirasjon og vannets vei',
     summary:
@@ -63,7 +63,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'floemtransport',
-    chapter: '11',
+    chapter: '6',
     sections: [],
     title: 'Sukkertransport i floemet',
     summary:

@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 13 Formering (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 7 (Formering). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'kjonnet-og-ukjonnet',
-    chapter: '13',
+    chapter: '7',
     sections: [],
     title: 'Kjønnet og ukjønnet formering',
     summary:
@@ -29,7 +29,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'menstruasjonssyklusen',
-    chapter: '13',
+    chapter: '7',
     sections: [],
     title: 'Menstruasjonssyklusen',
     summary:
@@ -60,7 +60,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'planters-formering',
-    chapter: '13',
+    chapter: '7',
     sections: [],
     title: 'Planters formering',
     summary:

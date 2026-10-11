@@ -35,9 +35,10 @@ test('kjemi og biologi: fargetema, forslag om delkapitler og import av innholdsf
   await page.goto(`/fag/${kjemi}`);
   await expect(page.getByRole('heading', { name: 'Kjemi 1', level: 1 })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('data-subject', 'chemistry');
-  await expect(page.locator('main').getByText('Kjemi 1 (Aschehoug)', { exact: true })).toBeVisible();
+  // Temaene kommer fra SmartNotes' eget oppsett etter læreplanen, ikke fra en lærebok.
+  await expect(page.locator('main').getByText(/Atomer, periodesystemet og kjemiske bindinger/).first()).toBeVisible();
 
-  // Kapittel 2–8 har ingen delkapitler, så fagsiden foreslår å importere innholdsfortegnelsen.
+  // Temaene har ingen deltemaer, så fagsiden foreslår å importere innholdsfortegnelsen fra læreboka.
   const hint = page.getByRole('complementary', { name: 'Delkapitler mangler' });
   await expect(hint).toBeVisible();
   await hint.getByRole('link', { name: 'Importer innholdsfortegnelsen' }).click();
@@ -68,7 +69,7 @@ test('kjemi og biologi: fargetema, forslag om delkapitler og import av innholdsf
     )
     .toEqual([`Nytt navn fra boka: ${ch}.1/KM6, ${ch}.2/KM6`]);
 
-  // Kjemi har egne visualiseringer, ordnet etter kapitlene i Kjemi 1.
+  // Kjemi har egne visualiseringer, ordnet etter temaene.
   await page.goto(`/fag/${kjemi}/visualiseringer`);
   await expect(page.getByRole('heading', { name: 'Visualiseringer', level: 1 })).toBeVisible();
   await page.locator('main').getByRole('link', { name: /Syre-base-titrering/ }).click();
@@ -81,7 +82,7 @@ test('kjemi og biologi: fargetema, forslag om delkapitler og import av innholdsf
   await expect(page.locator('html')).toHaveAttribute('data-subject', 'biology');
   await expect(page.getByRole('complementary', { name: 'Delkapitler mangler' })).toContainText('Kapitlene har ingen delkapitler ennå.');
 
-  // Biologi har egne visualiseringer, ordnet etter kapitlene i Bi 1.
+  // Biologi har egne visualiseringer, ordnet etter temaene.
   await page.goto(`/fag/${bio}/visualiseringer`);
   await expect(page.getByRole('heading', { name: 'Visualiseringer', level: 1 })).toBeVisible();
   await page.locator('main').getByRole('link', { name: /Vaksiner og flokkimmunitet/ }).click();

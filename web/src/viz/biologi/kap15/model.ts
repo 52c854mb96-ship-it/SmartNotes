@@ -1,5 +1,5 @@
 /**
- * Flokkimmunitet (Bi 1 kapittel 15, KM7 og KM8): SIR-modellen med vaksinasjon fra biologi-kit-et, og en befolkning
+ * Flokkimmunitet (KM7 og KM8): SIR-modellen med vaksinasjon fra biologi-kit-et, og en befolkning
  * på 400 individer som viser den samme epidemien som enkeltpersoner. Ren modell uten React.
  */
 import {

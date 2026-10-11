@@ -10,7 +10,7 @@ import kap08 from './kap08';
 import kap09 from './kap09';
 import kap10 from './kap10';
 
-/** Fysikk 1 etter ERGO Fysikk 1 (Aschehoug), kapittel 1–10. */
+/** Fysikk 1 etter læreplanen (LK20), tema 1–10 i SmartNotes' eget oppsett. */
 const viz: VizMeta[] = [...kap01, ...kap02, ...kap03, ...kap04, ...kap05, ...kap06, ...kap07, ...kap08, ...kap09, ...kap10];
 
 export default viz;

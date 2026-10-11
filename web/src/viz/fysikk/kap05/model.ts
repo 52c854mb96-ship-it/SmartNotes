@@ -1,6 +1,6 @@
 /** Ren fysikk for kapittel 5 Termisk energi (ingen React), så den kan testes for seg. */
 
-/* ---------- Konstanter (verdiene i ERGO Fysikk 1) ---------- */
+/* ---------- Konstanter (vanlige tabellverdier) ---------- */
 
 /** Gasskonstanten R (J/(mol·K)). */
 export const R_GAS = 8.31;
@@ -228,7 +228,7 @@ export function mixState(input: MixInput, t: number, tau = MIX_TAU): MixState {
 /* ---------- 5E Termofysikkens første lov ---------- */
 
 /**
- * Termofysikkens første lov slik ERGO skriver den: ΔU = W + Q, der W er arbeidet som blir gjort
+ * Termofysikkens første lov på den vanlige formen i norsk skolefysikk: ΔU = W + Q, der W er arbeidet som blir gjort
  * PÅ systemet og Q er varmen som blir tilført systemet. Begge er negative når energi går ut.
  */
 export function firstLaw(W: number, Q: number): number {

@@ -1,5 +1,5 @@
 /**
- * Kapittel 14 Mikrobielle og virale sykdommer (Bi 1, KM7): ren biologi uten React, testet i model.test.ts.
+ * Mikrobielle og virale sykdommer (KM7): ren biologi uten React, testet i model.test.ts.
  *
  * 1. Bakterievekst: vekstkurve med lagfase, eksponentiell fase, stasjonær fase og dødsfase (kit-ets bacterialGrowth),
  *    generasjonstid som avhenger av temperaturen, og matsikkerhet.

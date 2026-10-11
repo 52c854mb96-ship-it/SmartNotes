@@ -13,7 +13,7 @@ Appen er laget for **Fysikk 1**, **Kjemi 1** og **Biologi 1** (VG2, LK20). Hvert
   - Enkle tegninger tegnes på nytt i TikZ, som kraftdiagrammer, grafer og kretser. Kompliserte tegninger klippes ut fra originalbildet.
   - Definisjoner, viktige formler, eksempler og oppgaver får hver sin fargede boks.
   - Ord som er vanskelige å lese, markeres med ?.
-- **Kapitler og delkapitler.** Fagene legges inn etter lærebøkene: ERGO Fysikk 1 (alle kapitler og delkapitler, 1A–10D), Kjemi 1 fra Aschehoug (8 kapitler) og Bi 1 fra Gyldendal (15 kapitler). Claude plasserer hvert notat på riktig kapittel og delkapittel, og du kan flytte det selv. Mangler delkapitlene, tar du bilde av innholdsfortegnelsen i boka. Da legges kapitlene og delkapitlene inn og kobles til kompetansemålene. Det samme gjelder andre lærebøker.
+- **Temaer og deltemaer.** Fagene legges inn etter læreplanene (LK20) med kompetansemålene fra Udir og SmartNotes' egne temaer: Fysikk 1 (10 temaer med 29 deltemaer), Kjemi 1 (8 temaer) og Biologi 1 (8 temaer). Claude plasserer hvert notat på riktig tema og deltema, og du kan flytte det selv. Vil du heller ha kapitlene i din egen lærebok, tar du bilde av innholdsfortegnelsen. Da legges kapitlene og delkapitlene inn for deg og kobles til de samme kompetansemålene.
 - **Kompetansemål.** Hvert delkapittel er koblet til kompetansemålene i faget (Fysikk 1: KM1–KM14, Kjemi 1: KM1–KM17, Biologi 1: KM1–KM11, ordrett fra Udir), så du kan se og filtrere notatene etter mål før eksamen.
 - **Søk.** Ctrl/Cmd+K søker i titler og innholdet i alle notatene, også uten nett.
 - **Tre kolonner.** På iPad og PC ser du kapitler, notater og PDF side om side. Lys, mørk eller systemtema, og hvert fag har sine egne farger (fysikk «Blekk», kjemi «Tavle», biologi «Salvie») og sin egen PDF-mal (Klassisk, Moderne og Lærebok).
@@ -94,7 +94,7 @@ Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du m�
 | `CLAUDE_MODEL_TOC` | `claude-haiku-5-5` | Modellen som leser innholdsfortegnelser og kobler delkapitler til kompetansemål |
 | `CLAUDE_EFFORT` | `medium` | Hvor grundig Claude jobber ved konvertering: `low` / `medium` / `high` / `xhigh` / `max` |
 | `CLAUDE_FALLBACKS` | `true` | Hvis Claudes sikkerhetsfiltre ved en feil avslår et notat, prøves en anbefalt reservemodell automatisk |
-| `SEED_TEXTBOOKS` | alle kjente | Læreboksett (fag, kapitler, delkapitler og kompetansemål) som legges inn, hvert bare én gang. Kommaliste, f.eks. `ergo-fysikk-1,aschehoug-kjemi-1`, eller `none` for et tomt fag. Se `server/src/textbooks.ts` |
+| `SEED_TEXTBOOKS` | alle | Fagoppsett (fag, temaer, deltemaer og kompetansemål) som legges inn, hvert bare én gang. Kommaliste, f.eks. `fysikk-1-lk20,kjemi-1-lk20`, eller `none` for et tomt fag. De gamle id-ene virker fortsatt. Se `server/src/presets.ts` |
 | `DATA_DIR` | `./data` | Database, originaler og PDF-er |
 | `PORT` | `8787` (`8080` i Docker) | |
 | `MAX_PAGES_PER_NOTE` | `30` | Maks sider per opplasting |

@@ -8,7 +8,7 @@ Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen d
 
 SmartNotes er en personlig app for en elev på VG2. Eleven tar bilder av håndskrevne notater eller laster opp PDF-er. Claude leser dem og skriver dem om til LaTeX, og serveren lager pene PDF-er. Notatene sorteres etter fag, kapittel og delkapittel i læreboka.
 
-- **Fag:** Fysikk 1 (ERGO Fysikk 1), Kjemi 1 (Aschehoug) og Biologi 1 (Bi 1, Gyldendal), alle etter LK20.
+- **Fag:** Fysikk 1, Kjemi 1 og Biologi 1, alle etter LK20, med SmartNotes' egne temaer (ingen lærebok innebygd; eleven kan importere sin egen innholdsfortegnelse).
 - **Hvem bruker den:** eleven har bare Fysikk 1. Kjemi 1 og Biologi 1 er laget for at andre skal kunne bruke appen senere.
 - **Hvordan den kjører:** en PWA som fungerer uten nett, og én server (Docker) på Railway som synkroniserer alle enhetene (Mac, PC, iPad og mobil).
 - **Språk:** alt eleven ser, er på bokmål: appen, feilmeldingene og PDF-malene. Koden bruker engelske navn.
@@ -20,7 +20,7 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 | Funksjon | Kort beskrivelse | Hvor i koden |
 |---|---|---|
 | Konvertering | Sider → Claude (bilde) → LaTeX → PDF. Notatet gjengis tro mot originalen, og mulige feil markeres med en merknad i stedet for å rettes. Enkle figurer tegnes på nytt i TikZ, og kompliserte klippes ut. Kompileringsfeil rettes automatisk i inntil to runder. | `server/src/pipeline/` |
-| Fag og lærebøker | Kapitler og kompetansemål (ordrett fra Udir) for tre læreboksett. Delkapitler finnes foreløpig for Fysikk 1 og kapittel 1 i Kjemi 1. Claude velger kapittel og eventuelt delkapittel, og eleven kan flytte notatet selv. | `server/src/textbooks.ts`, `server/src/profiles/` |
+| Fag og temaer | Kompetansemål (ordrett fra Udir) og egne temaer for tre fag. Deltemaer finnes for Fysikk 1. Claude velger tema og eventuelt deltema, og eleven kan flytte notatet selv. | `server/src/presets.ts`, `server/src/profiles/` |
 | Import av innholdsfortegnelse | Tekst eller bilder → kapitler med delkapitler, koblet til kompetansemålene. | `server/src/toc.ts`, `web/src/pages/settings/ChapterImport.tsx` |
 | Søk | Ctrl/Cmd+K søker i titler og innhold, også uten nett. | `web/src/components/SearchPalette.tsx` |
 | Visualiseringer | 129 interaktive forklaringer, ordnet etter kapittel: 56 i fysikk, 31 i kjemi og 42 i biologi. Fysikk kapittel 1–4 har illustrert utseende (ekte gjenstander, lys, skygge og kraftpiler), praktiske situasjoner og to eksempeloppgaver per kapittel, der løsningen vises trinn for trinn. | `web/src/viz/` (les `README.md` der) |
@@ -113,7 +113,7 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 
 1. **Settings → Source:** grenen skal være `main`, og «Wait for CI» skal være på.
 2. **Hvis eleven bare vil ha Fysikk 1:**
-   - Legg til variabelen `SEED_TEXTBOOKS` med verdien `ergo-fysikk-1`.
+   - Legg til variabelen `SEED_TEXTBOOKS` med verdien `fysikk-1-lk20`.
    - Er Kjemi 1 og Biologi 1 allerede lagt inn, slettes de i appen: tannhjulet på fagsiden → **Slett faget**. Et slettet fag kommer ikke tilbake.
 3. **Variabler:** `CLAUDE_MODEL`, `CLAUDE_MODEL_FLASHCARDS`, `CLAUDE_MODEL_TOC` og `CLAUDE_EFFORT` bør ikke være satt, ellers overstyrer de standardverdiene.
 4. **Lokal AI og hjemmemaskin** trenger ingen nye variabler før eleven vil prøve dem. Alt er av som standard, og forbruksloggen virker uten oppsett.

@@ -88,7 +88,7 @@ function NewSubjectForm() {
           type="text"
           value={textbook}
           onChange={(e) => setTextbook(e.target.value)}
-          placeholder="F.eks. Kjemi 2 (Aschehoug)"
+          placeholder="F.eks. navnet på læreboka di"
           maxLength={200}
         />
       </label>

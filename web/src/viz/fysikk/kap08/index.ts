@@ -5,7 +5,7 @@ const viz: VizMeta[] = [
   {
     id: 'halveringstid',
     chapter: '8',
-    sections: ['8A', '8B'],
+    sections: ['8.1'],
     title: 'Halveringstid og radioaktivt henfall',
     summary:
       'Se 400 kjerner henfalle tilfeldig og sammenlign med halveringsformelen for karbon-14, jod-131, radon-222, kobolt-60 og uran-238.',
@@ -24,7 +24,7 @@ const viz: VizMeta[] = [
   {
     id: 'bindingsenergi',
     chapter: '8',
-    sections: ['8A', '8B', '8C', '8D'],
+    sections: ['8.1', '8.2'],
     title: 'Bindingsenergi per nukleon',
     summary:
       'Se hvorfor jern og nikkel er de mest stabile kjernene, og hvorfor både fisjon av uran og fusjon av hydrogen frigjør energi: E = Δm · c².',
@@ -34,7 +34,7 @@ const viz: VizMeta[] = [
   {
     id: 'kjernereaksjoner',
     chapter: '8',
-    sections: ['8B'],
+    sections: ['8.1'],
     title: 'Kjernereaksjoner: α, β og γ',
     summary: 'Velg en kjerne og en henfallstype, og se at nukleontall og ladning er bevart. Følg uranserien helt ned til stabilt bly.',
     keywords: [

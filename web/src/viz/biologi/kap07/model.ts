@@ -1,5 +1,5 @@
 /**
- * Celledeling (Bi 1 kapittel 7, KM6): ren modell uten React.
+ * Celledeling (KM6): ren modell uten React.
  *
  * 1. Cellesyklusen og mitosen: fasene med varighet, DNA-mengden per celle (2c → 4c → 2c) og antall kromosomer og
  *    kromatider i hver fase.

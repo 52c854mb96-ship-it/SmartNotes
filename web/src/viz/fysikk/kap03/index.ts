@@ -5,7 +5,7 @@ const viz: VizMeta[] = [
   {
     id: 'arbeid',
     chapter: '3',
-    sections: ['3B', '3D'],
+    sections: ['3.1', '3.2'],
     title: 'Arbeid: dra en kjelke på skrå',
     summary:
       'Dra lillesøster på kjelken med tauet på skrå. Se når arbeidet blir positivt, null eller negativt, hvordan friksjonen gjør negativt arbeid, og at arbeidet er arealet under kraft–strekning-grafen.',
@@ -28,7 +28,7 @@ const viz: VizMeta[] = [
   {
     id: 'trappelop',
     chapter: '3',
-    sections: ['3A', '3B', '3C'],
+    sections: ['3.1', '3.2'],
     title: 'Arbeid og effekt i trappa',
     summary:
       'Løp opp en steintrapp i lia mens venninnen tar tida. Se kreftene i lupen, regn ut arbeidet W = mgh og effekten P = W/t, og sammenlign med lyspærer, mikrobølgeovn og vannkoker.',
@@ -55,7 +55,7 @@ const viz: VizMeta[] = [
   {
     id: 'energibevaring',
     chapter: '3',
-    sections: ['3C', '3D', '3E', '3F'],
+    sections: ['3.2', '3.3'],
     title: 'Bevaring av mekanisk energi',
     summary:
       'Følg en skater i en halfpipe eller et akebrett over kulen i akebakken, og se potensiell og kinetisk energi bytte plass i energistolpene. Med friksjon blir mekanisk energi til termisk energi (varme), og du kommer ikke like høyt igjen. Slå på kreftene og se hvorfor det bare er tyngden som gjør arbeid.',
@@ -88,7 +88,7 @@ const viz: VizMeta[] = [
   {
     id: 'berg-og-dal',
     chapter: '3',
-    sections: ['3C', '3D', '3E', '3F'],
+    sections: ['3.2', '3.3'],
     title: 'Berg-og-dal-bane: kommer vogna over toppen?',
     summary: 'Velg starthøyden og se farten i hvert punkt fra energibevaring, energistolpene og om vogna kommer over neste topp, med og uten friksjon. Hvorfor må første topp være høyest?',
     keywords: [
@@ -112,7 +112,7 @@ const viz: VizMeta[] = [
   {
     id: 'sykkel-bakke',
     chapter: '3',
-    sections: ['3B', '3C', '3F'],
+    sections: ['3.1', '3.2', '3.3'],
     title: 'Sykle opp bakken: effekt, kraft og fart',
     summary:
       'Velg masse, effekt og stigning, og se hvor fort du sykler opp skolebakken, Trollstigen eller Alpe d’Huez. Konstant fart gir F = G∥ + R, og P = F · v gir farten, tida og arbeidet.',
@@ -145,7 +145,7 @@ const viz: VizMeta[] = [
   {
     id: 'vannkraft',
     chapter: '3',
-    sections: ['3A', '3C', '3F'],
+    sections: ['3.1', '3.2', '3.3'],
     title: 'Vannkraftverk: fra magasin til stikkontakt',
     summary:
       'Vann fra et magasin faller gjennom rørgata til turbinen. Endre fallhøyde, vannføring og virkningsgrad, se effekten P = η·ρ·g·Q·h og hvor mange husstander kraftverket forsyner.',
@@ -177,7 +177,7 @@ const viz: VizMeta[] = [
     id: 'eks-akebakke',
     kind: 'eksempel',
     chapter: '3',
-    sections: ['3B', '3C', '3D', '3E', '3F'],
+    sections: ['3.1', '3.2', '3.3'],
     title: 'Akebrett ned bakken',
     summary:
       'Farten nederst uten friksjon, energien som ble termisk energi, den gjennomsnittlige motkraften fra friksjon og luftmotstand, hvor langt brettet glir på flaten og hvor stor luftmotstanden er, steg for steg.',
@@ -210,7 +210,7 @@ const viz: VizMeta[] = [
     id: 'eks-kran',
     kind: 'eksempel',
     chapter: '3',
-    sections: ['3A', '3B', '3C', '3F'],
+    sections: ['3.1', '3.2', '3.3'],
     title: 'Byggekran løfter en last',
     summary:
       'Snordraget ved jevn fart, arbeidet og økningen i potensiell energi, tid og effekt, elektrisk energi med virkningsgrad i kJ og kWh, og hvor energien blir av når lasta senkes og motoren går som generator, steg for steg.',

@@ -5,7 +5,7 @@ const viz: VizMeta[] = [
   {
     id: 'elektronkonfigurasjon',
     chapter: '1',
-    sections: ['1.2', '1.3'],
+    sections: [],
     title: 'Elektronkonfigurasjon og periodesystemet',
     summary:
       'Velg et grunnstoff og se hvordan elektronene fyller skall og orbitaler, og hvordan konfigurasjonen bestemmer perioden og gruppa i periodesystemet.',
@@ -15,7 +15,7 @@ const viz: VizMeta[] = [
   {
     id: 'bindingstype',
     chapter: '1',
-    sections: ['1.4'],
+    sections: [],
     title: 'Bindingstype og elektronegativitet',
     summary: 'Velg to grunnstoffer og se om bindingen blir upolar kovalent, polar kovalent eller ionisk ut fra forskjellen i elektronegativitet.',
     keywords: ['elektronegativitet', 'ΔEN', 'polar', 'upolar', 'kovalent binding', 'ionebinding', 'metallbinding', 'delladning', 'dipol'],
@@ -24,7 +24,7 @@ const viz: VizMeta[] = [
   {
     id: 'molekylform',
     chapter: '1',
-    sections: ['1.4'],
+    sections: [],
     title: 'Molekylform og polaritet (VSEPR)',
     summary:
       'Se hvordan bindinger og frie elektronpar rundt sentralatomet bestemmer formen og bindingsvinkelen, og om bindingsdipolene opphever hverandre.',
@@ -34,7 +34,7 @@ const viz: VizMeta[] = [
   {
     id: 'svake-bindinger',
     chapter: '1',
-    sections: ['1.5'],
+    sections: [],
     title: 'Svake bindinger og kokepunkt',
     summary:
       'Sammenlign kokepunktene til hydridene i gruppe 14–17 og alkanene, slå London-krefter, dipol-dipol-krefter og hydrogenbindinger av og på, og se hvorfor vann koker ved 100 °C.',

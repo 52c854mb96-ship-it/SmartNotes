@@ -1,5 +1,5 @@
 /**
- * Forvaltning av naturressurser (Bi 1 kapittel 4, KM1, KM10, KM11): ren modell uten React, testet i model.test.ts.
+ * Forvaltning av naturressurser (KM1, KM10, KM11): ren modell uten React, testet i model.test.ts.
  *
  * 1. Bærekraftig høsting: logistisk vekst med fast kvote eller fast andel (kit/modeller.ts), med en føre-var-regel
  *    (fiskestopp) som i forvaltningen av norsk vårgytende sild etter kollapsen rundt 1970.

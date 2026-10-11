@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 3 Biologisk mangfold (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 2 (Økologi, biologisk mangfold og forvaltning). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'artsmangfold',
-    chapter: '3',
+    chapter: '2',
     sections: [],
     title: 'Artsmangfold og Simpsons indeks',
     summary:
@@ -28,7 +28,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'arter-og-areal',
-    chapter: '3',
+    chapter: '2',
     sections: [],
     title: 'Arter og areal',
     summary:
@@ -53,7 +53,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'naeringsnett',
-    chapter: '3',
+    chapter: '2',
     sections: [],
     title: 'Næringsnett og energipyramide',
     summary:

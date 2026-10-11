@@ -1,5 +1,5 @@
 /**
- * Kommunikasjonssystemer i mennesket (Bi 1 kapittel 8, KM3 og KM4): ren modell uten React.
+ * Kommunikasjonssystemer i mennesket (KM3 og KM4): ren modell uten React.
  *
  * 1. Nerveimpulsen: membranpotensialet i en nervecelle etter et stimulus. Hvilepotensial −70 mV, terskel −55 mV,
  *    alt-eller-ingenting-aksjonspotensial med topp +30 mV, repolarisering, hyperpolarisering ned mot −80 mV og

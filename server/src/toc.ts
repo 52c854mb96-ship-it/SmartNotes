@@ -1,7 +1,7 @@
 import type { ChapterInput, CompetenceAim, Section } from '@smartnotes/shared';
 
 const NUMBER_RE = /^(\d+(?:\.\d+)*|[IVXLC]+)[.):]?\s+(?:[-–—:]\s*)?(.+)$/;
-/** Delkapittel med bokstavkode som i ERGO Fysikk 1: «2A Krefter», «10D Elektrisk effekt». */
+/** Delkapittel med bokstavkode, som i noen lærebøker: «2A Krefter», «10D Elektrisk effekt». */
 const LETTER_SECTION_RE = /^(\d+)([A-Z])[.):]?\s+(?:[-–—:]\s*)?(.+)$/;
 
 /** Høyst så mange delkapitler per kapittel (samme grense som API-et). */

@@ -17,8 +17,8 @@ test('visualiseringer: oversikt, friksjon og neste', async ({ page }) => {
   const main = page.locator('main');
   await main.getByRole('link', { name: 'Visualiseringer' }).click();
   await expect(page.getByRole('heading', { name: 'Visualiseringer', level: 1 })).toBeVisible();
-  // Kapittelnavnet kommer fra læreboka (ERGO Fysikk 1).
-  await expect(main.getByRole('heading', { name: /Krefter$/ })).toBeVisible();
+  // Temanavnet kommer fra SmartNotes' eget oppsett for Fysikk 1.
+  await expect(main.getByRole('heading', { name: /Krefter og Newtons lover$/ })).toBeVisible();
 
   // Filteret
   await main.getByRole('searchbox', { name: 'Filtrer visualiseringene' }).fill('friksjon');
