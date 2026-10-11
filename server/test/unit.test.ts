@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildContext } from '../src/pipeline/claude.js';
+import { buildContext } from '../src/pipeline/ai.js';
 import { cropFigure, fitScale, sniffKind } from '../src/pipeline/images.js';
 import {
   assembleNoteDoc,

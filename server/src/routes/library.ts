@@ -6,7 +6,8 @@ import type { ChapterPreviewResponse, SyncResponse } from '@smartnotes/shared';
 import type { Repo } from '../db.js';
 import { ConversionError, HttpError, badRequest, notFound } from '../errors.js';
 import type { Bundler } from '../pipeline/bundle.js';
-import type { ClaudeService } from '../pipeline/claude.js';
+import type { AiService } from '../pipeline/ai.js';
+import { aiConfigured } from '../pipeline/providers.js';
 import type { Converter } from '../pipeline/converter.js';
 import { fitScale, sniffKind } from '../pipeline/images.js';
 import { getProfile, isProfile } from '../profiles/index.js';
@@ -17,7 +18,7 @@ import { usageScope } from '../usage.js';
 interface Deps {
   repo: Repo;
   storage: Storage;
-  claude: ClaudeService;
+  ai: AiService;
   converter: Converter;
   bundler: Bundler;
 }
@@ -66,7 +67,7 @@ export async function sendPdf(reply: FastifyReply, file: string, filename: strin
 }
 
 export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
-  const { repo, storage, claude, converter, bundler } = d;
+  const { repo, storage, ai, converter, bundler } = d;
 
   const recompileSubject = (subjectId: string) => {
     for (const n of repo.sync(0).notes.filter((n) => n.subjectId === subjectId && n.status === 'done')) converter.recompileInBackground(n.id);
@@ -142,9 +143,9 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
     const body = parse(z.object({ text: z.string().max(50_000) }), req.body);
     const chapters = parseTocText(body.text);
     // Delkapitler fra teksten kobles til kompetansemålene av Claude. Går det ikke, får de bare ingen mål.
-    if (s.aims.length && claude.configured && chapters.some((c) => c.sections?.length)) {
+    if (s.aims.length && aiConfigured(ai, 'toc') && chapters.some((c) => c.sections?.length)) {
       try {
-        const mapped = await usageScope({ subjectId: s.id }, () => claude.mapSectionAims(getProfile(s.profile), chapters, s.aims));
+        const mapped = await usageScope({ subjectId: s.id }, () => ai.mapSectionAims(getProfile(s.profile), chapters, s.aims));
         return { chapters: cleanChapterInputs(mapped.chapters, s.aims) };
       } catch (err) {
         req.log.warn({ err }, 'kunne ikke koble delkapitler til kompetansemål');
@@ -179,7 +180,7 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
     }
     if (images.length === 0) throw badRequest('Last opp minst ett bilde av innholdsfortegnelsen.');
     try {
-      const read = await usageScope({ subjectId: s.id }, () => claude.extractToc(getProfile(s.profile), images, s.aims));
+      const read = await usageScope({ subjectId: s.id }, () => ai.extractToc(getProfile(s.profile), images, s.aims));
       return { chapters: cleanChapterInputs(read.chapters, s.aims) };
     } catch (err) {
       if (err instanceof ConversionError) throw new HttpError(err.retryable ? 503 : 422, 'claude_failed', err.message);

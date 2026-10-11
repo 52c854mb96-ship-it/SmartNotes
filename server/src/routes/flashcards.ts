@@ -6,14 +6,15 @@ import { badRequest, notFound, offlineFeature } from '../errors.js';
 import type { FlashcardGenerator } from '../flashcards/generator.js';
 import { loadSourceNotes } from '../flashcards/generator.js';
 import { DIFFICULTIES, KINDS, MAX_CARDS, MAX_DECK_NOTES, MAX_SOURCE_CHARS, defaultDeckTitle } from '../flashcards/prompt.js';
-import type { ClaudeService } from '../pipeline/claude.js';
+import type { AiService } from '../pipeline/ai.js';
+import { aiConfigured } from '../pipeline/providers.js';
 import { isId, type Storage } from '../storage.js';
 import { parse } from './library.js';
 
 interface Deps {
   repo: Repo;
   storage: Storage;
-  claude: ClaudeService;
+  ai: AiService;
   generator: FlashcardGenerator;
 }
 
@@ -30,7 +31,7 @@ const kind = z.enum(KINDS as [string, ...string[]], { message: 'Ukjent korttype.
 const isoTime = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/, 'Ugyldig tidspunkt.');
 
 export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
-  const { repo, storage, claude, generator } = d;
+  const { repo, storage, ai, generator } = d;
 
   const requireDeck = (deckId: string) => {
     const deck = isId(deckId) ? repo.getDeck(deckId) : null;
@@ -62,7 +63,7 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
     );
     const subject = repo.getSubject(body.subjectId);
     if (!subject) throw notFound('Fant ikke faget.');
-    if (!claude.configured) throw offlineFeature('Serveren mangler Claude API-nøkkel (ANTHROPIC_API_KEY), så kortene kan ikke lages.');
+    if (!aiConfigured(ai, 'flashcards')) throw offlineFeature('Serveren mangler Claude API-nøkkel (ANTHROPIC_API_KEY), så kortene kan ikke lages.');
 
     const { notes, skipped } = await loadSourceNotes(repo, storage, subject.id, body.noteIds);
     if (skipped.length > 0) {
@@ -119,7 +120,7 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
   app.post<{ Params: { id: string } }>('/api/decks/:id/retry', async (req) => {
     const deck = requireDeck(req.params.id);
     if (deck.status !== 'failed') throw badRequest('Kortstokken har ingen feil å prøve på nytt.');
-    if (!claude.configured) throw offlineFeature('Serveren mangler Claude API-nøkkel (ANTHROPIC_API_KEY), så kortene kan ikke lages.');
+    if (!aiConfigured(ai, 'flashcards')) throw offlineFeature('Serveren mangler Claude API-nøkkel (ANTHROPIC_API_KEY), så kortene kan ikke lages.');
     const restarted = repo.restartDeck(deck.id)!;
     generator.start(deck.id);
     return restarted;

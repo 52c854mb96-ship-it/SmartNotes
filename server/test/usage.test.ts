@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ConversionError } from '../src/errors.js';
-import { FakeClaude, type ConvertRequest } from '../src/pipeline/claude.js';
+import type { ConvertRequest } from '../src/pipeline/ai.js';
+import { FakeClaude } from '../src/pipeline/claude.js';
 import { MeteredAi, costUsd, summarizeUsage, usageScope, withUsage, zeroUsage, type Usage, type UsageEntry } from '../src/usage.js';
 
 const sonnet = (u: Partial<Usage> = {}): Usage => ({ ...zeroUsage('convert', 'claude-sonnet-5-5'), ...u });

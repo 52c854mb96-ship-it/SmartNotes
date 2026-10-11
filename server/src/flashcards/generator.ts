@@ -2,7 +2,7 @@ import fsp from 'node:fs/promises';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Repo } from '../db.js';
 import { ConversionError } from '../errors.js';
-import type { ClaudeService } from '../pipeline/claude.js';
+import type { AiService } from '../pipeline/ai.js';
 import { getProfile } from '../profiles/index.js';
 import type { Storage } from '../storage.js';
 import { usageScope } from '../usage.js';
@@ -72,7 +72,7 @@ export class FlashcardGenerator {
   constructor(
     private readonly repo: Repo,
     private readonly storage: Storage,
-    private readonly claude: ClaudeService,
+    private readonly ai: AiService,
     private readonly log: FastifyBaseLogger,
   ) {}
 
@@ -148,7 +148,7 @@ export class FlashcardGenerator {
     const profile = getProfile(subject.profile);
     const started = Date.now();
     const { cards, usage } = await usageScope({ deckId, subjectId: subject.id }, () =>
-      this.claude.generateFlashcards({
+      this.ai.generateFlashcards({
         subjectName: subject.name,
         subjectLabel: profile.label,
         difficulty: deck.difficulty,

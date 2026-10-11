@@ -323,6 +323,8 @@ export interface HealthResponse {
   claudeConfigured: boolean;
   model: string;
   fakeClaude: boolean;
+  /** Hvem som kjører AI-en per oppgave: «anthropic» (Claude), «ollama» (lokal modell) eller «fake» (testmodus). */
+  ai?: { task: 'convert' | 'flashcards' | 'toc'; provider: string; model: string }[];
 }
 
 /** Hva et AI-kall gjaldt: konvertering, retting av LaTeX, innholdsfortegnelse, kompetansemål eller kortstokk. */

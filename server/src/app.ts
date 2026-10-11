@@ -6,15 +6,16 @@ import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import type { HealthResponse } from '@smartnotes/shared';
 import { registerAuth } from './auth.js';
-import type { Config } from './config.js';
+import { AI_TASKS, type Config } from './config.js';
 import { Repo } from './db.js';
 import { HttpError } from './errors.js';
 import { FlashcardGenerator } from './flashcards/generator.js';
 import { MAX_FILE_BYTES, MAX_FILES } from './limits.js';
 import { Bundler } from './pipeline/bundle.js';
-import { createClaude, type ClaudeService } from './pipeline/claude.js';
+import type { AiService } from './pipeline/ai.js';
 import { Converter } from './pipeline/converter.js';
 import { latexAvailable } from './pipeline/latex.js';
+import { aiConfigured, createAi, describeAi } from './pipeline/providers.js';
 import { Worker } from './pipeline/worker.js';
 import { registerFlashcardRoutes } from './routes/flashcards.js';
 import { registerLibraryRoutes } from './routes/library.js';
@@ -28,7 +29,7 @@ export interface AppContext {
   app: FastifyInstance;
   repo: Repo;
   storage: Storage;
-  claude: ClaudeService;
+  ai: AiService;
   converter: Converter;
   worker: Worker;
   bundler: Bundler;
@@ -47,7 +48,7 @@ function readWebBuild(webDist: string | null): string | null {
   }
 }
 
-export async function buildApp(config: Config, opts: { claude?: ClaudeService; logger?: boolean } = {}): Promise<AppContext> {
+export async function buildApp(config: Config, opts: { ai?: AiService; logger?: boolean } = {}): Promise<AppContext> {
   const app = Fastify({
     logger: opts.logger === false ? false : { level: process.env.LOG_LEVEL ?? 'info' },
     bodyLimit: 5 * 1024 * 1024,
@@ -61,18 +62,23 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
   const created = repo.seed(config.seedTextbooks.flatMap((id) => (TEXTBOOKS[id] ? [TEXTBOOKS[id]] : [])));
   if (created.length > 0) app.log.info({ created }, 'la inn fag fra læreboksett');
   // Hvert AI-kall logges i forbruksloggen (usage_log), også når det feiler.
-  const claude = new MeteredAi(
-    opts.claude ?? createClaude(config),
-    (entry) => repo.logUsage(entry),
-    (err) => app.log.warn({ err }, 'kunne ikke skrive til forbruksloggen'),
-  );
-  const converter = new Converter(repo, storage, claude, config, app.log);
+  const metered = (inner: AiService) =>
+    new MeteredAi(
+      inner,
+      (entry) => repo.logUsage(entry),
+      (err) => app.log.warn({ err }, 'kunne ikke skrive til forbruksloggen'),
+    );
+  const ai = opts.ai ? metered(opts.ai) : createAi(config, metered);
+  const converter = new Converter(repo, storage, ai, config, app.log);
   const worker = new Worker(repo, converter, config.workerConcurrency, app.log);
   const bundler = new Bundler(repo, storage, config, app.log);
-  const generator = new FlashcardGenerator(repo, storage, claude, app.log);
+  const generator = new FlashcardGenerator(repo, storage, ai, app.log);
   const latexOk = await latexAvailable();
   if (!latexOk) app.log.warn('latexmk ble ikke funnet – PDF-er kan ikke lages. Installer TeX Live (se README).');
-  if (!claude.configured) app.log.warn('ANTHROPIC_API_KEY mangler – notater kan lastes opp, men ikke konverteres.');
+  const missing = AI_TASKS.filter((t) => !aiConfigured(ai, t));
+  if (missing.length > 0) app.log.warn({ tasks: missing }, 'ANTHROPIC_API_KEY mangler – disse oppgavene kan ikke kjøres med Claude.');
+  const aiTasks = opts.ai ? [] : describeAi(config);
+  if (aiTasks.some((t) => t.provider === 'ollama')) app.log.info({ ai: aiTasks, ollama: config.ollama.url }, 'bruker lokal AI (Ollama)');
 
   await app.register(fastifyCookie);
   await app.register(fastifyMultipart, {
@@ -117,14 +123,15 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
     ok: true,
     version: config.version,
     latex: latexOk,
-    claudeConfigured: claude.configured,
-    model: claude.model,
-    fakeClaude: claude.fake,
+    claudeConfigured: ai.configured,
+    model: ai.model,
+    fakeClaude: ai.fake,
+    ai: aiTasks,
   }));
 
-  registerLibraryRoutes(app, { repo, storage, claude, converter, bundler });
+  registerLibraryRoutes(app, { repo, storage, ai, converter, bundler });
   registerNoteRoutes(app, { repo, storage, converter, worker });
-  registerFlashcardRoutes(app, { repo, storage, claude, generator });
+  registerFlashcardRoutes(app, { repo, storage, ai, generator });
   registerUsageRoutes(app, { repo, config });
 
   // Ferdigbygd web-app (PWA) med SPA-fallback.
@@ -167,5 +174,5 @@ export async function buildApp(config: Config, opts: { claude?: ClaudeService; l
   });
 
   void storage.cleanTmp();
-  return { app, repo, storage, claude, converter, worker, bundler, generator };
+  return { app, repo, storage, ai, converter, worker, bundler, generator };
 }

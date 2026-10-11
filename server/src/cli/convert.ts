@@ -9,7 +9,7 @@
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { loadConfig } from '../config.js';
-import { createClaude } from '../pipeline/claude.js';
+import { createAi } from '../pipeline/providers.js';
 import { cropFigure, preparePages, sniffKind } from '../pipeline/images.js';
 import { assembleNoteDoc, compileLatex, errorExcerpt, formatErrors, replaceMissingFigures, sanitizeBody } from '../pipeline/latex.js';
 import { physicsProfile } from '../profiles/physics.js';
@@ -32,7 +32,7 @@ if (args.length === 0) {
 }
 
 const config = loadConfig({ ...process.env, APP_PASSWORD: process.env.APP_PASSWORD ?? 'cli' });
-const claude = createClaude(config);
+const claude = createAi(config);
 await fsp.mkdir(out, { recursive: true });
 
 const sources = [];

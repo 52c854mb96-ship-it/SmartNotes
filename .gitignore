@@ -10,3 +10,7 @@ test-results/
 playwright-report/
 .DS_Store
 *.tsbuildinfo
+
+# Måleverktøyet (docs/MALING.md): notatbilder og resultater skal ikke sjekkes inn
+/maling*/
+/notater/
