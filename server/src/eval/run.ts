@@ -29,7 +29,7 @@ export interface ModelSpec {
 }
 
 /**
- * «anthropic:claude-haiku-5-5», «ollama:qwen2.5vl:7b», «ollama:qwen3-vl:8b@thousandths» eller «fake».
+ * «anthropic:claude-haiku-5-5», «ollama:qwen3.5:9b», «ollama:qwen2.5vl:7b@pixels» eller «fake».
  * Modellnavn kan inneholde kolon; leverandøren er det som står før det første.
  */
 export function parseModelSpec(raw: string): ModelSpec {
@@ -39,13 +39,15 @@ export function parseModelSpec(raw: string): ModelSpec {
   const provider = i === -1 ? '' : label.slice(0, i);
   let model = i === -1 ? '' : label.slice(i + 1);
   if (provider !== 'anthropic' && provider !== 'ollama') {
-    throw new Error(`Ukjent modell «${label}». Skriv for eksempel anthropic:claude-haiku-5-5 eller ollama:qwen2.5vl:7b.`);
+    throw new Error(`Ukjent modell «${label}». Skriv for eksempel anthropic:claude-haiku-5-5 eller ollama:qwen3.5:9b.`);
   }
   let boxUnits: OllamaConfig['boxUnits'] | undefined;
   const at = model.lastIndexOf('@');
   if (at !== -1) {
     const opt = model.slice(at + 1);
-    if (opt !== 'pixels' && opt !== 'thousandths') throw new Error(`Ukjent valg «@${opt}» i «${label}». Bruk @pixels eller @thousandths.`);
+    if (opt !== 'pixels' && opt !== 'thousandths' && opt !== 'thousandths-yx') {
+      throw new Error(`Ukjent valg «@${opt}» i «${label}». Bruk @pixels, @thousandths eller @thousandths-yx.`);
+    }
     boxUnits = opt;
     model = model.slice(0, at);
   }

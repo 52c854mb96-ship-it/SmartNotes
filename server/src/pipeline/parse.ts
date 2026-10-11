@@ -53,7 +53,8 @@ export function parseMeta(raw: string): NoteMeta {
       const r = f as Record<string, unknown>;
       const id = str(r.id, 40);
       const page = Number(r.page);
-      const box = r.box ?? r.bbox;
+      // «bbox_2d» er navnet Qwen-modellene bruker selv.
+      const box = r.box ?? r.bbox ?? r.bbox_2d;
       if (!id || !/^[A-Za-z0-9_-]+$/.test(id) || !Number.isInteger(page) || page < 1) continue;
       if (!Array.isArray(box) || box.length !== 4 || !box.every((v) => Number.isFinite(Number(v)))) continue;
       figures.push({ id, page, box: box.map(Number) as FigureBox['box'] });

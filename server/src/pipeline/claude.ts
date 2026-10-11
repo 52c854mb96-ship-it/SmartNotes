@@ -70,6 +70,11 @@ export function mapApiError(err: unknown): ConversionError {
   return new ConversionError('Uventet feil under konverteringen.');
 }
 
+/** Haiku-modellene har ikke server-side fallback; der sendes ikke parameteren. */
+export function supportsServerFallback(model: string): boolean {
+  return !/haiku/i.test(model);
+}
+
 function checkStop(stop: string | null): void {
   if (stop === 'refusal') throw new ConversionError('Claude avslo å konvertere dette notatet.');
   if (stop === 'max_tokens') {
@@ -114,7 +119,7 @@ export class AnthropicClaude implements AiService {
           system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
           messages: [{ role: 'user', content }],
           // Hvis modellens sikkerhetsfiltre (feilaktig) avslår, kjøres forespørselen på en anbefalt reservemodell.
-          ...(this.config.useFallbacks ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
+          ...(this.config.useFallbacks && supportsServerFallback(this.config.model) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
         })
         .finalMessage();
     } catch (err) {
@@ -243,7 +248,7 @@ export class AnthropicClaude implements AiService {
           system: [{ type: 'text', text: FLASHCARD_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
           messages: [{ role: 'user', content: buildFlashcardPrompt(req) }],
           // Avslår modellens sikkerhetsfiltre feilaktig (f.eks. biologi om virus), prøves en anbefalt reservemodell.
-          ...(this.config.useFallbacks ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
+          ...(this.config.useFallbacks && supportsServerFallback(this.config.model) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
         })
         .finalMessage();
     } catch (err) {

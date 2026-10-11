@@ -39,7 +39,7 @@ Railway starter serveren på nytt etter endringen. Under **Innstillinger → Ser
 2. Hent modellen du valgte etter målingen, for eksempel:
 
    ```bash
-   ollama pull qwen2.5vl:7b
+   ollama pull qwen3.5:9b
    ```
 
 3. Hent koden og installer:
@@ -56,7 +56,7 @@ Railway starter serveren på nytt etter endringen. Under **Innstillinger → Ser
    SMARTNOTES_URL=https://din-app.up.railway.app
    WORKER_TOKEN=nøkkelen-fra-trinn-1
    WORKER_NAME=Eskils PC
-   OLLAMA_MODEL=qwen2.5vl:7b
+   OLLAMA_MODEL=qwen3.5:9b
    ```
 
    `.env` står allerede i `.gitignore` og blir aldri sjekket inn.
@@ -79,9 +79,9 @@ Vinduet må være åpent så lenge maskinen skal jobbe. Du stopper med Ctrl+C. D
 |---|---|---|
 | `WORKER_NAME` | maskinnavnet | Navnet som vises i appen |
 | `WORKER_HOURS` | hele døgnet | Når maskinen tar imot oppgaver, for eksempel `16-23,0-7` (fra 16:00 til 07:59). Nyttig på en maskin som også brukes til annet arbeid |
-| `OLLAMA_MODEL` | `qwen2.5vl:7b` | Modellen som leser bildene |
+| `OLLAMA_MODEL` | `qwen3.5:9b` | Modellen som leser bildene |
 | `OLLAMA_TEXT_MODEL` | som `OLLAMA_MODEL` | Modellen for ren tekst (retting og kort) |
-| `OLLAMA_BOX_UNITS` | `pixels` | `thousandths` for modeller som oppgir figurbokser i tusendeler (for eksempel Qwen3-VL) |
+| `OLLAMA_BOX_UNITS` | `thousandths` | Hvordan modellen oppgir figurbokser. `pixels` for Qwen2.5-VL, `thousandths-yx` hvis y kommer først |
 
 De andre `OLLAMA_`-innstillingene står i README.
 

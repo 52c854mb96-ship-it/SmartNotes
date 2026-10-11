@@ -7,7 +7,9 @@ import { loadConfig, type OllamaConfig } from '../src/config.js';
 import { ConversionError } from '../src/errors.js';
 import type { ConvertRequest } from '../src/pipeline/ai.js';
 import { AnthropicClaude, FakeClaude } from '../src/pipeline/claude.js';
-import { OllamaAi, ollamaError, scaleFigures, stripThinking } from '../src/pipeline/ollama.js';
+import { OllamaAi, mergeParts, ollamaError, scaleFigures, stripThinking } from '../src/pipeline/ollama.js';
+import { supportsServerFallback } from '../src/pipeline/claude.js';
+import { parseMeta } from '../src/pipeline/parse.js';
 import { RoutedAi, aiConfigured, createAi, describeAi } from '../src/pipeline/providers.js';
 import { getProfile } from '../src/profiles/index.js';
 
@@ -22,6 +24,7 @@ const CFG: OllamaConfig = {
   maxTokens: 8192,
   timeoutMs: 60_000,
   boxUnits: 'pixels',
+  pagesPerCall: 0,
   keepAlive: '10m',
 };
 
@@ -237,14 +240,69 @@ describe('OllamaAi', () => {
     expect(calls[1]!.body.think).toBeUndefined();
   });
 
+  it('konverterer én side om gangen og setter delene sammen', async () => {
+    const part = (n: number) =>
+      `<metadata>{"title":${n === 1 ? 'null' : '"Fart"'},"chapter":"k1","section":null,"new_chapter":null,"date":null,` +
+      `"figures":[{"id":"fig1","page":1,"box":[100,100,500,500]}],"remarks":["Merknad ${n}"]}</metadata>` +
+      `<latex>\\section*{Del ${n}}\n\\originalfigur[0.5]{fig1}{Figur ${n}}</latex>`;
+    let n = 0;
+    const { calls, fetchImpl } = fakeOllama(() => answer(part(++n)));
+    const req = convertRequest();
+    const res = await new OllamaAi({ ...CFG, boxUnits: 'thousandths', pagesPerCall: 1 }, fetchImpl).convert({ ...req, pages: [req.pages[0]!, req.pages[0]!] });
+    expect(calls).toHaveLength(2);
+    expect(calls[0]!.body.messages[1]!.images).toHaveLength(1);
+    expect(calls[0]!.body.messages[1]!.content).toContain('Dette er side 1 av 2');
+    expect(calls[1]!.body.messages[1]!.content).toContain('Dette er side 2 av 2');
+    expect(res.body).toBe('\\section*{Del 1}\n\\originalfigur[0.5]{fig1}{Figur 1}\n\n\\section*{Del 2}\n\\originalfigur[0.5]{fig2}{Figur 2}');
+    expect(res.meta.figures.map((f) => [f.id, f.page])).toEqual([
+      ['fig1', 1],
+      ['fig2', 2],
+    ]);
+    expect(res.meta).toMatchObject({ title: 'Fart', chapter: 'k1', remarks: ['Merknad 1', 'Merknad 2'] });
+    expect(res.usage).toMatchObject({ inputTokens: 8400, outputTokens: 1800 });
+  });
+
+  it('mergeParts: figurer som ikke er i metadata, får også nye navn', () => {
+    const usage = { kind: 'convert' as const, model: 'm', inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 };
+    const meta = { title: null, chapter: null, section: null, newChapter: null, date: null, figures: [], remarks: [] };
+    const merged = mergeParts(
+      [
+        { meta: { ...meta, figures: [{ id: 'a', page: 2, box: [0, 0, 1, 1] }] }, body: '\\originalfigur{a}{A} \\originalfigur{b}{B}', usage },
+        { meta: { ...meta, date: '2026-10-11' }, body: '\\originalfigur [0.4] {a}{C}', usage },
+      ],
+      4,
+      2,
+    );
+    expect(merged.body).toBe('\\originalfigur{fig1}{A} \\originalfigur{fig2}{B}\n\n\\originalfigur [0.4] {fig3}{C}');
+    expect(merged.meta.figures).toEqual([{ id: 'fig1', page: 2, box: [0, 0, 1, 1] }]);
+    expect(merged.meta.date).toBe('2026-10-11');
+    expect(merged.usage.inputTokens).toBe(2);
+  });
+
   it('hjelpere: fjerner tenkning og ugyldige bokser', () => {
     expect(stripThinking('<think>\nhmm\n</think>\n\nSvar')).toBe('Svar');
     const page = { sent: { width: 100, height: 100 }, page: { width: 200, height: 200 } };
     expect(scaleFigures([{ id: 'a', page: 1, box: [50, 50, 10, 10] }], [page], 'pixels')).toEqual([{ id: 'a', page: 1, box: [20, 20, 100, 100] }]);
     expect(scaleFigures([{ id: 'b', page: 2, box: [0, 0, 10, 10] }], [page], 'pixels')).toEqual([]);
     expect(scaleFigures([{ id: 'c', page: 1, box: [5, 5, 5, 50] }], [page], 'pixels')).toEqual([]);
+    // [y0, x0, y1, x1] i tusendeler
+    expect(scaleFigures([{ id: 'e', page: 1, box: [100, 200, 500, 600] }], [page], 'thousandths-yx')).toEqual([{ id: 'e', page: 1, box: [40, 20, 120, 100] }]);
     // Andeler (0–1) forstås uansett innstilling.
     expect(scaleFigures([{ id: 'd', page: 1, box: [0.1, 0.2, 0.5, 0.6] }], [page], 'thousandths')).toEqual([{ id: 'd', page: 1, box: [20, 40, 100, 120] }]);
+  });
+});
+
+describe('små ting for lokale modeller', () => {
+  it('leser figurbokser i Qwens eget format (bbox_2d)', () => {
+    expect(parseMeta('{"figures":[{"id":"fig1","page":1,"bbox_2d":[1,2,3,4]}]}').figures).toEqual([{ id: 'fig1', page: 1, box: [1, 2, 3, 4] }]);
+  });
+  it('sender ikke server-side fallback til Haiku', () => {
+    expect(supportsServerFallback('claude-sonnet-5-5')).toBe(true);
+    expect(supportsServerFallback('claude-haiku-5-5')).toBe(false);
+  });
+  it('standard: Qwen3.5 9B, figurbokser i tusendeler, én side per kall', () => {
+    const c = loadConfig({ ...process.env, NODE_ENV: 'test', APP_PASSWORD: 'x' });
+    expect(c.ollama).toMatchObject({ model: 'qwen3.5:9b', textModel: 'qwen3.5:9b', boxUnits: 'thousandths', pagesPerCall: 1 });
   });
 });
 

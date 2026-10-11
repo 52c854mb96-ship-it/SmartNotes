@@ -67,9 +67,10 @@ export function scaleFigures(figures: FigureBox[], pages: SentPage[], units: Oll
     if (!p) continue;
     // Noen modeller svarer med andeler (0–1) uansett hva de blir bedt om.
     const fractions = Math.max(...f.box) <= 1;
-    const sx = fractions ? p.page.width : units === 'thousandths' ? p.page.width / 1000 : p.page.width / p.sent.width;
-    const sy = fractions ? p.page.height : units === 'thousandths' ? p.page.height / 1000 : p.page.height / p.sent.height;
-    const [x0, y0, x1, y1] = f.box;
+    const thousandths = units !== 'pixels';
+    const sx = fractions ? p.page.width : thousandths ? p.page.width / 1000 : p.page.width / p.sent.width;
+    const sy = fractions ? p.page.height : thousandths ? p.page.height / 1000 : p.page.height / p.sent.height;
+    const [x0, y0, x1, y1] = units === 'thousandths-yx' ? [f.box[1], f.box[0], f.box[3], f.box[2]] : f.box;
     const box: FigureBox['box'] = [
       Math.round(Math.min(x0, x1) * sx),
       Math.round(Math.min(y0, y1) * sy),
@@ -96,7 +97,28 @@ export class OllamaAi implements AiService {
     return this.cfg.model;
   }
 
+  /**
+   * Konverterer notatet, `pagesPerCall` sider om gangen (standard én), og setter delene sammen: teksten etter hverandre,
+   * metadata fra den første delen som har den, figurene nummerert fortløpende og merknadene samlet.
+   */
   async convert(req: ConvertRequest): Promise<ConvertResult> {
+    const per = this.cfg.pagesPerCall > 0 ? this.cfg.pagesPerCall : req.pages.length;
+    if (req.pages.length <= per) return this.convertPages(req, 0);
+    const parts: ConvertResult[] = [];
+    try {
+      for (let start = 0; start < req.pages.length; start += per) {
+        parts.push(await this.convertPages({ ...req, pages: req.pages.slice(start, start + per) }, start, req.pages.length));
+      }
+    } catch (err) {
+      // Forbruket fra delene som lyktes, regnes med når en senere del feiler.
+      if (err instanceof ConversionError && parts.length) err.usage = sumUsage([...parts.map((p) => p.usage), ...(err.usage ? [err.usage] : [])]);
+      throw err;
+    }
+    return mergeParts(parts, req.pages.length, per);
+  }
+
+  /** Én forespørsel med sidene i `req.pages`. `offset` og `total` sier hvor i notatet de hører hjemme. */
+  private async convertPages(req: ConvertRequest, offset: number, total = req.pages.length): Promise<ConvertResult> {
     const pages: SentPage[] = [];
     const images: string[] = [];
     for (const p of req.pages) {
@@ -106,12 +128,18 @@ export class OllamaAi implements AiService {
     }
     const sizes = pages.map((p, i) => `Side ${i + 1}: ${p.sent.width}×${p.sent.height} piksler`).join('\n');
     const boxes =
-      this.cfg.boxUnits === 'thousandths'
-        ? 'Oppgi "box" for figurer i tusendeler (0–1000) av sidens bredde og høyde, ikke i piksler.'
-        : 'Oppgi "box" for figurer i piksler i bildet av siden, med størrelsene over.';
+      this.cfg.boxUnits === 'pixels'
+        ? 'Oppgi "box" for figurer i piksler i bildet av siden, med størrelsene over.'
+        : this.cfg.boxUnits === 'thousandths-yx'
+          ? 'Oppgi "box" for figurer som [y0, x0, y1, x1] i tusendeler (0–1000) av sidens høyde og bredde, ikke i piksler.'
+          : 'Oppgi "box" for figurer i tusendeler (0–1000) av sidens bredde og høyde, ikke i piksler.';
+    const part =
+      total > req.pages.length
+        ? `Dette er ${req.pages.length === 1 ? `side ${offset + 1}` : `side ${offset + 1}–${offset + req.pages.length}`} av ${total} i notatet. Konverter bare disse sidene; resten settes sammen etterpå. "page" for figurer gjelder bildene her (1 = det første).`
+        : `Notatet har ${req.pages.length} ${req.pages.length === 1 ? 'side' : 'sider'}.`;
     const user = [
       buildContext(req),
-      `Notatet har ${req.pages.length} ${req.pages.length === 1 ? 'side' : 'sider'}. Bildene kommer i samme rekkefølge:\n${sizes}`,
+      `${part} Bildene kommer i samme rekkefølge:\n${sizes}`,
       boxes,
       'Konverter notatet. Svar med <metadata> og <latex> som beskrevet.',
     ].join('\n\n');
@@ -313,6 +341,54 @@ export class OllamaAi implements AiService {
 /** Omtrent hvor mange tokens et bilde blir hos Qwen-VL-modellene (én per 28 × 28 piksler). */
 export function imageTokens(width: number, height: number): number {
   return Math.ceil(width / 28) * Math.ceil(height / 28);
+}
+
+function sumUsage(usages: Usage[]): Usage {
+  return usages.reduce((a, u) => ({
+    ...a,
+    inputTokens: a.inputTokens + u.inputTokens,
+    outputTokens: a.outputTokens + u.outputTokens,
+    cacheReadTokens: a.cacheReadTokens + u.cacheReadTokens,
+    cacheWriteTokens: a.cacheWriteTokens + u.cacheWriteTokens,
+  }));
+}
+
+const FIGURE_REF = /(\\originalfigur\s*(?:\[[^\]]*\])?\s*\{)([^}]*)(\})/g;
+
+/**
+ * Setter sammen delene av et notat som er konvertert noen sider om gangen. Figur-id-ene gis nye, fortløpende navn
+ * (fig1, fig2, …) i både metadata og LaTeX, så to deler som begge har «fig1», ikke kolliderer.
+ */
+export function mergeParts(parts: ConvertResult[], total: number, per: number): ConvertResult {
+  let next = 1;
+  const bodies: string[] = [];
+  const figures: ConvertResult['meta']['figures'] = [];
+  const remarks: string[] = [];
+  for (const [i, part] of parts.entries()) {
+    const rename = new Map<string, string>();
+    const idFor = (id: string) => {
+      const key = id.trim();
+      if (!rename.has(key)) rename.set(key, `fig${next++}`);
+      return rename.get(key)!;
+    };
+    for (const f of part.meta.figures) figures.push({ ...f, id: idFor(f.id), page: Math.min(total, f.page + i * per) });
+    bodies.push(part.body.replace(FIGURE_REF, (_m, open: string, id: string, close: string) => `${open}${idFor(id)}${close}`).trim());
+    remarks.push(...part.meta.remarks);
+  }
+  const first = <K extends keyof ConvertResult['meta']>(key: K) => parts.map((p) => p.meta[key]).find((v) => v !== null) ?? null;
+  return {
+    meta: {
+      title: first('title') as string | null,
+      chapter: first('chapter') as string | null,
+      section: first('section') as string | null,
+      newChapter: first('newChapter') as ConvertResult['meta']['newChapter'],
+      date: first('date') as string | null,
+      figures,
+      remarks: remarks.slice(0, 20),
+    },
+    body: bodies.join('\n\n'),
+    usage: sumUsage(parts.map((p) => p.usage)),
+  };
 }
 
 function checkDone(reason: string | null): void {
