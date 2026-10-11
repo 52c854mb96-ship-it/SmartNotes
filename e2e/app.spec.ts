@@ -98,3 +98,50 @@ test('logg inn, last opp, les PDF – også uten nett', async ({ page, context }
 
   expect(errors).toEqual([]);
 });
+
+/** Fingeravtrykk av første PDF-side slik den er tegnet, så vi ser hvilket notat PDF-en på skjermen faktisk tilhører. */
+async function pdfFingerprint(page: Page): Promise<string> {
+  return main(page)
+    .locator('.pdf-page canvas')
+    .first()
+    .evaluate((c: HTMLCanvasElement) => {
+      const data = c.toDataURL();
+      let hash = 0;
+      for (let i = 0; i < data.length; i += 1) hash = (Math.imul(31, hash) + data.charCodeAt(i)) | 0;
+      return `${c.width}x${c.height}:${hash}`;
+    });
+}
+
+test('bytte fra ett notat til et annet viser det nye notatet og PDF-en dets', async ({ page }, info) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await login(page);
+
+  const first = `Bytte A ${info.project.name}`;
+  const second = `Bytte B ${info.project.name}`;
+  await upload(page, first, /^Last opp$/);
+  await upload(page, second, /^Last opp$/);
+
+  // Slik ser PDF-en til hvert notat ut når notatet åpnes for seg selv (tittelen står øverst i PDF-en).
+  await openConvertedNote(page, second);
+  const secondUrl = page.url();
+  const secondPdf = await pdfFingerprint(page);
+  await openConvertedNote(page, first);
+  expect(await pdfFingerprint(page)).not.toBe(secondPdf);
+
+  // Bytt notat uten å forlate notatsiden: i notatlisten på PC, med søket på mobil.
+  if (info.project.name === 'desktop') {
+    await page.getByRole('complementary', { name: 'Notatliste' }).getByRole('link', { name: new RegExp(second) }).click();
+  } else {
+    await page.keyboard.press('Control+k');
+    const palette = page.getByRole('dialog', { name: 'Søk' });
+    await palette.getByRole('combobox', { name: 'Søk' }).fill(second);
+    await palette.getByRole('option', { name: new RegExp(second) }).first().click();
+  }
+  await expect(page).toHaveURL(secondUrl);
+  await expect(page.getByRole('heading', { name: second, level: 1 })).toBeVisible();
+  // Før rettelsen ble PDF-en til forrige notat stående når begge hadde samme PDF-versjon.
+  await expect.poll(() => pdfFingerprint(page), SLOW).toBe(secondPdf);
+
+  expect(errors).toEqual([]);
+});
