@@ -7,7 +7,7 @@ import { loadConfig, type OllamaConfig } from '../src/config.js';
 import { ConversionError } from '../src/errors.js';
 import type { ConvertRequest } from '../src/pipeline/ai.js';
 import { AnthropicClaude, FakeClaude } from '../src/pipeline/claude.js';
-import { OllamaAi, mergeParts, ollamaError, repairLatexEscapes, scaleFigures, stripThinking } from '../src/pipeline/ollama.js';
+import { OllamaAi, mergeParts, ollamaError, partPage, repairLatexEscapes, scaleFigures, stripThinking } from '../src/pipeline/ollama.js';
 import { supportsServerFallback } from '../src/pipeline/claude.js';
 import { parseMeta } from '../src/pipeline/parse.js';
 import { RoutedAi, aiConfigured, createAi, describeAi } from '../src/pipeline/providers.js';
@@ -183,12 +183,14 @@ describe('OllamaAi', () => {
   });
 
   it('repairLatexEscapes lar riktig LaTeX og vanlig tekst være', () => {
-    expect(repairLatexEscapes({ a: ['$\\frac{1}{2}$', 'linje\nNeste', 'linje\ni dag', 'linje\neg', 'tab\t1'], n: 3, b: null })).toEqual({
-      a: ['$\\frac{1}{2}$', 'linje\nNeste', 'linje\ni dag', 'linje\neg', 'tab\t1'],
-      n: 3,
-      b: null,
-    });
-    expect(repairLatexEscapes('\f\x08\tx\rho\nabla')).toBe('\\f\\b\\tx\\rho\\nabla');
+    // Utenfor $…$ er linjeskift og tabulator vanlig tekst, også foran ord som «u-land» og «mid».
+    const plain = ['$\\frac{1}{2}$', 'linje\nNeste', 'linje\ni dag', 'Dette er\nu-land', 'linje\nmid', 'tab\t1', '1 u\n= 1,66'];
+    expect(repairLatexEscapes({ a: plain, n: 3, b: null })).toEqual({ a: plain, n: 3, b: null });
+    // Sideskift og backspace alltid, resten bare inne i matematikk.
+    expect(repairLatexEscapes('\f og \x08')).toBe('\\f og \\b');
+    expect(repairLatexEscapes('$\tx + \rho + \nabla + a \ne b + \neg c$ og $$\theta$$')).toBe(
+      '$\\tx + \\rho + \\nabla + a \\ne b + \\neg c$ og $$\\theta$$',
+    );
   });
 
   it('leser innholdsfortegnelse og kompetansemål som JSON', async () => {
@@ -279,6 +281,32 @@ describe('OllamaAi', () => {
     ]);
     expect(res.meta).toMatchObject({ title: 'Fart', chapter: 'k1', remarks: ['Merknad 1', 'Merknad 2'] });
     expect(res.usage).toMatchObject({ inputTokens: 8400, outputTokens: 1800 });
+  });
+
+  it('figurene på side 2 og utover finnes også når modellen oppgir sidenummeret i hele notatet', async () => {
+    let n = 0;
+    const { fetchImpl } = fakeOllama(() => {
+      n += 1;
+      // Modellen svarer «page»: 2 for den andre siden, selv om delen bare har ett bilde.
+      return answer(`<metadata>{"title":"T","figures":[{"id":"fig1","page":${n},"box":[100,100,500,500]}],"remarks":[]}</metadata><latex>\\originalfigur[0.5]{fig1}{F}</latex>`);
+    });
+    const req = convertRequest();
+    const res = await new OllamaAi({ ...CFG, boxUnits: 'thousandths', pagesPerCall: 1 }, fetchImpl).convert({ ...req, pages: [req.pages[0]!, req.pages[0]!] });
+    expect(res.meta.figures.map((f) => [f.id, f.page])).toEqual([
+      ['fig1', 1],
+      ['fig2', 2],
+    ]);
+    expect([partPage(2, 1, 1), partPage(4, 2, 2), partPage(2, 2, 2), partPage(9, 2, 2)]).toEqual([1, 2, 2, 9]);
+  });
+
+  it('rettingen av et langt notat får plass til hele kroppen i svaret', async () => {
+    const { calls, fetchImpl } = fakeOllama(() => answer('<latex>\\section*{Rettet}</latex>'));
+    const body = 'x'.repeat(30_000);
+    await new OllamaAi(CFG, fetchImpl).fix({ profile: getProfile('physics'), body, errorReport: '' });
+    expect(calls[0]!.body.options.num_predict).toBe(11_000);
+    const short = fakeOllama(() => answer('<latex>\\section*{Rettet}</latex>'));
+    await new OllamaAi(CFG, short.fetchImpl).fix({ profile: getProfile('physics'), body: 'kort', errorReport: '' });
+    expect(short.calls[0]!.body.options.num_predict).toBe(8192);
   });
 
   it('mergeParts: figurer som ikke er i metadata, får også nye navn', () => {

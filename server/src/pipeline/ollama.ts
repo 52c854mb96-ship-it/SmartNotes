@@ -151,13 +151,16 @@ export class OllamaAi implements AiService {
     return this.withLocal(res.usage, () => {
       checkDone(res.doneReason);
       const { meta, body } = parseConversion(res.content);
-      return { meta: { ...meta, figures: scaleFigures(meta.figures, pages, this.cfg.boxUnits) }, body, usage: res.usage };
+      const figures = total > req.pages.length ? meta.figures.map((f) => ({ ...f, page: partPage(f.page, offset, req.pages.length) })) : meta.figures;
+      return { meta: { ...meta, figures: scaleFigures(figures, pages, this.cfg.boxUnits) }, body, usage: res.usage };
     });
   }
 
   async fix(req: FixRequest): Promise<{ body: string; usage: Usage }> {
     const user = `${req.profile.fixInstructions}\n\n<compile_errors>\n${req.errorReport}\n</compile_errors>\n\n<latex>\n${req.body}\n</latex>`;
-    const res = await this.chat('fix', this.cfg.textModel, req.profile.systemPrompt, user, { outputTokens: this.cfg.maxTokens });
+    // Rettingen skriver hele kroppen på nytt. Med én side per kall kan et langt notat bli lengre enn OLLAMA_MAX_TOKENS.
+    const outputTokens = Math.max(this.cfg.maxTokens, Math.ceil(req.body.length / 3) + 1_000);
+    const res = await this.chat('fix', this.cfg.textModel, req.profile.systemPrompt, user, { outputTokens });
     return this.withLocal(res.usage, () => {
       checkDone(res.doneReason);
       const body = extractLatex(res.content);
@@ -273,7 +276,7 @@ export class OllamaAi implements AiService {
     const needed = Math.ceil(((system?.length ?? 0) + user.length) / 3) + (opts.imageTokens ?? 0) + (opts.outputTokens ?? this.cfg.maxTokens);
     if (needed > this.cfg.maxCtx) {
       throw new ConversionError(
-        `Notatet er for stort for den lokale AI-en (omtrent ${needed.toLocaleString('nb-NO')} tokens, grensen er ${this.cfg.maxCtx.toLocaleString('nb-NO')}). Del det opp i færre sider, eller øk OLLAMA_MAX_CTX.`,
+        `Dette er for stort for den lokale AI-en (omtrent ${needed.toLocaleString('nb-NO')} tokens, grensen er ${this.cfg.maxCtx.toLocaleString('nb-NO')}). Øk OLLAMA_MAX_CTX på maskinen med Ollama, eller bruk Claude til dette.`,
       );
     }
     const numCtx = Math.max(this.cfg.numCtx, Math.ceil(needed / 2048) * 2048);
@@ -286,7 +289,7 @@ export class OllamaAi implements AiService {
       keep_alive: this.cfg.keepAlive,
       ...(this.cfg.think ? {} : { think: false }),
       ...(opts.schema ? { format: z.toJSONSchema(opts.schema) } : {}),
-      options: { temperature: 0, num_ctx: numCtx, num_predict: this.cfg.maxTokens },
+      options: { temperature: 0, num_ctx: numCtx, num_predict: Math.max(this.cfg.maxTokens, opts.outputTokens ?? 0) },
     };
     let text: string;
     let status: number;
@@ -393,7 +396,7 @@ export function mergeParts(parts: ConvertResult[], total: number, per: number): 
 
 function checkDone(reason: string | null): void {
   if (reason === 'length') {
-    throw new ConversionError('Notatet ble for langt for den lokale AI-en. Del det opp i færre sider per opplasting.');
+    throw new ConversionError('Svaret ble for langt for den lokale AI-en. Øk OLLAMA_MAX_TOKENS på maskinen med Ollama, eller bruk Claude til dette notatet.');
   }
 }
 
@@ -413,27 +416,36 @@ export function ollamaError(status: number, message: string, model: string): Con
 }
 
 /**
- * Kommandoer som begynner på «n», der `\n` i JSON (linjeskift) egentlig var LaTeX. JSON bruker opp n-en, så `\nabla`
- * blir linjeskift + «abla». Listen har resten av navnet. Korte ord som også er vanlige ord (`\ni` = «i», `\neg` = «eg»),
- * er utelatt.
+ * Sidenummeret til en figur i en del av notatet. Instruksen sier at «page» gjelder bildene i delen, men en modell kan
+ * likevel oppgi sidenummeret i hele notatet (side 3 av 5). Er det tydelig, regnes det om.
  */
-const NEWLINE_COMMANDS = /\n(u|eq|abla|otin|leq|geq|leqslant|geqslant|mid|exists|ewline|oindent|olimits|parallel|subseteq|supseteq|cong|sim)(?![A-Za-z])/g;
+export function partPage(page: number, offset: number, count: number): number {
+  if (count === 1) return 1;
+  if (page > count && page - offset >= 1 && page - offset <= count) return page - offset;
+  return page;
+}
+
+/** Matematikk i korttekst: `$…$` og `$$…$$`. */
+const MATH = /\$\$[\s\S]*?\$\$|\$[^$]*\$/g;
 
 /**
  * Retter LaTeX som en liten modell har skrevet feil i JSON. Skriver den `\frac` i stedet for `\\frac`, leser JSON det som
  * sideskift + «rac», og `\theta` blir tabulator + «heta». Ollama tillater disse escape-tegnene, så ingenting feiler,
- * men kortene blir feil. Sideskift og backspace hører aldri hjemme i teksten og gjøres alltid om; tabulator og
- * linjeskift bare foran bokstaver (linjeskift bare foran kjente kommandoer som `\nu` og `\neq`, siden et ekte
- * linjeskift foran et ord er vanlig).
+ * men kortene blir feil. Sideskift og backspace hører aldri hjemme i teksten og gjøres alltid om. Linjeskift,
+ * tabulator og vognretur gjøres om bare inne i `$…$` og foran bokstaver (`\nu`, `\neq`, `\rho`), siden et ekte
+ * linjeskift foran et ord er vanlig i vanlig tekst.
  */
 export function repairLatexEscapes<T>(value: T): T {
   if (typeof value === 'string') {
     return value
       .replace(/\f/g, '\\f')
       .replace(/\x08/g, '\\b')
-      .replace(/\t(?=[A-Za-z])/g, '\\t')
-      .replace(/\r(?=[A-Za-z])/g, '\\r')
-      .replace(NEWLINE_COMMANDS, '\\n$1') as T;
+      .replace(MATH, (math) =>
+        math
+          .replace(/\n(?=[A-Za-z])/g, '\\n')
+          .replace(/\t(?=[A-Za-z])/g, '\\t')
+          .replace(/\r(?=[A-Za-z])/g, '\\r'),
+      ) as T;
   }
   if (Array.isArray(value)) return value.map((v) => repairLatexEscapes(v)) as T;
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, repairLatexEscapes(v)])) as T;

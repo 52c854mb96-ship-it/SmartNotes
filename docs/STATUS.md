@@ -59,7 +59,7 @@ Alt ble bygget 4.–11. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#13](https://github.com/52c854mb96-ship-it/SmartNotes/pull/13) | Hjemmemaskin: kø på serveren og klienten `npm run homeworker`, med rettelser etter en sikkerhetsgjennomgang. Av som standard |
 | [#14](https://github.com/52c854mb96-ship-it/SmartNotes/pull/14) | Lokal AI: Qwen3.5 som standard, én side per kall, reparasjon av LaTeX i JSON, riktig cache-pris for Sonnet 5.5, og denne fila |
 
-**Tester:** omtrent 2 350 enhetstester (141 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 16 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk og at riktig PDF vises når man bytter notat) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
+**Tester:** omtrent 2 350 enhetstester (144 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 16 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk og at riktig PDF vises når man bytter notat) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 
