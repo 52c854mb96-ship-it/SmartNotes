@@ -20,8 +20,12 @@ export interface OllamaConfig {
   textModel: string;
   /** Lengste kant på sidebildene som sendes (piksler). */
   imageMaxEdge: number;
-  /** Kontekstvindu i tokens (num_ctx). */
+  /** Minste kontekstvindu i tokens (num_ctx). Økes per kall når notatet trenger mer, opp til `maxCtx`. */
   numCtx: number;
+  /** Største kontekstvindu. Større vindu bruker mer minne på skjermkortet. */
+  maxCtx: number;
+  /** La modellen tenke før den svarer (for modeller som kan det). Av som standard: tenkning tar tid og plass. */
+  think: boolean;
   /** Maks antall tokens i svaret (num_predict). */
   maxTokens: number;
   timeoutMs: number;
@@ -118,7 +122,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     flashcards: provider('AI_PROVIDER_FLASHCARDS', defaultProvider),
     toc: provider('AI_PROVIDER_TOC', defaultProvider),
   };
-  const boxUnits = env.OLLAMA_BOX_UNITS?.trim() || 'pixels';
+  const boxUnits = env.OLLAMA_BOX_UNITS?.trim().toLowerCase() || 'pixels';
   if (boxUnits !== 'pixels' && boxUnits !== 'thousandths') throw new Error('OLLAMA_BOX_UNITS må være «pixels» eller «thousandths».');
   const ollamaModel = env.OLLAMA_MODEL?.trim() || 'qwen2.5vl:7b';
 
@@ -150,6 +154,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       textModel: env.OLLAMA_TEXT_MODEL?.trim() || ollamaModel,
       imageMaxEdge: int(env.OLLAMA_IMAGE_MAX_EDGE, 1600),
       numCtx: int(env.OLLAMA_NUM_CTX, 16_384),
+      maxCtx: Math.max(int(env.OLLAMA_NUM_CTX, 16_384), int(env.OLLAMA_MAX_CTX, 32_768)),
+      think: bool(env.OLLAMA_THINK, false),
       maxTokens: int(env.OLLAMA_MAX_TOKENS, 8192),
       timeoutMs: int(env.OLLAMA_TIMEOUT_MS, 15 * 60_000),
       boxUnits,

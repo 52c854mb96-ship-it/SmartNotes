@@ -114,9 +114,11 @@ Appen kan bruke en lokal modell via [Ollama](https://ollama.com) i stedet for Cl
 | `OLLAMA_MODEL` | `qwen2.5vl:7b` | Modellen som leser bilder (må støtte bilder) |
 | `OLLAMA_TEXT_MODEL` | som `OLLAMA_MODEL` | Modellen for ren tekst: retting av LaTeX, kortstokker og kompetansemål |
 | `OLLAMA_IMAGE_MAX_EDGE` | `1600` | Lengste kant på sidebildene som sendes (piksler). Mindre er raskere, men gir dårligere lesing |
-| `OLLAMA_NUM_CTX` | `16384` | Kontekstvindu i tokens. Må ha plass til instruksene, bildene og svaret |
+| `OLLAMA_NUM_CTX` | `16384` | Minste kontekstvindu i tokens. Appen gjør det større for store notater, opp til `OLLAMA_MAX_CTX` |
+| `OLLAMA_MAX_CTX` | `32768` | Største kontekstvindu. Større vindu bruker mer minne på skjermkortet; er notatet for stort, får du beskjed om å dele det opp |
+| `OLLAMA_THINK` | `false` | `true` lar modeller som kan tenke, tenke før de svarer. Det tar tid og plass, så det er av som standard |
 | `OLLAMA_MAX_TOKENS` | `8192` | Maks lengde på svaret |
-| `OLLAMA_TIMEOUT_MS` | `900000` | Hvor lenge serveren venter på svar (15 minutter) |
+| `OLLAMA_TIMEOUT_MS` | `900000` | Hvor lenge serveren venter på svar (15 minutter). Svaret strømmes, så lange svar avbrytes ikke underveis |
 | `OLLAMA_BOX_UNITS` | `pixels` | Hvordan modellen oppgir figurbokser: `pixels` (f.eks. Qwen2.5-VL) eller `thousandths`, tusendeler 0–1000 (f.eks. Qwen3-VL) |
 | `OLLAMA_KEEP_ALIVE` | `10m` | Hvor lenge Ollama holder modellen i minnet etter et kall |
 

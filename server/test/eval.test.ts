@@ -20,7 +20,13 @@ beforeAll(async () => {
   fs.writeFileSync(path.join(input, 'Notat A', 'side 2.png'), await page('Side to'));
   fs.writeFileSync(path.join(input, 'enkelt.png'), await page('Enkelt'));
   fs.writeFileSync(path.join(input, 'notater.txt'), 'ikke et bilde');
+  // En mappe inne i et notat hoppes over, og en ødelagt fil stopper ikke resten av målingen.
+  fs.mkdirSync(path.join(input, 'Notat A', 'gamle'));
+  fs.writeFileSync(path.join(input, 'ødelagt.jpg'), Buffer.from([0xff, 0xd8, 0xff, 0x00, 0x01, 0x02]));
 });
+
+/** Mappen for en modell: notatnummer, så modellnummer, så navnet. */
+const fake_dir_ok = (dir: string) => /^01-enkelt[\\/]1-fake$/.test(dir);
 
 describe('måleverktøyet', () => {
   it('leser modellnavn med leverandør og valg', () => {
@@ -50,6 +56,7 @@ describe('måleverktøyet', () => {
     expect(notes.map((n) => [n.name, n.files.map((f) => path.basename(f))])).toEqual([
       ['enkelt', ['enkelt.png']],
       ['Notat A', ['side 2.png', 'side 10.png']],
+      ['ødelagt', ['ødelagt.jpg']],
     ]);
   });
 
@@ -70,8 +77,10 @@ describe('måleverktøyet', () => {
     });
 
     expect(results.reference).toBe('fake');
-    expect(results.notes).toHaveLength(2);
-    const [single, multi] = results.notes;
+    expect(results.notes).toHaveLength(3);
+    const [single, multi, broken] = results.notes;
+    expect(broken!.runs.every((r) => !r.ok && r.error?.startsWith('Kunne ikke lese sidene'))).toBe(true);
+    expect(fake_dir_ok(single!.runs[0]!.dir)).toBe(true);
     expect(multi!.pages).toHaveLength(2);
     const fake = single!.runs.find((r) => r.model === 'fake')!;
     expect(fake).toMatchObject({ ok: true, compiled: true, costNok: 0, similarity: null, figuresRequested: 1, figuresCropped: 1 });
@@ -89,8 +98,10 @@ describe('måleverktøyet', () => {
     expect(fs.existsSync(path.join(out, 'resultater.json'))).toBe(true);
 
     const s = summarize(results);
-    expect(s.find((x) => x.model === 'fake')).toMatchObject({ notes: 2, ok: 2, compiled: 2, pages: 3, costNok: 0 });
-    expect(s.find((x) => x.model === 'ollama:finnes-ikke')).toMatchObject({ notes: 2, ok: 0 });
+    expect(s.find((x) => x.model === 'fake')).toMatchObject({ notes: 3, ok: 2, compiled: 2, pages: 3, costNok: 0 });
+    expect(s.find((x) => x.model === 'ollama:finnes-ikke')).toMatchObject({ notes: 3, ok: 0 });
+    const saved = JSON.parse(fs.readFileSync(path.join(out, 'resultater.json'), 'utf8')) as EvalResults;
+    expect(saved.notes).toHaveLength(3);
 
     const file = await writeReport(out, results);
     const html = fs.readFileSync(file, 'utf8');

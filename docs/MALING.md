@@ -56,13 +56,13 @@ docker run --rm -v "$PWD/maling:/data" -e OLLAMA_URL=http://host.docker.internal
   node server/dist/cli/eval.js /data/notater --models "ollama:qwen2.5vl:7b,ollama:qwen3-vl:8b@thousandths" --out /data/resultat
 ```
 
-Legg notatmappen i `maling/notater` først. Rapporten havner i `maling/resultat/rapport.html`. På Windows (PowerShell) skriver du `${PWD}` i stedet for `$PWD`.
+Legg notatmappen i `maling/notater` først. Rapporten havner i `maling/resultat/rapport.html`. På Windows (PowerShell) skriver du `${PWD}` i stedet for `$PWD`. På Linux legger du til `--add-host=host.docker.internal:host-gateway`.
 
 Får du «Fikk ikke kontakt med den lokale AI-en», må Ollama lytte på alle adresser. Avslutt Ollama, sett miljøvariabelen `OLLAMA_HOST` til `0.0.0.0` og start Ollama igjen.
 
 ### Uten Docker
 
-Installer LaTeX først: MacTeX på Mac ([tug.org/mactex](https://tug.org/mactex/)) eller TeX Live på Windows ([tug.org/texlive](https://tug.org/texlive/)). Kjør så fra mappen der repoet ligger:
+Installer LaTeX først: MacTeX på Mac ([tug.org/mactex](https://tug.org/mactex/)) eller TeX Live på Windows ([tug.org/texlive](https://tug.org/texlive/)). For PDF-er trenger du også poppler (`brew install poppler` på Mac). På Windows er det enklest å bruke bilder, eller Docker. Kjør så fra mappen der repoet ligger:
 
 ```bash
 npm ci
@@ -87,7 +87,7 @@ npm run eval --workspace server -- notater --flashcards \
   --models "anthropic:claude-sonnet-5-5,anthropic:claude-haiku-5-5,ollama:qwen2.5vl:7b,ollama:qwen3-vl:8b@thousandths"
 ```
 
-20 sider koster omtrent 5 kr med Sonnet 5.5 og rundt 25 øre med Haiku 5.5 (beregnet, ikke målt).
+20 sider koster omtrent 5 kr med Sonnet 5.5 og rundt 25 øre med Haiku 5.5 (beregnet, ikke målt). Det er ikke bekreftet at Haiku 5.5 leser bilder i like høy oppløsning som Sonnet 5.5, så figurene kan bli klippet litt feil med Haiku. Se derfor særlig på figurene.
 
 ## Valg
 

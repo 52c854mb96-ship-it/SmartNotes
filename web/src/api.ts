@@ -222,15 +222,16 @@ export const api = {
     json<{ chapters: Chapter[] }>('POST', `/subjects/${enc(subjectId)}/chapters/bulk`, {
       json: { chapters } satisfies BulkChaptersRequest,
     }),
+  // Med lokal AI kan koblingen til kompetansemål og lesingen av bilder ta flere minutter.
   parseChapters: (subjectId: string, text: string) =>
-    json<ChapterPreviewResponse>('POST', `/subjects/${enc(subjectId)}/chapters/parse`, { json: { text } }),
+    json<ChapterPreviewResponse>('POST', `/subjects/${enc(subjectId)}/chapters/parse`, { json: { text }, timeoutMs: 300_000 }),
   extractChapters: (subjectId: string, files: { blob: StoredBytes; name: string; type: string }[], signal?: AbortSignal) => {
     const form = new FormData();
     for (const f of files) form.append('files', asBlob(f.blob, f.type), f.name);
     return json<ChapterPreviewResponse>('POST', `/subjects/${enc(subjectId)}/chapters/extract`, {
       form,
       signal,
-      timeoutMs: 180_000,
+      timeoutMs: 600_000,
     });
   },
   reorderChapters: (subjectId: string, ids: string[]) =>

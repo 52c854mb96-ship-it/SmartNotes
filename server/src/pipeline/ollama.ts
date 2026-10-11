@@ -14,7 +14,7 @@ import type { OllamaConfig } from '../config.js';
 import { ConversionError } from '../errors.js';
 import { FLASHCARD_SYSTEM_PROMPT, buildFlashcardPrompt, flashcardSchema, type FlashcardRequest, type RawFlashcard } from '../flashcards/prompt.js';
 import type { Profile } from '../profiles/index.js';
-import { withUsage, type Usage } from '../usage.js';
+import { withUsage, zeroUsage, type Usage } from '../usage.js';
 import { TOC_AIMS_PROMPT, buildContext, tocSchema, type AiService, type ConvertRequest, type ConvertResult, type FixRequest } from './ai.js';
 import type { FigureBox } from './images.js';
 import { extractLatex, parseConversion } from './parse.js';
@@ -65,8 +65,10 @@ export function scaleFigures(figures: FigureBox[], pages: SentPage[], units: Oll
   for (const f of figures) {
     const p = pages[f.page - 1];
     if (!p) continue;
-    const sx = units === 'thousandths' ? p.page.width / 1000 : p.page.width / p.sent.width;
-    const sy = units === 'thousandths' ? p.page.height / 1000 : p.page.height / p.sent.height;
+    // Noen modeller svarer med andeler (0–1) uansett hva de blir bedt om.
+    const fractions = Math.max(...f.box) <= 1;
+    const sx = fractions ? p.page.width : units === 'thousandths' ? p.page.width / 1000 : p.page.width / p.sent.width;
+    const sy = fractions ? p.page.height : units === 'thousandths' ? p.page.height / 1000 : p.page.height / p.sent.height;
     const [x0, y0, x1, y1] = f.box;
     const box: FigureBox['box'] = [
       Math.round(Math.min(x0, x1) * sx),
@@ -113,7 +115,11 @@ export class OllamaAi implements AiService {
       boxes,
       'Konverter notatet. Svar med <metadata> og <latex> som beskrevet.',
     ].join('\n\n');
-    const res = await this.chat('convert', this.cfg.model, req.profile.systemPrompt, user, { images });
+    const res = await this.chat('convert', this.cfg.model, req.profile.systemPrompt, user, {
+      images,
+      imageTokens: pages.reduce((sum, p) => sum + imageTokens(p.sent.width, p.sent.height), 0),
+      outputTokens: Math.min(this.cfg.maxTokens, 3_000 * pages.length),
+    });
     return this.withLocal(res.usage, () => {
       checkDone(res.doneReason);
       const { meta, body } = parseConversion(res.content);
@@ -123,7 +129,7 @@ export class OllamaAi implements AiService {
 
   async fix(req: FixRequest): Promise<{ body: string; usage: Usage }> {
     const user = `${req.profile.fixInstructions}\n\n<compile_errors>\n${req.errorReport}\n</compile_errors>\n\n<latex>\n${req.body}\n</latex>`;
-    const res = await this.chat('fix', this.cfg.textModel, req.profile.systemPrompt, user);
+    const res = await this.chat('fix', this.cfg.textModel, req.profile.systemPrompt, user, { outputTokens: this.cfg.maxTokens });
     return this.withLocal(res.usage, () => {
       checkDone(res.doneReason);
       const body = extractLatex(res.content);
@@ -139,6 +145,8 @@ export class OllamaAi implements AiService {
   ): Promise<{ chapters: ChapterInput[]; usage: Usage }> {
     const res = await this.chat('toc', this.cfg.model, null, profile.tocPrompt + (aims.length ? TOC_AIMS_PROMPT(aims) : ''), {
       images: await Promise.all(images.map(async (img) => (await this.shrink(img.data)).data.toString('base64'))),
+      imageTokens: images.length * imageTokens(this.cfg.imageMaxEdge, this.cfg.imageMaxEdge),
+      outputTokens: this.cfg.maxTokens,
       schema: tocSchema,
     });
     return this.withLocal(res.usage, () => {
@@ -183,13 +191,18 @@ export class OllamaAi implements AiService {
     }
   }
 
-  /** Sidebildet skalert ned til `imageMaxEdge` på lengste kant (aldri opp). */
+  /**
+   * Sidebildet skalert ned til `imageMaxEdge` på lengste kant (aldri opp). Med figurbokser i piksler rundes målene til
+   * hele 28-piksler, slik Qwen-VL-modellene deler opp bildet; da endrer ikke modellen størrelsen selv, og boksene den
+   * oppgir, gjelder bildet vi sendte.
+   */
   private async pageImage(file: string, width: number, height: number): Promise<{ data: Buffer; width: number; height: number }> {
     const scale = Math.min(1, this.cfg.imageMaxEdge / Math.max(width, height));
     const data = await fsp.readFile(file);
-    if (scale >= 1) return { data, width, height };
-    const w = Math.max(1, Math.round(width * scale));
-    const h = Math.max(1, Math.round(height * scale));
+    const snap = (n: number) => (this.cfg.boxUnits === 'pixels' ? Math.max(28, Math.floor(n / 28) * 28) : Math.max(1, Math.round(n)));
+    const w = snap(width * scale);
+    const h = snap(height * scale);
+    if (w === width && h === height) return { data, width, height };
     return { data: await sharp(data).resize(w, h, { fit: 'fill' }).jpeg({ quality: 90 }).toBuffer(), width: w, height: h };
   }
 
@@ -206,54 +219,100 @@ export class OllamaAi implements AiService {
     model: string,
     system: string | null,
     user: string,
-    opts: { images?: string[]; schema?: z.ZodType } = {},
+    opts: { images?: string[]; schema?: z.ZodType; imageTokens?: number; outputTokens?: number } = {},
+  ): Promise<ChatResult> {
+    try {
+      return await this.request(kind, model, system, user, opts);
+    } catch (err) {
+      // Feil før modellen svarte, logges med riktig modell (tekstmodellen for retting, kort og kompetansemål).
+      if (err instanceof ConversionError && !err.usage) err.usage = zeroUsage(kind, model);
+      throw err;
+    }
+  }
+
+  private async request(
+    kind: UsageKind,
+    model: string,
+    system: string | null,
+    user: string,
+    opts: { images?: string[]; schema?: z.ZodType; imageTokens?: number; outputTokens?: number },
   ): Promise<ChatResult> {
     const messages: { role: string; content: string; images?: string[] }[] = [];
     if (system) messages.push({ role: 'system', content: system });
     messages.push({ role: 'user', content: user, ...(opts.images?.length ? { images: opts.images } : {}) });
+
+    // Kontekstvinduet må ha plass til instruksene, bildene og svaret. Grovt anslag: 3 tegn per token.
+    const needed = Math.ceil(((system?.length ?? 0) + user.length) / 3) + (opts.imageTokens ?? 0) + (opts.outputTokens ?? this.cfg.maxTokens);
+    if (needed > this.cfg.maxCtx) {
+      throw new ConversionError(
+        `Notatet er for stort for den lokale AI-en (omtrent ${needed.toLocaleString('nb-NO')} tokens, grensen er ${this.cfg.maxCtx.toLocaleString('nb-NO')}). Del det opp i færre sider, eller øk OLLAMA_MAX_CTX.`,
+      );
+    }
+    const numCtx = Math.max(this.cfg.numCtx, Math.ceil(needed / 2048) * 2048);
+
     const body = {
       model,
       messages,
-      stream: false,
+      // Strømming: svaret begynner å komme med en gang, så Node ikke gir opp etter 5 minutter uten svar.
+      stream: true,
       keep_alive: this.cfg.keepAlive,
+      ...(this.cfg.think ? {} : { think: false }),
       ...(opts.schema ? { format: z.toJSONSchema(opts.schema) } : {}),
-      options: { temperature: 0, num_ctx: this.cfg.numCtx, num_predict: this.cfg.maxTokens },
+      options: { temperature: 0, num_ctx: numCtx, num_predict: this.cfg.maxTokens },
     };
-    let res: Response;
+    let text: string;
+    let status: number;
     try {
-      res = await this.fetchImpl(`${this.cfg.url}/api/chat`, {
+      const res = await this.fetchImpl(`${this.cfg.url}/api/chat`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(this.cfg.timeoutMs),
       });
+      status = res.status;
+      text = await res.text();
     } catch (err) {
-      if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+      const code = (err as { cause?: { code?: string } }).cause?.code ?? '';
+      if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError' || /TIMEOUT/.test(code))) {
         throw new ConversionError('Den lokale AI-en brukte for lang tid. Prøv med færre sider, eller en mindre modell.');
       }
       throw new ConversionError(`Fikk ikke kontakt med den lokale AI-en (Ollama på ${this.cfg.url}). Prøver igjen om litt.`, true);
     }
-    const text = await res.text();
-    let data: OllamaChatResponse & { error?: string };
-    try {
-      data = JSON.parse(text) as OllamaChatResponse & { error?: string };
-    } catch {
-      throw new ConversionError(`Uventet svar fra Ollama (HTTP ${res.status}).`, res.status >= 500);
+    // Svaret er én JSON-linje per bit (NDJSON). Feil kommer som {"error": "..."}, også midt i strømmen.
+    let content = '';
+    let last: OllamaChatResponse = {};
+    let error: string | null = null;
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      let chunk: OllamaChatResponse & { error?: string };
+      try {
+        chunk = JSON.parse(line) as OllamaChatResponse & { error?: string };
+      } catch {
+        throw new ConversionError(`Uventet svar fra Ollama (HTTP ${status}).`, status >= 500);
+      }
+      if (chunk.error) error = chunk.error;
+      content += chunk.message?.content ?? '';
+      last = chunk;
     }
-    if (!res.ok) throw ollamaError(res.status, data.error ?? '', model);
+    if (error !== null || status < 200 || status >= 300) throw ollamaError(status, error ?? '', model);
     return {
-      content: stripThinking(data.message?.content ?? ''),
-      doneReason: data.done_reason ?? null,
+      content: stripThinking(content),
+      doneReason: last.done_reason ?? null,
       usage: {
         kind,
-        model: data.model || model,
-        inputTokens: data.prompt_eval_count ?? 0,
-        outputTokens: data.eval_count ?? 0,
+        model: last.model || model,
+        inputTokens: last.prompt_eval_count ?? 0,
+        outputTokens: last.eval_count ?? 0,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
       },
     };
   }
+}
+
+/** Omtrent hvor mange tokens et bilde blir hos Qwen-VL-modellene (én per 28 × 28 piksler). */
+export function imageTokens(width: number, height: number): number {
+  return Math.ceil(width / 28) * Math.ceil(height / 28);
 }
 
 function checkDone(reason: string | null): void {
@@ -264,13 +323,16 @@ function checkDone(reason: string | null): void {
 
 /** Oversetter feil fra Ollama til norske meldinger. Manglende modell og for lite minne er ikke midlertidige. */
 export function ollamaError(status: number, message: string, model: string): ConversionError {
-  if (status === 404 || /not found|pull/i.test(message)) {
+  if (/model ['"]?[^'"]*['"]? not found|try pulling/i.test(message) || (status === 404 && /model/i.test(message))) {
     return new ConversionError(`Modellen «${model}» finnes ikke i Ollama. Last den ned med: ollama pull ${model}`);
   }
-  if (/memory|out of memory|cuda|vram/i.test(message)) {
+  if (/memory|cuda|vram/i.test(message)) {
     return new ConversionError(`Den lokale maskinen har ikke nok minne til modellen «${model}». Velg en mindre modell eller færre sider.`);
   }
-  if (status >= 500) return new ConversionError(`Feil i den lokale AI-en (Ollama ${status}). Prøver igjen om litt.`, true);
+  if (status === 429) return new ConversionError('Den lokale AI-en er opptatt. Prøver igjen om litt.', true);
+  if (status === 404) return new ConversionError(`Fant ikke Ollama på adressen i OLLAMA_URL (HTTP 404).`);
+  // En feil midt i et strømmet svar kommer med HTTP 200: modellen stoppet underveis.
+  if (status >= 500 || (status >= 200 && status < 300)) return new ConversionError(`Feil i den lokale AI-en (Ollama: ${message || status}). Prøver igjen om litt.`, true);
   return new ConversionError(`Den lokale AI-en avviste forespørselen: ${message || `HTTP ${status}`}`);
 }
 

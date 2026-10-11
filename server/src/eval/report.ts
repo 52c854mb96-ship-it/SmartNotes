@@ -52,7 +52,6 @@ export function summarize(results: EvalResults): ModelSummary[] {
 }
 
 function runCard(results: EvalResults, noteName: string, pages: number, r: ModelRun, body: string | null): string {
-  const key = `${noteName}|${r.model}`;
   const stats = r.ok
     ? [
         r.compiled ? 'PDF uten feil' : 'Kompilerte ikke',
@@ -67,7 +66,7 @@ function runCard(results: EvalResults, noteName: string, pages: number, r: Model
   const pdf = r.ok && r.compiled ? `${href(r.dir)}/main.pdf` : null;
   const scores = CRITERIA.map(
     ([id, label]) =>
-      `<label>${label} <select data-key="${esc(key)}" data-criterion="${id}"><option value="">–</option>${[1, 2, 3, 4, 5]
+      `<label>${label} <select data-note="${esc(noteName)}" data-model="${esc(r.model)}" data-criterion="${id}"><option value="">–</option>${[1, 2, 3, 4, 5]
         .map((v) => `<option>${v}</option>`)
         .join('')}</select></label>`,
   ).join('');
@@ -179,22 +178,23 @@ ${notes}
     get(k) { try { return localStorage.getItem(prefix + k) || ''; } catch { return ''; } },
     set(k, v) { try { v ? localStorage.setItem(prefix + k, v) : localStorage.removeItem(prefix + k); } catch {} },
   };
-  const selects = [...document.querySelectorAll('select[data-key]')];
+  const selects = [...document.querySelectorAll('select[data-note]')];
+  const keyOf = (s) => JSON.stringify([s.dataset.note, s.dataset.model, s.dataset.criterion]);
   const update = () => {
     for (const row of document.querySelectorAll('tr[data-model]')) {
       const model = row.dataset.model;
-      const values = selects.filter((s) => s.dataset.key.endsWith('|' + model) && s.dataset.criterion === 'helhet' && s.value).map((s) => Number(s.value));
+      const values = selects.filter((s) => s.dataset.model === model && s.dataset.criterion === 'helhet' && s.value).map((s) => Number(s.value));
       row.querySelector('.avg').textContent = values.length ? (values.reduce((a, b) => a + b, 0) / values.length).toLocaleString('nb-NO', { maximumFractionDigits: 1 }) + ' (' + values.length + ')' : '–';
     }
   };
   for (const s of selects) {
-    s.value = store.get(s.dataset.key + '|' + s.dataset.criterion);
-    s.addEventListener('change', () => { store.set(s.dataset.key + '|' + s.dataset.criterion, s.value); update(); });
+    s.value = store.get(keyOf(s));
+    s.addEventListener('change', () => { store.set(keyOf(s), s.value); update(); });
   }
   update();
   document.getElementById('csv').addEventListener('click', () => {
     const rows = [['notat', 'modell', 'kriterium', 'karakter']];
-    for (const s of selects) if (s.value) { const [note, model] = s.dataset.key.split('|'); rows.push([note, model, s.dataset.criterion, s.value]); }
+    for (const s of selects) if (s.value) rows.push([s.dataset.note, s.dataset.model, s.dataset.criterion, s.value]);
     const csv = rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(';')).join('\\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob(['\\ufeff' + csv], { type: 'text/csv' }));

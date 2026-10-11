@@ -17,6 +17,7 @@ import { cropFigure, preparePages, sniffKind, type PageImage } from '../pipeline
 import { assembleNoteDoc, compileLatex, errorExcerpt, latexToText, replaceMissingFigures, sanitizeBody } from '../pipeline/latex.js';
 import { OllamaAi } from '../pipeline/ollama.js';
 import { getProfile, readPreamble } from '../profiles/index.js';
+import { ConversionError } from '../errors.js';
 import { costUsd, type Usage } from '../usage.js';
 
 export interface ModelSpec {
@@ -106,7 +107,7 @@ export interface EvalNote {
  * én side (eller en PDF med flere sider). Andre filtyper hoppes over.
  */
 export async function findNotes(dir: string): Promise<EvalNote[]> {
-  const entries = (await fsp.readdir(dir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name, 'nb'));
+  const entries = (await fsp.readdir(dir, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name, 'nb', { numeric: true }));
   const notes: EvalNote[] = [];
   const isNoteFile = async (file: string) => {
     const fh = await fsp.open(file, 'r');
@@ -122,7 +123,10 @@ export async function findNotes(dir: string): Promise<EvalNote[]> {
     if (e.name.startsWith('.')) continue;
     const full = path.join(dir, e.name);
     if (e.isDirectory()) {
-      const files = (await fsp.readdir(full)).filter((f) => !f.startsWith('.')).sort((a, b) => a.localeCompare(b, 'nb', { numeric: true }));
+      const files = (await fsp.readdir(full, { withFileTypes: true }))
+        .filter((f) => f.isFile() && !f.name.startsWith('.'))
+        .map((f) => f.name)
+        .sort((a, b) => a.localeCompare(b, 'nb', { numeric: true }));
       const ok: string[] = [];
       for (const f of files) if (await isNoteFile(path.join(full, f))) ok.push(path.join(full, f));
       if (ok.length) notes.push({ name: e.name, files: ok });
@@ -215,26 +219,47 @@ export async function runEval(opts: EvalOptions): Promise<EvalResults> {
 
   await fsp.mkdir(opts.out, { recursive: true });
   const results: EvalNoteResult[] = [];
+  const out: EvalResults = {
+    createdAt: opts.now ?? new Date().toISOString(),
+    subject: opts.subject,
+    models: opts.models.map((m) => m.label),
+    reference,
+    usdNok: config.usdNok,
+    notes: results,
+  };
+  // Lagres etter hvert notat, så resultatene (som kan ha kostet penger) ikke går tapt om noe stopper underveis.
+  const save = () => fsp.writeFile(path.join(opts.out, 'resultater.json'), JSON.stringify(out, null, 2));
   for (const [n, note] of notes.entries()) {
-    const noteDir = path.join(opts.out, slug(note.name));
-    const sources = [];
-    for (const file of note.files) {
-      const fh = await fsp.readFile(file);
-      sources.push({ file, kind: sniffKind(fh.subarray(0, 16))! });
+    // Nummeret foran gjør mappenavnet unikt, også for notater med nesten like navn (for eksempel æ, ø og å).
+    const noteDir = path.join(opts.out, `${String(n + 1).padStart(2, '0')}-${slug(note.name)}`);
+    let pages: PageImage[];
+    try {
+      const sources = [];
+      for (const file of note.files) {
+        const fh = await fsp.readFile(file);
+        sources.push({ file, kind: sniffKind(fh.subarray(0, 16))! });
+      }
+      pages = await preparePages(sources, path.join(noteDir, 'sider'), config.maxPagesPerNote);
+    } catch (err) {
+      const error = `Kunne ikke lese sidene: ${errorText(err)}`;
+      log(`Notat ${n + 1}/${notes.length}: ${note.name} – ${error}`);
+      results.push({ name: note.name, pages: [], runs: opts.models.map((m) => ({ ...emptyRun(m.label), error })) });
+      await save();
+      continue;
     }
-    const pages = await preparePages(sources, path.join(noteDir, 'sider'), config.maxPagesPerNote);
     log(`Notat ${n + 1}/${notes.length}: ${note.name} (${pages.length} ${pages.length === 1 ? 'side' : 'sider'})`);
     const runs: ModelRun[] = [];
-    for (const spec of opts.models) {
+    for (const [m, spec] of opts.models.entries()) {
       const service = services.get(spec.label)!;
-      const run = await runModel(spec, service, pages, path.join(noteDir, 'sider'), path.join(noteDir, slug(spec.label)), {
+      const modelDir = path.join(noteDir, `${m + 1}-${slug(spec.label)}`);
+      const run = await runModel(spec, service, pages, path.join(noteDir, 'sider'), modelDir, {
         profile,
         preamble,
         chapters,
         config,
         noteName: note.name,
       });
-      run.dir = path.relative(opts.out, path.join(noteDir, slug(spec.label)));
+      run.dir = path.relative(opts.out, modelDir);
       log(
         `  ${spec.label}: ${run.ok ? (run.compiled ? 'PDF ok' : 'kompilerte ikke') : `feil – ${run.error}`} · ${run.seconds} s` +
           (run.costNok ? ` · ${run.costNok.toFixed(2)} kr` : ''),
@@ -258,30 +283,14 @@ export async function runEval(opts: EvalOptions): Promise<EvalResults> {
       }
     }
     results.push({ name: note.name, pages: pages.map((p) => ({ file: path.relative(opts.out, path.join(noteDir, 'sider', p.file)), width: p.width, height: p.height })), runs });
+    await save();
   }
-
-  const out: EvalResults = {
-    createdAt: opts.now ?? new Date().toISOString(),
-    subject: opts.subject,
-    models: opts.models.map((m) => m.label),
-    reference,
-    usdNok: config.usdNok,
-    notes: results,
-  };
-  await fsp.writeFile(path.join(opts.out, 'resultater.json'), JSON.stringify(out, null, 2));
   return out;
 }
 
-async function runModel(
-  spec: ModelSpec,
-  service: AiService | string,
-  pages: PageImage[],
-  pagesDir: string,
-  dir: string,
-  ctx: { profile: ReturnType<typeof getProfile>; preamble: string; chapters: ChapterRef[]; config: Config; noteName: string },
-): Promise<ModelRun> {
-  const run: ModelRun = {
-    model: spec.label,
+function emptyRun(model: string): ModelRun {
+  return {
+    model,
     ok: false,
     error: null,
     dir: '',
@@ -298,6 +307,17 @@ async function runModel(
     title: null,
     similarity: null,
   };
+}
+
+async function runModel(
+  spec: ModelSpec,
+  service: AiService | string,
+  pages: PageImage[],
+  pagesDir: string,
+  dir: string,
+  ctx: { profile: ReturnType<typeof getProfile>; preamble: string; chapters: ChapterRef[]; config: Config; noteName: string },
+): Promise<ModelRun> {
+  const run = emptyRun(spec.label);
   if (typeof service === 'string') {
     run.error = service;
     return run;
@@ -310,6 +330,10 @@ async function runModel(
       const res = await fn();
       usages.push({ provider: service.provider, usage: res.usage });
       return res;
+    } catch (err) {
+      // Også kall som feiler etter at modellen har svart, koster.
+      if (err instanceof ConversionError && err.usage) usages.push({ provider: service.provider, usage: err.usage });
+      throw err;
     } finally {
       run.aiSeconds += (Date.now() - t) / 1000;
     }

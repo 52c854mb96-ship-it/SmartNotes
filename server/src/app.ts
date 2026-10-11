@@ -6,7 +6,7 @@ import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import type { HealthResponse } from '@smartnotes/shared';
 import { registerAuth } from './auth.js';
-import type { Config } from './config.js';
+import { AI_TASKS, type Config } from './config.js';
 import { Repo } from './db.js';
 import { HttpError } from './errors.js';
 import { FlashcardGenerator } from './flashcards/generator.js';
@@ -75,7 +75,8 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   const generator = new FlashcardGenerator(repo, storage, ai, app.log);
   const latexOk = await latexAvailable();
   if (!latexOk) app.log.warn('latexmk ble ikke funnet – PDF-er kan ikke lages. Installer TeX Live (se README).');
-  if (!aiConfigured(ai, 'convert')) app.log.warn('ANTHROPIC_API_KEY mangler – notater kan lastes opp, men ikke konverteres.');
+  const missing = AI_TASKS.filter((t) => !aiConfigured(ai, t));
+  if (missing.length > 0) app.log.warn({ tasks: missing }, 'ANTHROPIC_API_KEY mangler – disse oppgavene kan ikke kjøres med Claude.');
   const aiTasks = opts.ai ? [] : describeAi(config);
   if (aiTasks.some((t) => t.provider === 'ollama')) app.log.info({ ai: aiTasks, ollama: config.ollama.url }, 'bruker lokal AI (Ollama)');
 

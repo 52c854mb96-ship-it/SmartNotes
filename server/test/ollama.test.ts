@@ -17,6 +17,8 @@ const CFG: OllamaConfig = {
   textModel: 'qwen3:8b',
   imageMaxEdge: 1600,
   numCtx: 16_384,
+  maxCtx: 32_768,
+  think: false,
   maxTokens: 8192,
   timeoutMs: 60_000,
   boxUnits: 'pixels',
@@ -29,27 +31,45 @@ interface Call {
     model: string;
     messages: { role: string; content: string; images?: string[] }[];
     format?: unknown;
+    think?: boolean;
     options: Record<string, number>;
     stream: boolean;
   };
 }
 
 /** En falsk Ollama: svarer med det testen ber om og husker forespørslene. */
-function fakeOllama(reply: (call: Call) => { status?: number; json: unknown } | Error) {
+function fakeOllama(reply: (call: Call) => { status?: number; lines: unknown[] } | Error) {
   const calls: Call[] = [];
   const fetchImpl = (async (url: string, init: RequestInit) => {
     const call: Call = { url, body: JSON.parse(String(init.body)) };
     calls.push(call);
     const r = reply(call);
     if (r instanceof Error) throw r;
-    return new Response(JSON.stringify(r.json), { status: r.status ?? 200, headers: { 'content-type': 'application/json' } });
+    const ndjson = r.lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
+    return new Response(ndjson, { status: r.status ?? 200, headers: { 'content-type': 'application/x-ndjson' } });
   }) as unknown as typeof fetch;
   return { calls, fetchImpl };
 }
 
-const answer = (content: string, extra: Record<string, unknown> = {}) => ({
-  json: { model: 'qwen2.5vl:7b', message: { role: 'assistant', content }, done: true, done_reason: 'stop', prompt_eval_count: 4200, eval_count: 900, ...extra },
-});
+/** Et strømmet svar fra Ollama: innholdet i to biter, og tallene i den siste. */
+const answer = (content: string, extra: Record<string, unknown> = {}) => {
+  const half = Math.floor(content.length / 2);
+  return {
+    lines: [
+      { model: 'qwen2.5vl:7b', message: { role: 'assistant', content: content.slice(0, half) }, done: false },
+      {
+        model: 'qwen2.5vl:7b',
+        message: { role: 'assistant', content: content.slice(half) },
+        done: true,
+        done_reason: 'stop',
+        prompt_eval_count: 4200,
+        eval_count: 900,
+        ...extra,
+      },
+    ],
+  };
+};
+const failure = (status: number, error: string) => ({ status, lines: [{ error }] });
 
 let pagePath = '';
 const PAGE = { width: 2576, height: 1932 };
@@ -89,20 +109,21 @@ describe('OllamaAi', () => {
     expect(calls).toHaveLength(1);
     const { url, body } = calls[0]!;
     expect(url).toBe('http://ollama.test:11434/api/chat');
-    expect(body).toMatchObject({ model: 'qwen2.5vl:7b', stream: false, options: { temperature: 0, num_ctx: 16_384, num_predict: 8192 } });
+    expect(body).toMatchObject({ model: 'qwen2.5vl:7b', stream: true, think: false, options: { temperature: 0, num_ctx: 16_384, num_predict: 8192 } });
     expect(body.format).toBeUndefined();
     expect(body.messages[0]).toMatchObject({ role: 'system', content: getProfile('physics').systemPrompt });
     const user = body.messages[1]!;
-    expect(user.content).toContain('Side 1: 1600×1200 piksler');
+    // 2576 × 1932 skalert til 1600 på lengste kant og rundet ned til hele 28-piksler.
+    expect(user.content).toContain('Side 1: 1596×1176 piksler');
     expect(user.content).toContain('k1: 1 Bevegelse');
     expect(user.images).toHaveLength(1);
     const sent = await sharp(Buffer.from(user.images![0]!, 'base64')).metadata();
-    expect([sent.width, sent.height]).toEqual([1600, 1200]);
+    expect([sent.width, sent.height]).toEqual([1596, 1176]);
 
     expect(res.body).toBe('\\section*{Fart}\nFart er strekning per tid.');
     expect(res.meta.title).toBe('Fart');
-    // 2576 / 1600 = 1,61
-    expect(res.meta.figures).toEqual([{ id: 'fig1', page: 1, box: [161, 322, 1288, 966] }]);
+    // 2576 / 1596 og 1932 / 1176
+    expect(res.meta.figures).toEqual([{ id: 'fig1', page: 1, box: [161, 329, 1291, 986] }]);
     expect(res.usage).toEqual({ kind: 'convert', model: 'qwen2.5vl:7b', inputTokens: 4200, outputTokens: 900, cacheReadTokens: 0, cacheWriteTokens: 0 });
   });
 
@@ -174,7 +195,7 @@ describe('OllamaAi', () => {
       message: expect.stringMatching(/brukte for lang tid/),
     });
 
-    const missing = fakeOllama(() => ({ status: 404, json: { error: "model 'qwen3:8b' not found, try pulling it first" } }));
+    const missing = fakeOllama(() => failure(404, "model 'qwen3:8b' not found, try pulling it first"));
     await expect(new OllamaAi(CFG, missing.fetchImpl).fix({ profile: getProfile('physics'), body: '', errorReport: '' })).rejects.toThrow(
       'Last den ned med: ollama pull qwen3:8b',
     );
@@ -183,7 +204,37 @@ describe('OllamaAi', () => {
   it('ollamaError skiller minne, serverfeil og andre feil', () => {
     expect(ollamaError(500, 'model requires more system memory (9.1 GiB) than is available', 'm')).toMatchObject({ retryable: false });
     expect(ollamaError(500, 'llama runner process has terminated', 'm')).toMatchObject({ retryable: true });
+    expect(ollamaError(500, 'file not found', 'm')).toMatchObject({ retryable: true });
+    expect(ollamaError(429, 'server busy', 'm')).toMatchObject({ retryable: true });
+    expect(ollamaError(404, '', 'm').message).toContain('Fant ikke Ollama');
     expect(ollamaError(400, 'invalid format', 'm').message).toContain('invalid format');
+  });
+
+  it('feil midt i strømmen, tidsavbrudd og forbruk ved feil', async () => {
+    const midway = fakeOllama(() => ({ lines: [{ message: { content: '<latex>' }, done: false }, { error: 'llama runner process has terminated' }] }));
+    await expect(new OllamaAi(CFG, midway.fetchImpl).fix({ profile: getProfile('physics'), body: '', errorReport: '' })).rejects.toMatchObject({
+      retryable: true,
+      usage: { kind: 'fix', model: 'qwen3:8b', inputTokens: 0 },
+    });
+    const headers = fakeOllama(() => Object.assign(new TypeError('fetch failed'), { cause: { code: 'UND_ERR_HEADERS_TIMEOUT' } }));
+    await expect(new OllamaAi(CFG, headers.fetchImpl).fix({ profile: getProfile('physics'), body: '', errorReport: '' })).rejects.toMatchObject({
+      retryable: false,
+      message: expect.stringMatching(/brukte for lang tid/),
+    });
+  });
+
+  it('gjør kontekstvinduet større ved behov, og sier fra før det blir for stort', async () => {
+    const { calls, fetchImpl } = fakeOllama(() => answer('<latex>x</latex>'));
+    const ai = new OllamaAi(CFG, fetchImpl);
+    await ai.fix({ profile: getProfile('physics'), body: 'a'.repeat(30_000), errorReport: '' });
+    const ctx = calls[0]!.body.options.num_ctx!;
+    expect(ctx).toBeGreaterThan(16_384);
+    expect(ctx % 2048).toBe(0);
+    const err = await ai.fix({ profile: getProfile('physics'), body: 'a'.repeat(100_000), errorReport: '' }).catch((e: unknown) => e);
+    expect((err as Error).message).toMatch(/for stort for den lokale AI-en .* OLLAMA_MAX_CTX/);
+    expect(calls).toHaveLength(1);
+    await new OllamaAi({ ...CFG, think: true }, fetchImpl).fix({ profile: getProfile('physics'), body: '', errorReport: '' });
+    expect(calls[1]!.body.think).toBeUndefined();
   });
 
   it('hjelpere: fjerner tenkning og ugyldige bokser', () => {
@@ -192,6 +243,8 @@ describe('OllamaAi', () => {
     expect(scaleFigures([{ id: 'a', page: 1, box: [50, 50, 10, 10] }], [page], 'pixels')).toEqual([{ id: 'a', page: 1, box: [20, 20, 100, 100] }]);
     expect(scaleFigures([{ id: 'b', page: 2, box: [0, 0, 10, 10] }], [page], 'pixels')).toEqual([]);
     expect(scaleFigures([{ id: 'c', page: 1, box: [5, 5, 5, 50] }], [page], 'pixels')).toEqual([]);
+    // Andeler (0–1) forstås uansett innstilling.
+    expect(scaleFigures([{ id: 'd', page: 1, box: [0.1, 0.2, 0.5, 0.6] }], [page], 'thousandths')).toEqual([{ id: 'd', page: 1, box: [20, 40, 100, 120] }]);
   });
 });
 
