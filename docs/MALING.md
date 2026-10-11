@@ -38,14 +38,15 @@ Bilder (JPEG, PNG, HEIC) og PDF-er fungerer, akkurat som i appen.
 ```bash
 ollama pull qwen3.5:9b
 ollama pull qwen3.5:4b
-ollama pull gemma4:e4b
+ollama pull gemma4:e4b-it-qat
+ollama pull ministral-3:8b
 ```
 
-Hvilke modeller som passer for maskinene dine, står i [PLAN-GRATIS-OG-PRO.md](PLAN-GRATIS-OG-PRO.md). Kort fortalt:
+Dette passer for maskinene dine (navnene er fra oktober 2026; feiler en nedlasting, sjekk navnet på [ollama.com/library](https://ollama.com/library)):
 
 - **Start med `qwen3.5:9b`** (leser bilder, Apache 2.0-lisens, omtrent 6–7 GB). Den passer akkurat på RTX 4060 med 8 GB og går fint på en Mac med 16 GB.
 - **`qwen3.5:4b`** er raskere og mindre, til sammenligning.
-- **`gemma4:e4b` og `ministral-3:8b`** er andre modeller med Apache 2.0-lisens som er verdt å prøve.
+- **`gemma4:e4b-it-qat` og `ministral-3:8b`** er andre modeller med Apache 2.0-lisens som er verdt å prøve. Havner figurene feil for dem, prøv `@thousandths-yx` eller `@pixels` etter navnet i målingen.
 - **Unngå** Llama-bildemodellene (lisensen har egne regler for EU/EØS) og Qwen2.5-VL 3B (bare for forskning). Appen skal selges, så lisensen må tillate det.
 
 Anslaget er 45–90 sekunder per side på RTX 4060 og 1,5–3 minutter per side på M4. Det er ikke målt, så målingen viser hva som faktisk gjelder.
