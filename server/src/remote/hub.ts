@@ -8,7 +8,8 @@
  */
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { ConversionError } from '../errors.js';
+import { AbortedError, ConversionError } from '../errors.js';
+import { parseMeta } from '../pipeline/parse.js';
 import type { AiService, ConvertRequest, ConvertResult, FixRequest } from '../pipeline/ai.js';
 import type { ChapterInput, CompetenceAim } from '@smartnotes/shared';
 import type { FlashcardRequest, RawFlashcard } from '../flashcards/prompt.js';
@@ -23,13 +24,23 @@ export interface RemoteHubOptions {
   maxWaitMs: number;
   /** Samme for kall der brukeren venter på svar i appen (innholdsfortegnelse, kompetansemål). */
   interactiveWaitMs: number;
+  /** Hvor lenge en hjemmemaskin kan jobbe med ett kall, selv med heartbeat (ms). Stopper kall som henger. */
+  maxRunMs: number;
   /** Hvor mange ganger et kall kan hentes uten svar før det gir opp. */
   maxAttempts: number;
   /** En hjemmemaskin regnes som på nett hvis den har spurt etter oppgaver så nylig (ms). */
   onlineWithinMs: number;
-  /** Kalles når et kall må vente fordi ingen hjemmemaskin hentet det med en gang, og når det hentes. */
+  /**
+   * Om det finnes en reserve (Claude). Da gir køen opp kall med en gang ingen hjemmemaskin er på nett, eller når
+   * hjemmemaskinen ikke klarer dem, så `RemoteWithFallback` kan sende dem til reserven i stedet for å vente.
+   */
+  fallback?: boolean;
+  /**
+   * Kalles når et kall må vente fordi ingen hjemmemaskin hentet det med en gang, og når ventingen er over: kallet er
+   * hentet, eller det går til reserven.
+   */
   onWaiting?: (ref: UsageRef, method: RemoteMethod) => void;
-  onClaimed?: (ref: UsageRef, method: RemoteMethod) => void;
+  onWaitEnded?: (ref: UsageRef, method: RemoteMethod) => void;
   now?: () => number;
 }
 
@@ -40,7 +51,10 @@ interface Pending {
   interactive: boolean;
   createdAt: number;
   attempts: number;
+  /** Tilfeldig id for hver henting, så et svar fra en eldre henting av samme kall ikke godtas. */
+  lease: string | null;
   leasedBy: string | null;
+  leasedAt: number;
   leaseUntil: number;
   waitingReported: boolean;
   resolve: (outcome: RemoteOutcome) => void;
@@ -51,7 +65,11 @@ export interface RemoteWorkerInfo {
   lastSeenAt: string;
   models: string[];
   busy: boolean;
+  online: boolean;
 }
+
+/** Hjemmemaskiner som ikke har vært i kontakt på et døgn, fjernes fra listen. */
+const FORGET_WORKER_MS = 24 * 60 * 60_000;
 
 export class RemoteHub {
   private readonly queue: Pending[] = [];
@@ -70,10 +88,10 @@ export class RemoteHub {
 
   /** Legger et AI-kall i køen og venter på svaret fra hjemmemaskinen. */
   submit(call: RemoteCall, opts: { interactive?: boolean; ref?: UsageRef } = {}): Promise<RemoteOutcome> {
-    if (this.closed) return Promise.resolve(fail('Serveren holder på å stenge. Prøver igjen om litt.', true));
+    if (this.closed) return Promise.resolve(aborted('Serveren holder på å stenge. Prøver igjen om litt.'));
     const interactive = opts.interactive ?? false;
-    if (interactive && !this.online()) {
-      return Promise.resolve(fail('Hjemmemaskinen med den lokale AI-en er ikke på nett akkurat nå. Prøv igjen senere.', false));
+    if ((interactive || this.opts.fallback) && !this.online()) {
+      return Promise.resolve(this.giveUp('Hjemmemaskinen med den lokale AI-en er ikke på nett akkurat nå. Prøv igjen senere.', false));
     }
     return new Promise<RemoteOutcome>((resolve) => {
       const task: Pending = {
@@ -83,16 +101,14 @@ export class RemoteHub {
         interactive,
         createdAt: this.now(),
         attempts: 0,
+        lease: null,
         leasedBy: null,
+        leasedAt: 0,
         leaseUntil: 0,
         waitingReported: false,
         resolve,
       };
-      if (!this.offer(task)) {
-        this.queue.push(task);
-        task.waitingReported = true;
-        this.opts.onWaiting?.(task.ref, call.method);
-      }
+      if (!this.offer(task)) this.enqueue(task, false);
     });
   }
 
@@ -131,23 +147,44 @@ export class RemoteHub {
     });
   }
 
-  /** Forlenger reservasjonen. `false` hvis kallet ikke lenger er reservert til denne maskinen. */
-  heartbeat(id: string, name: string): boolean {
-    this.seen(name);
+  /** Forlenger reservasjonen. `false` hvis kallet ikke lenger er reservert til denne hentingen. */
+  heartbeat(id: string, lease: string, name: string): boolean {
     const task = this.leased.get(id);
-    if (!task || task.leasedBy !== name) return false;
+    if (!task || task.lease !== lease) return false;
+    // Livstegn holder maskinen «på nett» mens den jobber og ikke spør etter nye oppgaver.
+    this.seen(name);
     task.leaseUntil = this.now() + this.opts.leaseMs;
     return true;
   }
 
   /** Svaret fra hjemmemaskinen. `false` hvis kallet allerede er avsluttet eller gitt til en annen. */
-  complete(id: string, name: string, outcome: RemoteOutcome): boolean {
-    this.seen(name);
+  complete(id: string, lease: string, name: string, outcome: RemoteOutcome): boolean {
     const task = this.leased.get(id);
-    if (!task || task.leasedBy !== name) return false;
+    if (!task || task.lease !== lease) return false;
+    this.seen(name);
     this.leased.delete(id);
     task.resolve(outcome);
     return true;
+  }
+
+  /**
+   * Avbryter kallene som hører til det `match` velger (f.eks. et notat som er slettet), både i køen og hos en
+   * hjemmemaskin. Hjemmemaskinen får vite det ved neste heartbeat, og svaret dens forkastes.
+   */
+  cancel(match: (ref: UsageRef) => boolean): number {
+    let n = 0;
+    for (let i = this.queue.length - 1; i >= 0; i--) {
+      if (!match(this.queue[i]!.ref)) continue;
+      this.queue.splice(i, 1)[0]!.resolve(aborted('Avbrutt.'));
+      n++;
+    }
+    for (const task of [...this.leased.values()]) {
+      if (!match(task.ref)) continue;
+      this.leased.delete(task.id);
+      task.resolve(aborted('Avbrutt.'));
+      n++;
+    }
+    return n;
   }
 
   /** Om en hjemmemaskin har vært i kontakt nylig. */
@@ -158,19 +195,29 @@ export class RemoteHub {
   }
 
   status(): { workers: RemoteWorkerInfo[]; waiting: number; running: number } {
-    const busy = new Set([...this.leased.values()].map((t) => t.leasedBy));
+    const t = this.now();
+    const busy = new Set([...this.leased.values()].map((task) => task.leasedBy));
     return {
-      workers: [...this.workers].map(([name, w]) => ({ name, lastSeenAt: new Date(w.lastSeen).toISOString(), models: w.models, busy: busy.has(name) })),
+      workers: [...this.workers].map(([name, w]) => ({
+        name,
+        lastSeenAt: new Date(w.lastSeen).toISOString(),
+        models: w.models,
+        busy: busy.has(name),
+        online: t - w.lastSeen <= this.opts.onlineWithinMs,
+      })),
       waiting: this.queue.length,
       running: this.leased.size,
     };
   }
 
-  /** Avslutter alt som venter (ved nedstenging); kallene prøves igjen fra notatkøen etter omstart. */
+  /**
+   * Avslutter alt som venter (ved nedstenging). Kallene avbrytes uten at noe lagres, og notatene konverteres på nytt
+   * fra notatkøen etter omstart.
+   */
   close(): void {
     this.closed = true;
     clearInterval(this.timer);
-    for (const task of [...this.queue, ...this.leased.values()]) task.resolve(fail('Serveren startet på nytt. Prøver igjen om litt.', true));
+    for (const task of [...this.queue, ...this.leased.values()]) task.resolve(aborted('Serveren startet på nytt. Prøver igjen om litt.'));
     this.queue.length = 0;
     this.leased.clear();
     for (const w of [...this.waiters]) w.cancel();
@@ -180,24 +227,31 @@ export class RemoteHub {
   sweep(): void {
     const t = this.now();
     for (const task of [...this.leased.values()]) {
-      if (task.leaseUntil > t) continue;
+      const overtime = t - task.leasedAt >= this.opts.maxRunMs;
+      if (task.leaseUntil > t && !overtime) continue;
       this.leased.delete(task.id);
+      task.lease = null;
       task.leasedBy = null;
-      if (task.attempts >= this.opts.maxAttempts) {
-        task.resolve(fail('Hjemmemaskinen ble borte midt i arbeidet flere ganger. Prøver igjen om litt.', true));
+      if (overtime) {
+        const minutes = Math.round(this.opts.maxRunMs / 60_000);
+        task.resolve(this.giveUp(`Hjemmemaskinen brukte mer enn ${minutes} minutter på dette og ble stoppet. Prøv igjen.`, false));
+      } else if (task.attempts >= this.opts.maxAttempts) {
+        task.resolve(this.giveUp('Hjemmemaskinen ble borte midt i arbeidet flere ganger. Prøver igjen om litt.', true));
       } else if (!this.offer(task)) {
-        this.queue.unshift(task);
-        this.opts.onWaiting?.(task.ref, task.call.method);
+        this.enqueue(task, true);
       }
     }
+    // Med en reserve venter ingenting på en hjemmemaskin som ikke er på nett.
+    const offline = this.opts.fallback && !this.online();
     for (let i = this.queue.length - 1; i >= 0; i--) {
       const task = this.queue[i]!;
       const limit = task.interactive ? this.opts.interactiveWaitMs : this.opts.maxWaitMs;
-      if (t - task.createdAt < limit) continue;
+      if (!offline && t - task.createdAt < limit) continue;
       this.queue.splice(i, 1);
+      if (this.opts.fallback) this.opts.onWaitEnded?.(task.ref, task.call.method);
       const hours = Math.round(limit / 3_600_000);
       task.resolve(
-        fail(
+        this.giveUp(
           task.interactive
             ? 'Hjemmemaskinen med den lokale AI-en svarte ikke i tide. Prøv igjen senere.'
             : `Hjemmemaskinen med den lokale AI-en har ikke vært ledig på ${hours >= 1 ? `${hours} timer` : 'en stund'}. Trykk «Prøv igjen» når den er på nett.`,
@@ -205,6 +259,19 @@ export class RemoteHub {
         ),
       );
     }
+    for (const [name, w] of this.workers) if (t - w.lastSeen > FORGET_WORKER_MS) this.workers.delete(name);
+  }
+
+  /** Når hjemmemaskinen ikke kan ta kallet: med reserve går det dit, ellers feiler det med `message`. */
+  private giveUp(message: string, retryable: boolean): RemoteOutcome {
+    return this.opts.fallback ? { ok: false, error: { message, retryable: true, code: 'unavailable' } } : fail(message, retryable);
+  }
+
+  private enqueue(task: Pending, front: boolean): void {
+    if (front) this.queue.unshift(task);
+    else this.queue.push(task);
+    task.waitingReported = true;
+    this.opts.onWaiting?.(task.ref, task.call.method);
   }
 
   private offer(task: Pending): boolean {
@@ -214,11 +281,13 @@ export class RemoteHub {
 
   private lease(task: Pending, name: string): RemoteTask {
     task.attempts += 1;
+    task.lease = randomUUID();
     task.leasedBy = name;
-    task.leaseUntil = this.now() + this.opts.leaseMs;
+    task.leasedAt = this.now();
+    task.leaseUntil = task.leasedAt + this.opts.leaseMs;
     this.leased.set(task.id, task);
-    if (task.waitingReported) this.opts.onClaimed?.(task.ref, task.call.method);
-    return { id: task.id, call: task.call, leaseMs: this.opts.leaseMs };
+    if (task.waitingReported) this.opts.onWaitEnded?.(task.ref, task.call.method);
+    return { id: task.id, lease: task.lease, call: task.call, leaseMs: this.opts.leaseMs };
   }
 
   private seen(name: string, models?: string[]): void {
@@ -229,6 +298,10 @@ export class RemoteHub {
 
 function fail(message: string, retryable: boolean): RemoteOutcome {
   return { ok: false, error: { message, retryable } };
+}
+
+function aborted(message: string): RemoteOutcome {
+  return { ok: false, error: { message, retryable: true, code: 'aborted' } };
 }
 
 // ---------- AI-tjenesten som sender kallene til hjemmemaskinen ----------
@@ -264,6 +337,13 @@ const RESULT_SCHEMAS = {
   }),
 } satisfies Record<RemoteMethod, z.ZodType>;
 
+/** Ingen hjemmemaskin kunne ta kallet, og det finnes en reserve (`RemoteWithFallback` sender det dit). */
+export class RemoteUnavailableError extends ConversionError {
+  constructor(message: string) {
+    super(message, true);
+  }
+}
+
 /** Kaller hjemmemaskinen via køen. Svarene kontrolleres før de brukes. */
 export class RemoteAi implements AiService {
   readonly fake = false;
@@ -278,7 +358,9 @@ export class RemoteAi implements AiService {
 
   async convert(req: ConvertRequest): Promise<ConvertResult> {
     const { profile, pages, ...rest } = req;
-    return this.call('convert', { method: 'convert', req: { ...rest, profile: profile.id, pages: await encodePages(pages) } });
+    const result = await this.call('convert', { method: 'convert', req: { ...rest, profile: profile.id, pages: await encodePages(pages) } });
+    // Samme kontroll som for svar fra Claude: figur-id-ene blir filnavn, så bare trygge tegn slipper gjennom.
+    return { ...result, meta: parseMeta(JSON.stringify(result.meta)) };
   }
 
   fix(req: FixRequest): Promise<{ body: string; usage: Usage }> {
@@ -305,7 +387,10 @@ export class RemoteAi implements AiService {
   private async call<M extends RemoteMethod>(method: M, call: RemoteCall, interactive = false): Promise<z.infer<(typeof RESULT_SCHEMAS)[M]>> {
     const outcome = await this.hub.submit(call, { interactive, ref: currentUsageRef() });
     if (!outcome.ok) {
-      const err = new ConversionError(outcome.error.message, outcome.error.retryable);
+      const { message, retryable, code } = outcome.error;
+      if (code === 'aborted') throw new AbortedError(message);
+      if (code === 'unavailable') throw new RemoteUnavailableError(message);
+      const err = new ConversionError(message, retryable);
       const usage = usageSchema.safeParse(outcome.error.usage);
       if (usage.success) err.usage = usage.data;
       throw err;
@@ -317,7 +402,8 @@ export class RemoteAi implements AiService {
 }
 
 /**
- * Hjemmemaskinen, med Claude som reserve: er ingen hjemmemaskin på nett når kallet starter, går det til `fallback`.
+ * Hjemmemaskinen, med Claude som reserve: er ingen hjemmemaskin på nett når kallet starter, eller blir den borte
+ * mens kallet venter, går det til `fallback`.
  */
 export class RemoteWithFallback implements AiService {
   readonly fake = false;
@@ -334,23 +420,29 @@ export class RemoteWithFallback implements AiService {
     return this.remote.model;
   }
 
-  private pick(): AiService {
-    return this.hub.online() ? this.remote : this.fallback;
+  private async run<T>(call: (ai: AiService) => Promise<T>): Promise<T> {
+    if (!this.hub.online()) return call(this.fallback);
+    try {
+      return await call(this.remote);
+    } catch (err) {
+      if (err instanceof RemoteUnavailableError) return call(this.fallback);
+      throw err;
+    }
   }
 
   convert(req: ConvertRequest) {
-    return this.pick().convert(req);
+    return this.run((ai) => ai.convert(req));
   }
   fix(req: FixRequest) {
-    return this.pick().fix(req);
+    return this.run((ai) => ai.fix(req));
   }
   extractToc(profile: Profile, images: { data: Buffer; mediaType: 'image/jpeg' | 'image/png' }[], aims?: CompetenceAim[]) {
-    return this.pick().extractToc(profile, images, aims);
+    return this.run((ai) => ai.extractToc(profile, images, aims));
   }
   mapSectionAims(profile: Profile, chapters: ChapterInput[], aims: CompetenceAim[]) {
-    return this.pick().mapSectionAims(profile, chapters, aims);
+    return this.run((ai) => ai.mapSectionAims(profile, chapters, aims));
   }
   generateFlashcards(req: FlashcardRequest) {
-    return this.pick().generateFlashcards(req);
+    return this.run((ai) => ai.generateFlashcards(req));
   }
 }

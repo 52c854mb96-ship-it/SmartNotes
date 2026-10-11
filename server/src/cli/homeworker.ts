@@ -18,13 +18,13 @@ import { loadConfig } from '../config.js';
 import type { AiService } from '../pipeline/ai.js';
 import { FakeClaude } from '../pipeline/claude.js';
 import { OllamaAi } from '../pipeline/ollama.js';
-import { FatalWorkerError, HomeWorker, parseHours } from '../remote/homeworker.js';
+import { FatalWorkerError, HomeWorker, loadEnvFile, parseHours, safeServerUrl } from '../remote/homeworker.js';
 
 const here = process.env.INIT_CWD ?? process.cwd();
 for (const dir of new Set([here, process.cwd()])) {
   const file = path.join(dir, '.env');
   if (fs.existsSync(file)) {
-    process.loadEnvFile(file);
+    loadEnvFile(fs.readFileSync(file, 'utf8'));
     break;
   }
 }
@@ -35,7 +35,7 @@ if (!serverUrl || !token) {
   console.error('Mangler SMARTNOTES_URL eller WORKER_TOKEN. Legg dem i en .env-fil (se docs/HJEMMEMASKIN.md).');
   process.exit(1);
 }
-if (!/^https:\/\//.test(serverUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(serverUrl)) {
+if (!safeServerUrl(serverUrl)) {
   console.error('SMARTNOTES_URL må begynne med https:// (bare localhost kan bruke http://), så nøkkelen ikke sendes ukryptert.');
   process.exit(1);
 }
@@ -72,9 +72,15 @@ const worker = new HomeWorker({
 });
 
 console.log(`SmartNotes hjemmemaskin «${name}» med ${models.join(' og ')} (Ollama på ${config.ollama.url}).`);
+let stopping = false;
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
-    console.log('Stopper etter oppgaven som pågår …');
+    if (stopping) {
+      console.log('Stopper nå. Oppgaven som pågikk, gis til hjemmemaskinen igjen om litt.');
+      process.exit(130);
+    }
+    stopping = true;
+    console.log('Stopper etter oppgaven som pågår (trykk Ctrl+C en gang til for å stoppe med en gang) …');
     worker.stop();
   });
 }

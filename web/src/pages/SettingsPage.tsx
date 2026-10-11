@@ -77,14 +77,23 @@ function RemoteStatus() {
   const [status, setStatus] = useState<AiStatusResponse['remote']>(null);
   useEffect(() => {
     const ctrl = new AbortController();
-    api
-      .aiStatus(ctrl.signal)
-      .then((s) => setStatus(s.remote))
-      .catch(() => {});
-    return () => ctrl.abort();
+    const load = () =>
+      api
+        .aiStatus(ctrl.signal)
+        .then((s) => setStatus(s.remote))
+        .catch(() => {});
+    void load();
+    // Hjemmemaskinen kan komme og gå mens siden er åpen.
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, 30_000);
+    return () => {
+      clearInterval(timer);
+      ctrl.abort();
+    };
   }, []);
   if (!status) return null;
-  const online = status.workers.filter((w) => Date.now() - Date.parse(w.lastSeenAt) < 2 * 60_000);
+  const online = status.workers.filter((w) => w.online);
   const queue = status.waiting > 0 ? `${plural(status.waiting, 'kall venter', 'kall venter')}` : 'ingen kall venter';
   return (
     <StatusLine

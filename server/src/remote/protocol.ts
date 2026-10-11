@@ -34,6 +34,8 @@ export type RemoteMethod = RemoteCall['method'];
 /** Oppgaven slik hjemmemaskinen får den. */
 export interface RemoteTask {
   id: string;
+  /** Id for akkurat denne hentingen. Sendes med heartbeat og svar. */
+  lease: string;
   call: RemoteCall;
   /** Hvor lenge oppgaven er reservert (ms). Forlenges med heartbeat. */
   leaseMs: number;
@@ -49,7 +51,16 @@ export interface ClaimRequest {
 
 export type RemoteOutcome =
   | { ok: true; result: unknown }
-  | { ok: false; error: { message: string; retryable: boolean; usage?: Usage } };
+  | {
+      ok: false;
+      error: {
+        message: string;
+        retryable: boolean;
+        usage?: Usage;
+        /** Bare fra køen på serveren selv, aldri fra hjemmemaskinen: avbrutt, eller ingen hjemmemaskin (bruk reserven). */
+        code?: 'aborted' | 'unavailable';
+      };
+    };
 
 // ---------- Fra AI-kall til oppgave (serveren) ----------
 

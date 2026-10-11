@@ -5,7 +5,8 @@ Med hjemmemaskinen leser en lokal AI-modell notatene i stedet for Claude. Modell
 **Slik fungerer det:** tenk på serveren som et restaurantkjøkken og hjemmemaskinen som en kokk som jobber hjemmefra. Når en bestilling kommer inn (et notat skal konverteres), legger kjøkkenet en lapp i en kurv. Hjemmemaskinen spør kjøkkenet jevnlig om det ligger lapper der, tar én, lager retten og leverer den tilbake. Underveis sier den fra at den fortsatt jobber. Forsvinner den midt i (strømbrudd, lokket lukket), går lappen tilbake i kurven etter et minutt.
 
 - Hjemmemaskinen kobler seg bare *ut* til serveren over HTTPS. Du trenger ikke åpne porter i ruteren.
-- Er hjemmemaskinen av, venter notatene i appen med teksten «Venter på AI-maskinen». Med `REMOTE_FALLBACK=anthropic` brukes Claude i mellomtiden.
+- Er hjemmemaskinen av, venter notatene i appen med teksten «Venter på AI-maskinen». Med `REMOTE_FALLBACK=anthropic` brukes Claude i stedet. Det gjelder også når hjemmemaskinen blir borte mens et notat venter: etter omtrent to minutter uten livstegn går notatet til Claude.
+- Sletter du et notat som venter, fjernes det fra kurven, og hjemmemaskinen bruker ikke tid på det.
 - Hjemmemaskinen får bare det den trenger for å svare (sidebildene og instruksene), og sletter sidebildene når den er ferdig.
 
 Dette er en første versjon. Den er testet med en falsk AI i skyen, men ikke med en ekte modell på en ekte PC eller Mac. Kjør først målingen i [MALING.md](MALING.md), slik at du vet at modellen er god nok.
@@ -60,6 +61,8 @@ Railway starter serveren på nytt etter endringen. Under **Innstillinger → Ser
 
    `.env` står allerede i `.gitignore` og blir aldri sjekket inn.
 
+   På Windows kan du lage filen i Notisblokk: velg **Fil → Lagre som**, sett **Filtype** til **Alle filer (\*.\*)** og skriv `.env` som filnavn. Ellers lagres den som `.env.txt`, og hjemmemaskinen finner den ikke.
+
 5. Start hjemmemaskinen:
 
    ```bash
@@ -68,7 +71,7 @@ Railway starter serveren på nytt etter endringen. Under **Innstillinger → Ser
 
    Når det står «Koblet til … Venter på oppgaver …», er alt klart. I appen står det nå «Hjemmemaskin på nett: Eskils PC».
 
-Vinduet må være åpent så lenge maskinen skal jobbe. Du stopper med Ctrl+C. Pågående arbeid gjøres ferdig først, og ellers går lappen tilbake i kurven.
+Vinduet må være åpent så lenge maskinen skal jobbe. Du stopper med Ctrl+C. Da gjør den ferdig oppgaven som pågår og leverer svaret før den stopper. Trykker du Ctrl+C en gang til, stopper den med en gang, og lappen går tilbake i kurven etter et minutt.
 
 ## Valg på hjemmemaskinen
 
@@ -90,9 +93,11 @@ De andre `OLLAMA_`-innstillingene står i README.
   ```bat
   cd /d "%~dp0"
   npm run homeworker --workspace server
+  pause
   ```
 
-  Trykk Windows-tasten + R, skriv `shell:startup` og legg en snarvei til filen i mappen som åpnes.
+  Trykk Windows-tasten + R, skriv `shell:startup` og legg en snarvei til filen i mappen som åpnes. `pause` holder vinduet åpent hvis hjemmemaskinen stopper med en feil, så du rekker å lese meldingen.
+- **Ikke klikk i vinduet:** i det klassiske konsollvinduet setter et klikk vinduet i merkemodus, og da står programmet stille til du trykker Esc. Bruker du Windows Terminal (standard i Windows 11), skjer ikke dette.
 
 ## Mac mini som står på hele døgnet
 
@@ -114,13 +119,20 @@ Hvis du får bruke farens Mac mini, bør hjemmemaskinen ikke gå i veien for arb
     <array><string>/bin/zsh</string><string>-lc</string><string>npm run homeworker --workspace server</string></array>
     <key>RunAtLoad</key><true/>
     <key>KeepAlive</key><true/>
+    <key>ThrottleInterval</key><integer>60</integer>
     <key>StandardOutPath</key><string>/Users/smartnotes/hjemmemaskin.log</string>
     <key>StandardErrorPath</key><string>/Users/smartnotes/hjemmemaskin.log</string>
   </dict>
   </plist>
   ```
 
-  Aktiver den med `launchctl load ~/Library/LaunchAgents/no.smartnotes.hjemmemaskin.plist`. Den kjører når SmartNotes-brukeren er logget inn, også i bakgrunnen mens en annen bruker bruker maskinen. Ollama-appen må også starte ved pålogging. Det er et valg i menylinjeikonet til Ollama.
+  Aktiver den i Terminal (som SmartNotes-brukeren) med:
+
+  ```bash
+  launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/no.smartnotes.hjemmemaskin.plist
+  ```
+
+  `KeepAlive` starter den på nytt hvis den stopper, og `ThrottleInterval` gjør at det skjer høyst én gang i minuttet, for eksempel når nøkkelen er feil. Loggen står i `hjemmemaskin.log`. Den kjører når SmartNotes-brukeren er logget inn, også i bakgrunnen mens en annen bruker bruker maskinen. Ollama-appen må også starte ved pålogging. Det er et valg i menylinjeikonet til Ollama.
 
 Om dette fungerer helt uten pålogging etter en omstart, er ikke prøvd ennå. Inntil videre må noen logge inn på SmartNotes-brukeren én gang etter hver omstart.
 

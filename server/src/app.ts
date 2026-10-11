@@ -76,13 +76,16 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
     leaseMs: config.remote.leaseMs,
     maxWaitMs: config.remote.maxWaitMs,
     interactiveWaitMs: 3 * 60_000,
+    maxRunMs: config.remote.maxRunMs,
     maxAttempts: 3,
     onlineWithinMs: config.remote.onlineWithinMs,
+    fallback: config.remote.fallback === 'anthropic',
+    // Bare selve lesingen vises som «venter»; rettingen av LaTeX-feil fortsetter å vise «retter».
     onWaiting: (ref, method) => {
-      if (ref.noteId && (method === 'convert' || method === 'fix')) repo.setStage(ref.noteId, 'waiting');
+      if (ref.noteId && method === 'convert') repo.setStage(ref.noteId, 'waiting');
     },
-    onClaimed: (ref, method) => {
-      if (ref.noteId && (method === 'convert' || method === 'fix')) repo.setStage(ref.noteId, method === 'fix' ? 'fixing' : 'reading');
+    onWaitEnded: (ref, method) => {
+      if (ref.noteId && method === 'convert') repo.setStage(ref.noteId, 'reading');
     },
   });
   const ai = opts.ai ? metered(opts.ai) : createAi(config, metered, hub);
@@ -95,6 +98,9 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   const missing = AI_TASKS.filter((t) => !aiConfigured(ai, t));
   if (missing.length > 0) app.log.warn({ tasks: missing }, 'ANTHROPIC_API_KEY mangler – disse oppgavene kan ikke kjøres med Claude.');
   const aiTasks = opts.ai ? [] : describeAi(config);
+  if (aiTasks.some((t) => t.provider === 'remote') && config.remote.fallback === 'anthropic' && !config.anthropicApiKey && !config.fakeClaude) {
+    app.log.warn('REMOTE_FALLBACK=anthropic, men ANTHROPIC_API_KEY mangler – reserven virker ikke.');
+  }
   if (aiTasks.some((t) => t.provider === 'ollama')) app.log.info({ ai: aiTasks, ollama: config.ollama.url }, 'bruker lokal AI (Ollama)');
 
   await app.register(fastifyCookie);
@@ -147,7 +153,7 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   }));
 
   registerLibraryRoutes(app, { repo, storage, ai, converter, bundler });
-  registerNoteRoutes(app, { repo, storage, converter, worker });
+  registerNoteRoutes(app, { repo, storage, converter, worker, hub });
   registerFlashcardRoutes(app, { repo, storage, ai, generator });
   registerUsageRoutes(app, { repo, config });
   if (config.remote.token) registerWorkerRoutes(app, { hub, token: config.remote.token });
@@ -187,9 +193,10 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   }
 
   app.addHook('onClose', async () => {
+    // Stopp køene først, så avbrytes kallene som venter på hjemmemaskinen uten at noe lagres.
     await worker.stop();
-    hub.close();
     generator.stop();
+    hub.close();
     await generator.idle();
     // Rekompileringer i bakgrunnen skriver til databasen – la dem bli ferdige før den lukkes.
     await converter.idle();

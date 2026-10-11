@@ -48,6 +48,8 @@ export interface RemoteConfig {
   maxWaitMs: number;
   /** Hvor lenge en henting er reservert uten livstegn fra hjemmemaskinen. */
   leaseMs: number;
+  /** Hvor lenge hjemmemaskinen kan jobbe med ett kall før det stoppes (fanger kall som henger). */
+  maxRunMs: number;
   /** En hjemmemaskin regnes som på nett hvis den har vært i kontakt så nylig. */
   onlineWithinMs: number;
 }
@@ -190,8 +192,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       token: workerToken,
       fallback,
       maxWaitMs: int(env.REMOTE_MAX_WAIT_MS, 12 * 60 * 60_000),
-      leaseMs: int(env.REMOTE_LEASE_MS, 60_000),
-      onlineWithinMs: int(env.REMOTE_ONLINE_MS, 2 * 60_000),
+      // Nedre grenser: hjemmemaskinen sender livstegn hvert kvarter av reservasjonen og spør etter oppgaver hvert 25. s.
+      leaseMs: Math.max(10_000, int(env.REMOTE_LEASE_MS, 60_000)),
+      maxRunMs: Math.max(60_000, int(env.REMOTE_MAX_RUN_MS, 2 * 60 * 60_000)),
+      onlineWithinMs: Math.max(60_000, int(env.REMOTE_ONLINE_MS, 2 * 60_000)),
     },
     seedTextbooks: parseSeedList(env.SEED_TEXTBOOKS ?? env.SEED_TEXTBOOK),
     webDist,

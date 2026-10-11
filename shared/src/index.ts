@@ -359,7 +359,8 @@ export interface UsageSummaryResponse {
 /** GET /api/ai/status – hjemmemaskinene som henter AI-kall fra serveren (bare når en oppgave bruker dem). */
 export interface AiStatusResponse {
   remote: {
-    workers: { name: string; lastSeenAt: string; models: string[]; busy: boolean }[];
+    /** `online`: har vært i kontakt nylig (serveren avgjør, så klokken på enheten ikke spiller inn). */
+    workers: { name: string; lastSeenAt: string; models: string[]; busy: boolean; online: boolean }[];
     /** AI-kall som venter på en ledig hjemmemaskin. */
     waiting: number;
     running: number;

@@ -139,10 +139,11 @@ Serveren på Railway kan sende AI-kallene til en PC eller Mac hjemme som kjører
 |---|---|---|
 | `WORKER_TOKEN` | – | Hemmelig nøkkel (minst 32 tegn) som hjemmemaskinen logger inn med. Uten den er hjemmemaskin-API-et av |
 | `AI_PROVIDER_CONVERT` osv. | – | `remote` sender oppgaven til hjemmemaskinen |
-| `REMOTE_FALLBACK` | `none` | `anthropic` bruker Claude når ingen hjemmemaskin er på nett |
+| `REMOTE_FALLBACK` | `none` | `anthropic` bruker Claude når ingen hjemmemaskin er på nett, også for kall som allerede venter |
 | `REMOTE_MAX_WAIT_MS` | `43200000` | Hvor lenge et notat kan vente på hjemmemaskinen før det gir opp (12 timer) |
-| `REMOTE_LEASE_MS` | `60000` | Hvor lenge et kall er reservert uten livstegn fra hjemmemaskinen |
-| `REMOTE_ONLINE_MS` | `120000` | En hjemmemaskin regnes som på nett hvis den har vært i kontakt så nylig |
+| `REMOTE_LEASE_MS` | `60000` | Hvor lenge et kall er reservert uten livstegn fra hjemmemaskinen (minst 10 s) |
+| `REMOTE_MAX_RUN_MS` | `7200000` | Hvor lenge hjemmemaskinen kan jobbe med ett kall før det stoppes, selv med livstegn (2 timer) |
+| `REMOTE_ONLINE_MS` | `120000` | En hjemmemaskin regnes som på nett hvis den har vært i kontakt så nylig (minst 60 s) |
 
 ## Hva koster det?
 
