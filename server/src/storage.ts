@@ -15,6 +15,7 @@ import { randomUUID } from 'node:crypto';
  *   notes/<noteId>/note.pdf
  *   notes/<noteId>/meta.json        – metadata fra Claude
  *   notes/<noteId>/build.log
+ *   notes/<noteId>/compare/haiku/   – sammenligningen: note.pdf, note.tex/draft.tex, figures/ og meta.json fra Haiku
  *   bundles/<nøkkel>.pdf            – samle-PDF-er for kapitler/fag (cache)
  *   tmp/                            – byggemapper og opplastinger under arbeid
  */
@@ -48,6 +49,10 @@ export class Storage {
   }
   figuresDir(noteId: string): string {
     return path.join(this.noteDir(noteId), 'figures');
+  }
+  /** Mappen med Haiku-versjonen av notatet (sammenligningen). Byttes ut i ett jafs når en ny kjøring er ferdig. */
+  compareDir(noteId: string): string {
+    return path.join(this.noteDir(noteId), 'compare', 'haiku');
   }
   noteFile(noteId: string, name: 'note.tex' | 'draft.tex' | 'note.pdf' | 'meta.json' | 'build.log' | 'pages.json'): string {
     return path.join(this.noteDir(noteId), name);

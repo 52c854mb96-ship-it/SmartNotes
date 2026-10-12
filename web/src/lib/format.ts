@@ -87,6 +87,11 @@ export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+/** «1,25 kr» (alltid to desimaler, så små AI-kostnader ikke blir «0 kr»). */
+export function kroner(n: number): string {
+  return `${n.toLocaleString(LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`;
+}
+
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 kB';
   const units = ['B', 'kB', 'MB', 'GB'];

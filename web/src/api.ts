@@ -5,6 +5,7 @@ import type {
   Chapter,
   ChapterInput,
   ChapterPreviewResponse,
+  ComparisonSummaryResponse,
   CreateChapterRequest,
   CreateDeckRequest,
   CreateFlashcardRequest,
@@ -14,10 +15,12 @@ import type {
   HealthResponse,
   MeResponse,
   Note,
+  NoteComparisonResponse,
   NoteLatexResponse,
   NotePagesResponse,
   ProgressRequest,
   ProgressResponse,
+  RateComparisonRequest,
   RetryNoteRequest,
   SaveLatexResponse,
   Subject,
@@ -195,6 +198,7 @@ export const urls = {
   chapterPdfDownload: (id: string) => `${BASE}/chapters/${enc(id)}/pdf?download=1`,
   subjectPdfDownload: (id: string) => `${BASE}/subjects/${enc(id)}/pdf?download=1`,
   noteTex: (id: string) => `${BASE}/notes/${enc(id)}/tex`,
+  comparePdfDownload: (id: string, v: string) => `${BASE}/notes/${enc(id)}/compare/pdf?v=${enc(v)}&download=1`,
   /** Hele sikkerhetskopien som .tar.gz (strømmes, så den lastes ned direkte og ikke via fetch). */
   backup: () => `${BASE}/backup`,
   notePage: (id: string, index: number) => `${BASE}/notes/${enc(id)}/pages/${index}`,
@@ -272,6 +276,17 @@ export const api = {
   deleteCard: (id: string) => json<{ ok: boolean }>('DELETE', `/cards/${enc(id)}`),
   progress: (req: ProgressRequest) =>
     json<ProgressResponse>('POST', '/flashcards/progress', { json: req, timeoutMs: 30_000 }),
+
+  comparison: (id: string, signal?: AbortSignal) =>
+    json<NoteComparisonResponse>('GET', `/notes/${enc(id)}/compare`, { signal, timeoutMs: 15_000 }),
+  startComparison: (id: string) => json<NoteComparisonResponse>('POST', `/notes/${enc(id)}/compare`, { timeoutMs: 30_000 }),
+  rateComparison: (id: string, req: RateComparisonRequest) =>
+    json<NoteComparisonResponse>('PUT', `/notes/${enc(id)}/compare/rating`, { json: req }),
+  comparisonSummary: (signal?: AbortSignal) =>
+    json<ComparisonSummaryResponse>('GET', '/compare/summary', { signal, timeoutMs: 15_000 }),
+  /** `v` (f.eks. `finishedAt`) gjør at en ny Haiku-versjon ikke hentes fra nettleserens hurtigbuffer. */
+  comparePdf: (id: string, v: string, signal?: AbortSignal) =>
+    blob(`/notes/${enc(id)}/compare/pdf?v=${enc(v)}`, signal, 120_000),
 
   notePdf: (id: string, rev: number, signal?: AbortSignal) =>
     blob(`/notes/${enc(id)}/pdf?v=${rev}`, signal, 120_000),
