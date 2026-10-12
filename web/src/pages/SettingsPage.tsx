@@ -293,7 +293,7 @@ function ComparisonCard() {
     return () => ctrl.abort();
   }, [online]);
 
-  const empty = !!summary && summary.rated + summary.unrated + summary.failed === 0;
+  const empty = !!summary && summary.rated + summary.unrated + summary.failed + summary.running === 0;
   return (
     <section className="card" aria-labelledby="comparison-h">
       <div className="card-head">
@@ -320,6 +320,12 @@ function ComparisonCard() {
               <>
                 <dt>Sonnet er bedre</dt>
                 <dd>{summary.sonnetBetter}</dd>
+              </>
+            )}
+            {summary.running > 0 && (
+              <>
+                <dt>Lages nå</dt>
+                <dd>{summary.running}</dd>
               </>
             )}
             {summary.unrated > 0 && (

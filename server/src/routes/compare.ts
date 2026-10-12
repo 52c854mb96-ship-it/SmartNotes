@@ -60,6 +60,7 @@ export function registerCompareRoutes(app: FastifyInstance, d: { repo: Repo; sto
     const existing = repo.getComparisonRow(note.id);
     if (!existing) throw notFound('Det finnes ingen Haiku-versjon å vurdere.');
     if (existing.status === 'running') throw conflict('Vent til Haiku-versjonen er ferdig.');
+    if (existing.status === 'failed' && body.verdict === 'haiku_ok') throw conflict('Haiku laget ingen PDF denne gangen, så den kan ikke være god nok.');
     repo.rateComparison(note.id, body.verdict, body.comment || null);
     return current(note.id, note.pdf_rev);
   });

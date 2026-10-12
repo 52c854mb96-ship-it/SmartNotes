@@ -65,7 +65,7 @@ Alt ble bygget 4.–11. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#18](https://github.com/52c854mb96-ship-it/SmartNotes/pull/18) | Oppfølging etter en ny gjennomgang: filene til notatene skrives atomisk, så kopien holder seg uendret mens den lastes ned, tryggere steg for gjenoppretting, og lagrede PDF-er hentes på nytt etter en gjenoppretting |
 | [#19](https://github.com/52c854mb96-ship-it/SmartNotes/pull/19) | «Prøv med Haiku» på notatene: Haiku-versjonen ved siden av den vanlige, med elevens vurdering og en oppsummering i innstillingene |
 
-**Tester:** omtrent 2 380 enhetstester (178 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 20 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, og hele flyten for «Prøv med Haiku») og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
+**Tester:** omtrent 2 380 enhetstester (180 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 20 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, og hele flyten for «Prøv med Haiku») og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 

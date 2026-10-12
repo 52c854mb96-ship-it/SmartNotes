@@ -13,13 +13,13 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import type { ComparisonVerdict, Note, NoteComparison } from '@smartnotes/shared';
-import { api, errorMessage, urls } from '../api';
+import { api, errorMessage } from '../api';
 import { PageSkeleton } from '../components/EmptyState';
 import { PdfViewer } from '../components/PdfViewer';
 import { Spinner } from '../components/Status';
 import { useNote } from '../data';
 import { useOnline } from '../lib/connectivity';
-import { downloadUrl } from '../lib/download';
+import { saveBlob } from '../lib/download';
 import { formatTimestamp, kroner, slugify, stageText } from '../lib/format';
 import { useMediaQuery } from '../lib/media';
 import { confirmDialog, toast } from '../lib/ui';
@@ -91,15 +91,16 @@ function CompareView({ noteId }: { noteId: string | undefined }) {
     return () => ctrl.abort();
   }, [noteId, online, reload]);
 
-  // Mens Haiku jobber: spør igjen en stund etter forrige svar, men bare når siden er synlig.
+  // Mens Haiku jobber: spør igjen en stund etter forrige svar, men bare når siden er synlig og notatet finnes.
   const running = comparison?.status === 'running';
+  const gone = note === null;
   useEffect(() => {
-    if (!running || !online) return;
+    if (!running || !online || gone) return;
     const timer = window.setTimeout(() => {
       if (document.visibilityState === 'visible') setReload((n) => n + 1);
     }, POLL_MS);
     return () => window.clearTimeout(timer);
-  }, [running, online, loads]);
+  }, [running, online, gone, loads]);
 
   // Tilbake til appen: hent på nytt (og start spørringen igjen hvis den stoppet mens siden var skjult).
   useEffect(() => {
@@ -114,12 +115,17 @@ function CompareView({ noteId }: { noteId: string | undefined }) {
   if (note === null) return <NotFoundPage what="notatet" />;
 
   const start = async (current: NoteComparison | null) => {
-    if (current && current.status === 'done') {
+    // Spør først når noe går tapt: en ferdig Haiku-PDF eller en vurdering (også av en mislykket kjøring).
+    if (current && (current.status === 'done' || current.verdict)) {
+      const lost =
+        current.status !== 'done'
+          ? 'vurderingen din erstattes'
+          : current.verdict
+            ? 'Haiku-PDF-en og vurderingen din erstattes'
+            : 'Haiku-PDF-en erstattes';
       const ok = await confirmDialog({
         title: 'Lage Haiku-versjonen på nytt?',
-        body: `Haiku leser sidene på nytt, og ${
-          current.verdict ? 'Haiku-PDF-en og vurderingen din erstattes' : 'Haiku-PDF-en erstattes'
-        }. Det koster omtrent ${estimateOre(note.pageCount)} øre.`,
+        body: `Haiku leser sidene på nytt, og ${lost}. Det koster omtrent ${estimateOre(note.pageCount)} øre.`,
         confirmLabel: 'Lag på nytt',
       });
       if (!ok) return;
@@ -298,6 +304,11 @@ function RatingCard({
 }) {
   const [comment, setComment] = useState(comparison.comment ?? '');
   const [saving, setSaving] = useState<ComparisonVerdict | null>(null);
+  // Uten PDF fra Haiku kan den ikke være god nok; da kan eleven bare telle det som «Sonnet er bedre».
+  const failed = comparison.status === 'failed';
+  const verdicts = failed ? VERDICTS.filter((v) => v.id === 'sonnet_better') : VERDICTS;
+  /** Kommentaren er endret etter at vurderingen ble lagret. */
+  const dirty = comparison.verdict !== null && comment.trim() !== (comparison.comment ?? '');
 
   const rate = async (verdict: ComparisonVerdict) => {
     setSaving(verdict);
@@ -319,7 +330,9 @@ function RatingCard({
           Din vurdering
         </h2>
         <p className="card-text">
-          Se gjennom begge PDF-ene og velg det som passer best. Kommentaren lagres sammen med vurderingen.
+          {failed
+            ? 'Haiku laget ingen PDF denne gangen. Vil du telle det som at Sonnet er bedre?'
+            : 'Se gjennom begge PDF-ene og velg det som passer best. Kommentaren lagres sammen med vurderingen.'}
         </p>
       </div>
       <label className="field">
@@ -336,7 +349,7 @@ function RatingCard({
         />
       </label>
       <div className="card-actions">
-        {VERDICTS.map((v) => {
+        {verdicts.map((v) => {
           const chosen = comparison.verdict === v.id;
           return (
             <button
@@ -353,6 +366,17 @@ function RatingCard({
             </button>
           );
         })}
+        {dirty && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => void rate(comparison.verdict!)}
+            disabled={!online || saving !== null}
+            title={online ? undefined : 'Krever nett'}
+          >
+            Lagre kommentar
+          </button>
+        )}
         <span className="spacer" />
         {comparison.status === 'done' && (
           <button
@@ -366,7 +390,11 @@ function RatingCard({
           </button>
         )}
       </div>
-      {comparison.ratedAt && <p className="muted small">Sist lagret {formatTimestamp(comparison.ratedAt)}.</p>}
+      {dirty ? (
+        <p className="muted small">Kommentaren er endret, men ikke lagret.</p>
+      ) : (
+        comparison.ratedAt && <p className="muted small">Sist lagret {formatTimestamp(comparison.ratedAt)}.</p>
+      )}
     </section>
   );
 }
@@ -528,7 +556,7 @@ function HaikuPdf({ noteId, version, title }: { noteId: string; version: string;
           className="btn btn-ghost btn-sm"
           aria-label="Last ned Haiku-PDF"
           title="Last ned Haiku-PDF"
-          onClick={() => downloadUrl(urls.comparePdfDownload(noteId, version), `${slugify(title)}-haiku.pdf`)}
+          onClick={() => saveBlob(blob, `${slugify(title)}-haiku.pdf`)}
         >
           <Download size={16} aria-hidden />
           <span className="hide-xs">Last ned</span>

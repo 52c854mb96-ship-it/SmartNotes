@@ -26,7 +26,7 @@ import { errorExcerpt, replaceMissingFigures, sanitizeBody } from './latex.js';
 /** Modellen sammenligningen bruker. */
 export const COMPARE_MODEL = 'claude-haiku-5-5';
 
-const COMPILE_FAILED = 'Haiku-versjonen kompilerte ikke, selv etter automatisk retting. LaTeX-koden ligger i sammenligningen.';
+const COMPILE_FAILED = 'Haiku-versjonen kompilerte ikke, selv etter automatisk retting. Den vanlige versjonen er ikke endret.';
 
 export class Comparer {
   /** Kjøringene går én om gangen: LaTeX tar mye minne, og eleven venter uansett på én om gangen. */
@@ -170,8 +170,9 @@ export class Comparer {
     } catch (err) {
       if (err instanceof ConversionError && err.usage) usage.push(err.usage);
       if (err instanceof AbortedError) {
-        // Ved avslutning står raden som `running` og markeres som avbrutt ved neste oppstart.
+        // Ved avslutning står raden som `running` og markeres som avbrutt ved neste oppstart; det som er brukt, telles likevel.
         if (!this.stopped) this.repo.finishComparison(id, { ok: false, error: 'Notatet ble slettet.', remarks: [], costUsd: this.cost(usage) });
+        else this.repo.addComparisonSpend(id, this.cost(usage) ?? 0);
         return;
       }
       if (!(err instanceof ConversionError)) this.log.error({ err, noteId: id }, 'uventet feil i sammenligningen');
@@ -180,7 +181,10 @@ export class Comparer {
         err instanceof RefusalError
           ? 'Haiku avslo å lese notatet. Det skjer av og til; den vanlige versjonen er ikke endret.'
           : err instanceof ConversionError
-            ? err.message
+            ? // Meldingene for midlertidige feil lover et nytt forsøk; her må eleven selv trykke «Prøv igjen».
+              err.retryable
+              ? 'Fikk ikke kontakt med Claude. Trykk «Prøv igjen» om litt.'
+              : err.message
             : 'Uventet feil under sammenligningen. Prøv igjen.';
       this.repo.finishComparison(id, { ok: false, error: message, remarks: [], costUsd: this.cost(usage) });
     } finally {
@@ -206,19 +210,24 @@ function baseModelOf(row: NoteRow): string | null {
   }
 }
 
-/** Oppsummeringen i Innstillinger: hvor ofte eleven syntes Haiku var god nok. Notater som er slettet, telles med. */
+/**
+ * Oppsummeringen i Innstillinger: hvor ofte eleven syntes Haiku var god nok. Vurderinger av notater som senere er
+ * slettet, telles med; uvurderte og mislykkede telles bare for notater som finnes (de andre kan ikke vurderes).
+ */
 export function summarizeComparisons(
   rows: (ComparisonRow & { title: string | null; note_deleted: number | null })[],
   usdNok: number,
 ): ComparisonSummaryResponse {
   const rated = rows.filter((r) => r.verdict !== null && r.status !== 'running');
-  const costUsdTotal = rows.reduce((sum, r) => sum + (r.cost_usd ?? 0), 0);
+  const live = (r: { note_deleted: number | null }) => r.note_deleted === 0;
+  const costUsdTotal = rows.reduce((sum, r) => sum + r.spent_usd, 0);
   return {
     rated: rated.length,
     haikuOk: rated.filter((r) => r.verdict === 'haiku_ok').length,
     sonnetBetter: rated.filter((r) => r.verdict === 'sonnet_better').length,
-    failed: rows.filter((r) => r.status === 'failed' && r.verdict === null).length,
-    unrated: rows.filter((r) => r.status === 'done' && r.verdict === null).length,
+    failed: rows.filter((r) => r.status === 'failed' && r.verdict === null && live(r)).length,
+    unrated: rows.filter((r) => r.status === 'done' && r.verdict === null && live(r)).length,
+    running: rows.filter((r) => r.status === 'running' && live(r)).length,
     costNok: Math.round(costUsdTotal * usdNok * 100) / 100,
     items: rated.map((r) => ({
       noteId: r.note_id,

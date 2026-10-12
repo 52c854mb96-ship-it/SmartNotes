@@ -190,6 +190,7 @@ const MIGRATIONS: string[] = [
     page_count INTEGER NOT NULL DEFAULT 0,
     remarks TEXT NOT NULL DEFAULT '[]',
     cost_usd REAL,
+    spent_usd REAL NOT NULL DEFAULT 0,
     verdict TEXT,
     comment TEXT,
     created_at TEXT NOT NULL,
@@ -318,7 +319,10 @@ export interface ComparisonRow {
   error: string | null;
   page_count: number;
   remarks: string;
+  /** Kostnaden for siste kjøring. */
   cost_usd: number | null;
+  /** Alt kjøringene for dette notatet har kostet, også de som er erstattet eller avbrutt. */
+  spent_usd: number;
   verdict: ComparisonVerdict | null;
   comment: string | null;
   created_at: string;
@@ -565,13 +569,17 @@ export class Repo {
 
   // ---------- Sammenligning (bare på serveren, ingen rev) ----------
 
-  /** Starter (eller starter på nytt) sammenligningen for et notat. En tidligere vurdering fjernes. */
+  /** Starter (eller starter på nytt) sammenligningen for et notat. En tidligere vurdering fjernes; det som er brukt, beholdes. */
   startComparison(noteId: string, c: { model: string; baseModel: string | null; basePdfRev: number; pageCount: number }): void {
     this.db
       .prepare(
-        `INSERT OR REPLACE INTO note_comparisons (note_id, model, base_model, base_pdf_rev, status, stage, error, page_count, remarks,
+        `INSERT INTO note_comparisons (note_id, model, base_model, base_pdf_rev, status, stage, error, page_count, remarks,
            cost_usd, verdict, comment, created_at, finished_at, rated_at)
-         VALUES (?, ?, ?, ?, 'running', NULL, NULL, ?, '[]', NULL, NULL, NULL, ?, NULL, NULL)`,
+         VALUES (?, ?, ?, ?, 'running', NULL, NULL, ?, '[]', NULL, NULL, NULL, ?, NULL, NULL)
+         ON CONFLICT(note_id) DO UPDATE SET model = excluded.model, base_model = excluded.base_model,
+           base_pdf_rev = excluded.base_pdf_rev, status = 'running', stage = NULL, error = NULL, page_count = excluded.page_count,
+           remarks = '[]', cost_usd = NULL, verdict = NULL, comment = NULL, created_at = excluded.created_at, finished_at = NULL,
+           rated_at = NULL`,
       )
       .run(noteId, c.model, c.baseModel, c.basePdfRev, c.pageCount, now());
   }
@@ -583,10 +591,15 @@ export class Repo {
   finishComparison(noteId: string, r: { ok: boolean; error: string | null; remarks: string[]; costUsd: number | null }): void {
     this.db
       .prepare(
-        `UPDATE note_comparisons SET status = ?, stage = NULL, error = ?, remarks = ?, cost_usd = ?, finished_at = ?
-         WHERE note_id = ? AND status = 'running'`,
+        `UPDATE note_comparisons SET status = ?, stage = NULL, error = ?, remarks = ?, cost_usd = ?, spent_usd = spent_usd + ?,
+           finished_at = ? WHERE note_id = ? AND status = 'running'`,
       )
-      .run(r.ok ? 'done' : 'failed', r.error, JSON.stringify(r.remarks), r.costUsd, now(), noteId);
+      .run(r.ok ? 'done' : 'failed', r.error, JSON.stringify(r.remarks), r.costUsd, r.costUsd ?? 0, now(), noteId);
+  }
+
+  /** Det en kjøring som ble avbrutt (serveren stoppet), rakk å bruke. */
+  addComparisonSpend(noteId: string, usd: number): void {
+    this.db.prepare(`UPDATE note_comparisons SET spent_usd = spent_usd + ? WHERE note_id = ?`).run(usd, noteId);
   }
 
   /** Lagrer elevens vurdering. Gir false når det ikke finnes noen ferdig sammenligning å vurdere. */

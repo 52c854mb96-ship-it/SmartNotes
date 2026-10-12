@@ -198,7 +198,6 @@ export const urls = {
   chapterPdfDownload: (id: string) => `${BASE}/chapters/${enc(id)}/pdf?download=1`,
   subjectPdfDownload: (id: string) => `${BASE}/subjects/${enc(id)}/pdf?download=1`,
   noteTex: (id: string) => `${BASE}/notes/${enc(id)}/tex`,
-  comparePdfDownload: (id: string, v: string) => `${BASE}/notes/${enc(id)}/compare/pdf?v=${enc(v)}&download=1`,
   /** Hele sikkerhetskopien som .tar.gz (strømmes, så den lastes ned direkte og ikke via fetch). */
   backup: () => `${BASE}/backup`,
   notePage: (id: string, index: number) => `${BASE}/notes/${enc(id)}/pages/${index}`,

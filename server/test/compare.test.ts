@@ -8,6 +8,7 @@ import { buildApp, type AppContext } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import type { AiService, ConvertRequest, ConvertResult } from '../src/pipeline/ai.js';
 import { FakeClaude, RefusalError } from '../src/pipeline/claude.js';
+import { ConversionError } from '../src/errors.js';
 import { zeroUsage } from '../src/usage.js';
 
 /** Haiku som avslår, og teller kallene (for å vise at Sonnet ikke tar over i sammenligningen). */
@@ -31,6 +32,22 @@ class SlowHaiku extends FakeClaude {
     this.onStart();
     await new Promise<void>((r) => (this.release = r));
     return super.convert(req);
+  }
+}
+
+/** Haiku med ekte priser i forbruket (10 000 tokens inn og 2 000 ut per kall), så kostnaden kan sjekkes. */
+class PricedHaiku extends FakeClaude {
+  override readonly provider = 'anthropic';
+  override async convert(req: ConvertRequest): Promise<ConvertResult> {
+    const res = await super.convert(req);
+    return { ...res, usage: { ...res.usage, model: 'claude-haiku-5-5', inputTokens: 10_000, outputTokens: 2_000 } };
+  }
+}
+
+/** Haiku som ikke får kontakt (midlertidig feil, slik mapApiError lager den etter SDK-ens egne forsøk). */
+class UnreachableHaiku extends FakeClaude {
+  override async convert(): Promise<ConvertResult> {
+    throw new ConversionError('Fikk ikke kontakt med Claude. Prøver igjen om litt.', true);
   }
 }
 
@@ -233,6 +250,8 @@ describe('sammenligning når noe går galt', () => {
     expect(fs.existsSync(path.join(env.dataDir, 'notes', note.id, 'compare'))).toBe(false);
     // En mislykket kjøring telles for seg, og kan vurderes for hånd.
     expect((await env.call<ComparisonSummaryResponse>('GET', '/api/compare/summary')).body).toMatchObject({ rated: 0, failed: 1 });
+    // Uten PDF kan Haiku ikke være god nok.
+    expect((await env.call('PUT', `/api/notes/${note.id}/compare/rating`, { json: { verdict: 'haiku_ok' } })).status).toBe(409);
     expect((await env.call('PUT', `/api/notes/${note.id}/compare/rating`, { json: { verdict: 'sonnet_better' } })).status).toBe(200);
     expect((await env.call<ComparisonSummaryResponse>('GET', '/api/compare/summary')).body).toMatchObject({ rated: 1, sonnetBetter: 1, failed: 0 });
     await stopApp(env);
@@ -245,6 +264,7 @@ describe('sammenligning når noe går galt', () => {
     const note = await convertedNote(env);
     expect((await env.call('POST', `/api/notes/${note.id}/compare`)).status).toBe(202);
     await haiku.started;
+    expect((await env.call<ComparisonSummaryResponse>('GET', '/api/compare/summary')).body).toMatchObject({ running: 1 });
     // Vurdering mens den kjører, går ikke.
     expect((await env.call('PUT', `/api/notes/${note.id}/compare/rating`, { json: { verdict: 'haiku_ok' } })).status).toBe(409);
     expect((await env.call('DELETE', `/api/notes/${note.id}`)).status).toBe(200);
@@ -253,7 +273,38 @@ describe('sammenligning når noe går galt', () => {
     expect(fs.existsSync(path.join(env.dataDir, 'notes', note.id))).toBe(false);
     const row = env.ctx.repo.getComparisonRow(note.id)!;
     expect(row).toMatchObject({ status: 'failed', error: 'Notatet ble slettet.' });
+    // Et slettet notat kan ikke vurderes, så det står ikke som «feilet» i innstillingene for alltid.
+    expect((await env.call<ComparisonSummaryResponse>('GET', '/api/compare/summary')).body).toMatchObject({ failed: 0, running: 0, unrated: 0 });
     expect(fs.readdirSync(path.join(env.dataDir, 'tmp')).filter((n) => n.startsWith('compare-'))).toEqual([]);
+    await stopApp(env);
+    env = undefined;
+  }, 90_000);
+
+  it('lover ikke et nytt forsøk når Claude ikke svarer, siden eleven selv må prøve igjen', async () => {
+    env = await startApp(new UnreachableHaiku(0));
+    const note = await convertedNote(env);
+    expect((await env.call('POST', `/api/notes/${note.id}/compare`)).status).toBe(202);
+    await env.ctx.comparer.idle();
+    const failed = (await env.call<NoteComparisonResponse>('GET', `/api/notes/${note.id}/compare`)).body.comparison!;
+    expect(failed.status).toBe('failed');
+    expect(failed.error).toContain('Trykk «Prøv igjen»');
+    expect(failed.error).not.toContain('Prøver igjen');
+    await stopApp(env);
+    env = undefined;
+  }, 90_000);
+
+  it('teller kostnaden for alle kjøringene, også dem som er erstattet', async () => {
+    env = await startApp(new PricedHaiku(0));
+    const note = await convertedNote(env);
+    for (let i = 0; i < 2; i++) {
+      expect((await env.call('POST', `/api/notes/${note.id}/compare`)).status).toBe(202);
+      await env.ctx.comparer.idle();
+    }
+    // 10 000 tokens inn og 2 000 ut med Haiku: 0,002 dollar per kjøring, ganger kursen.
+    const usdNok = 10.5; // standardkursen (USD_NOK)
+    const perRun = Math.round(0.002 * usdNok * 100) / 100;
+    expect((await env.call<NoteComparisonResponse>('GET', `/api/notes/${note.id}/compare`)).body.comparison!.costNok).toBe(perRun);
+    expect((await env.call<ComparisonSummaryResponse>('GET', '/api/compare/summary')).body.costNok).toBe(Math.round(2 * 0.002 * usdNok * 100) / 100);
     await stopApp(env);
     env = undefined;
   }, 90_000);

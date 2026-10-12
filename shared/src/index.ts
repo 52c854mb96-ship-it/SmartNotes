@@ -429,11 +429,13 @@ export interface ComparisonSummaryResponse {
   rated: number;
   haikuOk: number;
   sonnetBetter: number;
-  /** Kjøringer som feilet og ikke er vurdert. */
+  /** Kjøringer som feilet og ikke er vurdert. En mislykket kjøring kan bare vurderes som «Sonnet er bedre». */
   failed: number;
   /** Ferdige kjøringer som ikke er vurdert ennå. */
   unrated: number;
-  /** Hva alle sammenligningene har kostet, i kroner. */
+  /** Kjøringer som lages nå. */
+  running: number;
+  /** Hva alle sammenligningene har kostet, i kroner (også kjøringer som er erstattet eller avbrutt). */
   costNok: number;
   /** De vurderte, nyeste først. `title` er tom hvis notatet er slettet. */
   items: { noteId: string; title: string; deleted: boolean; verdict: ComparisonVerdict; comment: string | null; ratedAt: string }[];
