@@ -386,24 +386,33 @@ async function pull(): Promise<void> {
     // Serveren har en lavere markør enn oss (f.eks. tilbakestilt database) – hent alt på nytt.
     res = await api.sync(0);
   }
-  await applySync(res);
+  // Serveren er bak det vi har sett (gjenopprettet fra en sikkerhetskopi): lokale rader som er «nyere» enn
+  // serveren, finnes ikke der lenger og skal ikke beholdes. Gjelder også full synk etter ny innlogging.
+  await applySync(res, res.cursor < cursor);
   if (wantFull) fullRequested = false;
   const now = Date.now();
   syncStore.set((s) => ({ ...s, lastSyncAt: now }));
 }
 
-async function applySync(res: SyncResponse): Promise<void> {
-  const tables = [db.subjects, db.chapters, db.notes, db.pdfs, db.meta, db.decks, db.cards, db.progress, db.practice];
+async function applySync(res: SyncResponse, serverBehind = false): Promise<void> {
+  const tables = [db.subjects, db.chapters, db.notes, db.pdfs, db.bundlePdfs, db.meta, db.decks, db.cards, db.progress, db.practice];
   await db.transaction('rw', tables, async () => {
     // Eldre servere sender ikke kortstokker.
     const decks = res.decks ?? [];
     const cards = res.cards ?? [];
     if (res.full) {
-      await replaceRows(db.subjects, res.subjects, res.cursor);
-      await replaceRows(db.chapters, res.chapters, res.cursor);
-      await replaceRows(db.notes, res.notes, res.cursor);
-      await replaceRows(db.decks, decks, res.cursor);
-      await replaceRows(db.cards, cards, res.cursor);
+      // Uendelig markør: ingen lokal rad regnes som nyere enn øyeblikksbildet.
+      const keepAbove = serverBehind ? Infinity : res.cursor;
+      await replaceRows(db.subjects, res.subjects, keepAbove);
+      await replaceRows(db.chapters, res.chapters, keepAbove);
+      await replaceRows(db.notes, res.notes, keepAbove);
+      await replaceRows(db.decks, decks, keepAbove);
+      await replaceRows(db.cards, cards, keepAbove);
+      // Et PDF-nummer (pdfRev) kan bety et annet innhold etter en gjenoppretting, så lagrede PDF-er hentes på nytt.
+      if (serverBehind) {
+        await db.pdfs.clear();
+        await db.bundlePdfs.clear();
+      }
       const noteIds = new Set(await db.notes.toCollection().primaryKeys());
       const cached = await db.pdfs.toCollection().primaryKeys();
       await db.pdfs.bulkDelete(cached.filter((id) => !noteIds.has(id)));

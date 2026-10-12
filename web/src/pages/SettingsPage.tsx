@@ -1,13 +1,14 @@
 import { Fragment, useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { CheckCircle2, CloudDownload, LogOut, RefreshCw, XCircle } from 'lucide-react';
-import type { AiStatusResponse, HealthResponse, UsageKind, UsageSummaryResponse } from '@smartnotes/shared';
-import { api, errorMessage } from '../api';
+import { CheckCircle2, CloudDownload, HardDriveDownload, LogOut, RefreshCw, XCircle } from 'lucide-react';
+import type { AiStatusResponse, BackupStatusResponse, HealthResponse, UsageKind, UsageSummaryResponse } from '@smartnotes/shared';
+import { api, errorMessage, urls } from '../api';
 import { Spinner } from '../components/Status';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { db } from '../db';
 import { isOnline, useOnline } from '../lib/connectivity';
-import { formatBytes, formatTimestamp, plural } from '../lib/format';
+import { downloadUrl } from '../lib/download';
+import { formatBytes, formatTimestamp, isSameDay, plural } from '../lib/format';
 import { confirmDialog, toast } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { downloadAllForOffline, logoutAndClear, requestPersistentStorage, syncNow, useSyncState } from '../sync';
@@ -25,6 +26,7 @@ export function SettingsPage() {
       <AppearanceCard />
       <ServerCard />
       <UsageCard />
+      <BackupCard />
       <SyncCard />
       <StorageCard />
       <AccountCard />
@@ -254,6 +256,135 @@ function UsageCard() {
           </p>
         </>
       )}
+    </section>
+  );
+}
+
+const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+/** Så lenge Innstillinger spør serveren om nedlastingen er ferdig (en stor kopi over mobilnett tar litt tid). */
+const BACKUP_WATCH_MS = 3 * 60_000;
+const backupDateFmt = new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'short', year: 'numeric' });
+const backupTimeFmt = new Intl.DateTimeFormat('nb-NO', { hour: '2-digit', minute: '2-digit' });
+
+/** «i dag kl. 14:03» eller «3. okt. 2026 kl. 14:03». Med årstall, så en kopi fra i fjor ikke ser fersk ut. */
+function backupTimeText(d: Date): string {
+  const time = backupTimeFmt.format(d);
+  return isSameDay(d, new Date()) ? `i dag kl. ${time}` : `${backupDateFmt.format(d)} kl. ${time}`;
+}
+
+function BackupCard() {
+  const { online } = useOnline();
+  const [status, setStatus] = useState<BackupStatusResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  /** «Sist sendt» fra før nedlastingen startet, mens vi venter på at serveren har sendt hele fila. */
+  const [watching, setWatching] = useState<{ before: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!online) return;
+    const ctrl = new AbortController();
+    api
+      .backupStatus(ctrl.signal)
+      .then((s) => {
+        setStatus(s);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (!ctrl.signal.aborted) setError(errorMessage(err, 'Kunne ikke hente informasjon om sikkerhetskopien.'));
+      });
+    return () => ctrl.abort();
+  }, [online, refresh]);
+
+  // Hent på nytt når man kommer tilbake til appen, for eksempel etter å ha lagret fila.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') setRefresh((n) => n + 1);
+    };
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
+
+  // «Sist sendt» settes på serveren når hele fila er sendt (om den ble lagret, vet bare enheten). Spør jevnlig til
+  // det skjer, en stund.
+  useEffect(() => {
+    if (!watching) return;
+    const started = Date.now();
+    const timer = window.setInterval(() => {
+      if (Date.now() - started > BACKUP_WATCH_MS) setWatching(null);
+      else void api.backupStatus().then(setStatus, () => {});
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [watching]);
+  useEffect(() => {
+    if (watching && status && status.lastBackupAt !== watching.before) setWatching(null);
+  }, [status, watching]);
+
+  const download = async () => {
+    setStarting(true);
+    try {
+      // Sjekker innloggingen først, så nettleseren ikke lagrer en feilmelding som fil.
+      const before = await api.backupStatus();
+      setStatus(before);
+      downloadUrl(urls.backup());
+      setWatching({ before: before.lastBackupAt });
+      toast('Sikkerhetskopien lastes ned. Sjekk at fila ligger i Nedlastinger, og flytt den til iCloud Drive.', { kind: 'success' });
+    } catch (err) {
+      toast(errorMessage(err, 'Kunne ikke starte nedlastingen.'), { kind: 'error' });
+    } finally {
+      // Et dobbeltklikk skal ikke gi to nedlastinger.
+      setTimeout(() => setStarting(false), 4000);
+    }
+  };
+
+  const last = status?.lastBackupAt ? new Date(status.lastBackupAt) : null;
+  return (
+    <section className="card" aria-labelledby="backup-h">
+      <div className="card-head">
+        <h2 id="backup-h" className="card-title">
+          Sikkerhetskopi
+        </h2>
+        <p className="card-text">
+          Last ned alt som ligger på serveren som én fil: fagene, notatene med originalbildene, PDF-ene og kortstokkene.
+          Lagre fila et trygt sted, for eksempel i iCloud Drive, og ta en ny kopi av og til.
+        </p>
+      </div>
+      {!online ? (
+        <p className="muted">Du er offline, så sikkerhetskopien kan ikke lastes ned nå.</p>
+      ) : error ? (
+        <p className="form-error">{error}</p>
+      ) : !status ? (
+        <div className="skeleton skeleton-line" />
+      ) : (
+        <dl className="kv">
+          <dt>Størrelse</dt>
+          <dd>
+            ca. {formatBytes(status.approxBytes)} · {plural(status.notes, 'notat', 'notater')}
+          </dd>
+          <dt>Sist sendt fra serveren</dt>
+          <dd>
+            {last ? backupTimeText(last) : 'Aldri'}
+            {(!last || Date.now() - last.getTime() > MONTH_MS) && (
+              <span className="muted"> · {last ? 'over en måned siden' : 'ta gjerne en nå'}</span>
+            )}
+          </dd>
+        </dl>
+      )}
+      <div className="card-actions">
+        <button
+          type="button"
+          className="btn"
+          onClick={() => void download()}
+          disabled={!online || starting}
+          title={online ? undefined : 'Krever nett'}
+        >
+          {starting ? <Spinner size={14} /> : <HardDriveDownload size={17} aria-hidden />} Last ned sikkerhetskopi
+        </button>
+      </div>
     </section>
   );
 }

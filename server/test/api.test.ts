@@ -99,6 +99,17 @@ describe('innlogging', () => {
     expect(noCsrf.status).toBe(403);
   });
 
+  it('kan ikke omgås med prosentkodede adresser som går til de samme rutene', async () => {
+    // `%61` er «a» og `%69` er «i»: ruteren pakker dem ut, så adressen går til /api/sync uten å begynne med «/api/».
+    for (const url of ['/%61pi/sync', '/a%70i/sync', '/ap%69/sync', '/api/%73ync', '/%61pi/backup/status']) {
+      expect((await call('GET', url, { auth: false })).status, url).toBe(401);
+    }
+    expect((await call('POST', '/%61pi/subjects', { json: { name: 'Inntrenger', profile: 'physics' }, csrf: false, auth: false })).status).toBe(403);
+    expect((await call('POST', '/%61pi/subjects', { json: { name: 'Inntrenger', profile: 'physics' }, auth: false })).status).toBe(401);
+    // Innlogging og helsesjekk er fortsatt åpne, også prosentkodet.
+    expect((await call('GET', '/%61pi/health', { auth: false })).status).toBe(200);
+  });
+
   it('logger inn med riktig passord', async () => {
     const res = await call('POST', '/api/auth/login', { json: { password: 'hemmelig' }, auth: false });
     expect(res.status).toBe(200);

@@ -369,6 +369,15 @@ export interface AiStatusResponse {
   } | null;
 }
 
+/** GET /api/backup/status – det Innstillinger viser om sikkerhetskopien. Selve kopien (.tar.gz) kommer fra GET /api/backup. */
+export interface BackupStatusResponse {
+  /** Når serveren sist sendte en hel sikkerhetskopi (ISO), eller null. Om fila ble lagret, vet bare enheten. */
+  lastBackupAt: string | null;
+  /** Omtrent hvor stor kopien er (byte før komprimering): databasen og filene til notatene. */
+  approxBytes: number;
+  notes: number;
+}
+
 export interface ApiError {
   error: string;
   /** Norsk, brukervennlig melding. */

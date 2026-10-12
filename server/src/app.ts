@@ -17,6 +17,7 @@ import { Converter } from './pipeline/converter.js';
 import { latexAvailable } from './pipeline/latex.js';
 import { aiConfigured, createAi, describeAi } from './pipeline/providers.js';
 import { Worker } from './pipeline/worker.js';
+import { registerBackupRoutes } from './routes/backup.js';
 import { registerFlashcardRoutes } from './routes/flashcards.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerNoteRoutes } from './routes/notes.js';
@@ -157,6 +158,7 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   registerNoteRoutes(app, { repo, storage, converter, worker, hub });
   registerFlashcardRoutes(app, { repo, storage, ai, generator });
   registerUsageRoutes(app, { repo, config });
+  registerBackupRoutes(app, { repo, storage, config });
   if (config.remote.token) registerWorkerRoutes(app, { hub, token: config.remote.token });
   const usesRemote = aiTasks.some((t) => t.provider === 'remote');
   app.get('/api/ai/status', async (): Promise<AiStatusResponse> => ({

@@ -1,6 +1,6 @@
 # Status for SmartNotes
 
-> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 12. oktober 2026, i PR #16 (Haiku for kortstokker og innholdsfortegnelser). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
+> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 12. oktober 2026, i PR #18 (oppfølging av sikkerhetskopien). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
 
 Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen dokumentasjon står i [README.md](../README.md) og [OPPSETT.md](OPPSETT.md).
 
@@ -28,6 +28,7 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 | Samle-PDF | Et helt kapittel eller hele faget som én PDF med innholdsliste. | `server/src/pipeline/bundle.ts` |
 | Offline og synk | Dexie (IndexedDB) er kilden lokalt. Opplastinger uten nett havner i en kø, og PDF-ene hentes på forhånd. | `web/src/db.ts`, `web/src/sync.ts` |
 | Rediger LaTeX | Eleven kan se og endre LaTeX-koden og kompilere på nytt. | `web/src/pages/note/LatexTab.tsx` |
+| Sikkerhetskopi | Innstillinger → «Sikkerhetskopi» laster ned alt på serveren som én `.tar.gz`: en kopi av databasen (uten innlogginger) og filene til notatene. Viser størrelsen og når kopien sist ble tatt. Gjenoppretting er ikke bygd inn. | `server/src/backup.ts`, `server/src/routes/backup.ts` |
 | Forbruk av AI | Hvert AI-kall logges med tokens og beregnet pris, også når det feiler. Innstillingene viser forbruket per måned, per type og per modell. | `server/src/usage.ts`, tabellen `usage_log` |
 | AI-leverandør per oppgave | Claude eller en lokal modell gjennom Ollama, valgt per oppgave (konvertering, kort, innholdsfortegnelse). Claude er standard. | `server/src/pipeline/providers.ts`, `ollama.ts` |
 | Hjemmemaskin | Serveren kan sende AI-kallene til en PC eller Mac hjemme som kjører Ollama. Av som standard. | `server/src/remote/`, [HJEMMEMASKIN.md](HJEMMEMASKIN.md) |
@@ -59,8 +60,10 @@ Alt ble bygget 4.–11. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#13](https://github.com/52c854mb96-ship-it/SmartNotes/pull/13) | Hjemmemaskin: kø på serveren og klienten `npm run homeworker`, med rettelser etter en sikkerhetsgjennomgang. Av som standard |
 | [#14](https://github.com/52c854mb96-ship-it/SmartNotes/pull/14) | Lokal AI: Qwen3.5 som standard, én side per kall, reparasjon av LaTeX i JSON, riktig cache-pris for Sonnet 5.5, og denne fila |
 | [#16](https://github.com/52c854mb96-ship-it/SmartNotes/pull/16) | Haiku 5.5 for kortstokker og innholdsfortegnelser, med Sonnet som reserve ved avslag. Konverteringen blir på Sonnet til sammenligningen er gjort |
+| [#17](https://github.com/52c854mb96-ship-it/SmartNotes/pull/17) | Sikkerhetskopi fra appen: «Last ned sikkerhetskopi» i innstillingene, fordi backup av volumet i Railway krever Pro-planen. Retter også et sikkerhetshull fra starten: adresser med prosentkoder (`/%61pi/...`) slapp forbi innloggingen |
+| [#18](https://github.com/52c854mb96-ship-it/SmartNotes/pull/18) | Oppfølging etter en ny gjennomgang: filene til notatene skrives atomisk, så kopien holder seg uendret mens den lastes ned, tryggere steg for gjenoppretting, og lagrede PDF-er hentes på nytt etter en gjenoppretting |
 
-**Tester:** omtrent 2 350 enhetstester (144 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 16 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk og at riktig PDF vises når man bytter notat) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
+**Tester:** omtrent 2 370 enhetstester (168 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 18 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, og at sikkerhetskopien lastes ned) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 
@@ -131,23 +134,23 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 - **Repoet er offentlig og har ingen lisens.** Planen anbefaler en lisens som sier at alle rettigheter er forbeholdt, og eventuelt privat repo senere. Privat repo nå ville trolig bruke opp de gratis CI-minuttene. Eleven bestemmer.
 - **Flashcards:** trykker eleven «Angre forrige» etter at en ny beste rekke er sendt til serveren, blir rekka ikke lavere igjen, fordi serveren beholder den høyeste.
 - **Stor hovedbunt:** hovedbunten i web-appen er rundt 710 kB (ca. 220 kB komprimert). KaTeX og visualiseringene lastes allerede først når de trengs.
-- **Sikkerhetskopi:** de eneste sikkerhetskopiene er volumbackupen i Railway (hvis abonnementet har den) og samle-PDF-ene. Det finnes ingen eksport av hele databasen.
+- **Sikkerhetskopi:** eleven laster ned kopien selv fra innstillingene (#17). Backup av volumet i Railway krever Pro-planen, og eleven har trolig Hobby (ca. 55 kr i måneden). Gjenoppretting er ikke bygd inn: arkivet pakkes ut, og innholdet legges i `/data` mens serveren står stille (se OPPSETT.md).
 
 ## Naturlige neste steg
 
 Dette er bare forslag. Eleven bestemmer rekkefølgen. Detaljene står i bolkene i [planen](https://claude.ai/artifact/RyN9UDgBgDiHQdXaFRpvck).
 
 1. **Elevens beslutninger:** eleven leser planen og svarer på beslutningene i del 7, særlig motoren i betaen (Haiku eller lokal AI), repoet (lisens eller privat) og hvem som eier API-kontoen.
-2. **Navneoppryddingen:** eleven ser over PR-en og bestemmer rekkefølgen i Fysikk 1 (beslutning 18). Ta backup av volumet i Railway før den deployes.
+2. **Navneoppryddingen (#15):** eleven har valgt å beholde rekkefølgen i Fysikk 1. Den flettes når eleven har lastet ned en sikkerhetskopi fra innstillingene og skrevet «backup tatt».
 3. **Måling (bolk 1):** eleven kjører `npm run eval` med Sonnet, Haiku og 3–5 lokale modeller på 10–20 egne sider, setter karakterer og sender CSV-fila. Uten dette er alle tall om kvalitet gjetninger.
-4. **Haiku (bolk 2):** kortstokker og innholdsfortegnelser er flyttet til Haiku (#16). Neste: sammenligningen av Sonnet og Haiku på elevens sider (`npm run eval` med `anthropic:claude-sonnet-5-5` og `anthropic:claude-haiku-5-5`), og deretter elevens valg om konverteringen.
+4. **Haiku (bolk 2):** kortstokker og innholdsfortegnelser er flyttet til Haiku (#16). Neste: sammenligningen av Sonnet og Haiku på elevens egne sider. Eleven valgte 12. oktober å gjøre den i appen: knappen «Prøv med Haiku» på notatsiden lager en Haiku-versjon ved siden av Sonnet-versjonen, og eleven vurderer med «Haiku er god nok» eller «Sonnet er bedre». Deretter velger eleven modell for konverteringen.
 5. **Kontoer, kvoter og personvern (bolk 4–6)** før venner og klassen inviteres. Store oppgaver, så still oppklaringsspørsmål først.
 6. **Reserven for hjemmemaskinen (bolk 8):** ventetid per nivå og Haiku i stedet for Sonnet. Til da bør `REMOTE_FALLBACK` stå på `none`.
 7. **Visualiseringene:** fysikk kapittel 5–10, deretter kjemi og biologi. Skriptene og fremgangsmåten står i [docs/workflows/README.md](workflows/README.md), og fremdriften i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md).
 8. **Prøve med ekte Claude:** konverter noen vanskelige fysikknotater og lag et par kortstokker. Juster så instruksene etter resultatet: `server/src/profiles/physics.ts` og `server/src/flashcards/prompt.ts`.
 9. **Delkapitler for Kjemi 1 og Biologi 1:** når noen har bøkene, importeres innholdsfortegnelsen. Etterpå kan visualiseringene kobles til delkapitlene.
 10. **Mer i flashcards:** «Lag flere kort» i en kortstokk som finnes fra før, og eksport, for eksempel til CSV eller Anki.
-11. **Mindre hovedbunt** og **sikkerhetskopi fra appen** (eksport av hele databasen og filene).
+11. **Mindre hovedbunt** og **gjenoppretting av sikkerhetskopi fra appen.**
 
 ## Nyttige kommandoer
 
