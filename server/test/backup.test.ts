@@ -11,6 +11,7 @@ import type { BackupStatusResponse, Note, Subject, SyncResponse } from '@smartno
 import { buildApp, type AppContext } from '../src/app.js';
 import { backupName, TAR_END, tarEntry } from '../src/backup.js';
 import { loadConfig } from '../src/config.js';
+import { writeFileAtomic } from '../src/storage.js';
 import { FakeClaude } from '../src/pipeline/claude.js';
 
 /** Større enn det som får plass i bufferne til socketen, så en avbrutt nedlasting rekker å bli avbrutt. */
@@ -57,6 +58,21 @@ describe('tar-formatet', () => {
   it('navngir kopien etter datoen i Norge', () => {
     // 23.30 UTC 31. desember er 00.30 1. januar i Norge.
     expect(backupName(new Date('2026-12-31T23:30:00Z'))).toBe('smartnotes-sikkerhetskopi-2027-01-01');
+  });
+});
+
+describe('writeFileAtomic', () => {
+  it('bytter fila i ett jafs og lar ingen midlertidig fil ligge igjen', async () => {
+    const dir = tmp('smartnotes-atomisk-');
+    const file = path.join(dir, 'note.tex');
+    fs.writeFileSync(file, 'gammel');
+    fs.linkSync(file, path.join(dir, 'lenke.tex'));
+    await writeFileAtomic(file, 'ny');
+    expect(fs.readFileSync(file, 'utf8')).toBe('ny');
+    // En lenke til den gamle fila (som i sikkerhetskopien) beholder det gamle innholdet.
+    expect(fs.readFileSync(path.join(dir, 'lenke.tex'), 'utf8')).toBe('gammel');
+    await expect(writeFileAtomic(path.join(dir, 'mangler', 'x.tex'), 'y')).rejects.toThrow();
+    expect(fs.readdirSync(dir).sort()).toEqual(['lenke.tex', 'note.tex']);
   });
 });
 
@@ -199,6 +215,43 @@ describe('sikkerhetskopi', () => {
     expect(backupDirs()).toEqual([]);
     expect((await call<BackupStatusResponse>('GET', '/api/backup/status')).body.lastBackupAt).toBeNull();
   });
+
+  it('har med LaTeX-koden slik den var da kopien ble startet, også om notatet redigeres underveis', async () => {
+    const texFile = path.join(dataDir, 'notes', note.id, 'note.tex');
+    const original = fs.readFileSync(texFile, 'utf8');
+    // En stor fil som pakkes før notatet (mappene sorteres), så notatet leses etter redigeringen.
+    const filler = path.join(dataDir, 'notes', '00000000-0000-0000-0000-000000000000');
+    fs.mkdirSync(filler);
+    fs.writeFileSync(path.join(filler, 'fyll.bin'), randomBytes(BIG));
+    try {
+      const archive = await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        const req = http.get(`${base}/api/backup`, { headers: { cookie } }, (res) => {
+          res.once('data', (first: Buffer) => {
+            chunks.push(first);
+            res.pause();
+            void call<{ ok: boolean }>('PUT', `/api/notes/${note.id}/latex`, { json: { body: `${original}\n\nEndret under nedlastingen.\n` } })
+              .then((put) => {
+                expect(put.body.ok).toBe(true);
+                expect(fs.readFileSync(texFile, 'utf8')).toContain('Endret under nedlastingen.');
+                res.on('data', (c: Buffer) => chunks.push(c));
+                res.on('end', () => resolve(Buffer.concat(chunks)));
+                res.resume();
+              })
+              .catch(reject);
+          });
+        });
+        req.on('error', reject);
+      });
+      const file = path.join(tmp('smartnotes-arkiv-'), 'kopi.tar.gz');
+      fs.writeFileSync(file, archive);
+      const root = path.join(extract(file, true), backupName(new Date()));
+      expect(fs.readFileSync(path.join(root, 'notes', note.id, 'note.tex'), 'utf8')).toBe(original);
+      expect(listFiles(root).filter((f) => f.endsWith('.tmp'))).toEqual([]);
+    } finally {
+      fs.rmSync(filler, { recursive: true, force: true });
+    }
+  }, 60_000);
 
   it('har med et notat som slettes mens nedlastingen pågår, slik det var da kopien ble startet', async () => {
     const before = listFiles(path.join(dataDir, 'notes', note.id));

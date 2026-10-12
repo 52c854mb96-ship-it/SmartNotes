@@ -1,6 +1,6 @@
 # Status for SmartNotes
 
-> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 12. oktober 2026, i PR #17 (sikkerhetskopi fra appen). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
+> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 12. oktober 2026, i PR #18 (oppfølging av sikkerhetskopien). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
 
 Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen dokumentasjon står i [README.md](../README.md) og [OPPSETT.md](OPPSETT.md).
 
@@ -61,8 +61,9 @@ Alt ble bygget 4.–11. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#14](https://github.com/52c854mb96-ship-it/SmartNotes/pull/14) | Lokal AI: Qwen3.5 som standard, én side per kall, reparasjon av LaTeX i JSON, riktig cache-pris for Sonnet 5.5, og denne fila |
 | [#16](https://github.com/52c854mb96-ship-it/SmartNotes/pull/16) | Haiku 5.5 for kortstokker og innholdsfortegnelser, med Sonnet som reserve ved avslag. Konverteringen blir på Sonnet til sammenligningen er gjort |
 | [#17](https://github.com/52c854mb96-ship-it/SmartNotes/pull/17) | Sikkerhetskopi fra appen: «Last ned sikkerhetskopi» i innstillingene, fordi backup av volumet i Railway krever Pro-planen. Retter også et sikkerhetshull fra starten: adresser med prosentkoder (`/%61pi/...`) slapp forbi innloggingen |
+| [#18](https://github.com/52c854mb96-ship-it/SmartNotes/pull/18) | Oppfølging etter en ny gjennomgang: filene til notatene skrives atomisk, så kopien holder seg uendret mens den lastes ned, tryggere steg for gjenoppretting, og lagrede PDF-er hentes på nytt etter en gjenoppretting |
 
-**Tester:** omtrent 2 370 enhetstester (166 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 18 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, og at sikkerhetskopien lastes ned) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
+**Tester:** omtrent 2 370 enhetstester (168 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 18 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, og at sikkerhetskopien lastes ned) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 

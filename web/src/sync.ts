@@ -395,7 +395,7 @@ async function pull(): Promise<void> {
 }
 
 async function applySync(res: SyncResponse, serverBehind = false): Promise<void> {
-  const tables = [db.subjects, db.chapters, db.notes, db.pdfs, db.meta, db.decks, db.cards, db.progress, db.practice];
+  const tables = [db.subjects, db.chapters, db.notes, db.pdfs, db.bundlePdfs, db.meta, db.decks, db.cards, db.progress, db.practice];
   await db.transaction('rw', tables, async () => {
     // Eldre servere sender ikke kortstokker.
     const decks = res.decks ?? [];
@@ -408,6 +408,11 @@ async function applySync(res: SyncResponse, serverBehind = false): Promise<void>
       await replaceRows(db.notes, res.notes, keepAbove);
       await replaceRows(db.decks, decks, keepAbove);
       await replaceRows(db.cards, cards, keepAbove);
+      // Et PDF-nummer (pdfRev) kan bety et annet innhold etter en gjenoppretting, så lagrede PDF-er hentes på nytt.
+      if (serverBehind) {
+        await db.pdfs.clear();
+        await db.bundlePdfs.clear();
+      }
       const noteIds = new Set(await db.notes.toCollection().primaryKeys());
       const cached = await db.pdfs.toCollection().primaryKeys();
       await db.pdfs.bulkDelete(cached.filter((id) => !noteIds.has(id)));

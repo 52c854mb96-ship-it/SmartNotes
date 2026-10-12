@@ -75,6 +75,21 @@ export class Storage {
   }
 }
 
+/**
+ * Skriver en fil via en midlertidig fil og rename, så den byttes i ett jafs. En leser ser aldri en halvskrevet fil,
+ * og sikkerhetskopien (som lenker filene når den starter) beholder den gamle versjonen.
+ */
+export async function writeFileAtomic(file: string, data: string | Buffer): Promise<void> {
+  const tmp = `${file}.${randomUUID()}.tmp`;
+  try {
+    await fsp.writeFile(tmp, data);
+    await fsp.rename(tmp, file);
+  } catch (err) {
+    await fsp.rm(tmp, { force: true });
+    throw err;
+  }
+}
+
 const ID_RE = /^[0-9a-f-]{36}$/i;
 
 /** Beskytter mot path traversal: id-er er alltid UUID-er. */

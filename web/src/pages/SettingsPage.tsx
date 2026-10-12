@@ -277,7 +277,7 @@ function BackupCard() {
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  /** «Sist lastet ned» fra før nedlastingen startet, mens vi venter på at serveren har sendt hele fila. */
+  /** «Sist sendt» fra før nedlastingen startet, mens vi venter på at serveren har sendt hele fila. */
   const [watching, setWatching] = useState<{ before: string | null } | null>(null);
 
   useEffect(() => {
@@ -308,7 +308,8 @@ function BackupCard() {
     };
   }, []);
 
-  // «Sist lastet ned» settes på serveren når hele fila er sendt. Spør jevnlig til det skjer, en stund.
+  // «Sist sendt» settes på serveren når hele fila er sendt (om den ble lagret, vet bare enheten). Spør jevnlig til
+  // det skjer, en stund.
   useEffect(() => {
     if (!watching) return;
     const started = Date.now();
@@ -363,7 +364,7 @@ function BackupCard() {
           <dd>
             ca. {formatBytes(status.approxBytes)} · {plural(status.notes, 'notat', 'notater')}
           </dd>
-          <dt>Sist lastet ned</dt>
+          <dt>Sist sendt fra serveren</dt>
           <dd>
             {last ? backupTimeText(last) : 'Aldri'}
             {(!last || Date.now() - last.getTime() > MONTH_MS) && (

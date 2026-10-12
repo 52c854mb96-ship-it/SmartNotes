@@ -164,15 +164,17 @@ Backup av volumet i Railway finnes bare på Pro-planen. Derfor laster du ned kop
 2. Gå til **Innstillinger → Sikkerhetskopi** og trykk **Last ned sikkerhetskopi**. Hvis Safari spør, velger du **Last ned**.
 3. Åpne **Filer**-appen og gå til **iCloud Drive → Nedlastinger**. Sjekk at fila er der, og at den er omtrent like stor som kortet viste.
 
-Ta en ny kopi av og til, for eksempel én gang i måneden og alltid før større endringer. Innstillingene viser når du sist lastet ned en. Kopien inneholder fagene, notatene med originalbildene, PDF-ene og kortstokkene. **Hele faget som PDF** på fagsiden gir deg i tillegg alle notatene samlet i én PDF.
+Ta en ny kopi av og til, for eksempel én gang i måneden og alltid før større endringer. Innstillingene viser når serveren sist sendte en kopi. Om fila faktisk ble lagret, ser du bare i Nedlastinger. Kopien inneholder fagene, notatene med originalbildene, PDF-ene og kortstokkene. **Hele faget som PDF** på fagsiden gir deg i tillegg alle notatene samlet i én PDF.
 
 **Gjenoppretting** er ikke bygd inn i appen ennå. Be Claude om hjelp. Stegene står også i `LES-MEG.txt` i kopien:
 
 1. Stopp serveren. Ingen prosess kan ha databasen åpen mens den byttes.
-2. Slett `smartnotes.db-wal` og `smartnotes.db-shm` i `/data` hvis de finnes. Ellers skriver SQLite gamle endringer over kopien.
-3. Flytt den gamle `smartnotes.db` og mappen `notes/` til side, og legg inn de fra kopien.
+2. Flytt `smartnotes.db`, `smartnotes.db-wal`, `smartnotes.db-shm` og mappen `notes/` i `/data` til en egen mappe ved siden av. Ikke slett dem: `-wal` kan ha de siste endringene.
+3. Legg inn `smartnotes.db` og `notes/` fra kopien. Sjekk at det ikke ligger noen `smartnotes.db-wal` eller `smartnotes.db-shm` ved siden av. Ellers skriver SQLite gamle endringer over kopien.
 4. Start serveren. Den gir filene riktig eier selv (brukeren `node`).
-5. Logg inn på nytt på hver enhet. Appen henter da alt på nytt fra serveren og glemmer notater som ikke finnes i kopien.
+5. Logg inn på nytt på hver enhet. Appen henter da alt på nytt fra serveren og glemmer notater og PDF-er som ikke finnes i kopien.
+
+På Railway kan volumet bare nås fra en tjeneste som kjører (med `railway ssh`). Gjenoppretting der krever derfor noen ekstra steg: en midlertidig startkommando som ikke starter appen, og en måte å få fila inn på volumet. Det gjør vi sammen den dagen det trengs, eller vi bygger gjenoppretting inn i appen først.
 
 ## Bytte passord eller API-nøkkel
 
