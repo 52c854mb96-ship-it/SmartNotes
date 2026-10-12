@@ -26,6 +26,8 @@ Appen er laget for **Fysikk 1**, **Kjemi 1** og **Biologi 1** (VG2, LK20). Hvert
   - Flashcards kan øves uten nett. Fremgangen sendes når du er på nett igjen.
   - Konverteringen skjer på serveren, så du kan lukke appen så snart opplastingen er sendt.
 - **Rediger LaTeX.** Du kan se og redigere LaTeX-koden og lage PDF-en på nytt.
+- **Prøv med Haiku.** Velg «Prøv med Haiku …» i menyen på et ferdig notat. Da leser Claude Haiku 5.5 de samme sidene, og du ser Haiku-versjonen ved siden av den vanlige. Notatet ditt endres ikke. Si om Haiku er god nok eller om den vanlige er bedre; innstillingene viser hvor ofte Haiku holdt mål («Haiku god nok på 7 av 10»). Det koster omtrent 1,5 øre per side, og hjelper deg å velge en billigere modell for konverteringen.
+- **Sikkerhetskopi.** Under **Innstillinger → Sikkerhetskopi** laster du ned alt på serveren som én fil, som du lagrer i iCloud Drive eller på Macen. Se [OPPSETT.md](docs/OPPSETT.md#sikkerhetskopi).
 
 ## Slik henger det sammen
 

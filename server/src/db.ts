@@ -4,6 +4,8 @@ import type {
   Chapter,
   ChapterInput,
   CompetenceAim,
+  ComparisonStatus,
+  ComparisonVerdict,
   Deck,
   DeckStatus,
   Flashcard,
@@ -11,6 +13,7 @@ import type {
   FlashcardInput,
   FlashcardKind,
   Note,
+  NoteComparison,
   NoteStage,
   NoteStatus,
   Section,
@@ -173,6 +176,28 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX usage_log_at ON usage_log(at);
   `,
+  // Sammenligning: notatet konvertert på nytt med en annen modell (Haiku), ved siden av den vanlige versjonen.
+  // Ett resultat per notat. Bare på serveren (synkroniseres ikke), så den trenger ingen rev.
+  `
+  CREATE TABLE note_comparisons (
+    note_id TEXT PRIMARY KEY,
+    model TEXT NOT NULL,
+    base_model TEXT,
+    base_pdf_rev INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    stage TEXT,
+    error TEXT,
+    page_count INTEGER NOT NULL DEFAULT 0,
+    remarks TEXT NOT NULL DEFAULT '[]',
+    cost_usd REAL,
+    spent_usd REAL NOT NULL DEFAULT 0,
+    verdict TEXT,
+    comment TEXT,
+    created_at TEXT NOT NULL,
+    finished_at TEXT,
+    rated_at TEXT
+  );
+  `,
 ];
 
 // ---------- Rad-typer (slik de ligger i SQLite) ----------
@@ -282,6 +307,47 @@ interface UsageLogRow {
   note_id: string | null;
   deck_id: string | null;
   subject_id: string | null;
+}
+
+export interface ComparisonRow {
+  note_id: string;
+  model: string;
+  base_model: string | null;
+  base_pdf_rev: number;
+  status: ComparisonStatus;
+  stage: NoteComparison['stage'];
+  error: string | null;
+  page_count: number;
+  remarks: string;
+  /** Kostnaden for siste kjøring. */
+  cost_usd: number | null;
+  /** Alt kjøringene for dette notatet har kostet, også de som er erstattet eller avbrutt. */
+  spent_usd: number;
+  verdict: ComparisonVerdict | null;
+  comment: string | null;
+  created_at: string;
+  finished_at: string | null;
+  rated_at: string | null;
+}
+
+export function toComparison(r: ComparisonRow, notePdfRev: number, usdNok: number): NoteComparison {
+  return {
+    noteId: r.note_id,
+    model: r.model,
+    baseModel: r.base_model,
+    status: r.status,
+    stage: r.stage,
+    error: r.error,
+    pageCount: r.page_count,
+    remarks: parseRemarks(r.remarks),
+    costNok: r.cost_usd === null ? null : Math.round(r.cost_usd * usdNok * 100) / 100,
+    baseChanged: notePdfRev !== r.base_pdf_rev,
+    verdict: r.verdict,
+    comment: r.comment,
+    createdAt: r.created_at,
+    finishedAt: r.finished_at,
+    ratedAt: r.rated_at,
+  };
 }
 
 export interface NoteFileRow {
@@ -499,6 +565,70 @@ export class Repo {
     } finally {
       copy.close();
     }
+  }
+
+  // ---------- Sammenligning (bare på serveren, ingen rev) ----------
+
+  /** Starter (eller starter på nytt) sammenligningen for et notat. En tidligere vurdering fjernes; det som er brukt, beholdes. */
+  startComparison(noteId: string, c: { model: string; baseModel: string | null; basePdfRev: number; pageCount: number }): void {
+    this.db
+      .prepare(
+        `INSERT INTO note_comparisons (note_id, model, base_model, base_pdf_rev, status, stage, error, page_count, remarks,
+           cost_usd, verdict, comment, created_at, finished_at, rated_at)
+         VALUES (?, ?, ?, ?, 'running', NULL, NULL, ?, '[]', NULL, NULL, NULL, ?, NULL, NULL)
+         ON CONFLICT(note_id) DO UPDATE SET model = excluded.model, base_model = excluded.base_model,
+           base_pdf_rev = excluded.base_pdf_rev, status = 'running', stage = NULL, error = NULL, page_count = excluded.page_count,
+           remarks = '[]', cost_usd = NULL, verdict = NULL, comment = NULL, created_at = excluded.created_at, finished_at = NULL,
+           rated_at = NULL`,
+      )
+      .run(noteId, c.model, c.baseModel, c.basePdfRev, c.pageCount, now());
+  }
+
+  setComparisonStage(noteId: string, stage: NoteComparison['stage']): void {
+    this.db.prepare(`UPDATE note_comparisons SET stage = ? WHERE note_id = ? AND status = 'running'`).run(stage, noteId);
+  }
+
+  finishComparison(noteId: string, r: { ok: boolean; error: string | null; remarks: string[]; costUsd: number | null }): void {
+    this.db
+      .prepare(
+        `UPDATE note_comparisons SET status = ?, stage = NULL, error = ?, remarks = ?, cost_usd = ?, spent_usd = spent_usd + ?,
+           finished_at = ? WHERE note_id = ? AND status = 'running'`,
+      )
+      .run(r.ok ? 'done' : 'failed', r.error, JSON.stringify(r.remarks), r.costUsd, r.costUsd ?? 0, now(), noteId);
+  }
+
+  /** Det en kjøring som ble avbrutt (serveren stoppet), rakk å bruke. */
+  addComparisonSpend(noteId: string, usd: number): void {
+    this.db.prepare(`UPDATE note_comparisons SET spent_usd = spent_usd + ? WHERE note_id = ?`).run(usd, noteId);
+  }
+
+  /** Lagrer elevens vurdering. Gir false når det ikke finnes noen ferdig sammenligning å vurdere. */
+  rateComparison(noteId: string, verdict: ComparisonVerdict, comment: string | null): boolean {
+    const res = this.db
+      .prepare(`UPDATE note_comparisons SET verdict = ?, comment = ?, rated_at = ? WHERE note_id = ? AND status != 'running'`)
+      .run(verdict, comment, now(), noteId);
+    return res.changes > 0;
+  }
+
+  getComparisonRow(noteId: string): ComparisonRow | null {
+    return (this.db.prepare(`SELECT * FROM note_comparisons WHERE note_id = ?`).get(noteId) as ComparisonRow | undefined) ?? null;
+  }
+
+  /** Sammenligninger som var i gang da serveren stoppet, kjøres ikke på nytt av seg selv (det koster penger). */
+  failInterruptedComparisons(message: string): number {
+    return this.db
+      .prepare(`UPDATE note_comparisons SET status = 'failed', stage = NULL, error = ?, finished_at = ? WHERE status = 'running'`)
+      .run(message, now()).changes;
+  }
+
+  /** Alle sammenligninger med tittelen på notatet (også slettede notater), nyeste vurdering først. */
+  listComparisons(): (ComparisonRow & { title: string | null; note_deleted: number | null })[] {
+    return this.db
+      .prepare(
+        `SELECT c.*, n.title AS title, n.deleted AS note_deleted FROM note_comparisons c LEFT JOIN notes n ON n.id = c.note_id
+         ORDER BY c.rated_at DESC, c.created_at DESC`,
+      )
+      .all() as (ComparisonRow & { title: string | null; note_deleted: number | null })[];
   }
 
   /** Det som står i manifestet til sikkerhetskopien. Slettede rader telles ikke. */

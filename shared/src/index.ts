@@ -378,6 +378,69 @@ export interface BackupStatusResponse {
   notes: number;
 }
 
+// ---------- Sammenligning av modeller ----------
+
+export type ComparisonStatus = 'running' | 'done' | 'failed';
+/** Elevens vurdering: Haiku-versjonen er god nok, eller den vanlige versjonen (Sonnet) er bedre. */
+export type ComparisonVerdict = 'haiku_ok' | 'sonnet_better';
+
+/**
+ * Notatet konvertert på nytt med Haiku fra de samme sidebildene, ved siden av den vanlige versjonen, som ikke
+ * endres. Ett resultat per notat; en ny kjøring erstatter det gamle. Bare på serveren (synkroniseres ikke).
+ */
+export interface NoteComparison {
+  noteId: string;
+  /** Modellen som laget sammenligningen (`claude-haiku-5-5`). */
+  model: string;
+  /** Modellen bak notatets vanlige PDF, hvis den er kjent. */
+  baseModel: string | null;
+  status: ComparisonStatus;
+  /** Steget mens status er `running`; null betyr at den venter på tur. */
+  stage: Extract<NoteStage, 'reading' | 'compiling' | 'fixing'> | null;
+  error: string | null;
+  pageCount: number;
+  /** Merknadene Haiku skrev om notatet (som `Note.remarks`). */
+  remarks: string[];
+  /** Beregnet kostnad etter listepris, i kroner. Null til den er kjent. */
+  costNok: number | null;
+  /** Den vanlige PDF-en er endret etter at Haiku-versjonen ble laget. */
+  baseChanged: boolean;
+  verdict: ComparisonVerdict | null;
+  comment: string | null;
+  createdAt: string;
+  finishedAt: string | null;
+  ratedAt: string | null;
+}
+
+/** GET og POST /api/notes/:id/compare. */
+export interface NoteComparisonResponse {
+  comparison: NoteComparison | null;
+}
+
+/** PUT /api/notes/:id/compare/rating */
+export interface RateComparisonRequest {
+  verdict: ComparisonVerdict;
+  comment?: string | null;
+}
+
+/** GET /api/compare/summary – oppsummeringen i Innstillinger. */
+export interface ComparisonSummaryResponse {
+  /** Antall vurderte sammenligninger. */
+  rated: number;
+  haikuOk: number;
+  sonnetBetter: number;
+  /** Kjøringer som feilet og ikke er vurdert. En mislykket kjøring kan bare vurderes som «Sonnet er bedre». */
+  failed: number;
+  /** Ferdige kjøringer som ikke er vurdert ennå. */
+  unrated: number;
+  /** Kjøringer som lages nå. */
+  running: number;
+  /** Hva alle sammenligningene har kostet, i kroner (også kjøringer som er erstattet eller avbrutt). */
+  costNok: number;
+  /** De vurderte, nyeste først. `title` er tom hvis notatet er slettet. */
+  items: { noteId: string; title: string; deleted: boolean; verdict: ComparisonVerdict; comment: string | null; ratedAt: string }[];
+}
+
 export interface ApiError {
   error: string;
   /** Norsk, brukervennlig melding. */

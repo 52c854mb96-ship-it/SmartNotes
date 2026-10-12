@@ -6,6 +6,7 @@ import {
   Download,
   FileCode2,
   FileText,
+  FlaskConical,
   GalleryVerticalEnd,
   Images,
   MessageSquareWarning,
@@ -23,10 +24,9 @@ import { PageSkeleton } from '../components/EmptyState';
 import { Menu } from '../components/Menu';
 import { NoteStatusBadge, Spinner } from '../components/Status';
 import { useChapters, useNote, useSubject } from '../data';
-import { asBlob, db } from '../db';
 import { useOnline } from '../lib/connectivity';
 import { aimMap, noteAimCodes, noteSectionCode, sectionLabel, sectionsOf } from '../lib/curriculum';
-import { downloadUrl, saveBlob } from '../lib/download';
+import { downloadUrl } from '../lib/download';
 import { chapterHeading, chapterLabel, formatDay, plural, slugify, stageDescription, stageText } from '../lib/format';
 import { confirmDialog, toast } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
@@ -35,6 +35,7 @@ import { LatexTab } from './note/LatexTab';
 import { OriginalTab } from './note/OriginalTab';
 import { PdfTab } from './note/PdfTab';
 import { RetryDialog } from './note/RetryDialog';
+import { downloadNotePdf } from './note/downloadPdf';
 import { vizForChapter, vizForSection } from '../viz/registry';
 
 type Tab = 'pdf' | 'original' | 'latex';
@@ -153,7 +154,7 @@ function NoteView({ noteId }: { noteId: string | undefined }) {
             hidden={tab !== t.id}
             className="tab-panel"
           >
-            {t.id === 'pdf' && <PdfTab note={note} onDownload={() => void downloadPdf(note)} />}
+            {t.id === 'pdf' && <PdfTab note={note} onDownload={() => void downloadNotePdf(note)} />}
             {t.id === 'original' && <OriginalTab note={note} />}
             {t.id === 'latex' && <LatexTab note={note} editRequest={editRequest} />}
           </div>
@@ -177,20 +178,6 @@ function tabKeys(e: KeyboardEvent, current: Tab, setTab: (t: Tab) => void) {
   const t = TABS[next]!;
   setTab(t.id);
   document.getElementById(`tab-${t.id}`)?.focus();
-}
-
-async function downloadPdf(note: Note) {
-  const cached = await db.pdfs.get(note.id);
-  const filename = `${slugify(note.title)}.pdf`;
-  if (cached && cached.rev >= note.pdfRev) {
-    saveBlob(asBlob(cached.blob, 'application/pdf'), filename);
-  } else if (navigator.onLine && note.pdfRev > 0) {
-    downloadUrl(urls.notePdfDownload(note.id, note.pdfRev), filename);
-  } else if (cached) {
-    saveBlob(asBlob(cached.blob, 'application/pdf'), filename);
-  } else {
-    toast('PDF-en er ikke lagret på denne enheten ennå.', { kind: 'error' });
-  }
 }
 
 function NoteHeader({
@@ -256,7 +243,7 @@ function NoteHeader({
             {
               label: 'Last ned PDF',
               icon: <Download size={17} />,
-              onSelect: () => void downloadPdf(note),
+              onSelect: () => void downloadNotePdf(note),
               disabled: note.pdfRev === 0,
               hint: 'PDF-en er ikke klar ennå',
             },
@@ -280,6 +267,13 @@ function NoteHeader({
               onSelect: onRetry,
               disabled: !online || busyOnServer,
               hint: !online ? OFFLINE_HINT : 'Konverteres allerede',
+            },
+            {
+              label: 'Prøv med Haiku …',
+              icon: <FlaskConical size={17} />,
+              onSelect: () => navigate(`/notat/${note.id}/sammenlign`),
+              disabled: !online || note.status !== 'done' || note.pdfRev === 0,
+              hint: !online ? OFFLINE_HINT : 'Notatet er ikke ferdig konvertert ennå',
             },
             {
               label: 'Slett notat …',

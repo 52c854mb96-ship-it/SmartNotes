@@ -4,6 +4,7 @@ import { ConfirmHost } from './components/ConfirmHost';
 import { Toaster } from './components/Toaster';
 import { BundlePage } from './pages/BundlePage';
 import { ChapterPage } from './pages/ChapterPage';
+import { ComparePage } from './pages/ComparePage';
 import { DeckPage } from './pages/DeckPage';
 import { FlashcardsPage } from './pages/FlashcardsPage';
 import { HomePage } from './pages/HomePage';
@@ -68,6 +69,7 @@ const router = createBrowserRouter([
           { path: 'fag/:subjectId/flashcards/ny', element: <NewDeckPage /> },
           { path: 'fag/:subjectId/flashcards/:deckId', element: <DeckPage /> },
           { path: 'notat/:noteId', element: <NotePage /> },
+          { path: 'notat/:noteId/sammenlign', element: <ComparePage /> },
           { path: 'innstillinger', element: <SettingsPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],

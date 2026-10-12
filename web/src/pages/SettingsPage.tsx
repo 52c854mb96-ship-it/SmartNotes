@@ -1,18 +1,26 @@
 import { Fragment, useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { CheckCircle2, CloudDownload, HardDriveDownload, LogOut, RefreshCw, XCircle } from 'lucide-react';
-import type { AiStatusResponse, BackupStatusResponse, HealthResponse, UsageKind, UsageSummaryResponse } from '@smartnotes/shared';
+import type {
+  AiStatusResponse,
+  BackupStatusResponse,
+  ComparisonSummaryResponse,
+  ComparisonVerdict,
+  HealthResponse,
+  UsageKind,
+  UsageSummaryResponse,
+} from '@smartnotes/shared';
 import { api, errorMessage, urls } from '../api';
 import { Spinner } from '../components/Status';
 import { ThemeSwitch } from '../components/ThemeSwitch';
 import { db } from '../db';
 import { isOnline, useOnline } from '../lib/connectivity';
 import { downloadUrl } from '../lib/download';
-import { formatBytes, formatTimestamp, isSameDay, plural } from '../lib/format';
+import { formatBytes, formatTimestamp, isSameDay, kroner, plural } from '../lib/format';
 import { confirmDialog, toast } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { downloadAllForOffline, logoutAndClear, requestPersistentStorage, syncNow, useSyncState } from '../sync';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 
 export function SettingsPage() {
   useDocumentTitle('Innstillinger');
@@ -26,6 +34,7 @@ export function SettingsPage() {
       <AppearanceCard />
       <ServerCard />
       <UsageCard />
+      <ComparisonCard />
       <BackupCard />
       <SyncCard />
       <StorageCard />
@@ -188,7 +197,6 @@ const KIND_LABELS: Record<UsageKind, string> = {
   toc: 'Innholdsfortegnelser',
   aims: 'Kompetansemål',
 };
-const kroner = (n: number) => `${n.toLocaleString('nb-NO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kr`;
 
 function UsageCard() {
   const { online } = useOnline();
@@ -254,6 +262,110 @@ function UsageCard() {
             Kurs: 1 dollar = {usage.usdNok.toLocaleString('nb-NO')} kr. Den faktiske regningen står i Anthropic Console under
             Usage.
           </p>
+        </>
+      )}
+    </section>
+  );
+}
+
+const VERDICT_TEXT: Record<ComparisonVerdict, string> = {
+  haiku_ok: 'Haiku er god nok',
+  sonnet_better: 'Sonnet er bedre',
+};
+
+/** Hvordan Haiku-versjonene av notatene er vurdert mot den vanlige versjonen («Prøv med Haiku …» på et notat). */
+function ComparisonCard() {
+  const { online } = useOnline();
+  const [summary, setSummary] = useState<ComparisonSummaryResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!online) return;
+    const ctrl = new AbortController();
+    api
+      .comparisonSummary(ctrl.signal)
+      .then((s) => {
+        setSummary(s);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (!ctrl.signal.aborted) setError(errorMessage(err, 'Kunne ikke hente sammenligningene.'));
+      });
+    return () => ctrl.abort();
+  }, [online]);
+
+  const empty = !!summary && summary.rated + summary.unrated + summary.failed + summary.running === 0;
+  return (
+    <section className="card" aria-labelledby="comparison-h">
+      <div className="card-head">
+        <h2 id="comparison-h" className="card-title">
+          Haiku eller Sonnet
+        </h2>
+        <p className="card-text">Notater du har latt Haiku lage på nytt og sammenlignet med den vanlige versjonen.</p>
+      </div>
+      {!online ? (
+        <p className="muted">Du er offline, så sammenligningene kan ikke hentes nå.</p>
+      ) : error ? (
+        <p className="form-error">{error}</p>
+      ) : !summary ? (
+        <div className="skeleton skeleton-line" />
+      ) : empty ? (
+        <p className="muted">Ingen sammenligninger ennå. Velg «Prøv med Haiku …» i menyen på et notat.</p>
+      ) : (
+        <>
+          <p className="comparison-headline">
+            {summary.rated > 0 ? `Haiku god nok på ${summary.haikuOk} av ${summary.rated}` : 'Ingen er vurdert ennå'}
+          </p>
+          <dl className="kv">
+            {summary.rated > 0 && (
+              <>
+                <dt>Sonnet er bedre</dt>
+                <dd>{summary.sonnetBetter}</dd>
+              </>
+            )}
+            {summary.running > 0 && (
+              <>
+                <dt>Lages nå</dt>
+                <dd>{summary.running}</dd>
+              </>
+            )}
+            {summary.unrated > 0 && (
+              <>
+                <dt>Ikke vurdert</dt>
+                <dd>{summary.unrated}</dd>
+              </>
+            )}
+            {summary.failed > 0 && (
+              <>
+                <dt>Feilet</dt>
+                <dd>{summary.failed}</dd>
+              </>
+            )}
+            <dt>Kostnad</dt>
+            <dd>{kroner(summary.costNok)}</dd>
+          </dl>
+          {summary.items.length > 0 && (
+            <details className="comparison-items">
+              <summary>Vurderte notater ({summary.items.length})</summary>
+              <ul className="comparison-list" role="list">
+                {summary.items.map((item) => (
+                  <li key={item.noteId}>
+                    <span className="comparison-item-head">
+                      {item.deleted ? (
+                        <span className="muted">Slettet notat</span>
+                      ) : (
+                        <Link to={`/notat/${item.noteId}/sammenlign`}>{item.title || 'Uten tittel'}</Link>
+                      )}
+                      <span className={`badge ${item.verdict === 'haiku_ok' ? 'badge-success' : 'badge-neutral'}`}>
+                        {VERDICT_TEXT[item.verdict]}
+                      </span>
+                    </span>
+                    {item.comment && <span className="muted small">{item.comment}</span>}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </>
       )}
     </section>

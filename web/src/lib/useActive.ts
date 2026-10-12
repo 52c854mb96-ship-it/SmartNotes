@@ -6,7 +6,8 @@ export function useActiveIds(): { subjectId?: string; chapterId?: string; noteId
   const { pathname } = useLocation();
   const chapterMatch = matchPath('/fag/:subjectId/kapittel/:chapterId/*', pathname);
   const subjectMatch = matchPath('/fag/:subjectId/*', pathname);
-  const noteMatch = matchPath('/notat/:noteId', pathname);
+  // Også undersider av notatet (f.eks. sammenligningen med Haiku), så fagtema og sidepanel følger notatet.
+  const noteMatch = matchPath('/notat/:noteId/*', pathname);
   const note = useNote(noteMatch?.params.noteId);
 
   if (noteMatch) {
