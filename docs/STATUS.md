@@ -1,6 +1,6 @@
 # Status for SmartNotes
 
-> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 12. oktober 2026, i PR #18 (oppfølging av sikkerhetskopien). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
+> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 12. oktober 2026, i PR #15 (navneoppryddingen). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
 
 Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen dokumentasjon står i [README.md](../README.md) og [OPPSETT.md](OPPSETT.md).
 
@@ -59,11 +59,12 @@ Alt ble bygget 4.–11. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#12](https://github.com/52c854mb96-ship-it/SmartNotes/pull/12) | AI-lag: Claude eller lokal AI (Ollama) per oppgave, og måleverktøyet `npm run eval` |
 | [#13](https://github.com/52c854mb96-ship-it/SmartNotes/pull/13) | Hjemmemaskin: kø på serveren og klienten `npm run homeworker`, med rettelser etter en sikkerhetsgjennomgang. Av som standard |
 | [#14](https://github.com/52c854mb96-ship-it/SmartNotes/pull/14) | Lokal AI: Qwen3.5 som standard, én side per kall, reparasjon av LaTeX i JSON, riktig cache-pris for Sonnet 5.5, og denne fila |
+| [#15](https://github.com/52c854mb96-ship-it/SmartNotes/pull/15) | Navneopprydding: fagoppsett etter læreplanen (`server/src/presets.ts`) med SmartNotes' egne temaer i stedet for lærebøkenes innholdsfortegnelser, og ingen forlagsnavn. De gamle id-ene er aliaser, så eksisterende fag legges ikke inn på nytt |
 | [#16](https://github.com/52c854mb96-ship-it/SmartNotes/pull/16) | Haiku 5.5 for kortstokker og innholdsfortegnelser, med Sonnet som reserve ved avslag. Konverteringen blir på Sonnet til sammenligningen er gjort |
 | [#17](https://github.com/52c854mb96-ship-it/SmartNotes/pull/17) | Sikkerhetskopi fra appen: «Last ned sikkerhetskopi» i innstillingene, fordi backup av volumet i Railway krever Pro-planen. Retter også et sikkerhetshull fra starten: adresser med prosentkoder (`/%61pi/...`) slapp forbi innloggingen |
 | [#18](https://github.com/52c854mb96-ship-it/SmartNotes/pull/18) | Oppfølging etter en ny gjennomgang: filene til notatene skrives atomisk, så kopien holder seg uendret mens den lastes ned, tryggere steg for gjenoppretting, og lagrede PDF-er hentes på nytt etter en gjenoppretting |
 
-**Tester:** omtrent 2 370 enhetstester (168 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 18 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, og at sikkerhetskopien lastes ned) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
+**Tester:** omtrent 2 370 enhetstester (170 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 18 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, og at sikkerhetskopien lastes ned) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 
@@ -82,7 +83,7 @@ Ikke endre disse uten å spørre først.
 - **Prioritet (11. oktober):** å få ned kostnadene, så flere kan bruke appen, går foran visualiseringene. Fysikk kapittel 5–10 haster ikke. Målet er ingen eller lav kostnad, dekket av pro-brukere: en gratisversjon og en betalt pro-versjon med kvoter per dag, og lokal AI der det lønner seg. Planen står på en [privat side for eleven](https://claude.ai/artifact/RyN9UDgBgDiHQdXaFRpvck). Les den med Artifact-verktøyet (`action: "read"`). Den ligger ikke i repoet, fordi repoet er offentlig og planen handler om alder, familie og juss.
 - **Første brukere:** venner og klassen.
 - **Maskiner for lokal AI:** en PC med RTX 4060 (8 GB) og elevens Mac med M4 og 16 GB. En Mac mini som står på hele døgnet, kan bli aktuell senere. Maskinene står bare på deler av dagen foreløpig.
-- **Opphavsrett:** forlagsnavn og bøkenes innholdsfortegnelser skal ut. Bruk bare kilder vi har lov til, som kompetansemålene fra Udir (NLOD). Navneoppryddingen ligger i en egen PR som eleven skal se over før den flettes.
+- **Opphavsrett:** forlagsnavn og bøkenes innholdsfortegnelser skal ut. Bruk bare kilder vi har lov til, som kompetansemålene fra Udir (NLOD). Navneoppryddingen er gjort i #15. Eleven valgte å beholde rekkefølgen i Fysikk 1 og la fagene som allerede finnes, stå som de er.
 - **Drift:** Railway, ikke Fly.io, fordi eleven allerede har abonnement der. Railway deployer fra `main` med «Wait for CI».
 - **Innholdsfortegnelser:** importen for Kjemi 1 og Biologi 1 er utsatt, fordi eleven ikke har de fagene.
 
@@ -141,7 +142,7 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 Dette er bare forslag. Eleven bestemmer rekkefølgen. Detaljene står i bolkene i [planen](https://claude.ai/artifact/RyN9UDgBgDiHQdXaFRpvck).
 
 1. **Elevens beslutninger:** eleven leser planen og svarer på beslutningene i del 7, særlig motoren i betaen (Haiku eller lokal AI), repoet (lisens eller privat) og hvem som eier API-kontoen.
-2. **Navneoppryddingen (#15):** eleven har valgt å beholde rekkefølgen i Fysikk 1. Den flettes når eleven har lastet ned en sikkerhetskopi fra innstillingene og skrevet «backup tatt».
+2. **Etter navneoppryddingen (#15):** sjekk at eleven ikke har fått doble fag, og at visualiseringene fortsatt vises på notatene.
 3. **Måling (bolk 1):** eleven kjører `npm run eval` med Sonnet, Haiku og 3–5 lokale modeller på 10–20 egne sider, setter karakterer og sender CSV-fila. Uten dette er alle tall om kvalitet gjetninger.
 4. **Haiku (bolk 2):** kortstokker og innholdsfortegnelser er flyttet til Haiku (#16). Neste: sammenligningen av Sonnet og Haiku på elevens egne sider. Eleven valgte 12. oktober å gjøre den i appen: knappen «Prøv med Haiku» på notatsiden lager en Haiku-versjon ved siden av Sonnet-versjonen, og eleven vurderer med «Haiku er god nok» eller «Sonnet er bedre». Deretter velger eleven modell for konverteringen.
 5. **Kontoer, kvoter og personvern (bolk 4–6)** før venner og klassen inviteres. Store oppgaver, så still oppklaringsspørsmål først.
