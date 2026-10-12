@@ -96,7 +96,7 @@ npm run eval --workspace server -- notater --flashcards \
   --models "anthropic:claude-sonnet-5-5,anthropic:claude-haiku-5-5,ollama:qwen3.5:9b,ollama:qwen3.5:4b"
 ```
 
-20 sider koster omtrent 5 kr med Sonnet 5.5 og rundt 25 øre med Haiku 5.5 (beregnet, ikke målt). Det er ikke bekreftet at Haiku 5.5 leser bilder i like høy oppløsning som Sonnet 5.5, så figurene kan bli klippet litt feil med Haiku. Se derfor særlig på figurene.
+20 sider koster omtrent 5 kr med Sonnet 5.5 og rundt 25 øre med Haiku 5.5 (beregnet, ikke målt). Haiku 5.5 leser bilder i like høy oppløsning som Sonnet 5.5. En modell som ikke gjør det, avvises med en feilmelding i stedet for å klippe figurene feil. Se likevel nøye på figurene: hvor godt modellen plasserer boksene, varierer.
 
 ## Valg
 

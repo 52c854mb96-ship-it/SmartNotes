@@ -354,17 +354,29 @@ describe('små ting for lokale modeller', () => {
 });
 
 describe('valg av leverandør', () => {
-  const base = { ...process.env, NODE_ENV: 'test', APP_PASSWORD: 'x', SMARTNOTES_FAKE_CLAUDE: '' };
+  const base = {
+    ...process.env,
+    NODE_ENV: 'test',
+    APP_PASSWORD: 'x',
+    SMARTNOTES_FAKE_CLAUDE: '',
+    ANTHROPIC_API_KEY: '',
+    CLAUDE_MODEL: '',
+    CLAUDE_MODEL_FLASHCARDS: '',
+    CLAUDE_MODEL_TOC: '',
+    CLAUDE_FALLBACKS: '',
+    REMOTE_FALLBACK: '',
+    WORKER_TOKEN: '',
+    AI_PROVIDER: '',
+    AI_PROVIDER_CONVERT: '',
+    AI_PROVIDER_FLASHCARDS: '',
+    AI_PROVIDER_TOC: '',
+  };
 
-  it('bruker Claude for alt som standard', () => {
+  it('bruker Claude for alt som standard (modellene per oppgave står i providers.test.ts)', () => {
     const config = loadConfig({ ...base, ANTHROPIC_API_KEY: 'sk-test' });
     expect(config.aiProviders).toEqual({ convert: 'anthropic', flashcards: 'anthropic', toc: 'anthropic' });
-    expect(createAi(config)).toBeInstanceOf(AnthropicClaude);
-    expect(describeAi(config)).toEqual([
-      { task: 'convert', provider: 'anthropic', model: 'claude-sonnet-5-5' },
-      { task: 'flashcards', provider: 'anthropic', model: 'claude-sonnet-5-5' },
-      { task: 'toc', provider: 'anthropic', model: 'claude-sonnet-5-5' },
-    ]);
+    expect(createAi(config)).toBeInstanceOf(RoutedAi);
+    expect(describeAi(config).every((d) => d.provider === 'anthropic')).toBe(true);
   });
 
   it('kan sende én oppgave til Ollama og resten til Claude', () => {
@@ -372,18 +384,19 @@ describe('valg av leverandør', () => {
     expect(config.ollama).toMatchObject({ url: 'http://pc:11434', model: 'qwen3-vl:8b', textModel: 'qwen3:8b' });
     const wrapped: string[] = [];
     const ai = createAi(config, (inner) => {
-      wrapped.push(inner.provider);
+      wrapped.push(`${inner.provider}:${inner.model}`);
       return inner;
     });
     expect(ai).toBeInstanceOf(RoutedAi);
-    expect(wrapped.sort()).toEqual(['anthropic', 'ollama']);
+    // Haiku for kortstokker og innholdsfortegnelse, med Sonnet som reserve ved avslag.
+    expect(wrapped.sort()).toEqual(['anthropic:claude-haiku-5-5', 'anthropic:claude-sonnet-5-5', 'ollama:qwen3-vl:8b']);
     // Uten API-nøkkel kan konverteringen (lokal) kjøre, men ikke kortstokkene (Claude).
     expect(aiConfigured(ai, 'convert')).toBe(true);
     expect(aiConfigured(ai, 'flashcards')).toBe(false);
     expect(describeAi(config).map((d) => `${d.task}:${d.provider}:${d.model}`)).toEqual([
       'convert:ollama:qwen3-vl:8b',
-      'flashcards:anthropic:claude-sonnet-5-5',
-      'toc:anthropic:claude-sonnet-5-5',
+      'flashcards:anthropic:claude-haiku-5-5',
+      'toc:anthropic:claude-haiku-5-5',
     ]);
   });
 

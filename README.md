@@ -89,7 +89,9 @@ Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du m�
 |---|---|---|
 | `APP_PASSWORD` | – (påkrevd i produksjon) | Passordet du logger inn med |
 | `ANTHROPIC_API_KEY` | – | Claude API-nøkkel |
-| `CLAUDE_MODEL` | `claude-sonnet-5-5` | Modellen som leser notatene og lager kortene (`claude-opus-5-5` er grundigere, men koster det dobbelte) |
+| `CLAUDE_MODEL` | `claude-sonnet-5-5` | Modellen som leser notatene og retter LaTeX (`claude-opus-5-5` er grundigere, men koster det dobbelte). Må lese bilder i høy oppløsning, ellers avvises konverteringen |
+| `CLAUDE_MODEL_FLASHCARDS` | `claude-haiku-5-5` | Modellen som lager kortstokkene. Avslår Haiku, prøves `CLAUDE_MODEL` |
+| `CLAUDE_MODEL_TOC` | `claude-haiku-5-5` | Modellen som leser innholdsfortegnelser og kobler delkapitler til kompetansemål |
 | `CLAUDE_EFFORT` | `medium` | Hvor grundig Claude jobber ved konvertering: `low` / `medium` / `high` / `xhigh` / `max` |
 | `CLAUDE_FALLBACKS` | `true` | Hvis Claudes sikkerhetsfiltre ved en feil avslår et notat, prøves en anbefalt reservemodell automatisk |
 | `SEED_TEXTBOOKS` | alle kjente | Læreboksett (fag, kapitler, delkapitler og kompetansemål) som legges inn, hvert bare én gang. Kommaliste, f.eks. `ergo-fysikk-1,aschehoug-kjemi-1`, eller `none` for et tomt fag. Se `server/src/textbooks.ts` |
@@ -148,7 +150,7 @@ Serveren på Railway kan sende AI-kallene til en PC eller Mac hjemme som kjører
 
 ## Hva koster det?
 
-Hver side sendes som et bilde i høy oppløsning (ca. 4 800 tokens). Med Claude Sonnet 5.5 ($2 per million input-tokens og $10 per million output-tokens, der tenkning regnes som output) og middels grundighet koster en side omtrent **0,25 kr**, og et notat på 5 sider omtrent **1–1,50 kr**, avhengig av hvor mye som står på sidene. En kortstokk med flashcards koster omtrent 0,50–2 kr, opptil ca. 5 kr for de største. Med vanlig bruk i tre fag blir det rundt 40 kr i måneden til Claude. Instruksene caches mellom notater, og det gjør det litt billigere. Hvor mange tokens hvert notat brukte, lagres i `meta.json` i notatets mappe på serveren.
+Hver side sendes som et bilde i høy oppløsning (ca. 4 800 tokens). Med Claude Sonnet 5.5 ($2 per million input-tokens og $10 per million output-tokens, der tenkning regnes som output) og middels grundighet koster en side omtrent **0,25 kr**, og et notat på 5 sider omtrent **1–1,50 kr**, avhengig av hvor mye som står på sidene. Kortstokker og innholdsfortegnelser lages med Claude Haiku 5.5, som koster en tjuendedel: en kortstokk koster noen få øre (ca. 0,05–0,15 kr), og under 1,50 kr for de aller største. Med vanlig bruk i tre fag blir det rundt 40 kr i måneden til Claude. Instruksene caches mellom notater, og det gjør det litt billigere. Hvor mange tokens hvert notat brukte, lagres i `meta.json` i notatets mappe på serveren.
 
 ## Personvern
 

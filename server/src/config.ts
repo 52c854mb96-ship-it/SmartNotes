@@ -67,7 +67,13 @@ export interface Config {
   /** Passordet for å logge inn i appen. */
   appPassword: string;
   anthropicApiKey: string | null;
+  /** Claude-modellen for konvertering og retting av LaTeX (CLAUDE_MODEL). Samme som `claudeModels.convert`. */
   model: string;
+  /**
+   * Claude-modellen per oppgave: konvertering (CLAUDE_MODEL), kortstokker (CLAUDE_MODEL_FLASHCARDS) og
+   * innholdsfortegnelser med kompetansemål (CLAUDE_MODEL_TOC).
+   */
+  claudeModels: Record<AiTask, string>;
   effort: Effort;
   /** Server-side fallback ved avslag fra modellens sikkerhetsfiltre (Claude API). */
   useFallbacks: boolean;
@@ -162,6 +168,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const fallback = env.REMOTE_FALLBACK?.trim() || 'none';
   if (fallback !== 'none' && fallback !== 'anthropic') throw new Error('REMOTE_FALLBACK må være «none» eller «anthropic».');
 
+  // Konverteringen bruker Sonnet 5.5, som leser bilder i høy oppløsning og merker usikre steder godt. Kortstokker og
+  // innholdsfortegnelser bruker Haiku 5.5, som koster en tjuendedel (elevens valg 12. oktober 2026).
+  const claudeModels: Record<AiTask, string> = {
+    convert: env.CLAUDE_MODEL?.trim() || 'claude-sonnet-5-5',
+    flashcards: env.CLAUDE_MODEL_FLASHCARDS?.trim() || 'claude-haiku-5-5',
+    toc: env.CLAUDE_MODEL_TOC?.trim() || 'claude-haiku-5-5',
+  };
+
   const defaultWebDist = path.resolve(SERVER_ROOT, '..', 'web', 'dist');
   const webDist = env.WEB_DIST ?? (fs.existsSync(path.join(defaultWebDist, 'index.html')) ? defaultWebDist : null);
 
@@ -178,8 +192,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     dataDir: path.resolve(env.DATA_DIR ?? path.join(SERVER_ROOT, '..', 'data')),
     appPassword,
     anthropicApiKey: env.ANTHROPIC_API_KEY?.trim() || null,
-    // Sonnet 5.5 koster halvparten av Opus 5.5 og leser bilder i like høy oppløsning. CLAUDE_MODEL=claude-opus-5-5 gir Opus.
-    model: env.CLAUDE_MODEL?.trim() || 'claude-sonnet-5-5',
+    model: claudeModels.convert,
+    claudeModels,
     effort,
     useFallbacks: bool(env.CLAUDE_FALLBACKS, true),
     fakeClaude,

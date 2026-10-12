@@ -7,7 +7,7 @@ import type { Deck, Flashcard, ProgressResponse, Subject, SyncResponse } from '@
 import { buildApp, type AppContext } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { buildFlashcardPrompt, cleanFlashcards, defaultDeckTitle, noteSourceText, MAX_CARDS } from '../src/flashcards/prompt.js';
-import { FakeClaude, flashcardError, parseFlashcardMessage } from '../src/pipeline/claude.js';
+import { FakeClaude, RefusalError, flashcardError, parseFlashcardMessage } from '../src/pipeline/claude.js';
 
 /** Flashcards: kortstokker fra notater, redigering av kort og fremgang som synkes mellom enheter. */
 let ctx: AppContext;
@@ -313,6 +313,10 @@ describe('svar fra Claude', () => {
     expect(parseFlashcardMessage(text(ok))).toHaveLength(1);
     expect(() => parseFlashcardMessage(text(ok.slice(0, 40), 'max_tokens'))).toThrow('Utvalget ble for stort. Velg færre notater eller færre kort.');
     expect(() => parseFlashcardMessage(text('{"cards": [', 'refusal'))).toThrow('Claude avslo å lage kort av disse notatene.');
+    // Bare avslag sendes videre til reservemodellen (RefusalFallback), ikke avkuttede eller ugyldige svar.
+    expect(() => parseFlashcardMessage(text('{"cards": [', 'refusal'))).toThrow(RefusalError);
+    expect(() => parseFlashcardMessage(text(ok.slice(0, 40), 'max_tokens'))).not.toThrow(RefusalError);
+    expect(flashcardError(new RefusalError('Claude avslo å lage kort av disse notatene.'))).toBeInstanceOf(RefusalError);
     expect(() => parseFlashcardMessage(text('{"cards": ['))).toThrow('Claude svarte ikke med kort. Prøv igjen.');
     expect(() => parseFlashcardMessage(text('{"kort": []}'))).toThrow('Claude svarte ikke med kort. Prøv igjen.');
   });
