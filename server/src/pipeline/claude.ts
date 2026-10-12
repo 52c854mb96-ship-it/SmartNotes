@@ -17,12 +17,17 @@ import { withUsage, zeroUsage, type Usage } from '../usage.js';
 import { TOC_AIMS_PROMPT, buildContext, tocSchema, type AiService, type ConvertRequest, type ConvertResult, type FixRequest } from './ai.js';
 import { extractLatex, parseConversion, type NoteMeta } from './parse.js';
 
-async function pageBlocks(pages: ConvertRequest['pages']): Promise<Anthropic.Beta.BetaContentBlockParam[]> {
+/**
+ * Sidebildene til Claude. De er skalert slik at modeller med høy oppløsning (Sonnet, Opus og Haiku 5.5) leser dem uten
+ * å krympe dem, og figurboksene blir da i sidens egne piksler. `oversized_image: 'error'` gjør at API-et avviser bildet
+ * i stedet for å krympe det i stillhet, for eksempel med en eldre modell, så figurene aldri klippes ut feil.
+ */
+export async function pageBlocks(pages: ConvertRequest['pages']): Promise<Anthropic.Beta.BetaContentBlockParam[]> {
   const blocks: Anthropic.Beta.BetaContentBlockParam[] = [];
   for (const [i, p] of pages.entries()) {
     blocks.push({ type: 'text', text: `Side ${i + 1} (${p.width}×${p.height} piksler):` });
     const data = (await fsp.readFile(p.path)).toString('base64');
-    blocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } });
+    blocks.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data }, transformations: { oversized_image: 'error' } });
   }
   return blocks;
 }
@@ -55,10 +60,15 @@ export function mapApiError(err: unknown): ConversionError {
     return new ConversionError('Claude har for mange forespørsler akkurat nå. Prøver igjen om litt.', true);
   }
   if (err instanceof Anthropic.BadRequestError) {
+    if (/oversized_image|exceed the maximum image size/i.test(err.message)) {
+      return new ConversionError(
+        'Claude-modellen leser ikke sidebildene i høy oppløsning, så figurene ville blitt klippet ut feil. Bruk claude-sonnet-5-5, claude-opus-5-5 eller claude-haiku-5-5 (CLAUDE_MODEL på serveren, --models i målingen).',
+      );
+    }
     return new ConversionError(`Claude kunne ikke behandle notatet: ${err.message}`);
   }
   if (err instanceof Anthropic.NotFoundError) {
-    return new ConversionError('Claude-modellen ble ikke funnet. Sjekk CLAUDE_MODEL på serveren.');
+    return new ConversionError('Claude-modellen ble ikke funnet. Sjekk CLAUDE_MODEL, CLAUDE_MODEL_FLASHCARDS og CLAUDE_MODEL_TOC på serveren.');
   }
   if (err instanceof Anthropic.APIConnectionError || err instanceof Anthropic.InternalServerError) {
     return new ConversionError('Fikk ikke kontakt med Claude. Prøver igjen om litt.', true);
@@ -75,11 +85,34 @@ export function supportsServerFallback(model: string): boolean {
   return !/haiku/i.test(model);
 }
 
+/**
+ * Modellens sikkerhetsfiltre avslo forespørselen. Haiku har ingen server-side fallback, så `RefusalFallback` i
+ * providers.ts prøver da en gang til med konverteringsmodellen (Sonnet).
+ */
+export class RefusalError extends ConversionError {}
+
 function checkStop(stop: string | null): void {
-  if (stop === 'refusal') throw new ConversionError('Claude avslo å konvertere dette notatet.');
+  if (stop === 'refusal') throw new RefusalError('Claude avslo å konvertere dette notatet.');
   if (stop === 'max_tokens') {
     throw new ConversionError('Notatet ble for langt til å konverteres i én omgang. Del det opp i færre sider per opplasting.');
   }
+}
+
+/**
+ * Strukturert svar (`output_config.format`), tolket først etter at stop_reason er sjekket. SDK-ens `messages.parse`
+ * tolker teksten før vi får se stop_reason, så et avslag midt i svaret ble en generell feil i stedet for RefusalError.
+ */
+function parseStructured<T extends z.ZodType>(schema: T, msg: { stop_reason: string | null; content: Array<{ type: string }> }, failure: string): z.infer<T> {
+  checkStop(msg.stop_reason);
+  let data: unknown;
+  try {
+    data = JSON.parse(textOf(msg.content));
+  } catch {
+    throw new ConversionError(failure);
+  }
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) throw new ConversionError(failure);
+  return parsed.data;
 }
 
 // ---------- Ekte Claude ----------
@@ -88,8 +121,14 @@ export class AnthropicClaude implements AiService {
   readonly fake = false;
   readonly provider = 'anthropic';
   private readonly client: Anthropic | null;
+  private readonly modelId: string;
 
-  constructor(private readonly config: Config) {
+  /** `model` er modellen denne tjenesten bruker; standard er konverteringsmodellen (CLAUDE_MODEL). */
+  constructor(
+    private readonly config: Config,
+    model: string = config.model,
+  ) {
+    this.modelId = model;
     this.client = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey, timeout: 20 * 60_000, maxRetries: 3 }) : null;
   }
 
@@ -98,7 +137,7 @@ export class AnthropicClaude implements AiService {
   }
 
   get model(): string {
-    return this.config.model;
+    return this.modelId;
   }
 
   private requireClient(): Anthropic {
@@ -112,14 +151,14 @@ export class AnthropicClaude implements AiService {
     try {
       return await client.beta.messages
         .stream({
-          model: this.config.model,
+          model: this.modelId,
           max_tokens: this.config.maxOutputTokens,
           thinking: { type: 'adaptive' },
           output_config: { effort },
           system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
           messages: [{ role: 'user', content }],
           // Hvis modellens sikkerhetsfiltre (feilaktig) avslår, kjøres forespørselen på en anbefalt reservemodell.
-          ...(this.config.useFallbacks && supportsServerFallback(this.config.model) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
+          ...(this.config.useFallbacks && supportsServerFallback(this.modelId) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
         })
         .finalMessage();
     } catch (err) {
@@ -165,11 +204,12 @@ export class AnthropicClaude implements AiService {
     aims: CompetenceAim[] = [],
   ): Promise<{ chapters: ChapterInput[]; usage: Usage }> {
     const client = this.requireClient();
+    const { schema } = zodOutputFormat(tocSchema);
     try {
-      const msg = await client.messages.parse({
-        model: this.config.model,
+      const msg = await client.messages.create({
+        model: this.modelId,
         max_tokens: 32_000,
-        output_config: { effort: 'low', format: zodOutputFormat(tocSchema) },
+        output_config: { effort: 'low', format: { type: 'json_schema', schema } },
         messages: [
           {
             role: 'user',
@@ -185,9 +225,7 @@ export class AnthropicClaude implements AiService {
       });
       const usage = usageOf('toc', msg);
       return withUsage(usage, () => {
-        checkStop(msg.stop_reason);
-        const parsed = msg.parsed_output;
-        if (!parsed) throw new ConversionError('Klarte ikke å lese innholdsfortegnelsen.');
+        const parsed = parseStructured(tocSchema, msg, 'Klarte ikke å lese innholdsfortegnelsen.');
         return { chapters: parsed.chapters.map((c) => ({ number: c.number, title: c.title, sections: c.sections })), usage };
       });
     } catch (err) {
@@ -201,15 +239,16 @@ export class AnthropicClaude implements AiService {
     aims: CompetenceAim[],
   ): Promise<{ chapters: ChapterInput[]; usage: Usage }> {
     const client = this.requireClient();
-    const schema = z.object({ sections: z.array(z.object({ code: z.string(), aims: z.array(z.string()) })) });
+    const aimsSchema = z.object({ sections: z.array(z.object({ code: z.string(), aims: z.array(z.string()) })) });
+    const { schema } = zodOutputFormat(aimsSchema);
     const list = chapters
       .flatMap((c) => [`${c.number ?? ''} ${c.title}`.trim(), ...(c.sections ?? []).map((s) => `  ${s.code} ${s.title}`)])
       .join('\n');
     try {
-      const msg = await client.messages.parse({
-        model: this.config.model,
+      const msg = await client.messages.create({
+        model: this.modelId,
         max_tokens: 16_000,
-        output_config: { effort: 'low', format: zodOutputFormat(schema) },
+        output_config: { effort: 'low', format: { type: 'json_schema', schema } },
         messages: [
           {
             role: 'user',
@@ -218,8 +257,8 @@ export class AnthropicClaude implements AiService {
         ],
       });
       const usage = usageOf('aims', msg);
-      withUsage(usage, () => checkStop(msg.stop_reason));
-      const byCode = new Map((msg.parsed_output?.sections ?? []).map((s) => [s.code.trim(), s.aims]));
+      const parsed = withUsage(usage, () => parseStructured(aimsSchema, msg, 'Klarte ikke å koble delkapitlene til kompetansemålene.'));
+      const byCode = new Map(parsed.sections.map((s) => [s.code.trim(), s.aims]));
       return {
         chapters: chapters.map((c) => ({
           ...c,
@@ -241,14 +280,14 @@ export class AnthropicClaude implements AiService {
     try {
       msg = await client.beta.messages
         .stream({
-          model: this.config.model,
+          model: this.modelId,
           max_tokens: 64_000,
           thinking: { type: 'adaptive' },
           output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
           system: [{ type: 'text', text: FLASHCARD_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
           messages: [{ role: 'user', content: buildFlashcardPrompt(req) }],
           // Avslår modellens sikkerhetsfiltre feilaktig (f.eks. biologi om virus), prøves en anbefalt reservemodell.
-          ...(this.config.useFallbacks && supportsServerFallback(this.config.model) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
+          ...(this.config.useFallbacks && supportsServerFallback(this.modelId) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
         })
         .finalMessage();
     } catch (err) {
@@ -271,7 +310,7 @@ export function flashcardError(err: unknown): ConversionError {
 
 /** Kortene i svaret fra Claude. Avslag, avkuttet svar og ugyldig JSON gir norske feilmeldinger. */
 export function parseFlashcardMessage(msg: { stop_reason: string | null; content: Array<{ type: string }> }): RawFlashcard[] {
-  if (msg.stop_reason === 'refusal') throw new ConversionError('Claude avslo å lage kort av disse notatene.');
+  if (msg.stop_reason === 'refusal') throw new RefusalError('Claude avslo å lage kort av disse notatene.');
   if (msg.stop_reason === 'max_tokens') throw new ConversionError('Utvalget ble for stort. Velg færre notater eller færre kort.');
   let data: unknown;
   try {

@@ -1,6 +1,6 @@
 # Status for SmartNotes
 
-> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 12. oktober 2026, i PR #14 (lokal AI og ny prioritering). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
+> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 12. oktober 2026, i PR #16 (Haiku for kortstokker og innholdsfortegnelser). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
 
 Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen dokumentasjon står i [README.md](../README.md) og [OPPSETT.md](OPPSETT.md).
 
@@ -34,9 +34,9 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 | Måleverktøy | Sammenligner modeller på elevens egne sider og lager en rapport med karakterfelter. | `npm run eval`, [MALING.md](MALING.md) |
 | Design | Tre kolonner på store skjermer, og lyst, mørkt eller systemtema. Hvert fag har sine egne farger og sin egen PDF-mal: fysikk «Blekk» og «Klassisk», kjemi «Tavle» og «Moderne», biologi «Salvie» og «Lærebok». | `web/src/styles/`, `server/latex/` |
 
-**Claude-oppsett nå:** alle oppgaver går til Claude, med mindre `AI_PROVIDER…` er satt i Railway (se README). Claude Sonnet 5.5 med middels grundighet (`effort: medium`) ved konvertering. Eleven valgte dette for å holde kostnadene nede. Opus 5.5 er grundigere, men koster det dobbelte, og kan slås på med `CLAUDE_MODEL=claude-opus-5-5`. Se `server/src/config.ts`.
+**Claude-oppsett nå:** alle oppgaver går til Claude, med mindre `AI_PROVIDER…` er satt i Railway (se README). Konverteringen bruker Claude Sonnet 5.5 med middels grundighet (`effort: medium`). Kortstokker og innholdsfortegnelser bruker Claude Haiku 5.5, som koster en tjuendedel; avslår Haiku, prøves Sonnet. Opus 5.5 er grundigere, men koster det dobbelte, og kan slås på med `CLAUDE_MODEL=claude-opus-5-5`. Se `server/src/config.ts` (`claudeModels`).
 
-**Kostnad (beregnet, ikke målt):** en side koster ca. 0,25 kr, og et notat på 5 sider ca. 1,35 kr. En kortstokk koster 0,50–2 kr, og opptil ca. 5 kr for de største. Vanlig bruk i tre fag koster rundt 40 kr i måneden til Claude, og mindre med bare Fysikk 1. Railway-abonnementet (ca. 55 kr i måneden) har eleven fra før, og forbruket til serveren dekkes helt eller delvis av det som er inkludert i abonnementet. Alle tallene står i dokumentet [Kostnader for SmartNotes](https://claude.ai/code/artifact/e5b19b9d-07c0-4c20-bc21-d453fe1ada01), som er privat for eleven. Det er et Claude Docs-dokument: les det med Claude Docs-verktøyet (`read` med ref `{"object":"project","id":"e5b19b9d-07c0-4c20-bc21-d453fe1ada01"}`, deretter fanen). Artifact-verktøyet viser ikke innholdet.
+**Kostnad (beregnet, ikke målt):** en side koster ca. 0,25 kr, og et notat på 5 sider ca. 1,35 kr. En kortstokk (Haiku 5.5) koster noen få øre (ca. 0,05–0,15 kr), og under 1,50 kr for de største. Vanlig bruk i tre fag koster rundt 40 kr i måneden til Claude, og mindre med bare Fysikk 1. Railway-abonnementet (ca. 55 kr i måneden) har eleven fra før, og forbruket til serveren dekkes helt eller delvis av det som er inkludert i abonnementet. Alle tallene står i dokumentet [Kostnader for SmartNotes](https://claude.ai/code/artifact/e5b19b9d-07c0-4c20-bc21-d453fe1ada01), som er privat for eleven. Det er et Claude Docs-dokument: les det med Claude Docs-verktøyet (`read` med ref `{"object":"project","id":"e5b19b9d-07c0-4c20-bc21-d453fe1ada01"}`, deretter fanen). Artifact-verktøyet viser ikke innholdet.
 
 ## Hva som er gjort
 
@@ -58,6 +58,7 @@ Alt ble bygget 4.–11. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#12](https://github.com/52c854mb96-ship-it/SmartNotes/pull/12) | AI-lag: Claude eller lokal AI (Ollama) per oppgave, og måleverktøyet `npm run eval` |
 | [#13](https://github.com/52c854mb96-ship-it/SmartNotes/pull/13) | Hjemmemaskin: kø på serveren og klienten `npm run homeworker`, med rettelser etter en sikkerhetsgjennomgang. Av som standard |
 | [#14](https://github.com/52c854mb96-ship-it/SmartNotes/pull/14) | Lokal AI: Qwen3.5 som standard, én side per kall, reparasjon av LaTeX i JSON, riktig cache-pris for Sonnet 5.5, og denne fila |
+| [#16](https://github.com/52c854mb96-ship-it/SmartNotes/pull/16) | Haiku 5.5 for kortstokker og innholdsfortegnelser, med Sonnet som reserve ved avslag. Konverteringen blir på Sonnet til sammenligningen er gjort |
 
 **Tester:** omtrent 2 350 enhetstester (144 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 16 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk og at riktig PDF vises når man bytter notat) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
@@ -74,6 +75,7 @@ Ikke endre disse uten å spørre først.
   - Kortstokkene lagres på serveren og synkroniseres.
   - Øvingsreglene og effektene er hentet fra en flashcard-fil eleven laget tidligere. Fila ligger ikke i repoet, men reglene står i `web/src/flashcards/model.ts` og effektene i `web/src/flashcards/effects.ts`. Eleven har sagt at effektene var bra.
 - **Kostnad:** Sonnet 5.5 med middels grundighet ([PR #5](https://github.com/52c854mb96-ship-it/SmartNotes/pull/5)).
+- **Haiku 5.5 (12. oktober):** Haiku er motoren inntil det er avklart om en Mac mini kan stå på hele døgnet. Kortstokker og innholdsfortegnelser går til Haiku med en gang. Konverteringen blir på Sonnet til Claude har sammenlignet Sonnet og Haiku på 5–10 av elevens egne sider (eleven legger `ANTHROPIC_API_KEY` i skymiljøet og sender bildene i chatten). Bytt ikke konverteringen uten å spørre.
 - **Prioritet (11. oktober):** å få ned kostnadene, så flere kan bruke appen, går foran visualiseringene. Fysikk kapittel 5–10 haster ikke. Målet er ingen eller lav kostnad, dekket av pro-brukere: en gratisversjon og en betalt pro-versjon med kvoter per dag, og lokal AI der det lønner seg. Planen står på en [privat side for eleven](https://claude.ai/artifact/RyN9UDgBgDiHQdXaFRpvck). Les den med Artifact-verktøyet (`action: "read"`). Den ligger ikke i repoet, fordi repoet er offentlig og planen handler om alder, familie og juss.
 - **Første brukere:** venner og klassen.
 - **Maskiner for lokal AI:** en PC med RTX 4060 (8 GB) og elevens Mac med M4 og 16 GB. En Mac mini som står på hele døgnet, kan bli aktuell senere. Maskinene står bare på deler av dagen foreløpig.
@@ -113,7 +115,7 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 2. **Hvis eleven bare vil ha Fysikk 1:**
    - Legg til variabelen `SEED_TEXTBOOKS` med verdien `ergo-fysikk-1`.
    - Er Kjemi 1 og Biologi 1 allerede lagt inn, slettes de i appen: tannhjulet på fagsiden → **Slett faget**. Et slettet fag kommer ikke tilbake.
-3. **Variabler:** `CLAUDE_MODEL` og `CLAUDE_EFFORT` bør ikke være satt, ellers overstyrer de de nye standardverdiene.
+3. **Variabler:** `CLAUDE_MODEL`, `CLAUDE_MODEL_FLASHCARDS`, `CLAUDE_MODEL_TOC` og `CLAUDE_EFFORT` bør ikke være satt, ellers overstyrer de standardverdiene.
 4. **Lokal AI og hjemmemaskin** trenger ingen nye variabler før eleven vil prøve dem. Alt er av som standard, og forbruksloggen virker uten oppsett.
 
 ## Kjente begrensninger og åpne spørsmål
@@ -138,7 +140,7 @@ Dette er bare forslag. Eleven bestemmer rekkefølgen. Detaljene står i bolkene 
 1. **Elevens beslutninger:** eleven leser planen og svarer på beslutningene i del 7, særlig motoren i betaen (Haiku eller lokal AI), repoet (lisens eller privat) og hvem som eier API-kontoen.
 2. **Navneoppryddingen:** eleven ser over PR-en og bestemmer rekkefølgen i Fysikk 1 (beslutning 18). Ta backup av volumet i Railway før den deployes.
 3. **Måling (bolk 1):** eleven kjører `npm run eval` med Sonnet, Haiku og 3–5 lokale modeller på 10–20 egne sider, setter karakterer og sender CSV-fila. Uten dette er alle tall om kvalitet gjetninger.
-4. **Haiku som kandidat (bolk 2):** riktig bildestørrelse og figurbokser per modell, og tak på kildetekst til kortstokker.
+4. **Haiku (bolk 2):** kortstokker og innholdsfortegnelser er flyttet til Haiku (#16). Neste: sammenligningen av Sonnet og Haiku på elevens sider (`npm run eval` med `anthropic:claude-sonnet-5-5` og `anthropic:claude-haiku-5-5`), og deretter elevens valg om konverteringen.
 5. **Kontoer, kvoter og personvern (bolk 4–6)** før venner og klassen inviteres. Store oppgaver, så still oppklaringsspørsmål først.
 6. **Reserven for hjemmemaskinen (bolk 8):** ventetid per nivå og Haiku i stedet for Sonnet. Til da bør `REMOTE_FALLBACK` stå på `none`.
 7. **Visualiseringene:** fysikk kapittel 5–10, deretter kjemi og biologi. Skriptene og fremgangsmåten står i [docs/workflows/README.md](workflows/README.md), og fremdriften i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md).

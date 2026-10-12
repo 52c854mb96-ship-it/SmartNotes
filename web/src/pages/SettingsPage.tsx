@@ -147,7 +147,8 @@ function ServerCard() {
         <ul className="status-lines" role="list">
           <StatusLine ok={health.ok} label={health.ok ? 'Serveren svarer' : 'Serveren har problemer'} detail={`versjon ${health.version}`} />
           <StatusLine ok={health.latex} label={health.latex ? 'LaTeX er installert' : 'LaTeX mangler på serveren'} />
-          {(health.ai ?? []).every((t) => t.provider === 'anthropic' || t.provider === 'fake') ? (
+          {/* Én linje når alt går til samme Claude-modell; ellers modell og leverandør per oppgave. */}
+          {(health.ai ?? []).every((t) => t.provider === 'anthropic' || t.provider === 'fake') && new Set((health.ai ?? []).map((t) => t.model)).size <= 1 ? (
             <StatusLine
               ok={health.claudeConfigured}
               label={health.claudeConfigured ? 'Claude er satt opp' : 'Claude er ikke satt opp (mangler API-nøkkel)'}

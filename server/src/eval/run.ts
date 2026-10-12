@@ -60,7 +60,7 @@ export function serviceFor(spec: ModelSpec, config: Config): AiService | string 
   if (spec.provider === 'fake') return new FakeClaude(0);
   if (spec.provider === 'anthropic') {
     if (!config.anthropicApiKey) return 'ANTHROPIC_API_KEY er ikke satt.';
-    return new AnthropicClaude({ ...config, model: spec.model });
+    return new AnthropicClaude(config, spec.model);
   }
   return new OllamaAi({ ...config.ollama, model: spec.model, textModel: spec.model, boxUnits: spec.boxUnits ?? config.ollama.boxUnits });
 }
