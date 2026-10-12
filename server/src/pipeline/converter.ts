@@ -1,14 +1,14 @@
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
-import type { Chapter, Section } from '@smartnotes/shared';
+import type { Chapter, Section, Subject } from '@smartnotes/shared';
 import type { Config } from '../config.js';
 import type { NoteRow, Repo } from '../db.js';
 import { AbortedError, ConversionError } from '../errors.js';
 import { getProfile, readPreamble, type Profile } from '../profiles/index.js';
 import { exists, type Storage, writeFileAtomic } from '../storage.js';
 import { usageScope, type Usage } from '../usage.js';
-import type { AiService, ChapterRef } from './ai.js';
+import type { AiService, ChapterRef, ConvertRequest } from './ai.js';
 import { cropFigure, preparePages, type FileKind, type PageImage } from './images.js';
 import {
   assembleNoteDoc,
@@ -116,31 +116,8 @@ export class Converter {
 
     // 2. Claude leser notatet
     this.repo.setStage(id, 'reading');
-    const chapters = this.repo.listChapters(subject.id);
-    const refs: ChapterRef[] = chapters.map((c, i) => ({
-      alias: `k${i + 1}`,
-      number: c.number,
-      title: c.title,
-      sections: c.sections.map((x) => ({ code: x.code, title: x.title })),
-    }));
-    const fixed = row.chapter_auto === 0 ? (row.chapter_id ? this.repo.getChapter(row.chapter_id) : null) : null;
-    const result = await this.ai.convert({
-      profile,
-      subjectName: subject.name,
-      textbook: subject.textbook,
-      chapters: refs,
-      fixedChapter:
-        row.chapter_auto === 0
-          ? fixed
-            ? { number: fixed.number, title: fixed.title, sections: fixed.sections.map((x) => ({ code: x.code, title: x.title })) }
-            : { number: null, title: 'Uten kapittel', sections: [] }
-          : null,
-      userTitle: row.title_auto === 0 ? row.title : null,
-      userDate: row.note_date_auto === 0 ? row.note_date : null,
-      instructions: row.instructions,
-      today: new Date().toISOString().slice(0, 10),
-      pages: pages.map((p) => ({ path: path.join(this.storage.pagesDir(id), p.file), width: p.width, height: p.height })),
-    });
+    const { req, refs, chapters, fixed } = this.buildConvertRequest(row, subject, pages, this.storage.pagesDir(id));
+    const result = await this.ai.convert(req);
     const usage: Usage[] = [result.usage];
     if (!this.stillExists(id)) return;
 
@@ -216,6 +193,44 @@ export class Converter {
     }
   }
 
+  /**
+   * Forespørselen til AI-en for et notat: fagets kapitler (som k1, k2 …), låst kapittel, tittel og dato eleven har
+   * valgt, og sidebildene i `pagesDir`. Brukes også av sammenligningen, så Haiku får nøyaktig det samme.
+   */
+  buildConvertRequest(
+    row: NoteRow,
+    subject: Subject,
+    pages: PageImage[],
+    pagesDir: string,
+  ): { req: ConvertRequest; refs: ChapterRef[]; chapters: Chapter[]; fixed: Chapter | null } {
+    const chapters = this.repo.listChapters(subject.id);
+    const refs: ChapterRef[] = chapters.map((c, i) => ({
+      alias: `k${i + 1}`,
+      number: c.number,
+      title: c.title,
+      sections: c.sections.map((x) => ({ code: x.code, title: x.title })),
+    }));
+    const fixed = row.chapter_auto === 0 ? (row.chapter_id ? this.repo.getChapter(row.chapter_id) : null) : null;
+    const req: ConvertRequest = {
+      profile: getProfile(subject.profile),
+      subjectName: subject.name,
+      textbook: subject.textbook,
+      chapters: refs,
+      fixedChapter:
+        row.chapter_auto === 0
+          ? fixed
+            ? { number: fixed.number, title: fixed.title, sections: fixed.sections.map((x) => ({ code: x.code, title: x.title })) }
+            : { number: null, title: 'Uten kapittel', sections: [] }
+          : null,
+      userTitle: row.title_auto === 0 ? row.title : null,
+      userDate: row.note_date_auto === 0 ? row.note_date : null,
+      instructions: row.instructions,
+      today: new Date().toISOString().slice(0, 10),
+      pages: pages.map((p) => ({ path: path.join(pagesDir, p.file), width: p.width, height: p.height })),
+    };
+    return { req, refs, chapters, fixed };
+  }
+
   /** Kapittelet Claude valgte, eller kapittelet Claude foreslår å opprette (når faget ikke har noen). */
   private matchChapter(
     meta: NoteMeta,
@@ -238,19 +253,23 @@ export class Converter {
     return same ? same.id : this.repo.createChapters(subjectId, [wanted])[0]!.id;
   }
 
-  private async cropFigures(id: string, pages: PageImage[], meta: NoteMeta): Promise<Set<string>> {
-    const dir = this.storage.figuresDir(id);
-    await fsp.rm(dir, { recursive: true, force: true });
-    await fsp.mkdir(dir, { recursive: true });
+  private cropFigures(id: string, pages: PageImage[], meta: NoteMeta): Promise<Set<string>> {
+    return this.cropFiguresInto(id, this.storage.pagesDir(id), pages, meta, this.storage.figuresDir(id));
+  }
+
+  /** Klipper figurene AI-en fant ut av sidebildene i `pagesDir`, til `<id>.png` i `outDir` (som tømmes først). */
+  async cropFiguresInto(noteId: string, pagesDir: string, pages: PageImage[], meta: NoteMeta, outDir: string): Promise<Set<string>> {
+    await fsp.rm(outDir, { recursive: true, force: true });
+    await fsp.mkdir(outDir, { recursive: true });
     const ok = new Set<string>();
     for (const f of meta.figures) {
       const page = pages[f.page - 1];
       // Id-en blir et filnavn; parseMeta slipper bare gjennom trygge tegn, men sjekk igjen her.
       if (!page || !/^[A-Za-z0-9_-]{1,40}$/.test(f.id)) continue;
       try {
-        if (await cropFigure(path.join(this.storage.pagesDir(id), page.file), page, f.box, path.join(dir, `${f.id}.png`))) ok.add(f.id);
+        if (await cropFigure(path.join(pagesDir, page.file), page, f.box, path.join(outDir, `${f.id}.png`))) ok.add(f.id);
       } catch (err) {
-        this.log.warn({ err, noteId: id, figure: f.id }, 'klarte ikke å klippe ut figur');
+        this.log.warn({ err, noteId, figure: f.id }, 'klarte ikke å klippe ut figur');
       }
     }
     return ok;
@@ -269,12 +288,20 @@ export class Converter {
   async compileNote(id: string, body: string, info?: DocInfo): Promise<CompileOutcome> {
     const row = this.repo.getNoteRow(id);
     if (!row) throw new ConversionError('Notatet finnes ikke lenger.');
+    return this.compileInto(this.storage.noteDir(id), this.storage.figuresDir(id), row, body, info);
+  }
+
+  /**
+   * Kompilerer en dokumentkropp med notatets fag, PDF-mal og tittelblokk, med figurene i `figDir`. Resultatet lagres i
+   * `outDir`: build.log, og note.pdf + note.tex ved suksess eller draft.tex ved feil.
+   */
+  async compileInto(outDir: string, figDir: string, row: NoteRow, body: string, info?: DocInfo): Promise<CompileOutcome> {
     const subject = this.repo.getSubject(row.subject_id);
     const profile: Profile = getProfile(subject?.profile ?? 'physics');
     const d = info ?? this.docInfo(row);
+    const out = (name: 'build.log' | 'note.pdf' | 'note.tex' | 'draft.tex') => path.join(outDir, name);
     const work = await this.storage.makeTmpDir('build');
     try {
-      const figDir = this.storage.figuresDir(id);
       if (await exists(figDir)) await fsp.cp(figDir, path.join(work, 'fig'), { recursive: true });
       const doc = assembleNoteDoc({
         preamble: readPreamble(profile),
@@ -287,23 +314,24 @@ export class Converter {
         body,
       });
       const res = await compileLatex(work, doc.tex, this.config.latexTimeoutMs);
-      await writeFileAtomic(this.storage.noteFile(id, 'build.log'), res.log);
+      await writeFileAtomic(out('build.log'), res.log);
       if (res.ok) {
-        const tmpPdf = this.storage.noteFile(id, 'note.pdf') + '.tmp';
+        const tmpPdf = out('note.pdf') + '.tmp';
         await fsp.copyFile(res.pdfPath, tmpPdf);
-        await fsp.rename(tmpPdf, this.storage.noteFile(id, 'note.pdf'));
-        await writeFileAtomic(this.storage.noteFile(id, 'note.tex'), body);
-        await fsp.rm(this.storage.noteFile(id, 'draft.tex'), { force: true });
+        await fsp.rename(tmpPdf, out('note.pdf'));
+        await writeFileAtomic(out('note.tex'), body);
+        await fsp.rm(out('draft.tex'), { force: true });
         return { ok: true };
       }
-      await writeFileAtomic(this.storage.noteFile(id, 'draft.tex'), body);
+      await writeFileAtomic(out('draft.tex'), body);
       return { ok: false, errors: res.errors, bodyStartLine: doc.bodyStartLine, message: formatErrors(res.errors, doc.bodyStartLine) };
     } finally {
       await fsp.rm(work, { recursive: true, force: true });
     }
   }
 
-  private docInfo(row: NoteRow): DocInfo {
+  /** Tittelblokken og sidehodet slik notatet står nå (tittel, dato, kapittel og delkapittel). */
+  docInfo(row: NoteRow): DocInfo {
     const chapter = row.chapter_id ? this.repo.getChapter(row.chapter_id) : null;
     const section = chapter?.sections.find((x) => x.code === row.section);
     return {

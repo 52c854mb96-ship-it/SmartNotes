@@ -13,11 +13,14 @@ import { FlashcardGenerator } from './flashcards/generator.js';
 import { MAX_FILE_BYTES, MAX_FILES } from './limits.js';
 import { Bundler } from './pipeline/bundle.js';
 import type { AiService } from './pipeline/ai.js';
+import { AnthropicClaude, FakeClaude } from './pipeline/claude.js';
+import { COMPARE_MODEL, Comparer } from './pipeline/compare.js';
 import { Converter } from './pipeline/converter.js';
 import { latexAvailable } from './pipeline/latex.js';
 import { aiConfigured, createAi, describeAi } from './pipeline/providers.js';
 import { Worker } from './pipeline/worker.js';
 import { registerBackupRoutes } from './routes/backup.js';
+import { registerCompareRoutes } from './routes/compare.js';
 import { registerFlashcardRoutes } from './routes/flashcards.js';
 import { registerLibraryRoutes } from './routes/library.js';
 import { registerNoteRoutes } from './routes/notes.js';
@@ -38,6 +41,7 @@ export interface AppContext {
   worker: Worker;
   bundler: Bundler;
   generator: FlashcardGenerator;
+  comparer: Comparer;
 }
 
 
@@ -52,7 +56,8 @@ function readWebBuild(webDist: string | null): string | null {
   }
 }
 
-export async function buildApp(config: Config, opts: { ai?: AiService; logger?: boolean } = {}): Promise<AppContext> {
+/** `compareAi` erstatter Haiku i sammenligningen (tester); ellers brukes `ai` i tester og Haiku i drift. */
+export async function buildApp(config: Config, opts: { ai?: AiService; compareAi?: AiService; logger?: boolean } = {}): Promise<AppContext> {
   const app = Fastify({
     logger: opts.logger === false ? false : { level: process.env.LOG_LEVEL ?? 'info' },
     bodyLimit: 5 * 1024 * 1024,
@@ -94,6 +99,11 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   const worker = new Worker(repo, converter, config.workerConcurrency, app.log);
   const bundler = new Bundler(repo, storage, config, app.log);
   const generator = new FlashcardGenerator(repo, storage, ai, app.log);
+  // Sammenligningen bruker alltid Haiku direkte, uten reserven (RefusalFallback) som ellers sender et avslag til Sonnet.
+  const compareAi = metered(
+    opts.compareAi ?? opts.ai ?? (config.fakeClaude ? new FakeClaude() : new AnthropicClaude(config, COMPARE_MODEL)),
+  );
+  const comparer = new Comparer(repo, storage, converter, compareAi, config, app.log);
   const latexOk = await latexAvailable();
   if (!latexOk) app.log.warn('latexmk ble ikke funnet – PDF-er kan ikke lages. Installer TeX Live (se README).');
   const missing = AI_TASKS.filter((t) => !aiConfigured(ai, t));
@@ -157,6 +167,7 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
   registerNoteRoutes(app, { repo, storage, converter, worker, hub });
   registerFlashcardRoutes(app, { repo, storage, ai, generator });
   registerUsageRoutes(app, { repo, config });
+  registerCompareRoutes(app, { repo, storage, comparer, config });
   registerBackupRoutes(app, { repo, storage, config });
   if (config.remote.token) registerWorkerRoutes(app, { hub, token: config.remote.token });
   const usesRemote = aiTasks.some((t) => t.provider === 'remote');
@@ -198,13 +209,15 @@ export async function buildApp(config: Config, opts: { ai?: AiService; logger?: 
     // Stopp køene først, så avbrytes kallene som venter på hjemmemaskinen uten at noe lagres.
     await worker.stop();
     generator.stop();
+    comparer.stop();
     hub.close();
     await generator.idle();
+    await comparer.idle();
     // Rekompileringer i bakgrunnen skriver til databasen – la dem bli ferdige før den lukkes.
     await converter.idle();
     repo.close();
   });
 
   void storage.cleanTmp();
-  return { app, repo, storage, ai, hub, converter, worker, bundler, generator };
+  return { app, repo, storage, ai, hub, converter, worker, bundler, generator, comparer };
 }
