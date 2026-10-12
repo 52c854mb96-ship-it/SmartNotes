@@ -475,6 +475,45 @@ export class Repo {
     return Number(row.value);
   }
 
+  getMeta(key: string): string | null {
+    const row = this.db.prepare(`SELECT value FROM meta WHERE key = ?`).get(key) as { value: string } | undefined;
+    return row?.value ?? null;
+  }
+
+  setMeta(key: string, value: string): void {
+    this.db.prepare(`INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(key, value);
+  }
+
+  // ---------- Sikkerhetskopi ----------
+
+  /**
+   * Kopierer databasen mens appen kjører (SQLites backup-API gir en konsistent kopi). Innloggingene fjernes fra
+   * kopien, og den blir én selvstendig fil uten -wal ved siden av.
+   */
+  async backupTo(file: string): Promise<void> {
+    await this.db.backup(file);
+    const copy = new Database(file);
+    try {
+      copy.prepare(`DELETE FROM sessions`).run();
+      copy.pragma('journal_mode = DELETE');
+    } finally {
+      copy.close();
+    }
+  }
+
+  /** Det som står i manifestet til sikkerhetskopien. Slettede rader telles ikke. */
+  backupSummary(): { schemaVersion: number; subjects: number; notes: number; decks: number; cards: number } {
+    const count = (table: 'subjects' | 'notes' | 'decks' | 'cards') =>
+      (this.db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE deleted = 0`).get() as { n: number }).n;
+    return {
+      schemaVersion: this.db.pragma('user_version', { simple: true }) as number,
+      subjects: count('subjects'),
+      notes: count('notes'),
+      decks: count('decks'),
+      cards: count('cards'),
+    };
+  }
+
   // ---------- Forbrukslogg ----------
 
   logUsage(e: UsageEntry): void {

@@ -149,8 +149,30 @@ I skyøktene med Claude Code finnes det ingen API-nøkkel, så Claude har bare t
 
 ## Sikkerhetskopi
 
-- Åpne volumet i Railway og se etter fanen **Backups**. Der kan du ta sikkerhetskopier for hånd eller på en fast plan, hvis abonnementet ditt har det.
-- **Hele faget som PDF** på fagsiden gir deg alle notatene samlet i én PDF.
+Backup av volumet i Railway finnes bare på Pro-planen. Derfor laster du ned kopien selv fra appen. Det er enklest på Macen.
+
+**På Macen**
+
+1. Åpne SmartNotes i Safari eller Chrome og gå til **Innstillinger → Sikkerhetskopi**.
+2. Trykk **Last ned sikkerhetskopi**. Kortet viser omtrent hvor stor fila blir.
+3. Åpne **Finder → Nedlastinger**. Der ligger `smartnotes-sikkerhetskopi-<dato>.tar.gz`. Safari kan ha pakket den ut til en mappe med samme navn. Da tar du vare på hele mappen.
+4. Flytt fila eller mappen til iCloud Drive.
+
+**På iPad eller iPhone**
+
+1. Åpne SmartNotes i **Safari**, ikke appen på hjemskjermen. Den har sin egen innlogging og klarer ikke alltid å lagre filer.
+2. Gå til **Innstillinger → Sikkerhetskopi** og trykk **Last ned sikkerhetskopi**. Hvis Safari spør, velger du **Last ned**.
+3. Åpne **Filer**-appen og gå til **iCloud Drive → Nedlastinger**. Sjekk at fila er der, og at den er omtrent like stor som kortet viste.
+
+Ta en ny kopi av og til, for eksempel én gang i måneden og alltid før større endringer. Innstillingene viser når du sist lastet ned en. Kopien inneholder fagene, notatene med originalbildene, PDF-ene og kortstokkene. **Hele faget som PDF** på fagsiden gir deg i tillegg alle notatene samlet i én PDF.
+
+**Gjenoppretting** er ikke bygd inn i appen ennå. Be Claude om hjelp. Stegene står også i `LES-MEG.txt` i kopien:
+
+1. Stopp serveren. Ingen prosess kan ha databasen åpen mens den byttes.
+2. Slett `smartnotes.db-wal` og `smartnotes.db-shm` i `/data` hvis de finnes. Ellers skriver SQLite gamle endringer over kopien.
+3. Flytt den gamle `smartnotes.db` og mappen `notes/` til side, og legg inn de fra kopien.
+4. Start serveren. Den gir filene riktig eier selv (brukeren `node`).
+5. Logg inn på nytt på hver enhet. Appen henter da alt på nytt fra serveren og glemmer notater som ikke finnes i kopien.
 
 ## Bytte passord eller API-nøkkel
 
