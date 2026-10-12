@@ -6,7 +6,7 @@ import type { Config } from '../config.js';
 import type { NoteRow, Repo } from '../db.js';
 import { AbortedError, ConversionError } from '../errors.js';
 import { getProfile, readPreamble, type Profile } from '../profiles/index.js';
-import { exists, type Storage } from '../storage.js';
+import { exists, type Storage, writeFileAtomic } from '../storage.js';
 import { usageScope, type Usage } from '../usage.js';
 import type { AiService, ChapterRef } from './ai.js';
 import { cropFigure, preparePages, type FileKind, type PageImage } from './images.js';
@@ -111,7 +111,7 @@ export class Converter {
     const files = this.repo.noteFiles(id);
     const sources = files.map((f) => ({ file: path.join(this.storage.sourceDir(id), f.filename), kind: KIND_BY_MIME[f.mime] ?? 'jpeg' }));
     const pages = await preparePages(sources, this.storage.pagesDir(id), this.config.maxPagesPerNote);
-    await fsp.writeFile(this.storage.noteFile(id, 'pages.json'), JSON.stringify(pages, null, 2));
+    await writeFileAtomic(this.storage.noteFile(id, 'pages.json'), JSON.stringify(pages, null, 2));
     this.repo.setPageCount(id, pages.length);
 
     // 2. Claude leser notatet
@@ -187,7 +187,7 @@ export class Converter {
       this.repo.setStage(id, 'compiling');
       outcome = await this.compileNote(id, body, docInfo);
     }
-    await fsp.writeFile(this.storage.noteFile(id, 'meta.json'), JSON.stringify({ meta: result.meta, usage }, null, 2));
+    await writeFileAtomic(this.storage.noteFile(id, 'meta.json'), JSON.stringify({ meta: result.meta, usage }, null, 2));
     if (!this.stillExists(id)) return;
 
     // 6. Lagre resultatet (metadata lagres også når LaTeX-koden feilet, så notatet kan rettes for hånd)
@@ -287,16 +287,16 @@ export class Converter {
         body,
       });
       const res = await compileLatex(work, doc.tex, this.config.latexTimeoutMs);
-      await fsp.writeFile(this.storage.noteFile(id, 'build.log'), res.log);
+      await writeFileAtomic(this.storage.noteFile(id, 'build.log'), res.log);
       if (res.ok) {
         const tmpPdf = this.storage.noteFile(id, 'note.pdf') + '.tmp';
         await fsp.copyFile(res.pdfPath, tmpPdf);
         await fsp.rename(tmpPdf, this.storage.noteFile(id, 'note.pdf'));
-        await fsp.writeFile(this.storage.noteFile(id, 'note.tex'), body);
+        await writeFileAtomic(this.storage.noteFile(id, 'note.tex'), body);
         await fsp.rm(this.storage.noteFile(id, 'draft.tex'), { force: true });
         return { ok: true };
       }
-      await fsp.writeFile(this.storage.noteFile(id, 'draft.tex'), body);
+      await writeFileAtomic(this.storage.noteFile(id, 'draft.tex'), body);
       return { ok: false, errors: res.errors, bodyStartLine: doc.bodyStartLine, message: formatErrors(res.errors, doc.bodyStartLine) };
     } finally {
       await fsp.rm(work, { recursive: true, force: true });

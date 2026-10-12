@@ -21,7 +21,8 @@ export function registerBackupRoutes(app: FastifyInstance, d: { repo: Repo; stor
       version: d.config.version,
       onError: (err) => req.log.error({ err }, 'sikkerhetskopien ble avbrutt'),
     });
-    // «Sist lastet ned» settes først når hele arkivet er sendt, ikke når nedlastingen avbrytes underveis.
+    // «Sist sendt» settes først når hele arkivet er overlevert til nettet, ikke når nedlastingen avbrytes underveis.
+    // En liten kopi kan likevel rekke å bli sendt helt selv om nettleseren avbryter, så det er ingen kvittering.
     reply.raw.once('finish', () => {
       try {
         d.repo.setMeta(LAST_BACKUP_KEY, String(Date.now()));

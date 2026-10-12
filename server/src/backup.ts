@@ -94,7 +94,10 @@ export const TAR_END = Buffer.alloc(2 * BLOCK);
 
 // ---------- Innholdet ----------
 
-/** Alle vanlige filer under `root`, sortert, med sti relativ til `root` (skråstrek). Lenker følges ikke. */
+/**
+ * Alle vanlige filer under `root`, sortert, med sti relativ til `root` (skråstrek). Lenker følges ikke, og
+ * halvskrevne `*.tmp` (fra `writeFileAtomic` og PDF-kopieringen) tas ikke med.
+ */
 async function* walk(root: string, rel = ''): AsyncGenerator<string> {
   const entries = await fsp.readdir(path.join(root, rel), { withFileTypes: true }).catch((err: NodeJS.ErrnoException) => {
     if (err.code === 'ENOENT') return [];
@@ -104,7 +107,7 @@ async function* walk(root: string, rel = ''): AsyncGenerator<string> {
   for (const e of entries) {
     const child = rel ? `${rel}/${e.name}` : e.name;
     if (e.isDirectory()) yield* walk(root, child);
-    else if (e.isFile()) yield child;
+    else if (e.isFile() && !e.name.endsWith('.tmp')) yield child;
   }
 }
 
@@ -118,8 +121,10 @@ export async function backupBytes(storage: Storage): Promise<number> {
 
 /**
  * Lenker (hard link) alle filene under notes/ inn i `into`, så arkivet får filene slik de var da databasen ble
- * kopiert: et notat som slettes eller konverteres på nytt mens nedlastingen pågår, endrer ikke kopien. Lenker tar
- * ikke ekstra plass (tmp/ ligger på samme volum). Går det ikke å lenke, leses originalen når den pakkes.
+ * kopiert: et notat som slettes, redigeres eller konverteres på nytt mens nedlastingen pågår, endrer ikke kopien.
+ * Det forutsetter at filene under notes/ aldri skrives om på stedet, men byttes ut (`writeFileAtomic`, rename) eller
+ * slettes og lages på nytt. Lenker tar ikke ekstra plass (tmp/ ligger på samme volum). Går det ikke å lenke, leses
+ * originalen når den pakkes.
  */
 async function snapshotFiles(notesRoot: string, into: string): Promise<{ rel: string; file: string }[]> {
   const files: { rel: string; file: string }[] = [];
@@ -158,11 +163,15 @@ Gjenoppretting
 Ta vare på fila, for eksempel i iCloud Drive. Gjenoppretting er ikke bygd inn i appen ennå. Be gjerne Claude om
 hjelp, og følg disse stegene i datamappen til serveren (/data på Railway):
 1. Stopp serveren. Ingen prosess kan ha databasen åpen mens du bytter den.
-2. Slett smartnotes.db-wal og smartnotes.db-shm hvis de finnes. Ellers skriver SQLite gamle endringer over kopien.
-3. Flytt den gamle mappen notes/ og smartnotes.db til side, og legg inn smartnotes.db og notes/ fra denne mappen.
+2. Flytt smartnotes.db, smartnotes.db-wal, smartnotes.db-shm og mappen notes/ til en egen mappe ved siden av.
+   Ikke slett dem: -wal kan ha de siste endringene. Blir en -wal liggende igjen, skriver SQLite gamle endringer
+   over kopien.
+3. Legg inn smartnotes.db og notes/ fra denne mappen. Sjekk at det ikke ligger noen smartnotes.db-wal eller
+   smartnotes.db-shm ved siden av.
 4. Start serveren. Docker-bildet gir filene riktig eier selv (ellers: chown -R node:node /data).
-5. Logg inn på nytt på hver enhet. Appen henter da alt på nytt og glemmer notater som ikke finnes i kopien.
-Mer i docs/OPPSETT.md under «Sikkerhetskopi».
+5. Logg inn på nytt på hver enhet. Appen henter da alt på nytt og glemmer notater og PDF-er som ikke finnes i kopien.
+På Railway kan volumet bare nås fra en tjeneste som kjører, så der trengs noen ekstra steg. Mer i docs/OPPSETT.md
+under «Sikkerhetskopi».
 `;
 }
 
