@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
 
@@ -150,4 +151,17 @@ test('bytte fra ett notat til et annet viser det nye notatet og PDF-en dets', as
   await expect.poll(() => pdfFingerprint(page), SLOW).toBe(secondPdf);
 
   expect(errors).toEqual([]);
+});
+
+test('sikkerhetskopien lastes ned fra innstillingene', async ({ page }) => {
+  await login(page);
+  await page.goto('/innstillinger');
+  const card = page.getByRole('region', { name: 'Sikkerhetskopi' });
+  await expect(card.getByText(/^ca\. .+ · \d+ notat/)).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent('download'), card.getByRole('button', { name: 'Last ned sikkerhetskopi' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^smartnotes-sikkerhetskopi-\d{4}-\d{2}-\d{2}\.tar\.gz$/);
+  // gzip begynner alltid med 1f 8b.
+  expect([...fs.readFileSync(await download.path()).subarray(0, 2)]).toEqual([0x1f, 0x8b]);
+  // Når fila er ferdig sendt, viser innstillingene av seg selv at kopien er tatt i dag.
+  await expect(card.getByText(/^i dag kl\. \d{2}:\d{2}/)).toBeVisible();
 });

@@ -54,9 +54,11 @@ export function registerAuth(app: FastifyInstance, repo: Repo, config: Config): 
   };
 
   // Alle /api-kall krever innlogging (unntatt noen få), og mutasjoner krever CSRF-headeren.
+  // Sjekken bruker ruten Fastify fant, ikke adressen slik den ble sendt: `/%61pi/sync` går til samme rute som
+  // `/api/sync`, men begynner ikke med «/api/». En adresse uten rute får 404 og gir ingen data.
   app.addHook('onRequest', async (req: FastifyRequest) => {
-    const url = req.url.split('?')[0]!;
-    if (!url.startsWith('/api/')) return;
+    const url = req.routeOptions.url;
+    if (url === undefined || !url.startsWith('/api/')) return;
     const mutating = !['GET', 'HEAD', 'OPTIONS'].includes(req.method);
     if (mutating && req.headers[CSRF_HEADER] !== '1') {
       throw new HttpError(403, 'csrf', 'Forespørselen ble avvist (mangler sikkerhetsheader).');

@@ -1,5 +1,6 @@
 import type {
   AiStatusResponse,
+  BackupStatusResponse,
   BulkChaptersRequest,
   Chapter,
   ChapterInput,
@@ -194,6 +195,8 @@ export const urls = {
   chapterPdfDownload: (id: string) => `${BASE}/chapters/${enc(id)}/pdf?download=1`,
   subjectPdfDownload: (id: string) => `${BASE}/subjects/${enc(id)}/pdf?download=1`,
   noteTex: (id: string) => `${BASE}/notes/${enc(id)}/tex`,
+  /** Hele sikkerhetskopien som .tar.gz (strømmes, så den lastes ned direkte og ikke via fetch). */
+  backup: () => `${BASE}/backup`,
   notePage: (id: string, index: number) => `${BASE}/notes/${enc(id)}/pages/${index}`,
 };
 
@@ -204,6 +207,7 @@ export const api = {
   aiStatus: (signal?: AbortSignal) => json<AiStatusResponse>('GET', '/ai/status', { signal, timeoutMs: 10_000 }),
   usage: (days: number, signal?: AbortSignal) =>
     json<UsageSummaryResponse>('GET', `/usage?days=${days}`, { signal, timeoutMs: 15_000 }),
+  backupStatus: (signal?: AbortSignal) => json<BackupStatusResponse>('GET', '/backup/status', { signal, timeoutMs: 20_000 }),
 
   login: (password: string) =>
     json<{ ok: boolean }>('POST', '/auth/login', { json: { password }, allow401: true, timeoutMs: 20_000 }),
