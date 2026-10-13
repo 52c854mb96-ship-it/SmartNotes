@@ -19,6 +19,7 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 
 | Funksjon | Kort beskrivelse | Hvor i koden |
 |---|---|---|
+| Kontoer | Eieren inviterer elever med en kode i Innstillinger. Eleven lager en konto med brukernavn, passord og fag, og ser bare sine egne fag og notater. Eieren ser brukerne med forbruk, lager lenker for nytt passord og kan stenge en konto. Gratiskontoer konverterer med Haiku 5.5. | `server/src/auth.ts`, `server/src/routes/admin.ts`, `web/src/lib/account.ts`, `web/src/pages/settings/AccountAdmin.tsx` |
 | Forside | En kort presentasjon og fagene som kort i fagets farger, med antall notater, når noe sist ble endret og «Fortsett i …». Appen åpner ikke et fag av seg selv. | `web/src/pages/HomePage.tsx` |
 | Konvertering | Sider → Claude (bilde) → LaTeX → PDF. Notatet gjengis tro mot originalen, og mulige feil markeres med en merknad i stedet for å rettes. Enkle figurer tegnes på nytt i TikZ, og kompliserte klippes ut. Kompileringsfeil rettes automatisk i inntil to runder. | `server/src/pipeline/` |
 | Fag og temaer | Kompetansemål (ordrett fra Udir) og egne temaer for fire fag. Deltemaer finnes for Fysikk 1. Claude velger tema og eventuelt deltema, og eleven kan flytte notatet selv. «Legg til fag» lager et fag fra læreplanen eller et tomt fag. | `server/src/presets.ts`, `server/src/profiles/`, `web/src/components/NewSubjectDialog.tsx` |
@@ -71,6 +72,8 @@ Alt ble bygget 4.–14. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#22](https://github.com/52c854mb96-ship-it/SmartNotes/pull/22) | Instrukser versjon 3: de presise reglene (seksjon 7) for alle Claude-modeller, `\uleselig` bare når sammenhengen ikke avgjør, og maler for tegninger i kjemi og biologi |
 | [#23](https://github.com/52c854mb96-ship-it/SmartNotes/pull/23) | Opphavsrett: `LICENSE`, lisenslista i appen (Innstillinger → «Om SmartNotes» → «Lisenser»), kompetansemålene kontrollert mot Udir med NLOD-henvisning, og navnet på læreboka bare når brukeren har skrevet det selv |
 | [#24](https://github.com/52c854mb96-ship-it/SmartNotes/pull/24) | Geofag 1: fagprofil, PDF-malen «Atlas», fargetemaet «Fjell», kompetansemålene fra Udir og «Legg til fag» fra læreplanen (legges ikke inn av seg selv). Instrukser versjon 4 med enheter uten æ, ø, å og ° i `\qty` og `\unit` |
+| [#25](https://github.com/52c854mb96-ship-it/SmartNotes/pull/25) | Forside: kort presentasjon og fagene som kort i fagets farger, «Fortsett i …» og «Legg til fag». Appen åpner ikke lenger et fag av seg selv |
+| [#26](https://github.com/52c854mb96-ship-it/SmartNotes/pull/26) | Kontoer på serveren: brukere, invitasjoner, innlogging med brukernavn, eierskap på hver rute, eierens ruter og Haiku for gratiskontoer |
 
 **Tester:** omtrent 2 455 enhetstester (239 på serveren og 2 216 i web-appen, de fleste for modellene bak visualiseringene), 26 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, hele flyten for «Prøv med Haiku», lisenssiden, «Legg til fag» med Geofag 1 og forsiden) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
@@ -146,7 +149,7 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 - **Visualiseringene er halvveis:** fysikk kapittel 5–10 har ennå det gamle utseendet og mangler nye praktiske visualiseringer og eksempeloppgaver. Kjemi og biologi er ikke påbegynt (et halvferdig forsøk på å pusse opp byggeklossene ble tatt ut igjen før PR #7). Dette venter til kostnadsarbeidet har kommet lenger, etter elevens ønske. Planen og elevens valg står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md), og skriptene står i [docs/workflows/](workflows/README.md).
 - **Rottegnet (√) i `FormulaLine`** står litt for lavt. Kapittel 4 retter det lokalt; det bør rettes i `viz/kit/` for alle.
 - **De nye visualiseringene er ikke prøvd på en ekte iPad eller iPhone,** bare i WebKit-testene i CI.
-- **Bare én bruker:** appen har ett passord og én database. Vil andre bruke den i dag, trenger de hver sin egen server. Kontoer er fase 4 i [NATTPLAN.md](NATTPLAN.md).
+- **Kontoer:** eieren (deg) og elever med invitasjon. Det er ingen e-post i appen, så en lenke for nytt passord går alltid gjennom eieren. Rull ikke tilbake i Railway til en versjon fra før kontoene etter at en elev har registrert seg.
 - **Udir:** `data.udir.no` og `www.udir.no` svarer i skyøkta fra 13. oktober (kveld). Kompetansemålene er kontrollert ord for ord mot Grep (se `server/test/fixtures/udir-kompetansemaal.json`).
 - **Repoet er offentlig med «alle rettigheter forbeholdt»** (`LICENSE`). Lisensene til pakkene i appen står under Innstillinger → «Om SmartNotes» → «Lisenser». Privat repo senere er fortsatt mulig; det ville trolig bruke opp de gratis CI-minuttene.
 - **Flashcards:** trykker eleven «Angre forrige» etter at en ny beste rekke er sendt til serveren, blir rekka ikke lavere igjen, fordi serveren beholder den høyeste.

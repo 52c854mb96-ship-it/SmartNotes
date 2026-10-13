@@ -19,6 +19,7 @@ import { PdfViewer } from '../components/PdfViewer';
 import { Spinner } from '../components/Status';
 import { useNote } from '../data';
 import { useOnline } from '../lib/connectivity';
+import { useIsOwner } from '../lib/account';
 import { saveBlob } from '../lib/download';
 import { formatTimestamp, kroner, slugify, stageText } from '../lib/format';
 import { useMediaQuery } from '../lib/media';
@@ -56,6 +57,8 @@ function estimateOre(pageCount: number): number {
  */
 export function ComparePage() {
   const { noteId } = useParams();
+  // Bare eieren sammenligner (serveren svarer 404 til andre).
+  if (!useIsOwner()) return <NotFoundPage />;
   return <CompareView key={noteId} noteId={noteId} />;
 }
 

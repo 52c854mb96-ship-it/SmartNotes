@@ -317,7 +317,21 @@ Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er nest
   - Innlogging: brukernavn og passord (scrypt). Eieren bruker `APP_PASSWORD` med tomt brukernavn eller sitt eget, som før. Grenser per adresse, per adresse og brukernavn, og per konto for nye enheter (enheter som har logget inn før, er unntatt, så ingen kan sperre en elev ute). `trustProxy` stoler på ett ledd (`TRUST_PROXY_HOPS`).
   - Invitasjoner (kode som vises én gang, gjelder én gang i 14 dager), registrering med alder (15 år) og fagvalg, engangslenke for nytt passord (48 timer, logger ut overalt), og eierens ruter for brukere, invitasjoner, stenging og eget brukernavn.
   - Modell per plan: gratiskontoer konverterer med Haiku 5.5 hos Anthropic (høy grundighet, minst tre rettingsrunder, Sonnet ved avslag), uansett hva `AI_PROVIDER_CONVERT` sier; eieren med Sonnet som før. Forbruksloggen får `user_id` og antall sider.
+  - Kl. 00.20: PR [#26](https://github.com/52c854mb96-ship-it/SmartNotes/pull/26) (kontoer på serveren) er laget, og flettet kl. 00.32 etter grønn CI.
   - Gjennomgang (fire kontrollører og én skeptiker per funn, 21 agenter): 17 funn, 12 bekreftet (noen var samme funn fra flere) og rettet med tester: forsøk på innlogging sendt samtidig slapp forbi grensene (nå telles de før passordsjekken), kontosperren røpet når passordet stemte (nå sjekkes den før passordet), eieren hadde ingen grense per konto uten brukernavn, stengte kontoer avbrøt ikke kallene på hjemmemaskinen og ikke kortstokker som var i gang, forbruksloggen talte filer i stedet for sider for en PDF, sikkerhetskopien kunne ha slettede koder i ledige sider i databasefila (nå `secure_delete` og `VACUUM`), oppsettet for gratiskontoene var ikke testet, og CLAUDE.md beskrev ikke `jobScope`. I tillegg glemmes kjente enheter ved nytt passord og stenging (avvist som funn, men billig).
+- Fase 4 (kontoer), appen, design og resultat (bygget i `/home/user/sn-4b`):
+  - Kontoen lagres i Dexie og sendes med hver forespørsel. Svarer serveren 409 (en annen fane har logget inn med en annen konto), lastes siden på nytt én gang.
+  - En enhet uten lagret konto (eierens enheter i dag) tas over av eieren og beholder opplastingskøen. Logger en annen konto inn, spør appen først og sletter så de lokale dataene, også køen og sidebildene i bufferen.
+  - Innloggingssiden har brukernavn (tomt for eieren) og en kort presentasjon (de fire fagene, lukket beta med invitasjon). Nye sider: `/registrer` (koden fra lenken) og `/nytt-passord` (koden fra lenken fjernes fra adressefeltet).
+  - Innstillinger: kontoen med plan, eierens brukernavn, «Inviter en elev» (koden og lenken kan kopieres, og koden kan trekkes tilbake) og «Brukere» (plan, sist innlogget, forbruk, lenke for nytt passord, stenge). Eierens kort og «Prøv med Haiku» vises ikke for andre.
+  - Gjennomgang (tre kontrollører og én skeptiker per funn, 19 agenter): 16 funn, 11 bekreftet og rettet med tester:
+    - registrering eller nytt passord mens en annen konto var logget inn, kunne laste siden på nytt midt i dialogen (nå spør appen før forespørselen sendes, og synken står stille under byttet);
+    - en opplasting i en annen fane kunne skrive den forrige kontoens notat inn etter slettingen (nå sjekkes kontoen i hver transaksjon);
+    - utlogging uten nett lot økten leve, og neste oppstart logget rett inn igjen;
+    - 409 på en opplasting ble en varig feil;
+    - etter et kontobytte gikk appen til den forrige kontoens side;
+    - registreringen kunne ikke prøve å hente fagene på nytt, og koden forsvant ved ny lasting;
+    - det manglet tester for en enhet fra før kontoene med kø og for registrering i samme fane.
 
 ## Morgenrapport
 
