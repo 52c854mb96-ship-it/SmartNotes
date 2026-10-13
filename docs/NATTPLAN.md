@@ -295,6 +295,14 @@ Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er nest
   - Gjennomgang (Workflow med tre kontrollører og én skeptiker per funn): 12 funn, 10 bekreftet (to var samme funn om farger) og rettet med tester: dokumentasjonen av `SEED_TEXTBOOKS`, farger i malene, eval-feilmeldingen manglet geofag, «Legg til fag» ventet på hele synken uten å vise at den jobbet og navigerte etter at dialogen var lukket, fokus i dialogen, ukjent profil i oppsettlista, e2e-testen var avhengig av rekkefølgen på prosjektene, enheter med æ, ø, å og °, og etikettene i lagrekka.
   - typecheck, test (239 + 2214), build og e2e (24) er grønne lokalt etter at fase 2 ble lagt oppå `main`.
   - Etter at fase 2 ble lagt oppå `main`: rettingsinstruksen for geofag sa fortsatt at en figur i en boks er en typisk feil (rettet i de andre fagene i #22); fjernet, og testen for det går over alle fag.
+- Kl. 23.25: PR [#24](https://github.com/52c854mb96-ship-it/SmartNotes/pull/24) (fase 2, Geofag 1) er flettet etter grønn CI.
+- Fase 3 (forside), design og resultat:
+  - `HomePage.tsx` sender ikke lenger brukeren videre. Forsiden har en kort presentasjon («Ta bilde av de håndskrevne notatene dine …»), fagene som kort i fagets farger (ikon, navn, antall notater og «Sist endret», fra Dexie så det virker uten nett), «Fortsett i …» som snarvei til faget brukeren sist var i, «Legg til fag» og en tom tilstand uten fag.
+  - Logoen i sidepanelet og i topplinjen på mobil fører til forsiden. Etter innlogging går appen til siden brukeren var på vei til, ellers til forsiden.
+  - Fargene på kortene kommer fra egne `--profile-*`-variabler per fag i `styles/subjects.css`, også i mørkt tema.
+  - E2e: alle testene åpner fagene fra forsiden (`openSubjectFromHome` i `e2e/helpers.ts`), og `forside.spec.ts` sjekker forsiden, trykk på et fag, logoen og at ingenting sender brukeren videre.
+  - Gjennomgang (tre kontrollører og én skeptiker per funn): 5 funn, 2 bekreftet og rettet med tester: «Fortsett i …» fulgte bare fagsiden, ikke kapitler, notater og søket (flyttet til `AppShell`, `lib/lastSubject.ts`), og kortene viste «Ingen notater ennå» et øyeblikk før tallene kom. I tillegg venter e2e-hjelperen nå til innloggingen er ferdig (avvist som feil, men billig).
+  - typecheck, test (239 + 2216), build og e2e (26) er grønne lokalt.
 
 ## Morgenrapport
 

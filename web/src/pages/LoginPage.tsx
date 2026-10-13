@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { api, errorMessage } from '../api';
-import { db } from '../db';
 import { Logo } from '../components/Logo';
 import { Spinner } from '../components/Status';
 import { useAuth, useOnline } from '../lib/connectivity';
@@ -34,8 +33,8 @@ export function LoginPage() {
       await api.login(password);
       setBusy('sync');
       await afterLogin();
-      const first = (await db.subjects.orderBy('position').first())?.id;
-      navigate(from && from !== '/' && from !== '/logg-inn' ? from : first ? `/fag/${first}` : '/', { replace: true });
+      // Til siden brukeren var på vei til, ellers forsiden (appen åpner ikke et fag av seg selv).
+      navigate(from && from !== '/logg-inn' ? from : '/', { replace: true });
     } catch (err) {
       setError(errorMessage(err, 'Innloggingen feilet.'));
       setBusy(null);

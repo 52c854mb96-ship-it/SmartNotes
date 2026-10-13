@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { BookOpen, Camera, FileStack, FolderOpen, GalleryVerticalEnd, ListPlus, ListTree, Settings, Shapes, Upload, X } from 'lucide-react';
 import type { Chapter, Subject } from '@smartnotes/shared';
@@ -10,7 +10,6 @@ import { sectionsOf } from '../lib/curriculum';
 import { formatDayShort, plural } from '../lib/format';
 import { openUpload } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
-import { LAST_SUBJECT_KEY } from './HomePage';
 import { hasVisualizations } from '../viz/registry';
 import { NotFoundPage } from './NotFoundPage';
 
@@ -22,15 +21,6 @@ export function SubjectPage() {
   const outbox = useOutbox(subjectId);
   const stats = useMemo(() => chapterStats(notes ?? []), [notes]);
   useDocumentTitle(subject?.name);
-
-  useEffect(() => {
-    if (!subject) return;
-    try {
-      localStorage.setItem(LAST_SUBJECT_KEY, subject.id);
-    } catch {
-      /* ignorer */
-    }
-  }, [subject]);
 
   if (subject === undefined || chapters === undefined || notes === undefined) return <PageSkeleton />;
   if (subject === null) return <NotFoundPage what="faget" />;

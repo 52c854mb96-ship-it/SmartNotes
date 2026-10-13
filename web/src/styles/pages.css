@@ -1095,3 +1095,155 @@ select.inline-input {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* ---------- Forsiden ---------- */
+.home-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.home-hero-text {
+  min-width: 0;
+}
+
+.home-intro {
+  max-width: 62ch;
+  margin-top: 8px;
+  color: var(--text-2);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.home-continue {
+  margin-bottom: 28px;
+}
+
+.home-continue a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  font-weight: 600;
+}
+
+.home-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.home-section-head .section-title {
+  margin-bottom: 0;
+}
+
+.home-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 22px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  color: var(--text-2);
+}
+
+.subject-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subject-card {
+  --card-accent: var(--profile-physics);
+  --card-soft: var(--profile-physics-soft);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 100%;
+  min-height: 84px;
+  padding: 16px 16px 16px 18px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--card-accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+}
+
+.subject-card:hover {
+  border-color: var(--card-accent);
+  text-decoration: none;
+}
+
+.subject-card:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.subject-card[data-profile='chemistry'] {
+  --card-accent: var(--profile-chemistry);
+  --card-soft: var(--profile-chemistry-soft);
+}
+
+.subject-card[data-profile='biology'] {
+  --card-accent: var(--profile-biology);
+  --card-soft: var(--profile-biology-soft);
+}
+
+.subject-card[data-profile='geoscience'] {
+  --card-accent: var(--profile-geoscience);
+  --card-soft: var(--profile-geoscience-soft);
+}
+
+.subject-card-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--card-soft);
+  color: var(--card-accent);
+}
+
+.subject-card-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.subject-card-name {
+  font-size: 17px;
+  font-weight: 680;
+  overflow-wrap: anywhere;
+}
+
+.subject-card-meta {
+  color: var(--text-3);
+  font-size: 13.5px;
+}
+
+.subject-card-arrow {
+  flex: none;
+  color: var(--text-3);
+}
+
+.subject-card:hover .subject-card-arrow {
+  color: var(--card-accent);
+}
+
+@media (max-width: 520px) {
+  .home-hero {
+    gap: 14px;
+  }
+}

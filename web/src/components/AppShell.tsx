@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, Outlet, ScrollRestoration, useLocation } from 'react-router';
+import { Link, Navigate, Outlet, ScrollRestoration, useLocation } from 'react-router';
 import { Menu, Search, Upload } from 'lucide-react';
 import { useAuth } from '../lib/connectivity';
 import { reloadPendingStore } from '../lib/pwa';
@@ -7,6 +7,7 @@ import { drawerStore, listCollapsedStore, openSearch, openUpload, searchStore, t
 import { isAcceptedFile } from '../lib/images';
 import { isListRoute } from '../lib/layout';
 import { NARROW_QUERY, WIDE_QUERY, useMediaQuery } from '../lib/media';
+import { rememberLastSubject } from '../lib/lastSubject';
 import { setSubjectTheme } from '../lib/theme';
 import { useActiveIds } from '../lib/useActive';
 import { useSubject } from '../data';
@@ -44,6 +45,11 @@ export function AppShell() {
   useEffect(() => {
     if (activeProfile !== undefined) setSubjectTheme(activeProfile);
   }, [activeProfile]);
+  // «Fortsett i …» på forsiden: faget brukeren sist var i, også når det ble åpnet fra et kapittel, et notat eller søket.
+  const activeSubjectId = activeSubject?.id;
+  useEffect(() => {
+    if (activeSubjectId) rememberLastSubject(activeSubjectId);
+  }, [activeSubjectId]);
   const firstPath = useRef(location.pathname);
   const [dragging, setDragging] = useState(false);
 
@@ -171,10 +177,10 @@ export function AppShell() {
           >
             <Menu size={22} aria-hidden />
           </button>
-          <div className="topbar-brand">
+          <Link to="/" className="topbar-brand" aria-label="SmartNotes, til forsiden">
             <Logo size={24} />
             <span>SmartNotes</span>
-          </div>
+          </Link>
           <span className="topbar-actions">
             <button type="button" className="icon-btn" aria-label="Søk" onClick={openSearch}>
               <Search size={20} aria-hidden />
