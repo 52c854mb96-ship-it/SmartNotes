@@ -99,7 +99,9 @@ test('kontoer: eieren inviterer en elev, eleven ser bare sine egne fag, og en le
   await student.page.getByLabel('Brukernavn').fill(username);
   await student.page.getByLabel('Passord', { exact: true }).fill('nytt-elevpassord');
   await student.page.getByRole('button', { name: 'Logg inn' }).click();
-  await expect(student.page.getByRole('heading', { name: 'Fagene dine' })).toBeVisible();
+  // Tilbake til siden eleven var på (samme konto, så ingenting er slettet).
+  await expect(student.page.getByRole('heading', { name: 'Innstillinger', level: 1 })).toBeVisible();
+  await expect(student.page.getByText(new RegExp(`Logget inn som\\s*${username}`))).toBeVisible();
 
   await student.context.close();
   await other.close();
