@@ -120,3 +120,5 @@ Appen kjører da på port 8080, og dataene ligger i `./data`.
 - **Cloudflare Tunnel** eller en reverse proxy som **Caddy** med eget domene.
 
 Hvis du absolutt må kjøre uten HTTPS på et lukket nett, sett `COOKIE_SECURE=false`. Da virker ikke offline-modus.
+
+**Proxy og IP-adresser.** Grensene for innlogging telles per IP-adresse. Serveren stoler på så mange proxyer foran seg som `TRUST_PROXY_HOPS` sier (standard 1, som på Railway, Fly.io, `tailscale serve`, Cloudflare Tunnel og Caddy). Nås serveren direkte, uten noe foran, sett `TRUST_PROXY_HOPS=0`; ellers kan en klient skrive en falsk adresse i `X-Forwarded-For`.
