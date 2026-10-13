@@ -254,6 +254,10 @@ Nattøkta skriver her de valgene den har tatt på egen hånd, så eleven kan se 
 Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er neste steg, slik at arbeidet kan fortsette fra hvilken som helst økt.
 
 - 13. oktober, kveld: planen er laget i økta som flettet #20. Nattøkta har ikke startet.
+- 13. oktober kl. 21.13: nattøkta har startet.
+  - Rutine for vekking hver time: `trig_012T5E4abuLufG4xWyNs5BfB` (cron `13 * * * *` UTC, bundet til denne økta). Slettes med `delete_trigger` når morgenrapporten er skrevet.
+  - Udir svarer nå: `data.udir.no` (JSON for FYS01-02 hentet) og `www.udir.no` (200). Kompetansemålene kan kontrolleres i fase 1b og hentes for Geofag 1 i fase 2.
+  - TeX Live installeres. Neste steg: fase 1a (kvalitet i notatene).
 
 ## Morgenrapport
 
