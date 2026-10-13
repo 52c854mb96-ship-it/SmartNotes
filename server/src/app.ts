@@ -17,8 +17,9 @@ import { AnthropicClaude, FakeClaude } from './pipeline/claude.js';
 import { COMPARE_EFFORT, COMPARE_MAX_TOKENS, COMPARE_MODEL, Comparer } from './pipeline/compare.js';
 import { Converter } from './pipeline/converter.js';
 import { latexAvailable } from './pipeline/latex.js';
-import { aiConfigured, createAi, describeAi } from './pipeline/providers.js';
+import { aiConfigured, createAi, createFreeConvertAi, describeAi } from './pipeline/providers.js';
 import { Worker } from './pipeline/worker.js';
+import { registerAdminRoutes } from './routes/admin.js';
 import { registerBackupRoutes } from './routes/backup.js';
 import { registerCompareRoutes } from './routes/compare.js';
 import { registerFlashcardRoutes } from './routes/flashcards.js';
@@ -44,7 +45,6 @@ export interface AppContext {
   comparer: Comparer;
 }
 
-
 /** Byggnummeret Vite skriver i index.html (`<meta name="smartnotes-build">`), eller null uten ferdigbygd web-app. */
 function readWebBuild(webDist: string | null): string | null {
   if (!webDist) return null;
@@ -56,12 +56,21 @@ function readWebBuild(webDist: string | null): string | null {
   }
 }
 
-/** `compareAi` erstatter Haiku i sammenligningen (tester); ellers brukes `ai` i tester og Haiku i drift. */
-export async function buildApp(config: Config, opts: { ai?: AiService; compareAi?: AiService; logger?: boolean } = {}): Promise<AppContext> {
+/**
+ * `ai` erstatter AI-tjenesten (tester), `freeAi` konverteringen for gratisbrukerne (uten den: `ai` når den er gitt,
+ * ellers Haiku), og `compareAi` sammenligningen.
+ */
+export async function buildApp(
+  config: Config,
+  opts: { ai?: AiService; freeAi?: AiService; compareAi?: AiService; logger?: boolean } = {},
+): Promise<AppContext> {
   const app = Fastify({
     logger: opts.logger === false ? false : { level: process.env.LOG_LEVEL ?? 'info' },
     bodyLimit: 5 * 1024 * 1024,
-    trustProxy: true,
+    // Bare så mange proxyer som faktisk står foran serveren (Railway: én), ellers kan en klient sette sin egen IP i
+    // X-Forwarded-For og komme seg rundt grensene for innlogging.
+    // `hop` 0 er den nærmeste adressen (proxyen hos Railway); adressen bak de betrodde leddene blir `req.ip`.
+    trustProxy: (_address: string, hop: number) => hop < config.accounts.trustProxyHops,
   });
 
   const storage = new Storage(config.dataDir);
@@ -96,7 +105,9 @@ export async function buildApp(config: Config, opts: { ai?: AiService; compareAi
     },
   });
   const ai = opts.ai ? metered(opts.ai) : createAi(config, metered, hub);
-  const converter = new Converter(repo, storage, ai, config, app.log);
+  // Gratisbrukerne konverterer med Haiku (høy grundighet, Sonnet som reserve ved avslag); eieren med `ai`.
+  const freeAi = opts.freeAi ? metered(opts.freeAi) : opts.ai ? null : createFreeConvertAi(config, metered);
+  const converter = new Converter(repo, storage, ai, config, app.log, freeAi ? { ai: freeAi, fixAttempts: 3 } : null);
   const worker = new Worker(repo, converter, config.workerConcurrency, app.log);
   const bundler = new Bundler(repo, storage, config, app.log);
   const generator = new FlashcardGenerator(repo, storage, ai, app.log);
@@ -170,6 +181,7 @@ export async function buildApp(config: Config, opts: { ai?: AiService; compareAi
   registerUsageRoutes(app, { repo, config });
   registerCompareRoutes(app, { repo, storage, comparer, config });
   registerBackupRoutes(app, { repo, storage, config });
+  registerAdminRoutes(app, { repo, config, hub });
   if (config.remote.token) registerWorkerRoutes(app, { hub, token: config.remote.token });
   const usesRemote = aiTasks.some((t) => t.provider === 'remote');
   app.get('/api/ai/status', async (): Promise<AiStatusResponse> => ({

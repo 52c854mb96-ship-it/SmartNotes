@@ -89,7 +89,7 @@ Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du m�
 
 | Variabel | Standard | Beskrivelse |
 |---|---|---|
-| `APP_PASSWORD` | – (påkrevd i produksjon) | Passordet du logger inn med |
+| `APP_PASSWORD` | – (påkrevd i produksjon) | Passordet eieren logger inn med (uten brukernavn, eller med eierens brukernavn, `eier` til det endres i innstillingene). Andre brukere har egne passord |
 | `ANTHROPIC_API_KEY` | – | Claude API-nøkkel |
 | `CLAUDE_MODEL` | `claude-sonnet-5-5` | Modellen som leser notatene og retter LaTeX (`claude-opus-5-5` er grundigere, men koster det dobbelte). Må lese bilder i høy oppløsning, ellers avvises konverteringen |
 | `CLAUDE_MODEL_FLASHCARDS` | `claude-haiku-5-5` | Modellen som lager kortstokkene. Avslår Haiku, prøves `CLAUDE_MODEL` |
@@ -105,6 +105,11 @@ Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du m�
 | `COOKIE_SECURE` | `true` i produksjon | Krever HTTPS for innloggingen |
 | `SMARTNOTES_FAKE_CLAUDE` | `0` | `1` gir testinnhold uten å kalle Claude |
 | `USD_NOK` | `10.5` | Kurs fra dollar til kroner i oversikten «Forbruk av AI» i innstillingene |
+| `FREE_CONVERT_MODEL` | `claude-haiku-5-5` | Modellen som konverterer notatene til gratisbrukerne (alltid Claude, høy grundighet, `CLAUDE_MODEL` ved avslag). Eieren bruker `CLAUDE_MODEL` |
+| `MIN_AGE` | `15` | Laveste alder for å registrere seg |
+| `INVITE_DAYS` | `14` | Hvor lenge en invitasjonskode gjelder |
+| `RESET_LINK_HOURS` | `48` | Hvor lenge en lenke for nytt passord gjelder |
+| `TRUST_PROXY_HOPS` | `1` | Antall proxyer foran serveren (Railway: 1). Sett `0` når serveren nås direkte, ellers kan en klient late som den har en annen IP-adresse og slippe unna grensene for innlogging |
 
 ### Lokal AI med Ollama (valgfritt)
 

@@ -5,7 +5,7 @@ import { AbortedError, ConversionError } from '../errors.js';
 import type { AiService } from '../pipeline/ai.js';
 import { getProfile } from '../profiles/index.js';
 import type { Storage } from '../storage.js';
-import { usageScope } from '../usage.js';
+import { jobScope } from '../usage.js';
 import { cleanFlashcards, noteSourceText, type FlashcardSourceNote } from './prompt.js';
 
 /** Hvor mange ganger en midlertidig feil (overbelastning, nett) prøves før kortstokken markeres som feilet. */
@@ -29,7 +29,7 @@ async function noteBody(storage: Storage, noteId: string): Promise<string | null
  * hører til et annet fag, hoppes over. `aliases` oversetter Claudes korte id-er («n1») til notat-id-er.
  */
 export async function loadSourceNotes(
-  repo: Repo,
+  repo: Pick<Repo, 'getNoteRow' | 'getChapter'>,
   storage: Storage,
   subjectId: string,
   noteIds: string[],
@@ -138,17 +138,27 @@ export class FlashcardGenerator {
     }
   }
 
+  /** Er kontoen stengt, settes kortstokken som feilet (eleven kan prøve igjen når kontoen er åpnet). */
+  private disabled(userId: number, deckId: string): boolean {
+    if (!this.repo.getUser(userId)?.disabled) return false;
+    this.repo.failDeck(deckId, 'Kontoen ble stengt mens kortene ble laget. Prøv igjen når den er åpnet.');
+    return true;
+  }
+
   private async generate(deckId: string): Promise<void> {
     const row = this.repo.getDeckRow(deckId);
     if (!row || row.status !== 'generating') return;
     const subject = this.repo.getSubject(row.subject_id);
     if (!subject) return;
     const deck = this.repo.getDeck(deckId)!;
-    const { notes, aliases } = await loadSourceNotes(this.repo, this.storage, subject.id, deck.noteIds);
+    // Bare notatene til eieren av kortstokken (de ble sjekket da kortstokken ble laget, og sjekkes igjen her).
+    const { notes, aliases } = await loadSourceNotes(this.repo.forUser(row.user_id), this.storage, subject.id, deck.noteIds);
     if (notes.length === 0) throw new ConversionError('Notatene finnes ikke lenger, eller er ikke ferdig konvertert.');
     const profile = getProfile(subject.profile);
     const started = Date.now();
-    const { cards, usage } = await usageScope({ deckId, subjectId: subject.id }, () =>
+    // En stengt konto får ikke laget kort (heller ikke en kortstokk som var i gang da kontoen ble stengt).
+    if (this.disabled(row.user_id, deckId)) return;
+    const { cards, usage } = await jobScope({ userId: row.user_id, deckId, subjectId: subject.id }, () =>
       this.ai.generateFlashcards({
         subjectName: subject.name,
         subjectLabel: profile.label,
@@ -159,6 +169,7 @@ export class FlashcardGenerator {
     );
     const clean = cleanFlashcards(cards, aliases);
     if (clean.length === 0) throw new ConversionError('Claude fant ikke noe å lage kort av i disse notatene.');
+    if (this.disabled(row.user_id, deckId)) return;
     const done = this.repo.completeDeck(deckId, clean, usage);
     if (done) this.log.info({ deckId, cards: clean.length, ms: Date.now() - started, usage }, 'kortstokk laget');
   }

@@ -242,6 +242,8 @@ Skriv tydelig i morgenrapporten om alt dette er på plass, og hva som eventuelt 
   - la gjerne en forelder lese personvernerklæringen og vilkårene;
   - sett en månedlig grense i Anthropic Console → Settings → Limits (planens forslag: grense 20 USD, varsel ved 10 USD);
   - planen anbefaler også at en voksen eier API-kontoen før andre bruker appen.
+- **Ikke rull tilbake** i Railway (Deployments → Redeploy på en gammel versjon) til en versjon fra før kontoene etter at en elev har registrert seg: den gamle versjonen kjenner ikke kontoene og ville vist elevens fag og notater som dine.
+- **Avslag hos en gratiskonto:** avslår Haiku et notat (sikkerhetsfilteret), prøves det på nytt med Sonnet, som koster mer. Det er som for kortstokkene i dag.
 
 ## Spørsmål til eleven
 
@@ -250,6 +252,11 @@ Nattøkta skriver her de valgene den har tatt på egen hånd, så eleven kan se 
 - **Lisensen** nevner GitHub-kontoen (52c854mb96-ship-it) som rettighetshaver, ikke navnet ditt, fordi repoet er offentlig. Vil du ha navnet ditt der, endrer du første linje i `LICENSE`.
 - **Fysikk 1 KM3:** Udir skriver selv «problemsstillinger» (med s). Nye fag får Udirs skrivemåte ordrett; faget ditt har fortsatt «problemstillinger». Vil du ha det likt Udir, kan faget legges inn på nytt eller målet rettes i en senere økt.
 - **Lærebøker som tidligere versjoner la inn** («ERGO Fysikk 1» og lignende) vises ikke lenger i samle-PDF-ene og sendes ikke til AI-en. Bruker du faktisk den boka og vil ha navnet med, skriver du det på nytt i faginnstillingene med litt annen tekst, for eksempel «ERGO Fysikk 1, Aschehoug».
+- **Geofag 1** er etter Udirs læreplan GFG01-03. Planens «GEO01-02» er geografi, og GFG01-02 er utgått.
+- **Brukernavnet ditt** er `eier`. Du kan fortsatt logge inn med passordet alene (tomt brukernavn), og du kan endre navnet i Innstillinger → Konto.
+- **Aldersgrensen** er 15 år, som planen anbefalte (`MIN_AGE` i Railway).
+- **Kortstokker og innholdsfortegnelser for andre elever** går til den samme AI-en som dine (standard Haiku hos Anthropic). Slår du på hjemmemaskinen for disse oppgavene, gjelder det også elevene, og notatene deres behandles da på din maskin. Konverteringen deres går alltid til Haiku hos Anthropic.
+- **Kontosperren** gjelder nå også deg: 10 feil passord fra nye enheter i løpet av et kvarter sperrer kontoen for nye enheter i et kvarter. Enheter du har logget inn fra før, slipper alltid inn. Før kontoene stengte 50 feil ute alle.
 
 ## Logg
 
@@ -303,6 +310,14 @@ Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er nest
   - E2e: alle testene åpner fagene fra forsiden (`openSubjectFromHome` i `e2e/helpers.ts`), og `forside.spec.ts` sjekker forsiden, trykk på et fag, logoen og at ingenting sender brukeren videre.
   - Gjennomgang (tre kontrollører og én skeptiker per funn): 5 funn, 2 bekreftet og rettet med tester: «Fortsett i …» fulgte bare fagsiden, ikke kapitler, notater og søket (flyttet til `AppShell`, `lib/lastSubject.ts`), og kortene viste «Ingen notater ennå» et øyeblikk før tallene kom. I tillegg venter e2e-hjelperen nå til innloggingen er ferdig (avvist som feil, men billig).
   - typecheck, test (239 + 2216), build og e2e (26) er grønne lokalt.
+- Kl. 23.58: PR [#25](https://github.com/52c854mb96-ship-it/SmartNotes/pull/25) (fase 3, forside) er flettet etter grønn CI.
+- Fase 4 (kontoer), serverdelen, design og resultat (bygget i `/home/user/sn-4` mens fase 2 og 3 ventet):
+  - Migrering 7: `users` (eieren er bruker 1 med brukernavnet `eier` og får alt som finnes), `user_sessions` (innloggingene fra før kopieres, så enhetene forblir innlogget; den gamle tabellen blir stående for en tilbakerulling), `user_devices`, `invites` og `password_resets`. `user_id INTEGER NOT NULL DEFAULT 1` på fag, kapitler, notater, kortstokker, kort, sammenligninger, vurderinger og forbruksloggen, indeksen `(user_id, rev)`, og triggere som hindrer at eieren av en rad endres. Ingen rad får ny `rev`, så ingen enhet trenger ny synk. Testet på en database med dagens versjon og ekte innhold.
+  - Eierskap: alle rutene går gjennom `repo.forUser(id)` (`UserRepo`), som sjekker eieren før noe leses eller endres og svarer 404 ellers. `ROUTE_ACCESS` i `auth.ts` gir hver rute en tilgang (offentlig, bruker, eier, hjemmemaskin), og serveren starter ikke hvis en rute mangler. En tabelldrevet test lar brukerne prøve hverandres id-er på hver rute i fire retninger (elev mot elev, elev mot eier, eier mot elev), og sjekker at ingenting endres.
+  - Innlogging: brukernavn og passord (scrypt). Eieren bruker `APP_PASSWORD` med tomt brukernavn eller sitt eget, som før. Grenser per adresse, per adresse og brukernavn, og per konto for nye enheter (enheter som har logget inn før, er unntatt, så ingen kan sperre en elev ute). `trustProxy` stoler på ett ledd (`TRUST_PROXY_HOPS`).
+  - Invitasjoner (kode som vises én gang, gjelder én gang i 14 dager), registrering med alder (15 år) og fagvalg, engangslenke for nytt passord (48 timer, logger ut overalt), og eierens ruter for brukere, invitasjoner, stenging og eget brukernavn.
+  - Modell per plan: gratiskontoer konverterer med Haiku 5.5 hos Anthropic (høy grundighet, minst tre rettingsrunder, Sonnet ved avslag), uansett hva `AI_PROVIDER_CONVERT` sier; eieren med Sonnet som før. Forbruksloggen får `user_id` og antall sider.
+  - Gjennomgang (fire kontrollører og én skeptiker per funn, 21 agenter): 17 funn, 12 bekreftet (noen var samme funn fra flere) og rettet med tester: forsøk på innlogging sendt samtidig slapp forbi grensene (nå telles de før passordsjekken), kontosperren røpet når passordet stemte (nå sjekkes den før passordet), eieren hadde ingen grense per konto uten brukernavn, stengte kontoer avbrøt ikke kallene på hjemmemaskinen og ikke kortstokker som var i gang, forbruksloggen talte filer i stedet for sider for en PDF, sikkerhetskopien kunne ha slettede koder i ledige sider i databasefila (nå `secure_delete` og `VACUUM`), oppsettet for gratiskontoene var ikke testet, og CLAUDE.md beskrev ikke `jobScope`. I tillegg glemmes kjente enheter ved nytt passord og stenging (avvist som funn, men billig).
 
 ## Morgenrapport
 

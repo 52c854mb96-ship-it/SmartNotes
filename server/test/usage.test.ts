@@ -14,9 +14,11 @@ function entry(e: Partial<UsageEntry>): UsageEntry {
     durationMs: 1000,
     ok: true,
     error: null,
+    userId: 1,
     noteId: null,
     deckId: null,
     subjectId: null,
+    pages: null,
     ...e,
   };
 }

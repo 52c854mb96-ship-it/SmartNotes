@@ -3,10 +3,11 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { NoteLatexResponse, NotePagesResponse, SaveLatexResponse } from '@smartnotes/shared';
-import type { NoteFileRow, Repo } from '../db.js';
+import { requireUser } from '../auth.js';
+import type { NoteFileRow, Repo, UserRepo } from '../db.js';
 import { HttpError, badRequest, conflict, notFound } from '../errors.js';
 import { MAX_FILE_BYTES } from '../limits.js';
 import { slug } from '../pipeline/bundle.js';
@@ -37,8 +38,10 @@ const dateField = z
 export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
   const { repo, storage, converter, worker, hub } = d;
 
-  const requireNote = (id: string) => {
-    const row = isId(id) ? repo.getNoteRow(id) : null;
+  /** Det den innloggede brukeren eier; all lesing og skriving i rutene går gjennom det. */
+  const mine = (req: FastifyRequest): UserRepo => repo.forUser(requireUser(req).id);
+  const requireNote = (r: UserRepo, id: string) => {
+    const row = isId(id) ? r.getNoteRow(id) : null;
     if (!row) throw notFound('Fant ikke notatet.');
     return row;
   };
@@ -46,6 +49,7 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
   // ---------- Opplasting ----------
 
   app.post('/api/notes', async (req, reply) => {
+    const r = mine(req);
     const tmp = await storage.makeTmpDir('upload');
     try {
       const fields: Record<string, string> = {};
@@ -80,17 +84,19 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
       if (clientId && clientId.length > 100) throw badRequest('Ugyldig clientId.');
       if (clientId) {
         // Samme opplasting sendt på nytt (f.eks. etter brudd i nettet): svar med notatet vi allerede har.
-        const existing = repo.getNoteByClientId(clientId);
+        const existing = r.noteByClientId(clientId);
+        // Id-en er laget av appen (en UUID); er den brukt av en annen bruker, sier vi ikke noe om det notatet.
+        if (existing === 'taken') throw conflict('Opplastingen har en id som allerede er i bruk. Prøv å laste opp på nytt.');
         if (existing) return existing;
       }
 
-      const subject = fields.subjectId && isId(fields.subjectId) ? repo.getSubject(fields.subjectId) : null;
+      const subject = fields.subjectId && isId(fields.subjectId) ? r.getSubject(fields.subjectId) : null;
       if (!subject) throw badRequest('Faget finnes ikke (lenger).');
       if (files.length === 0) throw badRequest('Ingen filer ble lastet opp.');
 
       // Hvis kapittelet er slettet mens opplastingen lå i køen, lar vi Claude velge i stedet.
       const chapterField = fields.chapterId?.trim() || 'auto';
-      const chapter = chapterField !== 'auto' && isId(chapterField) ? repo.getChapter(chapterField) : null;
+      const chapter = chapterField !== 'auto' && isId(chapterField) ? r.getChapter(chapterField) : null;
       const chapterOk = chapter && chapter.subjectId === subject.id;
       const noteDate = /^\d{4}-\d{2}-\d{2}$/.test(fields.noteDate ?? '') ? fields.noteDate! : null;
       const title = fields.title?.trim().slice(0, 120) || null;
@@ -105,7 +111,7 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
         await fsp.rename(f.tmpFile, path.join(srcDir, filename));
         fileRows.push({ id: randomUUID(), position: i, original_name: f.originalName, mime: MIME_BY_KIND[f.kind], filename, size: f.size });
       }
-      const note = repo.createNote({
+      const note = r.createNote({
         id: noteId,
         subjectId: subject.id,
         chapterId: chapterOk ? chapter.id : null,
@@ -116,6 +122,7 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
         instructions,
         files: fileRows,
       });
+      if (!note) throw badRequest('Faget finnes ikke (lenger).');
       worker.kick();
       reply.code(201);
       return note;
@@ -127,7 +134,8 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
   // ---------- Endringer ----------
 
   app.patch<{ Params: { id: string } }>('/api/notes/:id', async (req) => {
-    const row = requireNote(req.params.id);
+    const r = mine(req);
+    const row = requireNote(r, req.params.id);
     const body = parse(
       z.object({
         title: z.string().trim().min(1, 'Tittelen kan ikke være tom.').max(120, 'Tittelen er for lang.').optional(),
@@ -138,18 +146,18 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
       req.body,
     );
     if (body.chapterId) {
-      const c = isId(body.chapterId) ? repo.getChapter(body.chapterId) : null;
+      const c = isId(body.chapterId) ? r.getChapter(body.chapterId) : null;
       if (!c || c.subjectId !== row.subject_id) throw badRequest('Kapittelet finnes ikke i dette faget.');
     }
     if (body.section) {
       // Delkapittelet må høre til kapittelet notatet ender opp i.
       const chapterId = body.chapterId !== undefined ? body.chapterId : row.chapter_id;
-      const chapter = chapterId ? repo.getChapter(chapterId) : null;
+      const chapter = chapterId ? r.getChapter(chapterId) : null;
       const match = chapter?.sections.find((x) => x.code.toUpperCase() === body.section!.toUpperCase());
       if (!match) throw badRequest('Delkapittelet finnes ikke i dette kapittelet.');
       body.section = match.code;
     }
-    const note = repo.updateNoteUser(row.id, body);
+    const note = r.updateNoteUser(row.id, body);
     const changed =
       (body.title !== undefined && body.title !== row.title) ||
       (body.chapterId !== undefined && body.chapterId !== row.chapter_id) ||
@@ -160,8 +168,9 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
   });
 
   app.delete<{ Params: { id: string } }>('/api/notes/:id', async (req) => {
-    const row = requireNote(req.params.id);
-    repo.deleteNote(row.id);
+    const r = mine(req);
+    const row = requireNote(r, req.params.id);
+    r.deleteNote(row.id);
     // Venter notatet på hjemmemaskinen, trengs ikke svaret lenger.
     hub?.cancel((ref) => ref.noteId === row.id);
     await storage.removeNote(row.id).catch(() => undefined);
@@ -169,10 +178,11 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
   });
 
   app.post<{ Params: { id: string } }>('/api/notes/:id/retry', async (req) => {
-    const row = requireNote(req.params.id);
+    const r = mine(req);
+    const row = requireNote(r, req.params.id);
     if (row.status === 'processing') throw conflict('Notatet konverteres allerede.');
     const body = parse(z.object({ instructions: z.string().max(2000).nullable().optional() }).default({}), req.body ?? {});
-    const note = repo.requeue(row.id, body.instructions === undefined ? undefined : body.instructions?.trim() || null);
+    const note = r.requeue(row.id, body.instructions === undefined ? undefined : body.instructions?.trim() || null);
     worker.kick();
     return note;
   });
@@ -180,7 +190,7 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
   // ---------- PDF, LaTeX og originalsider ----------
 
   app.get<{ Params: { id: string }; Querystring: { download?: string } }>('/api/notes/:id/pdf', async (req, reply) => {
-    const row = requireNote(req.params.id);
+    const row = requireNote(mine(req), req.params.id);
     const file = storage.noteFile(row.id, 'note.pdf');
     if (!(await exists(file))) throw notFound('PDF-en er ikke klar ennå.');
     reply.header('ETag', `"${row.pdf_rev}"`);
@@ -188,26 +198,27 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
   });
 
   app.get<{ Params: { id: string } }>('/api/notes/:id/latex', async (req): Promise<NoteLatexResponse> => {
-    const row = requireNote(req.params.id);
+    const row = requireNote(mine(req), req.params.id);
     const body = await converter.currentBody(row.id);
     if (body === null) throw notFound('Det finnes ingen LaTeX-kode for dette notatet ennå.');
     return { body };
   });
 
   app.put<{ Params: { id: string } }>('/api/notes/:id/latex', async (req): Promise<SaveLatexResponse> => {
-    const row = requireNote(req.params.id);
+    const r = mine(req);
+    const row = requireNote(r, req.params.id);
     if (row.status === 'processing' || row.status === 'queued') throw conflict('Vent til konverteringen er ferdig før du redigerer.');
     const { body: raw } = parse(z.object({ body: z.string().min(1, 'LaTeX-koden er tom.').max(1_000_000) }), req.body);
     const body = replaceMissingFigures(sanitizeBody(raw), await converter.availableFigures(row.id));
     const res = await converter.compileNote(row.id, body);
     if (res.ok) {
-      return { ok: true, note: repo.bumpPdf(row.id, latexToText(body))! };
+      return { ok: true, note: r.bumpPdf(row.id, latexToText(body))! };
     }
-    return { ok: false, note: repo.getNote(row.id)!, error: res.message };
+    return { ok: false, note: r.getNote(row.id)!, error: res.message };
   });
 
   app.get<{ Params: { id: string } }>('/api/notes/:id/tex', async (req, reply) => {
-    const row = requireNote(req.params.id);
+    const row = requireNote(mine(req), req.params.id);
     const tex = await converter.fullTex(row.id);
     if (tex === null) throw notFound('Det finnes ingen LaTeX-kode for dette notatet ennå.');
     return reply
@@ -225,13 +236,13 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
   };
 
   app.get<{ Params: { id: string } }>('/api/notes/:id/pages', async (req): Promise<NotePagesResponse> => {
-    const row = requireNote(req.params.id);
+    const row = requireNote(mine(req), req.params.id);
     const pages = await readPages(row.id);
     return { pages: pages.map((p) => ({ index: p.index, width: p.width, height: p.height })) };
   });
 
   app.get<{ Params: { id: string; index: string } }>('/api/notes/:id/pages/:index', async (req, reply) => {
-    const row = requireNote(req.params.id);
+    const row = requireNote(mine(req), req.params.id);
     const index = Number.parseInt(req.params.index, 10);
     const page = (await readPages(row.id)).find((p) => p.index === index);
     if (!page) throw notFound('Fant ikke siden.');

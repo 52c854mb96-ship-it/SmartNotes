@@ -1,9 +1,10 @@
 import fs from 'node:fs';
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import sharp from 'sharp';
 import { z } from 'zod';
 import type { ChapterPreviewResponse, SubjectPresetsResponse, SyncResponse } from '@smartnotes/shared';
-import type { Repo } from '../db.js';
+import { requireUser } from '../auth.js';
+import type { Repo, UserRepo } from '../db.js';
 import { ConversionError, HttpError, badRequest, notFound } from '../errors.js';
 import type { Bundler } from '../pipeline/bundle.js';
 import type { AiService } from '../pipeline/ai.js';
@@ -69,20 +70,22 @@ export async function sendPdf(reply: FastifyReply, file: string, filename: strin
 
 export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
   const { repo, storage, ai, converter, bundler } = d;
+  /** Det den innloggede brukeren eier; all lesing og skriving i rutene går gjennom det. */
+  const mine = (req: FastifyRequest): UserRepo => repo.forUser(requireUser(req).id);
 
-  const recompileSubject = (subjectId: string) => {
-    for (const n of repo.sync(0).notes.filter((n) => n.subjectId === subjectId && n.status === 'done')) converter.recompileInBackground(n.id);
+  const recompileSubject = (r: UserRepo, subjectId: string) => {
+    for (const id of r.doneNoteIds({ subjectId })) converter.recompileInBackground(id);
   };
-  const recompileChapter = (chapterId: string) => {
-    for (const n of repo.sync(0).notes.filter((n) => n.chapterId === chapterId && n.status === 'done')) converter.recompileInBackground(n.id);
+  const recompileChapter = (r: UserRepo, chapterId: string) => {
+    for (const id of r.doneNoteIds({ chapterId })) converter.recompileInBackground(id);
   };
 
   // ---------- Synk ----------
 
   app.get<{ Querystring: { since?: string } }>('/api/sync', async (req): Promise<SyncResponse> => {
     const since = Math.max(0, Number.parseInt(req.query.since ?? '0', 10) || 0);
-    const r = repo.sync(since);
-    return { ...r, full: since <= 0 };
+    const me = requireUser(req);
+    return { userId: me.id, ...repo.forUser(me.id).sync(since), full: since <= 0 };
   });
 
   // ---------- Fag ----------
@@ -91,12 +94,12 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
     const body = parse(z.object({ name, profile: z.string().default('physics'), textbook: textbook.optional().default(null) }), req.body);
     if (!isProfile(body.profile)) throw badRequest('Ukjent fagtype.');
     reply.code(201);
-    return repo.createSubject({ name: body.name, profile: body.profile, textbook: body.textbook || null });
+    return mine(req).createSubject({ name: body.name, profile: body.profile, textbook: body.textbook || null });
   });
 
   // Fagoppsettene etter læreplanen, og om brukeren har faget fra før.
-  app.get('/api/presets', async (): Promise<SubjectPresetsResponse> => {
-    const subjects = repo.listSubjects();
+  app.get('/api/presets', async (req): Promise<SubjectPresetsResponse> => {
+    const subjects = mine(req).listSubjects();
     return {
       presets: Object.values(SUBJECT_PRESETS).map((p) => ({
         id: p.id,
@@ -114,7 +117,7 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
     const body = parse(z.object({ presetId: z.string().max(100) }), req.body);
     const preset = Object.hasOwn(SUBJECT_PRESETS, body.presetId) ? SUBJECT_PRESETS[body.presetId] : undefined;
     if (!preset) throw notFound('Fant ikke fagoppsettet.');
-    const subject = repo.addPreset(preset);
+    const subject = mine(req).addPreset(preset);
     if (!subject) throw new HttpError(409, 'exists', `Du har allerede ${preset.subjectName}.`);
     reply.code(201);
     return subject;
@@ -123,56 +126,59 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
   app.patch<{ Params: { id: string } }>('/api/subjects/:id', async (req) => {
     const id = idParam(req.params.id);
     const body = parse(z.object({ name: name.optional(), textbook: textbook.optional() }), req.body);
-    const before = repo.getSubject(id);
-    const s = repo.updateSubject(id, { name: body.name, textbook: body.textbook === undefined ? undefined : body.textbook || null });
+    const r = mine(req);
+    const before = r.getSubject(id);
+    const s = r.updateSubject(id, { name: body.name, textbook: body.textbook === undefined ? undefined : body.textbook || null });
     if (!s) throw notFound('Fant ikke faget.');
-    if (before && before.name !== s.name) recompileSubject(id);
+    if (before && before.name !== s.name) recompileSubject(r, id);
     return s;
   });
 
   app.delete<{ Params: { id: string } }>('/api/subjects/:id', async (req) => {
     const id = idParam(req.params.id);
-    const noteIds = repo.deleteSubject(id);
+    const noteIds = mine(req).deleteSubject(id);
     if (!noteIds) throw notFound('Fant ikke faget.');
     await Promise.all(noteIds.map((nid) => storage.removeNote(nid).catch(() => undefined)));
     return { ok: true };
   });
 
   app.get<{ Params: { id: string }; Querystring: { download?: string } }>('/api/subjects/:id/pdf', async (req, reply) => {
-    const { file, filename } = await bundler.subjectPdf(idParam(req.params.id));
+    const { file, filename } = await bundler.subjectPdf(mine(req), idParam(req.params.id));
     return sendPdf(reply, file, filename, req.query.download === '1');
   });
 
   // ---------- Kapitler ----------
 
-  const requireSubject = (id: string) => {
-    const s = repo.getSubject(idParam(id));
+  const requireSubject = (r: UserRepo, id: string) => {
+    const s = r.getSubject(idParam(id));
     if (!s) throw notFound('Fant ikke faget.');
     return s;
   };
 
   app.post<{ Params: { id: string } }>('/api/subjects/:id/chapters', async (req, reply) => {
-    const s = requireSubject(req.params.id);
+    const r = mine(req);
+    const s = requireSubject(r, req.params.id);
     const body = parse(chapterInput, req.body);
     reply.code(201);
-    return repo.createChapters(s.id, [body])[0];
+    return r.createChapters(s.id, [body])![0];
   });
 
   app.post<{ Params: { id: string } }>('/api/subjects/:id/chapters/bulk', async (req, reply) => {
-    const s = requireSubject(req.params.id);
+    const r = mine(req);
+    const s = requireSubject(r, req.params.id);
     const body = parse(z.object({ chapters: z.array(chapterInput).min(1, 'Ingen kapitler å legge til.').max(200) }), req.body);
     reply.code(201);
-    return { chapters: repo.createChapters(s.id, body.chapters) };
+    return { chapters: r.createChapters(s.id, body.chapters)! };
   });
 
   app.post<{ Params: { id: string } }>('/api/subjects/:id/chapters/parse', async (req): Promise<ChapterPreviewResponse> => {
-    const s = requireSubject(req.params.id);
+    const s = requireSubject(mine(req), req.params.id);
     const body = parse(z.object({ text: z.string().max(50_000) }), req.body);
     const chapters = parseTocText(body.text);
     // Delkapitler fra teksten kobles til kompetansemålene av Claude. Går det ikke, får de bare ingen mål.
     if (s.aims.length && aiConfigured(ai, 'toc') && chapters.some((c) => c.sections?.length)) {
       try {
-        const mapped = await usageScope({ subjectId: s.id }, () => ai.mapSectionAims(getProfile(s.profile), chapters, s.aims));
+        const mapped = await usageScope({ userId: requireUser(req).id, subjectId: s.id }, () => ai.mapSectionAims(getProfile(s.profile), chapters, s.aims));
         return { chapters: cleanChapterInputs(mapped.chapters, s.aims) };
       } catch (err) {
         req.log.warn({ err }, 'kunne ikke koble delkapitler til kompetansemål');
@@ -182,7 +188,7 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
   });
 
   app.post<{ Params: { id: string } }>('/api/subjects/:id/chapters/extract', async (req): Promise<ChapterPreviewResponse> => {
-    const s = requireSubject(req.params.id);
+    const s = requireSubject(mine(req), req.params.id);
     const images: { data: Buffer; mediaType: 'image/jpeg' }[] = [];
     for await (const part of req.parts()) {
       if (part.type !== 'file') continue;
@@ -207,7 +213,7 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
     }
     if (images.length === 0) throw badRequest('Last opp minst ett bilde av innholdsfortegnelsen.');
     try {
-      const read = await usageScope({ subjectId: s.id }, () => ai.extractToc(getProfile(s.profile), images, s.aims));
+      const read = await usageScope({ userId: requireUser(req).id, subjectId: s.id }, () => ai.extractToc(getProfile(s.profile), images, s.aims));
       return { chapters: cleanChapterInputs(read.chapters, s.aims) };
     } catch (err) {
       if (err instanceof ConversionError) throw new HttpError(err.retryable ? 503 : 422, 'claude_failed', err.message);
@@ -216,31 +222,34 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
   });
 
   app.post<{ Params: { id: string } }>('/api/subjects/:id/chapters/reorder', async (req) => {
-    const s = requireSubject(req.params.id);
+    const r = mine(req);
+    const s = requireSubject(r, req.params.id);
     const body = parse(z.object({ ids: z.array(z.string()).max(500) }), req.body);
-    repo.reorderChapters(s.id, body.ids);
+    r.reorderChapters(s.id, body.ids);
     return { ok: true };
   });
 
   app.patch<{ Params: { id: string } }>('/api/chapters/:id', async (req) => {
     const id = idParam(req.params.id);
     const body = parse(z.object({ number: chapterNumber.optional(), title: chapterTitle.optional(), sections: sectionList.optional() }), req.body);
-    const c = repo.updateChapter(id, body);
+    const r = mine(req);
+    const c = r.updateChapter(id, body);
     if (!c) throw notFound('Fant ikke kapittelet.');
-    recompileChapter(id);
+    recompileChapter(r, id);
     return c;
   });
 
   app.delete<{ Params: { id: string } }>('/api/chapters/:id', async (req) => {
     const id = idParam(req.params.id);
-    const affected = repo.sync(0).notes.filter((n) => n.chapterId === id && n.status === 'done').map((n) => n.id);
-    if (!repo.deleteChapter(id)) throw notFound('Fant ikke kapittelet.');
+    const r = mine(req);
+    const affected = r.doneNoteIds({ chapterId: id });
+    if (!r.deleteChapter(id)) throw notFound('Fant ikke kapittelet.');
     for (const nid of affected) converter.recompileInBackground(nid);
     return { ok: true };
   });
 
   app.get<{ Params: { id: string }; Querystring: { download?: string } }>('/api/chapters/:id/pdf', async (req, reply) => {
-    const { file, filename } = await bundler.chapterPdf(idParam(req.params.id));
+    const { file, filename } = await bundler.chapterPdf(mine(req), idParam(req.params.id));
     return sendPdf(reply, file, filename, req.query.download === '1');
   });
 

@@ -192,18 +192,106 @@ export interface ProgressResponse {
 
 // ---------- Auth ----------
 
+// ---------- Kontoer ----------
+
+/** `owner` er eleven som eier appen (bruker 1), `free` er en invitert bruker; `pro` kommer senere. */
+export type UserPlan = 'owner' | 'free' | 'pro';
+
+export interface AuthUser {
+  id: number;
+  username: string;
+  plan: UserPlan;
+}
+
+/** Tomt brukernavn (eller eierens) og APP_PASSWORD logger inn eieren, som før kontoene. */
 export interface LoginRequest {
+  username?: string;
   password: string;
+}
+
+export interface LoginResponse {
+  ok: true;
+  user: AuthUser;
 }
 
 export interface MeResponse {
   authenticated: boolean;
+  user: AuthUser | null;
+}
+
+/** POST /api/auth/register: invitasjonskode fra eieren, brukernavn, passord, fag og aldersbekreftelse. */
+export interface RegisterRequest {
+  code: string;
+  username: string;
+  password: string;
+  /** Fagoppsett som legges inn (id-er fra GET /api/auth/presets). */
+  presetIds: string[];
+  /** Brukeren bekrefter at hen er minst `minAge` år. */
+  ageConfirmed: boolean;
+}
+
+/** GET /api/auth/presets: fagene man kan velge ved registrering, og aldersgrensen. */
+export interface PublicPresetsResponse {
+  presets: { id: string; subjectName: string; profile: SubjectProfile }[];
+  minAge: number;
+}
+
+/** POST /api/auth/reset: engangslenken fra eieren. */
+export interface ResetPasswordRequest {
+  token: string;
+  password: string;
+}
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  plan: UserPlan;
+  disabled: boolean;
+  createdAt: string;
+  lastLoginAt: string | null;
+  /** AI-forbruket de siste 30 dagene. */
+  usage30d: { calls: number; pages: number; costNok: number };
+}
+
+export interface AdminUsersResponse {
+  users: AdminUser[];
+}
+
+export type InviteStatus = 'active' | 'used' | 'expired' | 'revoked';
+
+export interface InviteSummary {
+  id: string;
+  /** De siste fire tegnene i koden, så eieren kjenner den igjen. Selve koden vises bare én gang. */
+  codeHint: string;
+  status: InviteStatus;
+  createdAt: string;
+  expiresAt: string;
+  usedAt: string | null;
+  usedBy: string | null;
+}
+
+export interface InvitesResponse {
+  invites: InviteSummary[];
+}
+
+/** POST /api/admin/invites: koden vises bare her. */
+export interface CreateInviteResponse {
+  invite: InviteSummary;
+  code: string;
+}
+
+/** POST /api/admin/users/:id/reset-link: appen lager lenken (`/nytt-passord#<token>`) av sin egen adresse. */
+export interface ResetLinkResponse {
+  token: string;
+  expiresAt: string;
 }
 
 // ---------- Synk ----------
 
 /** GET /api/sync?since=<rev> */
 export interface SyncResponse {
+  /** Brukeren dataene tilhører. En enhet som har data fra en annen konto, tømmes før den tar imot disse. */
+  userId: number;
   /** Høyeste rev serveren kjenner til. Send som `since` neste gang. */
   cursor: number;
   /** true når `since` var 0 – klienten bør erstatte alt lokalt. */

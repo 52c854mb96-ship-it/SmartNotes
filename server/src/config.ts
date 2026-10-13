@@ -96,6 +96,19 @@ export interface Config {
   secureCookies: boolean;
   /** Hvor lenge en innlogging varer (dager). */
   sessionDays: number;
+  /** Kontoer: aldersgrense ved registrering, gyldighet for invitasjoner og lenker for nytt passord, og antall proxyledd. */
+  accounts: {
+    /** Laveste alder for å registrere seg (MIN_AGE, standard 15). */
+    minAge: number;
+    /** Hvor lenge en invitasjonskode gjelder (INVITE_DAYS, standard 14). */
+    inviteDays: number;
+    /** Hvor lenge en lenke for nytt passord gjelder (RESET_LINK_HOURS, standard 48). */
+    resetHours: number;
+    /** Antall proxyer foran serveren som legger på X-Forwarded-For (TRUST_PROXY_HOPS, standard 1 på Railway). */
+    trustProxyHops: number;
+    /** Modellen gratisbrukerne konverterer med (FREE_CONVERT_MODEL, standard Haiku 5.5). */
+    freeConvertModel: string;
+  };
   /** Kurs fra dollar til kroner i oversikten over AI-forbruk (USD_NOK). */
   usdNok: number;
   version: string;
@@ -230,6 +243,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     maxOutputTokens: int(env.CLAUDE_MAX_TOKENS, 64_000),
     secureCookies: bool(env.COOKIE_SECURE, production),
     sessionDays: int(env.SESSION_DAYS, 365),
+    accounts: {
+      minAge: Math.max(1, int(env.MIN_AGE, 15)),
+      inviteDays: Math.max(1, int(env.INVITE_DAYS, 14)),
+      resetHours: Math.max(1, int(env.RESET_LINK_HOURS, 48)),
+      trustProxyHops: Math.max(0, int(env.TRUST_PROXY_HOPS, 1)),
+      freeConvertModel: env.FREE_CONVERT_MODEL?.trim() || 'claude-haiku-5-5',
+    },
     usdNok: num(env.USD_NOK, 10.5),
     version,
   };

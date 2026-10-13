@@ -8,7 +8,7 @@ import { AbortedError, ConversionError } from '../errors.js';
 import { userTextbook } from '../presets.js';
 import { getProfile, readPreamble, type Profile } from '../profiles/index.js';
 import { exists, type Storage, writeFileAtomic } from '../storage.js';
-import { usageScope, type Usage } from '../usage.js';
+import { jobScope, type Usage, setUsagePages } from '../usage.js';
 import type { AiService, ChapterRef, ConvertRequest } from './ai.js';
 import { cropFigure, preparePages, type FileKind, type PageImage } from './images.js';
 import {
@@ -64,21 +64,40 @@ export interface DocInfo {
   sectionLabel: string | null;
 }
 
+/** AI-tjenesten for gratisbrukernes konverteringer (Haiku), og hvor mange rettingsrunder de får. */
+export interface FreePlanAi {
+  ai: AiService;
+  fixAttempts: number;
+}
+
 export class Converter {
+  /**
+   * `ai` konverterer eierens notater (Sonnet). `free` konverterer notatene til gratisbrukerne (Haiku); uten den brukes
+   * `ai` for alle. Hvilken som brukes, avgjøres av planen til eieren av notatet, aldri av hvem som startet køen.
+   */
   constructor(
     private readonly repo: Repo,
     private readonly storage: Storage,
     private readonly ai: AiService,
     private readonly config: Config,
     private readonly log: FastifyBaseLogger,
+    private readonly free: FreePlanAi | null = null,
   ) {}
+
+  /** AI-tjenesten og antall rettingsrunder for eieren av notatet. */
+  private aiFor(row: Pick<NoteRow, 'user_id'>): { ai: AiService; fixAttempts: number } {
+    const plan = this.repo.getUser(row.user_id)?.plan ?? 'free';
+    if (plan === 'owner' || !this.free) return { ai: this.ai, fixAttempts: this.config.maxFixAttempts };
+    return { ai: this.free.ai, fixAttempts: Math.max(this.config.maxFixAttempts, this.free.fixAttempts) };
+  }
 
   /** Kjører hele konverteringen for et notat som er hentet fra køen (status = processing). */
   async convertNote(row: NoteRow): Promise<void> {
     const id = row.id;
     const started = Date.now();
     try {
-      await usageScope({ noteId: id, subjectId: row.subject_id }, () => this.run(row));
+      // Et nytt omfang (ikke arvet fra forespørselen som tilfeldigvis startet køen), med eieren av notatet.
+      await jobScope({ userId: row.user_id, noteId: id, subjectId: row.subject_id, pages: null }, () => this.run(row));
       this.log.info({ noteId: id, ms: Date.now() - started }, 'notat konvertert');
     } catch (err) {
       if (err instanceof AbortedError) {
@@ -114,11 +133,13 @@ export class Converter {
     const pages = await preparePages(sources, this.storage.pagesDir(id), this.config.maxPagesPerNote);
     await writeFileAtomic(this.storage.noteFile(id, 'pages.json'), JSON.stringify(pages, null, 2));
     this.repo.setPageCount(id, pages.length);
+    setUsagePages(pages.length);
 
     // 2. Claude leser notatet
     this.repo.setStage(id, 'reading');
     const { req, refs, chapters, fixed } = this.buildConvertRequest(row, subject, pages, this.storage.pagesDir(id));
-    const result = await this.ai.convert(req);
+    const { ai, fixAttempts } = this.aiFor(row);
+    const result = await ai.convert(req);
     const usage: Usage[] = [result.usage];
     if (!this.stillExists(id)) return;
 
@@ -146,12 +167,12 @@ export class Converter {
     let body = replaceMissingFigures(sanitizeBody(result.body), figures);
     this.repo.setStage(id, 'compiling');
     let outcome = await this.compileNote(id, body, docInfo);
-    for (let attempt = 0; !outcome.ok && attempt < this.config.maxFixAttempts; attempt++) {
+    for (let attempt = 0; !outcome.ok && attempt < fixAttempts; attempt++) {
       if (!this.stillExists(id)) return;
       this.repo.setStage(id, 'fixing');
       let fixed: { body: string; usage: Usage };
       try {
-        fixed = await this.ai.fix({ profile, body, errorReport: errorExcerpt(body, outcome.errors, outcome.bodyStartLine) });
+        fixed = await ai.fix({ profile, body, errorReport: errorExcerpt(body, outcome.errors, outcome.bodyStartLine) });
       } catch (err) {
         // Klarer ikke AI-en å rette (for eksempel fordi notatet er for langt for en lokal modell), lagres notatet som
         // utkast som kan rettes for hånd, i stedet for å feile. Midlertidige feil prøves igjen som før.
