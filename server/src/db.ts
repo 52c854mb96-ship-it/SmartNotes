@@ -198,6 +198,21 @@ const MIGRATIONS: string[] = [
     rated_at TEXT
   );
   `,
+  // Instruksversjonen bak hver sammenligning, og en logg med elevens vurdering per notat og versjon, så Innstillinger
+  // kan vise om nye instrukser for Haiku hjelper. Vurderingene som finnes, ble gjort med versjon 1.
+  `
+  ALTER TABLE note_comparisons ADD COLUMN prompt_version INTEGER NOT NULL DEFAULT 1;
+  CREATE TABLE comparison_ratings (
+    note_id TEXT NOT NULL,
+    prompt_version INTEGER NOT NULL,
+    verdict TEXT NOT NULL,
+    comment TEXT,
+    rated_at TEXT NOT NULL,
+    PRIMARY KEY (note_id, prompt_version)
+  );
+  INSERT INTO comparison_ratings (note_id, prompt_version, verdict, comment, rated_at)
+    SELECT note_id, 1, verdict, comment, rated_at FROM note_comparisons WHERE verdict IS NOT NULL AND rated_at IS NOT NULL;
+  `,
 ];
 
 // ---------- Rad-typer (slik de ligger i SQLite) ----------
@@ -323,6 +338,8 @@ export interface ComparisonRow {
   cost_usd: number | null;
   /** Alt kjøringene for dette notatet har kostet, også de som er erstattet eller avbrutt. */
   spent_usd: number;
+  /** Versjonen av Haiku-instruksene kjøringen brukte (`HAIKU_PROMPT_VERSION`). */
+  prompt_version: number;
   verdict: ComparisonVerdict | null;
   comment: string | null;
   created_at: string;
@@ -330,10 +347,12 @@ export interface ComparisonRow {
   rated_at: string | null;
 }
 
-export function toComparison(r: ComparisonRow, notePdfRev: number, usdNok: number): NoteComparison {
+export function toComparison(r: ComparisonRow, notePdfRev: number, usdNok: number, currentPromptVersion: number): NoteComparison {
   return {
     noteId: r.note_id,
     model: r.model,
+    promptVersion: r.prompt_version,
+    promptOutdated: r.prompt_version < currentPromptVersion,
     baseModel: r.base_model,
     status: r.status,
     stage: r.stage,
@@ -570,18 +589,26 @@ export class Repo {
   // ---------- Sammenligning (bare på serveren, ingen rev) ----------
 
   /** Starter (eller starter på nytt) sammenligningen for et notat. En tidligere vurdering fjernes; det som er brukt, beholdes. */
-  startComparison(noteId: string, c: { model: string; baseModel: string | null; basePdfRev: number; pageCount: number }): void {
-    this.db
-      .prepare(
-        `INSERT INTO note_comparisons (note_id, model, base_model, base_pdf_rev, status, stage, error, page_count, remarks,
-           cost_usd, verdict, comment, created_at, finished_at, rated_at)
-         VALUES (?, ?, ?, ?, 'running', NULL, NULL, ?, '[]', NULL, NULL, NULL, ?, NULL, NULL)
-         ON CONFLICT(note_id) DO UPDATE SET model = excluded.model, base_model = excluded.base_model,
-           base_pdf_rev = excluded.base_pdf_rev, status = 'running', stage = NULL, error = NULL, page_count = excluded.page_count,
-           remarks = '[]', cost_usd = NULL, verdict = NULL, comment = NULL, created_at = excluded.created_at, finished_at = NULL,
-           rated_at = NULL`,
-      )
-      .run(noteId, c.model, c.baseModel, c.basePdfRev, c.pageCount, now());
+  startComparison(
+    noteId: string,
+    c: { model: string; baseModel: string | null; basePdfRev: number; pageCount: number; promptVersion: number },
+  ): void {
+    const start = this.db.prepare(
+      `INSERT INTO note_comparisons (note_id, model, base_model, base_pdf_rev, status, stage, error, page_count, remarks,
+         cost_usd, verdict, comment, created_at, finished_at, rated_at, prompt_version)
+       VALUES (?, ?, ?, ?, 'running', NULL, NULL, ?, '[]', NULL, NULL, NULL, ?, NULL, NULL, ?)
+       ON CONFLICT(note_id) DO UPDATE SET model = excluded.model, base_model = excluded.base_model,
+         base_pdf_rev = excluded.base_pdf_rev, status = 'running', stage = NULL, error = NULL, page_count = excluded.page_count,
+         remarks = '[]', cost_usd = NULL, verdict = NULL, comment = NULL, created_at = excluded.created_at, finished_at = NULL,
+         rated_at = NULL, prompt_version = excluded.prompt_version`,
+    );
+    // Vurderingen av den forrige kjøringen erstattes (som dialogen sier); med samme instruksversjon skal den heller ikke
+    // telles i loggen. Vurderinger av andre versjoner blir stående.
+    const forget = this.db.prepare(`DELETE FROM comparison_ratings WHERE note_id = ? AND prompt_version = ?`);
+    this.db.transaction(() => {
+      start.run(noteId, c.model, c.baseModel, c.basePdfRev, c.pageCount, now(), c.promptVersion);
+      forget.run(noteId, c.promptVersion);
+    })();
   }
 
   setComparisonStage(noteId: string, stage: NoteComparison['stage']): void {
@@ -604,10 +631,33 @@ export class Repo {
 
   /** Lagrer elevens vurdering. Gir false når det ikke finnes noen ferdig sammenligning å vurdere. */
   rateComparison(noteId: string, verdict: ComparisonVerdict, comment: string | null): boolean {
-    const res = this.db
-      .prepare(`UPDATE note_comparisons SET verdict = ?, comment = ?, rated_at = ? WHERE note_id = ? AND status != 'running'`)
-      .run(verdict, comment, now(), noteId);
-    return res.changes > 0;
+    return this.db.transaction(() => {
+      const at = now();
+      const res = this.db
+        .prepare(`UPDATE note_comparisons SET verdict = ?, comment = ?, rated_at = ? WHERE note_id = ? AND status != 'running'`)
+        .run(verdict, comment, at, noteId);
+      if (res.changes === 0) return false;
+      // Loggen beholder vurderingen per instruksversjon, også etter at sammenligningen er laget på nytt.
+      this.db
+        .prepare(
+          `INSERT INTO comparison_ratings (note_id, prompt_version, verdict, comment, rated_at)
+           SELECT note_id, prompt_version, verdict, comment, rated_at FROM note_comparisons WHERE note_id = ?
+           ON CONFLICT(note_id, prompt_version) DO UPDATE SET verdict = excluded.verdict, comment = excluded.comment,
+             rated_at = excluded.rated_at`,
+        )
+        .run(noteId);
+      return true;
+    })();
+  }
+
+  /** Vurderingene per instruksversjon (siste vurdering per notat), nyeste versjon først. */
+  comparisonRatingsByVersion(): { version: number; rated: number; haikuOk: number }[] {
+    return this.db
+      .prepare(
+        `SELECT prompt_version AS version, COUNT(*) AS rated, SUM(CASE WHEN verdict = 'haiku_ok' THEN 1 ELSE 0 END) AS haikuOk
+         FROM comparison_ratings GROUP BY prompt_version ORDER BY prompt_version DESC`,
+      )
+      .all() as { version: number; rated: number; haikuOk: number }[];
   }
 
   getComparisonRow(noteId: string): ComparisonRow | null {

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { SERVER_ROOT } from '../config.js';
 import type { Profile } from './types.js';
+import { haikuAddendum } from './haiku.js';
 import { tocPrompt } from './toc-prompt.js';
 
 /**
@@ -115,4 +116,5 @@ export const biologyProfile: Profile = {
   systemPrompt: SYSTEM_PROMPT,
   fixInstructions: FIX_INSTRUCTIONS,
   tocPrompt: TOC_PROMPT,
+  haikuAddendum: haikuAddendum('biology'),
 };

@@ -392,6 +392,10 @@ export interface NoteComparison {
   noteId: string;
   /** Modellen som laget sammenligningen (`claude-haiku-5-5`). */
   model: string;
+  /** Versjonen av Haiku-instruksene som ble brukt. */
+  promptVersion: number;
+  /** Laget med eldre instrukser enn de serveren har nå; «Lag på nytt» prøver de nye. */
+  promptOutdated: boolean;
   /** Modellen bak notatets vanlige PDF, hvis den er kjent. */
   baseModel: string | null;
   status: ComparisonStatus;
@@ -423,22 +427,39 @@ export interface RateComparisonRequest {
   comment?: string | null;
 }
 
-/** GET /api/compare/summary – oppsummeringen i Innstillinger. */
+/**
+ * GET /api/compare/summary – oppsummeringen i Innstillinger. Tallene gjelder sammenligninger laget med de nåværende
+ * instruksene (`promptVersion`); `versions` viser vurderingene for alle versjonene.
+ */
 export interface ComparisonSummaryResponse {
+  /** Versjonen av Haiku-instruksene serveren bruker nå. */
+  promptVersion: number;
+  /** Antall sammenligninger som er laget (alle versjoner, også for slettede notater). */
+  total: number;
+  /** Vurderingene per instruksversjon, nyeste først (siste vurdering per notat). */
+  versions: { version: number; rated: number; haikuOk: number }[];
   /** Antall vurderte sammenligninger. */
   rated: number;
   haikuOk: number;
   sonnetBetter: number;
-  /** Kjøringer som feilet og ikke er vurdert. En mislykket kjøring kan bare vurderes som «Sonnet er bedre». */
+  /** Kjøringer som feilet og ikke er vurdert (alle versjoner). En mislykket kjøring kan bare vurderes som «Sonnet er bedre». */
   failed: number;
-  /** Ferdige kjøringer som ikke er vurdert ennå. */
+  /** Ferdige kjøringer som ikke er vurdert ennå (alle versjoner). */
   unrated: number;
   /** Kjøringer som lages nå. */
   running: number;
   /** Hva alle sammenligningene har kostet, i kroner (også kjøringer som er erstattet eller avbrutt). */
   costNok: number;
   /** De vurderte, nyeste først. `title` er tom hvis notatet er slettet. */
-  items: { noteId: string; title: string; deleted: boolean; verdict: ComparisonVerdict; comment: string | null; ratedAt: string }[];
+  items: {
+    noteId: string;
+    title: string;
+    deleted: boolean;
+    verdict: ComparisonVerdict;
+    comment: string | null;
+    ratedAt: string;
+    promptVersion: number;
+  }[];
 }
 
 export interface ApiError {

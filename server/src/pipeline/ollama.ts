@@ -17,7 +17,9 @@ import type { Profile } from '../profiles/index.js';
 import { withUsage, zeroUsage, type Usage } from '../usage.js';
 import { TOC_AIMS_PROMPT, buildContext, tocSchema, type AiService, type ConvertRequest, type ConvertResult, type FixRequest } from './ai.js';
 import type { FigureBox } from './images.js';
-import { extractLatex, parseConversion } from './parse.js';
+import { extractLatex, parseConversion, repairLatexEscapes } from './parse.js';
+
+export { repairLatexEscapes } from './parse.js';
 
 interface OllamaChatResponse {
   model?: string;
@@ -423,33 +425,6 @@ export function partPage(page: number, offset: number, count: number): number {
   if (count === 1) return 1;
   if (page > count && page - offset >= 1 && page - offset <= count) return page - offset;
   return page;
-}
-
-/** Matematikk i korttekst: `$…$` og `$$…$$`. */
-const MATH = /\$\$[\s\S]*?\$\$|\$[^$]*\$/g;
-
-/**
- * Retter LaTeX som en liten modell har skrevet feil i JSON. Skriver den `\frac` i stedet for `\\frac`, leser JSON det som
- * sideskift + «rac», og `\theta` blir tabulator + «heta». Ollama tillater disse escape-tegnene, så ingenting feiler,
- * men kortene blir feil. Sideskift og backspace hører aldri hjemme i teksten og gjøres alltid om. Linjeskift,
- * tabulator og vognretur gjøres om bare inne i `$…$` og foran bokstaver (`\nu`, `\neq`, `\rho`), siden et ekte
- * linjeskift foran et ord er vanlig i vanlig tekst.
- */
-export function repairLatexEscapes<T>(value: T): T {
-  if (typeof value === 'string') {
-    return value
-      .replace(/\f/g, '\\f')
-      .replace(/\x08/g, '\\b')
-      .replace(MATH, (math) =>
-        math
-          .replace(/\n(?=[A-Za-z])/g, '\\n')
-          .replace(/\t(?=[A-Za-z])/g, '\\t')
-          .replace(/\r(?=[A-Za-z])/g, '\\r'),
-      ) as T;
-  }
-  if (Array.isArray(value)) return value.map((v) => repairLatexEscapes(v)) as T;
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, repairLatexEscapes(v)])) as T;
-  return value;
 }
 
 function parseJson<T extends z.ZodType>(schema: T, text: string, failure: string): z.infer<T> {

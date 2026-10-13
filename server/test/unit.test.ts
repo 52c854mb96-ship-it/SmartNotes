@@ -10,6 +10,7 @@ import {
   referencedFigures,
   replaceMissingFigures,
   latexToText,
+  normalizeBody,
   sanitizeBody,
 } from '../src/pipeline/latex.js';
 import { parseConversion, parseMeta } from '../src/pipeline/parse.js';
@@ -45,7 +46,95 @@ describe('sanitizeBody', () => {
   });
 });
 
+describe('normalizeBody', () => {
+  it('lar en riktig kropp være som den er', () => {
+    const body = String.raw`\section{Energi}
+\begin{formel}[Kinetisk energi]
+\[ E_k = \tfrac12 m v^2 \]
+\end{formel}
+Omtrent 20 \% går tapt, og $\qty{35}{\percent}$ blir igjen.
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}\draw (0,0) -- (1,0) node {50 %};\end{tikzpicture}
+\caption{Skisse}
+\end{figure}
+\begin{align*}
+a &= b \\[2pt]
+&= c
+\end{align*}`;
+    expect(normalizeBody(body)).toBe(body);
+  });
+  it('gjør «35 %» om til et prosenttegn i stedet for en kommentar som kutter linjen', () => {
+    expect(normalizeBody('Omtrent 35 % av energien. 12% er igjen.')).toBe('Omtrent 35\\,\\% av energien. 12\\% er igjen.');
+    expect(normalizeBody('% en kommentar')).toBe('% en kommentar');
+  });
+  it('retter boksnavn og titler som ellers feiler eller skrives dobbelt', () => {
+    expect(normalizeBody('\\begin{løsning}\nx\n\\end{løsning}')).toBe('\\begin{losning}\nx\n\\end{losning}');
+    expect(normalizeBody('\\begin{husk}[NB!]\nHusk enheten.')).toBe('\\begin{husk}\\textbf{NB!} \nHusk enheten.');
+    expect(normalizeBody('\\begin{merknad}[]x')).toBe('\\begin{merknad}x');
+    expect(normalizeBody('\\begin{eksempel}[Eksempel: Fritt fall]')).toBe('\\begin{eksempel}[Fritt fall]');
+    expect(normalizeBody('\\begin{oppgave}[Oppgave 1.23]')).toBe('\\begin{oppgave}[1.23]');
+    expect(normalizeBody('\\begin{eksempel}[Eksempelvis]')).toBe('\\begin{eksempel}[Eksempelvis]');
+    expect(normalizeBody('\\begin{definisjon}[Definisjon: Fart]')).toBe('\\begin{definisjon}[Fart]');
+    expect(normalizeBody('\\begin{definisjon}[Definisjonsmengde]')).toBe('\\begin{definisjon}[Definisjonsmengde]');
+  });
+  it('gir figurer og tabeller plassering [H] og bytter \\caption i center-blokker', () => {
+    expect(normalizeBody('\\begin{figure}[htbp]\\begin{table}\\begin{tabular}{c}')).toBe('\\begin{figure}[H]\\begin{table}[H]\\begin{tabular}{c}');
+    expect(normalizeBody('\\begin{center}\n\\begin{tikzpicture}\\end{tikzpicture}\n\\caption{Graf}\n\\end{center}')).toBe(
+      '\\begin{center}\n\\begin{tikzpicture}\\end{tikzpicture}\n\\captionof{figure}{Graf}\n\\end{center}',
+    );
+    // En tabell i en center-blokk får «Tabell», og en center-blokk inne i en figur eller tabell er riktig fra før.
+    expect(normalizeBody('\\begin{center}\\begin{tabular}{c}a\\end{tabular}\\caption{Data}\\end{center}')).toBe(
+      '\\begin{center}\\begin{tabular}{c}a\\end{tabular}\\captionof{table}{Data}\\end{center}',
+    );
+    const float = '\\begin{table}[H]\n\\begin{center}\n\\caption{Måledata}\n\\begin{tabular}{cc}a & b\\end{tabular}\n\\end{center}\n\\end{table}';
+    expect(normalizeBody(float)).toBe(float);
+    const wrapped = String.raw`\begin{center}\begin{figure}[H]\centering\begin{tabular}{c}A\end{tabular}\caption{Krysning}\end{figure}\end{center}`;
+    expect(normalizeBody(wrapped)).toBe(wrapped);
+  });
+  it('flytter \\uleselig ut av \\qty, \\num og \\ce, så tallet kompilerer og formelen settes riktig', () => {
+    expect(normalizeBody(String.raw`\qty{\uleselig{9,81}}{m/s^2} og $\qty[mode=math]{9,8\uleselig{1}}{m/s^2}$`)).toBe(
+      String.raw`\uleselig{\qty{9,81}{m/s^2}} og $\uleselig{\qty[mode=math]{9,81}{m/s^2}}$`,
+    );
+    expect(normalizeBody(String.raw`\num{\uleselig{3,0}} \ce{SO\uleselig{4}^2-} \ce{2 H2 + \uleselig{O2} -> 2 H2O}`)).toBe(
+      String.raw`\uleselig{\num{3,0}} \uleselig{\ce{SO4^2-}} \uleselig{\ce{2 H2 + O2 -> 2 H2O}}`,
+    );
+    expect(normalizeBody(String.raw`\ang{\uleselig{30}} \qtyrange{\uleselig{1,5}}{3}{m} \numrange{1}{\uleselig{2}}`)).toBe(
+      String.raw`\uleselig{\ang{30}} \uleselig{\qtyrange{1,5}{3}{m}} \uleselig{\numrange{1}{2}}`,
+    );
+    // Et tall som ikke kan leses i det hele tatt, godtar ikke siunitx; det blir tekst med enheten etter.
+    expect(normalizeBody(String.raw`\qty{\uleselig{[uleselig]}}{kg} \uleselig{\qty{[uleselig]}{kg}} \qty{?}{m} \num{\uleselig{?}}`)).toBe(
+      String.raw`\uleselig{\text{[uleselig]}\,\unit{kg}} \uleselig{\text{[uleselig]}\,\unit{kg}} \text{?}\,\unit{m} \uleselig{\text{?}}`,
+    );
+    // Rundt hele størrelsen, i enheten eller uten \uleselig står det som før.
+    const ok = String.raw`\uleselig{\qty{9,81}{m/s^2}} \qty{9,81}{\uleselig{m}/s^2} \ce{H2O} $\uleselig{v}^2$`;
+    expect(normalizeBody(ok)).toBe(ok);
+  });
+  it('lar ordrett tekst og programkode være', () => {
+    const code = '\\begin{verbatim}\nx = 10 % 3\n\\end{verbatim}\nOg \\verb|5 % n| i teksten.';
+    expect(normalizeBody(code)).toBe(code);
+    expect(normalizeBody('\\begin{lstlisting}\nif x % 2 == 0:\n\\end{lstlisting} men 50 % her')).toBe(
+      '\\begin{lstlisting}\nif x % 2 == 0:\n\\end{lstlisting} men 50\\,\\% her',
+    );
+  });
+  it('fjerner tomme linjer inne i formler', () => {
+    expect(normalizeBody('\\begin{align*}\na &= b \\\\\n\n&= c\n\\end{align*}\n\nTekst')).toBe('\\begin{align*}\na &= b \\\\\n&= c\n\\end{align*}\n\nTekst');
+    expect(normalizeBody('\\[\nx\n\n= y\n\\]')).toBe('\\[\nx\n= y\n\\]');
+  });
+});
+
 describe('latexToText', () => {
+  it('beholder ordrett tekst med prosenttegn i søketeksten', () => {
+    const text = latexToText(sanitizeBody(String.raw`Restdivisjon: \verb|17 % 5| gir 2 i Euler-metoden.
+\begin{verbatim}
+x = 10 % 3  # rest
+\end{verbatim}
+Etter koden. % en kommentar`));
+    expect(text).toContain('Euler-metoden');
+    expect(text).toContain('rest');
+    expect(text).toContain('Etter koden.');
+    expect(text).not.toContain('kommentar');
+  });
   it('beholder tekst, overskrifter og boksetitler, og fjerner kommandoer og tegninger', () => {
     const body = String.raw`\section{Newtons lover}
 % en kommentar
@@ -98,6 +187,30 @@ $F = ma$
       date: null,
       newChapter: { number: '3', title: 'Energi' },
     });
+  });
+  it('beholder metadataene når en streng inneholder LaTeX', () => {
+    const meta = parseMeta(String.raw`{"title":"Kraft og $\vec{F}$","figures":[{"id":"fig1","page":1,"box":[1,2,3,4]}],"remarks":["\Delta v og \uleselig{v} og \frac{a}{b}"]}`);
+    expect(meta.title).toBe('Kraft og $\\vec{F}$');
+    expect(meta.figures).toHaveLength(1);
+    expect(meta.remarks).toEqual(['\\Delta v og \\uleselig{v} og \\frac{a}{b}']);
+    // Kommandoer som begynner som et escape-tegn i JSON (\theta, \rho, \nu, \beta), også utenfor $…$.
+    expect(parseMeta(String.raw`{"title":"Vinkel \theta og \Delta v","remarks":["\rho og \nu og \beta"]}`)).toMatchObject({
+      title: 'Vinkel \\theta og \\Delta v',
+      remarks: ['\\rho og \\nu og \\beta'],
+    });
+    expect(parseMeta(String.raw`{"title":"Vinkel \theta"}`).title).toBe('Vinkel \\theta');
+    // \nu i gyldig JSON blir linjeskift + «u»; i titler er det alltid LaTeX, i merknader bare foran kjente kommandoer.
+    expect(parseMeta(String.raw`{"title":"Frekvens \nu","remarks":["Usikker på \neq","a\ni b"]}`)).toMatchObject({
+      title: 'Frekvens \\nu',
+      remarks: ['Usikker på \\neq', 'a\ni b'],
+    });
+    // Gyldige escape-tegn (også \u00e6) tolkes som før.
+    expect(parseMeta(String.raw`{"title":"\u00c6 og \"sitat\" og \\vec"}`).title).toBe('Æ og "sitat" og \\vec');
+  });
+  it('leser metadata som kommer etter latex-blokken', () => {
+    const { meta, body } = parseConversion('<latex>\nHei\n</latex>\n<metadata>{"title":"Etterpå"}</metadata>');
+    expect(meta.title).toBe('Etterpå');
+    expect(body).toBe('Hei');
   });
   it('kaster ved avkortet svar', () => {
     expect(() => parseConversion('<metadata>{}</metadata><latex>\\section{x}')).toThrow(/avkortet/);

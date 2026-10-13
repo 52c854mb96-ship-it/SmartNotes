@@ -12,7 +12,8 @@ import {
   type FlashcardRequest,
   type RawFlashcard,
 } from '../flashcards/prompt.js';
-import type { Profile } from '../profiles/index.js';
+import { HAIKU_CLOSING } from '../profiles/haiku.js';
+import { systemPromptFor, usesHaikuAddendum, type Profile } from '../profiles/index.js';
 import { withUsage, zeroUsage, type Usage } from '../usage.js';
 import { TOC_AIMS_PROMPT, buildContext, tocSchema, type AiService, type ConvertRequest, type ConvertResult, type FixRequest } from './ai.js';
 import { extractLatex, parseConversion, type NoteMeta } from './parse.js';
@@ -122,13 +123,22 @@ export class AnthropicClaude implements AiService {
   readonly provider = 'anthropic';
   private readonly client: Anthropic | null;
   private readonly modelId: string;
+  private readonly effort: Effort;
+  private readonly maxTokens: number;
 
-  /** `model` er modellen denne tjenesten bruker; standard er konverteringsmodellen (CLAUDE_MODEL). */
+  /**
+   * `model` er modellen denne tjenesten bruker; standard er konverteringsmodellen (CLAUDE_MODEL). `effort` overstyrer
+   * CLAUDE_EFFORT og `maxTokens` CLAUDE_MAX_TOKENS for konvertering og retting (sammenligningen lar Haiku tenke
+   * grundigere og gir den plass til både tenkningen og et langt notat).
+   */
   constructor(
     private readonly config: Config,
     model: string = config.model,
+    opts: { effort?: Effort; maxTokens?: number } = {},
   ) {
     this.modelId = model;
+    this.effort = opts.effort ?? config.effort;
+    this.maxTokens = opts.maxTokens ?? config.maxOutputTokens;
     this.client = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey, timeout: 20 * 60_000, maxRetries: 3 }) : null;
   }
 
@@ -152,7 +162,7 @@ export class AnthropicClaude implements AiService {
       return await client.beta.messages
         .stream({
           model: this.modelId,
-          max_tokens: this.config.maxOutputTokens,
+          max_tokens: this.maxTokens,
           thinking: { type: 'adaptive' },
           output_config: { effort },
           system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
@@ -171,9 +181,10 @@ export class AnthropicClaude implements AiService {
       { type: 'text', text: buildContext(req) },
       { type: 'text', text: `Notatet har ${req.pages.length} ${req.pages.length === 1 ? 'side' : 'sider'}:` },
       ...(await pageBlocks(req.pages)),
-      { type: 'text', text: 'Konverter notatet. Svar med <metadata> og <latex> som beskrevet.' },
+      // Det modellen leser sist, veier mest: Haiku får de viktigste reglene sine gjentatt rett etter sidene.
+      { type: 'text', text: usesHaikuAddendum(this.modelId) ? HAIKU_CLOSING : 'Konverter notatet. Svar med <metadata> og <latex> som beskrevet.' },
     ];
-    const msg = await this.stream(req.profile.systemPrompt, content, this.config.effort);
+    const msg = await this.stream(systemPromptFor(req.profile, this.modelId), content, this.effort);
     const usage = usageOf('convert', msg);
     return withUsage(usage, () => {
       checkStop(msg.stop_reason);
@@ -187,8 +198,8 @@ export class AnthropicClaude implements AiService {
       { type: 'text', text: `${req.profile.fixInstructions}\n\n<compile_errors>\n${req.errorReport}\n</compile_errors>` },
       { type: 'text', text: `<latex>\n${req.body}\n</latex>` },
     ];
-    const effort: Effort = this.config.effort === 'low' ? 'low' : 'medium';
-    const msg = await this.stream(req.profile.systemPrompt, content, effort);
+    const effort: Effort = this.effort === 'low' ? 'low' : 'medium';
+    const msg = await this.stream(systemPromptFor(req.profile, this.modelId), content, effort);
     const usage = usageOf('fix', msg);
     return withUsage(usage, () => {
       checkStop(msg.stop_reason);
