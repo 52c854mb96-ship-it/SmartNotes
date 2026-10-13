@@ -27,7 +27,8 @@ const BODY = String.raw`\section{Samlet}
 Tekst før, med $\uleselig{v}^2$, $\uleselig{f}'(x)$, $\uleselig{v_0}$ og \uleselig{ord}, og i størrelser og formler:
 \qty{\uleselig{9,81}}{m/s^2}, $g = \qty{9,8\uleselig{1}}{m/s^2}$, \num{\uleselig{3,0}}, \ce{\uleselig{SO4}^2-} og $\ce{SO\uleselig{4}^2-}$,
 \ang{\uleselig{30}}, \qtyrange{\uleselig{1,5}}{3}{m}, \qty{\uleselig{[uleselig]}}{kg}, \uleselig{\qty{[uleselig]}{kg}}, $g = \qty{?}{m/s^2}$ og \num{\uleselig{[uleselig]}}.
-\begin{figure}[H]\centering\begin{tikzpicture}\begin{axis}[axis lines=left, xmin=0, xmax=2.5, ymin=0, ymax=1, width=6cm, height=4cm, xtick={0,0.5,1,1.5,2,2.5}]\addplot[thick, domain=0:2.5, samples=100] {0.1*x^2};\end{axis}\end{tikzpicture}\caption{Graf}\end{figure}
+\begin{figure}[H]\centering\begin{tikzpicture}\begin{axis}[axis lines=left, xmin=0, xmax=2.5, ymin=0, ymax=1, width=6cm, height=4cm, xtick={0,0.5,1,1.5,2,2.5}]\addplot[thick, domain=0:2.5, samples=100] {0.1*x^2};\end{axis}\end{tikzpicture}
+\begin{tikzpicture}\begin{axis}[axis lines=left, xmin=1800, xmax=2000, ymin=0, ymax=20000, width=6cm, height=4cm, xtick={1800,1900,2000}, ytick={0,12500}, scaled y ticks=false]\addplot[thick] coordinates {(1800,1000) (2000,15000)};\end{axis}\end{tikzpicture}\caption{Graf}\end{figure}
 \begin{samlet}
 Kode i blokken: \verb|10 % 3| gir VERB-REST.
 \begin{verbatim}
@@ -154,6 +155,9 @@ describe('samlet og \\uleselig', () => {
       expect(text).toMatch(/Figur 1: Graf[\s\S]*Figur 2: Skråplan[\s\S]*Figur 3: Første[\s\S]*Figur 4: Andre[\s\S]*Figur 5: Ytre[\s\S]*Figur 6: Indre[\s\S]*Figur 7: Tredje/);
       // Aksene i grafer har desimalkomma.
       expect(text).toMatch(/0,5\s+1\s+1,5\s+2\s+2,5/);
+      // Årstall uten mellomrom, store tall med tynt mellomrom.
+      expect(text).toMatch(/1800\s+1900\s+2000/);
+      expect(text).toMatch(/12\s500/);
       expect(text).toMatch(/1\.\s+LISTEPUNKT-EN/);
       expect(text).toMatch(/2\.\s+LISTEPUNKT-TO/);
       // Med samme innrykk som et vanlig listepunkt.
@@ -173,11 +177,13 @@ describe('samlet og \\uleselig', () => {
 
   for (const id of PROFILE_IDS) {
     it(`har vanlig linjeavstand når blokken begynner med en liste i en boks (${id})`, async () => {
-      const box = (tag: string, wrap: boolean) => String.raw`\begin{losning}
+      const box = (tag: string, wrap: boolean, display = false) => String.raw`\begin{losning}
 INTRO-${tag} pq.
-${wrap ? '\\begin{samlet}\n' : ''}\begin{itemize}
+${wrap ? '\\begin{samlet}\n' : ''}${display ? String.raw`\begin{align*}
+\text{PUNKT-${tag}} &= a
+\end{align*}` : String.raw`\begin{itemize}
 \item PUNKT-${tag} Pqgjy
-\end{itemize}
+\end{itemize}`}
 ${wrap ? '\\end{samlet}\n' : ''}\end{losning}`;
       const doc = assembleNoteDoc({
         preamble: readPreamble(getProfile(id)),
@@ -187,7 +193,7 @@ ${wrap ? '\\end{samlet}\n' : ''}\end{losning}`;
         title: 'Avstand',
         dateIso: null,
         figureDir: 'fig',
-        body: sanitizeBody(`${box('A', false)}\n\n${box('B', true)}`),
+        body: sanitizeBody([box('A', false), box('B', true), box('C', false, true), box('D', true, true)].join('\n\n')),
       });
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-samlet-avstand-'));
       const res = await compileLatex(dir, doc.tex, 120_000);
@@ -196,6 +202,8 @@ ${wrap ? '\\end{samlet}\n' : ''}\end{losning}`;
       const y = (word: string) => Number(new RegExp(`yMin="([\\d.]+)"[^>]*>${word}<`).exec(bbox)![1]);
       const gap = (tag: string) => y(`PUNKT-${tag}`) - y(`INTRO-${tag}`);
       expect(Math.abs(gap('B') - gap('A'))).toBeLessThan(0.5);
+      // En blokk som begynner med en formel, får ingen tom linje over seg (bare avsnittsavstanden, ca. 3 pt).
+      expect(Math.abs(gap('D') - gap('C')), `${gap('C')} / ${gap('D')}`).toBeLessThan(4);
     }, 150_000);
   }
 

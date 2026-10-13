@@ -76,7 +76,7 @@ E_k &= \tfrac12 m v^2 \\
 \end{align*}
 \end{samlet}
 
-Use samlet for each calculation or derivation, not around whole sections. Start each samlet block with a sentence, not with a figure, list or box. It may stand inside the boxes.`;
+Use samlet for each calculation or derivation, not around whole sections. If the student wrote a sentence that introduces the calculation, put it inside the samlet block as its first line; never add a sentence that is not in the notes. Do not start a samlet block with a figure, list or box. It may stand inside the boxes.`;
 
 const FIGURES = String.raw`Figures: always write \begin{figure}[H], with exactly [H]. A figure may stand inside a box (this replaces "never put a figure environment inside a box" in section 2). Never write \caption outside a figure environment.`;
 
@@ -88,7 +88,7 @@ ${FIGURES}
 
 Start from the closest template below and change the coordinates, labels and arrows so that they match the student's drawing. Keep every label, arrow and value from the original. Use only syntax that appears in these templates or in section 4.
 
-Inclined plane with a block and forces. This slope rises to the right, with angle a (here a = 26.57, from a height of 2.5 over a length of 5): rotate the block by a, draw G straight down and N at the angle a+90 (perpendicular to the slope, away from it). Friction R points along the slope against the motion: at the angle a (up the slope, as here) when the block slides down or stands still, and at a+180 when it moves up. Draw only the forces the student drew. If the student's slope rises to the LEFT, use the second template:
+Inclined plane with a block and forces. This slope rises to the right, with angle a (here a = 26.57, from a height of 2.5 over a length of 5): rotate the block by a, draw G straight down and N at the angle a+90 (perpendicular to the slope, away from it). Friction R points along the slope against the motion: at the angle a (up the slope, as here) when the block slides down or stands still, and at a+180 when it moves up. Draw only the forces the student drew. If the angle label is longer than one symbol (for example "{$26,6^\circ$}"), write angle eccentricity=2 instead of 1.35. If the student's slope rises to the LEFT, use the second template:
 
 \begin{figure}[H]
 \centering
@@ -165,7 +165,7 @@ Graph (pgfplots):
 \end{tikzpicture}
 \end{figure}
 
-Keep samples=100 for every function. Change the expression and domain to match the student's graph, and set xmin, xmax, ymin and ymax from the numbers on the student's axes so that the whole curve and every point fit. If ymin or xmin is negative (as in a v-t graph for a vertical throw), write axis lines=middle instead of axis lines=left, so the axis runs through 0 as in the student's graph. For measured points write \addplot[only marks] coordinates {(0,1) (1,3) (2,5)}; with the student's values (decimal point inside the plot code).
+Keep samples=100 for every function. Change the expression and domain to match the student's graph, and set xmin, xmax, ymin and ymax from the numbers on the student's axes so that the whole curve and every point fit. If the student's axis crosses zero inside the graph (ymin negative and ymax positive, as in a v-t graph for a vertical throw), write axis lines=middle, xlabel style={at={(ticklabel* cs:1)}, anchor=west}, ylabel style={at={(ticklabel* cs:1)}, anchor=south} instead of axis lines=left, so the time axis runs through 0 and the labels stay clear of the curve. For measured points write \addplot[only marks] coordinates {(0,1) (1,3) (2,5)}; with the student's values (decimal point inside the plot code).
 
 Circuit (circuitikz):
 

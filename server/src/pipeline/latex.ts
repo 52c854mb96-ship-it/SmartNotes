@@ -343,13 +343,17 @@ const EXTRA_PREAMBLE = String.raw`
 \def\sn@mpname{mpfootnote}
 \newenvironment{samlet}{\par
   \ifx\@mpfn\sn@mpname\sn@inmptrue\else\sn@inmpfalse\fi
-  % Inne i en boks får første linje linjeavstanden til linjen over (også når blokken begynner med en liste); øverst
-  % på siden skal den ikke ha den.
+  % Begynner blokken med en liste eller center-blokk inne i en boks, får første linje linjeavstanden til linjen over
+  % (ellers står den klistret inntil); øverst på siden skal den ikke ha den. Begynner blokken med tekst eller en
+  % formel, legger TeX inn avstanden utenfor boksen som vanlig.
   \ifinner\edef\sn@pd{\the\prevdepth}\else\def\sn@pd{-1000pt}\fi
   % En ny boks glemmer innrykket i en liste (\parshape); det settes på nytt, så linjene står der de ellers ville stått.
   % En boks (formel, eksempel …) i blokken deles bare i biter på en hel side, ikke etter plassen som er igjen på
   % siden før blokken.
-  \setbox\sn@samlet\vbox\bgroup\prevdepth\sn@pd\relax\parshape\@ne\@totalleftmargin\linewidth\allowdisplaybreaks[1]%
+  \setbox\sn@samlet\vbox\bgroup\parshape\@ne\@totalleftmargin\linewidth\allowdisplaybreaks[1]%
+    \edef\sn@gl{\the\numexpr\currentgrouplevel+1}\let\sn@trivlist\@trivlist
+    \def\@trivlist{\ifvmode\ifnum\currentgrouplevel=\sn@gl\relax\ifdim\prevdepth>-\@m\p@\else\prevdepth\sn@pd\relax
+      \fi\fi\fi\sn@trivlist}%
     \ifdefined\tcbset\tcbset{break at=\textheight}\fi
     \ifsn@inmp\else\def\@mpfn{mpfootnote}\def\thempfn{\thempfootnote}\c@mpfootnote\z@\let\@footnotetext\@mpfootnotetext\fi
     \ignorespaces}{\par
@@ -371,8 +375,9 @@ const EXTRA_PREAMBLE = String.raw`
   \fi
   \prevdepth\sn@samletdepth\relax\vskip\sn@samletskip\ignorespacesafterend}
 \makeatother
-% Tall i grafer (akser i pgfplots, \pgfmathprintnumber) med desimalkomma og tynt mellomrom, som på norsk.
-\pgfkeys{/pgf/number format/.cd, use comma, 1000 sep={\,}}
+% Tall i grafer (akser i pgfplots, \pgfmathprintnumber) med desimalkomma og tynt mellomrom fra fem sifre (12 500, men
+% årstall som 1850 uten), som siunitx.
+\pgfkeys{/pgf/number format/.cd, use comma, 1000 sep={\,}, min exponent for 1000 sep=4}
 % \uleselig også i formler (et usikkert tegn eller symbol i en ligning). Den ytre gruppen gjør at en eksponent eller
 % et merke etter (\uleselig{v}^2, \uleselig{f}') ikke blir en dobbel eksponent.
 \DeclareRobustCommand{\uleselig}[1]{\ifmmode{{\color{sngray}#1}^{\textcolor{snorange}{?}}}\else
