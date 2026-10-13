@@ -16,6 +16,11 @@ const MAX_PARALLEL = 2;
 let running = 0;
 const waiting: (() => void)[] = [];
 
+/** Om køen av passordsjekker er så lang at nye forsøk bør avvises (en klient skal ikke kunne stenge andre ute). */
+export function passwordQueueFull(max = 32): boolean {
+  return waiting.length >= max;
+}
+
 async function limited<T>(fn: () => Promise<T>): Promise<T> {
   if (running >= MAX_PARALLEL) await new Promise<void>((resolve) => waiting.push(resolve));
   running++;

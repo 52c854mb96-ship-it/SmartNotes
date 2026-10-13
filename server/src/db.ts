@@ -731,6 +731,9 @@ export class Repo {
     await this.db.backup(file);
     const copy = new Database(file);
     try {
+      // Slettede rader blir ellers liggende i ledige sider i fila; secure_delete skriver over dem, og VACUUM under lager
+      // fila på nytt uten dem.
+      copy.pragma('secure_delete = ON');
       // Innlogginger, enheter, lenker for nytt passord og ubrukte invitasjoner er hemmeligheter som ikke hører hjemme i en
       // kopi som lastes ned.
       copy.prepare(`DELETE FROM sessions`).run();
@@ -739,6 +742,7 @@ export class Repo {
       copy.prepare(`DELETE FROM password_resets`).run();
       copy.prepare(`DELETE FROM invites WHERE used_at IS NULL`).run();
       copy.pragma('journal_mode = DELETE');
+      copy.exec('VACUUM');
     } finally {
       copy.close();
     }
@@ -1511,6 +1515,11 @@ export class Repo {
     this.db.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).run(userId);
   }
 
+  /** Glemmer enhetene brukeren har logget inn fra (de er da ikke lenger unntatt fra kontosperren). */
+  deleteUserDevices(userId: number): void {
+    this.db.prepare(`DELETE FROM user_devices WHERE user_id = ?`).run(userId);
+  }
+
   pruneSessions(): void {
     const t = now();
     this.db.prepare(`DELETE FROM user_sessions WHERE expires_at <= ?`).run(t);
@@ -1695,7 +1704,9 @@ export class Repo {
       if (!reset) return null;
       this.db.prepare(`UPDATE password_resets SET used_at = ? WHERE token_hash = ?`).run(t, input.tokenHash);
       this.setPasswordHash(reset.user_id, input.passwordHash);
+      // Logget ut overalt, og ingen enhet er lenger «kjent» (en som kjente det gamle passordet, skal ikke slippe sperren).
       this.deleteUserSessions(reset.user_id);
+      this.deleteUserDevices(reset.user_id);
       this.recordLogin(reset.user_id);
       this.createSession(input.session.tokenHash, reset.user_id, input.session.expiresAt, input.session.userAgent);
       return this.getUser(reset.user_id);

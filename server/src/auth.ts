@@ -7,6 +7,7 @@ import { HttpError, badRequest } from './errors.js';
 import {
   hashPassword,
   hashToken,
+  passwordQueueFull,
   newToken,
   normalizeInviteCode,
   normalizeUsername,
@@ -155,17 +156,28 @@ export class AttemptLimiter {
   reset(key: string): void {
     this.attempts.delete(key);
   }
+
+  /** Gir tilbake det siste forsøket (et forsøk som ble reservert før passordsjekken, og som lyktes). */
+  refund(key: string): void {
+    const list = this.attempts.get(key);
+    if (!list) return;
+    list.pop();
+    if (list.length === 0) this.attempts.delete(key);
+  }
 }
 
 /** Sperren per konto: 10 feil fra ukjente enheter innen 15 minutter gir 15 minutters sperre (bare for ukjente enheter). */
 const ACCOUNT_LOCK = { max: 10, windowMs: 15 * 60_000, lockMs: 15 * 60_000 };
 const TOO_MANY = 'For mange feil forsøk. Vent et kvarter og prøv igjen.';
 const WRONG = 'Feil brukernavn eller passord.';
+const LOCKED = 'Kontoen er sperret i et kvarter etter for mange feil forsøk fra en ny enhet. Prøv igjen senere.';
 
 export function registerAuth(app: FastifyInstance, repo: Repo, config: Config): void {
   // Per IP og brukernavn, og en romsligere grense per IP (en hel skole kan ha samme adresse).
   const pairLimiter = new AttemptLimiter(10);
   const ipLimiter = new AttemptLimiter(50);
+  // Brukernavn som ikke finnes, sperres som ekte kontoer etter 10 forsøk, så sperren ikke røper hvilke navn som finnes.
+  const unknownLimiter = new AttemptLimiter(ACCOUNT_LOCK.max, ACCOUNT_LOCK.windowMs);
   // Registrering og nytt passord: per IP, så noen ikke kan prøve seg fram til en kode.
   const codeLimiter = new AttemptLimiter(10, 60 * 60_000);
 
@@ -244,36 +256,44 @@ export function registerAuth(app: FastifyInstance, repo: Repo, config: Config): 
     const password = typeof req.body?.password === 'string' ? req.body.password.slice(0, 500) : '';
     const pairKey = `${ip}|${username}`;
     if (pairLimiter.blocked(pairKey) || ipLimiter.blocked(ip)) throw new HttpError(429, 'too_many_attempts', TOO_MANY);
+    if (passwordQueueFull()) throw new HttpError(503, 'busy', 'Serveren har mye å gjøre akkurat nå. Prøv igjen om litt.');
 
+    // Eieren logger inn med APP_PASSWORD, som før kontoene, med tomt brukernavn eller sitt eget.
     const owner = repo.getUser(OWNER_ID)!;
-    let user: UserRow | null;
-    let ok: boolean;
-    if (!username || username === owner.username) {
-      // Eieren logger inn med APP_PASSWORD, som før kontoene. Den tomme scrypt-sjekken gjør at tiden ikke røper hvem
-      // som er eieren.
-      user = owner;
-      ok = passwordMatches(password, config.appPassword);
-      await verifyPassword(password, null);
-    } else {
-      user = repo.getUserByName(username);
-      ok = (await verifyPassword(password, user?.password_hash ?? null)) && !!user;
-    }
+    const isOwner = !username || username === owner.username;
+    const user: UserRow | null = isOwner ? owner : repo.getUserByName(username);
     const device = req.cookies[DEVICE_COOKIE];
     const knownDevice = !!user && !!device && repo.isKnownDevice(hashToken(device), user.id);
 
-    if (!ok || !user) {
-      pairLimiter.fail(pairKey);
-      ipLimiter.fail(ip);
-      // Et tomt brukernavn teller bare per IP, så ingen kan sperre eieren ute med tomme forsøk.
-      if (user && username && !knownDevice) repo.recordLoginFailure(user.id, ACCOUNT_LOCK);
-      throw new HttpError(401, 'wrong_password', WRONG);
+    // Kontosperren gjelder nye enheter og sjekkes før passordet, så svaret er det samme for riktig og feil passord
+    // (ellers kunne den som gjetter, se når passordet stemte). Et ukjent brukernavn sperres på samme måte.
+    if (!knownDevice) {
+      const locked = user ? !!user.locked_until && Date.parse(user.locked_until) > Date.now() : unknownLimiter.blocked(username);
+      if (locked) throw new HttpError(429, 'locked', LOCKED);
     }
-    // Stengt og sperret sies bare etter riktig passord, så svaret ikke røper hvilke brukernavn som finnes.
-    if (user.disabled) throw new HttpError(403, 'disabled', 'Kontoen er stengt. Snakk med den som inviterte deg.');
-    if (!knownDevice && user.locked_until && Date.parse(user.locked_until) > Date.now()) {
-      throw new HttpError(429, 'locked', 'Kontoen er sperret i et kvarter etter for mange feil forsøk fra en ny enhet. Prøv igjen senere.');
+
+    // Forsøket telles før passordsjekken (som venter på scrypt), så mange forsøk sendt samtidig ikke slipper forbi
+    // grensene. Lykkes det, gis det tilbake.
+    pairLimiter.fail(pairKey);
+    ipLimiter.fail(ip);
+    if (!knownDevice) {
+      if (user) repo.recordLoginFailure(user.id, ACCOUNT_LOCK);
+      else unknownLimiter.fail(username);
     }
+
+    let ok: boolean;
+    if (isOwner) {
+      ok = passwordMatches(password, config.appPassword);
+      // Den tomme scrypt-sjekken gjør at tiden ikke røper hvem som er eieren.
+      await verifyPassword(password, null);
+    } else {
+      ok = (await verifyPassword(password, user?.password_hash ?? null)) && !!user;
+    }
+    if (!ok || !user) throw new HttpError(401, 'wrong_password', WRONG);
     pairLimiter.reset(pairKey);
+    ipLimiter.refund(ip);
+    // Stengt sies bare etter riktig passord, så svaret ikke røper hvilke brukernavn som finnes.
+    if (user.disabled) throw new HttpError(403, 'disabled', 'Kontoen er stengt. Snakk med den som inviterte deg.');
     repo.recordLogin(user.id);
     startSession(reply, req, user);
     rememberDevice(reply, req, user.id);

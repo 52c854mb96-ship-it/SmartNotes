@@ -138,6 +138,13 @@ export class FlashcardGenerator {
     }
   }
 
+  /** Er kontoen stengt, settes kortstokken som feilet (eleven kan prøve igjen når kontoen er åpnet). */
+  private disabled(userId: number, deckId: string): boolean {
+    if (!this.repo.getUser(userId)?.disabled) return false;
+    this.repo.failDeck(deckId, 'Kontoen ble stengt mens kortene ble laget. Prøv igjen når den er åpnet.');
+    return true;
+  }
+
   private async generate(deckId: string): Promise<void> {
     const row = this.repo.getDeckRow(deckId);
     if (!row || row.status !== 'generating') return;
@@ -149,6 +156,8 @@ export class FlashcardGenerator {
     if (notes.length === 0) throw new ConversionError('Notatene finnes ikke lenger, eller er ikke ferdig konvertert.');
     const profile = getProfile(subject.profile);
     const started = Date.now();
+    // En stengt konto får ikke laget kort (heller ikke en kortstokk som var i gang da kontoen ble stengt).
+    if (this.disabled(row.user_id, deckId)) return;
     const { cards, usage } = await jobScope({ userId: row.user_id, deckId, subjectId: subject.id }, () =>
       this.ai.generateFlashcards({
         subjectName: subject.name,
@@ -160,6 +169,7 @@ export class FlashcardGenerator {
     );
     const clean = cleanFlashcards(cards, aliases);
     if (clean.length === 0) throw new ConversionError('Claude fant ikke noe å lage kort av i disse notatene.');
+    if (this.disabled(row.user_id, deckId)) return;
     const done = this.repo.completeDeck(deckId, clean, usage);
     if (done) this.log.info({ deckId, cards: clean.length, ms: Date.now() - started, usage }, 'kortstokk laget');
   }

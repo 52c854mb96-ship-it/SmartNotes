@@ -86,12 +86,14 @@ export function registerAdminRoutes(app: FastifyInstance, d: { repo: Repo; confi
     const user = userParam(req.params.id);
     if (user.id === OWNER_ID) throw badRequest('Eieren kan ikke stenge sin egen konto.');
     repo.setDisabled(user.id, true);
-    // Logget ut overalt, lenker for nytt passord trekkes tilbake, og arbeid som venter på hjemmemaskinen avbrytes. Notater
-    // i køen blir liggende (køen hopper over stengte kontoer) og konverteres om kontoen åpnes igjen.
+    // Logget ut overalt, kjente enheter og lenker for nytt passord glemmes, og alt brukerens arbeid som venter på
+    // hjemmemaskinen, avbrytes (kortstokker, innholdsfortegnelser og notater; hvert kall vet hvilken bruker det gjelder).
+    // Notater i køen blir liggende (køen hopper over stengte kontoer) og konverteres om kontoen åpnes igjen; en kortstokk
+    // som er i gang, settes som feilet.
     repo.deleteUserSessions(user.id);
+    repo.deleteUserDevices(user.id);
     repo.revokePasswordResets(user.id);
-    const active = new Set(repo.activeNoteIds(user.id));
-    hub?.cancel((ref) => !!ref.noteId && active.has(ref.noteId));
+    hub?.cancel((ref) => ref.userId === user.id);
     return { ok: true };
   });
 

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -23,6 +24,7 @@ import { loadConfig } from '../src/config.js';
 import { OWNER_ID, Repo } from '../src/db.js';
 import { hashPassword, hashToken, newInviteCode, normalizeInviteCode, verifyPassword } from '../src/passwords.js';
 import { FakeClaude } from '../src/pipeline/claude.js';
+import type { UsageRef } from '../src/usage.js';
 import { Storage } from '../src/storage.js';
 
 /**
@@ -91,6 +93,10 @@ class Client {
 
   hasCookie(name: string): boolean {
     return this.cookies.has(name);
+  }
+
+  cookieValue(name: string): string | undefined {
+    return this.cookies.get(name)?.value;
   }
 
   forget(name: string): void {
@@ -270,12 +276,41 @@ describe('innlogging', () => {
     expect(ctx.repo.getUserByName('per')).toMatchObject({ failed_logins: 0, locked_until: null });
   });
 
-  it('lar ikke tomme brukernavn sperre eieren ute', async () => {
-    for (let i = 0; i < 12; i++) {
+  it('sperrer også eierens konto for nye enheter etter 10 feil uten brukernavn, men ikke eierens egne enheter', async () => {
+    // Testene over har gitt eieren noen feil forsøk; start tellingen på null.
+    ctx.repo.recordLogin(OWNER_ID);
+    for (let i = 0; i < 10; i++) {
       expect((await new Client().post('/api/auth/login', { password: 'feil' })).status).toBe(401);
     }
-    expect((await new Client().post('/api/auth/login', { password: PASSWORD })).status).toBe(200);
-    expect(ctx.repo.getUser(OWNER_ID)).toMatchObject({ locked_until: null });
+    const fresh = await new Client().post<{ error: string }>('/api/auth/login', { password: PASSWORD });
+    expect(fresh.status).toBe(429);
+    expect(fresh.body.error).toBe('locked');
+    // Enheten eieren har logget inn fra før, slipper inn.
+    owner.forget('sn_session');
+    expect((await owner.post('/api/auth/login', { password: PASSWORD })).status).toBe(200);
+    expect(ctx.repo.getUser(OWNER_ID)).toMatchObject({ locked_until: null, failed_logins: 0 });
+  });
+
+  it('gir samme svar for riktig og feil passord mens kontoen er sperret, og sperrer ukjente brukernavn på samme måte', async () => {
+    await register('sperret');
+    for (let i = 0; i < 10; i++) await new Client().post('/api/auth/login', { username: 'sperret', password: 'feil-passord' });
+    const right = await new Client().post<{ error: string; message: string }>('/api/auth/login', { username: 'sperret', password: 'passord-123' });
+    const wrong = await new Client().post<{ error: string; message: string }>('/api/auth/login', { username: 'sperret', password: 'feil-igjen' });
+    expect([right.status, right.body]).toEqual([429, wrong.body]);
+    expect(wrong.status).toBe(429);
+    for (let i = 0; i < 10; i++) await new Client().post('/api/auth/login', { username: 'finnesikke-heller', password: 'feil' });
+    const unknown = await new Client().post<{ error: string; message: string }>('/api/auth/login', { username: 'finnesikke-heller', password: 'x' });
+    expect([unknown.status, unknown.body]).toEqual([429, wrong.body]);
+  });
+
+  it('teller forsøk som sendes samtidig (grensene kan ikke omgås ved å sende mange på en gang)', async () => {
+    const c = new Client();
+    const results = await Promise.all(
+      Array.from({ length: 16 }, () => c.post('/api/auth/login', { username: 'kari', password: 'feil-samtidig' })),
+    );
+    const statuses = results.map((r) => r.status);
+    expect(statuses.filter((x) => x === 401).length).toBeLessThanOrEqual(10);
+    expect(statuses.filter((x) => x === 429).length).toBeGreaterThanOrEqual(6);
   });
 
   it('begrenser forsøk per adresse og per adresse og brukernavn', async () => {
@@ -293,14 +328,17 @@ describe('innlogging', () => {
   });
 
   it('bruker adressen fra proxyen bare ett ledd bak (TRUST_PROXY_HOPS=1)', async () => {
-    // Klienten legger selv inn en ny adresse først i X-Forwarded-For hver gang; bare den siste kommer fra proxyen, så
-    // forsøkene telles likevel på samme adresse.
+    // Klienten legger selv inn en ny adresse først i X-Forwarded-For hver gang (og et nytt brukernavn); bare den siste
+    // adressen kommer fra proxyen, så forsøkene telles likevel på samme adresse.
     const real = '198.51.100.250';
-    for (let i = 0; i < 10; i++) {
-      const res = await new Client(`10.0.0.${i}, ${real}`).post('/api/auth/login', { username: 'kari', password: 'feil' });
+    for (let i = 0; i < 50; i++) {
+      const res = await new Client(`10.0.${i}.1, ${real}`).post('/api/auth/login', { username: `proxy${i}`, password: 'feil' });
       expect(res.status).toBe(401);
     }
-    expect((await new Client(`10.0.0.99, ${real}`).post('/api/auth/login', { username: 'kari', password: 'passord-123' })).status).toBe(429);
+    const blocked = await new Client(`10.9.9.9, ${real}`).post<{ error: string }>('/api/auth/login', { username: 'proxy-ny', password: 'feil' });
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error).toBe('too_many_attempts');
+    expect((await new Client(`10.9.9.9, 198.51.100.251`).post('/api/auth/login', { username: 'proxy-ny', password: 'feil' })).status).toBe(401);
   });
 
   it('svarer 409 når appen tror den er logget inn med en annen konto', async () => {
@@ -415,6 +453,8 @@ describe('registrering', () => {
 describe('nytt passord', () => {
   it('lenken virker én gang, logger ut alle andre steder og bytter passordet', async () => {
     const { client: old, userId } = await register('mari');
+    const oldDevice = old.cookieValue('sn_device')!;
+    expect(ctx.repo.isKnownDevice(hashToken(oldDevice), userId)).toBe(true);
     const link = await owner.post<ResetLinkResponse>(`/api/admin/users/${userId}/reset-link`);
     expect(link.status).toBe(200);
     const c = new Client();
@@ -423,6 +463,8 @@ describe('nytt passord', () => {
     expect(res.body.user.username).toBe('mari');
     expect((await c.get('/api/sync?since=0')).status).toBe(200);
     expect((await old.get('/api/sync?since=0')).status).toBe(401);
+    // Ingen enhet fra før er lenger unntatt fra kontosperren (en som kjente det gamle passordet, skal ikke slippe den).
+    expect(ctx.repo.isKnownDevice(hashToken(oldDevice), userId)).toBe(false);
     expect((await new Client().post('/api/auth/login', { username: 'mari', password: 'passord-123' })).status).toBe(401);
     expect((await new Client().post('/api/auth/login', { username: 'mari', password: 'nytt-passord' })).status).toBe(200);
     expect((await new Client().post('/api/auth/reset', { token: link.body.token, password: 'tredje-passord' })).status).toBe(400);
@@ -447,7 +489,22 @@ describe('nytt passord', () => {
 describe('eierens sider', () => {
   it('stenger og åpner en konto', async () => {
     const { client, userId } = await register('stengt');
-    expect((await owner.post(`/api/admin/users/${userId}/disable`)).status).toBe(200);
+    // Det som venter på hjemmemaskinen, avbrytes for denne brukeren og ingen andre.
+    const cancels: ((ref: UsageRef) => boolean)[] = [];
+    const cancel = ctx.hub.cancel.bind(ctx.hub);
+    ctx.hub.cancel = (match) => {
+      cancels.push(match);
+      return cancel(match);
+    };
+    try {
+      expect((await owner.post(`/api/admin/users/${userId}/disable`)).status).toBe(200);
+    } finally {
+      ctx.hub.cancel = cancel;
+    }
+    expect(cancels).toHaveLength(1);
+    expect(cancels[0]!({ userId, deckId: 'kortstokk' })).toBe(true);
+    expect(cancels[0]!({ userId: OWNER_ID, noteId: 'notat' })).toBe(false);
+    expect(ctx.repo.isKnownDevice(hashToken(client.cookieValue('sn_device')!), userId)).toBe(false);
     expect((await client.get('/api/sync?since=0')).status).toBe(401);
     const wrong = await new Client().post('/api/auth/login', { username: 'stengt', password: 'feil-passord' });
     expect(wrong.status).toBe(401);
@@ -499,6 +556,40 @@ describe('modell per plan', () => {
     expect(rows.filter((r) => r.kind === 'flashcards' && r.deckId === mine.deckId).map((r) => [r.model, r.userId])).toEqual([['fake-claude', userId]]);
     const users = (await owner.get<AdminUsersResponse>('/api/admin/users')).body.users;
     expect(users.find((u) => u.id === userId)!.usage30d).toMatchObject({ calls: 2, pages: 1 });
+  }, 120_000);
+});
+
+describe('gratiskontoene i bakgrunnen', () => {
+  it('teller sidene i en PDF med flere sider i forbruksloggen (ikke antall filer)', async () => {
+    const { client, userId } = await register('pdf-elev');
+    const subject = (await client.sync()).subjects[0]!;
+    const texDir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-pdf-'));
+    fs.writeFileSync(path.join(texDir, 'a.tex'), '\\documentclass{article}\\begin{document}Side en\\newpage Side to\\newpage Side tre\\end{document}');
+    execFileSync('pdflatex', ['-interaction=nonstopmode', 'a.tex'], { cwd: texDir });
+    const form = new FormData();
+    form.append('subjectId', subject.id);
+    form.append('files', new Blob([new Uint8Array(fs.readFileSync(path.join(texDir, 'a.pdf')))], { type: 'application/pdf' }), 'tre-sider.pdf');
+    const up = await client.call<Note>('POST', '/api/notes', { form });
+    expect(up.status).toBe(201);
+    expect(up.body.pageCount).toBe(1);
+    await waitUntil('PDF-en konverteres', async () => (await client.sync()).notes.find((n) => n.id === up.body.id && n.status === 'done'));
+    const rows = ctx.repo.usageSince(0, userId).filter((r) => r.kind === 'convert' && r.noteId === up.body.id);
+    expect(rows.map((r) => r.pages)).toEqual([3]);
+  }, 120_000);
+
+  it('lager ikke kort til en konto som er stengt mens kortstokken venter', async () => {
+    const { client, userId } = await register('stengt-kort');
+    const fx = await makeFixture(client, userId);
+    const deck = ctx.repo.forUser(userId).createDeck({ subjectId: fx.subjectId, title: 'Venter', difficulty: 'easy', noteIds: [fx.noteId], count: null })!;
+    ctx.repo.setDisabled(userId, true);
+    try {
+      ctx.generator.start(deck.id);
+      await ctx.generator.idle();
+      expect(ctx.repo.getDeck(deck.id)).toMatchObject({ status: 'failed', error: expect.stringMatching(/Kontoen ble stengt/) });
+      expect(ctx.repo.listCards(deck.id)).toEqual([]);
+    } finally {
+      ctx.repo.setDisabled(userId, false);
+    }
   }, 120_000);
 });
 
@@ -689,6 +780,24 @@ describe('hver rute holder brukerne fra hverandre', () => {
     const add = await b.client.post('/api/subjects/from-preset', { presetId: 'kjemi-1-lk20' });
     expect(add.status).toBe(201);
     expect((await a.client.sync()).subjects.map((s) => s.name)).toEqual(['Fysikk 1']);
+  });
+});
+
+describe('sikkerhetskopien', () => {
+  it('har ingen innlogginger, enheter, lenker eller ubrukte koder, heller ikke i ledige sider i databasefila', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-kopi-'));
+    const repo = new Repo(path.join(dir, 'db.sqlite'));
+    const secrets = ['okt-hemmelig', 'enhet-hemmelig', 'lenke-hemmelig', 'KODEHEMMELIG'].map(hashToken);
+    repo.createSession(secrets[0]!, OWNER_ID, new Date(Date.now() + 86_400_000), 'Safari');
+    repo.addDevice(secrets[1]!, OWNER_ID);
+    repo.createPasswordReset(secrets[2]!, OWNER_ID, new Date(Date.now() + 86_400_000));
+    repo.createInvite({ id: randomUUID(), codeHash: secrets[3]!, codeHint: 'MLIG', createdBy: OWNER_ID, expiresAt: new Date(Date.now() + 86_400_000) });
+    const copy = path.join(dir, 'kopi.sqlite');
+    await repo.backupTo(copy);
+    repo.close();
+    const bytes = fs.readFileSync(copy).toString('latin1');
+    for (const secret of secrets) expect(bytes).not.toContain(secret);
+    expect(fs.existsSync(`${copy}-wal`)).toBe(false);
   });
 });
 

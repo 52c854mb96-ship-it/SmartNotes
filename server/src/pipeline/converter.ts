@@ -8,7 +8,7 @@ import { AbortedError, ConversionError } from '../errors.js';
 import { userTextbook } from '../presets.js';
 import { getProfile, readPreamble, type Profile } from '../profiles/index.js';
 import { exists, type Storage, writeFileAtomic } from '../storage.js';
-import { jobScope, type Usage } from '../usage.js';
+import { jobScope, type Usage, setUsagePages } from '../usage.js';
 import type { AiService, ChapterRef, ConvertRequest } from './ai.js';
 import { cropFigure, preparePages, type FileKind, type PageImage } from './images.js';
 import {
@@ -97,7 +97,7 @@ export class Converter {
     const started = Date.now();
     try {
       // Et nytt omfang (ikke arvet fra forespørselen som tilfeldigvis startet køen), med eieren av notatet.
-      await jobScope({ userId: row.user_id, noteId: id, subjectId: row.subject_id, pages: row.page_count || null }, () => this.run(row));
+      await jobScope({ userId: row.user_id, noteId: id, subjectId: row.subject_id, pages: null }, () => this.run(row));
       this.log.info({ noteId: id, ms: Date.now() - started }, 'notat konvertert');
     } catch (err) {
       if (err instanceof AbortedError) {
@@ -133,6 +133,7 @@ export class Converter {
     const pages = await preparePages(sources, this.storage.pagesDir(id), this.config.maxPagesPerNote);
     await writeFileAtomic(this.storage.noteFile(id, 'pages.json'), JSON.stringify(pages, null, 2));
     this.repo.setPageCount(id, pages.length);
+    setUsagePages(pages.length);
 
     // 2. Claude leser notatet
     this.repo.setStage(id, 'reading');

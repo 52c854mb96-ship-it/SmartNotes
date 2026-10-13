@@ -56,6 +56,15 @@ export function jobScope<T>(ref: UsageRef, fn: () => Promise<T>): Promise<T> {
   return scope.run({ ...ref }, fn);
 }
 
+/**
+ * Antall sider i notatet jobben gjelder, når det er kjent (etter at sidebildene er laget; før det har et nytt notat bare
+ * antall opplastede filer, og en PDF er én fil). Endrer bare den jobben som kjører nå.
+ */
+export function setUsagePages(pages: number): void {
+  const store = scope.getStore();
+  if (store) store.pages = pages;
+}
+
 /** Hva AI-kallene som gjøres nå, gjelder (satt med `usageScope`). */
 export function currentUsageRef(): UsageRef {
   return { ...scope.getStore() };

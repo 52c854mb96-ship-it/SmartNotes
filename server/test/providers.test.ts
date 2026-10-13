@@ -10,7 +10,7 @@ import { ConversionError } from '../src/errors.js';
 import type { AiService, ConvertRequest } from '../src/pipeline/ai.js';
 import { AnthropicClaude, RefusalError, mapApiError, pageBlocks } from '../src/pipeline/claude.js';
 import { EMPTY_META } from '../src/pipeline/parse.js';
-import { RefusalFallback, RoutedAi, createAi, describeAi } from '../src/pipeline/providers.js';
+import { RefusalFallback, RoutedAi, createAi, createFreeConvertAi, describeAi } from '../src/pipeline/providers.js';
 import { getProfile } from '../src/profiles/index.js';
 import { RemoteHub } from '../src/remote/hub.js';
 import { MeteredAi, zeroUsage, type UsageEntry } from '../src/usage.js';
@@ -270,5 +270,27 @@ describe('sidebildene til Claude', () => {
     expect(mapApiError(Anthropic.APIError.generate(404, { type: 'error', error: { type: 'not_found_error', message: 'model' } }, undefined, new Headers())).message).toMatch(
       /CLAUDE_MODEL_FLASHCARDS/,
     );
+  });
+});
+
+describe('gratiskontoene', () => {
+  it('konverterer alltid med Haiku hos Anthropic og høy grundighet, også når eierens konvertering går til hjemmemaskinen eller Ollama', () => {
+    for (const provider of ['anthropic', 'ollama', 'remote']) {
+      const config = loadConfig({ ...base, AI_PROVIDER_CONVERT: provider, WORKER_TOKEN: provider === 'remote' ? 'w'.repeat(40) : '' });
+      const ai = createFreeConvertAi(config);
+      expect(ai, provider).toBeInstanceOf(RefusalFallback);
+      expect(ai.model).toBe('claude-haiku-5-5');
+      expect(ai.provider).toBe('anthropic');
+      const parts = ai as unknown as { primary: AiService; fallback: AiService };
+      expect(parts.primary).toBeInstanceOf(AnthropicClaude);
+      expect((parts.primary as unknown as { effort: string }).effort).toBe('high');
+      // Avslår Haiku, prøves konverteringsmodellen (som for kortstokkene).
+      expect(parts.fallback.model).toBe('claude-sonnet-5-5');
+    }
+  });
+
+  it('bruker modellen i FREE_CONVERT_MODEL, og falsk Claude i testmodus', () => {
+    expect(createFreeConvertAi(loadConfig({ ...base, FREE_CONVERT_MODEL: 'claude-sonnet-5-5' })).model).toBe('claude-sonnet-5-5');
+    expect(createFreeConvertAi(loadConfig({ ...base, SMARTNOTES_FAKE_CLAUDE: '1' })).fake).toBe(true);
   });
 });
