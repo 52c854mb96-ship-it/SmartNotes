@@ -186,6 +186,60 @@
           "tekst": "utforske hvilke konsekvenser endringer i klima og arealutnytting kan ha for det biologiske mangfoldet, og drøfte tiltak for en mer bærekraftig forvaltning"
         }
       ]
+    },
+    "KV972": {
+      "laereplan": "GFG01-03",
+      "tittel": "Kompetansemål og vurdering geofag 1",
+      "kompetansemaal": [
+        {
+          "kode": "KM12694",
+          "tekst": "gjøre rede for vekselvirkninger mellom de ulike jordsystemene og hvordan disse kan påvirke geosfæren og hydrosfæren"
+        },
+        {
+          "kode": "KM12693",
+          "tekst": "gjøre rede for bevegelser i jordas indre og hvilke konsekvenser de har for jordskorpa og jordoverflaten"
+        },
+        {
+          "kode": "KM12683",
+          "tekst": "utforske ulike mineralgrupper, bergartsgrupper og sedimenter, og tolke hvor de passer inn i bergartssyklusen"
+        },
+        {
+          "kode": "KM12684",
+          "tekst": "gjøre rede for ulike metoder som brukes for å datere bergarter, og bruke metoder for å identifisere relativ alder"
+        },
+        {
+          "kode": "KM12685",
+          "tekst": "utforske berggrunn, løsmasser og jordarter lokalt, og tolke observasjonene for å beskrive områdets geologiske historie og betydning for lokale ressurser"
+        },
+        {
+          "kode": "KM12686",
+          "tekst": "sammenligne ulike landformer og gjøre rede for hvordan de dannes og endres under påvirkning av jordsystemene og menneskelig aktivitet"
+        },
+        {
+          "kode": "KM12687",
+          "tekst": "gjøre rede for det hydrologiske kretsløpet med vekt på ferskvann og utforske og presentere hvordan det påvirkes av menneskelig aktivitet"
+        },
+        {
+          "kode": "KM12688",
+          "tekst": "vurdere hvordan ulike lokale og globale ferskvannsressurser kan utnyttes på en bærekraftig måte"
+        },
+        {
+          "kode": "KM12689",
+          "tekst": "gjøre rede for danning, kartlegging og utvinning av geologiske ressurser nasjonalt og globalt og drøfte konsekvenser av å utvinne og utnytte disse i et bærekraftsperspektiv"
+        },
+        {
+          "kode": "KM12690",
+          "tekst": "gjøre rede for ulike naturfarer knyttet til geosfæren og hydrosfæren, og vurdere hvordan mennesker kan forebygge og tilpasse seg disse farene"
+        },
+        {
+          "kode": "KM12692",
+          "tekst": "utforske en naturfare knyttet til geosfæren eller hydrosfæren i et bestemt geografisk område og vurdere risiko ved hjelp av modellering"
+        },
+        {
+          "kode": "KM12691",
+          "tekst": "gjennomføre geofaglig feltarbeid knyttet til geosfæren eller hydrosfæren, bearbeide og tolke de innsamlede dataene og presentere resultatene"
+        }
+      ]
     }
   }
 }

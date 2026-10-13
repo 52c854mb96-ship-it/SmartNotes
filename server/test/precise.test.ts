@@ -20,6 +20,7 @@ import { CLOSING, HAIKU_CLOSING, PROMPT_VERSION } from '../src/profiles/precise.
 const FINGERPRINTS: Record<number, string> = {
   2: '1cd64847f6a76608',
   3: '03b4656a8f0592f9',
+  4: 'da51f20db33a32d2',
 };
 
 const fingerprint = () =>
@@ -122,6 +123,22 @@ describe('de presise reglene', () => {
     expect(Number(arrow![1]) - Number(label![1])).toBeGreaterThanOrEqual(1.1);
   });
 
+  // «Use colour only where the student used colour»: malene selv er uten farge (bare grått), ellers kopierer modellen
+  // fargene inn i en tegning eleven laget med blyant.
+  it('har maler uten farger, så tegningen bare får farger der eleven brukte dem', () => {
+    for (const id of PROFILE_IDS) {
+      const rules = getProfile(id).preciseRules;
+      const drawings = rules.slice(rules.indexOf('## 7.7'), rules.indexOf('## 7.8'));
+      const templates = [...drawings.matchAll(/^\\begin\{(figure|center)\}[\s\S]*?^\\end\{\1\}/gm)].map((m) => m[0]).join('\n');
+      expect(templates.length, id).toBeGreaterThan(0);
+      expect(templates, id).not.toMatch(/\b(red|blue|green|sngreen|snorange|orange|yellow)\b/);
+    }
+  });
+
+  it('ber om enheter uten æ, ø, å og ° inne i \\qty og \\unit', () => {
+    for (const id of PROFILE_IDS) expect(getProfile(id).preciseRules, id).toMatch(/letters like æ, ø and å and the sign ° are lost there/);
+  });
+
   it('bruker \\uleselig bare når sammenhengen ikke avgjør', () => {
     for (const id of PROFILE_IDS) {
       const rules = getProfile(id).preciseRules;
@@ -148,7 +165,7 @@ describe('de presise reglene', () => {
         ...addendum.matchAll(/^\\begin\{(figure|formel|samlet|circuitikz|center)\}[\s\S]*?^\\end\{\1\}/gm),
         ...addendum.matchAll(/^\\\[ .* \\\]$/gm),
       ].map((m) => m[0]);
-      expect(blocks.length).toBeGreaterThanOrEqual({ physics: 8, chemistry: 7, biology: 6 }[id]);
+      expect(blocks.length).toBeGreaterThanOrEqual({ physics: 8, chemistry: 7, biology: 6, geoscience: 7 }[id]);
       // Eksempelsvaret i sin helhet, slik SmartNotes behandler et svar (figuren finnes ikke her).
       const example = /<latex>\n([\s\S]*?)<\/latex>/.exec(addendum)?.[1];
       expect(example).toBeTruthy();

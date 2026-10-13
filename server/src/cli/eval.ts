@@ -2,7 +2,7 @@
  * Måleverktøy: sammenlign modeller på dine egne notater. Se docs/MALING.md.
  *
  *   npm run eval --workspace server -- <mappe med notater> --models "anthropic:claude-sonnet-5-5,ollama:qwen3.5:9b"
- *     [--subject physics|chemistry|biology] [--out mappe] [--reference modell] [--flashcards] [--chapters "1 Tittel;2 Tittel"]
+ *     [--subject physics|chemistry|biology|geoscience] [--out mappe] [--reference modell] [--flashcards] [--chapters "1 Tittel;2 Tittel"]
  *
  * Hver undermappe i notatmappen er ett notat (sidene i alfabetisk rekkefølge), og hver løse fil er et eget notat.
  * Skriver resultater.json og rapport.html til utmappen.
@@ -20,11 +20,13 @@ const SUBJECTS: Record<string, SubjectProfile> = {
   kjemi: 'chemistry',
   biology: 'biology',
   biologi: 'biology',
+  geoscience: 'geoscience',
+  geofag: 'geoscience',
 };
 
 const USAGE = `Bruk: npm run eval --workspace server -- <mappe med notater> --models "anthropic:claude-sonnet-5-5,ollama:qwen3.5:9b"
   --models       kommaliste med modeller: anthropic:<modell>, ollama:<modell> (valgfritt @pixels, @thousandths eller @thousandths-yx), eller fake
-  --subject      physics (standard), chemistry eller biology
+  --subject      physics (standard), chemistry, biology eller geoscience
   --out          mappe for resultatene (standard: maling-<dato> der du står)
   --reference    modellen de andre sammenlignes med (standard: den første)
   --flashcards   lag også kortstokker fra referansens LaTeX
@@ -56,7 +58,7 @@ if (args.includes('--help') || args.includes('-h') || args.length !== 1 || !mode
 }
 const subject = SUBJECTS[subjectArg];
 if (!subject) {
-  console.error(`Ukjent fag «${subjectArg}». Bruk physics, chemistry eller biology.`);
+  console.error(`Ukjent fag «${subjectArg}». Bruk physics, chemistry, biology eller geoscience.`);
   process.exit(1);
 }
 

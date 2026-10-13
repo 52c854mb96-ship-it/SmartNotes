@@ -1358,4 +1358,30 @@ export class Repo {
       return created;
     })();
   }
+
+  /**
+   * Legger et fagoppsett til som fag («Legg til fag»), med temaene, deltemaene og kompetansemålene. Oppsettet huskes som
+   * lagt inn, så startoppsettet ikke legger det inn en gang til. Returnerer null når et fag med samme navn og fagtype
+   * finnes fra før.
+   */
+  addPreset(preset: {
+    id: string;
+    subjectName: string;
+    profile: SubjectProfile;
+    aims: CompetenceAim[];
+    chapters: (ChapterInput & { sections: Section[] })[];
+  }): Subject | null {
+    return this.db.transaction(() => {
+      if (this.listSubjects().some((s) => s.name === preset.subjectName && s.profile === preset.profile)) return null;
+      const subject = this.createSubject({ name: preset.subjectName, profile: preset.profile, textbook: null, aims: preset.aims });
+      this.createChapters(subject.id, preset.chapters);
+      const row = this.db.prepare(`SELECT value FROM meta WHERE key = 'seeded_presets'`).get() as { value: string } | undefined;
+      const seeded = new Set<string>(row ? (JSON.parse(row.value) as string[]) : []);
+      seeded.add(preset.id);
+      this.db
+        .prepare(`INSERT INTO meta (key, value) VALUES ('seeded_presets', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+        .run(JSON.stringify([...seeded]));
+      return subject;
+    })();
+  }
 }

@@ -16,6 +16,14 @@ export async function createSubject(name: string, textbook: string | null, profi
   return subject;
 }
 
+/** Legger til et fag fra oppsettene etter læreplanen; temaene og målene kommer med synken (fagsiden oppdateres selv). */
+export async function addPresetSubject(presetId: string) {
+  const subject = await api.addPresetSubject(presetId);
+  await applyServerRows({ subjects: [subject] });
+  void syncNow();
+  return subject;
+}
+
 export async function updateSubject(id: string, req: { name?: string; textbook?: string | null }) {
   const subject = await api.updateSubject(id, req);
   await applyServerRows({ subjects: [subject] });

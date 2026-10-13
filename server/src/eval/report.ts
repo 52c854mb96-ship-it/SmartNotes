@@ -10,7 +10,7 @@ const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replac
 const nb = (n: number, digits = 1) => n.toLocaleString('nb-NO', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 const href = (p: string) => p.split(path.sep).map(encodeURIComponent).join('/');
 
-const SUBJECT_LABELS: Record<EvalResults['subject'], string> = { physics: 'fysikk', chemistry: 'kjemi', biology: 'biologi' };
+const SUBJECT_LABELS: Record<EvalResults['subject'], string> = { physics: 'fysikk', chemistry: 'kjemi', biology: 'biologi', geoscience: 'geofag' };
 
 const CRITERIA = [
   ['tekst', 'Tekst'],

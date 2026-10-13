@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import type { SubjectProfile } from '@smartnotes/shared';
 import { biologyProfile } from './biology.js';
 import { chemistryProfile } from './chemistry.js';
+import { geoscienceProfile } from './geoscience.js';
 import { physicsProfile } from './physics.js';
 import type { Profile } from './types.js';
 
@@ -11,6 +12,7 @@ const PROFILES: Record<SubjectProfile, Profile> = {
   physics: physicsProfile,
   chemistry: chemistryProfile,
   biology: biologyProfile,
+  geoscience: geoscienceProfile,
 };
 
 export const PROFILE_IDS = Object.keys(PROFILES) as SubjectProfile[];

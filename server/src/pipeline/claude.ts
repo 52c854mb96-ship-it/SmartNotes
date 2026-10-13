@@ -458,6 +458,11 @@ const FAKE_TOC: Record<SubjectProfile, ChapterInput[]> = {
     { number: '2', title: 'Fotosyntese og celleånding' },
     { number: '3', title: 'Økologi' },
   ],
+  geoscience: [
+    { number: '1', title: 'Jordas indre', sections: [sec('1.1', 'Jordas oppbygning'), sec('1.2', 'Platetektonikk')] },
+    { number: '2', title: 'Bergarter og mineraler', sections: [sec('2.1', 'Mineraler'), sec('2.2', 'Bergartenes kretsløp')] },
+    { number: '3', title: 'Vær og klima' },
+  ],
 };
 
 /** Testinnhold per fag fra falsk Claude: bruker malens bokser, formler og tegninger, så malene kompileres ordentlig. */
@@ -477,6 +482,27 @@ Konsentrasjonen er $c = \qty{0.10}{mol/L}$, så $\mathrm{pH} = -\lg[\ce{H3O+}]$.
 \begin{center}
 \chemfig{H-C(-[2]H)(-[6]H)-C(-[2]H)(-[6]H)-O-H}
 \end{center}
+`;
+  if (profile === 'geoscience')
+    return String.raw`\section{Bergartenes kretsløp}
+
+Kalkstein løses opp av surt vann: \ce{CaCO3 + H2O + CO2 -> Ca^2+ + 2 HCO3-}. Gjennomsnittstemperaturen i juli er \qty{16.4}{\degreeCelsius}, og årsnedbøren er \qty{760}{mm}.
+
+\begin{formel}[Halveringstid]
+\[ N = N_0 \left(\tfrac12\right)^{t/T_{1/2}} \]
+\end{formel}
+
+Platene beveger seg om lag \qty{2.5}{cm} per år. Kartet har målestokk 1:\num{50000}, og toppen ligger på $60^\circ$\,N.${brokenTail}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=8cm, height=4cm, axis lines=left, xlabel={Avstand / \unit{km}}, ylabel={Høyde / \unit{m}}, xmin=0, xmax=4, ymin=0, ymax=900]
+  \addplot[thick, fill=sngreen!15] coordinates {(0,0) (1,300) (2,800) (3,400) (4,0)} \closedcycle;
+\end{axis}
+\end{tikzpicture}
+\caption{Terrengprofil.}
+\end{figure}
 `;
   if (profile === 'biology')
     return String.raw`\section{Fotosyntesen}

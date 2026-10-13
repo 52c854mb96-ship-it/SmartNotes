@@ -194,6 +194,25 @@ const BIOLOGI1_AIMS: CompetenceAim[] = [
   },
 ];
 
+/**
+ * Kompetansemål i Geofag 1 (GFG01-03, LK20, kompetansemålsett KV972). Ordrett fra Udir (bokmål), hentet fra Grep
+ * 13. oktober 2026 (`test/fixtures/udir-kompetansemaal.json`). GFG01-02 er utgått og erstattet av GFG01-03.
+ */
+const GEOFAG1_AIMS: CompetenceAim[] = [
+  { code: 'KM1', text: 'gjøre rede for vekselvirkninger mellom de ulike jordsystemene og hvordan disse kan påvirke geosfæren og hydrosfæren', cross: false },
+  { code: 'KM2', text: 'gjøre rede for bevegelser i jordas indre og hvilke konsekvenser de har for jordskorpa og jordoverflaten', cross: false },
+  { code: 'KM3', text: 'utforske ulike mineralgrupper, bergartsgrupper og sedimenter, og tolke hvor de passer inn i bergartssyklusen', cross: false },
+  { code: 'KM4', text: 'gjøre rede for ulike metoder som brukes for å datere bergarter, og bruke metoder for å identifisere relativ alder', cross: false },
+  { code: 'KM5', text: 'utforske berggrunn, løsmasser og jordarter lokalt, og tolke observasjonene for å beskrive områdets geologiske historie og betydning for lokale ressurser', cross: false },
+  { code: 'KM6', text: 'sammenligne ulike landformer og gjøre rede for hvordan de dannes og endres under påvirkning av jordsystemene og menneskelig aktivitet', cross: false },
+  { code: 'KM7', text: 'gjøre rede for det hydrologiske kretsløpet med vekt på ferskvann og utforske og presentere hvordan det påvirkes av menneskelig aktivitet', cross: false },
+  { code: 'KM8', text: 'vurdere hvordan ulike lokale og globale ferskvannsressurser kan utnyttes på en bærekraftig måte', cross: false },
+  { code: 'KM9', text: 'gjøre rede for danning, kartlegging og utvinning av geologiske ressurser nasjonalt og globalt og drøfte konsekvenser av å utvinne og utnytte disse i et bærekraftsperspektiv', cross: false },
+  { code: 'KM10', text: 'gjøre rede for ulike naturfarer knyttet til geosfæren og hydrosfæren, og vurdere hvordan mennesker kan forebygge og tilpasse seg disse farene', cross: false },
+  { code: 'KM11', text: 'utforske en naturfare knyttet til geosfæren eller hydrosfæren i et bestemt geografisk område og vurdere risiko ved hjelp av modellering', cross: false },
+  { code: 'KM12', text: 'gjennomføre geofaglig feltarbeid knyttet til geosfæren eller hydrosfæren, bearbeide og tolke de innsamlede dataene og presentere resultatene', cross: true },
+];
+
 const s = (code: string, title: string, aims: string[]): Section => ({ code, title, aims });
 
 export const SUBJECT_PRESETS: Record<string, SubjectPreset> = {
@@ -337,10 +356,104 @@ export const SUBJECT_PRESETS: Record<string, SubjectPreset> = {
       { number: '8', title: 'Sykdom, smitte og immunforsvar', sections: [] },
     ],
   },
+  /**
+   * Geofag 1: ni temaer etter læreplanen, med egne deltemaer. Legges ikke inn av seg selv (ikke i
+   * `DEFAULT_SEED_PRESETS`); brukeren legger faget til selv («Legg til fag»).
+   */
+  'geofag-1-lk20': {
+    id: 'geofag-1-lk20',
+    aliases: [],
+    subjectName: 'Geofag 1',
+    profile: 'geoscience',
+    udir: { plan: 'GFG01-03', aimSet: 'KV972' },
+    aims: GEOFAG1_AIMS,
+    chapters: [
+      {
+        number: '1',
+        title: 'Jorda som system',
+        sections: [s('1.1', 'Geosfæren, hydrosfæren, atmosfæren og biosfæren', ['KM1']), s('1.2', 'Vekselvirkninger mellom jordsystemene', ['KM1'])],
+      },
+      {
+        number: '2',
+        title: 'Jordas indre og platetektonikk',
+        sections: [
+          s('2.1', 'Jordas oppbygning', ['KM2']),
+          s('2.2', 'Plategrenser og platebevegelser', ['KM2']),
+          s('2.3', 'Jordskjelv, vulkaner og fjellkjeder', ['KM2', 'KM10']),
+        ],
+      },
+      {
+        number: '3',
+        title: 'Mineraler og bergarter',
+        sections: [
+          s('3.1', 'Mineraler og mineralgrupper', ['KM3']),
+          s('3.2', 'Magmatiske, sedimentære og metamorfe bergarter', ['KM3']),
+          s('3.3', 'Bergartssyklusen', ['KM3']),
+        ],
+      },
+      {
+        number: '4',
+        title: 'Geologisk tid og datering',
+        sections: [
+          s('4.1', 'Relativ alder og lagfølger', ['KM4']),
+          s('4.2', 'Radiometrisk datering', ['KM4']),
+          s('4.3', 'Den geologiske historien til et område', ['KM5']),
+        ],
+      },
+      {
+        number: '5',
+        title: 'Landformer og landskapsprosesser',
+        sections: [
+          s('5.1', 'Forvitring, erosjon og avsetning', ['KM6']),
+          s('5.2', 'Isbreer og istider', ['KM6']),
+          s('5.3', 'Løsmasser og jordarter', ['KM5', 'KM6']),
+          s('5.4', 'Mennesket og landskapet', ['KM6']),
+        ],
+      },
+      {
+        number: '6',
+        title: 'Vann på jorda',
+        sections: [
+          s('6.1', 'Det hydrologiske kretsløpet', ['KM7']),
+          s('6.2', 'Grunnvann, elver og innsjøer', ['KM7']),
+          s('6.3', 'Ferskvann som ressurs', ['KM8']),
+        ],
+      },
+      {
+        number: '7',
+        title: 'Geologiske ressurser',
+        sections: [
+          s('7.1', 'Malm, mineraler og byggeråstoff', ['KM9']),
+          s('7.2', 'Energi fra undergrunnen', ['KM9']),
+          s('7.3', 'Utvinning og bærekraft', ['KM9']),
+        ],
+      },
+      {
+        number: '8',
+        title: 'Naturfarer',
+        sections: [
+          s('8.1', 'Skred', ['KM10']),
+          s('8.2', 'Flom', ['KM10']),
+          s('8.3', 'Risiko, forebygging og tilpasning', ['KM10', 'KM11']),
+        ],
+      },
+      {
+        number: '9',
+        title: 'Feltarbeid og geofaglige metoder',
+        sections: [
+          s('9.1', 'Planlegging og innsamling av data', ['KM12']),
+          s('9.2', 'Bearbeiding, tolking og presentasjon', ['KM11', 'KM12']),
+        ],
+      },
+    ],
+  },
 };
 
-/** Oppsettene som legges inn som standard (rekkefølgen blir rekkefølgen i sidepanelet). */
-export const DEFAULT_SEED_PRESETS: string[] = Object.keys(SUBJECT_PRESETS);
+/**
+ * Oppsettene som legges inn som standard (rekkefølgen blir rekkefølgen i sidepanelet). Et nytt oppsett skal ikke stå
+ * her: da ville det dukket opp hos alle som har en database fra før, uten at de har valgt det.
+ */
+export const DEFAULT_SEED_PRESETS: string[] = ['fysikk-1-lk20', 'kjemi-1-lk20', 'biologi-1-lk20'];
 
 /** Oppsettet med denne id-en, også under en tidligere id (for eksempel i SEED_TEXTBOOKS fra før). */
 export function findPreset(id: string): SubjectPreset | undefined {

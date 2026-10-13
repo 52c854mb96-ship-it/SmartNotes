@@ -1,0 +1,135 @@
+% SmartNotes – preamble for geofagnotater (stil «Atlas», farger fra «Fjell»).
+% Claude får IKKE lov til å endre denne; alt innhold skrives i dokumentkroppen.
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[norsk]{babel}
+\usepackage{charter}            % brødtekst: Bitstream Charter
+\usepackage[scaled=0.92]{helvet} % overskrifter og bokstitler: grotesk, som på et kart
+\linespread{1.05}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.3cm,headheight=14pt]{geometry}
+\usepackage[parfill]{parskip}
+
+% --- Matematikk ---
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{icomma}            % 9,81 skrives riktig i matematikkmodus
+\usepackage{cancel}            % \cancel{} for forkorting
+\usepackage{siunitx}
+\sisetup{
+  output-decimal-marker = {,},
+  group-separator = {\,},
+  group-minimum-digits = 5,
+  exponent-product = \cdot,
+  inter-unit-product = \cdot,
+  per-mode = symbol,
+  range-phrase = {\text{ til }},
+  list-final-separator = {\text{ og }},
+  list-pair-separator = {\text{ og }},
+}
+\usepackage[version=4]{mhchem} % mineraler og forvitring: \ce{CaCO3 + H2O + CO2 -> Ca^2+ + 2 HCO3-}
+
+% Egne makroer (dokumentert i instruksene til Claude)
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
+\newcommand{\dd}{\mathop{}\!\mathrm{d}}
+\newcommand{\dv}[2]{\frac{\mathrm{d}#1}{\mathrm{d}#2}}
+\newcommand{\ddv}[2]{\frac{\mathrm{d}^2#1}{\mathrm{d}#2^2}}
+\newcommand{\pdv}[2]{\frac{\partial#1}{\partial#2}}
+\newcommand{\vb}[1]{\mathbf{#1}}
+\newcommand{\vu}[1]{\hat{\mathbf{#1}}}
+\newcommand{\enhet}[1]{\,[\mathrm{#1}]}
+
+% --- Figurer og tegninger ---
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[labelfont=bf,font=small]{caption}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,calc,angles,quotes,patterns,positioning,
+  decorations.pathmorphing,decorations.markings,shapes.geometric,intersections,babel}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage[european,siunitx]{circuitikz}
+
+% --- Tabeller og lister ---
+\usepackage{booktabs,array,tabularx}
+\usepackage{enumitem}
+
+% --- Bokser ---
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+% Fjell: fjordblå og berggrå, med rust og oker som aksenter
+\definecolor{snblue}{HTML}{2F5872}
+\definecolor{sngreen}{HTML}{4F6136}
+\definecolor{snorange}{HTML}{A5502B}
+\definecolor{sngray}{HTML}{5E646B}
+\definecolor{snyellow}{HTML}{9C7426}
+\tcbset{snbase/.style={enhanced,breakable,frame hidden,boxrule=0pt,arc=1pt,
+  left=8pt,right=8pt,top=6pt,bottom=6pt,fonttitle=\sffamily\bfseries\small,
+  detach title,before upper={\tcbtitle\par\smallskip},
+  before skip=11pt,after skip=10pt}}
+
+\newtcolorbox{definisjon}[1][]{snbase,colback=snblue!5,borderline north={1.6pt}{0pt}{snblue},coltitle=snblue!85!black,
+  title={Definisjon\ifx\relax#1\relax\else: #1\fi}}
+\newtcolorbox{formel}[1][]{snbase,colback=sngreen!5,borderline north={1.6pt}{0pt}{sngreen},coltitle=sngreen!85!black,
+  title={\ifx\relax#1\relax Viktig\else #1\fi}}
+\newtcolorbox{eksempel}[1][]{snbase,colback=sngray!5,borderline north={1.6pt}{0pt}{sngray},coltitle=sngray!85!black,
+  title={Eksempel\ifx\relax#1\relax\else: #1\fi}}
+\newtcolorbox{oppgave}[1][]{snbase,colback=snblue!5,borderline north={1.6pt}{0pt}{snblue},coltitle=snblue!85!black,
+  title={Oppgave\ifx\relax#1\relax\else\ #1\fi}}
+\newtcolorbox{losning}{snbase,colback=white,borderline north={0.8pt}{0pt}{snblue!50},coltitle=snblue!85!black,title={Løsning}}
+\newtcolorbox{husk}{snbase,colback=snyellow!5,borderline north={1.6pt}{0pt}{snyellow},coltitle=snyellow!85!black,
+  title={Husk}}
+\newtcolorbox{merknad}{snbase,colback=snorange!5,borderline north={1.6pt}{0pt}{snorange},coltitle=snorange!85!black,
+  title={Merknad fra SmartNotes}}
+
+\newcommand{\uleselig}[1]{\textcolor{sngray}{\textit{#1}}\textsuperscript{\textcolor{snorange}{\,?}}}
+\newcommand{\sidenotat}[1]{\marginpar{\footnotesize\raggedright #1}}
+
+% Figurer klippet ut fra originalbildet. \notedir settes av SmartNotes.
+\newcommand{\notedir}{.}
+\newcommand{\originalfigur}[3][0.6]{%
+  \begin{figure}[H]\centering
+  \includegraphics[width=#1\linewidth,height=0.45\textheight,keepaspectratio]{\notedir/#2}%
+  \ifx\relax#3\relax\else\caption{#3}\fi
+  \end{figure}}
+\newcommand{\manglerfigur}[1]{%
+  \begin{center}\fbox{\parbox{0.6\linewidth}{\centering\small\textcolor{sngray}{[Figur mangler: #1]}}}\end{center}}
+
+% --- Sidehode ---
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\newcommand{\snfag}{}
+\newcommand{\snkapittel}{}
+\fancyhead[L]{\sffamily\small\textcolor{sngray}{\snfag}}
+\fancyhead[R]{\sffamily\small\textcolor{sngray}{\snkapittel}}
+\fancyfoot[C]{\sffamily\small\thepage}
+
+% Ingen nummerering av overskrifter i notater
+\setcounter{secnumdepth}{0}
+\setcounter{tocdepth}{1}
+
+% Tittelblokk for ett notat
+\newcommand{\notehode}[3]{%
+  \begingroup
+  \noindent{\LARGE\bfseries #1\par}\vspace{2pt}
+  \noindent{\small\textcolor{sngray}{#2\ifx\relax#3\relax\else\ \textbullet\ #3\fi}\par}
+  \vspace{4pt}\noindent\textcolor{snblue}{\rule{\linewidth}{1pt}}\par
+  \endgroup\vspace{6pt}}
+
+\usepackage{titlesec}
+\titleformat{\section}{\sffamily\Large\bfseries\color{snblue}}{}{0pt}{}[\vspace{-5pt}\textcolor{snblue!35}{\rule{\linewidth}{0.4pt}}]
+\titleformat{\subsection}{\sffamily\large\bfseries\color{sngray!90!black}}{}{0pt}{}
+\titleformat{\subsubsection}{\sffamily\normalsize\bfseries}{}{0pt}{}
+\renewcommand{\notehode}[3]{%
+  \begingroup
+  \noindent{\sffamily\small\textcolor{snorange}{\rule[0.15ex]{1.2ex}{1.2ex}}\enspace\textcolor{sngray}{#2\ifx\relax#3\relax\else\ \textperiodcentered\ #3\fi}\par}\vspace{5pt}
+  \noindent{\sffamily\huge\bfseries\color{snblue!80!black}#1\par}\vspace{6pt}
+  \noindent\textcolor{snblue}{\rule{\linewidth}{1pt}}\par
+  \endgroup\vspace{8pt}}
+
+\usepackage[hidelinks]{hyperref}
+\usepackage{bookmark}

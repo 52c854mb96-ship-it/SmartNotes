@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>SmartNotes</title>
-    <meta name="description" content="Håndskrevne notater i fysikk, kjemi og biologi som pene LaTeX-PDF-er, sortert etter kapittel." />
+    <meta name="description" content="Håndskrevne notater i fysikk, kjemi, biologi og geofag som pene LaTeX-PDF-er, sortert etter tema." />
     <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0f1318" media="(prefers-color-scheme: dark)" />
     <meta name="color-scheme" content="light dark" />
@@ -12,9 +12,9 @@
       // Tema før første opptegning (unngår blink). Samme nøkkel/farger som src/lib/theme.ts.
       (function () {
         try {
-          // Fagtemaet fra forrige gang (kjemi/biologi), når appen åpnes rett i et fag eller notat.
+          // Fagtemaet fra forrige gang (kjemi/biologi/geofag), når appen åpnes rett i et fag eller notat.
           var s = localStorage.getItem('smartnotes:subjectTheme');
-          if ((s === 'chemistry' || s === 'biology') && /^\/(fag|notat)\//.test(location.pathname)) {
+          if ((s === 'chemistry' || s === 'biology' || s === 'geoscience') && /^\/(fag|notat)\//.test(location.pathname)) {
             document.documentElement.setAttribute('data-subject', s);
           }
           var t = localStorage.getItem('smartnotes:theme');

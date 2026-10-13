@@ -1,9 +1,8 @@
 // Felles typer for API-kontrakten mellom server og web-app.
 // Kun typer her – ingen kjørbar kode – slik at begge sider kan importere med `import type`.
 
-/** Fagprofil styrer LaTeX-mal og instruksjoner til Claude. Foreløpig bare fysikk. */
 /** Fagprofil: bestemmer instruksene til Claude, LaTeX-malen og fargetemaet i appen. */
-export type SubjectProfile = 'physics' | 'chemistry' | 'biology';
+export type SubjectProfile = 'physics' | 'chemistry' | 'biology' | 'geoscience';
 
 /**
  * Livssyklus for et notat på serveren:
@@ -222,6 +221,27 @@ export interface CreateSubjectRequest {
   name: string;
   profile: SubjectProfile;
   textbook?: string | null;
+}
+
+/** Et fagoppsett etter læreplanen (LK20) som kan legges til som fag («Legg til fag»). */
+export interface SubjectPresetSummary {
+  id: string;
+  subjectName: string;
+  profile: SubjectProfile;
+  /** Læreplankoden hos Udir, f.eks. «GFG01-03». */
+  plan: string;
+  aimCount: number;
+  chapterCount: number;
+  /** Brukeren har allerede et fag med samme navn og fagtype. */
+  added: boolean;
+}
+
+export interface SubjectPresetsResponse {
+  presets: SubjectPresetSummary[];
+}
+
+export interface AddPresetSubjectRequest {
+  presetId: string;
 }
 
 export interface UpdateSubjectRequest {

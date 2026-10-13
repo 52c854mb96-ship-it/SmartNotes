@@ -231,9 +231,62 @@ function unwrapUleselig(s: string): string {
   return out + s.slice(last);
 }
 
+/** siunitx-kommandoer med en enhet, og hvilket argument som er enheten. */
+const UNIT_HOSTS: Record<string, { groups: number; unit: number }> = {
+  qty: { groups: 2, unit: 1 },
+  SI: { groups: 2, unit: 1 },
+  unit: { groups: 1, unit: 0 },
+  si: { groups: 1, unit: 0 },
+};
+const UNIT_HOST_RE = new RegExp(String.raw`\\(${Object.keys(UNIT_HOSTS).join('|')})(?![A-Za-z])`, 'g');
+
+/**
+ * siunitx setter enheten i matematikkmodus, så æ, ø, å og ° forsvinner stille fra PDF-en (`\qty{2,5}{cm/år}` blir
+ * «2,5 cm/r»). «°C» og «°» blir siunitx' egne enheter; er det fortsatt andre tegn enn ASCII igjen, settes enheten som
+ * tekst etter tallet: `\qty{2,5}{cm/år}` blir `\num{2,5}\,\text{cm/år}`, og `\unit{døgn}` blir `\text{døgn}`.
+ */
+function asciiUnits(t: string): string {
+  if (!/[^\x00-\x7f]/.test(t)) return t;
+  let out = '';
+  let last = 0;
+  for (const m of t.matchAll(UNIT_HOST_RE)) {
+    if (m.index < last) continue;
+    const name = m[1]!;
+    const host = UNIT_HOSTS[name]!;
+    let i = m.index + m[0].length;
+    const opt = /^\s*\[[^\]]*\]/.exec(t.slice(i));
+    if (opt) i += opt[0].length;
+    const groups: [number, number][] = [];
+    for (let g = 0; g < host.groups; g++) {
+      const start = i + (/^\s*/.exec(t.slice(i))?.[0].length ?? 0);
+      const end = groupEnd(t, start);
+      if (end === -1) break;
+      groups.push([start, end]);
+      i = end;
+    }
+    if (groups.length !== host.groups) continue;
+    const [ua, ub] = groups[host.unit]!;
+    const unit = t.slice(ua + 1, ub - 1);
+    if (!/[^\x00-\x7f]/.test(unit)) continue;
+    const fixed = unit.replace(/°\s*C/g, '\\degreeCelsius').replace(/°/g, '\\degree');
+    let replacement: string;
+    if (!/[^\x00-\x7f]/.test(fixed)) {
+      replacement = t.slice(m.index, ua) + `{${fixed}}` + t.slice(ub, i);
+    } else if (host.groups === 2) {
+      const [na, nb] = groups[0]!;
+      replacement = `\\num${opt ? opt[0].trim() : ''}${t.slice(na, nb)}\\,\\text{${unit.trim()}}`;
+    } else {
+      replacement = `\\text{${unit.trim()}}`;
+    }
+    out += t.slice(last, m.index) + replacement;
+    last = i;
+  }
+  return out + t.slice(last);
+}
+
 function normalizeText(t: string): string {
   return (
-    hoistUleselig(t)
+    asciiUnits(hoistUleselig(t))
       // «35 %» uten \ blir en kommentar som stille kutter resten av linjen.
       .replace(/(\d)([ \t~]*)%/g, (_m, d: string, space: string) => `${d}${space ? '\\,' : ''}\\%`)
       // Boksen heter losning (uten ø).

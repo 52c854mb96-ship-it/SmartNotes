@@ -89,6 +89,53 @@ describe('startoppsett', () => {
     repo.close();
   });
 
+  it('Geofag 1 legges ikke inn av seg selv, verken i en ny database eller hos dem som har en fra før', async () => {
+    const { loadConfig } = await import('../src/config.js');
+    const defaults = loadConfig({ NODE_ENV: 'test', APP_PASSWORD: 'x' }).seedTextbooks;
+    expect(defaults).not.toContain('geofag-1-lk20');
+    const presets = () => defaults.map((id) => findPreset(id)!);
+    // En database som er lagt inn med de tre fagene fra før (som elevens), og en helt ny.
+    const existing = freshRepo();
+    existing.seed([fysikk, SUBJECT_PRESETS['kjemi-1-lk20']!, SUBJECT_PRESETS['biologi-1-lk20']!]);
+    expect(existing.seed(presets())).toEqual([]);
+    const fresh = freshRepo();
+    fresh.seed(presets());
+    for (const repo of [existing, fresh]) {
+      expect(repo.listSubjects().map((s) => s.profile)).not.toContain('geoscience');
+      repo.close();
+    }
+  });
+
+  it('README oppgir standarden for SEED_TEXTBOOKS slik den er i koden', async () => {
+    const { DEFAULT_SEED_PRESETS } = await import('../src/presets.js');
+    const readme = fs.readFileSync(path.join(import.meta.dirname, '..', '..', 'README.md'), 'utf8');
+    const row = readme.split('\n').find((l) => l.startsWith('| `SEED_TEXTBOOKS` |'));
+    expect(row?.split('|')[2]?.trim()).toBe(`\`${DEFAULT_SEED_PRESETS.join(',')}\``);
+    expect(Object.keys(SUBJECT_PRESETS).filter((id) => !DEFAULT_SEED_PRESETS.includes(id))).toEqual(['geofag-1-lk20']);
+  });
+
+  it('«Legg til fag» legger inn et oppsett med temaer og mål, én gang', () => {
+    const repo = freshRepo();
+    repo.seed([fysikk]);
+    const geofag = SUBJECT_PRESETS['geofag-1-lk20']!;
+    const subject = repo.addPreset(geofag);
+    expect(subject).toMatchObject({ name: 'Geofag 1', profile: 'geoscience', textbook: null });
+    expect(subject!.aims).toEqual(geofag.aims);
+    const chapters = repo.listChapters(subject!.id);
+    expect(chapters).toHaveLength(9);
+    expect(chapters[1]).toMatchObject({ number: '2', title: 'Jordas indre og platetektonikk' });
+    expect(chapters[1]!.sections.map((x) => x.code)).toEqual(['2.1', '2.2', '2.3']);
+    // Ikke to ganger, og startoppsettet legger det ikke inn på nytt, selv om det står i SEED_TEXTBOOKS.
+    expect(repo.addPreset(geofag)).toBeNull();
+    expect(repo.seed([fysikk, geofag])).toEqual([]);
+    // Et slettet fag kan legges til igjen av brukeren selv, men kommer ikke tilbake av seg selv.
+    repo.deleteSubject(subject!.id);
+    expect(repo.seed([fysikk, geofag])).toEqual([]);
+    expect(repo.addPreset(geofag)).toMatchObject({ name: 'Geofag 1' });
+    expect(repo.listSubjects().map((s) => s.name)).toEqual(['Fysikk 1', 'Geofag 1']);
+    repo.close();
+  });
+
   it('uten oppsett: et tomt fag «Fysikk» bare i en tom database', () => {
     const repo = freshRepo();
     expect(repo.seed([])).toEqual(['Fysikk']);

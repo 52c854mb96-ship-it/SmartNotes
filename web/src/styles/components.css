@@ -1151,6 +1151,15 @@ dialog.lightbox::backdrop {
   color: var(--accent-text);
 }
 
+.profile-option.is-disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.subject-mode {
+  margin-bottom: 16px;
+}
+
 .profile-option-text {
   display: flex;
   flex-direction: column;

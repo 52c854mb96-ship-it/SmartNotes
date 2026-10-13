@@ -8,9 +8,9 @@ import biologi from './biologi';
 /**
  * Alle visualiseringer per fagtype, i kapittelrekkefølge. Hvert fag har sin egen mappe (`fysikk/`, `kjemi/`,
  * `biologi/`) med én undermappe per kapittel, og hvert kapittel eier sin egen `kapNN/index.ts`.
- * Nye visualiseringer legges til der (ikke her).
+ * Nye visualiseringer legges til der (ikke her). Geofag har ingen visualiseringer ennå.
  */
-const META_BY_PROFILE: Record<SubjectProfile, VizMeta[]> = { physics: fysikk, chemistry: kjemi, biology: biologi };
+const META_BY_PROFILE: Record<SubjectProfile, VizMeta[]> = { physics: fysikk, chemistry: kjemi, biology: biologi, geoscience: [] };
 
 export function vizKey(m: Pick<VizMeta, 'chapter' | 'id'>): string {
   return `k${m.chapter}-${m.id}`;

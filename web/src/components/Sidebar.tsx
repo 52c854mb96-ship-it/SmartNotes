@@ -70,8 +70,8 @@ export function Sidebar({ id }: { id: string }) {
           <button
             type="button"
             className="icon-btn icon-btn-sm"
-            aria-label="Nytt fag"
-            title="Nytt fag"
+            aria-label="Legg til fag"
+            title="Legg til fag"
             onClick={() => {
               drawerStore.set(false);
               newSubjectStore.set(true);
