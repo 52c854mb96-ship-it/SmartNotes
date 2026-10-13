@@ -10,6 +10,7 @@ import {
   referencedFigures,
   replaceMissingFigures,
   latexToText,
+  normalizeBody,
   sanitizeBody,
 } from '../src/pipeline/latex.js';
 import { parseConversion, parseMeta } from '../src/pipeline/parse.js';
@@ -42,6 +43,50 @@ describe('sanitizeBody', () => {
     expect(out).not.toMatch(/\\usepackage/);
     expect(out).toContain('\\includegraphics{fig1}');
     expect(out).toContain('\\snfjernet{input}');
+  });
+});
+
+describe('normalizeBody', () => {
+  it('lar en riktig kropp være som den er', () => {
+    const body = String.raw`\section{Energi}
+\begin{formel}[Kinetisk energi]
+\[ E_k = \tfrac12 m v^2 \]
+\end{formel}
+Omtrent 20 \% går tapt, og $\qty{35}{\percent}$ blir igjen.
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}\draw (0,0) -- (1,0) node {50 %};\end{tikzpicture}
+\caption{Skisse}
+\end{figure}
+\begin{align*}
+a &= b \\[2pt]
+&= c
+\end{align*}`;
+    expect(normalizeBody(body)).toBe(body);
+  });
+  it('gjør «35 %» om til et prosenttegn i stedet for en kommentar som kutter linjen', () => {
+    expect(normalizeBody('Omtrent 35 % av energien. 12% er igjen.')).toBe('Omtrent 35\\,\\% av energien. 12\\% er igjen.');
+    expect(normalizeBody('% en kommentar')).toBe('% en kommentar');
+  });
+  it('retter boksnavn og titler som ellers feiler eller skrives dobbelt', () => {
+    expect(normalizeBody('\\begin{løsning}\nx\n\\end{løsning}')).toBe('\\begin{losning}\nx\n\\end{losning}');
+    expect(normalizeBody('\\begin{husk}[NB!]\nHusk enheten.')).toBe('\\begin{husk}\\textbf{NB!} \nHusk enheten.');
+    expect(normalizeBody('\\begin{merknad}[]x')).toBe('\\begin{merknad}x');
+    expect(normalizeBody('\\begin{eksempel}[Eksempel: Fritt fall]')).toBe('\\begin{eksempel}[Fritt fall]');
+    expect(normalizeBody('\\begin{oppgave}[Oppgave 1.23]')).toBe('\\begin{oppgave}[1.23]');
+    expect(normalizeBody('\\begin{eksempel}[Eksempelvis]')).toBe('\\begin{eksempel}[Eksempelvis]');
+    expect(normalizeBody('\\begin{definisjon}[Definisjon: Fart]')).toBe('\\begin{definisjon}[Fart]');
+    expect(normalizeBody('\\begin{definisjon}[Definisjonsmengde]')).toBe('\\begin{definisjon}[Definisjonsmengde]');
+  });
+  it('gir figurer og tabeller plassering [H] og bytter \\caption i center-blokker', () => {
+    expect(normalizeBody('\\begin{figure}[htbp]\\begin{table}\\begin{tabular}{c}')).toBe('\\begin{figure}[H]\\begin{table}[H]\\begin{tabular}{c}');
+    expect(normalizeBody('\\begin{center}\n\\begin{tikzpicture}\\end{tikzpicture}\n\\caption{Graf}\n\\end{center}')).toBe(
+      '\\begin{center}\n\\begin{tikzpicture}\\end{tikzpicture}\n\\captionof{figure}{Graf}\n\\end{center}',
+    );
+  });
+  it('fjerner tomme linjer inne i formler', () => {
+    expect(normalizeBody('\\begin{align*}\na &= b \\\\\n\n&= c\n\\end{align*}\n\nTekst')).toBe('\\begin{align*}\na &= b \\\\\n&= c\n\\end{align*}\n\nTekst');
+    expect(normalizeBody('\\[\nx\n\n= y\n\\]')).toBe('\\[\nx\n= y\n\\]');
   });
 });
 
@@ -98,6 +143,19 @@ $F = ma$
       date: null,
       newChapter: { number: '3', title: 'Energi' },
     });
+  });
+  it('beholder metadataene når en streng inneholder LaTeX', () => {
+    const meta = parseMeta(String.raw`{"title":"Kraft og $\vec{F}$","figures":[{"id":"fig1","page":1,"box":[1,2,3,4]}],"remarks":["\Delta v og \uleselig{v} og \frac{a}{b}"]}`);
+    expect(meta.title).toBe('Kraft og $\\vec{F}$');
+    expect(meta.figures).toHaveLength(1);
+    expect(meta.remarks).toEqual(['\\Delta v og \\uleselig{v} og \\frac{a}{b}']);
+    // Gyldige escape-tegn (også \u00e6) tolkes som før.
+    expect(parseMeta(String.raw`{"title":"\u00c6 og \"sitat\" og \\vec"}`).title).toBe('Æ og "sitat" og \\vec');
+  });
+  it('leser metadata som kommer etter latex-blokken', () => {
+    const { meta, body } = parseConversion('<latex>\nHei\n</latex>\n<metadata>{"title":"Etterpå"}</metadata>');
+    expect(meta.title).toBe('Etterpå');
+    expect(body).toBe('Hei');
   });
   it('kaster ved avkortet svar', () => {
     expect(() => parseConversion('<metadata>{}</metadata><latex>\\section{x}')).toThrow(/avkortet/);

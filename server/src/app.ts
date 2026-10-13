@@ -14,7 +14,7 @@ import { MAX_FILE_BYTES, MAX_FILES } from './limits.js';
 import { Bundler } from './pipeline/bundle.js';
 import type { AiService } from './pipeline/ai.js';
 import { AnthropicClaude, FakeClaude } from './pipeline/claude.js';
-import { COMPARE_EFFORT, COMPARE_MODEL, Comparer } from './pipeline/compare.js';
+import { COMPARE_EFFORT, COMPARE_MAX_TOKENS, COMPARE_MODEL, Comparer } from './pipeline/compare.js';
 import { Converter } from './pipeline/converter.js';
 import { latexAvailable } from './pipeline/latex.js';
 import { aiConfigured, createAi, describeAi } from './pipeline/providers.js';
@@ -102,7 +102,7 @@ export async function buildApp(config: Config, opts: { ai?: AiService; compareAi
   const generator = new FlashcardGenerator(repo, storage, ai, app.log);
   // Sammenligningen bruker alltid Haiku direkte, uten reserven (RefusalFallback) som ellers sender et avslag til Sonnet.
   const compareAi = metered(
-    opts.compareAi ?? opts.ai ?? (config.fakeClaude ? new FakeClaude() : new AnthropicClaude(config, COMPARE_MODEL, { effort: COMPARE_EFFORT })),
+    opts.compareAi ?? opts.ai ?? (config.fakeClaude ? new FakeClaude() : new AnthropicClaude(config, COMPARE_MODEL, { effort: COMPARE_EFFORT, maxTokens: COMPARE_MAX_TOKENS })),
   );
   const comparer = new Comparer(repo, storage, converter, compareAi, config, app.log);
   const latexOk = await latexAvailable();

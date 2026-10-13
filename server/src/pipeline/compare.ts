@@ -30,6 +30,10 @@ export const COMPARE_MODEL = 'claude-haiku-5-5';
 export const COMPARE_EFFORT: Effort = 'high';
 /** Instruksversjonen sammenligningen bruker nå (Haiku-tillegget og grundigheten). */
 export const COMPARE_PROMPT_VERSION = HAIKU_PROMPT_VERSION;
+/** Haiku 5.5 kan svare med opptil 128 000 tokens; grundigere tenkning og et langt notat skal ikke kuttes av. */
+export const COMPARE_MAX_TOKENS = 128_000;
+/** Minst tre rettingsrunder: en runde koster Haiku under ett øre, og LaTeX melder bare én feil per kompilering. */
+export const COMPARE_FIX_ATTEMPTS = 3;
 
 const COMPILE_FAILED = 'Haiku-versjonen kompilerte ikke, selv etter automatisk retting. Den vanlige versjonen er ikke endret.';
 
@@ -134,7 +138,7 @@ export class Comparer {
         this.repo.setComparisonStage(id, 'compiling');
         let outcome = await this.converter.compileInto(out, figDir, row, body, info);
         // Samme automatiske retting som den vanlige konverteringen, med Haiku.
-        for (let attempt = 0; !outcome.ok && attempt < this.config.maxFixAttempts; attempt++) {
+        for (let attempt = 0; !outcome.ok && attempt < Math.max(this.config.maxFixAttempts, COMPARE_FIX_ATTEMPTS); attempt++) {
           if (!alive()) throw new AbortedError('Notatet ble slettet.');
           this.repo.setComparisonStage(id, 'fixing');
           let fixed: { body: string; usage: Usage };

@@ -79,6 +79,57 @@ const FORBIDDEN = [
 
 const FORBIDDEN_RE = new RegExp(String.raw`\\(${FORBIDDEN.map((f) => f.replace(/[{}]/g, '\\$&')).join('|')})(?![a-zA-Z])`, 'g');
 
+/** Tegnekode som normaliseringen ikke skal røre (prosenttegn og hakeparenteser betyr noe annet der). */
+const DRAWING_CODE = /\\begin\{(tikzpicture|circuitikz)\}[\s\S]*?\\end\{\1\}/g;
+
+/**
+ * Retter vanlige småfeil i en modells LaTeX som ellers gir kompileringsfeil eller stille feil i PDF-en. Bare mønstre
+ * som aldri er riktige med SmartNotes-malen endres, så en kropp som allerede er riktig, blir som den er (figurer og
+ * tabeller får alltid plassering [H], slik instruksen sier). Tegnekode (TikZ, circuitikz) røres ikke.
+ */
+export function normalizeBody(body: string): string {
+  // \caption utenfor en figur (i en center-blokk, ofte rundt en tegning) feiler; \captionof virker overalt.
+  body = body.replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/g, (block) => block.replace(/\\caption(?=\s*[[{])/g, '\\captionof{figure}'));
+  const out: string[] = [];
+  let last = 0;
+  for (const m of body.matchAll(DRAWING_CODE)) {
+    out.push(normalizeText(body.slice(last, m.index)), m[0]);
+    last = m.index + m[0].length;
+  }
+  out.push(normalizeText(body.slice(last)));
+  return out.join('');
+}
+
+const TITLE_WORD: Record<string, RegExp> = {
+  eksempel: /^\s*eksempel\b\s*[:.\-–]?\s*/i,
+  oppgave: /^\s*oppgave\b\s*[:.\-–]?\s*/i,
+  definisjon: /^\s*definisjon\s*[:\-–]\s*/i,
+};
+
+function normalizeText(t: string): string {
+  return (
+    t
+      // «35 %» uten \ blir en kommentar som stille kutter resten av linjen.
+      .replace(/(\d)([ \t~]*)%/g, (_m, d: string, space: string) => `${d}${space ? '\\,' : ''}\\%`)
+      // Boksen heter losning (uten ø).
+      .replace(/\\(begin|end)\{løsning\}/g, '\\$1{losning}')
+      // husk, merknad og losning har ingen tittel; «[NB!]» ville blitt skrevet ut som tekst.
+      .replace(/\\begin\{(husk|merknad|losning)\}[ \t]*\[([^\]\n]*)\]/g, (_m, env: string, title: string) =>
+        title.trim() ? `\\begin{${env}}\\textbf{${title.trim()}} ` : `\\begin{${env}}`,
+      )
+      // Malen setter selv «Eksempel:», «Oppgave» og «Definisjon:» foran tittelen.
+      .replace(/\\begin\{(eksempel|oppgave|definisjon)\}\[([^\]\n]*)\]/g, (m, env: string, title: string) => {
+        const rest = title.replace(TITLE_WORD[env]!, '');
+        return rest && rest !== title ? `\\begin{${env}}[${rest}]` : m;
+      })
+      // En flytende figur inne i en boks gir «Not in outer par mode»; [H] virker overalt.
+      .replace(/\\begin\{(figure|table)\}(?:[ \t]*\[[^\]\n]*\])?/g, '\\begin{$1}[H]')
+      // En tom linje inne i en formel gir «Paragraph ended before … was complete».
+      .replace(/\\begin\{(align\*?|equation\*?|gather\*?|multline\*?)\}[\s\S]*?\\end\{\1\}/g, (block) => block.replace(/\n[ \t]*\n+/g, '\n'))
+      .replace(/(?<!\\)\\\[[\s\S]*?(?<!\\)\\\]/g, (block) => block.replace(/\n[ \t]*\n+/g, '\n'))
+  );
+}
+
 /** Gjør Claudes svar om til en trygg dokumentkropp. */
 export function sanitizeBody(raw: string): string {
   let body = raw.replace(/\r\n?/g, '\n');
@@ -91,6 +142,7 @@ export function sanitizeBody(raw: string): string {
     const end = body.lastIndexOf('\\end{document}');
     if (end !== -1) body = body.slice(0, end);
   }
+  body = normalizeBody(body);
   body = body.replace(FORBIDDEN_RE, (_m, cmd: string) => `\\snfjernet{${cmd.replace(/[{}]/g, '')}}`);
   return body.trim() + '\n';
 }
@@ -151,8 +203,22 @@ export interface NoteDocInput {
 /** Ekstra makro som brukes når forbudte kommandoer er fjernet. */
 const EXTRA_PREAMBLE = String.raw`
 \newcommand{\snfjernet}[1]{\textcolor{snorange}{\texttt{[fjernet: \textbackslash #1]}}}
-% Holder en sammenhengende utregning eller forklaring på samme side (flyttes heller til neste side). Brukes av Haiku.
-\newenvironment{samlet}{\par\noindent\begin{minipage}{\linewidth}\setlength{\parskip}{0.5\baselineskip}}{\end{minipage}\par}
+\makeatletter
+% Holder en sammenhengende utregning eller forklaring på samme side: en kort blokk flyttes hel til neste side. En blokk
+% som er høyere enn nesten en hel side, brytes som vanlig, så ingenting forsvinner nederst. Brukes av Haiku.
+\newsavebox{\sn@samlet}
+\newenvironment{samlet}{\par\setbox\sn@samlet\vbox\bgroup\hsize\linewidth\@parboxrestore\allowdisplaybreaks[1]%
+  \setlength{\parskip}{0.5\baselineskip}\noindent\ignorespaces}{\par\egroup
+  \ifdim\dimexpr\ht\sn@samlet+\dp\sn@samlet\relax>0.85\textheight\unvbox\sn@samlet\else\noindent\box\sn@samlet\fi\par}
+\makeatother
+% \uleselig også i formler (et usikkert tegn eller symbol i en ligning).
+\DeclareRobustCommand{\uleselig}[1]{\ifmmode{\color{sngray}#1}^{\textcolor{snorange}{?}}\else
+  \textcolor{sngray}{\textit{#1}}\textsuperscript{\textcolor{snorange}{\,?}}\fi}
+% Engelske navn på boksene, så en modell som skriver dem, ikke får kompileringsfeil.
+\ProvideDocumentEnvironment{solution}{}{\begin{losning}}{\end{losning}}
+\ProvideDocumentEnvironment{definition}{O{}}{\begin{definisjon}[#1]}{\end{definisjon}}
+\ProvideDocumentEnvironment{example}{O{}}{\begin{eksempel}[#1]}{\end{eksempel}}
+\ProvideDocumentEnvironment{exercise}{O{}}{\begin{oppgave}[#1]}{\end{oppgave}}
 `;
 
 export interface AssembledDoc {

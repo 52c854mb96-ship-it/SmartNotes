@@ -23,6 +23,42 @@ function isValidDate(s: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(s);
 }
 
+/** Matematikk i korttekst: `$…$` og `$$…$$`. */
+const MATH = /\$\$[\s\S]*?\$\$|\$[^$]*\$/g;
+
+/**
+ * Retter LaTeX som en liten modell har skrevet feil i JSON. Skriver den `\frac` i stedet for `\\frac`, leser JSON det som
+ * sideskift + «rac», og `\theta` blir tabulator + «heta». Ollama tillater disse escape-tegnene, så ingenting feiler,
+ * men kortene blir feil. Sideskift og backspace hører aldri hjemme i teksten og gjøres alltid om. Linjeskift,
+ * tabulator og vognretur gjøres om bare inne i `$…$` og foran bokstaver (`\nu`, `\neq`, `\rho`), siden et ekte
+ * linjeskift foran et ord er vanlig i vanlig tekst.
+ */
+export function repairLatexEscapes<T>(value: T): T {
+  if (typeof value === 'string') {
+    return value
+      .replace(/\f/g, '\\f')
+      .replace(/\x08/g, '\\b')
+      .replace(MATH, (math) =>
+        math
+          .replace(/\n(?=[A-Za-z])/g, '\\n')
+          .replace(/\t(?=[A-Za-z])/g, '\\t')
+          .replace(/\r(?=[A-Za-z])/g, '\\r'),
+      ) as T;
+  }
+  if (Array.isArray(value)) return value.map((v) => repairLatexEscapes(v)) as T;
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, repairLatexEscapes(v)])) as T;
+  return value;
+}
+
+/**
+ * Gjør ugyldige escape-tegn i JSON gyldige: en modell som skriver LaTeX i en streng («$\vec{F}$», «\Delta v»), lager
+ * escape-tegn JSON ikke kjenner. Gyldige par (`\\`, `\"`, `\n`, `\u00e6` …) beholdes; et ensomt `\` foran noe annet
+ * (også `\u` uten fire sifre, som i `\uleselig`) dobles.
+ */
+function escapeLoneBackslashes(json: string): string {
+  return json.replace(/\\(u[0-9a-fA-F]{4}|["\\/bfnrt])?/g, (m, c?: string) => (c ? m : '\\\\'));
+}
+
 /** Tolker metadata-JSON fra Claude tolerant: ugyldige felter blir ignorert i stedet for å feile. */
 export function parseMeta(raw: string): NoteMeta {
   let json = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
@@ -34,8 +70,15 @@ export function parseMeta(raw: string): NoteMeta {
   try {
     obj = JSON.parse(json) as Record<string, unknown>;
   } catch {
-    return { ...EMPTY_META };
+    // Én LaTeX-kommando i en merknad skal ikke slette tittelen, kapittelet og alle figurene.
+    try {
+      obj = JSON.parse(escapeLoneBackslashes(json)) as Record<string, unknown>;
+    } catch {
+      return { ...EMPTY_META };
+    }
   }
+  // `\frac` blir sideskift + «rac» i JSON; gjør slike tegn om til LaTeX igjen.
+  obj = repairLatexEscapes(obj);
 
   const date = str(obj.date, 10);
   const nc = obj.new_chapter ?? obj.newChapter;

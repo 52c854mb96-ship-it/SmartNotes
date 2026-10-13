@@ -7,24 +7,25 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadConfig } from '../src/config.js';
 import type { ConvertRequest } from '../src/pipeline/ai.js';
 import { AnthropicClaude } from '../src/pipeline/claude.js';
-import { COMPARE_EFFORT } from '../src/pipeline/compare.js';
-import { assembleNoteDoc, compileLatex } from '../src/pipeline/latex.js';
-import { HAIKU_PROMPT_VERSION } from '../src/profiles/haiku.js';
+import { COMPARE_EFFORT, COMPARE_FIX_ATTEMPTS, COMPARE_MAX_TOKENS } from '../src/pipeline/compare.js';
+import { assembleNoteDoc, compileLatex, replaceMissingFigures, sanitizeBody } from '../src/pipeline/latex.js';
+import { HAIKU_CLOSING, HAIKU_PROMPT_VERSION } from '../src/profiles/haiku.js';
 import { getProfile, PROFILE_IDS, readPreamble, systemPromptFor } from '../src/profiles/index.js';
 
 /**
- * Fingeravtrykket av Haiku-instruksene for hver versjon. Endrer du tilleggene (eller grundigheten i sammenligningen),
- * øker du HAIKU_PROMPT_VERSION i profiles/haiku.ts og legger inn det nye fingeravtrykket her. Da skilles elevens
- * vurderinger av de gamle og de nye instruksene i Innstillinger.
+ * Fingeravtrykket av Haiku-instruksene for hver versjon. Endrer du tilleggene, avslutningen eller oppsettet i
+ * sammenligningen (grundighet, svarlengde, rettingsrunder), øker du HAIKU_PROMPT_VERSION i profiles/haiku.ts og legger
+ * inn det nye fingeravtrykket her. Da skilles elevens vurderinger av de gamle og de nye instruksene i Innstillinger.
  */
 const FINGERPRINTS: Record<number, string> = {
-  2: '51b965b6392c66a8',
+  2: 'f914dfdf2266154d',
 };
 
 const fingerprint = () =>
   createHash('sha256')
     .update(PROFILE_IDS.map((id) => getProfile(id).haikuAddendum).join('\n---\n'))
-    .update(`effort=${COMPARE_EFFORT}`)
+    .update(`\n---\n${HAIKU_CLOSING}`)
+    .update(`effort=${COMPARE_EFFORT};maxTokens=${COMPARE_MAX_TOKENS};fixAttempts=${COMPARE_FIX_ATTEMPTS}`)
     .digest('hex')
     .slice(0, 16);
 
@@ -55,8 +56,13 @@ describe('Haiku-instruksene', () => {
   for (const id of PROFILE_IDS) {
     it(`har maler som kompilerer med PDF-malen for ${id}`, async () => {
       const addendum = getProfile(id).haikuAddendum;
-      const blocks = [...addendum.matchAll(/\\begin\{(figure|formel|samlet|circuitikz)\}[\s\S]*?\\end\{\1\}/g)].map((m) => m[0]);
-      expect(blocks.length).toBeGreaterThanOrEqual(id === 'physics' ? 7 : 2);
+      // Malene står på egne linjer; i reglene nevnes miljøene midt i en linje.
+      const blocks = [...addendum.matchAll(/^\\begin\{(figure|formel|samlet|circuitikz)\}[\s\S]*?^\\end\{\1\}/gm)].map((m) => m[0]);
+      expect(blocks.length).toBeGreaterThanOrEqual(id === 'physics' ? 8 : 3);
+      // Eksempelsvaret i sin helhet, slik SmartNotes behandler et svar (figuren finnes ikke her).
+      const example = /<latex>\n([\s\S]*?)<\/latex>/.exec(addendum)?.[1];
+      expect(example).toBeTruthy();
+      blocks.push(replaceMissingFigures(sanitizeBody(example!), new Set()));
       const doc = assembleNoteDoc({
         preamble: readPreamble(getProfile(id)),
         subjectName: 'Test',
@@ -95,6 +101,12 @@ describe('kallet til Claude', () => {
     return bodies;
   }
   afterEach(() => vi.unstubAllGlobals());
+  type Sent = {
+    max_tokens: number;
+    system: { text: string }[];
+    output_config: { effort: string };
+    messages: { content: { type: string; text?: string }[] }[];
+  };
 
   const config = () =>
     loadConfig({ ...process.env, NODE_ENV: 'test', APP_PASSWORD: 'x', SMARTNOTES_FAKE_CLAUDE: '', ANTHROPIC_API_KEY: 'sk-test', CLAUDE_EFFORT: 'medium' });
@@ -119,18 +131,32 @@ describe('kallet til Claude', () => {
 
   it('sender Haiku-tillegget og den grundigere tenkningen til Haiku', async () => {
     const bodies = fakeStream(answer);
-    const res = await new AnthropicClaude(config(), 'claude-haiku-5-5', { effort: COMPARE_EFFORT }).convert(await request());
+    const res = await new AnthropicClaude(config(), 'claude-haiku-5-5', { effort: COMPARE_EFFORT, maxTokens: COMPARE_MAX_TOKENS }).convert(await request());
     expect(res.body).toBe('Hei');
-    const sent = bodies[0] as { system: { text: string }[]; output_config: { effort: string } };
+    const sent = bodies[0] as Sent;
     expect(sent.system[0]!.text).toBe(systemPromptFor(getProfile('physics'), 'claude-haiku-5-5'));
     expect(sent.output_config.effort).toBe('high');
+    expect(sent.max_tokens).toBe(128_000);
+    // Påminnelsen kommer sist, rett etter sidebildet.
+    const content = sent.messages[0]!.content;
+    expect(content.at(-2)!.type).toBe('image');
+    expect(content.at(-1)!.text).toBe(HAIKU_CLOSING);
+  });
+
+  it('har metadata etter latex i Haiku-svaret', async () => {
+    fakeStream('<latex>Hei</latex>\n<metadata>{"title":"Etterpå","figures":[],"remarks":["$\\Delta v$"]}</metadata>');
+    const res = await new AnthropicClaude(config(), 'claude-haiku-5-5').convert(await request());
+    expect(res.meta.title).toBe('Etterpå');
+    expect(res.meta.remarks).toEqual(['$\\Delta v$']);
   });
 
   it('sender instruksen uendret til Sonnet, med vanlig grundighet', async () => {
     const bodies = fakeStream(answer);
     await new AnthropicClaude(config(), 'claude-sonnet-5-5').convert(await request());
-    const sent = bodies[0] as { system: { text: string }[]; output_config: { effort: string } };
+    const sent = bodies[0] as Sent;
     expect(sent.system[0]!.text).toBe(getProfile('physics').systemPrompt);
     expect(sent.output_config.effort).toBe('medium');
+    expect(sent.max_tokens).toBe(64_000);
+    expect(sent.messages[0]!.content.at(-1)!.text).toBe('Konverter notatet. Svar med <metadata> og <latex> som beskrevet.');
   });
 });
