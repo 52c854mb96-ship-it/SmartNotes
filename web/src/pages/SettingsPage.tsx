@@ -294,7 +294,13 @@ function ComparisonCard() {
     return () => ctrl.abort();
   }, [online]);
 
-  const empty = !!summary && summary.rated + summary.unrated + summary.failed + summary.running === 0;
+  const empty =
+    !!summary &&
+    summary.rated + summary.unrated + summary.failed + summary.running === 0 &&
+    summary.items.length === 0 &&
+    summary.versions.length === 0;
+  /** Vurderinger gjort med eldre Haiku-instrukser, for å se om de nye hjelper. */
+  const older = summary?.versions.filter((v) => v.version !== summary.promptVersion) ?? [];
   return (
     <section className="card" aria-labelledby="comparison-h">
       <div className="card-head">
@@ -314,8 +320,13 @@ function ComparisonCard() {
       ) : (
         <>
           <p className="comparison-headline">
-            {summary.rated > 0 ? `Haiku god nok på ${summary.haikuOk} av ${summary.rated}` : 'Ingen er vurdert ennå'}
+            {summary.rated > 0
+              ? `Haiku god nok på ${summary.haikuOk} av ${summary.rated}`
+              : older.length > 0
+                ? 'Ingen er vurdert med de nye instruksene ennå'
+                : 'Ingen er vurdert ennå'}
           </p>
+          <p className="muted small">Med Haiku-instruksene som gjelder nå (versjon {summary.promptVersion}).</p>
           <dl className="kv">
             {summary.rated > 0 && (
               <>
@@ -341,6 +352,14 @@ function ComparisonCard() {
                 <dd>{summary.failed}</dd>
               </>
             )}
+            {older.map((v) => (
+              <Fragment key={v.version}>
+                <dt>Versjon {v.version}</dt>
+                <dd>
+                  Haiku god nok på {v.haikuOk} av {v.rated}
+                </dd>
+              </Fragment>
+            ))}
             <dt>Kostnad</dt>
             <dd>{kroner(summary.costNok)}</dd>
           </dl>
@@ -359,6 +378,9 @@ function ComparisonCard() {
                       <span className={`badge ${item.verdict === 'haiku_ok' ? 'badge-success' : 'badge-neutral'}`}>
                         {VERDICT_TEXT[item.verdict]}
                       </span>
+                      {item.promptVersion !== summary.promptVersion && (
+                        <span className="muted small">versjon {item.promptVersion}</span>
+                      )}
                     </span>
                     {item.comment && <span className="muted small">{item.comment}</span>}
                   </li>

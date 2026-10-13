@@ -23,6 +23,16 @@ export function isProfile(id: string): id is SubjectProfile {
   return id in PROFILES;
 }
 
+/** Haiku-modellene får et eget tillegg til instruksen (se `profiles/haiku.ts`). */
+export function usesHaikuAddendum(model: string): boolean {
+  return model.startsWith('claude-haiku');
+}
+
+/** Systeminstruksen for konvertering og retting med denne modellen. Stabil per modell, så den caches. */
+export function systemPromptFor(profile: Profile, model: string): string {
+  return usesHaikuAddendum(model) ? `${profile.systemPrompt}\n\n${profile.haikuAddendum}` : profile.systemPrompt;
+}
+
 const preambleCache = new Map<string, string>();
 
 export function readPreamble(profile: Profile): string {

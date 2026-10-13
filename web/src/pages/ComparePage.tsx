@@ -210,6 +210,12 @@ function CompareView({ noteId }: { noteId: string | undefined }) {
             {settled?.baseChanged && (
               <p className="inline-note">Den vanlige versjonen er endret etter at Haiku-versjonen ble laget.</p>
             )}
+            {settled?.promptOutdated && (
+              <p className="inline-note">
+                Laget med eldre instrukser for Haiku (versjon {settled.promptVersion}). Velg «Lag på nytt …» for å prøve de
+                nye.
+              </p>
+            )}
           </div>
           {settled && <ComparePanes note={note} comparison={settled} />}
         </>
@@ -468,7 +474,7 @@ function ComparePanes({ note, comparison }: { note: Note; comparison: NoteCompar
               Haiku-versjon
             </h2>
             <span className="muted small">
-              {comparison.model}
+              {comparison.model} · instrukser versjon {comparison.promptVersion}
               {comparison.costNok !== null && ` · ${kroner(comparison.costNok)}`}
             </span>
           </div>

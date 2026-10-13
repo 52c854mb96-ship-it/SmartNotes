@@ -12,7 +12,7 @@ import {
   type FlashcardRequest,
   type RawFlashcard,
 } from '../flashcards/prompt.js';
-import type { Profile } from '../profiles/index.js';
+import { systemPromptFor, type Profile } from '../profiles/index.js';
 import { withUsage, zeroUsage, type Usage } from '../usage.js';
 import { TOC_AIMS_PROMPT, buildContext, tocSchema, type AiService, type ConvertRequest, type ConvertResult, type FixRequest } from './ai.js';
 import { extractLatex, parseConversion, type NoteMeta } from './parse.js';
@@ -122,13 +122,19 @@ export class AnthropicClaude implements AiService {
   readonly provider = 'anthropic';
   private readonly client: Anthropic | null;
   private readonly modelId: string;
+  private readonly effort: Effort;
 
-  /** `model` er modellen denne tjenesten bruker; standard er konverteringsmodellen (CLAUDE_MODEL). */
+  /**
+   * `model` er modellen denne tjenesten bruker; standard er konverteringsmodellen (CLAUDE_MODEL). `effort` overstyrer
+   * CLAUDE_EFFORT for konverteringen (sammenligningen lar Haiku tenke grundigere).
+   */
   constructor(
     private readonly config: Config,
     model: string = config.model,
+    opts: { effort?: Effort } = {},
   ) {
     this.modelId = model;
+    this.effort = opts.effort ?? config.effort;
     this.client = config.anthropicApiKey ? new Anthropic({ apiKey: config.anthropicApiKey, timeout: 20 * 60_000, maxRetries: 3 }) : null;
   }
 
@@ -173,7 +179,7 @@ export class AnthropicClaude implements AiService {
       ...(await pageBlocks(req.pages)),
       { type: 'text', text: 'Konverter notatet. Svar med <metadata> og <latex> som beskrevet.' },
     ];
-    const msg = await this.stream(req.profile.systemPrompt, content, this.config.effort);
+    const msg = await this.stream(systemPromptFor(req.profile, this.modelId), content, this.effort);
     const usage = usageOf('convert', msg);
     return withUsage(usage, () => {
       checkStop(msg.stop_reason);
@@ -187,8 +193,8 @@ export class AnthropicClaude implements AiService {
       { type: 'text', text: `${req.profile.fixInstructions}\n\n<compile_errors>\n${req.errorReport}\n</compile_errors>` },
       { type: 'text', text: `<latex>\n${req.body}\n</latex>` },
     ];
-    const effort: Effort = this.config.effort === 'low' ? 'low' : 'medium';
-    const msg = await this.stream(req.profile.systemPrompt, content, effort);
+    const effort: Effort = this.effort === 'low' ? 'low' : 'medium';
+    const msg = await this.stream(systemPromptFor(req.profile, this.modelId), content, effort);
     const usage = usageOf('fix', msg);
     return withUsage(usage, () => {
       checkStop(msg.stop_reason);

@@ -9,6 +9,7 @@ import { loadConfig } from '../src/config.js';
 import type { AiService, ConvertRequest, ConvertResult } from '../src/pipeline/ai.js';
 import { FakeClaude, RefusalError } from '../src/pipeline/claude.js';
 import { ConversionError } from '../src/errors.js';
+import { COMPARE_PROMPT_VERSION } from '../src/pipeline/compare.js';
 import { zeroUsage } from '../src/usage.js';
 
 /** Haiku som avslår, og teller kallene (for å vise at Sonnet ikke tar over i sammenligningen). */
@@ -157,7 +158,7 @@ describe('sammenligning med Haiku', () => {
 
     await env.ctx.comparer.idle();
     const done = (await env.call<NoteComparisonResponse>('GET', `/api/notes/${note.id}/compare`)).body.comparison!;
-    expect(done).toMatchObject({ status: 'done', stage: null, error: null, baseChanged: false, costNok: 0 });
+    expect(done).toMatchObject({ status: 'done', stage: null, error: null, baseChanged: false, costNok: 0, promptVersion: COMPARE_PROMPT_VERSION, promptOutdated: false });
     expect(done.finishedAt).not.toBeNull();
 
     const pdf = await env.fetch(`/api/notes/${note.id}/compare/pdf?download=1`);
@@ -189,7 +190,8 @@ describe('sammenligning med Haiku', () => {
     expect(rated.status).toBe(200);
     expect(rated.body.comparison).toMatchObject({ verdict: 'haiku_ok', comment: 'Like bra, men figuren ble litt liten.' });
     const summary = (await env.call<ComparisonSummaryResponse>('GET', '/api/compare/summary')).body;
-    expect(summary).toMatchObject({ rated: 1, haikuOk: 1, sonnetBetter: 0, failed: 0, unrated: 0 });
+    expect(summary).toMatchObject({ rated: 1, haikuOk: 1, sonnetBetter: 0, failed: 0, unrated: 0, promptVersion: COMPARE_PROMPT_VERSION });
+    expect(summary.versions).toEqual([{ version: COMPARE_PROMPT_VERSION, rated: 1, haikuOk: 1 }]);
     expect(summary.items).toEqual([
       expect.objectContaining({ noteId: note.id, deleted: false, verdict: 'haiku_ok', comment: 'Like bra, men figuren ble litt liten.' }),
     ]);
@@ -312,7 +314,7 @@ describe('sammenligning når noe går galt', () => {
   it('markerer en kjøring som ble avbrutt av en omstart, i stedet for å kjøre den på nytt', async () => {
     env = await startApp();
     const note = await convertedNote(env);
-    env.ctx.repo.startComparison(note.id, { model: 'claude-haiku-5-5', baseModel: null, basePdfRev: note.pdfRev, pageCount: 1 });
+    env.ctx.repo.startComparison(note.id, { model: 'claude-haiku-5-5', baseModel: null, basePdfRev: note.pdfRev, pageCount: 1, promptVersion: 2 });
     const dataDir = env.dataDir;
     await stopApp(env);
     env = await startApp(undefined, dataDir);
@@ -320,4 +322,36 @@ describe('sammenligning når noe går galt', () => {
     expect(row).toMatchObject({ status: 'failed' });
     expect(row.error).toMatch(/startet på nytt/);
   }, 90_000);
+});
+
+describe('oppgradering av databasen', () => {
+  it('fører vurderingene som finnes, opp under instruksversjon 1', async () => {
+    const { Repo } = await import('../src/db.js');
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-migrering-')), 'smartnotes.db');
+    let repo = new Repo(file);
+    const version = repo.db.pragma('user_version', { simple: true }) as number;
+    repo.startComparison('n1', { model: 'claude-haiku-5-5', baseModel: 'claude-sonnet-5-5', basePdfRev: 1, pageCount: 3, promptVersion: 1 });
+    repo.finishComparison('n1', { ok: true, error: null, remarks: [], costUsd: 0.001 });
+    repo.db.prepare(`UPDATE note_comparisons SET verdict = 'sonnet_better', comment = 'Færre farger', rated_at = '2026-10-12T20:00:00Z'`).run();
+    // Slik databasen så ut før migrering 6: uten versjonskolonnen og uten loggen.
+    repo.db.exec(`DROP TABLE comparison_ratings; ALTER TABLE note_comparisons DROP COLUMN prompt_version;`);
+    repo.db.pragma(`user_version = ${version - 1}`);
+    repo.close();
+
+    repo = new Repo(file);
+    try {
+      expect(repo.getComparisonRow('n1')).toMatchObject({ prompt_version: 1, verdict: 'sonnet_better' });
+      expect(repo.comparisonRatingsByVersion()).toEqual([{ version: 1, rated: 1, haikuOk: 0 }]);
+      // En ny kjøring med de nye instruksene beholder den gamle vurderingen i loggen.
+      repo.startComparison('n1', { model: 'claude-haiku-5-5', baseModel: 'claude-sonnet-5-5', basePdfRev: 1, pageCount: 3, promptVersion: 2 });
+      repo.finishComparison('n1', { ok: true, error: null, remarks: [], costUsd: 0.002 });
+      expect(repo.rateComparison('n1', 'haiku_ok', null)).toBe(true);
+      expect(repo.comparisonRatingsByVersion()).toEqual([
+        { version: 2, rated: 1, haikuOk: 1 },
+        { version: 1, rated: 1, haikuOk: 0 },
+      ]);
+    } finally {
+      repo.close();
+    }
+  });
 });

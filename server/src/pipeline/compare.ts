@@ -2,9 +2,10 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
 import type { ComparisonSummaryResponse } from '@smartnotes/shared';
-import type { Config } from '../config.js';
+import type { Config, Effort } from '../config.js';
 import type { ComparisonRow, NoteRow, Repo } from '../db.js';
 import { AbortedError, ConversionError } from '../errors.js';
+import { HAIKU_PROMPT_VERSION } from '../profiles/haiku.js';
 import { getProfile } from '../profiles/index.js';
 import { type Storage, writeFileAtomic } from '../storage.js';
 import { costUsd, usageScope, type Usage } from '../usage.js';
@@ -25,6 +26,10 @@ import { errorExcerpt, replaceMissingFigures, sanitizeBody } from './latex.js';
 
 /** Modellen sammenligningen bruker. */
 export const COMPARE_MODEL = 'claude-haiku-5-5';
+/** Haiku får tenke grundigere enn Sonnet (elevens valg 13. oktober 2026); det koster fortsatt en brøkdel. */
+export const COMPARE_EFFORT: Effort = 'high';
+/** Instruksversjonen sammenligningen bruker nå (Haiku-tillegget og grundigheten). */
+export const COMPARE_PROMPT_VERSION = HAIKU_PROMPT_VERSION;
 
 const COMPILE_FAILED = 'Haiku-versjonen kompilerte ikke, selv etter automatisk retting. Den vanlige versjonen er ikke endret.';
 
@@ -61,6 +66,7 @@ export class Comparer {
       baseModel: baseModelOf(row),
       basePdfRev: row.pdf_rev,
       pageCount: row.page_count,
+      promptVersion: COMPARE_PROMPT_VERSION,
     });
     // Sidebildene kopieres med en gang, så en ny konvertering av notatet ikke bytter dem ut under kjøringen.
     const input = this.snapshotPages(row.id);
@@ -211,31 +217,41 @@ function baseModelOf(row: NoteRow): string | null {
 }
 
 /**
- * Oppsummeringen i Innstillinger: hvor ofte eleven syntes Haiku var god nok. Vurderinger av notater som senere er
- * slettet, telles med; uvurderte og mislykkede telles bare for notater som finnes (de andre kan ikke vurderes).
+ * Oppsummeringen i Innstillinger: hvor ofte eleven syntes Haiku var god nok med de nåværende instruksene (tidligere
+ * versjoner står i `versions`). Vurderinger av notater som senere er slettet, telles med; uvurderte og mislykkede
+ * telles bare for notater som finnes (de andre kan ikke vurderes).
  */
 export function summarizeComparisons(
   rows: (ComparisonRow & { title: string | null; note_deleted: number | null })[],
+  versions: { version: number; rated: number; haikuOk: number }[],
   usdNok: number,
+  promptVersion = COMPARE_PROMPT_VERSION,
 ): ComparisonSummaryResponse {
-  const rated = rows.filter((r) => r.verdict !== null && r.status !== 'running');
+  const current = rows.filter((r) => r.prompt_version === promptVersion);
+  const rated = current.filter((r) => r.verdict !== null && r.status !== 'running');
   const live = (r: { note_deleted: number | null }) => r.note_deleted === 0;
   const costUsdTotal = rows.reduce((sum, r) => sum + r.spent_usd, 0);
   return {
+    promptVersion,
+    versions,
     rated: rated.length,
     haikuOk: rated.filter((r) => r.verdict === 'haiku_ok').length,
     sonnetBetter: rated.filter((r) => r.verdict === 'sonnet_better').length,
-    failed: rows.filter((r) => r.status === 'failed' && r.verdict === null && live(r)).length,
-    unrated: rows.filter((r) => r.status === 'done' && r.verdict === null && live(r)).length,
+    failed: current.filter((r) => r.status === 'failed' && r.verdict === null && live(r)).length,
+    unrated: current.filter((r) => r.status === 'done' && r.verdict === null && live(r)).length,
     running: rows.filter((r) => r.status === 'running' && live(r)).length,
     costNok: Math.round(costUsdTotal * usdNok * 100) / 100,
-    items: rated.map((r) => ({
-      noteId: r.note_id,
-      title: r.title ?? '',
-      deleted: r.note_deleted !== 0,
-      verdict: r.verdict!,
-      comment: r.comment,
-      ratedAt: r.rated_at!,
-    })),
+    // Alle vurderte notater (siste vurdering per notat), også med eldre instrukser, merket med versjonen.
+    items: rows
+      .filter((r) => r.verdict !== null && r.status !== 'running')
+      .map((r) => ({
+        noteId: r.note_id,
+        title: r.title ?? '',
+        deleted: r.note_deleted !== 0,
+        verdict: r.verdict!,
+        comment: r.comment,
+        ratedAt: r.rated_at!,
+        promptVersion: r.prompt_version,
+      })),
   };
 }

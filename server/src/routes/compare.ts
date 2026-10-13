@@ -7,7 +7,7 @@ import type { Config } from '../config.js';
 import { type Repo, toComparison } from '../db.js';
 import { conflict, notFound, offlineFeature } from '../errors.js';
 import { slug } from '../pipeline/bundle.js';
-import { type Comparer, summarizeComparisons } from '../pipeline/compare.js';
+import { COMPARE_PROMPT_VERSION, type Comparer, summarizeComparisons } from '../pipeline/compare.js';
 import { isId, type Storage } from '../storage.js';
 import { parse, sendPdf } from './library.js';
 
@@ -27,7 +27,7 @@ export function registerCompareRoutes(app: FastifyInstance, d: { repo: Repo; sto
   };
   const current = (noteId: string, notePdfRev: number): NoteComparisonResponse => {
     const row = repo.getComparisonRow(noteId);
-    return { comparison: row ? toComparison(row, notePdfRev, config.usdNok) : null };
+    return { comparison: row ? toComparison(row, notePdfRev, config.usdNok, COMPARE_PROMPT_VERSION) : null };
   };
 
   app.get<{ Params: { id: string } }>('/api/notes/:id/compare', async (req): Promise<NoteComparisonResponse> => {
@@ -65,5 +65,7 @@ export function registerCompareRoutes(app: FastifyInstance, d: { repo: Repo; sto
     return current(note.id, note.pdf_rev);
   });
 
-  app.get('/api/compare/summary', async (): Promise<ComparisonSummaryResponse> => summarizeComparisons(repo.listComparisons(), config.usdNok));
+  app.get('/api/compare/summary', async (): Promise<ComparisonSummaryResponse> =>
+    summarizeComparisons(repo.listComparisons(), repo.comparisonRatingsByVersion(), config.usdNok),
+  );
 }

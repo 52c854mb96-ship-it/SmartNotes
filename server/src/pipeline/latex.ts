@@ -151,6 +151,8 @@ export interface NoteDocInput {
 /** Ekstra makro som brukes når forbudte kommandoer er fjernet. */
 const EXTRA_PREAMBLE = String.raw`
 \newcommand{\snfjernet}[1]{\textcolor{snorange}{\texttt{[fjernet: \textbackslash #1]}}}
+% Holder en sammenhengende utregning eller forklaring på samme side (flyttes heller til neste side). Brukes av Haiku.
+\newenvironment{samlet}{\par\noindent\begin{minipage}{\linewidth}\setlength{\parskip}{0.5\baselineskip}}{\end{minipage}\par}
 `;
 
 export interface AssembledDoc {
