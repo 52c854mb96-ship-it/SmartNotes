@@ -20,6 +20,7 @@ import { CLOSING, HAIKU_CLOSING, PROMPT_VERSION } from '../src/profiles/precise.
 const FINGERPRINTS: Record<number, string> = {
   2: '1cd64847f6a76608',
   3: '03b4656a8f0592f9',
+  4: 'da51f20db33a32d2',
 };
 
 const fingerprint = () =>

@@ -274,7 +274,7 @@ Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er nest
   - I tillegg tre presiseringer som skeptikerne avviste, men som er billige: kjemimalene kan bruke syntaks fra seksjon 3 og 4, 7.3 viser til feilene seksjon 1 nevner (også ubalanserte likninger), og helt uleselig tekst skrives fortsatt `\uleselig{[uleselig]}`. Krysningsskjema som rutenett stemmer nå med seksjon 3 i biologi.
   - Fingeravtrykket for versjon 3 er oppdatert (versjonen er ikke lagt ut ennå).
 - Fase 1b bygges parallelt i en egen arbeidskopi (`/home/user/sn-1b`, lokal gren `local/fase-1b`), og fase 2 i `/home/user/sn-2` oppå 1a og 1b. De flettes inn i rekkefølge etter at 1a er flettet.
-- Kl. 23.20: PR [#22](https://github.com/52c854mb96-ship-it/SmartNotes/pull/22) (fase 1a) er flettet etter grønn CI, og grenen er nullstilt fra `main`.
+- Kl. 22.28: PR [#22](https://github.com/52c854mb96-ship-it/SmartNotes/pull/22) (fase 1a) er flettet etter grønn CI, og grenen er nullstilt fra `main`.
 - Fase 1b (opphavsrett), design og resultat:
   - `LICENSE` (alle rettigheter forbeholdt; navnet på eieren står ikke, bare GitHub-kontoen) og `"license": "UNLICENSED"` i package.json. Omtalt i README.
   - Lisenslista lages under byggingen (`web/build/licenses.ts`, ingen nye pakker): alle moduler fra `node_modules` som er med i bunten (også CSS), kopierte filer, hjelpekoden fra Vite og rolldown, service workeren (Workbox, workbox-build og modullasteren), fonter (KaTeX-fontene under SIL OFL 1.1) og kode som er bakt inn i en pakke (core-js i pdf.js). En lisens som ikke er godkjent, eller en font uten oppføring, stopper byggingen. Vises under Innstillinger → «Om SmartNotes» → «Lisenser».
@@ -285,6 +285,16 @@ Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er nest
   - Stikkprøve av eksempeloppgavene i visualiseringene (4 av 8: kast fra balkong, trinse, akebakke, ballistisk pendel): egne tekster og egne tall i klassiske situasjoner, uten henvisninger til bøker eller eksamener.
   - Gjennomgang (18 agenter): 15 funn, 9 bekreftet og rettet med tester (KaTeX-fontene stod som MIT, CSS fra pakker ble ikke sjekket, core-js i pdf.js manglet, modullasteren i service workeren manglet, NOTICE-filer, SPDX-uttrykk med parenteser, NLOD uten lenke, fontomtalen og en gammel rad i README).
   - Geofag 1 er etter Udir GFG01-03 (kompetansemålsett KV972, 12 mål). Planens «GEO01-02» er geografi, og GFG01-02 er utgått.
+- Kl. 22.52: PR [#23](https://github.com/52c854mb96-ship-it/SmartNotes/pull/23) (fase 1b) er flettet etter grønn CI. Tidene i loggen er norsk tid (kl. 23.20 over var feil; #22 ble flettet 22.28).
+- Fase 2 (Geofag 1), design og resultat (bygget i `/home/user/sn-2` mens 1b ventet på CI, så lagt oppå `main`):
+  - Ny profil `geoscience`: systeminstruks for kart og profiler, bergartenes kretsløp, platetektonikk, vær og klima, hav og strømmer (uten datoer og id-er), `tocPrompt` gjennom `toc-prompt.ts`, PDF-malen «Atlas» (`server/latex/geoscience/preamble.tex`: Charter og grotesk i overskriftene, samme bokser og makroer som de andre, mhchem, pgfplots og mønstre) og fargetemaet «Fjell» (rust og leire på steingrått, også tidlig i `index.html`). Ingen visualiseringer ennå (`[]` i registeret).
+  - Fagoppsettet `geofag-1-lk20`: de 12 kompetansemålene i GFG01-03 ordrett fra Udir (kontrollert mot Grep, lagt til i Udir-testen) og SmartNotes' egne 9 temaer med deltemaer. Ingen lærebok.
+  - Geofag legges ikke inn av seg selv: `DEFAULT_SEED_PRESETS` er nå de tre fagene som fantes, og et nytt oppsett skal aldri inn i den lista. «Legg til fag» har fått valget «Fra læreplanen» (`GET /api/presets`, `POST /api/subjects/from-preset`, `Repo.addPreset`, som også merker oppsettet som lagt inn). Fag eleven har, kan ikke velges en gang til.
+  - De presise reglene for geofag (7.7): klimadiagram (søyler og kurve med to akser), terrengprofil, lagrekke og kretsløp tegnes på nytt; kart, landskapsskisser og bilder klippes ut. Malene er uten farger, og etikettene i lagrekka står fast i forhold til søylen. Ny regel for alle fag: enheter i `\qty` og `\unit` har bare a–z, fordi siunitx mister æ, ø, å og ° uten feilmelding. Normalisereren retter det samme i ettertid (`°C` → `\degreeCelsius`, ellers tallet med enheten som tekst).
+  - `PROMPT_VERSION` = 4 (versjon 3 er lagt ut), med nytt fingeravtrykk.
+  - Gjennomgang (Workflow med tre kontrollører og én skeptiker per funn): 12 funn, 10 bekreftet (to var samme funn om farger) og rettet med tester: dokumentasjonen av `SEED_TEXTBOOKS`, farger i malene, eval-feilmeldingen manglet geofag, «Legg til fag» ventet på hele synken uten å vise at den jobbet og navigerte etter at dialogen var lukket, fokus i dialogen, ukjent profil i oppsettlista, e2e-testen var avhengig av rekkefølgen på prosjektene, enheter med æ, ø, å og °, og etikettene i lagrekka.
+  - typecheck, test (239 + 2214), build og e2e (24) er grønne lokalt etter at fase 2 ble lagt oppå `main`.
+  - Etter at fase 2 ble lagt oppå `main`: rettingsinstruksen for geofag sa fortsatt at en figur i en boks er en typisk feil (rettet i de andre fagene i #22); fjernet, og testen for det går over alle fag.
 
 ## Morgenrapport
 

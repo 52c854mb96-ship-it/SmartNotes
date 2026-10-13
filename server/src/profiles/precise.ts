@@ -21,8 +21,9 @@ import type { SubjectProfile } from '@smartnotes/shared';
  * - 3 (14. oktober): `\uleselig` bare når sammenhengen ikke avgjør, maler for kjemi og biologi, og reglene for alle
  *   Claude-modeller. En sammenligning vurderer fortsatt Haiku; den vanlige versjonen av notatet har reglene bare hvis
  *   den er konvertert etter at versjon 3 ble lagt ut.
+ * - 4 (14. oktober): Geofag 1 (egne tegneregler og maler), og enheter i `\qty` og `\unit` uten æ, ø, å og °.
  */
-export const PROMPT_VERSION = 3;
+export const PROMPT_VERSION = 4;
 
 const INTRO = String.raw`# 7. Precise rules
 

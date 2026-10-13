@@ -8,7 +8,7 @@ Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen d
 
 SmartNotes er en personlig app for en elev på VG2. Eleven tar bilder av håndskrevne notater eller laster opp PDF-er. Claude leser dem og skriver dem om til LaTeX, og serveren lager pene PDF-er. Notatene sorteres etter fag, kapittel og delkapittel i læreboka.
 
-- **Fag:** Fysikk 1, Kjemi 1 og Biologi 1, alle etter LK20, med SmartNotes' egne temaer (ingen lærebok innebygd; eleven kan importere sin egen innholdsfortegnelse).
+- **Fag:** Fysikk 1, Kjemi 1 og Biologi 1, alle etter LK20, med SmartNotes' egne temaer (ingen lærebok innebygd; eleven kan importere sin egen innholdsfortegnelse). Geofag 1 (LK20, GFG01-03) legges ikke inn av seg selv, men kan legges til med «Legg til fag» → «Fra læreplanen».
 - **Hvem bruker den:** eleven har bare Fysikk 1. Kjemi 1 og Biologi 1 er laget for at andre skal kunne bruke appen senere.
 - **Hvordan den kjører:** en PWA som fungerer uten nett, og én server (Docker) på Railway som synkroniserer alle enhetene (Mac, PC, iPad og mobil).
 - **Språk:** alt eleven ser, er på bokmål: appen, feilmeldingene og PDF-malene. Koden bruker engelske navn.
@@ -20,7 +20,7 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 | Funksjon | Kort beskrivelse | Hvor i koden |
 |---|---|---|
 | Konvertering | Sider → Claude (bilde) → LaTeX → PDF. Notatet gjengis tro mot originalen, og mulige feil markeres med en merknad i stedet for å rettes. Enkle figurer tegnes på nytt i TikZ, og kompliserte klippes ut. Kompileringsfeil rettes automatisk i inntil to runder. | `server/src/pipeline/` |
-| Fag og temaer | Kompetansemål (ordrett fra Udir) og egne temaer for tre fag. Deltemaer finnes for Fysikk 1. Claude velger tema og eventuelt deltema, og eleven kan flytte notatet selv. | `server/src/presets.ts`, `server/src/profiles/` |
+| Fag og temaer | Kompetansemål (ordrett fra Udir) og egne temaer for fire fag. Deltemaer finnes for Fysikk 1. Claude velger tema og eventuelt deltema, og eleven kan flytte notatet selv. «Legg til fag» lager et fag fra læreplanen eller et tomt fag. | `server/src/presets.ts`, `server/src/profiles/`, `web/src/components/NewSubjectDialog.tsx` |
 | Import av innholdsfortegnelse | Tekst eller bilder → kapitler med delkapitler, koblet til kompetansemålene. | `server/src/toc.ts`, `web/src/pages/settings/ChapterImport.tsx` |
 | Søk | Ctrl/Cmd+K søker i titler og innhold, også uten nett. | `web/src/components/SearchPalette.tsx` |
 | Visualiseringer | 129 interaktive forklaringer, ordnet etter kapittel: 56 i fysikk, 31 i kjemi og 42 i biologi. Fysikk kapittel 1–4 har illustrert utseende (ekte gjenstander, lys, skygge og kraftpiler), praktiske situasjoner og to eksempeloppgaver per kapittel, der løsningen vises trinn for trinn. | `web/src/viz/` (les `README.md` der) |
@@ -28,21 +28,21 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 | Samle-PDF | Et helt kapittel eller hele faget som én PDF med innholdsliste. | `server/src/pipeline/bundle.ts` |
 | Offline og synk | Dexie (IndexedDB) er kilden lokalt. Opplastinger uten nett havner i en kø, og PDF-ene hentes på forhånd. | `web/src/db.ts`, `web/src/sync.ts` |
 | Rediger LaTeX | Eleven kan se og endre LaTeX-koden og kompilere på nytt. | `web/src/pages/note/LatexTab.tsx` |
-| Prøv med Haiku | Et ferdig notat konverteres én gang til med Haiku 5.5 fra de samme sidene, og vises ved siden av den vanlige versjonen. Notatet endres ikke. Haiku tenker grundigere enn Sonnet, og begge får de presise reglene (versjon 3). Eleven vurderer «Haiku er god nok» eller «Sonnet er bedre», og Innstillinger viser oppsummeringen per instruksversjon. | `server/src/pipeline/compare.ts`, `server/src/profiles/precise.ts`, `web/src/pages/ComparePage.tsx` |
+| Prøv med Haiku | Et ferdig notat konverteres én gang til med Haiku 5.5 fra de samme sidene, og vises ved siden av den vanlige versjonen. Notatet endres ikke. Haiku tenker grundigere enn Sonnet, og begge får de presise reglene (versjon 4). Eleven vurderer «Haiku er god nok» eller «Sonnet er bedre», og Innstillinger viser oppsummeringen per instruksversjon. | `server/src/pipeline/compare.ts`, `server/src/profiles/precise.ts`, `web/src/pages/ComparePage.tsx` |
 | Sikkerhetskopi | Innstillinger → «Sikkerhetskopi» laster ned alt på serveren som én `.tar.gz`: en kopi av databasen (uten innlogginger) og filene til notatene. Viser størrelsen og når kopien sist ble tatt. Gjenoppretting er ikke bygd inn. | `server/src/backup.ts`, `server/src/routes/backup.ts` |
 | Forbruk av AI | Hvert AI-kall logges med tokens og beregnet pris, også når det feiler. Innstillingene viser forbruket per måned, per type og per modell. | `server/src/usage.ts`, tabellen `usage_log` |
 | AI-leverandør per oppgave | Claude eller en lokal modell gjennom Ollama, valgt per oppgave (konvertering, kort, innholdsfortegnelse). Claude er standard. | `server/src/pipeline/providers.ts`, `ollama.ts` |
 | Hjemmemaskin | Serveren kan sende AI-kallene til en PC eller Mac hjemme som kjører Ollama. Av som standard. | `server/src/remote/`, [HJEMMEMASKIN.md](HJEMMEMASKIN.md) |
 | Måleverktøy | Sammenligner modeller på elevens egne sider og lager en rapport med karakterfelter. | `npm run eval`, [MALING.md](MALING.md) |
-| Design | Tre kolonner på store skjermer, og lyst, mørkt eller systemtema. Hvert fag har sine egne farger og sin egen PDF-mal: fysikk «Blekk» og «Klassisk», kjemi «Tavle» og «Moderne», biologi «Salvie» og «Lærebok». | `web/src/styles/`, `server/latex/` |
+| Design | Tre kolonner på store skjermer, og lyst, mørkt eller systemtema. Hvert fag har sine egne farger og sin egen PDF-mal: fysikk «Blekk» og «Klassisk», kjemi «Tavle» og «Moderne», biologi «Salvie» og «Lærebok», geofag «Fjell» og «Atlas». | `web/src/styles/`, `server/latex/` |
 
-**Claude-oppsett nå:** alle oppgaver går til Claude, med mindre `AI_PROVIDER…` er satt i Railway (se README). Konverteringen bruker Claude Sonnet 5.5 med middels grundighet (`effort: medium`). Alle Claude-modellene får de presise reglene (seksjon 7 i instruksen, `server/src/profiles/precise.ts`, versjon 3): navngitte formelbokser, merknad bare ved sikre feil, `\uleselig` bare når sammenhengen ikke avgjør, utregninger samlet og maler for tegningene i hvert fag. Kortstokker og innholdsfortegnelser bruker Claude Haiku 5.5, som koster en tjuendedel; avslår Haiku, prøves Sonnet. Opus 5.5 er grundigere, men koster det dobbelte, og kan slås på med `CLAUDE_MODEL=claude-opus-5-5`. Se `server/src/config.ts` (`claudeModels`).
+**Claude-oppsett nå:** alle oppgaver går til Claude, med mindre `AI_PROVIDER…` er satt i Railway (se README). Konverteringen bruker Claude Sonnet 5.5 med middels grundighet (`effort: medium`). Alle Claude-modellene får de presise reglene (seksjon 7 i instruksen, `server/src/profiles/precise.ts`, versjon 4): navngitte formelbokser, merknad bare ved sikre feil, `\uleselig` bare når sammenhengen ikke avgjør, utregninger samlet og maler for tegningene i hvert fag. Kortstokker og innholdsfortegnelser bruker Claude Haiku 5.5, som koster en tjuendedel; avslår Haiku, prøves Sonnet. Opus 5.5 er grundigere, men koster det dobbelte, og kan slås på med `CLAUDE_MODEL=claude-opus-5-5`. Se `server/src/config.ts` (`claudeModels`).
 
 **Kostnad (beregnet, ikke målt):** en side koster ca. 0,25 kr, og et notat på 5 sider ca. 1,35 kr. En kortstokk (Haiku 5.5) koster noen få øre (ca. 0,05–0,15 kr), og under 1,50 kr for de største. Vanlig bruk i tre fag koster rundt 40 kr i måneden til Claude, og mindre med bare Fysikk 1. Railway-abonnementet (ca. 55 kr i måneden) har eleven fra før, og forbruket til serveren dekkes helt eller delvis av det som er inkludert i abonnementet. Alle tallene står i dokumentet [Kostnader for SmartNotes](https://claude.ai/code/artifact/e5b19b9d-07c0-4c20-bc21-d453fe1ada01), som er privat for eleven. Det er et Claude Docs-dokument: les det med Claude Docs-verktøyet (`read` med ref `{"object":"project","id":"e5b19b9d-07c0-4c20-bc21-d453fe1ada01"}`, deretter fanen). Artifact-verktøyet viser ikke innholdet.
 
 ## Hva som er gjort
 
-Alt ble bygget 4.–11. oktober 2026 og flettet inn i `main` gjennom disse pull requestene:
+Alt ble bygget 4.–14. oktober 2026 og flettet inn i `main` gjennom disse pull requestene:
 
 | PR | Innhold |
 |---|---|
@@ -66,8 +66,11 @@ Alt ble bygget 4.–11. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#18](https://github.com/52c854mb96-ship-it/SmartNotes/pull/18) | Oppfølging etter en ny gjennomgang: filene til notatene skrives atomisk, så kopien holder seg uendret mens den lastes ned, tryggere steg for gjenoppretting, og lagrede PDF-er hentes på nytt etter en gjenoppretting |
 | [#19](https://github.com/52c854mb96-ship-it/SmartNotes/pull/19) | «Prøv med Haiku» på notatene: Haiku-versjonen ved siden av den vanlige, med elevens vurdering og en oppsummering i innstillingene |
 | [#20](https://github.com/52c854mb96-ship-it/SmartNotes/pull/20) | Haiku-instrukser versjon 2 etter elevens kommentarer på tre notater: eget tillegg for Haiku med navngitte formelbokser, færre merknader, utregninger samlet på én side og TikZ-maler, høyere grundighet, og vurderinger per instruksversjon. Retter også fire feller for alle modeller (LaTeX i metadata slettet figurene, «35 %» kuttet resten av linjen, boksnavn og tomme linjer i formler) |
+| [#21](https://github.com/52c854mb96-ship-it/SmartNotes/pull/21) | Nattplanen for 13.–14. oktober ([NATTPLAN.md](NATTPLAN.md)) og elevens beslutninger fra kvelden |
+| [#22](https://github.com/52c854mb96-ship-it/SmartNotes/pull/22) | Instrukser versjon 3: de presise reglene (seksjon 7) for alle Claude-modeller, `\uleselig` bare når sammenhengen ikke avgjør, og maler for tegninger i kjemi og biologi |
+| [#23](https://github.com/52c854mb96-ship-it/SmartNotes/pull/23) | Opphavsrett: `LICENSE`, lisenslista i appen (Innstillinger → «Om SmartNotes» → «Lisenser»), kompetansemålene kontrollert mot Udir med NLOD-henvisning, og navnet på læreboka bare når brukeren har skrevet det selv |
 
-**Tester:** omtrent 2 410 enhetstester (209 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 20 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, og hele flyten for «Prøv med Haiku») og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
+**Tester:** omtrent 2 450 enhetstester (239 på serveren og 2 214 i web-appen, de fleste for modellene bak visualiseringene), 24 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, hele flyten for «Prøv med Haiku», lisenssiden og «Legg til fag» med Geofag 1) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 
@@ -137,6 +140,7 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 - **Ikke testet med ekte Claude:** skyøktene har ingen API-nøkkel, så alle tester bruker en falsk Claude (`SMARTNOTES_FAKE_CLAUDE=1`). Det er ennå ikke prøvd hvordan Sonnet 5.5 med middels grundighet konverterer ekte notater, eller hvor gode kortene i flashcards blir. [OPPSETT.md](OPPSETT.md) forklarer hvordan eleven kan gi skyøktene en nøkkel.
 - **Kostnadene er beregnet, ikke målt:** valutakursen (10,50 kr per dollar) og Railway-prisen er omtrentlige, fordi nettverket i økten blokkerte kildene. Det faktiske forbruket står i Anthropic Console under **Usage**.
 - **Kjemi 1 og Biologi 1 mangler delkapitler:** bare kapittel 1 i kjemi har delkapitler (1.1–1.5, der 1.3 er mest usikker). De fire visualiseringene i kjemi kapittel 1 er koblet til delkapitlene. De andre i kjemi og alle i biologi er koblet per kapittel (`sections: []`). Noen kapitteltitler er heller ikke bekreftet: kapittel 2 i kjemi og kapittel 8, 13 og 15 i biologi.
+- **Geofag 1 er nytt:** det har ingen visualiseringer ennå, og instruksene og tegnemalene er bare prøvd med falsk Claude (malene kompileres i testene).
 - **Visualiseringene er halvveis:** fysikk kapittel 5–10 har ennå det gamle utseendet og mangler nye praktiske visualiseringer og eksempeloppgaver. Kjemi og biologi er ikke påbegynt (et halvferdig forsøk på å pusse opp byggeklossene ble tatt ut igjen før PR #7). Dette venter til kostnadsarbeidet har kommet lenger, etter elevens ønske. Planen og elevens valg står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md), og skriptene står i [docs/workflows/](workflows/README.md).
 - **Rottegnet (√) i `FormulaLine`** står litt for lavt. Kapittel 4 retter det lokalt; det bør rettes i `viz/kit/` for alle.
 - **De nye visualiseringene er ikke prøvd på en ekte iPad eller iPhone,** bare i WebKit-testene i CI.
