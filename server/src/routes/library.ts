@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import sharp from 'sharp';
 import { z } from 'zod';
-import type { ChapterPreviewResponse, SyncResponse } from '@smartnotes/shared';
+import type { ChapterPreviewResponse, SubjectPresetsResponse, SyncResponse } from '@smartnotes/shared';
 import type { Repo } from '../db.js';
 import { ConversionError, HttpError, badRequest, notFound } from '../errors.js';
 import type { Bundler } from '../pipeline/bundle.js';
@@ -10,6 +10,7 @@ import type { AiService } from '../pipeline/ai.js';
 import { aiConfigured } from '../pipeline/providers.js';
 import type { Converter } from '../pipeline/converter.js';
 import { fitScale, sniffKind } from '../pipeline/images.js';
+import { SUBJECT_PRESETS } from '../presets.js';
 import { getProfile, isProfile } from '../profiles/index.js';
 import { isId, type Storage } from '../storage.js';
 import { cleanChapterInputs, parseTocText } from '../toc.js';
@@ -91,6 +92,32 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
     if (!isProfile(body.profile)) throw badRequest('Ukjent fagtype.');
     reply.code(201);
     return repo.createSubject({ name: body.name, profile: body.profile, textbook: body.textbook || null });
+  });
+
+  // Fagoppsettene etter læreplanen, og om brukeren har faget fra før.
+  app.get('/api/presets', async (): Promise<SubjectPresetsResponse> => {
+    const subjects = repo.listSubjects();
+    return {
+      presets: Object.values(SUBJECT_PRESETS).map((p) => ({
+        id: p.id,
+        subjectName: p.subjectName,
+        profile: p.profile,
+        plan: p.udir.plan,
+        aimCount: p.aims.length,
+        chapterCount: p.chapters.length,
+        added: subjects.some((s) => s.name === p.subjectName && s.profile === p.profile),
+      })),
+    };
+  });
+
+  app.post('/api/subjects/from-preset', async (req, reply) => {
+    const body = parse(z.object({ presetId: z.string().max(100) }), req.body);
+    const preset = Object.hasOwn(SUBJECT_PRESETS, body.presetId) ? SUBJECT_PRESETS[body.presetId] : undefined;
+    if (!preset) throw notFound('Fant ikke fagoppsettet.');
+    const subject = repo.addPreset(preset);
+    if (!subject) throw new HttpError(409, 'exists', `Du har allerede ${preset.subjectName}.`);
+    reply.code(201);
+    return subject;
   });
 
   app.patch<{ Params: { id: string } }>('/api/subjects/:id', async (req) => {

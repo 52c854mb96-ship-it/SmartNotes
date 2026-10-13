@@ -1,4 +1,4 @@
-import { Atom, FlaskConical, Leaf, type LucideProps } from 'lucide-react';
+import { Atom, FlaskConical, Leaf, Mountain, type LucideProps } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { SubjectProfile } from '@smartnotes/shared';
 
@@ -7,12 +7,13 @@ export const PROFILES: Record<SubjectProfile, { label: string; template: string;
   physics: { label: 'Fysikk', template: 'Klassisk', Icon: Atom },
   chemistry: { label: 'Kjemi', template: 'Moderne', Icon: FlaskConical },
   biology: { label: 'Biologi', template: 'Lærebok', Icon: Leaf },
+  geoscience: { label: 'Geofag', template: 'Atlas', Icon: Mountain },
 };
 
-export const PROFILE_ORDER: SubjectProfile[] = ['physics', 'chemistry', 'biology'];
+export const PROFILE_ORDER: SubjectProfile[] = ['physics', 'chemistry', 'biology', 'geoscience'];
 
 export function profileOf(value: string | null | undefined): SubjectProfile {
-  return value === 'chemistry' || value === 'biology' ? value : 'physics';
+  return value === 'chemistry' || value === 'biology' || value === 'geoscience' ? value : 'physics';
 }
 
 export function SubjectIcon({ profile, ...props }: { profile: string | null | undefined } & LucideProps) {

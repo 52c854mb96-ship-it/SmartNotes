@@ -11,6 +11,7 @@ const THEME_COLORS = {
   physics: { light: '#f5f6f8', dark: '#0f1318' },
   chemistry: { light: '#f3f4ef', dark: '#1b2420' },
   biology: { light: '#fafaf7', dark: '#141814' },
+  geoscience: { light: '#f4f3f0', dark: '#17191b' },
 } as const;
 
 type SubjectTheme = keyof typeof THEME_COLORS;
@@ -41,7 +42,7 @@ function apply(pref: ThemePref): void {
 
 /** Fargetema for faget som er åpent (fysikk = standard). Settes av AppShell. */
 export function setSubjectTheme(profile: string | null | undefined): void {
-  const next: SubjectTheme = profile === 'chemistry' || profile === 'biology' ? profile : 'physics';
+  const next: SubjectTheme = profile === 'chemistry' || profile === 'biology' || profile === 'geoscience' ? profile : 'physics';
   if (next === subjectTheme && document.documentElement.dataset.subject === (next === 'physics' ? undefined : next)) return;
   subjectTheme = next;
   if (next === 'physics') delete document.documentElement.dataset.subject;

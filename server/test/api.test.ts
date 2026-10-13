@@ -293,6 +293,26 @@ describe('fag, kapitler og notater', () => {
     expect(empty.body.message).toMatch(/ingen ferdige notater/);
   });
 
+  it('legger til et fag fra oppsettene etter læreplanen («Legg til fag»)', async () => {
+    const list = await call<{ presets: { id: string; subjectName: string; profile: string; plan: string; aimCount: number; added: boolean }[] }>('GET', '/api/presets');
+    expect(list.status).toBe(200);
+    const geo = list.body.presets.find((p) => p.id === 'geofag-1-lk20');
+    expect(geo).toMatchObject({ subjectName: 'Geofag 1', profile: 'geoscience', plan: 'GFG01-03', aimCount: 12, added: false });
+    const added = await call<Subject>('POST', '/api/subjects/from-preset', { json: { presetId: 'geofag-1-lk20' } });
+    expect(added.status).toBe(201);
+    expect(added.body).toMatchObject({ name: 'Geofag 1', profile: 'geoscience' });
+    const synced = await sync();
+    expect(synced.chapters.filter((c) => c.subjectId === added.body.id)).toHaveLength(9);
+    expect((await call<{ presets: { id: string; added: boolean }[] }>('GET', '/api/presets')).body.presets.find((p) => p.id === 'geofag-1-lk20')?.added).toBe(true);
+    const again = await call<{ message: string }>('POST', '/api/subjects/from-preset', { json: { presetId: 'geofag-1-lk20' } });
+    expect(again.status).toBe(409);
+    expect(again.body.message).toBe('Du har allerede Geofag 1.');
+    for (const presetId of ['ukjent', '__proto__', 'constructor']) {
+      expect((await call('POST', '/api/subjects/from-preset', { json: { presetId } })).status, presetId).toBe(404);
+    }
+    expect((await call('DELETE', `/api/subjects/${added.body.id}`)).status).toBe(200);
+  });
+
   it('har læreboka i undertittelen på samle-PDF-ene bare når brukeren har skrevet den selv', async () => {
     const text = (pdf: Buffer) => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-tekst-'));

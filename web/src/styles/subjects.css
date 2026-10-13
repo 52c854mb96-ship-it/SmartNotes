@@ -1,7 +1,8 @@
 /*
  * Fargetema per fag. Fysikk bruker standardfargene («Blekk», base.css).
- * Kjemi = «Tavle» (tavlegrønn og krittgul), biologi = «Salvie» (dempet grønn på varmt papir).
- * <html data-subject="chemistry|biology"> settes av AppShell når et fag er åpent.
+ * Kjemi = «Tavle» (tavlegrønn og krittgul), biologi = «Salvie» (dempet grønn på varmt papir),
+ * geofag = «Fjell» (rust og leire på steingrått).
+ * <html data-subject="chemistry|biology|geoscience"> settes av AppShell når et fag er åpent.
  * Hvert fag har en lys og en mørk variant som følger lys/mørk/system-valget (samme mønster som base.css).
  * Den mørke varianten må definere alle variablene den lyse definerer.
  */
@@ -130,4 +131,67 @@
   --on-accent: #141814;
   --focus-ring: 0 0 0 3px rgb(147 180 141 / 0.4);
   --viz-surface: #1b201c;
+}
+
+/* ---------- Geofag: Fjell ---------- */
+:root[data-subject='geoscience'] {
+  --bg: #f4f3f0;
+  --surface: #ffffff;
+  --surface-2: #eceae5;
+  --surface-3: #e2dfd8;
+  --border: #e0ddd6;
+  --border-strong: #c7c2b8;
+  --text: #1d2226;
+  --text-2: #4d555c;
+  --text-3: #80878d;
+  --accent: #8f4b2e;
+  --accent-hover: #783d24;
+  --accent-soft: #f6ebe4;
+  --accent-soft-2: #ecd6c8;
+  --accent-text: #85452a;
+  --on-accent: #ffffff;
+  --focus-ring: 0 0 0 3px rgb(143 75 46 / 0.3);
+  --viz-surface: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-subject='geoscience']:not([data-theme='light']) {
+    --bg: #17191b;
+    --surface: #1f2225;
+    --surface-2: #262a2d;
+    --surface-3: #2f3337;
+    --border: #32373b;
+    --border-strong: #474e54;
+    --text: #ecebe8;
+    --text-2: #b9bcbe;
+    --text-3: #8a8f93;
+    --accent: #e09a72;
+    --accent-hover: #eab08f;
+    --accent-soft: rgb(224 154 114 / 0.13);
+    --accent-soft-2: rgb(224 154 114 / 0.24);
+    --accent-text: #ebb08f;
+    --on-accent: #17191b;
+    --focus-ring: 0 0 0 3px rgb(224 154 114 / 0.4);
+    --viz-surface: #1f2225;
+  }
+}
+
+:root[data-subject='geoscience'][data-theme='dark'] {
+  --bg: #17191b;
+  --surface: #1f2225;
+  --surface-2: #262a2d;
+  --surface-3: #2f3337;
+  --border: #32373b;
+  --border-strong: #474e54;
+  --text: #ecebe8;
+  --text-2: #b9bcbe;
+  --text-3: #8a8f93;
+  --accent: #e09a72;
+  --accent-hover: #eab08f;
+  --accent-soft: rgb(224 154 114 / 0.13);
+  --accent-soft-2: rgb(224 154 114 / 0.24);
+  --accent-text: #ebb08f;
+  --on-accent: #17191b;
+  --focus-ring: 0 0 0 3px rgb(224 154 114 / 0.4);
+  --viz-surface: #1f2225;
 }

@@ -9,6 +9,7 @@ import type {
   CreateChapterRequest,
   CreateDeckRequest,
   CreateFlashcardRequest,
+  AddPresetSubjectRequest,
   CreateSubjectRequest,
   Deck,
   Flashcard,
@@ -24,6 +25,7 @@ import type {
   RetryNoteRequest,
   SaveLatexResponse,
   Subject,
+  SubjectPresetsResponse,
   SyncResponse,
   UpdateChapterRequest,
   UpdateDeckRequest,
@@ -221,6 +223,9 @@ export const api = {
     json<SyncResponse>('GET', `/sync?since=${since}`, { signal, timeoutMs: 45_000 }),
 
   createSubject: (req: CreateSubjectRequest) => json<Subject>('POST', '/subjects', { json: req }),
+  presets: (signal?: AbortSignal) => json<SubjectPresetsResponse>('GET', '/presets', { signal, timeoutMs: 15_000 }),
+  addPresetSubject: (presetId: string) =>
+    json<Subject>('POST', '/subjects/from-preset', { json: { presetId } satisfies AddPresetSubjectRequest }),
   updateSubject: (id: string, req: UpdateSubjectRequest) =>
     json<Subject>('PATCH', `/subjects/${enc(id)}`, { json: req }),
   deleteSubject: (id: string) => json<{ ok: boolean }>('DELETE', `/subjects/${enc(id)}`),

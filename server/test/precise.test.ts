@@ -148,7 +148,7 @@ describe('de presise reglene', () => {
         ...addendum.matchAll(/^\\begin\{(figure|formel|samlet|circuitikz|center)\}[\s\S]*?^\\end\{\1\}/gm),
         ...addendum.matchAll(/^\\\[ .* \\\]$/gm),
       ].map((m) => m[0]);
-      expect(blocks.length).toBeGreaterThanOrEqual({ physics: 8, chemistry: 7, biology: 6 }[id]);
+      expect(blocks.length).toBeGreaterThanOrEqual({ physics: 8, chemistry: 7, biology: 6, geoscience: 7 }[id]);
       // Eksempelsvaret i sin helhet, slik SmartNotes behandler et svar (figuren finnes ikke her).
       const example = /<latex>\n([\s\S]*?)<\/latex>/.exec(addendum)?.[1];
       expect(example).toBeTruthy();

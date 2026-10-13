@@ -42,7 +42,7 @@ export function HomePage() {
             disabled={!online}
             title={online ? undefined : 'Krever nett'}
           >
-            <Plus size={18} aria-hidden /> Nytt fag
+            <Plus size={18} aria-hidden /> Legg til fag
           </button>
         }
       >
