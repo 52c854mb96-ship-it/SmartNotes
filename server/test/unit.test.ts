@@ -83,6 +83,19 @@ a &= b \\[2pt]
     expect(normalizeBody('\\begin{center}\n\\begin{tikzpicture}\\end{tikzpicture}\n\\caption{Graf}\n\\end{center}')).toBe(
       '\\begin{center}\n\\begin{tikzpicture}\\end{tikzpicture}\n\\captionof{figure}{Graf}\n\\end{center}',
     );
+    // En tabell i en center-blokk får «Tabell», og en center-blokk inne i en figur eller tabell er riktig fra før.
+    expect(normalizeBody('\\begin{center}\\begin{tabular}{c}a\\end{tabular}\\caption{Data}\\end{center}')).toBe(
+      '\\begin{center}\\begin{tabular}{c}a\\end{tabular}\\captionof{table}{Data}\\end{center}',
+    );
+    const float = '\\begin{table}[H]\n\\begin{center}\n\\caption{Måledata}\n\\begin{tabular}{cc}a & b\\end{tabular}\n\\end{center}\n\\end{table}';
+    expect(normalizeBody(float)).toBe(float);
+  });
+  it('lar ordrett tekst og programkode være', () => {
+    const code = '\\begin{verbatim}\nx = 10 % 3\n\\end{verbatim}\nOg \\verb|5 % n| i teksten.';
+    expect(normalizeBody(code)).toBe(code);
+    expect(normalizeBody('\\begin{lstlisting}\nif x % 2 == 0:\n\\end{lstlisting} men 50 % her')).toBe(
+      '\\begin{lstlisting}\nif x % 2 == 0:\n\\end{lstlisting} men 50\\,\\% her',
+    );
   });
   it('fjerner tomme linjer inne i formler', () => {
     expect(normalizeBody('\\begin{align*}\na &= b \\\\\n\n&= c\n\\end{align*}\n\nTekst')).toBe('\\begin{align*}\na &= b \\\\\n&= c\n\\end{align*}\n\nTekst');
@@ -149,6 +162,12 @@ $F = ma$
     expect(meta.title).toBe('Kraft og $\\vec{F}$');
     expect(meta.figures).toHaveLength(1);
     expect(meta.remarks).toEqual(['\\Delta v og \\uleselig{v} og \\frac{a}{b}']);
+    // Kommandoer som begynner som et escape-tegn i JSON (\theta, \rho, \nu, \beta), også utenfor $…$.
+    expect(parseMeta(String.raw`{"title":"Vinkel \theta og \Delta v","remarks":["\rho og \nu og \beta"]}`)).toMatchObject({
+      title: 'Vinkel \\theta og \\Delta v',
+      remarks: ['\\rho og \\nu og \\beta'],
+    });
+    expect(parseMeta(String.raw`{"title":"Vinkel \theta"}`).title).toBe('Vinkel \\theta');
     // Gyldige escape-tegn (også \u00e6) tolkes som før.
     expect(parseMeta(String.raw`{"title":"\u00c6 og \"sitat\" og \\vec"}`).title).toBe('Æ og "sitat" og \\vec');
   });

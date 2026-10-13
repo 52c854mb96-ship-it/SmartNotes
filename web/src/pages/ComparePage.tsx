@@ -210,7 +210,7 @@ function CompareView({ noteId }: { noteId: string | undefined }) {
             {settled?.baseChanged && (
               <p className="inline-note">Den vanlige versjonen er endret etter at Haiku-versjonen ble laget.</p>
             )}
-            {settled?.promptOutdated && (
+            {settled?.promptOutdated && settled.status === 'done' && (
               <p className="inline-note">
                 Laget med eldre instrukser for Haiku (versjon {settled.promptVersion}). Velg «Lag på nytt …» for å prøve de
                 nye.

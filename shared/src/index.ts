@@ -434,15 +434,17 @@ export interface RateComparisonRequest {
 export interface ComparisonSummaryResponse {
   /** Versjonen av Haiku-instruksene serveren bruker nå. */
   promptVersion: number;
+  /** Antall sammenligninger som er laget (alle versjoner, også for slettede notater). */
+  total: number;
   /** Vurderingene per instruksversjon, nyeste først (siste vurdering per notat). */
   versions: { version: number; rated: number; haikuOk: number }[];
   /** Antall vurderte sammenligninger. */
   rated: number;
   haikuOk: number;
   sonnetBetter: number;
-  /** Kjøringer som feilet og ikke er vurdert. En mislykket kjøring kan bare vurderes som «Sonnet er bedre». */
+  /** Kjøringer som feilet og ikke er vurdert (alle versjoner). En mislykket kjøring kan bare vurderes som «Sonnet er bedre». */
   failed: number;
-  /** Ferdige kjøringer som ikke er vurdert ennå. */
+  /** Ferdige kjøringer som ikke er vurdert ennå (alle versjoner). */
   unrated: number;
   /** Kjøringer som lages nå. */
   running: number;

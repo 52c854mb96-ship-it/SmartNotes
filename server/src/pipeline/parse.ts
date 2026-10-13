@@ -52,11 +52,23 @@ export function repairLatexEscapes<T>(value: T): T {
 
 /**
  * Gjør ugyldige escape-tegn i JSON gyldige: en modell som skriver LaTeX i en streng («$\vec{F}$», «\Delta v»), lager
- * escape-tegn JSON ikke kjenner. Gyldige par (`\\`, `\"`, `\n`, `\u00e6` …) beholdes; et ensomt `\` foran noe annet
- * (også `\u` uten fire sifre, som i `\uleselig`) dobles.
+ * escape-tegn JSON ikke kjenner. Gyldige par (`\\`, `\"`, `\u00e6` …) beholdes; et ensomt `\` foran noe annet dobles,
+ * også `\u` uten fire sifre (`\uleselig`) og `\b`, `\f`, `\n`, `\r`, `\t` foran en bokstav (`\beta`, `\frac`, `\nu`,
+ * `\rho`, `\theta`). Det brukes bare når JSON-en ikke kunne leses, altså når modellen har skrevet LaTeX rett inn.
  */
 function escapeLoneBackslashes(json: string): string {
-  return json.replace(/\\(u[0-9a-fA-F]{4}|["\\/bfnrt])?/g, (m, c?: string) => (c ? m : '\\\\'));
+  return json.replace(/\\(u[0-9a-fA-F]{4}|["\\/]|[bfnrt](?![A-Za-z]))?/g, (m, c?: string) => (c ? m : '\\\\'));
+}
+
+/**
+ * Feltene i metadataene er én linje, så tabulator og vognretur foran en bokstav er alltid LaTeX som JSON har lest som
+ * escape-tegn (`\theta`, `\rho`), også utenfor `$…$`.
+ */
+function repairMetaControls<T>(value: T): T {
+  if (typeof value === 'string') return value.replace(/\t(?=[A-Za-z])/g, '\\t').replace(/\r(?=[A-Za-z])/g, '\\r') as T;
+  if (Array.isArray(value)) return value.map((v) => repairMetaControls(v)) as T;
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, repairMetaControls(v)])) as T;
+  return value;
 }
 
 /** Tolker metadata-JSON fra Claude tolerant: ugyldige felter blir ignorert i stedet for å feile. */
@@ -78,7 +90,7 @@ export function parseMeta(raw: string): NoteMeta {
     }
   }
   // `\frac` blir sideskift + «rac» i JSON; gjør slike tegn om til LaTeX igjen.
-  obj = repairLatexEscapes(obj);
+  obj = repairMetaControls(repairLatexEscapes(obj));
 
   const date = str(obj.date, 10);
   const nc = obj.new_chapter ?? obj.newChapter;

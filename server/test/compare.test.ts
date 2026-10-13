@@ -9,7 +9,7 @@ import { loadConfig } from '../src/config.js';
 import type { AiService, ConvertRequest, ConvertResult } from '../src/pipeline/ai.js';
 import { FakeClaude, RefusalError } from '../src/pipeline/claude.js';
 import { ConversionError } from '../src/errors.js';
-import { COMPARE_PROMPT_VERSION } from '../src/pipeline/compare.js';
+import { COMPARE_PROMPT_VERSION, summarizeComparisons } from '../src/pipeline/compare.js';
 import { zeroUsage } from '../src/usage.js';
 
 /** Haiku som avslår, og teller kallene (for å vise at Sonnet ikke tar over i sammenligningen). */
@@ -324,6 +324,45 @@ describe('sammenligning når noe går galt', () => {
   }, 90_000);
 });
 
+describe('oppsummeringen', () => {
+  const row = (noteId: string, over: Partial<Parameters<typeof summarizeComparisons>[0][number]>) => ({
+    note_id: noteId,
+    model: 'claude-haiku-5-5',
+    base_model: 'claude-sonnet-5-5',
+    base_pdf_rev: 1,
+    status: 'done' as const,
+    stage: null,
+    error: null,
+    page_count: 2,
+    remarks: '[]',
+    cost_usd: 0.001,
+    spent_usd: 0.001,
+    prompt_version: 1,
+    verdict: null,
+    comment: null,
+    created_at: '2026-10-12T20:00:00Z',
+    finished_at: '2026-10-12T20:01:00Z',
+    rated_at: null,
+    title: noteId,
+    note_deleted: 0,
+    ...over,
+  });
+
+  it('viser uvurderte og mislykkede sammenligninger med eldre instrukser, og er ikke tom når noe er laget', () => {
+    const summary = summarizeComparisons(
+      [row('a', {}), row('b', { status: 'failed', cost_usd: null }), row('c', { note_deleted: 1 })],
+      [],
+      10,
+      2,
+    );
+    expect(summary).toMatchObject({ total: 3, rated: 0, unrated: 1, failed: 1, promptVersion: 2, costNok: 0.03 });
+    // Bare vurderinger med de nåværende instruksene teller i overskriften.
+    const rated = summarizeComparisons([row('a', { verdict: 'haiku_ok', rated_at: '2026-10-12T21:00:00Z' })], [{ version: 1, rated: 1, haikuOk: 1 }], 10, 2);
+    expect(rated).toMatchObject({ total: 1, rated: 0, haikuOk: 0, unrated: 0, versions: [{ version: 1, rated: 1, haikuOk: 1 }] });
+    expect(rated.items).toEqual([expect.objectContaining({ noteId: 'a', promptVersion: 1 })]);
+  });
+});
+
 describe('oppgradering av databasen', () => {
   it('fører vurderingene som finnes, opp under instruksversjon 1', async () => {
     const { Repo } = await import('../src/db.js');
@@ -350,6 +389,9 @@ describe('oppgradering av databasen', () => {
         { version: 2, rated: 1, haikuOk: 1 },
         { version: 1, rated: 1, haikuOk: 0 },
       ]);
+      // «Lag på nytt» med samme versjon erstatter vurderingen, også i loggen; den gamle versjonen blir stående.
+      repo.startComparison('n1', { model: 'claude-haiku-5-5', baseModel: 'claude-sonnet-5-5', basePdfRev: 1, pageCount: 3, promptVersion: 2 });
+      expect(repo.comparisonRatingsByVersion()).toEqual([{ version: 1, rated: 1, haikuOk: 0 }]);
     } finally {
       repo.close();
     }

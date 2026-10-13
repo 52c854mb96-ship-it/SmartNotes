@@ -593,17 +593,22 @@ export class Repo {
     noteId: string,
     c: { model: string; baseModel: string | null; basePdfRev: number; pageCount: number; promptVersion: number },
   ): void {
-    this.db
-      .prepare(
-        `INSERT INTO note_comparisons (note_id, model, base_model, base_pdf_rev, status, stage, error, page_count, remarks,
-           cost_usd, verdict, comment, created_at, finished_at, rated_at, prompt_version)
-         VALUES (?, ?, ?, ?, 'running', NULL, NULL, ?, '[]', NULL, NULL, NULL, ?, NULL, NULL, ?)
-         ON CONFLICT(note_id) DO UPDATE SET model = excluded.model, base_model = excluded.base_model,
-           base_pdf_rev = excluded.base_pdf_rev, status = 'running', stage = NULL, error = NULL, page_count = excluded.page_count,
-           remarks = '[]', cost_usd = NULL, verdict = NULL, comment = NULL, created_at = excluded.created_at, finished_at = NULL,
-           rated_at = NULL, prompt_version = excluded.prompt_version`,
-      )
-      .run(noteId, c.model, c.baseModel, c.basePdfRev, c.pageCount, now(), c.promptVersion);
+    const start = this.db.prepare(
+      `INSERT INTO note_comparisons (note_id, model, base_model, base_pdf_rev, status, stage, error, page_count, remarks,
+         cost_usd, verdict, comment, created_at, finished_at, rated_at, prompt_version)
+       VALUES (?, ?, ?, ?, 'running', NULL, NULL, ?, '[]', NULL, NULL, NULL, ?, NULL, NULL, ?)
+       ON CONFLICT(note_id) DO UPDATE SET model = excluded.model, base_model = excluded.base_model,
+         base_pdf_rev = excluded.base_pdf_rev, status = 'running', stage = NULL, error = NULL, page_count = excluded.page_count,
+         remarks = '[]', cost_usd = NULL, verdict = NULL, comment = NULL, created_at = excluded.created_at, finished_at = NULL,
+         rated_at = NULL, prompt_version = excluded.prompt_version`,
+    );
+    // Vurderingen av den forrige kjøringen erstattes (som dialogen sier); med samme instruksversjon skal den heller ikke
+    // telles i loggen. Vurderinger av andre versjoner blir stående.
+    const forget = this.db.prepare(`DELETE FROM comparison_ratings WHERE note_id = ? AND prompt_version = ?`);
+    this.db.transaction(() => {
+      start.run(noteId, c.model, c.baseModel, c.basePdfRev, c.pageCount, now(), c.promptVersion);
+      forget.run(noteId, c.promptVersion);
+    })();
   }
 
   setComparisonStage(noteId: string, stage: NoteComparison['stage']): void {

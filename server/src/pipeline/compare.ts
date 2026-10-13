@@ -222,8 +222,8 @@ function baseModelOf(row: NoteRow): string | null {
 
 /**
  * Oppsummeringen i Innstillinger: hvor ofte eleven syntes Haiku var god nok med de nåværende instruksene (tidligere
- * versjoner står i `versions`). Vurderinger av notater som senere er slettet, telles med; uvurderte og mislykkede
- * telles bare for notater som finnes (de andre kan ikke vurderes).
+ * versjoner står i `versions`). Vurderinger av notater som senere er slettet, telles med. Uvurderte og mislykkede
+ * telles for alle versjoner, men bare for notater som finnes: de kan fortsatt vurderes eller lages på nytt.
  */
 export function summarizeComparisons(
   rows: (ComparisonRow & { title: string | null; note_deleted: number | null })[],
@@ -237,12 +237,13 @@ export function summarizeComparisons(
   const costUsdTotal = rows.reduce((sum, r) => sum + r.spent_usd, 0);
   return {
     promptVersion,
+    total: rows.length,
     versions,
     rated: rated.length,
     haikuOk: rated.filter((r) => r.verdict === 'haiku_ok').length,
     sonnetBetter: rated.filter((r) => r.verdict === 'sonnet_better').length,
-    failed: current.filter((r) => r.status === 'failed' && r.verdict === null && live(r)).length,
-    unrated: current.filter((r) => r.status === 'done' && r.verdict === null && live(r)).length,
+    failed: rows.filter((r) => r.status === 'failed' && r.verdict === null && live(r)).length,
+    unrated: rows.filter((r) => r.status === 'done' && r.verdict === null && live(r)).length,
     running: rows.filter((r) => r.status === 'running' && live(r)).length,
     costNok: Math.round(costUsdTotal * usdNok * 100) / 100,
     // Alle vurderte notater (siste vurdering per notat), også med eldre instrukser, merket med versjonen.

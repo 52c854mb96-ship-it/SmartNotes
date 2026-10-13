@@ -79,8 +79,12 @@ const FORBIDDEN = [
 
 const FORBIDDEN_RE = new RegExp(String.raw`\\(${FORBIDDEN.map((f) => f.replace(/[{}]/g, '\\$&')).join('|')})(?![a-zA-Z])`, 'g');
 
-/** Tegnekode som normaliseringen ikke skal røre (prosenttegn og hakeparenteser betyr noe annet der). */
-const DRAWING_CODE = /\\begin\{(tikzpicture|circuitikz)\}[\s\S]*?\\end\{\1\}/g;
+/**
+ * Kode som normaliseringen ikke skal røre: tegninger (prosenttegn og hakeparenteser betyr noe annet der) og ordrett
+ * tekst (`verbatim`, `\verb|…|`, programkode der `10 % 3` er riktig).
+ */
+const PASS_THROUGH =
+  /\\begin\{(tikzpicture|circuitikz|verbatim\*?|Verbatim|lstlisting|minted)\}[\s\S]*?\\end\{\1\}|\\verb\*?([^a-zA-Z*\s])[^\n]*?\2/g;
 
 /**
  * Retter vanlige småfeil i en modells LaTeX som ellers gir kompileringsfeil eller stille feil i PDF-en. Bare mønstre
@@ -88,16 +92,24 @@ const DRAWING_CODE = /\\begin\{(tikzpicture|circuitikz)\}[\s\S]*?\\end\{\1\}/g;
  * tabeller får alltid plassering [H], slik instruksen sier). Tegnekode (TikZ, circuitikz) røres ikke.
  */
 export function normalizeBody(body: string): string {
-  // \caption utenfor en figur (i en center-blokk, ofte rundt en tegning) feiler; \captionof virker overalt.
-  body = body.replace(/\\begin\{center\}[\s\S]*?\\end\{center\}/g, (block) => block.replace(/\\caption(?=\s*[[{])/g, '\\captionof{figure}'));
+  // \caption utenfor en figur (i en center-blokk, ofte rundt en tegning) feiler; \captionof virker overalt. En
+  // center-blokk inne i en figur- eller tabellomgivelse er riktig fra før og hoppes over (den matches hel først).
+  body = body.replace(/\\begin\{(figure|table)(\*?)\}[\s\S]*?\\end\{\1\2\}|\\begin\{center\}[\s\S]*?\\end\{center\}/g, (block, float?: string) =>
+    float ? block : block.replace(/\\caption(?=\s*[[{])/g, isTableBlock(block) ? '\\captionof{table}' : '\\captionof{figure}'),
+  );
   const out: string[] = [];
   let last = 0;
-  for (const m of body.matchAll(DRAWING_CODE)) {
+  for (const m of body.matchAll(PASS_THROUGH)) {
     out.push(normalizeText(body.slice(last, m.index)), m[0]);
     last = m.index + m[0].length;
   }
   out.push(normalizeText(body.slice(last)));
   return out.join('');
+}
+
+/** En center-blokk med en tabell og ingen tegning eller bilde får «Tabell» i bildeteksten. */
+function isTableBlock(block: string): boolean {
+  return /\\begin\{tabular/.test(block) && !/\\begin\{(tikzpicture|circuitikz)\}|\\includegraphics|\\originalfigur|\\chemfig/.test(block);
 }
 
 const TITLE_WORD: Record<string, RegExp> = {
@@ -204,15 +216,27 @@ export interface NoteDocInput {
 const EXTRA_PREAMBLE = String.raw`
 \newcommand{\snfjernet}[1]{\textcolor{snorange}{\texttt{[fjernet: \textbackslash #1]}}}
 \makeatletter
-% Holder en sammenhengende utregning eller forklaring på samme side: en kort blokk flyttes hel til neste side. En blokk
-% som er høyere enn nesten en hel side, brytes som vanlig, så ingenting forsvinner nederst. Brukes av Haiku.
+% Holder en sammenhengende utregning eller forklaring på samme side. Innholdet settes først i en boks for å måles:
+% en kort blokk settes som én enhet (hel til neste side om den ikke får plass, også inne i en boks som brytes), og
+% en blokk som er høyere enn nesten en hel side, settes på nytt som vanlig tekst, så ingenting forsvinner nederst.
+% Tellerne (figurer, ligninger) settes tilbake før den andre settingen, og fotnoter i en kort blokk står rett under
+% den, som i en minipage. Brukes av Haiku.
 \newsavebox{\sn@samlet}
-\newenvironment{samlet}{\par\setbox\sn@samlet\vbox\bgroup\hsize\linewidth\@parboxrestore\allowdisplaybreaks[1]%
-  \setlength{\parskip}{0.5\baselineskip}\noindent\ignorespaces}{\par\egroup
-  \ifdim\dimexpr\ht\sn@samlet+\dp\sn@samlet\relax>0.85\textheight\unvbox\sn@samlet\else\noindent\box\sn@samlet\fi\par}
+\newskip\sn@samletskip
+\def\sn@savecounters{\begingroup\def\@elt##1{\global\csname c@##1\endcsname\the\csname c@##1\endcsname}%
+  \xdef\sn@restorecounters{\cl@@ckpt}\endgroup}
+\NewDocumentEnvironment{samlet}{+b}{\par\sn@savecounters
+  \setbox\sn@samlet\vbox{\hsize\linewidth\@parboxrestore\setlength{\parskip}{0.5\baselineskip}%
+    \def\@mpfn{mpfootnote}\def\thempfn{\thempfootnote}\c@mpfootnote\z@\let\@footnotetext\@mpfootnotetext
+    \noindent\ignorespaces#1\par\xdef\sn@samletdepth{\the\prevdepth}\global\sn@samletskip\lastskip\unskip\unpenalty\unskip
+    \ifvoid\@mpfootins\else\vskip\skip\@mpfootins\normalcolor\footnoterule\unvbox\@mpfootins\fi}%
+  \ifdim\dimexpr\ht\sn@samlet+\dp\sn@samlet\relax>0.85\textheight
+    \sn@restorecounters{\allowdisplaybreaks[1]\noindent\ignorespaces#1\par}%
+  \else{\parfillskip\z@skip\noindent\vtop{\unvbox\sn@samlet}\par}\prevdepth\sn@samletdepth\relax\vskip\sn@samletskip\fi}{}
 \makeatother
-% \uleselig også i formler (et usikkert tegn eller symbol i en ligning).
-\DeclareRobustCommand{\uleselig}[1]{\ifmmode{\color{sngray}#1}^{\textcolor{snorange}{?}}\else
+% \uleselig også i formler (et usikkert tegn eller symbol i en ligning). Den ytre gruppen gjør at en eksponent eller
+% et merke etter (\uleselig{v}^2, \uleselig{f}') ikke blir en dobbel eksponent.
+\DeclareRobustCommand{\uleselig}[1]{\ifmmode{{\color{sngray}#1}^{\textcolor{snorange}{?}}}\else
   \textcolor{sngray}{\textit{#1}}\textsuperscript{\textcolor{snorange}{\,?}}\fi}
 % Engelske navn på boksene, så en modell som skriver dem, ikke får kompileringsfeil.
 \ProvideDocumentEnvironment{solution}{}{\begin{losning}}{\end{losning}}
@@ -438,7 +462,10 @@ export function errorExcerpt(body: string, errors: LatexErrorInfo[], bodyStartLi
     const rel = e.line !== null ? e.line - bodyStartLine + 1 : null;
     let snippet = '';
     if (rel !== null && rel > 0 && rel <= lines.length + 1) {
-      const from = Math.max(1, rel - radius);
+      // samlet leser hele blokken før den settes, så LaTeX melder en feil inne i den på linjen med \end{samlet}.
+      // Utdraget viser da hele blokken (inntil 40 linjer før), så feilen er med.
+      const start = /\\end\{samlet\}/.test(lines[rel - 1] ?? '') ? samletStart(lines, rel) : null;
+      const from = Math.max(1, start !== null ? Math.max(start, rel - 40) : rel - radius);
       const to = Math.min(lines.length, rel + radius);
       snippet = lines
         .slice(from - 1, to)
@@ -448,6 +475,17 @@ export function errorExcerpt(body: string, errors: LatexErrorInfo[], bodyStartLi
     parts.push(`Feil${rel !== null && rel > 0 ? ` på linje ${rel}` : ''}: ${e.message}\n${e.context}${snippet ? `\nUtdrag:\n${snippet}` : ''}`);
   }
   return parts.join('\n\n');
+}
+
+/** Linjenummeret (1-basert) til \begin{samlet} som hører til \end{samlet} på linje `end`. */
+function samletStart(lines: string[], end: number): number | null {
+  let depth = 0;
+  for (let i = end; i >= 1; i--) {
+    const line = lines[i - 1]!;
+    depth += (line.match(/\\end\{samlet\}/g) ?? []).length - (line.match(/\\begin\{samlet\}/g) ?? []).length;
+    if (depth <= 0) return i;
+  }
+  return null;
 }
 
 function tailLines(s: string, n: number): string {

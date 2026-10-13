@@ -294,11 +294,7 @@ function ComparisonCard() {
     return () => ctrl.abort();
   }, [online]);
 
-  const empty =
-    !!summary &&
-    summary.rated + summary.unrated + summary.failed + summary.running === 0 &&
-    summary.items.length === 0 &&
-    summary.versions.length === 0;
+  const empty = !!summary && summary.total === 0;
   /** Vurderinger gjort med eldre Haiku-instrukser, for å se om de nye hjelper. */
   const older = summary?.versions.filter((v) => v.version !== summary.promptVersion) ?? [];
   return (

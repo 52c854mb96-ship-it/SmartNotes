@@ -88,7 +88,7 @@ ${FIGURES}
 
 Start from the closest template below and change the coordinates, labels and arrows so that they match the student's drawing. Keep every label, arrow and value from the original. Use only syntax that appears in these templates or in section 4.
 
-Inclined plane with a block and forces. For a slope angle a (here a = 26.57, from a height of 2.5 over a length of 5): rotate the block by a, draw G straight down and N at the angle a+90. Friction R points along the slope against the motion: at the angle a (up the slope, as here) when the block slides down or stands still, and at a+180 when it moves up. Draw only the forces the student drew:
+Inclined plane with a block and forces. This slope rises to the right, with angle a (here a = 26.57, from a height of 2.5 over a length of 5): rotate the block by a, draw G straight down and N at the angle a+90 (perpendicular to the slope, away from it). Friction R points along the slope against the motion: at the angle a (up the slope, as here) when the block slides down or stands still, and at a+180 when it moves up. Draw only the forces the student drew. If the student's slope rises to the LEFT, use the second template:
 
 \begin{figure}[H]
 \centering
@@ -106,6 +106,25 @@ Inclined plane with a block and forces. For a slope angle a (here a = 26.57, fro
   \draw[->, thick] (M) -- ++(26.57:1.2) node[above] {$R$};
 \end{tikzpicture}
 \caption{Kloss på skråplan}
+\end{figure}
+
+The same slope rising to the left: rotate the block by -a, draw N at the angle 90-a, R up the slope at 180-a (down the slope: -a), and list the angle points counter-clockwise (C--A--B):
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>={Stealth}]
+  \coordinate (A) at (5,0); \coordinate (B) at (0,0); \coordinate (C) at (0,2.5);
+  \draw[thick] (A) -- (B) -- (C) -- cycle;
+  \fill[pattern=north east lines] (-0.2,-0.25) rectangle (5.2,0);
+  \pic[draw, "$\alpha$", angle radius=9mm, angle eccentricity=1.35] {angle=C--A--B};
+  \begin{scope}[shift={(2,1.5)}, rotate=-26.57]
+    \draw[fill=sngray!20] (-0.5,0) rectangle (0.5,0.7);
+    \coordinate (M) at (0,0.35);
+  \end{scope}
+  \draw[->, thick] (M) -- ++(0,-1.2) node[below] {$G$};
+  \draw[->, thick] (M) -- ++(63.43:1.3) node[above right] {$N$};
+  \draw[->, thick] (M) -- ++(153.43:1.2) node[above] {$R$};
+\end{tikzpicture}
 \end{figure}
 
 Force diagram for one object:
@@ -128,7 +147,8 @@ Object at a height above the ground:
 \begin{tikzpicture}[>={Stealth}]
   \fill[pattern=north east lines] (-1,-0.25) rectangle (4,0);
   \draw[thick] (-1,0) -- (4,0);
-  \fill[sngray!60] (1.5,2.5) circle (0.25) node[right=4pt] {$m$};
+  \fill[sngray!60] (1.5,2.5) circle (0.25);
+  \node[left=6pt] at (1.5,2.5) {$m$};
   \draw[<->] (3,0) -- node[right] {$h$} (3,2.5);
   \draw[dashed] (1.75,2.5) -- (3,2.5);
 \end{tikzpicture}
@@ -140,10 +160,12 @@ Graph (pgfplots):
 \centering
 \begin{tikzpicture}
 \begin{axis}[axis lines=left, xlabel={$t$ / \unit{s}}, ylabel={$v$ / \unit{m/s}}, xmin=0, xmax=5, ymin=0, ymax=12, width=8cm, height=5cm]
-  \addplot[thick, domain=0:5, samples=2] {2*x+1};
+  \addplot[thick, domain=0:5, samples=100] {2*x+1};
 \end{axis}
 \end{tikzpicture}
 \end{figure}
+
+Keep samples=100 for every function and change domain and the expression to match the student's graph (for example {0.5*9.81*x^2}). For measured points write \addplot[only marks] coordinates {(0,1) (1,3) (2,5)}; with the student's values.
 
 Circuit (circuitikz):
 
