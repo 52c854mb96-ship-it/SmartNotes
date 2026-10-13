@@ -152,9 +152,13 @@ export class Converter {
     await writeFileAtomic(this.storage.noteFile(id, 'pages.json'), JSON.stringify(pages, null, 2));
     this.repo.setPageCount(id, pages.length);
     setUsagePages(pages.length);
-    // Gratiskvoten: sidene telles her, rett før AI-en leser notatet (også ved «Konverter på nytt»).
-    const wait = this.quota?.startConversion(row.user_id, id, pages.length);
-    if (wait) throw new QuotaWait(wait.until, wait.message);
+    // Gratiskvoten: sidene telles her, rett før AI-en leser notatet, én gang per konvertering eleven ber om (opplasting
+    // eller «Konverter på nytt», som begge starter på forsøk 1). Et nytt forsøk etter en midlertidig feil eller en omstart
+    // telles ikke igjen og venter ikke på kvoten.
+    if (row.attempts === 1) {
+      const wait = this.quota?.startConversion(row.user_id, id, pages.length);
+      if (wait) throw new QuotaWait(wait.until, wait.message);
+    }
 
     // 2. Claude leser notatet
     this.repo.setStage(id, 'reading');

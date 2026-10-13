@@ -256,6 +256,8 @@ Nattøkta skriver her de valgene den har tatt på egen hånd, så eleven kan se 
 - **Brukernavnet ditt** er `eier`. Du kan fortsatt logge inn med passordet alene (tomt brukernavn), og du kan endre navnet i Innstillinger → Konto.
 - **Aldersgrensen** er 15 år, som planen anbefalte (`MIN_AGE` i Railway).
 - **Kortstokker og innholdsfortegnelser for andre elever** går til den samme AI-en som dine (standard Haiku hos Anthropic). Slår du på hjemmemaskinen for disse oppgavene, gjelder det også elevene, og notatene deres behandles da på din maskin. Konverteringen deres går alltid til Haiku hos Anthropic.
+- **Kvotene for gratiskontoer** (kan endres med variabler i Railway): 15 sider (`FREE_PAGES_PER_DAY`), 2 kortstokker (`FREE_DECKS_PER_DAY`) og 3 innholdsfortegnelser med AI (`FREE_TOC_PER_DAY`) per døgn, høyst 20 notater i kø (`FREE_QUEUE_MAX`) og et felles dagsbudsjett på 30 kroner (`FREE_DAILY_BUDGET_NOK`). Det første notatet i et døgn får starte selv om det har flere sider enn taket.
+- **Utklipp** lagres som JPEG når det sparer minst 30 prosent, ellers som PNG. **Originalfilene** (`source/`) slettes ikke etter konverteringen, fordi «Konverter på nytt», «Prøv med Haiku» og sikkerhetskopien trenger dem.
 - **Kontosperren** gjelder nå også deg: 10 feil passord fra nye enheter i løpet av et kvarter sperrer kontoen for nye enheter i et kvarter. Enheter du har logget inn fra før, slipper alltid inn. Før kontoene stengte 50 feil ute alle.
 
 ## Logg
@@ -332,6 +334,24 @@ Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er nest
     - etter et kontobytte gikk appen til den forrige kontoens side;
     - registreringen kunne ikke prøve å hente fagene på nytt, og koden forsvant ved ny lasting;
     - det manglet tester for en enhet fra før kontoene med kø og for registrering i samme fane.
+  - Kl. 01.16: PR [#27](https://github.com/52c854mb96-ship-it/SmartNotes/pull/27) (kontoer i appen) er laget, og flettet kl. 01.28 etter grønn CI. Grenen er nullstilt fra `main`.
+- Fase 5a (kvoter), design og resultat (bygget i `/home/user/sn-5`):
+  - Migrering 8: `quota_log` (sider, kortstokker og innholdsfortegnelser per bruker med tidspunkt; en tilbakebetaling er en rad med −1) og `users.last_claim_rev` for køturen. Ingenting som finnes, endres. Testet på en database med dagens versjon og ekte innhold.
+  - Døgnet er norsk (`osloDay`, Europe/Oslo), også de dagene sommertiden skifter (23 og 25 timer).
+  - Sider: telles når konverteringen starter, én gang per konvertering eleven ber om (opplasting eller «Konverter på nytt»). Over taket venter notatet til midnatt med «Dagens kvote er brukt – konverteres i morgen …», uten å regnes som et mislykket forsøk. Det første notatet i et døgn får alltid starte, så et langt notat ikke venter for alltid.
+  - Kortstokker (2) og innholdsfortegnelser med AI (3) per døgn gir 429 med en norsk melding. En tekst-innholdsfortegnelse over taket tolkes fortsatt, bare uten koblingen til kompetansemålene.
+  - Køen: høyst 20 notater i kø per gratiskonto (403 `queue_full`, aldri 429, så opplastingskøen i appen ikke prøver i det uendelige). Neste notat tas fra den brukeren som har ventet lengst på tur.
+  - Dagsbudsjett: 30 kroner til listepris for alle gratiskontoene samlet. Over budsjettet venter gratisjobbene til neste døgn; eieren rammes aldri.
+  - Innstillinger → Konto viser dagens forbruk for gratiskontoer (`GET /api/quota`).
+  - Utklipp lagres som JPEG når det sparer minst 30 prosent. `source/` beholdes: «Konverter på nytt», sammenligningen og sikkerhetskopien trenger den.
+  - Gjennomgang (tre kontrollører; skeptikerne stoppet på øktgrensen, så jeg vurderte funnene selv): 10 funn, 8 bekreftet og rettet med tester:
+    - et nytt forsøk etter en midlertidig feil talte sidene igjen og kunne vente på kvoten (nå bare forsøk 1);
+    - køen brukte den ekte klokka, kvotene den falske (nå samme klokke, også i testene);
+    - «Konverter på nytt» og opplastinger sendt samtidig slapp forbi taket på køen;
+    - et nytt forsøk på en kortstokk slapp forbi dagsbudsjettet;
+    - en innholdsfortegnelse ble gitt tilbake også når AI-en hadde svart (og kallet var betalt), og tilbakebetalingen etter midnatt havnet i feil døgn;
+    - en modell som mangler i pristabellen, ble regnet som gratis i dagsbudsjettet (nå den dyreste prisen);
+    - et utklipp fra en tidligere kjøring med den andre filendelsen ble liggende, og LaTeX kunne ta det gamle.
 
 ## Morgenrapport
 

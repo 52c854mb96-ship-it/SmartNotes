@@ -38,6 +38,25 @@ describe('utklipp', () => {
     expect(fs.readdirSync(out).sort()).toEqual(['fig1.jpg', 'fig2.png']);
   });
 
+  it('erstatter en figur fra en tidligere kjøring i samme mappe, også med den andre filendelsen', async () => {
+    const raw = Buffer.alloc(page.width * page.height * 3);
+    for (let i = 0; i < raw.length; i++) raw[i] = (i * 2654435761) % 251;
+    const foto = path.join(dir, 'foto-igjen.jpg');
+    await sharp(raw, { raw: { ...page, channels: 3 } }).jpeg({ quality: 92 }).toFile(foto);
+    const flate = path.join(dir, 'flate.png');
+    await sharp({ create: { ...page, channels: 3, background: '#ffffff' } }).png().toFile(flate);
+    const out = path.join(dir, 'figures-igjen');
+    fs.mkdirSync(out);
+    expect(await cropFigure(foto, page, [100, 100, 700, 500], path.join(out, 'fig1.png'))).toBe(true);
+    expect(fs.readdirSync(out)).toEqual(['fig1.jpg']);
+    // Neste kjøring gir en flate (PNG): den gamle JPEG-en må bort, ellers ville LaTeX tatt den.
+    expect(await cropFigure(flate, page, [100, 100, 700, 500], path.join(out, 'fig1.png'))).toBe(true);
+    expect(fs.readdirSync(out)).toEqual(['fig1.png']);
+    // Og tilbake igjen: den samme figuren som JPEG.
+    expect(await cropFigure(foto, page, [100, 100, 700, 500], path.join(out, 'fig1.png'))).toBe(true);
+    expect(fs.readdirSync(out)).toEqual(['fig1.jpg']);
+  });
+
   it('kjenner igjen figurene uansett filendelse', () => {
     expect([...figureIds(['fig1.png', 'fig2.jpg', 'notat.tex', 'fig3.jpeg'])]).toEqual(['fig1', 'fig2']);
   });

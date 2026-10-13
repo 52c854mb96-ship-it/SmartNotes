@@ -1,7 +1,7 @@
 import type { QuotaUsage } from '@smartnotes/shared';
 import type { Config } from './config.js';
 import type { QuotaKind, Repo } from './db.js';
-import { costUsd } from './usage.js';
+import { costUsd, maxCostUsd } from './usage.js';
 
 /**
  * Gratiskvotene: sider per døgn (telt når konverteringen starter, også «Konverter på nytt»), kortstokker og
@@ -55,6 +55,16 @@ export const QUOTA_MESSAGES = {
   queue: (limit: number) => `Du har ${limit} notater i kø, som er grensen for gratiskontoer. Vent til noen er konvertert, og last opp på nytt.`,
 };
 
+/** Resultatet av å telle et kall mot kvoten. */
+export interface QuotaTicket {
+  /** Meldingen brukeren får når taket eller dagsbudsjettet er nådd; null når kallet kan gjøres. */
+  blocked: string | null;
+  /** Når kallet ble telt (for `refund`). */
+  at: number;
+  /** Om kallet ble telt (gratiskonto under taket). */
+  counted: boolean;
+}
+
 export class Quota {
   constructor(
     private readonly repo: Repo,
@@ -75,7 +85,8 @@ export class Quota {
   budgetUsed(): boolean {
     if (this.limits.dailyBudgetNok <= 0) return false;
     const { start } = osloDay(this.now());
-    const usd = this.repo.freeUsageSince(start).reduce((sum, e) => sum + (costUsd(e.provider, e) ?? 0), 0);
+    // En modell som mangler i pristabellen, regnes til den dyreste prisen, så grensen aldri slipper gjennom alt.
+    const usd = this.repo.freeUsageSince(start).reduce((sum, e) => sum + (costUsd(e.provider, e) ?? maxCostUsd(e)), 0);
     return usd * this.config.usdNok >= this.limits.dailyBudgetNok;
   }
 
@@ -96,12 +107,20 @@ export class Quota {
 
   /** Før en kortstokk lages: null når den kan lages (og den telles), ellers meldingen brukeren får. */
   takeDeck(userId: number, deckRef: string | null): string | null {
-    return this.take(userId, 'decks', this.limits.decksPerDay, deckRef, QUOTA_MESSAGES.decks, QUOTA_MESSAGES.decksBudget);
+    return this.take(userId, 'decks', this.limits.decksPerDay, deckRef, QUOTA_MESSAGES.decks, QUOTA_MESSAGES.decksBudget).blocked;
   }
 
-  /** Før AI-en leser en innholdsfortegnelse eller kobler delkapitler til kompetansemål. */
-  takeToc(userId: number, ref: string | null): string | null {
+  /**
+   * Før AI-en leser en innholdsfortegnelse eller kobler delkapitler til kompetansemål. `blocked` er meldingen når taket
+   * er nådd; ellers er kallet telt, og `at` gis til `refund` hvis AI-en aldri svarte.
+   */
+  takeToc(userId: number, ref: string | null): QuotaTicket {
     return this.take(userId, 'toc', this.limits.tocPerDay, ref, QUOTA_MESSAGES.toc, QUOTA_MESSAGES.tocBudget);
+  }
+
+  /** Et nytt forsøk på noe som feilet (en kortstokk): telles ikke, men venter når dagsbudsjettet er brukt. */
+  retryBlocked(userId: number): string | null {
+    return this.limited(userId) && this.budgetUsed() ? QUOTA_MESSAGES.decksBudget : null;
   }
 
   private take(
@@ -111,18 +130,22 @@ export class Quota {
     ref: string | null,
     message: (limit: number) => string,
     budgetMessage: string,
-  ): string | null {
-    if (!this.limited(userId)) return null;
-    if (this.budgetUsed()) return budgetMessage;
-    const { start } = osloDay(this.now());
-    if (this.repo.quotaUsed(userId, kind, start) >= limit) return message(limit);
-    this.repo.addQuota(userId, kind, 1, ref, this.now());
-    return null;
+  ): QuotaTicket {
+    const at = this.now();
+    if (!this.limited(userId)) return { blocked: null, at, counted: false };
+    if (this.budgetUsed()) return { blocked: budgetMessage, at, counted: false };
+    const { start } = osloDay(at);
+    if (this.repo.quotaUsed(userId, kind, start) >= limit) return { blocked: message(limit), at, counted: false };
+    this.repo.addQuota(userId, kind, 1, ref, at);
+    return { blocked: null, at, counted: true };
   }
 
-  /** Gir tilbake det `take*` telte, når arbeidet ikke ble noe av (for eksempel fordi AI-en ikke svarte). */
-  refund(userId: number, kind: QuotaKind, ref: string | null): void {
-    if (this.limited(userId)) this.repo.addQuota(userId, kind, -1, ref, this.now());
+  /**
+   * Gir tilbake det `takeToc` telte, når AI-en aldri svarte (nett, overbelastning). Et svar som ble betalt (også et som
+   * ikke kunne brukes), gis ikke tilbake. Skrives med tidspunktet fra forsøket, så det havner i samme døgn.
+   */
+  refund(userId: number, kind: QuotaKind, ref: string | null, ticket: QuotaTicket): void {
+    if (ticket.counted) this.repo.addQuota(userId, kind, -1, ref, ticket.at);
   }
 
   /** En ny opplasting: null når det er plass i køen, ellers meldingen. */

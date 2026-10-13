@@ -121,6 +121,13 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
         await fsp.rename(f.tmpFile, path.join(srcDir, filename));
         fileRows.push({ id: randomUUID(), position: i, original_name: f.originalName, mime: MIME_BY_KIND[f.kind], filename, size: f.size });
       }
+      // En gang til rett før notatet lages, uten noe `await` imellom, så opplastinger som sendes samtidig, ikke alle slipper
+      // gjennom. Filene i `source/` ryddes da bort.
+      const fullNow = d.quota?.queueFull(r.userId);
+      if (fullNow) {
+        await storage.removeNote(noteId).catch(() => undefined);
+        throw new HttpError(403, 'queue_full', fullNow);
+      }
       const note = r.createNote({
         id: noteId,
         subjectId: subject.id,
@@ -191,6 +198,9 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
     const r = mine(req);
     const row = requireNote(r, req.params.id);
     if (row.status === 'processing') throw conflict('Notatet konverteres allerede.');
+    // Taket på notater i kø gjelder også «Konverter på nytt» (et notat som allerede står i kø, teller ikke på nytt).
+    const full = row.status === 'queued' ? null : d.quota?.queueFull(r.userId);
+    if (full) throw new HttpError(403, 'queue_full', full);
     const body = parse(z.object({ instructions: z.string().max(2000).nullable().optional() }).default({}), req.body ?? {});
     const note = r.requeue(row.id, body.instructions === undefined ? undefined : body.instructions?.trim() || null);
     worker.kick();

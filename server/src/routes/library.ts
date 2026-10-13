@@ -180,13 +180,16 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
     const chapters = parseTocText(body.text);
     // Delkapitler fra teksten kobles til kompetansemålene av Claude. Går det ikke, eller er dagens gratiskvote brukt,
     // får de bare ingen mål (teksten tolkes uten AI).
-    if (s.aims.length && aiConfigured(ai, 'toc') && chapters.some((c) => c.sections?.length) && !d.quota?.takeToc(requireUser(req).id, s.id)) {
+    const wantsAims = s.aims.length > 0 && aiConfigured(ai, 'toc') && chapters.some((c) => c.sections?.length);
+    const ticket = wantsAims ? d.quota?.takeToc(requireUser(req).id, s.id) : undefined;
+    if (wantsAims && !ticket?.blocked) {
       try {
         const mapped = await usageScope({ userId: requireUser(req).id, subjectId: s.id }, () => ai.mapSectionAims(getProfile(s.profile), chapters, s.aims));
         return { chapters: cleanChapterInputs(mapped.chapters, s.aims) };
       } catch (err) {
         req.log.warn({ err }, 'kunne ikke koble delkapitler til kompetansemål');
-        d.quota?.refund(requireUser(req).id, 'toc', s.id);
+        // Svarte AI-en (og kallet ble betalt), teller det; ellers gis det tilbake.
+        if (ticket && !(err instanceof ConversionError && err.usage)) d.quota?.refund(requireUser(req).id, 'toc', s.id, ticket);
       }
     }
     return { chapters };
@@ -217,14 +220,14 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
       }
     }
     if (images.length === 0) throw badRequest('Last opp minst ett bilde av innholdsfortegnelsen.');
-    const blocked = d.quota?.takeToc(requireUser(req).id, s.id);
-    if (blocked) throw new HttpError(429, 'quota_exceeded', blocked);
+    const ticket = d.quota?.takeToc(requireUser(req).id, s.id);
+    if (ticket?.blocked) throw new HttpError(429, 'quota_exceeded', ticket.blocked);
     try {
       const read = await usageScope({ userId: requireUser(req).id, subjectId: s.id }, () => ai.extractToc(getProfile(s.profile), images, s.aims));
       return { chapters: cleanChapterInputs(read.chapters, s.aims) };
     } catch (err) {
-      // Lyktes ikke lesingen, telles den ikke mot dagens kvote.
-      d.quota?.refund(requireUser(req).id, 'toc', s.id);
+      // Svarte ikke AI-en (nett, overbelastning), telles lesingen ikke mot dagens kvote. Et svar som ble betalt, teller.
+      if (ticket && !(err instanceof ConversionError && err.usage)) d.quota?.refund(requireUser(req).id, 'toc', s.id, ticket);
       if (err instanceof ConversionError) throw new HttpError(err.retryable ? 503 : 422, 'claude_failed', err.message);
       throw err;
     }

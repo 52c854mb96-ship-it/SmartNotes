@@ -111,7 +111,7 @@ export async function buildApp(
   const freeAi = opts.freeAi ? metered(opts.freeAi) : opts.ai ? null : createFreeConvertAi(config, metered);
   const quota = new Quota(repo, config, opts.now);
   const converter = new Converter(repo, storage, ai, config, app.log, freeAi ? { ai: freeAi, fixAttempts: 3 } : null, quota);
-  const worker = new Worker(repo, converter, config.workerConcurrency, app.log);
+  const worker = new Worker(repo, converter, config.workerConcurrency, app.log, opts.now);
   const bundler = new Bundler(repo, storage, config, app.log);
   const generator = new FlashcardGenerator(repo, storage, ai, app.log);
   // Sammenligningen bruker alltid Haiku direkte, uten reserven (RefusalFallback) som ellers sender et avslag til Sonnet.

@@ -203,7 +203,11 @@ export async function cropFigure(pageFile: string, page: { width: number; height
     region.clone().jpeg({ quality: 90, mozjpeg: true }).toBuffer(),
   ]);
   const asJpeg = outFile.endsWith('.png') && jpg.length < png.length * 0.7;
-  await fsp.writeFile(asJpeg ? `${outFile.slice(0, -4)}.jpg` : outFile, asJpeg ? jpg : png, { flag: 'wx' });
+  // En figur fra en tidligere kjøring i samme mappe (kommandolinjen og målingen gjenbruker mappen) fjernes først, også med
+  // den andre filendelsen, ellers ville LaTeX valgt den gamle. Filen skrives som en ny fil, aldri over en gammel.
+  const base = outFile.endsWith('.png') ? outFile.slice(0, -4) : outFile;
+  await Promise.all([fsp.rm(`${base}.png`, { force: true }), fsp.rm(`${base}.jpg`, { force: true })]);
+  await fsp.writeFile(asJpeg ? `${base}.jpg` : outFile, asJpeg ? jpg : png, { flag: 'wx' });
   return true;
 }
 

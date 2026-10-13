@@ -206,6 +206,11 @@ export const MODEL_PRICES: Record<string, ModelPrice> = {
 };
 const HAIKU_LONG: ModelPrice = { input: 0.5, output: 2.5, cacheRead: 0.05, cacheWrite: 0.625 };
 
+/** Prisen med den dyreste modellen i `MODEL_PRICES` (for en modell som mangler der, når en grense ikke må slippe gjennom). */
+export function maxCostUsd(u: Usage): number {
+  return Math.max(...Object.keys(MODEL_PRICES).map((model) => costUsd('anthropic', { ...u, model }) ?? 0));
+}
+
 /** Beregnet kostnad i dollar, `0` for lokale og falske modeller, eller `null` når prisen er ukjent. */
 export function costUsd(provider: string, u: Usage): number | null {
   if (provider !== 'anthropic') return 0;

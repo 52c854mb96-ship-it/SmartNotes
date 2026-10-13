@@ -1190,7 +1190,8 @@ export class Repo {
   }
 
   /** Neste notat som skal konverteres, eller null. */
-  claimNextQueued(): NoteRow | null {
+  /** `at` er klokka køen bruker for `not_before` (testene gir den samme falske klokka som kvotene). */
+  claimNextQueued(at: Date = new Date()): NoteRow | null {
     return this.db.transaction(() => {
       const r = this.db
         .prepare(
@@ -1200,7 +1201,7 @@ export class Repo {
            WHERE n.status = 'queued' AND n.deleted = 0 AND (n.not_before IS NULL OR n.not_before <= ?) AND u.disabled = 0
            ORDER BY u.last_claim_rev ASC, n.created_at ASC, n.rowid ASC LIMIT 1`,
         )
-        .get(now()) as NoteRow | undefined;
+        .get(at.toISOString()) as NoteRow | undefined;
       if (!r) return null;
       const rev = this.nextRev();
       this.db.prepare(`UPDATE users SET last_claim_rev = ? WHERE id = ?`).run(rev, r.user_id);

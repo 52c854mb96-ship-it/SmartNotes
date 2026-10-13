@@ -206,15 +206,38 @@ describe('gratiskvoten', () => {
     expect(row.not_before).toBe('2026-10-14T22:00:00.000Z');
     expect(row.attempts).toBe(0);
 
-    // Neste døgn: notatet konverteres (not_before settes tilbake her, fordi køen bruker den ekte klokka).
+    // Før midnatt står notatet fortsatt i kø (køen bruker den samme klokka som kvotene).
+    clock = Date.parse('2026-10-14T21:59:00Z');
+    ctx.worker.kick();
+    await ctx.worker.idle();
+    expect(ctx.repo.getNoteRow(second.id)!.status).toBe('queued');
+
+    // Neste døgn: notatet konverteres.
     clock = Date.parse('2026-10-14T22:05:00Z');
-    ctx.repo.db.prepare(`UPDATE notes SET not_before = ? WHERE id = ?`).run(new Date(Date.now() - 1000).toISOString(), second.id);
     const done = await settle(client, second.id, (n) => n.status === 'done');
     expect(done.error).toBeNull();
     expect((await client.call<QuotaResponse>('GET', '/api/quota')).body.quota).toMatchObject({
       pages: { used: 1, limit: 2 },
       resetsAt: '2026-10-15T22:00:00.000Z',
     });
+  }, 120_000);
+
+  it('teller ikke sidene igjen og venter ikke når konverteringen prøves på nytt etter en midlertidig feil', async () => {
+    clock = Date.parse('2026-10-16T10:00:00Z');
+    const { client, subjectId } = await student('kvote-forsok');
+    const userId = ctx.repo.getUserByName('kvote-forsok')!.id;
+    const first = await upload(client, subjectId);
+    await settle(client, first.id, (n) => n.status === 'done');
+    const second = await upload(client, subjectId);
+    await settle(client, second.id, (n) => n.status === 'done');
+    expect(ctx.quota.usage(userId)!.pages.used).toBe(2);
+    // Som etter en midlertidig feil (nett, overbelastning): notatet står i kø igjen på forsøk 1, og dagens kvote er brukt.
+    const before = ctx.repo.getNoteRow(second.id)!.pdf_rev;
+    ctx.repo.db.prepare(`UPDATE notes SET status = 'queued', stage = NULL, not_before = NULL, attempts = 1 WHERE id = ?`).run(second.id);
+    const again = await settle(client, second.id, (n) => n.status === 'done');
+    expect(again.error).toBeNull();
+    expect(ctx.repo.getNoteRow(second.id)!.pdf_rev).toBeGreaterThan(before!);
+    expect(ctx.quota.usage(userId)!.pages.used).toBe(2);
   }, 120_000);
 
   it('lar det første notatet i et døgn starte selv om det har flere sider enn taket', () => {
@@ -284,6 +307,45 @@ describe('gratiskvoten', () => {
     }
   });
 
+  it('har taket på notater i kø også for «Konverter på nytt», men ikke for et notat som allerede står i kø', async () => {
+    clock = Date.parse('2026-10-25T10:00:00Z');
+    const { client, subjectId } = await student('kvote-ko-igjen');
+    const done = await upload(client, subjectId);
+    await settle(client, done.id, (n) => n.status === 'done');
+    await ctx.worker.stop();
+    try {
+      const queued = [];
+      for (let k = 0; k < 3; k++) queued.push(await upload(client, subjectId));
+      const retry = await client.call<{ error: string; message: string }>('POST', `/api/notes/${done.id}/retry`, { json: {} });
+      expect(retry.status).toBe(403);
+      expect(retry.body).toEqual({ error: 'queue_full', message: QUOTA_MESSAGES.queue(3) });
+      expect(ctx.repo.getNoteRow(done.id)!.status).toBe('done');
+      // Et notat i køen kan få nye instruksjoner uten at det teller som et nytt.
+      expect((await client.call('POST', `/api/notes/${queued[0]!.id}/retry`, { json: { instructions: 'Bruk SI-enheter.' } })).status).toBe(200);
+    } finally {
+      ctx.worker.start();
+    }
+    await ctx.worker.idle();
+  }, 120_000);
+
+  it('gir tilbake en innholdsfortegnelse bare når AI-en aldri svarte, og i det døgnet den ble telt', async () => {
+    clock = Date.parse('2026-10-26T22:59:00Z'); // ett minutt før midnatt norsk tid (vintertid)
+    await student('kvote-toc');
+    const userId = ctx.repo.getUserByName('kvote-toc')!.id;
+    const ticket = ctx.quota.takeToc(userId, 'fag');
+    expect(ticket).toMatchObject({ blocked: null, counted: true });
+    expect(ctx.quota.takeToc(userId, 'fag').blocked).toBe(QUOTA_MESSAGES.toc(1));
+    // Svaret kom ikke før etter midnatt: tilbakebetalingen hører til døgnet forsøket ble telt i, ikke det nye.
+    clock = Date.parse('2026-10-26T23:01:00Z');
+    expect(ctx.quota.takeToc(userId, 'fag')).toMatchObject({ blocked: null, counted: true });
+    ctx.quota.refund(userId, 'toc', 'fag', ticket);
+    expect(ctx.quota.usage(userId)!.toc.used).toBe(1);
+    expect(ctx.quota.takeToc(userId, 'fag').blocked).toBe(QUOTA_MESSAGES.toc(1));
+    // Et kall som aldri ble telt (eieren, eller et som ble stoppet), gir ingenting tilbake.
+    ctx.quota.refund(userId, 'toc', 'fag', { blocked: QUOTA_MESSAGES.toc(1), at: clock, counted: false });
+    expect(ctx.quota.usage(userId)!.toc.used).toBe(1);
+  });
+
   it('lar gratisjobbene vente når dagsbudsjettet er brukt, men ikke eierens', async () => {
     clock = Date.parse('2026-10-24T10:00:00Z');
     const { client, subjectId } = await student('kvote-budsjett');
@@ -313,6 +375,32 @@ describe('gratiskvoten', () => {
     expect(waiting.error).toBe(QUOTA_MESSAGES.budget);
     expect(ctx.quota.takeDeck(userId, null)).toBe(QUOTA_MESSAGES.decksBudget);
     expect(ctx.quota.startConversion(OWNER_ID, 'eier', 5)).toBeNull();
+  });
+
+  it('regner en modell som mangler i pristabellen, til den dyreste prisen i dagsbudsjettet', () => {
+    const config = loadConfig({ NODE_ENV: 'test', APP_PASSWORD: 'x', FREE_DAILY_BUDGET_NOK: '30' });
+    const at = Date.parse('2026-11-02T10:00:00Z');
+    const quota = new Quota(ctx.repo, config, () => at);
+    expect(quota.budgetUsed()).toBe(false);
+    ctx.repo.logUsage({
+      at,
+      kind: 'convert',
+      provider: 'anthropic',
+      model: 'claude-ukjent-9',
+      inputTokens: 2_000_000,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      durationMs: 1,
+      ok: true,
+      error: null,
+      noteId: null,
+      deckId: null,
+      subjectId: null,
+      userId: ctx.repo.getUserByName('kvote-sider')!.id,
+      pages: null,
+    });
+    expect(quota.budgetUsed()).toBe(true);
   });
 });
 

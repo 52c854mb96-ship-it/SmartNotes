@@ -135,6 +135,9 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
     const deck = requireDeck(r, req.params.id);
     if (deck.status !== 'failed') throw badRequest('Kortstokken har ingen feil å prøve på nytt.');
     if (!aiConfigured(ai, 'flashcards')) throw offlineFeature('Serveren mangler Claude API-nøkkel (ANTHROPIC_API_KEY), så kortene kan ikke lages.');
+    // Et nytt forsøk telles ikke mot dagens kortstokker, men venter også på dagsbudsjettet for gratiskontoene.
+    const blocked = d.quota?.retryBlocked(r.userId);
+    if (blocked) throw new HttpError(429, 'quota_exceeded', blocked);
     const restarted = r.restartDeck(deck.id)!;
     generator.start(deck.id);
     return restarted;
