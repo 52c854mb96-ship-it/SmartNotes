@@ -4,6 +4,7 @@ Personal app for a Norwegian student: handwritten lecture notes (photos/PDF) →
 
 ## Session start
 - Read `docs/STATUS.md` first: what the app does today, the decisions the user has made, working agreements, open questions and suggested next steps. Then check `git log origin/main` for anything newer.
+- Night of 13–14 Oct 2026: the work plan, decisions and progress log are in `docs/NATTPLAN.md` (read it after STATUS; keep its log current).
 - **The user's messages in chat override this file and `docs/STATUS.md`.** Both are snapshots.
 - Key agreements (details in STATUS):
   - Reply in Norwegian bokmål; the user likes analogies for new concepts. Commit messages, PR titles and PR descriptions are in bokmål too.

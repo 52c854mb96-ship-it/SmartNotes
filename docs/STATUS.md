@@ -1,6 +1,6 @@
 # Status for SmartNotes
 
-> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 12. oktober 2026, i PR #15 (navneoppryddingen). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
+> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 13. oktober 2026, etter PR #20 (Haiku-instrukser versjon 2), med beslutningene for nattarbeidet. **Nattarbeidet 13.–14. oktober følger [NATTPLAN.md](NATTPLAN.md); les den og loggen der først.** Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
 
 Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen dokumentasjon står i [README.md](../README.md) og [OPPSETT.md](OPPSETT.md).
 
@@ -81,9 +81,13 @@ Ikke endre disse uten å spørre først.
   - Vanskelighetsgraden styrer både hva slags kort som lages og hvor lange svarene er.
   - Kortstokkene lagres på serveren og synkroniseres.
   - Øvingsreglene og effektene er hentet fra en flashcard-fil eleven laget tidligere. Fila ligger ikke i repoet, men reglene står i `web/src/flashcards/model.ts` og effektene i `web/src/flashcards/effects.ts`. Eleven har sagt at effektene var bra.
-- **Kostnad:** Sonnet 5.5 med middels grundighet ([PR #5](https://github.com/52c854mb96-ship-it/SmartNotes/pull/5)).
-- **Haiku 5.5 (12. oktober):** Haiku er motoren inntil det er avklart om en Mac mini kan stå på hele døgnet. Kortstokker og innholdsfortegnelser går til Haiku med en gang. Konverteringen blir på Sonnet til Claude har sammenlignet Sonnet og Haiku på 5–10 av elevens egne sider (eleven legger `ANTHROPIC_API_KEY` i skymiljøet og sender bildene i chatten). Bytt ikke konverteringen uten å spørre.
-- **Haiku-instruksene (13. oktober):** etter sammenligning av tre notater (Haiku god nok på 0 av 3) valgte eleven et eget tillegg for Haiku, så Sonnets instrukser og notater ikke endres, høyere grundighet for Haiku, og at sammenligningene lages på nytt i appen og vurderes per instruksversjon. Kommentarene eleven ga: Haiku brukte for få fargede bokser for de sentrale formlene (Sonnet navngir formelen), merket en formel som ble bygd videre på som skrivefeil, delte en utregning over to sider, og klipte ut tegninger der eleven vil ha dem tegnet i TikZ. Eleven liker at Haiku har færre merknader.
+- **Kostnad:** Sonnet 5.5 med middels grundighet for elevens egne notater ([PR #5](https://github.com/52c854mb96-ship-it/SmartNotes/pull/5)).
+- **Motor per bruker (13. oktober, kveld):** Sonnet lager elevens egne notater, med omtrent de samme konkrete instruksene som Haiku fikk i versjon 2. Andre brukere får Haiku 5.5 med Haiku-tillegget og høy grundighet. Sonnet blir en pro-funksjon når pro bygges. Før det satser vi fullt på gratistilbudet med tak (15 sider og 2 kortstokker per dag) for å bygge en kundebase, og godtar å tape litt penger.
+- **Resultatet av Haiku versjon 2 (13. oktober):** Haiku ble god nok på 3 av 3 notater (Virkningsgrad, Kinetisk energi, Potensiell energi), og på Luftmotstand og terminalfart. Eleven synes Haiku er bedre enn Sonnet på enkelte områder, som å vise formlene tydelig med farger. Det eneste som må rettes: Haiku setter `\uleselig` på ord den ikke klarer å tolke helt, og skal heller lese dem ut fra sammenhengen.
+- **Kontoer og personvern (13. oktober, kveld):** invitasjonskode som eieren lager i Innstillinger, brukernavn og passord uten e-post, og engangslenke ved glemt passord. Ansvarlig i personvernerklæringen og vilkårene står åpent foreløpig (plassholder).
+- **Fag og forside (13. oktober, kveld):** Geofag 1 legges til for andre brukere; eleven har bare Fysikk 1. Appen skal ha en forside med en kort presentasjon og fagene som kort, i stedet for å åpne fysikk av seg selv.
+- **Haiku 5.5 (12. oktober):** kortstokker og innholdsfortegnelser går til Haiku. Konverteringen per bruker er bestemt 13. oktober (se «Motor per bruker» over).
+- **Haiku-instruksene (13. oktober):** etter sammenligning av tre notater (Haiku god nok på 0 av 3) valgte eleven først et eget tillegg for Haiku, så Sonnets instrukser og notater ikke endres (endret samme kveld: Sonnet skal også få dem), høyere grundighet for Haiku, og at sammenligningene lages på nytt i appen og vurderes per instruksversjon. Kommentarene eleven ga: Haiku brukte for få fargede bokser for de sentrale formlene (Sonnet navngir formelen), merket en formel som ble bygd videre på som skrivefeil, delte en utregning over to sider, og klipte ut tegninger der eleven vil ha dem tegnet i TikZ. Eleven liker at Haiku har færre merknader.
 - **Prioritet (11. oktober):** å få ned kostnadene, så flere kan bruke appen, går foran visualiseringene. Fysikk kapittel 5–10 haster ikke. Målet er ingen eller lav kostnad, dekket av pro-brukere: en gratisversjon og en betalt pro-versjon med kvoter per dag, og lokal AI der det lønner seg. Planen står på en [privat side for eleven](https://claude.ai/artifact/RyN9UDgBgDiHQdXaFRpvck). Les den med Artifact-verktøyet (`action: "read"`). Den ligger ikke i repoet, fordi repoet er offentlig og planen handler om alder, familie og juss.
 - **Første brukere:** venner og klassen.
 - **Maskiner for lokal AI:** en PC med RTX 4060 (8 GB) og elevens Mac med M4 og 16 GB. En Mac mini som står på hele døgnet, kan bli aktuell senere. Maskinene står bare på deler av dagen foreløpig.
@@ -111,6 +115,7 @@ Ikke endre disse uten å spørre først.
 - **Store oppgaver:**
   - Workflows og agenter er greit, så lenge oppgavene er strukturerte og ikke går i beina på hverandre.
   - Natt til 12. oktober fikk Claude lov til å flette alt som er grønt, etter grundig egenkontroll. Store valg som krever eleven (Railway, betaling, juss, navneoppryddingen), venter på eleven.
+  - Natt til 14. oktober gjelder det samme, også for PR-er som endrer databasen. Nattøkta spør ikke eleven; valg som ikke står i [NATTPLAN.md](NATTPLAN.md), tas etter det tryggeste alternativet og skrives under «Spørsmål til eleven» der.
   - Hvis eleven ber deg jobbe lenge, for eksempel over natten, sørger du for at arbeidet fortsetter av seg selv når bruksgrensen er nullstilt.
   - Legg vekt på feilsøking og finpuss underveis.
 - **Denne fila:** oppdater `docs/STATUS.md` når en større oppgave er ferdig. Oppdater også `CLAUDE.md` når arkitekturen endres.
@@ -135,7 +140,8 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 - **Visualiseringene er halvveis:** fysikk kapittel 5–10 har ennå det gamle utseendet og mangler nye praktiske visualiseringer og eksempeloppgaver. Kjemi og biologi er ikke påbegynt (et halvferdig forsøk på å pusse opp byggeklossene ble tatt ut igjen før PR #7). Dette venter til kostnadsarbeidet har kommet lenger, etter elevens ønske. Planen og elevens valg står i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md), og skriptene står i [docs/workflows/](workflows/README.md).
 - **Rottegnet (√) i `FormulaLine`** står litt for lavt. Kapittel 4 retter det lokalt; det bør rettes i `viz/kit/` for alle.
 - **De nye visualiseringene er ikke prøvd på en ekte iPad eller iPhone,** bare i WebKit-testene i CI.
-- **Bare én bruker:** appen har ett passord og én database. Vil andre bruke den i dag, trenger de hver sin egen server. Kontoer er bolk 4 i planen.
+- **Bare én bruker:** appen har ett passord og én database. Vil andre bruke den i dag, trenger de hver sin egen server. Kontoer er fase 4 i [NATTPLAN.md](NATTPLAN.md).
+- **Udir er blokkert i skyøkta:** `data.udir.no` og `www.udir.no` ble avvist av nettverksregelen 13. oktober. Eleven kan legge dem til under Allowed domains i miljøet (se NATTPLAN, morgenlista).
 - **Repoet er offentlig og har ingen lisens.** Planen anbefaler en lisens som sier at alle rettigheter er forbeholdt, og eventuelt privat repo senere. Privat repo nå ville trolig bruke opp de gratis CI-minuttene. Eleven bestemmer.
 - **Flashcards:** trykker eleven «Angre forrige» etter at en ny beste rekke er sendt til serveren, blir rekka ikke lavere igjen, fordi serveren beholder den høyeste.
 - **Stor hovedbunt:** hovedbunten i web-appen er rundt 710 kB (ca. 220 kB komprimert). KaTeX og visualiseringene lastes allerede først når de trengs.
@@ -145,13 +151,15 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 
 Dette er bare forslag. Eleven bestemmer rekkefølgen. Detaljene står i bolkene i [planen](https://claude.ai/artifact/RyN9UDgBgDiHQdXaFRpvck).
 
+**Natt til 14. oktober:** fasene i [NATTPLAN.md](NATTPLAN.md): kvalitet og opphavsrett, Geofag 1, forside, kontoer, kvoter og personvern. Det som står under, er det som kommer etterpå, og punktene som overlapper med nattplanen, gjelder ikke lenger.
+
 1. **Elevens beslutninger:** eleven leser planen og svarer på beslutningene i del 7, særlig motoren i betaen (Haiku eller lokal AI), repoet (lisens eller privat) og hvem som eier API-kontoen.
 2. **Etter navneoppryddingen (#15):** sjekk at eleven ikke har fått doble fag, og at visualiseringene fortsatt vises på notatene.
 3. **Måling (bolk 1):** eleven kjører `npm run eval` med Sonnet, Haiku og 3–5 lokale modeller på 10–20 egne sider, setter karakterer og sender CSV-fila. Uten dette er alle tall om kvalitet gjetninger.
-4. **Haiku (bolk 2):** kortstokker og innholdsfortegnelser er flyttet til Haiku (#16). Sammenligningen er bygget (#19), og Haiku har fått instrukser versjon 2 (#20). Eleven velger «Lag på nytt …» på de tre notatene fra første runde (Virkningsgrad, Kinetisk energi, Potensiell energi) og vurderer dem på nytt, gjerne også et par nye. Er Haiku fortsatt ikke god nok, er de neste tiltakene fra analysen: notatet i biter på 2–3 sider per kall, retting som endrer bare linjene med feil, alle kompileringsfeil i én runde, og utklipp i stedet for TikZ når en tegning ikke kompilerer. Når oppsummeringen har nok vurderinger, foreslår Claude modell for konverteringen, og eleven bestemmer (spør før `CLAUDE_MODEL` endres).
-5. **Kontoer, kvoter og personvern (bolk 4–6)** før venner og klassen inviteres. Store oppgaver, så still oppklaringsspørsmål først.
+4. **Haiku (bolk 2):** ferdig for denne runden: Haiku versjon 2 ble god nok på alle notatene eleven vurderte (#20). Rettelsen av `\uleselig` og instruksene for Sonnet ligger i nattplanen (fase 1a). Senere tiltak hvis kvaliteten faller: notatet i biter på 2–3 sider per kall, retting som endrer bare linjene med feil, alle kompileringsfeil i én runde, og utklipp i stedet for TikZ når en tegning ikke kompilerer.
+5. **Kontoer, kvoter og personvern (bolk 4–6):** i nattplanen (fase 4 og 5). Etterpå: pro-nivået med Sonnet (bolk 12), og en lukket beta for venner og klassen (bolk 7).
 6. **Reserven for hjemmemaskinen (bolk 8):** ventetid per nivå og Haiku i stedet for Sonnet. Til da bør `REMOTE_FALLBACK` stå på `none`.
-7. **Visualiseringene:** fysikk kapittel 5–10, deretter kjemi og biologi. Skriptene og fremgangsmåten står i [docs/workflows/README.md](workflows/README.md), og fremdriften i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md).
+7. **Visualiseringene:** fysikk kapittel 5–10, deretter kjemi, biologi og geofag. Skriptene og fremgangsmåten står i [docs/workflows/README.md](workflows/README.md), og fremdriften i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md).
 8. **Prøve med ekte Claude:** konverter noen vanskelige fysikknotater og lag et par kortstokker. Juster så instruksene etter resultatet: `server/src/profiles/physics.ts` og `server/src/flashcards/prompt.ts`.
 9. **Delkapitler for Kjemi 1 og Biologi 1:** når noen har bøkene, importeres innholdsfortegnelsen. Etterpå kan visualiseringene kobles til delkapitlene.
 10. **Mer i flashcards:** «Lag flere kort» i en kortstokk som finnes fra før, og eksport, for eksempel til CSV eller Anki.
