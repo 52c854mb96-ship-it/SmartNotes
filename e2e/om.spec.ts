@@ -32,12 +32,15 @@ test('om SmartNotes: kilde for kompetansemålene og lisensene til pakkene', asyn
   await expect(page).toHaveURL(/\/innstillinger\/lisenser$/);
   await expect(page.getByRole('heading', { name: 'Lisenser', level: 1 })).toBeVisible();
   const list = page.getByRole('region', { name: 'Pakker med åpen kildekode' });
-  const react = list.locator('summary', { hasText: /^react\b/ }).first();
-  await expect(react).toContainText('MIT');
+  // Sammendraget er navnet rett før versjonen («react19.3.0 · MIT»), så /^react\d/ treffer bare react selv.
+  const react = list.locator('details').filter({ has: page.locator('summary', { hasText: /^react\d/ }) });
+  await expect(react.locator('summary')).toContainText('MIT');
   await expect(list.locator('summary', { hasText: 'lucide-react' })).toContainText('ISC');
   await expect(list.locator('summary', { hasText: 'pdfjs-dist' })).toContainText('Apache-2.0');
-  await react.click();
-  await expect(list.locator('pre').first()).toContainText(/Permission is hereby granted/);
+  await expect(react.locator('pre')).toBeHidden();
+  await react.locator('summary').click();
+  await expect(react.locator('pre')).toBeVisible();
+  await expect(react.locator('pre')).toContainText(/Permission is hereby granted/);
 
   await page.getByRole('link', { name: 'Innstillinger' }).first().click();
   await expect(page.getByRole('heading', { name: 'Innstillinger', level: 1 })).toBeVisible();
