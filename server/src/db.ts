@@ -213,12 +213,151 @@ const MIGRATIONS: string[] = [
   INSERT INTO comparison_ratings (note_id, prompt_version, verdict, comment, rated_at)
     SELECT note_id, 1, verdict, comment, rated_at FROM note_comparisons WHERE verdict IS NOT NULL AND rated_at IS NOT NULL;
   `,
+  // 7: kontoer. Eieren er bruker 1 og får alt som finnes. Brukerdata får user_id (NOT NULL DEFAULT 1, uten fremmednøkkel:
+  // SQLite tillater ikke en fremmednøkkel med en annen standardverdi enn NULL i ALTER TABLE, og en rad som en eldre
+  // versjon av serveren skriver etter en tilbakerulling, tilhører da eieren, den eneste som kan logge inn der).
+  // Innloggingene flyttes til user_sessions, så en eldre versjon bare ser eierens økter fra før kontoene.
+  // En rad bytter aldri eier (triggerne), så den globale rev-cursoren i synken holder per bruker.
+  `
+  CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT,
+    plan TEXT NOT NULL,
+    disabled INTEGER NOT NULL DEFAULT 0,
+    failed_logins INTEGER NOT NULL DEFAULT 0,
+    failed_since TEXT,
+    locked_until TEXT,
+    age_confirmed_at TEXT,
+    terms_accepted_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    last_login_at TEXT
+  );
+  INSERT INTO users (id, username, password_hash, plan, created_at, updated_at)
+    VALUES (1, 'eier', NULL, 'owner', strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+
+  CREATE TABLE user_sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    user_agent TEXT
+  );
+  CREATE INDEX user_sessions_user ON user_sessions(user_id);
+  INSERT INTO user_sessions (token_hash, user_id, created_at, expires_at, user_agent)
+    SELECT token_hash, 1, created_at, expires_at, user_agent FROM sessions;
+
+  CREATE TABLE user_devices (
+    token_hash TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    last_used_at TEXT NOT NULL,
+    PRIMARY KEY (token_hash, user_id)
+  );
+  CREATE INDEX user_devices_user ON user_devices(user_id);
+
+  CREATE TABLE invites (
+    id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL UNIQUE,
+    code_hint TEXT NOT NULL,
+    created_by INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    used_by INTEGER,
+    revoked_at TEXT
+  );
+
+  CREATE TABLE password_resets (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    used_at TEXT,
+    revoked_at TEXT
+  );
+  CREATE INDEX password_resets_user ON password_resets(user_id);
+
+  ALTER TABLE subjects ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE chapters ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE notes ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE decks ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE cards ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE note_comparisons ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE comparison_ratings ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE usage_log ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1;
+  ALTER TABLE usage_log ADD COLUMN pages INTEGER;
+
+  CREATE INDEX subjects_user_rev ON subjects(user_id, rev);
+  CREATE INDEX chapters_user_rev ON chapters(user_id, rev);
+  CREATE INDEX notes_user_rev ON notes(user_id, rev);
+  CREATE INDEX decks_user_rev ON decks(user_id, rev);
+  CREATE INDEX cards_user_rev ON cards(user_id, rev);
+  CREATE INDEX note_comparisons_user ON note_comparisons(user_id);
+  CREATE INDEX usage_log_user_at ON usage_log(user_id, at);
+
+  CREATE TRIGGER subjects_owner_fixed BEFORE UPDATE OF user_id ON subjects BEGIN SELECT RAISE(ABORT, 'user_id kan ikke endres'); END;
+  CREATE TRIGGER chapters_owner_fixed BEFORE UPDATE OF user_id ON chapters BEGIN SELECT RAISE(ABORT, 'user_id kan ikke endres'); END;
+  CREATE TRIGGER notes_owner_fixed BEFORE UPDATE OF user_id ON notes BEGIN SELECT RAISE(ABORT, 'user_id kan ikke endres'); END;
+  CREATE TRIGGER decks_owner_fixed BEFORE UPDATE OF user_id ON decks BEGIN SELECT RAISE(ABORT, 'user_id kan ikke endres'); END;
+  CREATE TRIGGER cards_owner_fixed BEFORE UPDATE OF user_id ON cards BEGIN SELECT RAISE(ABORT, 'user_id kan ikke endres'); END;
+  `,
 ];
+
+/** Eieren av appen (eleven): bruker 1, som fikk alle data da kontoene kom (migrering 7). */
+export const OWNER_ID = 1;
+
+export type UserPlan = 'owner' | 'free' | 'pro';
+
+export interface UserRow {
+  id: number;
+  username: string;
+  password_hash: string | null;
+  plan: UserPlan;
+  disabled: number;
+  failed_logins: number;
+  failed_since: string | null;
+  locked_until: string | null;
+  age_confirmed_at: string | null;
+  terms_accepted_at: string | null;
+  created_at: string;
+  updated_at: string;
+  last_login_at: string | null;
+}
+
+export interface InviteRow {
+  id: string;
+  code_hash: string;
+  code_hint: string;
+  created_by: number;
+  created_at: string;
+  expires_at: string;
+  used_at: string | null;
+  used_by: number | null;
+  revoked_at: string | null;
+}
+
+/** Et fagoppsett slik databasen trenger det (se `SubjectPreset` i presets.ts). */
+export interface PresetInput {
+  id: string;
+  /** Tidligere id-er for samme oppsett (et oppsett som er lagt inn under en av dem, legges ikke inn på nytt). */
+  aliases?: string[];
+  subjectName: string;
+  profile: SubjectProfile;
+  aims: CompetenceAim[];
+  chapters: (ChapterInput & { sections: Section[] })[];
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return (err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE' || (err as { code?: string }).code === 'SQLITE_CONSTRAINT_PRIMARYKEY';
+}
 
 // ---------- Rad-typer (slik de ligger i SQLite) ----------
 
 interface SubjectRow {
   id: string;
+  user_id: number;
   name: string;
   profile: string;
   textbook: string | null;
@@ -232,6 +371,7 @@ interface SubjectRow {
 
 interface ChapterRow {
   id: string;
+  user_id: number;
   subject_id: string;
   number: string | null;
   title: string;
@@ -245,6 +385,7 @@ interface ChapterRow {
 
 export interface NoteRow {
   id: string;
+  user_id: number;
   subject_id: string;
   chapter_id: string | null;
   section: string | null;
@@ -275,6 +416,7 @@ export interface NoteRow {
 
 export interface DeckRow {
   id: string;
+  user_id: number;
   subject_id: string;
   title: string;
   difficulty: FlashcardDifficulty;
@@ -292,6 +434,7 @@ export interface DeckRow {
 
 interface CardRow {
   id: string;
+  user_id: number;
   deck_id: string;
   note_id: string | null;
   kind: FlashcardKind;
@@ -309,6 +452,8 @@ interface CardRow {
 
 interface UsageLogRow {
   at: number;
+  user_id: number;
+  pages: number | null;
   kind: string;
   provider: string;
   model: string;
@@ -326,6 +471,7 @@ interface UsageLogRow {
 
 export interface ComparisonRow {
   note_id: string;
+  user_id: number;
   model: string;
   base_model: string | null;
   base_pdf_rev: number;
@@ -525,17 +671,23 @@ export interface NoteResultUpdate {
 export class Repo {
   readonly db: DB;
 
-  constructor(file: string) {
+  /** `migrateTo` stopper migreringen ved en eldre versjon (bare for tester av migreringene). */
+  constructor(file: string, opts: { migrateTo?: number } = {}) {
     this.db = new Database(file);
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('foreign_keys = ON');
     this.db.pragma('busy_timeout = 5000');
-    this.migrate();
+    this.migrate(opts.migrateTo ?? MIGRATIONS.length);
   }
 
-  private migrate(): void {
+  private migrate(target: number): void {
     const version = this.db.pragma('user_version', { simple: true }) as number;
-    for (let i = version; i < MIGRATIONS.length; i++) {
+    // En database fra en nyere versjon (f.eks. etter en tilbakerulling i Railway) kan ha data denne versjonen ikke
+    // forstår, som kontoer; da startes ikke serveren i stedet for å vise noe feil.
+    if (version > MIGRATIONS.length) {
+      throw new Error(`Databasen er fra en nyere versjon av SmartNotes (skjema ${version}, denne versjonen kjenner ${MIGRATIONS.length}). Bruk en nyere versjon.`);
+    }
+    for (let i = version; i < target; i++) {
       this.db.transaction(() => {
         this.db.exec(MIGRATIONS[i]!);
         this.db.pragma(`user_version = ${i + 1}`);
@@ -579,7 +731,13 @@ export class Repo {
     await this.db.backup(file);
     const copy = new Database(file);
     try {
+      // Innlogginger, enheter, lenker for nytt passord og ubrukte invitasjoner er hemmeligheter som ikke hører hjemme i en
+      // kopi som lastes ned.
       copy.prepare(`DELETE FROM sessions`).run();
+      copy.prepare(`DELETE FROM user_sessions`).run();
+      copy.prepare(`DELETE FROM user_devices`).run();
+      copy.prepare(`DELETE FROM password_resets`).run();
+      copy.prepare(`DELETE FROM invites WHERE used_at IS NULL`).run();
       copy.pragma('journal_mode = DELETE');
     } finally {
       copy.close();
@@ -595,8 +753,8 @@ export class Repo {
   ): void {
     const start = this.db.prepare(
       `INSERT INTO note_comparisons (note_id, model, base_model, base_pdf_rev, status, stage, error, page_count, remarks,
-         cost_usd, verdict, comment, created_at, finished_at, rated_at, prompt_version)
-       VALUES (?, ?, ?, ?, 'running', NULL, NULL, ?, '[]', NULL, NULL, NULL, ?, NULL, NULL, ?)
+         cost_usd, verdict, comment, created_at, finished_at, rated_at, prompt_version, user_id)
+       VALUES (?, ?, ?, ?, 'running', NULL, NULL, ?, '[]', NULL, NULL, NULL, ?, NULL, NULL, ?, COALESCE((SELECT user_id FROM notes WHERE id = ?), ${OWNER_ID}))
        ON CONFLICT(note_id) DO UPDATE SET model = excluded.model, base_model = excluded.base_model,
          base_pdf_rev = excluded.base_pdf_rev, status = 'running', stage = NULL, error = NULL, page_count = excluded.page_count,
          remarks = '[]', cost_usd = NULL, verdict = NULL, comment = NULL, created_at = excluded.created_at, finished_at = NULL,
@@ -606,7 +764,7 @@ export class Repo {
     // telles i loggen. Vurderinger av andre versjoner blir stående.
     const forget = this.db.prepare(`DELETE FROM comparison_ratings WHERE note_id = ? AND prompt_version = ?`);
     this.db.transaction(() => {
-      start.run(noteId, c.model, c.baseModel, c.basePdfRev, c.pageCount, now(), c.promptVersion);
+      start.run(noteId, c.model, c.baseModel, c.basePdfRev, c.pageCount, now(), c.promptVersion, noteId);
       forget.run(noteId, c.promptVersion);
     })();
   }
@@ -640,8 +798,8 @@ export class Repo {
       // Loggen beholder vurderingen per instruksversjon, også etter at sammenligningen er laget på nytt.
       this.db
         .prepare(
-          `INSERT INTO comparison_ratings (note_id, prompt_version, verdict, comment, rated_at)
-           SELECT note_id, prompt_version, verdict, comment, rated_at FROM note_comparisons WHERE note_id = ?
+          `INSERT INTO comparison_ratings (note_id, prompt_version, verdict, comment, rated_at, user_id)
+           SELECT note_id, prompt_version, verdict, comment, rated_at, user_id FROM note_comparisons WHERE note_id = ?
            ON CONFLICT(note_id, prompt_version) DO UPDATE SET verdict = excluded.verdict, comment = excluded.comment,
              rated_at = excluded.rated_at`,
         )
@@ -651,13 +809,13 @@ export class Repo {
   }
 
   /** Vurderingene per instruksversjon (siste vurdering per notat), nyeste versjon først. */
-  comparisonRatingsByVersion(): { version: number; rated: number; haikuOk: number }[] {
+  comparisonRatingsByVersion(userId: number): { version: number; rated: number; haikuOk: number }[] {
     return this.db
       .prepare(
         `SELECT prompt_version AS version, COUNT(*) AS rated, SUM(CASE WHEN verdict = 'haiku_ok' THEN 1 ELSE 0 END) AS haikuOk
-         FROM comparison_ratings GROUP BY prompt_version ORDER BY prompt_version DESC`,
+         FROM comparison_ratings WHERE user_id = ? GROUP BY prompt_version ORDER BY prompt_version DESC`,
       )
-      .all() as { version: number; rated: number; haikuOk: number }[];
+      .all(userId) as { version: number; rated: number; haikuOk: number }[];
   }
 
   getComparisonRow(noteId: string): ComparisonRow | null {
@@ -672,13 +830,13 @@ export class Repo {
   }
 
   /** Alle sammenligninger med tittelen på notatet (også slettede notater), nyeste vurdering først. */
-  listComparisons(): (ComparisonRow & { title: string | null; note_deleted: number | null })[] {
+  listComparisons(userId: number): (ComparisonRow & { title: string | null; note_deleted: number | null })[] {
     return this.db
       .prepare(
         `SELECT c.*, n.title AS title, n.deleted AS note_deleted FROM note_comparisons c LEFT JOIN notes n ON n.id = c.note_id
-         ORDER BY c.rated_at DESC, c.created_at DESC`,
+         WHERE c.user_id = ? ORDER BY c.rated_at DESC, c.created_at DESC`,
       )
-      .all() as (ComparisonRow & { title: string | null; note_deleted: number | null })[];
+      .all(userId) as (ComparisonRow & { title: string | null; note_deleted: number | null })[];
   }
 
   /** Det som står i manifestet til sikkerhetskopien. Slettede rader telles ikke. */
@@ -700,7 +858,7 @@ export class Repo {
     this.db
       .prepare(
         `INSERT INTO usage_log (at, kind, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
-           duration_ms, ok, error, note_id, deck_id, subject_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           duration_ms, ok, error, note_id, deck_id, subject_id, user_id, pages) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         e.at,
@@ -717,12 +875,20 @@ export class Repo {
         e.noteId,
         e.deckId,
         e.subjectId,
+        // Hvem som eier kallet, settes alltid av jobben (jobScope) eller ruten; eieren er reserven, så forbruket aldri
+        // forsvinner fra loggen.
+        e.userId ?? OWNER_ID,
+        e.pages,
       );
   }
 
-  /** AI-kallene fra og med `since` (ms), eldste først. */
-  usageSince(since: number): UsageEntry[] {
-    const rows = this.db.prepare(`SELECT * FROM usage_log WHERE at >= ? ORDER BY at, id`).all(since) as UsageLogRow[];
+  /** AI-kallene fra og med `since` (ms), eldste først; med `userId` bare den brukerens. */
+  usageSince(since: number, userId?: number): UsageEntry[] {
+    const rows = (
+      userId === undefined
+        ? this.db.prepare(`SELECT * FROM usage_log WHERE at >= ? ORDER BY at, id`).all(since)
+        : this.db.prepare(`SELECT * FROM usage_log WHERE at >= ? AND user_id = ? ORDER BY at, id`).all(since, userId)
+    ) as UsageLogRow[];
     return rows.map((r) => ({
       at: r.at,
       kind: r.kind as UsageKind,
@@ -735,20 +901,23 @@ export class Repo {
       durationMs: r.duration_ms,
       ok: r.ok === 1,
       error: r.error,
+      userId: r.user_id,
       noteId: r.note_id,
       deckId: r.deck_id,
       subjectId: r.subject_id,
+      pages: r.pages,
     }));
   }
 
   // ---------- Synk ----------
 
-  sync(since: number): { cursor: number; subjects: Subject[]; chapters: Chapter[]; notes: Note[]; decks: Deck[]; cards: Flashcard[] } {
+  /** Radene til én bruker som er endret etter `since` (alle som ikke er slettet ved `since <= 0`). */
+  sync(userId: number, since: number): { cursor: number; subjects: Subject[]; chapters: Chapter[]; notes: Note[]; decks: Deck[]; cards: Flashcard[] } {
     return this.db.transaction(() => {
       const cursor = this.currentRev();
       const full = since <= 0;
-      const where = full ? 'deleted = 0' : 'rev > ?';
-      const args = full ? [] : [since];
+      const where = full ? 'user_id = ? AND deleted = 0' : 'user_id = ? AND rev > ?';
+      const args = full ? [userId] : [userId, since];
       const subjects = (this.db.prepare(`SELECT * FROM subjects WHERE ${where} ORDER BY rev`).all(...args) as SubjectRow[]).map(toSubject);
       const chapters = (this.db.prepare(`SELECT * FROM chapters WHERE ${where} ORDER BY rev`).all(...args) as ChapterRow[]).map(toChapter);
       const notes = (this.db.prepare(`SELECT * FROM notes WHERE ${where} ORDER BY rev`).all(...args) as NoteRow[]).map(toNote);
@@ -760,8 +929,10 @@ export class Repo {
 
   // ---------- Fag ----------
 
-  listSubjects(): Subject[] {
-    return (this.db.prepare(`SELECT * FROM subjects WHERE deleted = 0 ORDER BY position, created_at`).all() as SubjectRow[]).map(toSubject);
+  listSubjects(userId: number): Subject[] {
+    return (
+      this.db.prepare(`SELECT * FROM subjects WHERE user_id = ? AND deleted = 0 ORDER BY position, created_at`).all(userId) as SubjectRow[]
+    ).map(toSubject);
   }
 
   getSubject(id: string): Subject | null {
@@ -769,15 +940,17 @@ export class Repo {
     return r ? toSubject(r) : null;
   }
 
-  createSubject(input: { name: string; profile: SubjectProfile; textbook?: string | null; aims?: CompetenceAim[] }): Subject {
+  createSubject(input: { userId: number; name: string; profile: SubjectProfile; textbook?: string | null; aims?: CompetenceAim[] }): Subject {
     const id = randomUUID();
     const t = now();
-    const position = (this.db.prepare(`SELECT COALESCE(MAX(position), -1) + 1 AS p FROM subjects WHERE deleted = 0`).get() as { p: number }).p;
+    const position = (
+      this.db.prepare(`SELECT COALESCE(MAX(position), -1) + 1 AS p FROM subjects WHERE user_id = ? AND deleted = 0`).get(input.userId) as { p: number }
+    ).p;
     this.db
       .prepare(
-        `INSERT INTO subjects (id, name, profile, textbook, position, aims, rev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO subjects (id, user_id, name, profile, textbook, position, aims, rev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(id, input.name, input.profile, input.textbook ?? null, position, JSON.stringify(input.aims ?? []), this.nextRev(), t, t);
+      .run(id, input.userId, input.name, input.profile, input.textbook ?? null, position, JSON.stringify(input.aims ?? []), this.nextRev(), t, t);
     return this.getSubject(id)!;
   }
 
@@ -836,9 +1009,10 @@ export class Repo {
         const t = now();
         this.db
           .prepare(
-            `INSERT INTO chapters (id, subject_id, number, title, position, sections, rev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO chapters (id, user_id, subject_id, number, title, position, sections, rev, created_at, updated_at)
+             VALUES (?, (SELECT user_id FROM subjects WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
-          .run(id, subjectId, input.number, input.title, position++, JSON.stringify(input.sections ?? []), this.nextRev(), t, t);
+          .run(id, subjectId, subjectId, input.number, input.title, position++, JSON.stringify(input.sections ?? []), this.nextRev(), t, t);
         ids.push(id);
       }
       return ids.map((id) => this.getChapter(id)!);
@@ -908,9 +1082,9 @@ export class Repo {
     return r ? toNote(r) : null;
   }
 
-  getNoteByClientId(clientId: string): Note | null {
-    const r = this.db.prepare(`SELECT * FROM notes WHERE client_id = ?`).get(clientId) as NoteRow | undefined;
-    return r ? toNote(r) : null;
+  /** Notatet med denne klient-id-en (også et slettet), uansett eier. Klient-id-en er unik på tvers av brukerne. */
+  getNoteRowByClientId(clientId: string): NoteRow | null {
+    return (this.db.prepare(`SELECT * FROM notes WHERE client_id = ?`).get(clientId) as NoteRow | undefined) ?? null;
   }
 
   createNote(input: {
@@ -928,12 +1102,13 @@ export class Repo {
       const t = now();
       this.db
         .prepare(
-          `INSERT INTO notes (id, subject_id, chapter_id, client_id, title, title_auto, note_date, note_date_auto, status,
+          `INSERT INTO notes (id, user_id, subject_id, chapter_id, client_id, title, title_auto, note_date, note_date_auto, status,
              page_count, chapter_auto, instructions, rev, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, (SELECT user_id FROM subjects WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           input.id,
+          input.subjectId,
           input.subjectId,
           input.chapterId,
           input.clientId,
@@ -997,6 +1172,7 @@ export class Repo {
       const r = this.db
         .prepare(
           `SELECT * FROM notes WHERE status = 'queued' AND deleted = 0 AND (not_before IS NULL OR not_before <= ?)
+             AND user_id NOT IN (SELECT id FROM users WHERE disabled = 1)
            ORDER BY created_at LIMIT 1`,
         )
         .get(now()) as NoteRow | undefined;
@@ -1119,6 +1295,15 @@ export class Repo {
     return rows.length;
   }
 
+  /** Notatene til en bruker som står i køen eller konverteres nå. */
+  activeNoteIds(userId: number): string[] {
+    return (
+      this.db
+        .prepare(`SELECT id FROM notes WHERE user_id = ? AND deleted = 0 AND status IN ('queued', 'processing')`)
+        .all(userId) as { id: string }[]
+    ).map((r) => r.id);
+  }
+
   hasQueued(): boolean {
     return !!this.db.prepare(`SELECT 1 FROM notes WHERE status = 'queued' AND deleted = 0 LIMIT 1`).get();
   }
@@ -1151,10 +1336,10 @@ export class Repo {
     const t = now();
     this.db
       .prepare(
-        `INSERT INTO decks (id, subject_id, title, difficulty, note_ids, requested_count, status, rev, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'generating', ?, ?, ?)`,
+        `INSERT INTO decks (id, user_id, subject_id, title, difficulty, note_ids, requested_count, status, rev, created_at, updated_at)
+         VALUES (?, (SELECT user_id FROM subjects WHERE id = ?), ?, ?, ?, ?, ?, 'generating', ?, ?, ?)`,
       )
-      .run(id, input.subjectId, input.title, input.difficulty, JSON.stringify(input.noteIds), input.count, this.nextRev(), t, t);
+      .run(id, input.subjectId, input.subjectId, input.title, input.difficulty, JSON.stringify(input.noteIds), input.count, this.nextRev(), t, t);
     return this.getDeck(id)!;
   }
 
@@ -1165,7 +1350,14 @@ export class Repo {
 
   /** Kortstokker som var midt i genereringen (f.eks. da serveren stoppet). */
   generatingDeckIds(): string[] {
-    return (this.db.prepare(`SELECT id FROM decks WHERE status = 'generating' AND deleted = 0 ORDER BY created_at`).all() as { id: string }[]).map(
+    return (
+      this.db
+        .prepare(
+          `SELECT id FROM decks WHERE status = 'generating' AND deleted = 0 AND user_id NOT IN (SELECT id FROM users WHERE disabled = 1)
+           ORDER BY created_at`,
+        )
+        .all() as { id: string }[]
+    ).map(
       (r) => r.id,
     );
   }
@@ -1201,11 +1393,12 @@ export class Repo {
     const ids: string[] = [];
     const t = now();
     const insert = this.db.prepare(
-      `INSERT INTO cards (id, deck_id, note_id, kind, front, back, detail, position, rev, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO cards (id, user_id, deck_id, note_id, kind, front, back, detail, position, rev, created_at, updated_at)
+       VALUES (?, (SELECT user_id FROM decks WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const c of cards) {
       const id = randomUUID();
-      insert.run(id, deckId, c.noteId, c.kind, c.front, JSON.stringify(c.back), c.detail, position++, this.nextRev(), t, t);
+      insert.run(id, deckId, deckId, c.noteId, c.kind, c.front, JSON.stringify(c.back), c.detail, position++, this.nextRev(), t, t);
       ids.push(id);
     }
     return ids;
@@ -1292,54 +1485,242 @@ export class Repo {
 
   // ---------- Innloggingsøkter ----------
 
-  createSession(tokenHash: string, expiresAt: Date, userAgent: string | null): void {
+  createSession(tokenHash: string, userId: number, expiresAt: Date, userAgent: string | null): void {
     this.db
-      .prepare(`INSERT INTO sessions (token_hash, created_at, expires_at, user_agent) VALUES (?, ?, ?, ?)`)
-      .run(tokenHash, now(), expiresAt.toISOString(), userAgent);
+      .prepare(`INSERT INTO user_sessions (token_hash, user_id, created_at, expires_at, user_agent) VALUES (?, ?, ?, ?, ?)`)
+      .run(tokenHash, userId, now(), expiresAt.toISOString(), userAgent);
   }
 
-  validSession(tokenHash: string): boolean {
-    return !!this.db.prepare(`SELECT 1 FROM sessions WHERE token_hash = ? AND expires_at > ?`).get(tokenHash, now());
+  /** Brukeren bak en gyldig økt, eller null (utløpt, ukjent eller stengt konto). */
+  sessionUser(tokenHash: string): UserRow | null {
+    return (
+      (this.db
+        .prepare(
+          `SELECT u.* FROM user_sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ? AND u.disabled = 0`,
+        )
+        .get(tokenHash, now()) as UserRow | undefined) ?? null
+    );
   }
 
   deleteSession(tokenHash: string): void {
-    this.db.prepare(`DELETE FROM sessions WHERE token_hash = ?`).run(tokenHash);
+    this.db.prepare(`DELETE FROM user_sessions WHERE token_hash = ?`).run(tokenHash);
+  }
+
+  /** Logger brukeren ut overalt (nytt passord, stengt konto). */
+  deleteUserSessions(userId: number): void {
+    this.db.prepare(`DELETE FROM user_sessions WHERE user_id = ?`).run(userId);
   }
 
   pruneSessions(): void {
-    this.db.prepare(`DELETE FROM sessions WHERE expires_at <= ?`).run(now());
+    const t = now();
+    this.db.prepare(`DELETE FROM user_sessions WHERE expires_at <= ?`).run(t);
+    this.db.prepare(`DELETE FROM sessions WHERE expires_at <= ?`).run(t);
+  }
+
+  // ---------- Brukere ----------
+
+  getUser(id: number): UserRow | null {
+    return (this.db.prepare(`SELECT * FROM users WHERE id = ?`).get(id) as UserRow | undefined) ?? null;
+  }
+
+  /** Brukeren med dette brukernavnet (allerede normalisert med `normalizeUsername`). */
+  getUserByName(username: string): UserRow | null {
+    return (this.db.prepare(`SELECT * FROM users WHERE username = ?`).get(username) as UserRow | undefined) ?? null;
+  }
+
+  listUsers(): UserRow[] {
+    return this.db.prepare(`SELECT * FROM users ORDER BY id`).all() as UserRow[];
+  }
+
+  /** Nytt brukernavn. Gir false når navnet er tatt. */
+  renameUser(id: number, username: string): boolean {
+    try {
+      return this.db.prepare(`UPDATE users SET username = ?, updated_at = ? WHERE id = ?`).run(username, now(), id).changes > 0;
+    } catch (err) {
+      if (isUniqueViolation(err)) return false;
+      throw err;
+    }
+  }
+
+  setPasswordHash(id: number, hash: string): void {
+    this.db.prepare(`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`).run(hash, now(), id);
+  }
+
+  setDisabled(id: number, disabled: boolean): void {
+    this.db.prepare(`UPDATE users SET disabled = ?, updated_at = ? WHERE id = ?`).run(disabled ? 1 : 0, now(), id);
+  }
+
+  /** Et mislykket forsøk fra en ukjent enhet; etter `max` innen `windowMs` sperres kontoen for ukjente enheter i `lockMs`. */
+  recordLoginFailure(id: number, opts: { max: number; windowMs: number; lockMs: number }): void {
+    const u = this.getUser(id);
+    if (!u) return;
+    const t = Date.now();
+    const fresh = !u.failed_since || t - Date.parse(u.failed_since) > opts.windowMs;
+    const failures = fresh ? 1 : u.failed_logins + 1;
+    const lockedUntil = failures >= opts.max ? new Date(t + opts.lockMs).toISOString() : u.locked_until;
+    this.db
+      .prepare(`UPDATE users SET failed_logins = ?, failed_since = ?, locked_until = ? WHERE id = ?`)
+      .run(failures, fresh ? new Date(t).toISOString() : u.failed_since, lockedUntil, id);
+  }
+
+  recordLogin(id: number): void {
+    this.db
+      .prepare(`UPDATE users SET failed_logins = 0, failed_since = NULL, locked_until = NULL, last_login_at = ? WHERE id = ?`)
+      .run(now(), id);
+  }
+
+  // ---------- Kjente enheter (unntak fra kontosperren) ----------
+
+  addDevice(tokenHash: string, userId: number): void {
+    const t = now();
+    this.db
+      .prepare(`INSERT INTO user_devices (token_hash, user_id, created_at, last_used_at) VALUES (?, ?, ?, ?) ON CONFLICT(token_hash, user_id) DO UPDATE SET last_used_at = excluded.last_used_at`)
+      .run(tokenHash, userId, t, t);
+  }
+
+  isKnownDevice(tokenHash: string, userId: number): boolean {
+    return !!this.db.prepare(`SELECT 1 FROM user_devices WHERE token_hash = ? AND user_id = ?`).get(tokenHash, userId);
+  }
+
+  // ---------- Invitasjoner ----------
+
+  createInvite(input: { id: string; codeHash: string; codeHint: string; createdBy: number; expiresAt: Date }): InviteRow {
+    this.db
+      .prepare(`INSERT INTO invites (id, code_hash, code_hint, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(input.id, input.codeHash, input.codeHint, input.createdBy, now(), input.expiresAt.toISOString());
+    return this.db.prepare(`SELECT * FROM invites WHERE id = ?`).get(input.id) as InviteRow;
+  }
+
+  listInvites(): (InviteRow & { used_by_name: string | null })[] {
+    return this.db
+      .prepare(`SELECT i.*, u.username AS used_by_name FROM invites i LEFT JOIN users u ON u.id = i.used_by ORDER BY i.created_at DESC`)
+      .all() as (InviteRow & { used_by_name: string | null })[];
+  }
+
+  /** Om koden kan brukes nå (finnes, ikke brukt, ikke trukket tilbake, ikke utløpt). */
+  inviteUsable(codeHash: string): boolean {
+    return !!this.db
+      .prepare(`SELECT 1 FROM invites WHERE code_hash = ? AND used_at IS NULL AND revoked_at IS NULL AND expires_at > ?`)
+      .get(codeHash, now());
+  }
+
+  /** Trekker tilbake en ubrukt invitasjon. Gir false når den ikke finnes eller allerede er brukt. */
+  revokeInvite(id: string): boolean {
+    return this.db.prepare(`UPDATE invites SET revoked_at = ? WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL`).run(now(), id).changes > 0;
   }
 
   /**
-   * Startoppsett: hvert læreboksett (fag + kapitler + delkapitler + kompetansemål) legges inn én gang.
-   * Hvilke som er lagt inn, huskes i meta, så et fag brukeren har slettet, ikke kommer tilbake. Et fag som
-   * allerede finnes med samme lærebok (lagt inn før denne ordningen), regnes som lagt inn.
-   * Uten læreboksett og uten fag lages et tomt fag «Fysikk». Returnerer navnene på fagene som ble laget.
+   * Registrering: bruker invitasjonen og lager brukeren, fagene og økten i én transaksjon, så to registreringer med
+   * samme kode ikke begge lykkes. `passwordHash` lages før kallet (scrypt er asynkron og kan ikke stå i transaksjonen).
    */
-  seed(
-    presets: {
-      id: string;
-      /** Tidligere id-er for samme oppsett (et oppsett som er lagt inn under en av dem, legges ikke inn på nytt). */
-      aliases?: string[];
-      subjectName: string;
-      profile: SubjectProfile;
-      aims: CompetenceAim[];
-      chapters: (ChapterInput & { sections: Section[] })[];
-    }[],
-  ): string[] {
+  registerUser(input: {
+    codeHash: string;
+    username: string;
+    passwordHash: string;
+    presets: Parameters<Repo['addPreset']>[1][];
+    session: { tokenHash: string; expiresAt: Date; userAgent: string | null };
+  }): { ok: true; user: UserRow } | { ok: false; reason: 'invite' | 'username' } {
+    return this.db.transaction(() => {
+      const t = now();
+      const invite = this.db
+        .prepare(`SELECT id FROM invites WHERE code_hash = ? AND used_at IS NULL AND revoked_at IS NULL AND expires_at > ?`)
+        .get(input.codeHash, t) as { id: string } | undefined;
+      if (!invite) return { ok: false as const, reason: 'invite' as const };
+      let userId: number;
+      try {
+        userId = Number(
+          this.db
+            .prepare(
+              `INSERT INTO users (username, password_hash, plan, age_confirmed_at, created_at, updated_at, last_login_at) VALUES (?, ?, 'free', ?, ?, ?, ?)`,
+            )
+            .run(input.username, input.passwordHash, t, t, t, t).lastInsertRowid,
+        );
+      } catch (err) {
+        if (isUniqueViolation(err)) return { ok: false as const, reason: 'username' as const };
+        throw err;
+      }
+      const used = this.db
+        .prepare(`UPDATE invites SET used_at = ?, used_by = ? WHERE id = ? AND used_at IS NULL AND revoked_at IS NULL`)
+        .run(t, userId, invite.id);
+      if (used.changes !== 1) throw new Error('Invitasjonen ble brukt samtidig.');
+      for (const preset of input.presets) this.addPreset(userId, preset);
+      this.createSession(input.session.tokenHash, userId, input.session.expiresAt, input.session.userAgent);
+      return { ok: true as const, user: this.getUser(userId)! };
+    })();
+  }
+
+  // ---------- Lenker for nytt passord ----------
+
+  /** Ny engangslenke for brukeren; eldre lenker som ikke er brukt, trekkes tilbake. */
+  createPasswordReset(tokenHash: string, userId: number, expiresAt: Date): void {
+    this.db.transaction(() => {
+      this.revokePasswordResets(userId);
+      this.db
+        .prepare(`INSERT INTO password_resets (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)`)
+        .run(tokenHash, userId, now(), expiresAt.toISOString());
+    })();
+  }
+
+  /** Om lenken kan brukes nå (sjekkes før passordet hashes). */
+  passwordResetUsable(tokenHash: string): boolean {
+    return !!this.db
+      .prepare(
+        `SELECT 1 FROM password_resets r JOIN users u ON u.id = r.user_id
+         WHERE r.token_hash = ? AND r.used_at IS NULL AND r.revoked_at IS NULL AND r.expires_at > ? AND u.disabled = 0 AND u.id != ?`,
+      )
+      .get(tokenHash, now(), OWNER_ID);
+  }
+
+  revokePasswordResets(userId: number): void {
+    this.db.prepare(`UPDATE password_resets SET revoked_at = ? WHERE user_id = ? AND used_at IS NULL AND revoked_at IS NULL`).run(now(), userId);
+  }
+
+  /**
+   * Bruker lenken: nytt passord, alle økter for brukeren slettes, sperren nullstilles og en ny økt lages, i én
+   * transaksjon. Gir brukeren, eller null når lenken er ukjent, brukt, trukket tilbake eller utløpt, eller kontoen er stengt.
+   */
+  usePasswordReset(input: {
+    tokenHash: string;
+    passwordHash: string;
+    session: { tokenHash: string; expiresAt: Date; userAgent: string | null };
+  }): UserRow | null {
+    return this.db.transaction(() => {
+      const t = now();
+      const reset = this.db
+        .prepare(
+          `SELECT r.user_id FROM password_resets r JOIN users u ON u.id = r.user_id
+           WHERE r.token_hash = ? AND r.used_at IS NULL AND r.revoked_at IS NULL AND r.expires_at > ? AND u.disabled = 0 AND u.id != ?`,
+        )
+        .get(input.tokenHash, t, OWNER_ID) as { user_id: number } | undefined;
+      if (!reset) return null;
+      this.db.prepare(`UPDATE password_resets SET used_at = ? WHERE token_hash = ?`).run(t, input.tokenHash);
+      this.setPasswordHash(reset.user_id, input.passwordHash);
+      this.deleteUserSessions(reset.user_id);
+      this.recordLogin(reset.user_id);
+      this.createSession(input.session.tokenHash, reset.user_id, input.session.expiresAt, input.session.userAgent);
+      return this.getUser(reset.user_id);
+    })();
+  }
+
+  /**
+   * Startoppsett for eieren: hvert fagoppsett (fag + kapitler + delkapitler + kompetansemål) legges inn én gang.
+   * Hvilke som er lagt inn, huskes i meta, så et fag eieren har slettet, ikke kommer tilbake. Et fag som allerede finnes
+   * med samme navn og fagtype (lagt inn før denne ordningen), regnes som lagt inn. Uten oppsett og uten fag lages et
+   * tomt fag «Fysikk». Returnerer navnene på fagene som ble laget. Andre brukere velger fagene sine ved registrering.
+   */
+  seed(presets: PresetInput[]): string[] {
     return this.db.transaction(() => {
       const created: string[] = [];
       if (presets.length === 0) {
-        const count = (this.db.prepare(`SELECT COUNT(*) AS n FROM subjects`).get() as { n: number }).n;
+        const count = (this.db.prepare(`SELECT COUNT(*) AS n FROM subjects WHERE user_id = ?`).get(OWNER_ID) as { n: number }).n;
         if (count === 0) {
-          this.createSubject({ name: 'Fysikk', profile: 'physics', textbook: null });
+          this.createSubject({ userId: OWNER_ID, name: 'Fysikk', profile: 'physics', textbook: null });
           created.push('Fysikk');
         }
         return created;
       }
-      const row = this.db.prepare(`SELECT value FROM meta WHERE key = 'seeded_presets'`).get() as { value: string } | undefined;
-      const seeded = new Set<string>(row ? (JSON.parse(row.value) as string[]) : []);
-      const existing = this.listSubjects();
+      const seeded = this.seededPresets();
+      const existing = this.listSubjects(OWNER_ID);
       for (const preset of presets) {
         const ids = [preset.id, ...(preset.aliases ?? [])];
         if (ids.some((id) => seeded.has(id))) {
@@ -1348,40 +1729,268 @@ export class Repo {
         }
         seeded.add(preset.id);
         if (existing.some((s) => s.name === preset.subjectName && s.profile === preset.profile)) continue;
-        const subject = this.createSubject({ name: preset.subjectName, profile: preset.profile, textbook: null, aims: preset.aims });
+        const subject = this.createSubject({ userId: OWNER_ID, name: preset.subjectName, profile: preset.profile, textbook: null, aims: preset.aims });
         this.createChapters(subject.id, preset.chapters);
         created.push(preset.subjectName);
       }
-      this.db
-        .prepare(`INSERT INTO meta (key, value) VALUES ('seeded_presets', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
-        .run(JSON.stringify([...seeded]));
+      this.saveSeededPresets(seeded);
       return created;
     })();
   }
 
+  private seededPresets(): Set<string> {
+    const row = this.db.prepare(`SELECT value FROM meta WHERE key = 'seeded_presets'`).get() as { value: string } | undefined;
+    return new Set<string>(row ? (JSON.parse(row.value) as string[]) : []);
+  }
+
+  private saveSeededPresets(seeded: Set<string>): void {
+    this.db
+      .prepare(`INSERT INTO meta (key, value) VALUES ('seeded_presets', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
+      .run(JSON.stringify([...seeded]));
+  }
+
   /**
-   * Legger et fagoppsett til som fag («Legg til fag»), med temaene, deltemaene og kompetansemålene. Oppsettet huskes som
-   * lagt inn, så startoppsettet ikke legger det inn en gang til. Returnerer null når et fag med samme navn og fagtype
-   * finnes fra før.
+   * Legger et fagoppsett til som fag for en bruker («Legg til fag», registrering), med temaene, deltemaene og
+   * kompetansemålene. For eieren huskes oppsettet som lagt inn, så startoppsettet ikke legger det inn en gang til.
+   * Returnerer null når brukeren har et fag med samme navn og fagtype fra før.
    */
-  addPreset(preset: {
-    id: string;
-    subjectName: string;
-    profile: SubjectProfile;
-    aims: CompetenceAim[];
-    chapters: (ChapterInput & { sections: Section[] })[];
-  }): Subject | null {
+  addPreset(userId: number, preset: PresetInput): Subject | null {
     return this.db.transaction(() => {
-      if (this.listSubjects().some((s) => s.name === preset.subjectName && s.profile === preset.profile)) return null;
-      const subject = this.createSubject({ name: preset.subjectName, profile: preset.profile, textbook: null, aims: preset.aims });
+      if (this.listSubjects(userId).some((s) => s.name === preset.subjectName && s.profile === preset.profile)) return null;
+      const subject = this.createSubject({ userId, name: preset.subjectName, profile: preset.profile, textbook: null, aims: preset.aims });
       this.createChapters(subject.id, preset.chapters);
-      const row = this.db.prepare(`SELECT value FROM meta WHERE key = 'seeded_presets'`).get() as { value: string } | undefined;
-      const seeded = new Set<string>(row ? (JSON.parse(row.value) as string[]) : []);
-      seeded.add(preset.id);
-      this.db
-        .prepare(`INSERT INTO meta (key, value) VALUES ('seeded_presets', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`)
-        .run(JSON.stringify([...seeded]));
+      if (userId === OWNER_ID) {
+        const seeded = this.seededPresets();
+        seeded.add(preset.id);
+        this.saveSeededPresets(seeded);
+      }
       return subject;
     })();
+  }
+
+  /** Utsnittet av databasen som tilhører én bruker (alt rutene gjør, går gjennom det). */
+  forUser(userId: number): UserRepo {
+    return new UserRepo(this, userId);
+  }
+}
+
+
+type OwnedTable = 'subjects' | 'chapters' | 'notes' | 'decks' | 'cards';
+
+/**
+ * Det én bruker har lov til å se og endre. Hver metode sjekker at raden tilhører brukeren før den går videre til `Repo`,
+ * og gir null, false eller en tom liste ellers, så rutene svarer 404 som om raden ikke fantes. Eieren av en rad endres
+ * aldri (triggere i migrering 7), og better-sqlite3 er synkront, så sjekken og endringen skjer uten noe imellom.
+ *
+ * Tenk på det som en postkasse i en oppgang: alle brevene ligger i samme bygg, men nøkkelen din åpner bare din kasse.
+ */
+export class UserRepo {
+  constructor(
+    private readonly repo: Repo,
+    readonly userId: number,
+  ) {}
+
+  private owns(table: OwnedTable, id: string | null | undefined): boolean {
+    if (!id) return false;
+    return !!this.repo.db.prepare(`SELECT 1 FROM ${table} WHERE id = ? AND user_id = ?`).get(id, this.userId);
+  }
+
+  // ---------- Synk og fag ----------
+
+  sync(since: number) {
+    return this.repo.sync(this.userId, since);
+  }
+
+  listSubjects(): Subject[] {
+    return this.repo.listSubjects(this.userId);
+  }
+
+  getSubject(id: string): Subject | null {
+    return this.owns('subjects', id) ? this.repo.getSubject(id) : null;
+  }
+
+  createSubject(input: { name: string; profile: SubjectProfile; textbook?: string | null; aims?: CompetenceAim[] }): Subject {
+    return this.repo.createSubject({ ...input, userId: this.userId });
+  }
+
+  updateSubject(id: string, patch: { name?: string; textbook?: string | null }): Subject | null {
+    return this.owns('subjects', id) ? this.repo.updateSubject(id, patch) : null;
+  }
+
+  deleteSubject(id: string): string[] | null {
+    return this.owns('subjects', id) ? this.repo.deleteSubject(id) : null;
+  }
+
+  addPreset(preset: PresetInput): Subject | null {
+    return this.repo.addPreset(this.userId, preset);
+  }
+
+  // ---------- Kapitler ----------
+
+  listChapters(subjectId: string): Chapter[] {
+    return this.owns('subjects', subjectId) ? this.repo.listChapters(subjectId) : [];
+  }
+
+  getChapter(id: string): Chapter | null {
+    return this.owns('chapters', id) ? this.repo.getChapter(id) : null;
+  }
+
+  createChapters(subjectId: string, inputs: (ChapterInput & { sections?: Section[] })[]): Chapter[] | null {
+    return this.owns('subjects', subjectId) ? this.repo.createChapters(subjectId, inputs) : null;
+  }
+
+  updateChapter(id: string, patch: { number?: string | null; title?: string; sections?: Section[] }): Chapter | null {
+    return this.owns('chapters', id) ? this.repo.updateChapter(id, patch) : null;
+  }
+
+  deleteChapter(id: string): boolean {
+    return this.owns('chapters', id) ? this.repo.deleteChapter(id) : false;
+  }
+
+  /** Bare kapitler i faget flyttes (spørringen i Repo filtrerer på faget), så id-er fra andre fag ignoreres. */
+  reorderChapters(subjectId: string, ids: string[]): boolean {
+    if (!this.owns('subjects', subjectId)) return false;
+    this.repo.reorderChapters(subjectId, ids);
+    return true;
+  }
+
+  /** Ferdige notater i et kapittel eller fag (samle-PDF). */
+  doneNotes(filter: { chapterId: string } | { subjectId: string }): NoteRow[] {
+    const ok = 'chapterId' in filter ? this.owns('chapters', filter.chapterId) : this.owns('subjects', filter.subjectId);
+    return ok ? this.repo.doneNotes(filter) : [];
+  }
+
+  /** Id-ene til de ferdige notatene i et kapittel eller fag (for å lage PDF-ene på nytt). */
+  doneNoteIds(filter: { chapterId: string } | { subjectId: string }): string[] {
+    const col = 'chapterId' in filter ? 'chapter_id' : 'subject_id';
+    const val = 'chapterId' in filter ? filter.chapterId : filter.subjectId;
+    return (
+      this.repo.db
+        .prepare(`SELECT id FROM notes WHERE ${col} = ? AND user_id = ? AND deleted = 0 AND status = 'done'`)
+        .all(val, this.userId) as { id: string }[]
+    ).map((r) => r.id);
+  }
+
+  // ---------- Notater ----------
+
+  getNoteRow(id: string): NoteRow | null {
+    return this.owns('notes', id) ? this.repo.getNoteRow(id) : null;
+  }
+
+  getNote(id: string): Note | null {
+    return this.owns('notes', id) ? this.repo.getNote(id) : null;
+  }
+
+  /**
+   * Opplastingen med denne klient-id-en: brukerens eget notat (også et slettet), `'taken'` når id-en er brukt av en
+   * annen bruker (svaret avslører ikke noe om notatet), eller null.
+   */
+  noteByClientId(clientId: string): Note | 'taken' | null {
+    const row = this.repo.getNoteRowByClientId(clientId);
+    if (!row) return null;
+    return row.user_id === this.userId ? toNote(row) : 'taken';
+  }
+
+  /** Nytt notat i et av brukerens fag; et kapittel må høre til samme bruker og fag, ellers velger Claude. */
+  createNote(input: Parameters<Repo['createNote']>[0]): Note | null {
+    if (!this.owns('subjects', input.subjectId)) return null;
+    const chapter = input.chapterId ? this.getChapter(input.chapterId) : null;
+    const chapterOk = !!chapter && chapter.subjectId === input.subjectId;
+    return this.repo.createNote({ ...input, chapterId: chapterOk ? chapter.id : null, chapterAuto: chapterOk ? input.chapterAuto : true });
+  }
+
+  noteFiles(noteId: string): NoteFileRow[] {
+    return this.owns('notes', noteId) ? this.repo.noteFiles(noteId) : [];
+  }
+
+  updateNoteUser(id: string, patch: Parameters<Repo['updateNoteUser']>[1]): Note | null {
+    return this.owns('notes', id) ? this.repo.updateNoteUser(id, patch) : null;
+  }
+
+  deleteNote(id: string): boolean {
+    return this.owns('notes', id) ? this.repo.deleteNote(id) : false;
+  }
+
+  requeue(id: string, instructions: string | null | undefined): Note | null {
+    return this.owns('notes', id) ? this.repo.requeue(id, instructions) : null;
+  }
+
+  bumpPdf(id: string, searchText?: string): Note | null {
+    return this.owns('notes', id) ? this.repo.bumpPdf(id, searchText) : null;
+  }
+
+  // ---------- Flashcards ----------
+
+  getDeckRow(id: string): DeckRow | null {
+    return this.owns('decks', id) ? this.repo.getDeckRow(id) : null;
+  }
+
+  getDeck(id: string): Deck | null {
+    return this.owns('decks', id) ? this.repo.getDeck(id) : null;
+  }
+
+  /** Ny kortstokk i et av brukerens fag, bare fra brukerens egne notater. */
+  createDeck(input: Parameters<Repo['createDeck']>[0]): Deck | null {
+    if (!this.owns('subjects', input.subjectId)) return null;
+    if (!input.noteIds.every((id) => this.owns('notes', id))) return null;
+    return this.repo.createDeck(input);
+  }
+
+  renameDeck(id: string, title: string): Deck | null {
+    return this.owns('decks', id) ? this.repo.renameDeck(id, title) : null;
+  }
+
+  restartDeck(id: string): Deck | null {
+    return this.owns('decks', id) ? this.repo.restartDeck(id) : null;
+  }
+
+  deleteDeck(id: string): boolean {
+    return this.owns('decks', id) ? this.repo.deleteDeck(id) : false;
+  }
+
+  listCards(deckId: string): Flashcard[] {
+    return this.owns('decks', deckId) ? this.repo.listCards(deckId) : [];
+  }
+
+  getCard(id: string): Flashcard | null {
+    return this.owns('cards', id) ? this.repo.getCard(id) : null;
+  }
+
+  createCard(deckId: string, input: FlashcardInput): Flashcard | null {
+    return this.owns('decks', deckId) ? this.repo.createCard(deckId, input) : null;
+  }
+
+  updateCard(id: string, patch: Partial<FlashcardInput>): Flashcard | null {
+    return this.owns('cards', id) ? this.repo.updateCard(id, patch) : null;
+  }
+
+  deleteCard(id: string): boolean {
+    return this.owns('cards', id) ? this.repo.deleteCard(id) : false;
+  }
+
+  /** Fremgang fra øving; kort og kortstokker som ikke er brukerens, hoppes over. */
+  applyProgress(input: Parameters<Repo['applyProgress']>[0]): ReturnType<Repo['applyProgress']> {
+    return this.repo.applyProgress({
+      cards: input.cards.filter((c) => this.owns('cards', c.id)),
+      decks: input.decks.filter((d) => this.owns('decks', d.id)),
+    });
+  }
+
+  // ---------- Sammenligning (eieren) ----------
+
+  getComparisonRow(noteId: string): ComparisonRow | null {
+    return this.owns('notes', noteId) ? this.repo.getComparisonRow(noteId) : null;
+  }
+
+  rateComparison(noteId: string, verdict: ComparisonVerdict, comment: string | null): boolean {
+    return this.owns('notes', noteId) ? this.repo.rateComparison(noteId, verdict, comment) : false;
+  }
+
+  listComparisons() {
+    return this.repo.listComparisons(this.userId);
+  }
+
+  comparisonRatingsByVersion() {
+    return this.repo.comparisonRatingsByVersion(this.userId);
   }
 }

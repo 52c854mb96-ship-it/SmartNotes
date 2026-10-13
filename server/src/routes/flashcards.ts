@@ -1,7 +1,8 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { ProgressResponse } from '@smartnotes/shared';
-import { MASTER_LEVEL, type Repo } from '../db.js';
+import { requireUser } from '../auth.js';
+import { MASTER_LEVEL, type Repo, type UserRepo } from '../db.js';
 import { badRequest, notFound, offlineFeature } from '../errors.js';
 import type { FlashcardGenerator } from '../flashcards/generator.js';
 import { loadSourceNotes } from '../flashcards/generator.js';
@@ -33,13 +34,15 @@ const isoTime = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,
 export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
   const { repo, storage, ai, generator } = d;
 
-  const requireDeck = (deckId: string) => {
-    const deck = isId(deckId) ? repo.getDeck(deckId) : null;
+  /** Det den innloggede brukeren eier; all lesing og skriving i rutene går gjennom det. */
+  const mine = (req: FastifyRequest): UserRepo => repo.forUser(requireUser(req).id);
+  const requireDeck = (r: UserRepo, deckId: string) => {
+    const deck = isId(deckId) ? r.getDeck(deckId) : null;
     if (!deck) throw notFound('Fant ikke kortstokken.');
     return deck;
   };
-  const requireCard = (cardId: string) => {
-    const card = isId(cardId) ? repo.getCard(cardId) : null;
+  const requireCard = (r: UserRepo, cardId: string) => {
+    const card = isId(cardId) ? r.getCard(cardId) : null;
     if (!card) throw notFound('Fant ikke kortet.');
     return card;
   };
@@ -61,15 +64,16 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
       }),
       req.body,
     );
-    const subject = repo.getSubject(body.subjectId);
+    const r = mine(req);
+    const subject = r.getSubject(body.subjectId);
     if (!subject) throw notFound('Fant ikke faget.');
     if (!aiConfigured(ai, 'flashcards')) throw offlineFeature('Serveren mangler Claude API-nøkkel (ANTHROPIC_API_KEY), så kortene kan ikke lages.');
 
-    const { notes, skipped } = await loadSourceNotes(repo, storage, subject.id, body.noteIds);
+    const { notes, skipped } = await loadSourceNotes(r, storage, subject.id, body.noteIds);
     if (skipped.length > 0) {
       // Et notat kan mangle fordi det er slettet (f.eks. på en annen enhet), feilet eller ikke er ferdig ennå.
       const waiting = skipped.some((nid) => {
-        const row = repo.getNoteRow(nid);
+        const row = r.getNoteRow(nid);
         return row?.subject_id === subject.id && (row.status === 'queued' || row.status === 'processing');
       });
       const one = skipped.length === 1;
@@ -87,41 +91,45 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
       body.title ||
       defaultDeckTitle(
         body.noteIds.map((nid) => {
-          const row = repo.getNoteRow(nid)!;
-          const chapter = row.chapter_id ? repo.getChapter(row.chapter_id) : null;
+          const row = r.getNoteRow(nid)!;
+          const chapter = row.chapter_id ? r.getChapter(row.chapter_id) : null;
           return { title: row.title, chapter };
         }),
       );
-    const deck = repo.createDeck({
+    const deck = r.createDeck({
       subjectId: subject.id,
       title,
       difficulty: body.difficulty as (typeof DIFFICULTIES)[number],
       noteIds: body.noteIds,
       count: body.count,
     });
+    if (!deck) throw notFound('Fant ikke faget.');
     generator.start(deck.id);
     reply.code(201);
     return deck;
   });
 
   app.patch<{ Params: { id: string } }>('/api/decks/:id', async (req) => {
-    const deck = requireDeck(req.params.id);
+    const r = mine(req);
+    const deck = requireDeck(r, req.params.id);
     const body = parse(z.object({ title: deckTitle.optional() }), req.body);
-    return body.title === undefined ? deck : repo.renameDeck(deck.id, body.title)!;
+    return body.title === undefined ? deck : r.renameDeck(deck.id, body.title)!;
   });
 
   app.delete<{ Params: { id: string } }>('/api/decks/:id', async (req) => {
-    const deck = requireDeck(req.params.id);
-    repo.deleteDeck(deck.id);
+    const r = mine(req);
+    const deck = requireDeck(r, req.params.id);
+    r.deleteDeck(deck.id);
     return { ok: true };
   });
 
   /** Ny generering etter feil. */
   app.post<{ Params: { id: string } }>('/api/decks/:id/retry', async (req) => {
-    const deck = requireDeck(req.params.id);
+    const r = mine(req);
+    const deck = requireDeck(r, req.params.id);
     if (deck.status !== 'failed') throw badRequest('Kortstokken har ingen feil å prøve på nytt.');
     if (!aiConfigured(ai, 'flashcards')) throw offlineFeature('Serveren mangler Claude API-nøkkel (ANTHROPIC_API_KEY), så kortene kan ikke lages.');
-    const restarted = repo.restartDeck(deck.id)!;
+    const restarted = r.restartDeck(deck.id)!;
     generator.start(deck.id);
     return restarted;
   });
@@ -129,22 +137,25 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
   // ---------- Kort ----------
 
   app.post<{ Params: { id: string } }>('/api/decks/:id/cards', async (req, reply) => {
-    const deck = requireDeck(req.params.id);
+    const r = mine(req);
+    const deck = requireDeck(r, req.params.id);
     const body = parse(z.object({ kind, front, back, detail: detail.default('') }), req.body);
-    if (repo.listCards(deck.id).length >= MAX_CARDS * 2) throw badRequest('Kortstokken har for mange kort.');
+    if (r.listCards(deck.id).length >= MAX_CARDS * 2) throw badRequest('Kortstokken har for mange kort.');
     reply.code(201);
-    return repo.createCard(deck.id, body);
+    return r.createCard(deck.id, body);
   });
 
   app.patch<{ Params: { id: string } }>('/api/cards/:id', async (req) => {
-    const card = requireCard(req.params.id);
+    const r = mine(req);
+    const card = requireCard(r, req.params.id);
     const body = parse(z.object({ kind: kind.optional(), front: front.optional(), back: back.optional(), detail: detail.optional() }), req.body);
-    return repo.updateCard(card.id, body)!;
+    return r.updateCard(card.id, body)!;
   });
 
   app.delete<{ Params: { id: string } }>('/api/cards/:id', async (req) => {
-    const card = requireCard(req.params.id);
-    repo.deleteCard(card.id);
+    const r = mine(req);
+    const card = requireCard(r, req.params.id);
+    r.deleteCard(card.id);
     return { ok: true };
   });
 
@@ -159,6 +170,7 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
       req.body,
     );
     // Kort og kortstokker som er slettet i mellomtiden, hoppes over i stillhet (klienten får gravsteinene ved synk).
-    return repo.applyProgress(body);
+    // Kort og kortstokker som ikke er brukerens, hoppes over på samme måte.
+    return mine(req).applyProgress(body);
   });
 }

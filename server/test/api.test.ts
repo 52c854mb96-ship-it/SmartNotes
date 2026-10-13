@@ -94,7 +94,7 @@ describe('innlogging', () => {
   it('avviser feil passord og mutasjoner uten sikkerhetsheader', async () => {
     const wrong = await call<{ message: string }>('POST', '/api/auth/login', { json: { password: 'feil' }, auth: false });
     expect(wrong.status).toBe(401);
-    expect(wrong.body.message).toBe('Feil passord.');
+    expect(wrong.body.message).toBe('Feil brukernavn eller passord.');
     const noCsrf = await call('POST', '/api/auth/login', { json: { password: 'hemmelig' }, csrf: false, auth: false });
     expect(noCsrf.status).toBe(403);
   });

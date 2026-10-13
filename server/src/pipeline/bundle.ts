@@ -3,7 +3,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Config } from '../config.js';
-import type { NoteRow, Repo } from '../db.js';
+import type { NoteRow, Repo, UserRepo } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
 import { userTextbook } from '../presets.js';
 import { getProfile, readPreamble } from '../profiles/index.js';
@@ -32,12 +32,13 @@ export class Bundler {
     private readonly log: FastifyBaseLogger,
   ) {}
 
-  async chapterPdf(chapterId: string): Promise<{ file: string; filename: string }> {
-    const chapter = this.repo.getChapter(chapterId);
+  /** Samle-PDF for et kapittel; `r` er brukerens utsnitt, så et kapittel som ikke er brukerens, gir 404. */
+  async chapterPdf(r: UserRepo, chapterId: string): Promise<{ file: string; filename: string }> {
+    const chapter = r.getChapter(chapterId);
     if (!chapter) throw notFound('Fant ikke kapittelet.');
-    const subject = this.repo.getSubject(chapter.subjectId);
+    const subject = r.getSubject(chapter.subjectId);
     if (!subject) throw notFound('Fant ikke faget.');
-    const notes = this.repo.doneNotes({ chapterId });
+    const notes = r.doneNotes({ chapterId });
     if (notes.length === 0) throw notFound('Det er ingen ferdige notater i dette kapittelet ennå.');
     const label = chapterLabel(chapter);
     // Grupper etter delkapittel når kapittelet har delkapitler; notater uten delkapittel kommer sist.
@@ -58,12 +59,12 @@ export class Bundler {
     return { file, filename: `${slug(`${subject.name} ${label}`)}.pdf` };
   }
 
-  async subjectPdf(subjectId: string): Promise<{ file: string; filename: string }> {
-    const subject = this.repo.getSubject(subjectId);
+  async subjectPdf(r: UserRepo, subjectId: string): Promise<{ file: string; filename: string }> {
+    const subject = r.getSubject(subjectId);
     if (!subject) throw notFound('Fant ikke faget.');
-    const notes = this.repo.doneNotes({ subjectId });
+    const notes = r.doneNotes({ subjectId });
     if (notes.length === 0) throw notFound('Det er ingen ferdige notater i dette faget ennå.');
-    const chapters = this.repo.listChapters(subjectId);
+    const chapters = r.listChapters(subjectId);
     const sections: { heading: string; pageHeader: string; notes: NoteRow[] }[] = chapters
       .map((c) => ({ heading: chapterLabel(c), pageHeader: chapterLabel(c), notes: notes.filter((n) => n.chapter_id === c.id) }))
       .filter((s) => s.notes.length > 0);

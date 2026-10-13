@@ -343,6 +343,7 @@ describe('oppsummeringen', () => {
     created_at: '2026-10-12T20:00:00Z',
     finished_at: '2026-10-12T20:01:00Z',
     rated_at: null,
+    user_id: 1,
     title: noteId,
     note_deleted: 0,
     ...over,
@@ -367,31 +368,33 @@ describe('oppgradering av databasen', () => {
   it('fører vurderingene som finnes, opp under instruksversjon 1', async () => {
     const { Repo } = await import('../src/db.js');
     const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-migrering-')), 'smartnotes.db');
-    let repo = new Repo(file);
-    const version = repo.db.pragma('user_version', { simple: true }) as number;
-    repo.startComparison('n1', { model: 'claude-haiku-5-5', baseModel: 'claude-sonnet-5-5', basePdfRev: 1, pageCount: 3, promptVersion: 1 });
-    repo.finishComparison('n1', { ok: true, error: null, remarks: [], costUsd: 0.001 });
-    repo.db.prepare(`UPDATE note_comparisons SET verdict = 'sonnet_better', comment = 'Færre farger', rated_at = '2026-10-12T20:00:00Z'`).run();
     // Slik databasen så ut før migrering 6: uten versjonskolonnen og uten loggen.
-    repo.db.exec(`DROP TABLE comparison_ratings; ALTER TABLE note_comparisons DROP COLUMN prompt_version;`);
-    repo.db.pragma(`user_version = ${version - 1}`);
+    let repo = new Repo(file, { migrateTo: 5 });
+    repo.db
+      .prepare(
+        `INSERT INTO note_comparisons (note_id, model, base_model, base_pdf_rev, status, page_count, remarks, cost_usd, spent_usd,
+           verdict, comment, created_at, finished_at, rated_at)
+         VALUES ('n1', 'claude-haiku-5-5', 'claude-sonnet-5-5', 1, 'done', 3, '[]', 0.001, 0.001, 'sonnet_better', 'Færre farger',
+           '2026-10-12T19:00:00Z', '2026-10-12T19:01:00Z', '2026-10-12T20:00:00Z')`,
+      )
+      .run();
     repo.close();
 
     repo = new Repo(file);
     try {
-      expect(repo.getComparisonRow('n1')).toMatchObject({ prompt_version: 1, verdict: 'sonnet_better' });
-      expect(repo.comparisonRatingsByVersion()).toEqual([{ version: 1, rated: 1, haikuOk: 0 }]);
+      expect(repo.getComparisonRow('n1')).toMatchObject({ prompt_version: 1, verdict: 'sonnet_better', user_id: 1 });
+      expect(repo.comparisonRatingsByVersion(1)).toEqual([{ version: 1, rated: 1, haikuOk: 0 }]);
       // En ny kjøring med de nye instruksene beholder den gamle vurderingen i loggen.
       repo.startComparison('n1', { model: 'claude-haiku-5-5', baseModel: 'claude-sonnet-5-5', basePdfRev: 1, pageCount: 3, promptVersion: 2 });
       repo.finishComparison('n1', { ok: true, error: null, remarks: [], costUsd: 0.002 });
       expect(repo.rateComparison('n1', 'haiku_ok', null)).toBe(true);
-      expect(repo.comparisonRatingsByVersion()).toEqual([
+      expect(repo.comparisonRatingsByVersion(1)).toEqual([
         { version: 2, rated: 1, haikuOk: 1 },
         { version: 1, rated: 1, haikuOk: 0 },
       ]);
       // «Lag på nytt» med samme versjon erstatter vurderingen, også i loggen; den gamle versjonen blir stående.
       repo.startComparison('n1', { model: 'claude-haiku-5-5', baseModel: 'claude-sonnet-5-5', basePdfRev: 1, pageCount: 3, promptVersion: 2 });
-      expect(repo.comparisonRatingsByVersion()).toEqual([{ version: 1, rated: 1, haikuOk: 0 }]);
+      expect(repo.comparisonRatingsByVersion(1)).toEqual([{ version: 1, rated: 1, haikuOk: 0 }]);
     } finally {
       repo.close();
     }

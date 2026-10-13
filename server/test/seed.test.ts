@@ -31,7 +31,7 @@ describe('startoppsett', () => {
     const repo = freshRepo();
     expect(repo.seed([fysikk])).toEqual(['Fysikk 1']);
     expect(repo.seed([fysikk])).toEqual([]);
-    const subjects = repo.listSubjects();
+    const subjects = repo.listSubjects(1);
     expect(subjects).toHaveLength(1);
     // Ingen lærebok: eleven kan legge inn sin egen i faginnstillingene.
     expect(subjects[0]).toMatchObject({ name: 'Fysikk 1', textbook: null, profile: 'physics' });
@@ -54,9 +54,9 @@ describe('startoppsett', () => {
   it('en database som har oppsettet under en tidligere id, får det ikke på nytt', () => {
     const repo = freshRepo();
     repo.seed([{ ...fysikk, id: 'ergo-fysikk-1', aliases: [] }]);
-    const before = repo.listSubjects().map((s) => s.id);
+    const before = repo.listSubjects(1).map((s) => s.id);
     expect(repo.seed([fysikk])).toEqual([]);
-    expect(repo.listSubjects().map((s) => s.id)).toEqual(before);
+    expect(repo.listSubjects(1).map((s) => s.id)).toEqual(before);
     // Gamle id-er i SEED_TEXTBOOKS finner fram til de nye oppsettene.
     expect(findPreset('ergo-fysikk-1')?.id).toBe('fysikk-1-lk20');
     expect(findPreset('aschehoug-kjemi-1')?.id).toBe('kjemi-1-lk20');
@@ -68,24 +68,24 @@ describe('startoppsett', () => {
   it('legger til nye fag i en database som allerede har fysikk, uten å lage fysikk på nytt', () => {
     const repo = freshRepo();
     // Fysikk lagt inn med den gamle ordningen (ingen merknad i meta om hvilke oppsett som er lagt inn)
-    repo.createSubject({ name: 'Fysikk 1', profile: 'physics', textbook: 'En lærebok' });
+    repo.createSubject({ userId: 1, name: 'Fysikk 1', profile: 'physics', textbook: 'En lærebok' });
     expect(repo.seed([fysikk, kjemi])).toEqual(['Kjemi 1']);
-    const subjects = repo.listSubjects();
+    const subjects = repo.listSubjects(1);
     expect(subjects.map((s) => `${s.name}:${s.profile}`)).toEqual(['Fysikk 1:physics', 'Kjemi 1:chemistry']);
     expect(repo.listChapters(subjects[1]!.id)[0]).toMatchObject({ number: '1', title: 'Atomer' });
     expect(subjects[1]!.aims).toEqual(kjemi.aims);
     // Nye fag får ny rev, så de synkes til enhetene
-    expect(repo.sync(0).subjects).toHaveLength(2);
+    expect(repo.sync(1, 0).subjects).toHaveLength(2);
     repo.close();
   });
 
   it('et fag brukeren har slettet, kommer ikke tilbake', () => {
     const repo = freshRepo();
     repo.seed([fysikk, kjemi]);
-    const k = repo.listSubjects().find((s) => s.profile === 'chemistry')!;
+    const k = repo.listSubjects(1).find((s) => s.profile === 'chemistry')!;
     repo.deleteSubject(k.id);
     expect(repo.seed([fysikk, kjemi])).toEqual([]);
-    expect(repo.listSubjects().map((s) => s.name)).toEqual(['Fysikk 1']);
+    expect(repo.listSubjects(1).map((s) => s.name)).toEqual(['Fysikk 1']);
     repo.close();
   });
 
@@ -101,7 +101,7 @@ describe('startoppsett', () => {
     const fresh = freshRepo();
     fresh.seed(presets());
     for (const repo of [existing, fresh]) {
-      expect(repo.listSubjects().map((s) => s.profile)).not.toContain('geoscience');
+      expect(repo.listSubjects(1).map((s) => s.profile)).not.toContain('geoscience');
       repo.close();
     }
   });
@@ -118,7 +118,7 @@ describe('startoppsett', () => {
     const repo = freshRepo();
     repo.seed([fysikk]);
     const geofag = SUBJECT_PRESETS['geofag-1-lk20']!;
-    const subject = repo.addPreset(geofag);
+    const subject = repo.addPreset(1, geofag);
     expect(subject).toMatchObject({ name: 'Geofag 1', profile: 'geoscience', textbook: null });
     expect(subject!.aims).toEqual(geofag.aims);
     const chapters = repo.listChapters(subject!.id);
@@ -126,13 +126,13 @@ describe('startoppsett', () => {
     expect(chapters[1]).toMatchObject({ number: '2', title: 'Jordas indre og platetektonikk' });
     expect(chapters[1]!.sections.map((x) => x.code)).toEqual(['2.1', '2.2', '2.3']);
     // Ikke to ganger, og startoppsettet legger det ikke inn på nytt, selv om det står i SEED_TEXTBOOKS.
-    expect(repo.addPreset(geofag)).toBeNull();
+    expect(repo.addPreset(1, geofag)).toBeNull();
     expect(repo.seed([fysikk, geofag])).toEqual([]);
     // Et slettet fag kan legges til igjen av brukeren selv, men kommer ikke tilbake av seg selv.
     repo.deleteSubject(subject!.id);
     expect(repo.seed([fysikk, geofag])).toEqual([]);
-    expect(repo.addPreset(geofag)).toMatchObject({ name: 'Geofag 1' });
-    expect(repo.listSubjects().map((s) => s.name)).toEqual(['Fysikk 1', 'Geofag 1']);
+    expect(repo.addPreset(1, geofag)).toMatchObject({ name: 'Geofag 1' });
+    expect(repo.listSubjects(1).map((s) => s.name)).toEqual(['Fysikk 1', 'Geofag 1']);
     repo.close();
   });
 
@@ -140,7 +140,7 @@ describe('startoppsett', () => {
     const repo = freshRepo();
     expect(repo.seed([])).toEqual(['Fysikk']);
     expect(repo.seed([])).toEqual([]);
-    expect(repo.listSubjects()).toHaveLength(1);
+    expect(repo.listSubjects(1)).toHaveLength(1);
     repo.close();
   });
 });
@@ -151,7 +151,7 @@ describe('fagoppsettene', () => {
     expect(DEFAULT_SEED_PRESETS).toEqual(['fysikk-1-lk20', 'kjemi-1-lk20', 'biologi-1-lk20']);
     const repo = freshRepo();
     expect(repo.seed(DEFAULT_SEED_PRESETS.map((id) => SUBJECT_PRESETS[id]!))).toEqual(['Fysikk 1', 'Kjemi 1', 'Biologi 1']);
-    expect(repo.listSubjects().map((s) => `${s.name}:${s.profile}:${s.aims.length}`)).toEqual([
+    expect(repo.listSubjects(1).map((s) => `${s.name}:${s.profile}:${s.aims.length}`)).toEqual([
       'Fysikk 1:physics:14',
       'Kjemi 1:chemistry:17',
       'Biologi 1:biology:11',

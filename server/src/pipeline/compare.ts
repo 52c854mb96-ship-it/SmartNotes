@@ -8,7 +8,7 @@ import { AbortedError, ConversionError } from '../errors.js';
 import { PROMPT_VERSION } from '../profiles/precise.js';
 import { getProfile } from '../profiles/index.js';
 import { type Storage, writeFileAtomic } from '../storage.js';
-import { costUsd, usageScope, type Usage } from '../usage.js';
+import { costUsd, jobScope, type Usage } from '../usage.js';
 import type { AiService } from './ai.js';
 import { RefusalError } from './claude.js';
 import type { Converter } from './converter.js';
@@ -124,7 +124,7 @@ export class Comparer {
       const out = path.join(staging, 'out');
       const figDir = path.join(out, 'figures');
 
-      const result = await usageScope({ noteId: id, subjectId: row.subject_id }, async () => {
+      const result = await jobScope({ userId: row.user_id, noteId: id, subjectId: row.subject_id }, async () => {
         this.repo.setComparisonStage(id, 'reading');
         const { req } = this.converter.buildConvertRequest(row, subject, pages, pagesDir);
         const converted = await this.ai.convert(req);

@@ -21,11 +21,15 @@ export interface Usage {
   cacheWriteTokens: number;
 }
 
-/** Hva et AI-kall gjaldt. */
+/** Hva et AI-kall gjaldt, og hvem som eier det (og betaler for det). */
 export interface UsageRef {
+  /** Brukeren som eier notatet, kortstokken eller faget. Alltid satt fra raden i databasen, aldri fra forespørselen. */
+  userId?: number | null;
   noteId?: string | null;
   deckId?: string | null;
   subjectId?: string | null;
+  /** Antall sider i notatet (konvertering), for kvotene. */
+  pages?: number | null;
 }
 
 export interface UsageEntry extends Usage, Required<UsageRef> {
@@ -42,6 +46,14 @@ const scope = new AsyncLocalStorage<UsageRef>();
 /** Kjører `fn` slik at AI-kallene den gjør, logges som en del av `ref` (notat, kortstokk eller fag). */
 export function usageScope<T>(ref: UsageRef, fn: () => Promise<T>): Promise<T> {
   return scope.run({ ...scope.getStore(), ...ref }, fn);
+}
+
+/**
+ * Som `usageScope`, men uten å arve noe: for bakgrunnsjobber (konvertering, kortstokk, sammenligning). En jobb kan
+ * startes inne i en annen brukers forespørsel (køen tar neste notat, uansett eier), og skal da ikke logges på den.
+ */
+export function jobScope<T>(ref: UsageRef, fn: () => Promise<T>): Promise<T> {
+  return scope.run({ ...ref }, fn);
 }
 
 /** Hva AI-kallene som gjøres nå, gjelder (satt med `usageScope`). */
@@ -130,6 +142,7 @@ export class MeteredAi implements AiService {
   }
 
   private write(at: number, usage: Usage, ok: boolean, error: string | null): void {
+    const kind = usage.kind;
     const ref = scope.getStore() ?? {};
     try {
       this.record({
@@ -139,9 +152,11 @@ export class MeteredAi implements AiService {
         durationMs: Date.now() - at,
         ok,
         error: error ? error.slice(0, 500) : null,
+        userId: ref.userId ?? null,
         noteId: ref.noteId ?? null,
         deckId: ref.deckId ?? null,
         subjectId: ref.subjectId ?? null,
+        pages: kind === 'convert' ? (ref.pages ?? null) : null,
       });
     } catch (err) {
       this.onRecordError(err);

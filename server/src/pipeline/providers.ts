@@ -144,6 +144,20 @@ export function createAi(config: Config, wrap: (ai: AiService) => AiService = (a
   return new Set(Object.values(byTask)).size === 1 ? byTask.convert : new RoutedAi(byTask);
 }
 
+/**
+ * Konverteringen for gratisbrukerne: Haiku (`FREE_CONVERT_MODEL`) med høy grundighet og lange svar, og
+ * konverteringsmodellen (Sonnet) som reserve ved avslag. Alltid Claude, aldri Ollama eller hjemmemaskinen, så notatene
+ * til andre elever ikke sendes til eierens egen maskin. Med SMARTNOTES_FAKE_CLAUDE=1 den falske AI-en.
+ */
+export function createFreeConvertAi(config: Config, wrap: (ai: AiService) => AiService = (ai) => ai): AiService {
+  if (config.fakeClaude) return wrap(new FakeClaude());
+  const model = config.accounts.freeConvertModel;
+  const free = wrap(new AnthropicClaude(config, model, { effort: 'high', maxTokens: 128_000 }));
+  const reserve = config.claudeModels.convert;
+  if (!config.useFallbacks || supportsServerFallback(model) || model === reserve || !supportsServerFallback(reserve)) return free;
+  return new RefusalFallback(free, wrap(new AnthropicClaude(config, reserve)));
+}
+
 /** Hvilken leverandør og modell hver oppgave bruker (vises i innstillingene). */
 export function describeAi(config: Config): { task: AiTask; provider: AiProviderId | 'fake'; model: string }[] {
   return AI_TASKS.map((task) => {
