@@ -44,7 +44,7 @@ import type {
   UsageSummaryResponse,
 } from '@smartnotes/shared';
 import { asBlob, type StoredBytes } from './db';
-import { accountStore, reloadForOtherAccount } from './lib/account';
+import { accountStore, isSwitching, reloadForOtherAccount } from './lib/account';
 import { authStore, markReachable } from './lib/connectivity';
 import { serverBuildStore } from './lib/build';
 
@@ -55,7 +55,8 @@ const ACCOUNT_HEADER = 'X-SmartNotes-Account';
 /** Svar som betyr at økten nå tilhører en annen konto enn appen viser (en annen fane har logget inn). */
 function handleAuthStatus(status: number, error: ApiError, allow401 = false): void {
   if (status === 401 && !allow401) authStore.set('required');
-  if (status === 409 && error.code === 'account_changed' && !reloadForOtherAccount()) authStore.set('required');
+  // Mens denne fanen selv bytter konto, er 409 bare svaret på en forespørsel som ble sendt med den gamle kontoen.
+  if (status === 409 && error.code === 'account_changed' && !isSwitching() && !reloadForOtherAccount()) authStore.set('required');
 }
 
 /** Feil som serveren svarte med (HTTP-status ≠ 2xx). `message` er norsk og kan vises til brukeren. */

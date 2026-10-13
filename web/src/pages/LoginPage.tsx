@@ -53,11 +53,13 @@ export function LoginPage() {
     try {
       const res = await api.login({ username: username.trim(), password });
       setBusy('sync');
-      if (!(await finishLogin(res.user))) {
+      const result = await finishLogin(res.user);
+      if (!result) {
         setBusy(null);
         return;
       }
-      navigate(afterLoginTarget(from), { replace: true });
+      // Etter et kontobytte hører siden brukeren var på vei til, til den forrige kontoen.
+      navigate(result === 'replaced' ? '/' : afterLoginTarget(from), { replace: true });
     } catch (err) {
       setError(errorMessage(err, 'Innloggingen feilet.'));
       setBusy(null);

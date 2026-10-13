@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import sharp from 'sharp';
 
 /**
  * Kontoene i appen: eieren inviterer en elev i Innstillinger, eleven lager en konto med lenken og ser bare sine egne
@@ -147,4 +148,112 @@ test('bytte konto på en enhet: appen spør først og sletter den forrige kontoe
     return names;
   });
   expect(local).toEqual(['Biologi 1']);
+});
+
+async function localSubjects(page: Page): Promise<string[]> {
+  return page.evaluate(
+    () =>
+      new Promise<string[]>((resolve, reject) => {
+        const req = indexedDB.open('smartnotes');
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+          const all = req.result.transaction('subjects', 'readonly').objectStore('subjects').getAll();
+          all.onsuccess = () => resolve((all.result as { name: string }[]).map((s) => s.name).sort());
+          all.onerror = () => reject(all.error);
+        };
+      }),
+  );
+}
+
+async function storedAccount(page: Page): Promise<{ id: number; plan: string } | null> {
+  return page.evaluate(
+    () =>
+      new Promise<{ id: number; plan: string } | null>((resolve, reject) => {
+        const req = indexedDB.open('smartnotes');
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+          const get = req.result.transaction('meta', 'readonly').objectStore('meta').get('account');
+          get.onsuccess = () => resolve((get.result?.value as { id: number; plan: string } | undefined) ?? null);
+          get.onerror = () => reject(get.error);
+        };
+      }),
+  );
+}
+
+test('registrering mens eieren er logget inn: appen spør før kontoen byttes, og bare elevens fag blir igjen', async ({ page }, info) => {
+  const username = `samme-fane-${info.project.name}`;
+  await loginOwner(page);
+  const link = await inviteLink(page);
+  await page.goto(link);
+  await expect(page.getByText(/Du er logget inn som «eier» på denne enheten/)).toBeVisible();
+  await page.getByLabel('Brukernavn').fill(username);
+  await page.getByLabel('Passord', { exact: true }).fill('elevens-passord');
+  await page.getByRole('checkbox', { name: 'Kjemi 1' }).check();
+  await page.getByRole('checkbox', { name: /Jeg er minst 15 år/ }).check();
+  await page.getByRole('button', { name: 'Lag konto' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Bytte konto på denne enheten?' });
+  await expect(dialog).toContainText('Du er logget inn som «eier»');
+  // Avbryt: ingenting skjer, og eieren er fortsatt logget inn.
+  await dialog.getByRole('button', { name: 'Avbryt' }).click();
+  await expect(dialog).toBeHidden();
+  expect(await storedAccount(page)).toMatchObject({ id: 1, plan: 'owner' });
+  await page.getByRole('button', { name: 'Lag konto' }).click();
+  await dialog.getByRole('button', { name: 'Bytt konto' }).click();
+  await expect(page.getByRole('heading', { name: 'Fagene dine' })).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(subjectCards(page)).toHaveCount(1);
+  expect(await localSubjects(page)).toEqual(['Kjemi 1']);
+  expect(await storedAccount(page)).toMatchObject({ plan: 'free' });
+});
+
+test('en enhet fra før kontoene tas over av eieren og beholder opplastingskøen', async ({ page, context }, info) => {
+  test.skip(info.project.name !== 'desktop', 'Én gang er nok (serveren deles mellom prosjektene).');
+  await loginOwner(page);
+  // Service workeren må styre siden, så appen kan lastes uten nett.
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+  });
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Fagene dine' })).toBeVisible();
+  await page.locator('main').getByRole('link', { name: /^Fysikk 1\b/ }).first().click();
+  await expect(page.getByRole('heading', { name: 'Fysikk 1', level: 1 })).toBeVisible();
+
+  // Uten nett: et notat legges i køen.
+  await context.setOffline(true);
+  const title = `Fra før kontoene ${Date.now()}`;
+  await page.getByRole('button', { name: 'Last opp notater' }).first().click();
+  const upload = page.getByRole('dialog');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1000"><rect width="100%" height="100%" fill="#fbf8ef"/><text x="60" y="120" font-size="48">Kø</text></svg>`;
+  const jpeg = await sharp(Buffer.from(svg)).jpeg().toBuffer();
+  await upload.locator('input[type=file]').first().setInputFiles({ name: 'side.jpg', mimeType: 'image/jpeg', buffer: jpeg });
+  await upload.getByLabel(/Tittel/).fill(title);
+  await upload.getByRole('button', { name: /Lagre i kø/ }).click();
+  await expect(upload).toBeHidden();
+  await expect(page.locator('main').getByText('Venter på nett').first()).toBeVisible();
+
+  // Slik ser en enhet ut som var logget inn før kontoene: ingen konto er lagret.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const req = indexedDB.open('smartnotes');
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => {
+          const tx = req.result.transaction('meta', 'readwrite');
+          tx.objectStore('meta').delete('account');
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+  );
+  await page.reload();
+  expect(await storedAccount(page)).toBeNull();
+  await expect(page.locator('main').getByText('Venter på nett').first()).toBeVisible();
+
+  // På nett igjen: opplastingen sendes, og enheten husker at den tilhører eieren.
+  await context.setOffline(false);
+  await expect(page.locator('main').getByText('Venter på nett')).toHaveCount(0, { timeout: 60_000 });
+  await expect.poll(() => storedAccount(page), { timeout: 30_000 }).toMatchObject({ id: 1, plan: 'owner' });
+  expect(await localSubjects(page)).toContain('Fysikk 1');
+  await page.goto('/innstillinger');
+  await expect(page.getByRole('heading', { name: 'Inviter en elev' })).toBeVisible();
 });

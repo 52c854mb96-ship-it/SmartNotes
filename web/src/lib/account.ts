@@ -40,6 +40,44 @@ export function planLabel(plan: AuthUser['plan']): string {
   return 'Gratis';
 }
 
+let switching = false;
+
+/**
+ * Et kontobytte pågår i denne fanen (innlogging, registrering eller nytt passord mens en annen konto er logget inn).
+ * Synken står da stille, og et 409-svar fra en forespørsel som allerede var sendt med den gamle kontoen, laster ikke
+ * siden på nytt.
+ */
+export function setSwitching(value: boolean): void {
+  switching = value;
+}
+
+export function isSwitching(): boolean {
+  return switching;
+}
+
+const LOGOUT_KEY = 'smartnotes-logout-pending';
+
+/**
+ * Utlogging uten nett: økten på serveren lever fortsatt, så neste oppstart må logge den ut før noe annet (ellers ville
+ * appen logge rett inn igjen). Lagres utenfor Dexie, som tømmes ved utlogging.
+ */
+export function markLogoutPending(pending: boolean): void {
+  try {
+    if (pending) localStorage.setItem(LOGOUT_KEY, '1');
+    else localStorage.removeItem(LOGOUT_KEY);
+  } catch {
+    /* privat modus */
+  }
+}
+
+export function logoutPending(): boolean {
+  try {
+    return localStorage.getItem(LOGOUT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 const RELOAD_KEY = 'smartnotes-account-reload';
 
 /**

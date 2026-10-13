@@ -7,18 +7,36 @@ import { PasswordField } from '../components/PasswordField';
 import { Spinner } from '../components/Status';
 import { useAccount } from '../lib/account';
 import { useAuth, useOnline } from '../lib/connectivity';
-import { finishLogin } from '../lib/login';
+import { cancelSwitch, confirmBeforeSwitch, finishLogin } from '../lib/login';
 import { SubjectIcon } from '../lib/subjects';
 import { AuthIntro } from './LoginPage';
 import { useStripHash } from './ResetPasswordPage';
 
-/** Koden fra invitasjonslenken (`/registrer#kode=…`). */
+const CODE_KEY = 'smartnotes-invite-code';
+
+/**
+ * Koden fra invitasjonslenken (`/registrer#kode=…`). Den fjernes fra adressefeltet, men huskes i fanen
+ * (sessionStorage), så en ny lasting av siden ikke mister den.
+ */
 function codeFromLink(): string {
   const m = /(?:^#|&)kode=([^&]+)/.exec(window.location.hash);
   try {
-    return m ? decodeURIComponent(m[1]!) : '';
+    if (m) {
+      const code = decodeURIComponent(m[1]!);
+      sessionStorage.setItem(CODE_KEY, code);
+      return code;
+    }
+    return sessionStorage.getItem(CODE_KEY) ?? '';
   } catch {
     return '';
+  }
+}
+
+function forgetCode(): void {
+  try {
+    sessionStorage.removeItem(CODE_KEY);
+  } catch {
+    /* privat modus */
   }
 }
 
@@ -38,9 +56,17 @@ export function RegisterPage() {
   const [busy, setBusy] = useState<null | 'register' | 'sync'>(null);
   const account = useAccount();
 
+  const [reload, setReload] = useState(0);
+
   useEffect(() => {
     document.title = 'Lag en konto – SmartNotes';
+  }, []);
+
+  // Fagene hentes på nytt når nettet kommer tilbake, eller når brukeren trykker «Prøv igjen».
+  useEffect(() => {
+    if (presets || !online) return;
     const ctrl = new AbortController();
+    setLoadError(null);
     api
       .authPresets(ctrl.signal)
       .then(setPresets)
@@ -48,7 +74,7 @@ export function RegisterPage() {
         if (!ctrl.signal.aborted) setLoadError(errorMessage(err, 'Fikk ikke hentet fagene.'));
       });
     return () => ctrl.abort();
-  }, []);
+  }, [online, reload, presets]);
 
   const minAge = presets?.minAge ?? 15;
   const ready = !!code.trim() && !!username.trim() && !!password && chosen.length > 0 && age;
@@ -57,16 +83,23 @@ export function RegisterPage() {
     e.preventDefault();
     if (!ready || busy) return;
     setError(null);
+    // Er en annen konto logget inn her, spør først (en ny konto er alltid en annen konto).
+    const asked = await confirmBeforeSwitch('register');
+    if (asked === 'cancel') return;
     setBusy('register');
+    let registered = false;
     try {
       const res = await api.register({ code: code.trim(), username: username.trim(), password, presetIds: chosen, ageConfirmed: age });
+      registered = true;
+      forgetCode();
       setBusy('sync');
-      if (!(await finishLogin(res.user))) {
+      if (!(await finishLogin(res.user, { asked: asked === 'asked' }))) {
         setBusy(null);
         return;
       }
       navigate('/', { replace: true });
     } catch (err) {
+      if (!registered) cancelSwitch();
       setError(errorMessage(err, 'Kontoen ble ikke laget.'));
       setBusy(null);
     }
@@ -153,7 +186,12 @@ export function RegisterPage() {
                 </label>
               ))
             ) : loadError ? (
-              <p className="form-error">{loadError}</p>
+              <div className="form-error-row">
+                <p className="form-error">{loadError}</p>
+                <button type="button" className="btn btn-sm" onClick={() => setReload((n) => n + 1)} disabled={!online}>
+                  Prøv igjen
+                </button>
+              </div>
             ) : (
               <p className="form-progress">
                 <Spinner size={14} /> Henter fagene …

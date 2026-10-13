@@ -1,5 +1,25 @@
-import { describe, expect, it } from 'vitest';
-import { OWNER_ID, accountChange, planLabel } from './account';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { OWNER_ID, accountChange, logoutPending, markLogoutPending, planLabel, reloadForOtherAccount } from './account';
+
+/** En enkel lagring i minnet i stedet for nettleserens sessionStorage/localStorage. */
+function memoryStorage(): Storage {
+  const data = new Map<string, string>();
+  return {
+    get length() {
+      return data.size;
+    },
+    clear: () => data.clear(),
+    getItem: (k) => data.get(k) ?? null,
+    key: (i) => [...data.keys()][i] ?? null,
+    removeItem: (k) => void data.delete(k),
+    setItem: (k, v) => void data.set(k, String(v)),
+  };
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
 
 describe('kontoen på enheten', () => {
   it('beholder dataene for samme konto', () => {
@@ -27,5 +47,45 @@ describe('kontoen på enheten', () => {
     expect(planLabel('owner')).toBe('Eier');
     expect(planLabel('free')).toBe('Gratis');
     expect(planLabel('pro')).toBe('Pro');
+  });
+});
+
+describe('en annen fane har byttet konto (409)', () => {
+  it('laster siden på nytt én gang, men ikke igjen innen et halvt minutt (ingen løkke)', () => {
+    vi.useFakeTimers({ now: Date.parse('2026-10-14T00:00:00Z') });
+    const reload = vi.fn();
+    vi.stubGlobal('sessionStorage', memoryStorage());
+    vi.stubGlobal('window', { location: { reload } });
+    expect(reloadForOtherAccount()).toBe(true);
+    expect(reload).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.parse('2026-10-14T00:00:20Z'));
+    expect(reloadForOtherAccount()).toBe(false);
+    expect(reload).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(Date.parse('2026-10-14T00:01:00Z'));
+    expect(reloadForOtherAccount()).toBe(true);
+    expect(reload).toHaveBeenCalledTimes(2);
+  });
+
+  it('laster ikke på nytt når fanen ikke kan huske det (da må brukeren logge inn)', () => {
+    const reload = vi.fn();
+    vi.stubGlobal('sessionStorage', {
+      getItem: () => {
+        throw new Error('blokkert');
+      },
+    });
+    vi.stubGlobal('window', { location: { reload } });
+    expect(reloadForOtherAccount()).toBe(false);
+    expect(reload).not.toHaveBeenCalled();
+  });
+});
+
+describe('utlogging uten nett', () => {
+  it('huskes til neste oppstart, også når de lokale dataene er slettet', () => {
+    vi.stubGlobal('localStorage', memoryStorage());
+    expect(logoutPending()).toBe(false);
+    markLogoutPending(true);
+    expect(logoutPending()).toBe(true);
+    markLogoutPending(false);
+    expect(logoutPending()).toBe(false);
   });
 });

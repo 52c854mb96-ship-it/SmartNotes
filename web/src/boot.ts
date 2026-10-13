@@ -1,6 +1,7 @@
 import type { AuthUser } from '@smartnotes/shared';
 import { api } from './api';
 import { META, getMeta, setMeta } from './db';
+import { logoutPending, markLogoutPending } from './lib/account';
 import { authStore } from './lib/connectivity';
 import { loadAccount, rememberAccount, requestPersistentStorage, startSyncEngine } from './sync';
 
@@ -10,6 +11,16 @@ import { loadAccount, rememberAccount, requestPersistentStorage, startSyncEngine
  * en eventuell 401 fra serveren sender oss til innlogging senere.
  */
 export async function boot(): Promise<void> {
+  // Brukeren logget ut uten nett: økten på serveren må logges ut før appen eventuelt logger rett inn igjen.
+  if (logoutPending()) {
+    await api
+      .logout()
+      .then(() => markLogoutPending(false))
+      .catch(() => undefined);
+    authStore.set('required');
+    startSyncEngine();
+    return;
+  }
   let loggedIn = false;
   let account: AuthUser | null = null;
   try {

@@ -5,7 +5,7 @@ import { api, errorMessage } from '../api';
 import { PasswordField } from '../components/PasswordField';
 import { Spinner } from '../components/Status';
 import { useOnline } from '../lib/connectivity';
-import { finishLogin } from '../lib/login';
+import { cancelSwitch, confirmBeforeSwitch, finishLogin } from '../lib/login';
 import { AuthIntro } from './LoginPage';
 
 /** Koden i lenken (`/nytt-passord#<kode>`). */
@@ -43,16 +43,22 @@ export function ResetPasswordPage() {
       return;
     }
     setError(null);
+    // Er en konto logget inn her, spør først: lenken kan gjelde en annen konto.
+    const asked = await confirmBeforeSwitch('reset');
+    if (asked === 'cancel') return;
     setBusy('save');
+    let saved = false;
     try {
       const res = await api.resetPassword({ token, password });
+      saved = true;
       setBusy('sync');
-      if (!(await finishLogin(res.user))) {
+      if (!(await finishLogin(res.user, { asked: asked === 'asked' }))) {
         setBusy(null);
         return;
       }
       navigate('/', { replace: true });
     } catch (err) {
+      if (!saved) cancelSwitch();
       setError(errorMessage(err, 'Passordet ble ikke endret.'));
       setBusy(null);
     }
