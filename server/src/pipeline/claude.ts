@@ -12,8 +12,8 @@ import {
   type FlashcardRequest,
   type RawFlashcard,
 } from '../flashcards/prompt.js';
-import { HAIKU_CLOSING } from '../profiles/haiku.js';
-import { systemPromptFor, usesHaikuAddendum, type Profile } from '../profiles/index.js';
+import { systemPromptFor, usesHaikuClosing, type Profile } from '../profiles/index.js';
+import { CLOSING, HAIKU_CLOSING } from '../profiles/precise.js';
 import { withUsage, zeroUsage, type Usage } from '../usage.js';
 import { TOC_AIMS_PROMPT, buildContext, tocSchema, type AiService, type ConvertRequest, type ConvertResult, type FixRequest } from './ai.js';
 import { extractLatex, parseConversion, type NoteMeta } from './parse.js';
@@ -182,7 +182,7 @@ export class AnthropicClaude implements AiService {
       { type: 'text', text: `Notatet har ${req.pages.length} ${req.pages.length === 1 ? 'side' : 'sider'}:` },
       ...(await pageBlocks(req.pages)),
       // Det modellen leser sist, veier mest: Haiku får de viktigste reglene sine gjentatt rett etter sidene.
-      { type: 'text', text: usesHaikuAddendum(this.modelId) ? HAIKU_CLOSING : 'Konverter notatet. Svar med <metadata> og <latex> som beskrevet.' },
+      { type: 'text', text: usesHaikuClosing(this.modelId) ? HAIKU_CLOSING : CLOSING },
     ];
     const msg = await this.stream(systemPromptFor(req.profile, this.modelId), content, this.effort);
     const usage = usageOf('convert', msg);

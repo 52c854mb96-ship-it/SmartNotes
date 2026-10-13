@@ -295,7 +295,7 @@ function ComparisonCard() {
   }, [online]);
 
   const empty = !!summary && summary.total === 0;
-  /** Vurderinger gjort med eldre Haiku-instrukser, for å se om de nye hjelper. */
+  /** Vurderinger gjort med eldre instrukser, for å se om de nye hjelper. */
   const older = summary?.versions.filter((v) => v.version !== summary.promptVersion) ?? [];
   return (
     <section className="card" aria-labelledby="comparison-h">
@@ -322,7 +322,7 @@ function ComparisonCard() {
                 ? 'Ingen er vurdert med de nye instruksene ennå'
                 : 'Ingen er vurdert ennå'}
           </p>
-          <p className="muted small">Med Haiku-instruksene som gjelder nå (versjon {summary.promptVersion}).</p>
+          <p className="muted small">Med instruksene som gjelder nå (versjon {summary.promptVersion}).</p>
           <dl className="kv">
             {summary.rated > 0 && (
               <>

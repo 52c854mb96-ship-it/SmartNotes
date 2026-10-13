@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { SERVER_ROOT } from '../config.js';
 import type { Profile } from './types.js';
-import { haikuAddendum } from './haiku.js';
+import { preciseRules } from './precise.js';
 import { tocPrompt } from './toc-prompt.js';
 
 /**
@@ -103,7 +103,7 @@ The JSON object has these fields:
 - "figures": the cropped figures, as a list of {"id": "fig1", "page": 1, "box": [x0, y0, x1, y1]}. "page" is the 1-based page number. "box" is the bounding box in pixels of that page image, with the origin in the top-left corner (the request states the size of each page). The box must contain the whole drawing including its labels and a small margin, and nothing else from the page if possible. Use [] if there are none.
 - "remarks": short Norwegian sentences for the student about anything they should check, e.g. "To ord på side 2 var vanskelige å lese." or "Mulig fortegnsfeil i utregningen av akselerasjonen på side 3." Mention each merknad box briefly here too. Use [] if there is nothing to remark.`;
 
-const FIX_INSTRUCTIONS = String.raw`The LaTeX body you wrote for this note did not compile. Fix ONLY what is needed to make it compile with the SmartNotes preamble, and keep all content, wording and structure identical. Typical causes: a typo in a command, unbalanced braces or environments, a TikZ/pgfplots option that does not exist, a missing \\ or & in align*, text-mode characters in math mode or the other way round, a figure environment inside a box, an undefined macro. If a TikZ drawing cannot be fixed with certainty, simplify that drawing (keep its labels) instead of removing it.
+const FIX_INSTRUCTIONS = String.raw`The LaTeX body you wrote for this note did not compile. Fix ONLY what is needed to make it compile with the SmartNotes preamble, and keep all content, wording and structure identical. Typical causes: a typo in a command, unbalanced braces or environments, a TikZ/pgfplots option that does not exist, a missing \\ or & in align*, text-mode characters in math mode or the other way round, an undefined macro. If a TikZ drawing cannot be fixed with certainty, simplify that drawing (keep its labels) instead of removing it.
 
 Answer with the complete corrected body in a single <latex> ... </latex> block and nothing else.`;
 
@@ -116,5 +116,5 @@ export const biologyProfile: Profile = {
   systemPrompt: SYSTEM_PROMPT,
   fixInstructions: FIX_INSTRUCTIONS,
   tocPrompt: TOC_PROMPT,
-  haikuAddendum: haikuAddendum('biology'),
+  preciseRules: preciseRules('biology'),
 };
