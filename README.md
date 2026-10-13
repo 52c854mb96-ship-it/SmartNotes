@@ -115,6 +115,8 @@ Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du m�
 | `FREE_TOC_PER_DAY` | `3` | Innholdsfortegnelser en gratiskonto kan la AI-en lese per døgn |
 | `FREE_QUEUE_MAX` | `20` | Notater en gratiskonto kan ha i kø samtidig |
 | `FREE_DAILY_BUDGET_NOK` | `30` | Det alle gratiskontoene samlet kan bruke på AI per døgn, i kroner til listepris. Over budsjettet venter gratisjobbene til neste døgn; eieren merker ingenting. `0` = uten grense |
+| `PRIVACY_CONTROLLER_NAME` | – | Den som er ansvarlig for personopplysningene, slik det står i personvernerklæringen og vilkårene. Mangler den, står det «[Fylles inn]» |
+| `PRIVACY_CONTACT` | – | Kontakten for personvern, sletting og «Meld fra» (en e-postadresse blir en lenke). Mangler den, står det «[Fylles inn]» |
 
 ### Lokal AI med Ollama (valgfritt)
 
@@ -167,6 +169,8 @@ Hver side sendes som et bilde i høy oppløsning (ca. 4 800 tokens). Med Claude 
 ## Personvern
 
 Bildene av notatene sendes til Anthropics API for å bli lest. Originalene, LaTeX-koden og PDF-ene lagres bare på din egen server og på enhetene dine.
+
+Appen har en personvernerklæring (`/personvern`), vilkår (`/vilkar`) og en side om trygg og ærlig bruk av AI (`/ai-bruk`), lenket fra innloggingen, registreringen og Innstillinger. Nye brukere må godta vilkårene og personvernerklæringen for å lage en konto. Ansvarlig og kontakt fylles inn med `PRIVACY_CONTROLLER_NAME` og `PRIVACY_CONTACT`. PDF-ene er merket «AI-generert med SmartNotes» nederst på hver side. En elev kan slette kontoen sin med alt den har på serveren (Innstillinger → Konto → «Slett kontoen»); eieren kan ikke slette sin egen.
 
 ## Utvikling og tester
 
