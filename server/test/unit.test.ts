@@ -99,6 +99,13 @@ a &= b \\[2pt]
     expect(normalizeBody(String.raw`\num{\uleselig{3,0}} \ce{SO\uleselig{4}^2-} \ce{2 H2 + \uleselig{O2} -> 2 H2O}`)).toBe(
       String.raw`\uleselig{\num{3,0}} \uleselig{\ce{SO4^2-}} \uleselig{\ce{2 H2 + O2 -> 2 H2O}}`,
     );
+    expect(normalizeBody(String.raw`\ang{\uleselig{30}} \qtyrange{\uleselig{1,5}}{3}{m} \numrange{1}{\uleselig{2}}`)).toBe(
+      String.raw`\uleselig{\ang{30}} \uleselig{\qtyrange{1,5}{3}{m}} \uleselig{\numrange{1}{2}}`,
+    );
+    // Et tall som ikke kan leses i det hele tatt, godtar ikke siunitx; det blir tekst med enheten etter.
+    expect(normalizeBody(String.raw`\qty{\uleselig{[uleselig]}}{kg} \uleselig{\qty{[uleselig]}{kg}} \qty{?}{m} \num{\uleselig{?}}`)).toBe(
+      String.raw`\uleselig{\text{[uleselig]}\,\unit{kg}} \uleselig{\text{[uleselig]}\,\unit{kg}} \text{?}\,\unit{m} \uleselig{\text{?}}`,
+    );
     // Rundt hele størrelsen, i enheten eller uten \uleselig står det som før.
     const ok = String.raw`\uleselig{\qty{9,81}{m/s^2}} \qty{9,81}{\uleselig{m}/s^2} \ce{H2O} $\uleselig{v}^2$`;
     expect(normalizeBody(ok)).toBe(ok);

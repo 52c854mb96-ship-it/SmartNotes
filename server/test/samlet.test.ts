@@ -25,7 +25,9 @@ const longRows = Array.from({ length: 70 }, (_, i) => `x_{${i + 1}} &= ${i + 1} 
 
 const BODY = String.raw`\section{Samlet}
 Tekst før, med $\uleselig{v}^2$, $\uleselig{f}'(x)$, $\uleselig{v_0}$ og \uleselig{ord}, og i størrelser og formler:
-\qty{\uleselig{9,81}}{m/s^2}, $g = \qty{9,8\uleselig{1}}{m/s^2}$, \num{\uleselig{3,0}}, \ce{\uleselig{SO4}^2-} og $\ce{SO\uleselig{4}^2-}$.
+\qty{\uleselig{9,81}}{m/s^2}, $g = \qty{9,8\uleselig{1}}{m/s^2}$, \num{\uleselig{3,0}}, \ce{\uleselig{SO4}^2-} og $\ce{SO\uleselig{4}^2-}$,
+\ang{\uleselig{30}}, \qtyrange{\uleselig{1,5}}{3}{m}, \qty{\uleselig{[uleselig]}}{kg}, \uleselig{\qty{[uleselig]}{kg}}, $g = \qty{?}{m/s^2}$ og \num{\uleselig{[uleselig]}}.
+\begin{figure}[H]\centering\begin{tikzpicture}\begin{axis}[axis lines=left, xmin=0, xmax=2.5, ymin=0, ymax=1, width=6cm, height=4cm, xtick={0,0.5,1,1.5,2,2.5}]\addplot[thick, domain=0:2.5, samples=100] {0.1*x^2};\end{axis}\end{tikzpicture}\caption{Graf}\end{figure}
 \begin{samlet}
 Kode i blokken: \verb|10 % 3| gir VERB-REST.
 \begin{verbatim}
@@ -73,6 +75,19 @@ ${calc(0)}
 \end{eksempel}
 ${Array.from({ length: 12 }, (_, i) => `Tekst mellom blokkene.\n\\begin{samlet}\n${calc(i + 1)}\n\\end{samlet}`).join('\n\n')}
 
+${Array.from({ length: 10 }, (_, i) => String.raw`Tekst før boksblokken.
+\begin{samlet}
+BSTART-${i} Formelen vi bruker:
+\begin{formel}[Formel ${i}]
+BOKS-${i}-A
+\[ E_k = \tfrac12 m v^2 \]
+BOKS-${i}-B
+\[ E_p = m g h \]
+BOKS-${i}-C
+\end{formel}
+BSLUTT-${i} Her er m massen.
+\end{samlet}`).join('\n\n')}
+
 \begin{samlet}
 \section{Lang seksjon}
 LANG-START
@@ -115,11 +130,19 @@ describe('samlet og \\uleselig', () => {
       expect(res.ok, res.ok ? '' : res.log.slice(-2000)).toBe(true);
       const pages = execFileSync('pdftotext', ['-layout', path.join(dir, 'main.pdf'), '-'], { encoding: 'utf8' }).split('\f');
       const pageOf = (marker: string) => pages.findIndex((p) => p.includes(marker));
-      // En kort blokk brytes aldri over to sider.
+      // En kort blokk brytes aldri over to sider, heller ikke en boks inne i den (delene i riktig rekkefølge).
       for (let n = 0; n <= 12; n++) {
         expect(pageOf(`START-${n}`), `blokk ${n}`).toBeGreaterThanOrEqual(0);
         expect(pageOf(`SLUTT-${n}`), `blokk ${n}`).toBe(pageOf(`START-${n}`));
       }
+      // En hel boks har samme høyde overalt; en boks som er delt og satt sammen igjen, får ekstra luft ved skjøten.
+      const bbox = execFileSync('pdftotext', ['-bbox', path.join(dir, 'main.pdf'), '-'], { encoding: 'utf8' });
+      const y = (word: string) => Number(new RegExp(`yMin="([\\d.]+)"[^>]*>${word}<`).exec(bbox)?.[1] ?? NaN);
+      const heights = Array.from({ length: 10 }, (_, n) => {
+        expect(pageOf(`BSLUTT-${n}`), `boksblokk ${n}`).toBe(pageOf(`BSTART-${n}`));
+        return y(`BOKS-${n}-C`) - y(`BOKS-${n}-A`);
+      });
+      expect(Math.max(...heights) - Math.min(...heights), heights.join(', ')).toBeLessThan(1);
       // En blokk som er høyere enn en side, brytes som vanlig tekst og mister ingenting.
       const text = pages.join('\n');
       expect(pageOf('LANG-SLUTT')).toBeGreaterThan(pageOf('LANG-START'));
@@ -128,7 +151,9 @@ describe('samlet og \\uleselig', () => {
       expect(text).toContain('FOTNOTE-I-SAMLET');
       // I en boks samler boksen fotnotene, også dem i blokken.
       expect(text).toMatch(/Etter[\s\S]*BOKS-FN-1\.[\s\S]*SAMLET-FN-I-BOKS\.[\s\S]*BOKS-FN-3\./);
-      expect(text).toMatch(/Figur 1: Skråplan[\s\S]*Figur 2: Første[\s\S]*Figur 3: Andre[\s\S]*Figur 4: Ytre[\s\S]*Figur 5: Indre[\s\S]*Figur 6: Tredje/);
+      expect(text).toMatch(/Figur 1: Graf[\s\S]*Figur 2: Skråplan[\s\S]*Figur 3: Første[\s\S]*Figur 4: Andre[\s\S]*Figur 5: Ytre[\s\S]*Figur 6: Indre[\s\S]*Figur 7: Tredje/);
+      // Aksene i grafer har desimalkomma.
+      expect(text).toMatch(/0,5\s+1\s+1,5\s+2\s+2,5/);
       expect(text).toMatch(/1\.\s+LISTEPUNKT-EN/);
       expect(text).toMatch(/2\.\s+LISTEPUNKT-TO/);
       // Med samme innrykk som et vanlig listepunkt.
@@ -143,6 +168,34 @@ describe('samlet og \\uleselig', () => {
       expect(text).toMatch(/x = 10 % 3\s+# VERBATIM-REST/);
       const aux = fs.readFileSync(path.join(dir, 'main.aux'), 'utf8');
       expect(aux.match(/Lang seksjon/g)?.length ?? 0).toBeLessThanOrEqual(2);
+    }, 150_000);
+  }
+
+  for (const id of PROFILE_IDS) {
+    it(`har vanlig linjeavstand når blokken begynner med en liste i en boks (${id})`, async () => {
+      const box = (tag: string, wrap: boolean) => String.raw`\begin{losning}
+INTRO-${tag} pq.
+${wrap ? '\\begin{samlet}\n' : ''}\begin{itemize}
+\item PUNKT-${tag} Pqgjy
+\end{itemize}
+${wrap ? '\\end{samlet}\n' : ''}\end{losning}`;
+      const doc = assembleNoteDoc({
+        preamble: readPreamble(getProfile(id)),
+        subjectName: 'Test',
+        chapterLabel: 'Kapittel',
+        sectionLabel: null,
+        title: 'Avstand',
+        dateIso: null,
+        figureDir: 'fig',
+        body: sanitizeBody(`${box('A', false)}\n\n${box('B', true)}`),
+      });
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-samlet-avstand-'));
+      const res = await compileLatex(dir, doc.tex, 120_000);
+      expect(res.ok, res.ok ? '' : res.log.slice(-2000)).toBe(true);
+      const bbox = execFileSync('pdftotext', ['-bbox', path.join(dir, 'main.pdf'), '-'], { encoding: 'utf8' });
+      const y = (word: string) => Number(new RegExp(`yMin="([\\d.]+)"[^>]*>${word}<`).exec(bbox)![1]);
+      const gap = (tag: string) => y(`PUNKT-${tag}`) - y(`INTRO-${tag}`);
+      expect(Math.abs(gap('B') - gap('A'))).toBeLessThan(0.5);
     }, 150_000);
   }
 

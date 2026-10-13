@@ -67,7 +67,7 @@ Alt ble bygget 4.–11. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#19](https://github.com/52c854mb96-ship-it/SmartNotes/pull/19) | «Prøv med Haiku» på notatene: Haiku-versjonen ved siden av den vanlige, med elevens vurdering og en oppsummering i innstillingene |
 | [#20](https://github.com/52c854mb96-ship-it/SmartNotes/pull/20) | Haiku-instrukser versjon 2 etter elevens kommentarer på tre notater: eget tillegg for Haiku med navngitte formelbokser, færre merknader, utregninger samlet på én side og TikZ-maler, høyere grundighet, og vurderinger per instruksversjon. Retter også fire feller for alle modeller (LaTeX i metadata slettet figurene, «35 %» kuttet resten av linjen, boksnavn og tomme linjer i formler) |
 
-**Tester:** omtrent 2 410 enhetstester (206 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 20 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, og hele flyten for «Prøv med Haiku») og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
+**Tester:** omtrent 2 410 enhetstester (209 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 20 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, og hele flyten for «Prøv med Haiku») og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 

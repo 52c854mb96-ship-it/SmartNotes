@@ -147,36 +147,70 @@ function groupEnd(s: string, open: number): number {
   return -1;
 }
 
-const ULESELIG_HOSTS: Record<string, number> = { qty: 2, SI: 2, num: 1, ce: 1, pu: 1 };
+/** Kommandoer der `\uleselig` ikke kan stå inne i tallet: antall argumenter og hvilke av dem som er tall. */
+const ULESELIG_HOSTS: Record<string, { groups: number; numbers: number[] }> = {
+  qty: { groups: 2, numbers: [0] },
+  SI: { groups: 2, numbers: [0] },
+  num: { groups: 1, numbers: [0] },
+  ang: { groups: 1, numbers: [0] },
+  qtyrange: { groups: 3, numbers: [0, 1] },
+  SIrange: { groups: 3, numbers: [0, 1] },
+  numrange: { groups: 2, numbers: [0, 1] },
+  qtylist: { groups: 2, numbers: [0] },
+  SIlist: { groups: 2, numbers: [0] },
+  numlist: { groups: 1, numbers: [0] },
+  qtyproduct: { groups: 2, numbers: [0] },
+  numproduct: { groups: 1, numbers: [0] },
+  ce: { groups: 1, numbers: [0] },
+  pu: { groups: 1, numbers: [0] },
+};
+const ULESELIG_HOST_RE = new RegExp(String.raw`\\(${Object.keys(ULESELIG_HOSTS).join('|')})(?![A-Za-z])`, 'g');
+
+/** Et tall som ikke kan leses i det hele tatt («[uleselig]», «?»), godtar ikke siunitx. */
+const unreadable = (n: string) => /\?|\[uleselig\]/i.test(n);
 
 /**
- * `\uleselig` inne i tallet i `\qty`/`\num` stopper kompileringen (siunitx godtar bare tall), og inne i `\ce` blir
- * formelen satt i kursiv uten senkede tall. Da flyttes markeringen ut, rundt hele størrelsen eller formelen:
- * `\qty{\uleselig{9,81}}{m/s^2}` blir `\uleselig{\qty{9,81}{m/s^2}}`.
+ * `\uleselig` inne i tallet i `\qty`/`\num`/`\ang` stopper kompileringen (siunitx godtar bare tall), og inne i `\ce`
+ * blir formelen satt i kursiv uten senkede tall. Da flyttes markeringen ut, rundt hele størrelsen eller formelen:
+ * `\qty{\uleselig{9,81}}{m/s^2}` blir `\uleselig{\qty{9,81}{m/s^2}}`. Et tall som ikke kan leses i det hele tatt,
+ * settes som tekst med enheten etter: `\qty{\uleselig{[uleselig]}}{kg}` blir `\uleselig{\text{[uleselig]}\,\unit{kg}}`.
  */
 function hoistUleselig(t: string): string {
-  if (!t.includes('\\uleselig')) return t;
+  if (!/\\uleselig|\[uleselig\]|\?/.test(t)) return t;
   let out = '';
   let last = 0;
-  for (const m of t.matchAll(/\\(qty|SI|num|ce|pu)(?![A-Za-z])/g)) {
+  for (const m of t.matchAll(ULESELIG_HOST_RE)) {
     if (m.index < last) continue;
+    const name = m[1]!;
+    const host = ULESELIG_HOSTS[name]!;
     let i = m.index + m[0].length;
     const opt = /^\s*\[[^\]]*\]/.exec(t.slice(i));
     if (opt) i += opt[0].length;
     const groups: [number, number][] = [];
-    for (let g = 0; g < ULESELIG_HOSTS[m[1]!]!; g++) {
+    for (let g = 0; g < host.groups; g++) {
       const start = i + (/^\s*/.exec(t.slice(i))?.[0].length ?? 0);
       const end = groupEnd(t, start);
       if (end === -1) break;
       groups.push([start, end]);
       i = end;
     }
-    if (groups.length !== ULESELIG_HOSTS[m[1]!]) continue;
-    const [first] = groups;
-    const inner = t.slice(first![0], first![1]);
-    if (!inner.includes('\\uleselig')) continue;
-    const cleaned = unwrapUleselig(inner);
-    out += `${t.slice(last, m.index)}\\uleselig{${t.slice(m.index, first![0])}${cleaned}${t.slice(first![1], i)}}`;
+    if (groups.length !== host.groups) continue;
+    const had = host.numbers.some((n) => t.slice(groups[n]![0], groups[n]![1]).includes('\\uleselig'));
+    const single = name === 'qty' || name === 'SI' || name === 'num';
+    const number = unwrapUleselig(t.slice(groups[0]![0] + 1, groups[0]![1] - 1));
+    let replacement: string | null = null;
+    if (single && unreadable(number)) {
+      const text = `\\text{${number.trim()}}${name === 'num' ? '' : `\\,\\unit${t.slice(groups[1]![0], groups[1]![1])}`}`;
+      replacement = had ? `\\uleselig{${text}}` : text;
+    } else if (had) {
+      let cmd = t.slice(m.index, groups[0]![0]);
+      groups.forEach(([a, b], g) => {
+        cmd += (g > 0 ? t.slice(groups[g - 1]![1], a) : '') + (host.numbers.includes(g) ? unwrapUleselig(t.slice(a, b)) : t.slice(a, b));
+      });
+      replacement = `\\uleselig{${cmd}}`;
+    }
+    if (replacement === null) continue;
+    out += t.slice(last, m.index) + replacement;
     last = i;
   }
   return out + t.slice(last);
@@ -309,8 +343,14 @@ const EXTRA_PREAMBLE = String.raw`
 \def\sn@mpname{mpfootnote}
 \newenvironment{samlet}{\par
   \ifx\@mpfn\sn@mpname\sn@inmptrue\else\sn@inmpfalse\fi
+  % Inne i en boks får første linje linjeavstanden til linjen over (også når blokken begynner med en liste); øverst
+  % på siden skal den ikke ha den.
+  \ifinner\edef\sn@pd{\the\prevdepth}\else\def\sn@pd{-1000pt}\fi
   % En ny boks glemmer innrykket i en liste (\parshape); det settes på nytt, så linjene står der de ellers ville stått.
-  \setbox\sn@samlet\vbox\bgroup\parshape\@ne\@totalleftmargin\linewidth\allowdisplaybreaks[1]%
+  % En boks (formel, eksempel …) i blokken deles bare i biter på en hel side, ikke etter plassen som er igjen på
+  % siden før blokken.
+  \setbox\sn@samlet\vbox\bgroup\prevdepth\sn@pd\relax\parshape\@ne\@totalleftmargin\linewidth\allowdisplaybreaks[1]%
+    \ifdefined\tcbset\tcbset{break at=\textheight}\fi
     \ifsn@inmp\else\def\@mpfn{mpfootnote}\def\thempfn{\thempfootnote}\c@mpfootnote\z@\let\@footnotetext\@mpfootnotetext\fi
     \ignorespaces}{\par
     \xdef\sn@samletdepth{\the\prevdepth}\global\sn@samletskip\lastskip\unskip\unpenalty\unskip
@@ -331,6 +371,8 @@ const EXTRA_PREAMBLE = String.raw`
   \fi
   \prevdepth\sn@samletdepth\relax\vskip\sn@samletskip\ignorespacesafterend}
 \makeatother
+% Tall i grafer (akser i pgfplots, \pgfmathprintnumber) med desimalkomma og tynt mellomrom, som på norsk.
+\pgfkeys{/pgf/number format/.cd, use comma, 1000 sep={\,}}
 % \uleselig også i formler (et usikkert tegn eller symbol i en ligning). Den ytre gruppen gjør at en eksponent eller
 % et merke etter (\uleselig{v}^2, \uleselig{f}') ikke blir en dobbel eksponent.
 \DeclareRobustCommand{\uleselig}[1]{\ifmmode{{\color{sngray}#1}^{\textcolor{snorange}{?}}}\else

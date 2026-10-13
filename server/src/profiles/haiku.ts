@@ -53,12 +53,12 @@ The student prefers few remarks. This replaces the merknad rules above: write a 
 - writing the same thing in a different but equivalent way, rounding, or skipping steps;
 - notation the student uses consistently, or anything you simply find unusual.
 
-If you are not certain that a line is wrong, write no merknad. Handwriting you cannot read for certain is never a merknad: write your best reading in \uleselig{...} (it works both in text and inside formulas, e.g. $\uleselig{v_0}$) and mention it in "remarks". Put it around a whole quantity or chemical formula, never inside \qty, \num or \ce: \uleselig{\qty{9,81}{m/s^2}}, $\uleselig{\ce{SO4^2-}}$. Most notes need no merknad at all.`;
+If you are not certain that a line is wrong, write no merknad. Handwriting you cannot read for certain is never a merknad: write your best reading in \uleselig{...} (it works both in text and inside formulas, e.g. $\uleselig{v_0}$) and mention it in "remarks". Put it around a whole quantity or chemical formula, never inside \qty, \num, \ang or \ce: \uleselig{\qty{9,81}{m/s^2}}, $\uleselig{\ce{SO4^2-}}$. If a number cannot be read at all, write \uleselig{[uleselig]}~\unit{kg} instead of \qty. Most notes need no merknad at all.`;
 
 const TEXT = String.raw`## 7.4 Text, numbers and units
 
 - In ordinary text, write \% for a percent sign (35 \%), \& for &, and \# for #. Anything with a subscript or superscript is math: $v_0$, $E_k$, $x^2$.
-- Numbers always keep the student's decimal comma, also inside siunitx: \qty{9,81}{m/s^2}, \qty{2,5}{kg}, \num{6,67e-11}. Write units as plain strings like m, kg, s, N, J, W, km/h, m/s^2, kg.m/s^2. Use \degreeCelsius for °C, \percent for % and \ohm for Ω inside \qty. In TikZ and pgfplots code (coordinates, domains, expressions) use a decimal point.
+- Numbers always keep the student's decimal comma, also inside siunitx: \qty{9,81}{m/s^2}, \qty{2,5}{kg}, \num{6,67e-11}. Write units as plain strings like m, kg, s, N, J, W, km/h, m/s^2, kg.m/s^2. Use \degreeCelsius for °C, \percent for % and \ohm for Ω inside \qty. In TikZ and pgfplots code (coordinates, domains, expressions) use a decimal point. A label inside [...] options (TikZ "..." or circuitikz l=) goes in braces, so a decimal comma in it works: "{$26,6^\circ$}", l={$U = 4,5$ V}.
 - A word in a subscript is text: $v_{\text{snitt}}$, $E_{\text{tilført}}$.`;
 
 const TOGETHER = String.raw`## 7.5 Keep each calculation together
@@ -76,7 +76,7 @@ E_k &= \tfrac12 m v^2 \\
 \end{align*}
 \end{samlet}
 
-Use samlet for each calculation or derivation, not around whole sections. It may stand inside the boxes.`;
+Use samlet for each calculation or derivation, not around whole sections. Start each samlet block with a sentence, not with a figure, list or box. It may stand inside the boxes.`;
 
 const FIGURES = String.raw`Figures: always write \begin{figure}[H], with exactly [H]. A figure may stand inside a box (this replaces "never put a figure environment inside a box" in section 2). Never write \caption outside a figure environment.`;
 
@@ -96,7 +96,7 @@ Inclined plane with a block and forces. This slope rises to the right, with angl
   \coordinate (A) at (0,0); \coordinate (B) at (5,0); \coordinate (C) at (5,2.5);
   \draw[thick] (A) -- (B) -- (C) -- cycle;
   \fill[pattern=north east lines] (-0.2,-0.25) rectangle (5.2,0);
-  \pic[draw, "$\alpha$", angle radius=9mm, angle eccentricity=1.35] {angle=B--A--C};
+  \pic[draw, "{$\alpha$}", angle radius=9mm, angle eccentricity=1.35] {angle=B--A--C};
   \begin{scope}[shift={(3,1.5)}, rotate=26.57]
     \draw[fill=sngray!20] (-0.5,0) rectangle (0.5,0.7);
     \coordinate (M) at (0,0.35);
@@ -116,7 +116,7 @@ The same slope rising to the left: rotate the block by -a, draw N at the angle 9
   \coordinate (A) at (5,0); \coordinate (B) at (0,0); \coordinate (C) at (0,2.5);
   \draw[thick] (A) -- (B) -- (C) -- cycle;
   \fill[pattern=north east lines] (-0.2,-0.25) rectangle (5.2,0);
-  \pic[draw, "$\alpha$", angle radius=9mm, angle eccentricity=1.35] {angle=C--A--B};
+  \pic[draw, "{$\alpha$}", angle radius=9mm, angle eccentricity=1.35] {angle=C--A--B};
   \begin{scope}[shift={(2,1.5)}, rotate=-26.57]
     \draw[fill=sngray!20] (-0.5,0) rectangle (0.5,0.7);
     \coordinate (M) at (0,0.35);
@@ -165,14 +165,14 @@ Graph (pgfplots):
 \end{tikzpicture}
 \end{figure}
 
-Keep samples=100 for every function. Change the expression and domain to match the student's graph, and set xmin, xmax, ymin and ymax from the numbers on the student's axes so that the whole curve and every point fit (ymin may be negative). For measured points write \addplot[only marks] coordinates {(0,1) (1,3) (2,5)}; with the student's values (decimal point inside the plot code).
+Keep samples=100 for every function. Change the expression and domain to match the student's graph, and set xmin, xmax, ymin and ymax from the numbers on the student's axes so that the whole curve and every point fit. If ymin or xmin is negative (as in a v-t graph for a vertical throw), write axis lines=middle instead of axis lines=left, so the axis runs through 0 as in the student's graph. For measured points write \addplot[only marks] coordinates {(0,1) (1,3) (2,5)}; with the student's values (decimal point inside the plot code).
 
 Circuit (circuitikz):
 
 \begin{figure}[H]
 \centering
 \begin{circuitikz}
-  \draw (0,0) to[battery1, l=$U$] (0,2) to[R, l=$R_1$] (3,2) to[R, l=$R_2$] (3,0) -- (0,0);
+  \draw (0,0) to[battery1, l={$U$}] (0,2) to[R, l={$R_1$}] (3,2) to[R, l={$R_2$}] (3,0) -- (0,0);
 \end{circuitikz}
 \end{figure}
 
