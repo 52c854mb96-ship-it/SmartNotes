@@ -58,7 +58,7 @@ if (args.includes('--help') || args.includes('-h') || args.length !== 1 || !mode
 }
 const subject = SUBJECTS[subjectArg];
 if (!subject) {
-  console.error(`Ukjent fag «${subjectArg}». Bruk physics, chemistry eller biology.`);
+  console.error(`Ukjent fag «${subjectArg}». Bruk physics, chemistry, biology eller geoscience.`);
   process.exit(1);
 }
 

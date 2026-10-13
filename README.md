@@ -96,7 +96,7 @@ Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du m�
 | `CLAUDE_MODEL_TOC` | `claude-haiku-5-5` | Modellen som leser innholdsfortegnelser og kobler delkapitler til kompetansemål |
 | `CLAUDE_EFFORT` | `medium` | Hvor grundig Claude jobber ved konvertering: `low` / `medium` / `high` / `xhigh` / `max` |
 | `CLAUDE_FALLBACKS` | `true` | Hvis Claudes sikkerhetsfiltre ved en feil avslår et notat, prøves en anbefalt reservemodell automatisk |
-| `SEED_TEXTBOOKS` | alle | Fagoppsett (fag, temaer, deltemaer og kompetansemål) som legges inn, hvert bare én gang. Kommaliste, f.eks. `fysikk-1-lk20,kjemi-1-lk20`, eller `none` for et tomt fag. De gamle id-ene virker fortsatt. Se `server/src/presets.ts` |
+| `SEED_TEXTBOOKS` | `fysikk-1-lk20,kjemi-1-lk20,biologi-1-lk20` | Fagoppsett (fag, temaer, deltemaer og kompetansemål) som legges inn ved oppstart, hvert bare én gang. Kommaliste, f.eks. `fysikk-1-lk20,kjemi-1-lk20`, eller `none` for et tomt fag. De gamle id-ene virker fortsatt. Nye oppsett, som `geofag-1-lk20`, legges aldri inn av seg selv; brukeren legger dem til med «Legg til fag». Se `server/src/presets.ts` |
 | `DATA_DIR` | `./data` | Database, originaler og PDF-er |
 | `PORT` | `8787` (`8080` i Docker) | |
 | `MAX_PAGES_PER_NOTE` | `30` | Maks sider per opplasting |

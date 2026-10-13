@@ -106,6 +106,14 @@ describe('startoppsett', () => {
     }
   });
 
+  it('README oppgir standarden for SEED_TEXTBOOKS slik den er i koden', async () => {
+    const { DEFAULT_SEED_PRESETS } = await import('../src/presets.js');
+    const readme = fs.readFileSync(path.join(import.meta.dirname, '..', '..', 'README.md'), 'utf8');
+    const row = readme.split('\n').find((l) => l.startsWith('| `SEED_TEXTBOOKS` |'));
+    expect(row?.split('|')[2]?.trim()).toBe(`\`${DEFAULT_SEED_PRESETS.join(',')}\``);
+    expect(Object.keys(SUBJECT_PRESETS).filter((id) => !DEFAULT_SEED_PRESETS.includes(id))).toEqual(['geofag-1-lk20']);
+  });
+
   it('«Legg til fag» legger inn et oppsett med temaer og mål, én gang', () => {
     const repo = freshRepo();
     repo.seed([fysikk]);

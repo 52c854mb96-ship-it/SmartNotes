@@ -28,14 +28,14 @@ async function openAddSubject(page: Page): Promise<void> {
   await page.getByRole('navigation', { name: 'Fag' }).getByRole('button', { name: 'Legg til fag' }).click();
 }
 
-test('geofag: legges til fra læreplanen, med fargetema og egne temaer', async ({ page }, info) => {
+test('geofag: legges til fra læreplanen, med fargetema og egne temaer', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await login(page);
 
-  // Serveren deles mellom prosjektene: den første kjøringen legger til faget, den neste ser at det finnes.
-  const first = info.project.name === 'desktop';
-  expect((await subjects(page)).some((s) => s.profile === 'geoscience')).toBe(!first);
+  // Serveren deles mellom prosjektene: den kjøringen som kommer først, legger til faget, den neste ser at det finnes.
+  // At faget ikke legges inn av seg selv, testes i server/test/seed.test.ts.
+  const first = !(await subjects(page)).some((s) => s.profile === 'geoscience');
 
   await openAddSubject(page);
   const dialog = page.getByRole('dialog', { name: 'Legg til fag' });

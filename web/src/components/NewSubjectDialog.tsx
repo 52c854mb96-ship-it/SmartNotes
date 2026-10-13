@@ -5,7 +5,7 @@ import { api, errorMessage } from '../api';
 import type { SubjectPresetSummary, SubjectProfile } from '@smartnotes/shared';
 import { useOnline } from '../lib/connectivity';
 import { plural } from '../lib/format';
-import { PROFILES, PROFILE_ORDER } from '../lib/subjects';
+import { PROFILES, PROFILE_ORDER, SubjectIcon } from '../lib/subjects';
 import { newSubjectStore, toast } from '../lib/ui';
 import { Modal } from './Modal';
 import { Spinner } from './Status';
@@ -19,8 +19,13 @@ type Mode = 'preset' | 'custom';
 export function NewSubjectDialog() {
   const open = newSubjectStore.use();
   const [mode, setMode] = useState<Mode>('preset');
+  const [busy, setBusy] = useState(false);
+  // Tilbake til «Fra læreplanen» når dialogen lukkes, så neste åpning starter der (og fokuset havner i riktig skjema).
   useEffect(() => {
-    if (open) setMode('preset');
+    if (!open) {
+      setMode('preset');
+      setBusy(false);
+    }
   }, [open]);
   return (
     <Modal
@@ -28,13 +33,14 @@ export function NewSubjectDialog() {
       onClose={() => newSubjectStore.set(false)}
       title="Legg til fag"
       size="sm"
+      busy={busy}
       footer={
         <>
-          <button type="button" className="btn" onClick={() => newSubjectStore.set(false)}>
+          <button type="button" className="btn" onClick={() => newSubjectStore.set(false)} disabled={busy}>
             Avbryt
           </button>
-          <button type="submit" form="new-subject-form" className="btn btn-primary">
-            {mode === 'preset' ? 'Legg til faget' : 'Opprett fag'}
+          <button type="submit" form="new-subject-form" className="btn btn-primary" disabled={busy}>
+            {busy ? 'Legger til …' : mode === 'preset' ? 'Legg til faget' : 'Opprett fag'}
           </button>
         </>
       }
@@ -60,14 +66,14 @@ export function NewSubjectDialog() {
               </button>
             ))}
           </div>
-          {mode === 'preset' ? <PresetForm /> : <CustomForm />}
+          {mode === 'preset' ? <PresetForm onBusy={setBusy} /> : <CustomForm onBusy={setBusy} />}
         </>
       )}
     </Modal>
   );
 }
 
-function PresetForm() {
+function PresetForm({ onBusy }: { onBusy: (busy: boolean) => void }) {
   const navigate = useNavigate();
   const { online } = useOnline();
   const [presets, setPresets] = useState<SubjectPresetSummary[] | null>(null);
@@ -104,6 +110,7 @@ function PresetForm() {
       return;
     }
     setSaving(true);
+    onBusy(true);
     setError(null);
     try {
       const subject = await addPresetSubject(preset.id);
@@ -114,6 +121,7 @@ function PresetForm() {
       setError(errorMessage(err, 'Kunne ikke legge til faget.'));
     } finally {
       setSaving(false);
+      onBusy(false);
     }
   };
 
@@ -135,7 +143,6 @@ function PresetForm() {
           <legend className="sr-only">Fag</legend>
           <div className="profile-options">
             {presets.map((p) => {
-              const { Icon } = PROFILES[p.profile];
               return (
                 <label key={p.id} className={`profile-option${chosen === p.id ? ' is-on' : ''}${p.added ? ' is-disabled' : ''}`}>
                   <input
@@ -146,7 +153,7 @@ function PresetForm() {
                     disabled={p.added}
                     onChange={() => setChosen(p.id)}
                   />
-                  <Icon size={18} aria-hidden />
+                  <SubjectIcon profile={p.profile} size={18} />
                   <span className="profile-option-text">
                     <span className="profile-option-label">{p.subjectName}</span>
                     <span className="profile-option-meta">
@@ -170,7 +177,7 @@ function PresetForm() {
   );
 }
 
-function CustomForm() {
+function CustomForm({ onBusy }: { onBusy: (busy: boolean) => void }) {
   const navigate = useNavigate();
   const { online } = useOnline();
   const [name, setName] = useState('');
@@ -191,6 +198,7 @@ function CustomForm() {
       return;
     }
     setSaving(true);
+    onBusy(true);
     setError(null);
     try {
       const subject = await createSubject(name.trim(), textbook.trim() || null, profile);
@@ -201,6 +209,7 @@ function CustomForm() {
       setError(errorMessage(err, 'Kunne ikke opprette faget.'));
     } finally {
       setSaving(false);
+      onBusy(false);
     }
   };
 

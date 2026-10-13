@@ -235,7 +235,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   };
 }
 
-/** «fysikk-1-lk20,kjemi-1-lk20» → liste; «none» eller tom → ingen; ikke satt → alle oppsettene. */
+/** «fysikk-1-lk20,kjemi-1-lk20» → liste; «none» eller tom → ingen; ikke satt → `DEFAULT_SEED_PRESETS` (fysikk, kjemi og biologi). */
 function parseSeedList(value: string | undefined): string[] {
   if (value === undefined) return [...DEFAULT_SEED_PRESETS];
   const v = value.trim();

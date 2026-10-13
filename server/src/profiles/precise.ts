@@ -72,7 +72,8 @@ const TEXT = String.raw`## 7.5 Text, numbers and units
 
 - In ordinary text, write \% for a percent sign (35 \%), \& for &, and \# for #. Anything with a subscript or superscript is math: $v_0$, $E_k$, $x^2$.
 - Numbers always keep the student's decimal comma, also inside siunitx: \qty{9,81}{m/s^2}, \qty{2,5}{kg}, \num{6,67e-11}. Write units as plain strings like m, kg, s, N, J, W, km/h, m/s^2, kg.m/s^2. Use \degreeCelsius for °C, \percent for % and \ohm for Ω inside \qty. In TikZ and pgfplots code (coordinates, domains, expressions) use a decimal point. A label inside [...] options (TikZ "..." or circuitikz l=) goes in braces, so a decimal comma in it works: "{$26,6^\circ$}", l={$U = 4,5$ V}.
-- A word in a subscript is text: $v_{\text{snitt}}$, $E_{\text{tilført}}$.`;
+- A word in a subscript is text: $v_{\text{snitt}}$, $E_{\text{tilført}}$.
+- A unit inside \qty or \unit has only plain letters a–z, digits and symbols such as / . ^ (m/s^2, kJ/mol): letters like æ, ø and å and the sign ° are lost there. Write a Norwegian word after the quantity, outside it: \qty{2,5}{cm} per år, \num{5730}~år, \qty{1200}{m} o.h. Write degrees as \degreeCelsius, never °.`;
 
 const TOGETHER = String.raw`## 7.6 Keep each calculation together
 
@@ -329,16 +330,16 @@ ${FIGURES}
 
 Start from the closest template below and change the labels, values and coordinates so that they match the student's notes. Keep every label, arrow and value from the original. Use only syntax that appears in these templates or in section 4.
 
-Climate diagram: precipitation as bars against the right axis and temperature as a curve against the left axis, one value per month (decimal point inside the plot code). Use the student's values and axis ranges:
+Climate diagram: precipitation as bars against the right axis and temperature as a curve against the left axis, one value per month (decimal point inside the plot code). Use the student's values and axis ranges. The bars are grey and the curve black; use blue bars and a red curve only if the student coloured them so:
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
 \begin{axis}[width=10cm, height=6cm, axis y line*=right, axis x line=none, ymin=0, ymax=200, ylabel={Nedbør / \unit{mm}}, xmin=0.5, xmax=12.5]
-  \addplot[ybar, bar width=10pt, fill=blue!25, draw=blue!60] coordinates {(1,80) (2,60) (3,55) (4,45) (5,50) (6,65) (7,80) (8,95) (9,110) (10,120) (11,105) (12,90)};
+  \addplot[ybar, bar width=10pt, fill=sngray!25, draw=sngray] coordinates {(1,80) (2,60) (3,55) (4,45) (5,50) (6,65) (7,80) (8,95) (9,110) (10,120) (11,105) (12,90)};
 \end{axis}
 \begin{axis}[width=10cm, height=6cm, axis y line*=left, axis x line*=bottom, ymin=-10, ymax=20, ylabel={Temperatur / \unit{\degreeCelsius}}, xmin=0.5, xmax=12.5, xtick={1,...,12}, xticklabels={J,F,M,A,M,J,J,A,S,O,N,D}]
-  \addplot[thick, red, mark=*] coordinates {(1,-4.3) (2,-4.0) (3,-0.2) (4,4.5) (5,10.8) (6,15.2) (7,16.4) (8,15.2) (9,10.8) (10,6.3) (11,0.7) (12,-3.1)};
+  \addplot[thick, mark=*] coordinates {(1,-4.3) (2,-4.0) (3,-0.2) (4,4.5) (5,10.8) (6,15.2) (7,16.4) (8,15.2) (9,10.8) (10,6.3) (11,0.7) (12,-3.1)};
 \end{axis}
 \end{tikzpicture}
 \end{figure}
@@ -349,19 +350,22 @@ Terrain profile: distance along the profile on the x axis and height above sea l
 \centering
 \begin{tikzpicture}
 \begin{axis}[width=11cm, height=5cm, axis lines=left, xlabel={Avstand / \unit{km}}, ylabel={Høyde / \unit{m} o.h.}, xmin=0, xmax=10, ymin=0, ymax=1200]
-  \addplot[thick, fill=sngreen!15] coordinates {(0,0) (1,150) (2,420) (3,800) (4,1050) (5,900) (6,600) (7,640) (8,380) (9,120) (10,0)} \closedcycle;
+  \addplot[thick, fill=sngray!15] coordinates {(0,0) (1,150) (2,420) (3,800) (4,1050) (5,900) (6,600) (7,640) (8,380) (9,120) (10,0)} \closedcycle;
 \end{axis}
 \end{tikzpicture}
 \end{figure}
 
-Layered rock sequence (oldest layer at the bottom), with one pattern per kind of rock and the labels to the right:
+Layered rock sequence (oldest layer at the bottom), with one pattern per kind of rock. Each label stands to the right of its layer, at x = the column width + 0.2 and y = the middle of the layer:
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
-  \draw[pattern=dots] (0,0) rectangle (3,1) node[midway, right=1.7cm] {Sandstein};
-  \draw[pattern=north east lines] (0,1) rectangle (3,1.8) node[midway, right=1.7cm] {Skifer};
-  \draw[pattern=bricks] (0,1.8) rectangle (3,3) node[midway, right=1.7cm] {Kalkstein};
+  \draw[pattern=dots] (0,0) rectangle (3,1);
+  \node[right] at (3.2,0.5) {Sandstein};
+  \draw[pattern=north east lines] (0,1) rectangle (3,1.8);
+  \node[right] at (3.2,1.4) {Skifer};
+  \draw[pattern=bricks] (0,1.8) rectangle (3,3);
+  \node[right] at (3.2,2.4) {Kalkstein};
   \draw[->] (-0.4,0) -- (-0.4,3) node[midway, left] {yngre};
 \end{tikzpicture}
 \end{figure}

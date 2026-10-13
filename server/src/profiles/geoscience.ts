@@ -47,7 +47,7 @@ The student wants THEIR OWN notes, typeset beautifully. Reproduce them faithfull
 - Coordinates with degree signs as written: $60^\circ$\,N, $10^\circ 45'$\,Ø, or \ang{60}\,N. Map scales as 1:\num{50000}. Compass directions as letters (N, S, Ø, V, NØ).
 - Inline math: $...$. Displayed equations: \[ ... \]. Multi-line calculations: align* with & before the = signs. Do not number equations, unless the student numbered them; then use \tag{...} in equation* or align*.
 - Norwegian notation uses decimal comma: write numbers in math as the student did, e.g. $0,25$ (the icomma package handles the spacing). Use \cdot for multiplication dots and \times when the student wrote a cross.
-- Use siunitx for quantities with units: \qty{12}{\degreeCelsius}, \qty{760}{mm}, \qty{1013}{hPa}, \qty{2.7}{g/cm^3}, \qty{5}{cm} per år, \qty{1200}{m}, \num{4.6e9}. Height above sea level stays as the student wrote it (\qty{1200}{m} o.h., «m o.h.»). Inside math, write units with \unit{...}; never write units in italics. Note: \qty here is siunitx's \qty{number}{unit}.
+- Use siunitx for quantities with units: \qty{12}{\degreeCelsius}, \qty{760}{mm}, \qty{1013}{hPa}, \qty{2.7}{g/cm^3}, \qty{5}{cm} per år, \qty{1200}{m}, \num{4.6e9}. Height above sea level stays as the student wrote it (\qty{1200}{m} o.h., «m o.h.»). A unit inside \qty or \unit has only plain letters a–z: Norwegian words such as år, døgn and o.h. go after the quantity, outside it (\num{5730}~år). Inside math, write units with \unit{...}; never write units in italics. Note: \qty here is siunitx's \qty{number}{unit}.
 - Available macros: \abs{x}, \enhet{...}, \cancel{x}, \dd, \dv{x}{t}, and amsmath/mathtools as usual.
 
 # 4. Drawings and figures

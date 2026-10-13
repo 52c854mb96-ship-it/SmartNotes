@@ -47,6 +47,20 @@ describe('sanitizeBody', () => {
 });
 
 describe('normalizeBody', () => {
+  it('setter en enhet med æ, ø, å eller ° som tekst, ellers forsvinner tegnene stille i PDF-en', () => {
+    expect(normalizeBody(String.raw`\qty{2,5}{cm/år} og \qty[round-mode=places]{3}{døgn}`)).toBe(
+      String.raw`\num{2,5}\,\text{cm/år} og \num[round-mode=places]{3}\,\text{døgn}`,
+    );
+    expect(normalizeBody(String.raw`$\unit{år}$ og \si{døgn}`)).toBe(String.raw`$\text{år}$ og \text{døgn}`);
+    // «°C» og «°» har egne enheter i siunitx.
+    expect(normalizeBody(String.raw`\qty{12}{°C}, \qty{30}{°} og \unit{° C}`)).toBe(String.raw`\qty{12}{\degreeCelsius}, \qty{30}{\degree} og \unit{\degreeCelsius}`);
+    // Riktige enheter og tekst utenfor enheten røres ikke, heller ikke i tegnekode.
+    const ok = String.raw`\qty{9,81}{m/s^2} på ål, \qty{5}{\degreeCelsius} per år, \num{3,5}~år`;
+    expect(normalizeBody(ok)).toBe(ok);
+    const tikz = String.raw`\begin{tikzpicture}\node {\qty{1}{år}};\end{tikzpicture}`;
+    expect(normalizeBody(tikz)).toBe(tikz);
+  });
+
   it('lar en riktig kropp være som den er', () => {
     const body = String.raw`\section{Energi}
 \begin{formel}[Kinetisk energi]
