@@ -7,6 +7,19 @@ const dateNoYearFmt = new Intl.DateTimeFormat(LOCALE, { day: 'numeric', month: '
 const timeFmt = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit' });
 const monthShortFmt = new Intl.DateTimeFormat(LOCALE, { month: 'short' });
 
+/**
+ * Når noe sist ble endret, kort: «i dag», «i går», «3. okt.» i år og «3. okt. 2025» før det. `now` kan settes i tester.
+ */
+export function formatChangedDay(iso: string | null | undefined, now: Date = new Date()): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  if (isSameDay(d, now)) return 'i dag';
+  const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  if (isSameDay(d, yesterday)) return 'i går';
+  return d.getFullYear() === now.getFullYear() ? dateNoYearFmt.format(d) : dateFmt.format(d);
+}
+
 /** 'YYYY-MM-DD' → Date i lokal tid (unngår UTC-forskyvning). */
 export function parseDay(day: string): Date | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(day);

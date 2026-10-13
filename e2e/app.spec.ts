@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import { openSubjectFromHome } from './helpers';
 import sharp from 'sharp';
 
 /**
@@ -31,7 +32,7 @@ async function login(page: Page): Promise<void> {
   await expect(page).toHaveURL(/logg-inn/);
   await page.getByLabel('Passord', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Logg inn' }).click();
-  await expect(page.getByRole('heading', { name: 'Fysikk', level: 1 })).toBeVisible();
+  await openSubjectFromHome(page, 'Fysikk 1');
 }
 
 async function upload(page: Page, title: string, buttonName: RegExp): Promise<void> {
@@ -47,8 +48,7 @@ async function upload(page: Page, title: string, buttonName: RegExp): Promise<vo
 
 /** Går fra faget til kapittelet og venter (med live-oppdatering fra synken) til notatet dukker opp der. */
 async function openConvertedNote(page: Page, title: string): Promise<void> {
-  await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Fysikk', level: 1 })).toBeVisible();
+  await openSubjectFromHome(page, 'Fysikk 1');
   await main(page).getByRole('link', { name: CHAPTER }).first().click(SLOW);
   await noteLinks(page).getByRole('link', { name: new RegExp(title) }).first().click(SLOW);
   await expect(page).toHaveURL(/\/notat\//);
@@ -88,7 +88,7 @@ test('logg inn, last opp, les PDF – også uten nett', async ({ page, context }
   // 3) Offline-opplasting havner i køen …
   const offlineTitle = `Offline ${info.project.name}`;
   await upload(page, offlineTitle, /Lagre i kø/);
-  await page.goto('/');
+  await openSubjectFromHome(page, 'Fysikk 1');
   await expect(main(page).getByText(offlineTitle).first()).toBeVisible();
   await expect(main(page).getByText('Venter på nett').first()).toBeVisible();
 

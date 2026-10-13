@@ -483,8 +483,15 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    min-height: 40px;
+    color: var(--text);
     font-weight: 700;
     font-size: 16px;
+    text-decoration: none;
+  }
+
+  .topbar-brand:hover {
+    text-decoration: none;
   }
 
   .main {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, Outlet, ScrollRestoration, useLocation } from 'react-router';
+import { Link, Navigate, Outlet, ScrollRestoration, useLocation } from 'react-router';
 import { Menu, Search, Upload } from 'lucide-react';
 import { useAuth } from '../lib/connectivity';
 import { reloadPendingStore } from '../lib/pwa';
@@ -171,10 +171,10 @@ export function AppShell() {
           >
             <Menu size={22} aria-hidden />
           </button>
-          <div className="topbar-brand">
+          <Link to="/" className="topbar-brand" aria-label="SmartNotes, til forsiden">
             <Logo size={24} />
             <span>SmartNotes</span>
-          </div>
+          </Link>
           <span className="topbar-actions">
             <button type="button" className="icon-btn" aria-label="Søk" onClick={openSearch}>
               <Search size={20} aria-hidden />

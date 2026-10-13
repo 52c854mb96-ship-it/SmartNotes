@@ -12,7 +12,7 @@ async function login(page: Page): Promise<void> {
   await expect(page).toHaveURL(/logg-inn/);
   await page.getByLabel('Passord', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Logg inn' }).click();
-  await expect(page.getByRole('heading', { name: 'Fysikk', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Fagene dine' })).toBeVisible();
 }
 
 async function subjects(page: Page): Promise<{ id: string; name: string; profile: string }[]> {

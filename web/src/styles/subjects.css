@@ -195,3 +195,42 @@
   --focus-ring: 0 0 0 3px rgb(224 154 114 / 0.4);
   --viz-surface: #1f2225;
 }
+
+/*
+ * Fargen til hvert fag uavhengig av hvilket fag som er åpent (fagkortene på forsiden). Samme aksentfarger som temaene
+ * over og i base.css; den mørke varianten følger lys/mørk/system-valget.
+ */
+:root {
+  --profile-physics: #1f5fad;
+  --profile-physics-soft: #eaf1fa;
+  --profile-chemistry: #2e4a3f;
+  --profile-chemistry-soft: #f5edcf;
+  --profile-biology: #4a5d4a;
+  --profile-biology-soft: #eef1ea;
+  --profile-geoscience: #8f4b2e;
+  --profile-geoscience-soft: #f6ebe4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --profile-physics: #6aa4ea;
+    --profile-physics-soft: rgb(96 156 230 / 0.13);
+    --profile-chemistry: #e6c35c;
+    --profile-chemistry-soft: rgb(230 195 92 / 0.12);
+    --profile-biology: #93b48d;
+    --profile-biology-soft: rgb(147 180 141 / 0.14);
+    --profile-geoscience: #e09a72;
+    --profile-geoscience-soft: rgb(224 154 114 / 0.13);
+  }
+}
+
+:root[data-theme='dark'] {
+  --profile-physics: #6aa4ea;
+  --profile-physics-soft: rgb(96 156 230 / 0.13);
+  --profile-chemistry: #e6c35c;
+  --profile-chemistry-soft: rgb(230 195 92 / 0.12);
+  --profile-biology: #93b48d;
+  --profile-biology-soft: rgb(147 180 141 / 0.14);
+  --profile-geoscience: #e09a72;
+  --profile-geoscience-soft: rgb(224 154 114 / 0.13);
+}

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openSubjectFromHome } from './helpers';
 
 /** Visualiseringssiden: oversikt per kapittel, én visualisering med glidebryter, og bla videre. */
 
@@ -12,7 +13,7 @@ test('visualiseringer: oversikt, friksjon og neste', async ({ page }) => {
   await expect(page).toHaveURL(/logg-inn/);
   await page.getByLabel('Passord', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Logg inn' }).click();
-  await expect(page.getByRole('heading', { name: 'Fysikk', level: 1 })).toBeVisible();
+  await openSubjectFromHome(page, 'Fysikk 1');
 
   const main = page.locator('main');
   await main.getByRole('link', { name: 'Visualiseringer' }).click();
@@ -53,7 +54,7 @@ test('søket finner visualiseringer', async ({ page }) => {
   await expect(page).toHaveURL(/logg-inn/);
   await page.getByLabel('Passord', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Logg inn' }).click();
-  await expect(page.getByRole('heading', { name: 'Fysikk', level: 1 })).toBeVisible();
+  await openSubjectFromHome(page, 'Fysikk 1');
 
   await page.keyboard.press('Control+k');
   const palette = page.getByRole('dialog', { name: 'Søk' });
