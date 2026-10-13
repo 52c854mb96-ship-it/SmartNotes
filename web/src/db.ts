@@ -179,6 +179,8 @@ export const META = {
   lastSyncAt: 'lastSyncAt',
   loggedIn: 'loggedIn',
   persistAsked: 'persistAsked',
+  /** Kontoen dataene på enheten tilhører (`AuthUser`). Mangler på enheter fra før kontoene. */
+  account: 'account',
 } as const;
 
 export async function getMeta<T>(key: string): Promise<T | undefined> {

@@ -1,19 +1,40 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router';
+import { LogIn } from 'lucide-react';
 import { api, errorMessage } from '../api';
 import { Logo } from '../components/Logo';
+import { PasswordField } from '../components/PasswordField';
 import { Spinner } from '../components/Status';
 import { useAuth, useOnline } from '../lib/connectivity';
-import { afterLogin } from '../sync';
+import { finishLogin } from '../lib/login';
+
+/** Innledningen på innloggingssidene: hva SmartNotes er, og at betaen er lukket. */
+export function AuthIntro() {
+  return (
+    <div className="login-brand">
+      <Logo size={56} />
+      <h1>SmartNotes</h1>
+      <p className="login-tagline">Håndskrevne notater blir til ryddige PDF-er, sortert etter tema i faget.</p>
+      <p className="login-about">
+        For Fysikk 1, Kjemi 1, Biologi 1 og Geofag 1 i videregående. SmartNotes er i en lukket beta: du trenger en
+        invitasjon fra en som bruker appen.
+      </p>
+    </div>
+  );
+}
+
+/** Siden brukeren var på vei til, ellers forsiden (appen åpner ikke et fag av seg selv). */
+export function afterLoginTarget(from: string | undefined): string {
+  return from && from.startsWith('/') && !from.startsWith('//') && !/^\/(logg-inn|registrer|nytt-passord)/.test(from) ? from : '/';
+}
 
 export function LoginPage() {
   const auth = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const { online } = useOnline();
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<null | 'login' | 'sync'>(null);
   const from = (location.state as { from?: string } | null)?.from;
@@ -22,7 +43,7 @@ export function LoginPage() {
     document.title = 'Logg inn – SmartNotes';
   }, []);
 
-  if (auth === 'ok' && !busy) return <Navigate to={from && from !== '/logg-inn' ? from : '/'} replace />;
+  if (auth === 'ok' && !busy) return <Navigate to={afterLoginTarget(from)} replace />;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -30,11 +51,13 @@ export function LoginPage() {
     setError(null);
     setBusy('login');
     try {
-      await api.login(password);
+      const res = await api.login({ username: username.trim(), password });
       setBusy('sync');
-      await afterLogin();
-      // Til siden brukeren var på vei til, ellers forsiden (appen åpner ikke et fag av seg selv).
-      navigate(from && from !== '/logg-inn' ? from : '/', { replace: true });
+      if (!(await finishLogin(res.user))) {
+        setBusy(null);
+        return;
+      }
+      navigate(afterLoginTarget(from), { replace: true });
     } catch (err) {
       setError(errorMessage(err, 'Innloggingen feilet.'));
       setBusy(null);
@@ -44,53 +67,53 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <main className="login-card">
-        <div className="login-brand">
-          <Logo size={56} />
-          <h1>SmartNotes</h1>
-          <p className="login-tagline">Håndskrevne notater blir til pene PDF-er – sortert etter kapittel.</p>
-        </div>
+        <AuthIntro />
         <form onSubmit={submit} className="login-form">
           <div className="field">
-            <label className="field-label" htmlFor="login-password">
-              Passord
+            <label className="field-label" htmlFor="login-username">
+              Brukernavn
             </label>
-            <span className="input-with-inner-action">
-              <input
-                id="login-password"
-                type={show ? 'text' : 'password'}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoFocus
-                required
-                aria-invalid={!!error}
-                aria-describedby={error ? 'login-error' : undefined}
-                disabled={!!busy}
-              />
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => setShow((s) => !s)}
-                aria-label={show ? 'Skjul passord' : 'Vis passord'}
-                aria-pressed={show}
-              >
-                {show ? <EyeOff size={18} aria-hidden /> : <Eye size={18} aria-hidden />}
-              </button>
-            </span>
+            <input
+              id="login-username"
+              type="text"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoFocus
+              disabled={!!busy}
+              aria-describedby="login-username-hint"
+            />
+            <p id="login-username-hint" className="form-hint">
+              Eieren av serveren kan la feltet stå tomt.
+            </p>
           </div>
+          <PasswordField
+            id="login-password"
+            label="Passord"
+            value={password}
+            onChange={setPassword}
+            autoComplete="current-password"
+            disabled={!!busy}
+            invalid={!!error}
+            describedBy={error ? 'login-error' : undefined}
+          />
           {error && (
             <p id="login-error" className="form-error" role="alert">
               {error}
             </p>
           )}
-          {!online && (
-            <p className="form-hint">Du er offline. Koble til nettet for å logge inn.</p>
-          )}
+          {!online && <p className="form-hint">Du er offline. Koble til nettet for å logge inn.</p>}
           <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={!!busy || !password}>
             {busy ? <Spinner size={16} /> : <LogIn size={18} aria-hidden />}
             {busy === 'sync' ? 'Henter notatene dine …' : busy === 'login' ? 'Logger inn …' : 'Logg inn'}
           </button>
         </form>
+        <p className="login-switch">
+          Har du fått en invitasjonskode? <Link to="/registrer">Lag en konto</Link>
+        </p>
       </main>
     </div>
   );

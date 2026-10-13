@@ -6,9 +6,10 @@
  * Tilstanden eksponeres gjennom `syncStore`/`useSyncState()`.
  */
 import type { EntityTable, IDType } from 'dexie';
-import type { Chapter, Deck, Flashcard, Note, Subject, SyncResponse, SyncedRow } from '@smartnotes/shared';
+import type { AuthUser, Chapter, Deck, Flashcard, Note, Subject, SyncResponse, SyncedRow } from '@smartnotes/shared';
 import { ApiError, NetworkError, api, errorMessage, isAbortError, isRetryable, uploadNote } from './api';
 import { META, clearAllLocalData, db, getMeta, setMeta, storable, type OutboxEntry, type ProgressEntry } from './db';
+import { accountChange, accountStore } from './lib/account';
 import { authStore, isOnline, setBrowserOnline } from './lib/connectivity';
 import { createStore } from './lib/store';
 
@@ -379,9 +380,14 @@ async function overlayPendingProgress(): Promise<void> {
 
 async function pull(): Promise<void> {
   const wantFull = fullRequested;
-  const cursor = (await getMeta<number>(META.cursor)) ?? 0;
+  let cursor = (await getMeta<number>(META.cursor)) ?? 0;
   const since = wantFull ? 0 : cursor;
   let res = await api.sync(since);
+  // En enhet fra før kontoene vet ikke hvilken konto dataene tilhører. Er det eieren, beholdes alt.
+  if (res.userId !== undefined && !accountStore.get() && (await adoptAccount(res.userId)) === 'replaced') {
+    cursor = 0;
+    res = await api.sync(0);
+  }
   if (!res.full && res.cursor < since) {
     // Serveren har en lavere markør enn oss (f.eks. tilbakestilt database) – hent alt på nytt.
     res = await api.sync(0);
@@ -557,6 +563,77 @@ export async function downloadAllForOffline(): Promise<{ fetched: number; failed
   return { ...result, missing };
 }
 
+// ---------- Konto ----------
+
+/** Husker kontoen dataene på enheten tilhører. */
+export async function rememberAccount(user: AuthUser): Promise<void> {
+  await setMeta(META.account, user);
+  accountStore.set(user);
+}
+
+/** Leser kontoen fra Dexie ved oppstart (før noe sendes til serveren). */
+export async function loadAccount(): Promise<AuthUser | null> {
+  const user = (await getMeta<AuthUser>(META.account)) ?? null;
+  accountStore.set(user);
+  return user;
+}
+
+/** Om enheten har noe lagret: fag, notater, kortstokker, opplastinger eller fremgang som ikke er sendt. */
+async function hasLocalData(): Promise<boolean> {
+  const counts = await Promise.all([db.subjects.count(), db.notes.count(), db.decks.count(), db.outbox.count(), db.progress.count()]);
+  return counts.some((n) => n > 0);
+}
+
+export interface AccountSwitchInfo {
+  change: 'keep' | 'replace';
+  /** Kontoen dataene tilhører nå (null på enheter fra før kontoene). */
+  previous: AuthUser | null;
+  hasData: boolean;
+  pendingUploads: number;
+  pendingProgress: number;
+}
+
+/** Hva som skjer med de lokale dataene hvis `userId` logger inn her (se `accountChange`). */
+export async function accountSwitchInfo(userId: number): Promise<AccountSwitchInfo> {
+  const previous = (await getMeta<AuthUser>(META.account)) ?? null;
+  const hasData = await hasLocalData();
+  return {
+    change: accountChange(previous, userId, hasData),
+    previous,
+    hasData,
+    pendingUploads: await db.outbox.count(),
+    pendingProgress: await db.progress.count(),
+  };
+}
+
+/** Enheten fra før kontoene: henter kontoen fra serveren og beholder dataene hvis det er eieren, ellers slettes de. */
+async function adoptAccount(userId: number): Promise<'kept' | 'replaced'> {
+  const me = await api.me();
+  const user = me.user && me.user.id === userId ? me.user : null;
+  if (!user) return 'kept';
+  const replace = accountChange(null, userId, await hasLocalData()) === 'replace';
+  if (replace) await wipeLocal();
+  await setMeta(META.loggedIn, true);
+  await rememberAccount(user);
+  return replace ? 'replaced' : 'kept';
+}
+
+/** Sletter alt lokalt: Dexie (også køen og fremgangen), sidebildene i Cache Storage og synk-tilstanden. */
+async function wipeLocal(): Promise<void> {
+  clearTimeout(timer);
+  clearTimeout(progressTimer);
+  for (const abort of uploadAborts.values()) abort.abort();
+  await clearAllLocalData();
+  try {
+    await Promise.all(['note-pages', 'note-page-lists'].map((name) => caches.delete(name)));
+  } catch {
+    /* Cache API ikke tilgjengelig */
+  }
+  failures = 0;
+  accountStore.set(null);
+  syncStore.set(initialState);
+}
+
 // ---------- Utlogging ----------
 
 export async function logoutAndClear(): Promise<void> {
@@ -574,20 +651,19 @@ export async function logoutAndClear(): Promise<void> {
   } catch {
     /* logger ut lokalt uansett */
   }
-  await clearAllLocalData();
-  try {
-    await Promise.all(['note-pages', 'note-page-lists'].map((name) => caches.delete(name)));
-  } catch {
-    /* Cache API ikke tilgjengelig */
-  }
-  failures = 0;
-  syncStore.set(initialState);
+  await wipeLocal();
   authStore.set('required');
 }
 
-/** Etter vellykket innlogging: marker og hent alt. */
-export async function afterLogin(): Promise<void> {
+/**
+ * Etter vellykket innlogging (også registrering og nytt passord): er det en annen konto enn den dataene på enheten
+ * tilhører, slettes de først (LoginPage har spurt brukeren). Så huskes kontoen, og alt hentes.
+ */
+export async function afterLogin(user: AuthUser): Promise<void> {
+  if (running) await running.catch(() => undefined);
+  if ((await accountSwitchInfo(user.id)).change === 'replace') await wipeLocal();
   await setMeta(META.loggedIn, true);
+  await rememberAccount(user);
   authStore.set('ok');
   failures = 0;
   void requestPersistentStorage();

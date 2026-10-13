@@ -96,7 +96,7 @@ Senere skjer alt automatisk: hver gang noe flettes inn i `main` og CI er grønn,
 
 ## Steg 7: Logg inn og test
 
-1. Åpne adressen fra steg 5 på PC-en og logg inn med passordet.
+1. Åpne adressen fra steg 5 på PC-en og logg inn med passordet. Brukernavnet kan stå tomt (du er eieren). Under Innstillinger → **Konto** kan du gi deg selv et brukernavn; standard er `eier`.
 2. Fagene **Fysikk 1**, **Kjemi 1** og **Biologi 1** ligger klare med kapitlene og kompetansemålene fra lærebøkene.
    - **Har du bare Fysikk 1** og ser de andre fagene likevel (variabelen `SEED_TEXTBOOKS` fra steg 5 manglet), sletter du dem i appen: tannhjulet på fagsiden → **Slett faget**. Et slettet fag kommer ikke tilbake.
    - **Har du boka i Kjemi 1 eller Biologi 1:** der mangler de fleste delkapitlene, fordi de ikke kunne bekreftes på nett. Åpne faget, trykk **Importer innholdsfortegnelsen** og ta bilde av innholdsfortegnelsen i boka, ett bilde per side. Da legges delkapitlene inn og kobles til kompetansemålene.
@@ -176,6 +176,21 @@ Ta en ny kopi av og til, for eksempel én gang i måneden og alltid før større
 
 På Railway kan volumet bare nås fra en tjeneste som kjører (med `railway ssh`). Gjenoppretting der krever derfor noen ekstra steg: en midlertidig startkommando som ikke starter appen, og en måte å få fila inn på volumet. Det gjør vi sammen den dagen det trengs, eller vi bygger gjenoppretting inn i appen først.
 
+## Inviter en elev
+
+Andre logger inn med egne kontoer. Du ser ikke notatene deres, og de ser ikke dine. Notatene deres konverteres med Claude Haiku 5.5 (`FREE_CONVERT_MODEL`), dine med `CLAUDE_MODEL`.
+
+1. Åpne **Innstillinger → Inviter en elev** og trykk **Lag invitasjon**.
+2. Kopier **lenken** (eller koden) og send den til eleven. Koden vises bare én gang, kan brukes én gang og gjelder i 14 dager. Under kortet ser du om den er brukt, og du kan trekke den tilbake.
+3. Eleven åpner lenken, velger brukernavn og passord, krysser av for fagene og for at hen er minst 15 år (`MIN_AGE`), og trykker **Lag konto**. Uten lenken går det også: **Lag en konto** på innloggingssiden, med koden.
+4. Under **Innstillinger → Brukere** ser du alle kontoene, når de sist logget inn og AI-forbruket de siste 30 dagene.
+
+**Glemt passord:** trykk **Nytt passord** ved eleven under **Brukere**, og send lenken. Den virker én gang i 48 timer, og eleven blir logget ut på alle andre enheter. Det er ingen e-post i appen, så lenken går alltid gjennom deg.
+
+**Stenge en konto:** **Steng kontoen** logger eleven ut overalt. Notatene blir liggende, og du kan åpne kontoen igjen.
+
+**Du selv på en ny enhet:** logg inn med `APP_PASSWORD`, med brukernavnet ditt eller uten brukernavn.
+
 ## Bytte passord eller API-nøkkel
 
 1. Åpne tjenesten i Railway og gå til **Variables**.
@@ -189,7 +204,7 @@ På Railway kan volumet bare nås fra en tjeneste som kjører (med `railway ssh`
 | Bygget feiler | Det første forsøket før variablene er lagt inn, kan feile (se steg 4). Ellers: se **Build Logs** under **Deployments**. Sjekk at **Root Directory** under **Settings → Source** er tomt, slik at Railway finner `Dockerfile` og `railway.json`. |
 | Deployen henger på *healthcheck* | Sjekk at variabelen `PORT` er `8080`, og at adressen under **Networking** peker til port 8080. Se **Deploy Logs**. |
 | Notatene er borte etter en oppdatering | Volumet mangler eller er montert feil. Det må være montert på `/data` (steg 4). |
-| Innloggingen avvises | Passordet er feil. Bytt passord (se over). |
+| Innloggingen avvises | Passordet er feil. Bytt passord (se over). For en elev: lag en lenke for nytt passord (se «Inviter en elev»). Etter 10 feil fra en ny enhet er kontoen sperret for nye enheter i et kvarter; en enhet som har logget inn før, slipper inn. |
 | Notater feiler med melding om API-nøkkel eller kreditt | Sjekk nøkkelen og kreditten i Anthropic Console. Bytt nøkkel (se over). |
 | Appen kan ikke installeres eller virker ikke uten nett | Appen må åpnes via `https://…up.railway.app`, og du må ha logget inn én gang mens du var på nett. |
 | Noe annet | Se **Deploy Logs** og **HTTP Logs** for den aktive deployen i Railway. |

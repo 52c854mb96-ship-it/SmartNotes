@@ -25,6 +25,7 @@ import { Menu } from '../components/Menu';
 import { NoteStatusBadge, Spinner } from '../components/Status';
 import { useChapters, useNote, useSubject } from '../data';
 import { useOnline } from '../lib/connectivity';
+import { useIsOwner } from '../lib/account';
 import { aimMap, noteAimCodes, noteSectionCode, sectionLabel, sectionsOf } from '../lib/curriculum';
 import { downloadUrl } from '../lib/download';
 import { chapterHeading, chapterLabel, formatDay, plural, slugify, stageDescription, stageText } from '../lib/format';
@@ -193,6 +194,7 @@ function NoteHeader({
 }) {
   const navigate = useNavigate();
   const { online } = useOnline();
+  const owner = useIsOwner();
   const busyOnServer = note.status === 'queued' || note.status === 'processing';
   const refreshing = note.status === 'done' && note.stage != null;
 
@@ -268,13 +270,18 @@ function NoteHeader({
               disabled: !online || busyOnServer,
               hint: !online ? OFFLINE_HINT : 'Konverteres allerede',
             },
-            {
-              label: 'Prøv med Haiku …',
-              icon: <FlaskConical size={17} />,
-              onSelect: () => navigate(`/notat/${note.id}/sammenlign`),
-              disabled: !online || note.status !== 'done' || note.pdfRev === 0,
-              hint: !online ? OFFLINE_HINT : 'Notatet er ikke ferdig konvertert ennå',
-            },
+            // Sammenligningen er bare for eieren (den koster ekstra og vurderer instruksene).
+            ...(owner
+              ? [
+                  {
+                    label: 'Prøv med Haiku …',
+                    icon: <FlaskConical size={17} />,
+                    onSelect: () => navigate(`/notat/${note.id}/sammenlign`),
+                    disabled: !online || note.status !== 'done' || note.pdfRev === 0,
+                    hint: !online ? OFFLINE_HINT : 'Notatet er ikke ferdig konvertert ennå',
+                  },
+                ]
+              : []),
             {
               label: 'Slett notat …',
               icon: <Trash2 size={17} />,

@@ -21,9 +21,12 @@ import { confirmDialog, toast } from '../lib/ui';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { downloadAllForOffline, logoutAndClear, requestPersistentStorage, syncNow, useSyncState } from '../sync';
 import { Link, useNavigate } from 'react-router';
+import { planLabel, useAccount, useIsOwner } from '../lib/account';
+import { InviteCard, OwnerNameForm, UsersCard } from './settings/AccountAdmin';
 
 export function SettingsPage() {
   useDocumentTitle('Innstillinger');
+  const owner = useIsOwner();
   return (
     <div className="page page-narrow">
       <header className="page-header">
@@ -33,9 +36,16 @@ export function SettingsPage() {
       </header>
       <AppearanceCard />
       <ServerCard />
-      <UsageCard />
-      <ComparisonCard />
-      <BackupCard />
+      {/* Eierens kort: forbruket for alle, sammenligningene, hele databasen, invitasjoner og brukere. */}
+      {owner && (
+        <>
+          <InviteCard />
+          <UsersCard />
+          <UsageCard />
+          <ComparisonCard />
+          <BackupCard />
+        </>
+      )}
       <SyncCard />
       <StorageCard />
       <AccountCard />
@@ -124,6 +134,8 @@ function RemoteStatus() {
 
 function ServerCard() {
   const { online } = useOnline();
+  // Oppsettet av AI-en (modeller, hjemmemaskin) gjelder eierens konverteringer, så bare eieren ser det.
+  const owner = useIsOwner();
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -160,7 +172,8 @@ function ServerCard() {
           <StatusLine ok={health.ok} label={health.ok ? 'Serveren svarer' : 'Serveren har problemer'} detail={`versjon ${health.version}`} />
           <StatusLine ok={health.latex} label={health.latex ? 'LaTeX er installert' : 'LaTeX mangler på serveren'} />
           {/* Én linje når alt går til samme Claude-modell; ellers modell og leverandør per oppgave. */}
-          {(health.ai ?? []).every((t) => t.provider === 'anthropic' || t.provider === 'fake') && new Set((health.ai ?? []).map((t) => t.model)).size <= 1 ? (
+          {!owner ? null : (health.ai ?? []).every((t) => t.provider === 'anthropic' || t.provider === 'fake') &&
+            new Set((health.ai ?? []).map((t) => t.model)).size <= 1 ? (
             <StatusLine
               ok={health.claudeConfigured}
               label={health.claudeConfigured ? 'Claude er satt opp' : 'Claude er ikke satt opp (mangler API-nøkkel)'}
@@ -719,6 +732,7 @@ function AboutCard() {
 
 function AccountCard() {
   const navigate = useNavigate();
+  const account = useAccount();
   const outboxCount = useLiveQuery(() => db.outbox.count(), []) ?? 0;
   const progressCount = useLiveQuery(() => db.progress.count(), []) ?? 0;
   const logout = async () => {
@@ -746,7 +760,13 @@ function AccountCard() {
         <h2 id="account-h" className="card-title">
           Konto
         </h2>
+        {account && (
+          <p className="card-text">
+            Logget inn som <strong>{account.username}</strong> · {planLabel(account.plan)}
+          </p>
+        )}
       </div>
+      {account?.plan === 'owner' && <OwnerNameForm />}
       <div className="card-actions">
         <button type="button" className="btn btn-danger-outline" onClick={() => void logout()}>
           <LogOut size={17} aria-hidden /> Logg ut

@@ -13,6 +13,8 @@ import { LoginPage } from './pages/LoginPage';
 import { NewDeckPage } from './pages/NewDeckPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { NotePage } from './pages/NotePage';
+import { RegisterPage } from './pages/RegisterPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { SubjectPage } from './pages/SubjectPage';
 import { SubjectSettingsPage } from './pages/SubjectSettingsPage';
@@ -54,6 +56,8 @@ const router = createBrowserRouter([
     errorElement: <RouteError />,
     children: [
       { path: '/logg-inn', element: <LoginPage /> },
+      { path: '/registrer', element: <RegisterPage /> },
+      { path: '/nytt-passord', element: <ResetPasswordPage /> },
       {
         path: '/',
         element: <AppShell />,

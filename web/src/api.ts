@@ -1,4 +1,5 @@
 import type {
+  AdminUsersResponse,
   AiStatusResponse,
   BackupStatusResponse,
   BulkChaptersRequest,
@@ -9,11 +10,15 @@ import type {
   CreateChapterRequest,
   CreateDeckRequest,
   CreateFlashcardRequest,
+  CreateInviteResponse,
   AddPresetSubjectRequest,
   CreateSubjectRequest,
   Deck,
   Flashcard,
   HealthResponse,
+  InvitesResponse,
+  LoginRequest,
+  LoginResponse,
   MeResponse,
   Note,
   NoteComparisonResponse,
@@ -21,7 +26,11 @@ import type {
   NotePagesResponse,
   ProgressRequest,
   ProgressResponse,
+  PublicPresetsResponse,
   RateComparisonRequest,
+  RegisterRequest,
+  ResetLinkResponse,
+  ResetPasswordRequest,
   RetryNoteRequest,
   SaveLatexResponse,
   Subject,
@@ -35,11 +44,19 @@ import type {
   UsageSummaryResponse,
 } from '@smartnotes/shared';
 import { asBlob, type StoredBytes } from './db';
+import { accountStore, reloadForOtherAccount } from './lib/account';
 import { authStore, markReachable } from './lib/connectivity';
 import { serverBuildStore } from './lib/build';
 
 const BASE = '/api';
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const ACCOUNT_HEADER = 'X-SmartNotes-Account';
+
+/** Svar som betyr at økten nå tilhører en annen konto enn appen viser (en annen fane har logget inn). */
+function handleAuthStatus(status: number, error: ApiError, allow401 = false): void {
+  if (status === 401 && !allow401) authStore.set('required');
+  if (status === 409 && error.code === 'account_changed' && !reloadForOtherAccount()) authStore.set('required');
+}
 
 /** Feil som serveren svarte med (HTTP-status ≠ 2xx). `message` er norsk og kan vises til brukeren. */
 export class ApiError extends Error {
@@ -140,6 +157,8 @@ function withTimeout(signal: AbortSignal | undefined, timeoutMs: number | undefi
 async function request(method: string, path: string, opts: RequestOptions = {}): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (MUTATING.has(method)) headers['X-SmartNotes'] = '1';
+  const account = accountStore.get();
+  if (account) headers[ACCOUNT_HEADER] = String(account.id);
   let body: BodyInit | undefined;
   if (opts.form) {
     body = opts.form;
@@ -174,7 +193,7 @@ async function request(method: string, path: string, opts: RequestOptions = {}):
   const text = await res.text().catch(() => '');
   const error = parseErrorBody(res.status, text);
   if (!opts.quiet && res.status !== 502 && res.status !== 503 && res.status !== 504) markReachable(true);
-  if (res.status === 401 && !opts.allow401) authStore.set('required');
+  handleAuthStatus(res.status, error, opts.allow401);
   throw error;
 }
 
@@ -214,8 +233,10 @@ export const api = {
     json<UsageSummaryResponse>('GET', `/usage?days=${days}`, { signal, timeoutMs: 15_000 }),
   backupStatus: (signal?: AbortSignal) => json<BackupStatusResponse>('GET', '/backup/status', { signal, timeoutMs: 20_000 }),
 
-  login: (password: string) =>
-    json<{ ok: boolean }>('POST', '/auth/login', { json: { password }, allow401: true, timeoutMs: 20_000 }),
+  login: (req: LoginRequest) => json<LoginResponse>('POST', '/auth/login', { json: req, allow401: true, timeoutMs: 20_000 }),
+  register: (req: RegisterRequest) => json<LoginResponse>('POST', '/auth/register', { json: req, timeoutMs: 20_000 }),
+  resetPassword: (req: ResetPasswordRequest) => json<LoginResponse>('POST', '/auth/reset', { json: req, timeoutMs: 20_000 }),
+  authPresets: (signal?: AbortSignal) => json<PublicPresetsResponse>('GET', '/auth/presets', { signal, timeoutMs: 15_000 }),
   logout: () => json<{ ok: boolean }>('POST', '/auth/logout', { timeoutMs: 10_000, allow401: true }),
   me: () => json<MeResponse>('GET', '/auth/me', { allow401: true, timeoutMs: 10_000 }),
 
@@ -296,6 +317,16 @@ export const api = {
     blob(`/notes/${enc(id)}/pdf?v=${rev}`, signal, 120_000),
   chapterPdf: (id: string, signal?: AbortSignal) => blob(`/chapters/${enc(id)}/pdf`, signal, 240_000),
   subjectPdf: (id: string, signal?: AbortSignal) => blob(`/subjects/${enc(id)}/pdf`, signal, 300_000),
+
+  // Eierens sider: brukere og invitasjoner.
+  adminUsers: (signal?: AbortSignal) => json<AdminUsersResponse>('GET', '/admin/users', { signal, timeoutMs: 15_000 }),
+  renameOwner: (username: string) => json<LoginResponse>('PATCH', '/admin/me', { json: { username } }),
+  resetLink: (userId: number) => json<ResetLinkResponse>('POST', `/admin/users/${userId}/reset-link`),
+  disableUser: (userId: number) => json<{ ok: boolean }>('POST', `/admin/users/${userId}/disable`),
+  enableUser: (userId: number) => json<{ ok: boolean }>('POST', `/admin/users/${userId}/enable`),
+  invites: (signal?: AbortSignal) => json<InvitesResponse>('GET', '/admin/invites', { signal, timeoutMs: 15_000 }),
+  createInvite: () => json<CreateInviteResponse>('POST', '/admin/invites'),
+  revokeInvite: (id: string) => json<{ ok: boolean }>('DELETE', `/admin/invites/${enc(id)}`),
 };
 
 // ---------- Opplasting (XHR for fremdrift) ----------
@@ -330,6 +361,8 @@ export function uploadNote(
     xhr.open('POST', `${BASE}/notes`);
     xhr.setRequestHeader('X-SmartNotes', '1');
     xhr.setRequestHeader('Accept', 'application/json');
+    const account = accountStore.get();
+    if (account) xhr.setRequestHeader(ACCOUNT_HEADER, String(account.id));
     xhr.timeout = 15 * 60_000;
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && e.total > 0) onProgress?.(e.loaded / e.total);
@@ -346,7 +379,7 @@ export function uploadNote(
       }
       const err = parseErrorBody(xhr.status, xhr.responseText);
       if (xhr.status !== 502 && xhr.status !== 503 && xhr.status !== 504) markReachable(true);
-      if (xhr.status === 401) authStore.set('required');
+      handleAuthStatus(xhr.status, err);
       reject(err);
     };
     xhr.onerror = () => {
