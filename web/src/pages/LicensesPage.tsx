@@ -59,9 +59,12 @@ export function LicensesPage() {
           åpen kildekode under, og lisensene deres gjelder for dem.
         </p>
         <p className="card-text">
-          Kompetansemålene inneholder data under norsk lisens for offentlige data (NLOD) tilgjengeliggjort av
-          Utdanningsdirektoratet. PDF-ene settes med LaTeX og fontene som følger med TeX Live: Latin Modern (GUST Font License)
-          og URW-fontene som brukes i stedet for Helvetica og Palatino.
+          Kompetansemålene inneholder data under{' '}
+          <a href="https://data.norge.no/nlod/no/2.0" target="_blank" rel="noopener noreferrer">norsk lisens for offentlige data (NLOD)</a>{' '}
+          tilgjengeliggjort av Utdanningsdirektoratet (<a href="https://data.udir.no" target="_blank" rel="noopener noreferrer">data.udir.no</a>). PDF-ene settes med LaTeX og fontene som følger med TeX
+          Live, under sine egne frie lisenser: blant annet Latin Modern (GUST Font License), Computer Modern og AMS-fontene
+          (SIL Open Font License) og URW-fontene som brukes i stedet for Helvetica og Palatino. Matematikken i appen vises med
+          KaTeX-fontene (SIL Open Font License, se lista under).
         </p>
       </section>
 

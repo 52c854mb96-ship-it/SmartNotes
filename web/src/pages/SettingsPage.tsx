@@ -699,8 +699,9 @@ function AboutCard() {
         </h2>
       </div>
       <p className="card-text">
-        Kompetansemålene er hentet fra læreplanene i LK20. Inneholder data under norsk lisens for offentlige data (NLOD)
-        tilgjengeliggjort av Utdanningsdirektoratet (data.udir.no). Temaene og deltemaene i fagene er SmartNotes&apos; egne.
+        Kompetansemålene er hentet fra læreplanene i LK20. Inneholder data under{' '}
+        <a href="https://data.norge.no/nlod/no/2.0" target="_blank" rel="noopener noreferrer">norsk lisens for offentlige data (NLOD)</a>{' '}
+        tilgjengeliggjort av Utdanningsdirektoratet (<a href="https://data.udir.no" target="_blank" rel="noopener noreferrer">data.udir.no</a>). Temaene og deltemaene i fagene er SmartNotes&apos; egne.
       </p>
       <p className="card-text">
         SmartNotes er ikke tilknyttet Utdanningsdirektoratet eller noe forlag. En innholdsfortegnelse du importerer fra din

@@ -48,7 +48,7 @@ Appen er laget for **Fysikk 1**, **Kjemi 1** og **Biologi 1** (VG2, LK20). Hvert
 | `server/` | API, konverteringskø, Claude-integrasjon, LaTeX-kompilering og samle-PDF-er |
 | `server/latex/<fag>/preamble.tex` | LaTeX-malene (`physics`, `chemistry`, `biology`): pakker, bokser, sidehode |
 | `server/src/profiles/<fag>.ts` | Instruksene Claude får for notater i faget |
-| `server/src/textbooks.ts` | Lærebøkene: kapitler, delkapitler og kompetansemål |
+| `server/src/presets.ts` | Fagoppsettene: kompetansemålene fra Udir (ordrett, NLOD) og SmartNotes' egne temaer og deltemaer |
 | `web/src/viz/` | Visualiseringene, én mappe per fag og kapittel |
 | `server/src/flashcards/` | Instruksene til Claude og bakgrunnsjobben som lager flashcards |
 | `web/src/flashcards/` | Øvingen med flashcards (reglene i `model.ts`) og visning av formler med KaTeX |

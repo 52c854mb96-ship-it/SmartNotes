@@ -20,13 +20,16 @@ test('om SmartNotes: kilde for kompetansemålene og lisensene til pakkene', asyn
   page.on('pageerror', (e) => errors.push(e.message));
   await login(page);
 
-  // Kilden står der kompetansemålene vises.
-  await expect(page.locator('main').getByText(/norsk lisens for offentlige data \(NLOD\) tilgjengeliggjort av\s+Utdanningsdirektoratet/)).toBeVisible();
+  // Kilden står der kompetansemålene vises, med lenke til lisensen og til Udirs data.
+  const source = page.locator('main .aims-source');
+  await expect(source).toContainText(/norsk lisens for offentlige data \(NLOD\)\s+tilgjengeliggjort av Utdanningsdirektoratet/);
+  await expect(source.getByRole('link', { name: 'norsk lisens for offentlige data (NLOD)' })).toHaveAttribute('href', 'https://data.norge.no/nlod/no/2.0');
+  await expect(source.getByRole('link', { name: 'data.udir.no' })).toHaveAttribute('href', 'https://data.udir.no');
 
   await page.goto('/innstillinger');
   const about = page.getByRole('region', { name: 'Om SmartNotes' });
   await expect(about.getByText(/ikke tilknyttet Utdanningsdirektoratet eller noe forlag/)).toBeVisible();
-  await expect(about.getByText(/norsk lisens for offentlige data \(NLOD\)/)).toBeVisible();
+  await expect(about.getByRole('link', { name: 'norsk lisens for offentlige data (NLOD)' })).toHaveAttribute('href', 'https://data.norge.no/nlod/no/2.0');
   await about.getByRole('link', { name: 'Lisenser' }).click();
 
   await expect(page).toHaveURL(/\/innstillinger\/lisenser$/);
@@ -37,6 +40,7 @@ test('om SmartNotes: kilde for kompetansemålene og lisensene til pakkene', asyn
   await expect(react.locator('summary')).toContainText('MIT');
   await expect(list.locator('summary', { hasText: 'lucide-react' })).toContainText('ISC');
   await expect(list.locator('summary', { hasText: 'pdfjs-dist' })).toContainText('Apache-2.0');
+  await expect(list.locator('summary', { hasText: 'KaTeX-fontene' })).toContainText('OFL-1.1');
   await expect(react.locator('pre')).toBeHidden();
   await react.locator('summary').click();
   await expect(react.locator('pre')).toBeVisible();
