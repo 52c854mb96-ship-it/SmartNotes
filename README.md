@@ -183,5 +183,9 @@ Hvert fag har en *profil* med LaTeX-mal, fargetema og instrukser til Claude. Fys
 1. Lag `server/latex/<fag>/preamble.tex` (ta utgangspunkt i en av de tre malene).
 2. Lag `server/src/profiles/<fag>.ts` med instrukser, og registrer profilen i `server/src/profiles/index.ts`.
 3. Legg til profil-id-en i `SubjectProfile` i `shared/src/index.ts` og i `web/src/lib/subjects.tsx` (navn, ikon og PDF-mal), og eventuelt et fargetema i `web/src/styles/subjects.css`.
-4. Valgfritt: et læreboksett i `server/src/textbooks.ts` (kapitler, delkapitler og kompetansemål), som legges inn ved neste oppstart.
+4. Valgfritt: et fagoppsett i `server/src/presets.ts` med kompetansemålene ordrett fra Udir (og i `server/test/fixtures/udir-kompetansemaal.json`) og egne temaer, aldri en læreboks innholdsfortegnelse.
 5. Valgfritt: visualiseringer i `web/src/viz/<fag>/` (se `web/src/viz/README.md`).
+
+## Lisens
+
+Alle rettigheter forbeholdt (se [LICENSE](LICENSE)). Repoet er offentlig slik at det kan leses, men koden, malene og tekstene er ikke lisensiert for annen bruk. Pakkene med åpen kildekode som følger med web-appen, står med lisensene sine i appen under Innstillinger → «Om SmartNotes» → «Lisenser»; lista lages når appen bygges (`web/build/licenses.ts`), og byggingen stopper hvis en ny pakke har en lisens som ikke er godkjent. Kompetansemålene inneholder data under norsk lisens for offentlige data (NLOD) tilgjengeliggjort av Utdanningsdirektoratet. SmartNotes er ikke tilknyttet Utdanningsdirektoratet eller noe forlag.

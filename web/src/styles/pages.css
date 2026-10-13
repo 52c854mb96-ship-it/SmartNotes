@@ -1046,3 +1046,52 @@ select.inline-input {
   align-items: center;
   gap: 4px 8px;
 }
+
+/* «Om SmartNotes» → «Lisenser» */
+.license-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.license-list > li {
+  border-bottom: 1px solid var(--border);
+}
+
+.license-item > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-height: 44px;
+  padding: 10px 4px;
+  cursor: pointer;
+}
+
+.license-item > summary:hover .license-name {
+  color: var(--accent);
+}
+
+.license-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.license-body {
+  padding: 0 4px 14px;
+}
+
+.license-text {
+  max-height: 320px;
+  margin: 8px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

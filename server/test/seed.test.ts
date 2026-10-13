@@ -21,6 +21,7 @@ const kjemi: SubjectPreset = {
   aliases: ['gammel-kjemi'],
   subjectName: 'Kjemi 1',
   profile: 'chemistry',
+  udir: { plan: 'KJE01-02', aimSet: 'KV532' },
   aims: [{ code: 'KM1', text: 'Et mål', cross: false }],
   chapters: [{ number: '1', title: 'Atomer', sections: [{ code: '1.1', title: 'Atomet', aims: ['KM1'] }] }],
 };
@@ -126,8 +127,8 @@ describe('fagoppsettene', () => {
     }
   });
 
-  it('ingen forlag eller lærebøker i oppsettene', () => {
-    const text = JSON.stringify(SUBJECT_PRESETS);
+  it('ingen forlag eller lærebøker i oppsettene (utenom de gamle id-ene og lærebøkene som kjennes igjen)', () => {
+    const text = JSON.stringify(Object.values(SUBJECT_PRESETS).map(({ aliases: _a, legacyTextbooks: _l, ...rest }) => rest));
     expect(text).not.toMatch(/ERGO|Aschehoug|Gyldendal|Cappelen|Bi 1\b/);
   });
 });

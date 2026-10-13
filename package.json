@@ -1,6 +1,7 @@
 {
   "name": "smartnotes",
   "private": true,
+  "license": "UNLICENSED",
   "version": "0.1.0",
   "description": "Last opp håndskrevne notater og få dem som pene LaTeX-PDF-er, sortert etter fag og kapittel.",
   "type": "module",

@@ -5,6 +5,7 @@ import type { Chapter, Section, Subject } from '@smartnotes/shared';
 import type { Config } from '../config.js';
 import type { NoteRow, Repo } from '../db.js';
 import { AbortedError, ConversionError } from '../errors.js';
+import { userTextbook } from '../presets.js';
 import { getProfile, readPreamble, type Profile } from '../profiles/index.js';
 import { exists, type Storage, writeFileAtomic } from '../storage.js';
 import { usageScope, type Usage } from '../usage.js';
@@ -214,7 +215,7 @@ export class Converter {
     const req: ConvertRequest = {
       profile: getProfile(subject.profile),
       subjectName: subject.name,
-      textbook: subject.textbook,
+      textbook: userTextbook(subject),
       chapters: refs,
       fixedChapter:
         row.chapter_auto === 0

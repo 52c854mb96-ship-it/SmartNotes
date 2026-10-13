@@ -12,17 +12,27 @@ export interface SubjectPreset {
   id: string;
   /** Tidligere id-er for samme oppsett, så en database som allerede har det, ikke får det på nytt. */
   aliases: string[];
+  /**
+   * Læreboka SmartNotes selv skrev i «Lærebok/emne» da oppsettet ble lagt inn under en tidligere id (til 13. oktober
+   * 2026). Brukeren har ikke skrevet den, så den vises ikke i samle-PDF-ene og sendes ikke til AI-en (`userTextbook`).
+   */
+  legacyTextbooks?: string[];
   subjectName: string;
   profile: SubjectProfile;
+  /** Læreplanen og kompetansemålsettet hos Udir som `aims` er hentet fra (Grep, data.udir.no). */
+  udir: { plan: string; aimSet: string };
   aims: CompetenceAim[];
   chapters: (ChapterInput & { sections: Section[] })[];
 }
 
-/** Kompetansemål i Fysikk 1 (FYS01-02, LK20). Ordlyd fra Udir; bør sjekkes ord for ord mot Grep (data.udir.no). */
+/**
+ * Kompetansemål i Fysikk 1 (FYS01-02, LK20, kompetansemålsett KV466). Ordrett fra Udir (bokmål), kontrollert ord for ord
+ * mot Grep 13. oktober 2026 (`test/fixtures/udir-kompetansemaal.json`). KM3 har Udirs skrivemåte «problemsstillinger».
+ */
 const FYSIKK1_AIMS: CompetenceAim[] = [
   { code: 'KM1', text: 'planlegge og gjennomføre forsøk, analysere data og trekke konklusjoner', cross: true },
   { code: 'KM2', text: 'vurdere, bruke og lage modeller til å beskrive og forutsi fysiske fenomener', cross: true },
-  { code: 'KM3', text: 'vurdere ulike påstander og argumenter om energi og klima i samfunnsaktuelle problemstillinger', cross: false },
+  { code: 'KM3', text: 'vurdere ulike påstander og argumenter om energi og klima i samfunnsaktuelle problemsstillinger', cross: false },
   { code: 'KM4', text: 'utforske, analysere og beskrive rettlinjet bevegelse', cross: false },
   { code: 'KM5', text: 'forstå sammenhenger mellom krefter, bevegelse og energi, og bruke dem til å gjøre beregninger', cross: false },
   {
@@ -60,7 +70,7 @@ const FYSIKK1_AIMS: CompetenceAim[] = [
   { code: 'KM14', text: 'forstå begrepet fusjon og vurdere hvordan ulike grunnstoff kan dannes når stjerner lever, kolliderer og dør', cross: false },
 ];
 
-/** Kompetansemål i Kjemi 1 (KJE01-02, LK20, kompetansemålsett KV532). Ordlyd fra Udir (Grep). */
+/** Kompetansemål i Kjemi 1 (KJE01-02, LK20, kompetansemålsett KV532). Ordrett fra Udir (bokmål), kontrollert mot Grep. */
 const KJEMI1_AIMS: CompetenceAim[] = [
   { code: 'KM1', text: 'forstå og bruke kjemisk terminologi og regler for navnsetting i faglig kommunikasjon', cross: true },
   {
@@ -137,7 +147,7 @@ const KJEMI1_AIMS: CompetenceAim[] = [
   },
 ];
 
-/** Kompetansemål i Biologi 1 (BIO01-02, LK20, kompetansemålsett KV538). Ordlyd fra Udir (Grep). */
+/** Kompetansemål i Biologi 1 (BIO01-02, LK20, kompetansemålsett KV538). Ordrett fra Udir (bokmål), kontrollert mot Grep. */
 const BIOLOGI1_AIMS: CompetenceAim[] = [
   {
     code: 'KM1',
@@ -191,8 +201,10 @@ export const SUBJECT_PRESETS: Record<string, SubjectPreset> = {
   'fysikk-1-lk20': {
     id: 'fysikk-1-lk20',
     aliases: ['ergo-fysikk-1'],
+    legacyTextbooks: ['ERGO Fysikk 1'],
     subjectName: 'Fysikk 1',
     profile: 'physics',
+    udir: { plan: 'FYS01-02', aimSet: 'KV466' },
     aims: FYSIKK1_AIMS,
     chapters: [
       {
@@ -288,8 +300,10 @@ export const SUBJECT_PRESETS: Record<string, SubjectPreset> = {
   'kjemi-1-lk20': {
     id: 'kjemi-1-lk20',
     aliases: ['aschehoug-kjemi-1'],
+    legacyTextbooks: ['Kjemi 1 (Aschehoug)'],
     subjectName: 'Kjemi 1',
     profile: 'chemistry',
+    udir: { plan: 'KJE01-02', aimSet: 'KV532' },
     aims: KJEMI1_AIMS,
     chapters: [
       { number: '1', title: 'Atomer, periodesystemet og kjemiske bindinger', sections: [] },
@@ -307,8 +321,10 @@ export const SUBJECT_PRESETS: Record<string, SubjectPreset> = {
   'biologi-1-lk20': {
     id: 'biologi-1-lk20',
     aliases: ['gyldendal-bi-1'],
+    legacyTextbooks: ['Bi 1 (Gyldendal)'],
     subjectName: 'Biologi 1',
     profile: 'biology',
+    udir: { plan: 'BIO01-02', aimSet: 'KV538' },
     aims: BIOLOGI1_AIMS,
     chapters: [
       { number: '1', title: 'Livets kjennetegn og systematikk', sections: [] },
@@ -329,4 +345,17 @@ export const DEFAULT_SEED_PRESETS: string[] = Object.keys(SUBJECT_PRESETS);
 /** Oppsettet med denne id-en, også under en tidligere id (for eksempel i SEED_TEXTBOOKS fra før). */
 export function findPreset(id: string): SubjectPreset | undefined {
   return SUBJECT_PRESETS[id] ?? Object.values(SUBJECT_PRESETS).find((p) => p.aliases.includes(id));
+}
+
+const LEGACY_TEXTBOOKS = new Set(Object.values(SUBJECT_PRESETS).flatMap((p) => (p.legacyTextbooks ?? []).map((t) => t.toLocaleLowerCase('nb'))));
+
+/**
+ * Læreboka brukeren selv har skrevet på faget, eller null. En lærebok SmartNotes la inn selv da faget ble opprettet
+ * (`legacyTextbooks`), regnes ikke med: den skal ikke stå i samle-PDF-ene eller sendes til AI-en. Feltet i faget endres
+ * ikke, så brukeren ser det fortsatt i faginnstillingene og kan skrive inn sin egen.
+ */
+export function userTextbook(subject: { textbook: string | null }): string | null {
+  const textbook = subject.textbook?.trim();
+  if (!textbook || LEGACY_TEXTBOOKS.has(textbook.toLocaleLowerCase('nb'))) return null;
+  return textbook;
 }

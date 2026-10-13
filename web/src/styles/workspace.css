@@ -901,3 +901,7 @@ mark {
   display: flex;
   align-items: center;
 }
+
+.aims-source {
+  margin-top: 14px;
+}
