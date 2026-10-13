@@ -54,7 +54,7 @@ Titles: SmartNotes prints the box name in front of the title, so write only the 
 
 const REMARKS = String.raw`## 7.3 Merknad only for clear errors
 
-The student prefers few remarks. This replaces the merknad rules above: write a merknad box only when a line is certainly wrong (a calculation error, a sign error, a wrong unit, a number copied wrongly). These are NOT errors, so never write a merknad about them:
+The student prefers few remarks. This replaces the merknad rules above: write a merknad box only when a line is certainly wrong (one of the errors section 1 lists, such as a calculation error, a sign error, a wrong unit or a number copied wrongly). These are NOT errors, so never write a merknad about them:
 - building on an earlier formula: substituting into it, rearranging it, adding or removing a term, or deriving a special case or a new formula from it, step by step;
 - writing the same thing in a different but equivalent way, rounding, or skipping steps;
 - notation the student uses consistently, or anything you simply find unusual.
@@ -66,7 +66,7 @@ const HANDWRITING = String.raw`## 7.4 Handwriting that is hard to read
 Handwriting that is hard to read is never a merknad. This replaces "If a word, number or symbol is hard to read, write your best reading inside \uleselig{...}" in section 1:
 1. First read it from its context: the words around it, the subject and the topic of the note, and the formula or calculation it belongs to. A word that is only partly legible is usually the word that makes sense in the sentence (for example "energi" after "kinetisk" in a note about energy), and a symbol or number is usually the one used in the lines before or after it.
 2. If the context leaves one sensible reading, write it as ordinary text, with no marking and no remark. Reading a word from its context is not inventing content; adding a word that is not written is.
-3. Use \uleselig{...} only when two or more readings are still possible and they mean something different, for example a digit that could be 3 or 8, a sign that could be + or −, or a word that could be "øker" or "synker". Write your best reading inside it and mention it in "remarks". It works both in text and inside formulas, e.g. $\uleselig{v_0}$. Put it around a whole quantity or chemical formula, never inside \qty, \num, \ang or \ce: \uleselig{\qty{9,81}{m/s^2}}, $\uleselig{\ce{SO4^2-}}$. If a number cannot be read at all, write \uleselig{[uleselig]}~\unit{kg} instead of \qty.`;
+3. Use \uleselig{...} only when two or more readings are still possible and they mean something different, for example a digit that could be 3 or 8, a sign that could be + or −, or a word that could be "øker" or "synker". Write your best reading inside it and mention it in "remarks". It works both in text and inside formulas, e.g. $\uleselig{v_0}$. Put it around a whole quantity or chemical formula, never inside \qty, \num, \ang or \ce: \uleselig{\qty{9,81}{m/s^2}}, $\uleselig{\ce{SO4^2-}}$. Something that cannot be read at all is written \uleselig{[uleselig]}, as section 1 says; for a number with a unit, write \uleselig{[uleselig]}~\unit{kg} instead of \qty.`;
 
 const TEXT = String.raw`## 7.5 Text, numbers and units
 
@@ -197,7 +197,7 @@ Formulas, ions and reaction equations are never drawings: always write them with
 
 ${FIGURES}
 
-Start from the closest template below and change the formulas, labels, values and coordinates so that they match the student's notes. Keep every label, arrow and value from the original. Use only syntax that appears in these templates or in section 4.
+Start from the closest template below and change the formulas, labels, values and coordinates so that they match the student's notes. Keep every label, arrow and value from the original. Use only syntax that appears in these templates or in sections 3 and 4.
 
 Reaction equation with states and reaction enthalpy, and an equilibrium:
 
@@ -217,13 +217,13 @@ Energy diagram for a reaction. Here it is exothermic: the reactants lie at heigh
 \centering
 \begin{tikzpicture}[>={Stealth}]
   \draw[->] (0,0) -- (0,5) node[above] {Energi};
-  \draw[->] (0,0) -- (8,0) node[below left] {Reaksjonsforløp};
-  \draw[thick] (0.3,3) -- (2,3) .. controls (3,3) and (3,4.5) .. (4,4.5) .. controls (5,4.5) and (5,1.5) .. (6,1.5) -- (7.7,1.5);
+  \draw[->] (0,0) -- (8.6,0) node[below left] {Reaksjonsforløp};
+  \draw[thick] (0.3,3) -- (2,3) .. controls (3,3) and (3,4.5) .. (4,4.5) .. controls (5,4.5) and (5,1.5) .. (6,1.5) -- (8.2,1.5);
   \node[above] at (1.1,3) {Reaktanter};
   \node[below] at (6.6,1.5) {Produkter};
-  \draw[dashed] (2,3) -- (7.4,3);
+  \draw[dashed] (2,3) -- (7.9,3);
   \draw[<->] (4,3) -- (4,4.5) node[midway, left] {$E_a$};
-  \draw[->] (7.4,3) -- (7.4,1.5) node[midway, right] {$\Delta H$};
+  \draw[->] (7.9,3) -- (7.9,1.5) node[midway, right] {$\Delta H$};
 \end{tikzpicture}
 \end{figure}
 
@@ -248,7 +248,7 @@ ${FIGURES}
 
 Start from the closest template below and change the labels so that they match the student's notes. Keep every label and arrow from the original, and add or remove boxes and arrows to match. Use only syntax that appears in these templates or in section 4.
 
-Crossing scheme as a table. It is a grid, so it uses | and \hline instead of the booktabs rules: the gametes of one parent go along the top, and those of the other parent down the left side:
+Crossing scheme as a table. When the student drew it as a grid, it uses | and \hline instead of the booktabs rules, as section 3 says: the gametes of one parent go along the top, and those of the other parent down the left side:
 
 \begin{center}
 \begin{tabular}{c|cc}

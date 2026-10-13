@@ -258,6 +258,20 @@ Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er nest
   - Rutine for vekking hver time: `trig_012T5E4abuLufG4xWyNs5BfB` (cron `13 * * * *` UTC, bundet til denne økta). Slettes med `delete_trigger` når morgenrapporten er skrevet.
   - Udir svarer nå: `data.udir.no` (JSON for FYS01-02 hentet) og `www.udir.no` (200). Kompetansemålene kan kontrolleres i fase 1b og hentes for Geofag 1 i fase 2.
   - TeX Live installeres. Neste steg: fase 1a (kvalitet i notatene).
+- Kl. 21.30, fase 1a (kvalitet i notatene), design:
+  - `profiles/haiku.ts` → `profiles/precise.ts`, «de presise reglene» (`# 7. Precise rules`). `systemPromptFor` legger dem til for alle `claude-*`-modeller (`usesPreciseRules`); Ollama får grunninstruksen som før. `Profile.haikuAddendum` → `preciseRules`.
+  - Ny seksjon 7.4 om utydelig håndskrift: les ut fra sammenhengen, skriv ordet uten markering når én lesning gir mening, og bruk `\uleselig` bare når to lesninger med ulik mening er mulige. Den erstatter uttrykkelig regelen i seksjon 1, og en test sjekker at hvert «replaces "…"» siterer grunninstruksen ordrett.
+  - Maler i 7.7: kjemi (`\ce` med tilstander og ΔH, likevekt, `chemfig` for etanol, energidiagram i TikZ, titreringskurve i pgfplots) og biologi (krysningsskjema som tabell, flytskjema, kretsløp). De kompileres i testene, og jeg har sett på PDF-ene.
+  - Bare Haiku får `HAIKU_CLOSING` (nå også med regelen om `\uleselig`). Sonnet og Opus avslutter med `CLOSING` («Svar med <latex> og <metadata> som beskrevet», samme rekkefølge som 7.1) og beholder `effort: medium`.
+  - Versjon: `PROMPT_VERSION` = 3 teller hele instruksen (reglene for alle Claude-modeller, Haikus avslutning og oppsettet i sammenligningen). En sammenligning vurderer fortsatt Haiku; den vanlige versjonen av et notat har reglene bare hvis den er konvertert etter at versjon 3 er lagt ut. Ingen databaseendring.
+  - typecheck, test (213 + 2204), build og e2e (20) er grønne. Gjennomgang med kontrollører pågår.
+- Kl. 22.45, fase 1a, gjennomgang (Workflow med fire kontrollører og én skeptiker per funn, 16 agenter): 12 funn, 4 bekreftet, alle rettet med test:
+  - Rettingsinstruksen sa at en figur i en boks er en typisk feil, mens reglene nå tillater det (det kompilerer). Fjernet i alle tre fag; nye tester: rettingsinstruksen gir ingen råd reglene opphever, og en figur i hver boks kompilerer med alle malene.
+  - ΔH-pila i energidiagrammet gikk gjennom «Produkter» når reaksjonen er endoterm. Flyttet; test på avstanden.
+  - CLAUDE.md og `ollama.ts` sa at Ollama får de samme instruksene som Claude, og at metadata kommer først. Rettet.
+  - I tillegg tre presiseringer som skeptikerne avviste, men som er billige: kjemimalene kan bruke syntaks fra seksjon 3 og 4, 7.3 viser til feilene seksjon 1 nevner (også ubalanserte likninger), og helt uleselig tekst skrives fortsatt `\uleselig{[uleselig]}`. Krysningsskjema som rutenett stemmer nå med seksjon 3 i biologi.
+  - Fingeravtrykket for versjon 3 er oppdatert (versjonen er ikke lagt ut ennå).
+- Fase 1b bygges parallelt i en egen arbeidskopi (`/home/user/sn-1b`, lokal gren `local/fase-1b`), og fase 2 i `/home/user/sn-2` oppå 1a og 1b. De flettes inn i rekkefølge etter at 1a er flettet.
 
 ## Morgenrapport
 

@@ -19,7 +19,7 @@ import { CLOSING, HAIKU_CLOSING, PROMPT_VERSION } from '../src/profiles/precise.
  */
 const FINGERPRINTS: Record<number, string> = {
   2: '1cd64847f6a76608',
-  3: 'c8f97971bcaecdbb',
+  3: '03b4656a8f0592f9',
 };
 
 const fingerprint = () =>
@@ -70,6 +70,56 @@ describe('de presise reglene', () => {
       expect(quoted.length).toBeGreaterThanOrEqual(3);
       for (const q of quoted) expect(systemPrompt, `«${q}» finnes ikke i instruksen for ${id}`).toContain(q);
     }
+  });
+
+  // Rettingen kjører med de samme reglene. Et råd i rettingsinstruksen som reglene opphever, ville fått modellen til å
+  // «rette» noe som ikke er feil (for eksempel flytte en figur ut av en boks).
+  it('rettingsinstruksen gir ingen råd som reglene opphever', () => {
+    for (const id of PROFILE_IDS) {
+      const { fixInstructions, preciseRules } = getProfile(id);
+      for (const [, quoted] of preciseRules.matchAll(/replaces "([^"]+)"/g)) expect(fixInstructions, id).not.toContain(quoted!);
+      expect(fixInstructions, id).not.toMatch(/figure environment inside a box/);
+    }
+  });
+
+  // Reglene lar en figur stå i en boks (7.5); det må faktisk kompilere med alle malene og alle boksene.
+  for (const id of PROFILE_IDS) {
+    it(`kompilerer en figur inne i hver boks med PDF-malen for ${id}`, async () => {
+      const figure = String.raw`\begin{figure}
+\centering
+\begin{tikzpicture}[>={Stealth}]
+  \draw[->, thick] (0,0) -- (2,1) node[right] {$F$};
+\end{tikzpicture}
+\caption{Figur i en boks}
+\end{figure}`;
+      const boxes = ['definisjon}[Fart]', 'formel}[Arbeid]', 'eksempel}[Kloss]', 'oppgave}[1.2]', 'losning}', 'husk}', 'merknad}'];
+      const body = [
+        ...boxes.map((b) => `\\begin{${b}\nTekst før.\n${figure}\nTekst etter.\n\\end{${b.split('}')[0]}}`),
+        `\\begin{oppgave}[2]\nOppgave.\n\\begin{losning}\n${figure}\n\\end{losning}\n\\end{oppgave}`,
+      ].join('\n\n');
+      const doc = assembleNoteDoc({
+        preamble: readPreamble(getProfile(id)),
+        subjectName: 'Test',
+        chapterLabel: 'Kapittel',
+        sectionLabel: null,
+        title: 'Figurer i bokser',
+        dateIso: null,
+        figureDir: 'fig',
+        body: sanitizeBody(body),
+      });
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-figur-'));
+      const res = await compileLatex(dir, doc.tex, 120_000);
+      expect(res.ok, res.ok ? '' : res.log.slice(-2000)).toBe(true);
+    }, 150_000);
+  }
+
+  it('energidiagrammet har ΔH-pila til høyre for «Produkter», så den ikke går gjennom ordet når reaksjonen er endoterm', () => {
+    const rules = getProfile('chemistry').preciseRules;
+    const label = /\\node\[below\] at \(([\d.]+),[\d.]+\) \{Produkter\}/.exec(rules);
+    const arrow = /\\draw\[->\] \(([\d.]+),[\d.]+\) -- \(\1,[\d.]+\) node\[midway, right\] \{\$\\Delta H\$\}/.exec(rules);
+    expect(label && arrow).toBeTruthy();
+    // «Produkter» er om lag 1,6 cm bred og står midt på x-verdien sin; pila må stå klar av ordet.
+    expect(Number(arrow![1]) - Number(label![1])).toBeGreaterThanOrEqual(1.1);
   });
 
   it('bruker \\uleselig bare når sammenhengen ikke avgjør', () => {

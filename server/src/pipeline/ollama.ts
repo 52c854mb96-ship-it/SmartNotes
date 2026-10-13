@@ -3,7 +3,8 @@
  * (`POST /api/chat`) med bilder som base64 og JSON-skjema for strukturerte svar. Kostnaden er 0 i forbruksloggen
  * (strømmen regnes ikke med).
  *
- * Konverteringen bruker samme instrukser og svarformat (<metadata> og <latex>) som Claude. Sidebildene skaleres ned
+ * Konverteringen bruker grunninstruksen til faget (`profile.systemPrompt`) med svarformatet <metadata> og <latex>, men
+ * ikke de presise reglene i seksjon 7 som Claude-modellene får (`profiles/precise.ts`). Sidebildene skaleres ned
  * (`imageMaxEdge`) før de sendes, og figurboksene modellen oppgir, regnes tilbake til pikslene i sidebildet.
  */
 import fsp from 'node:fs/promises';
