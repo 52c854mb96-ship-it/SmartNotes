@@ -19,6 +19,7 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 
 | Funksjon | Kort beskrivelse | Hvor i koden |
 |---|---|---|
+| Forside | En kort presentasjon og fagene som kort i fagets farger, med antall notater, når noe sist ble endret og «Fortsett i …». Appen åpner ikke et fag av seg selv. | `web/src/pages/HomePage.tsx` |
 | Konvertering | Sider → Claude (bilde) → LaTeX → PDF. Notatet gjengis tro mot originalen, og mulige feil markeres med en merknad i stedet for å rettes. Enkle figurer tegnes på nytt i TikZ, og kompliserte klippes ut. Kompileringsfeil rettes automatisk i inntil to runder. | `server/src/pipeline/` |
 | Fag og temaer | Kompetansemål (ordrett fra Udir) og egne temaer for fire fag. Deltemaer finnes for Fysikk 1. Claude velger tema og eventuelt deltema, og eleven kan flytte notatet selv. «Legg til fag» lager et fag fra læreplanen eller et tomt fag. | `server/src/presets.ts`, `server/src/profiles/`, `web/src/components/NewSubjectDialog.tsx` |
 | Import av innholdsfortegnelse | Tekst eller bilder → kapitler med delkapitler, koblet til kompetansemålene. | `server/src/toc.ts`, `web/src/pages/settings/ChapterImport.tsx` |
@@ -69,8 +70,9 @@ Alt ble bygget 4.–14. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#21](https://github.com/52c854mb96-ship-it/SmartNotes/pull/21) | Nattplanen for 13.–14. oktober ([NATTPLAN.md](NATTPLAN.md)) og elevens beslutninger fra kvelden |
 | [#22](https://github.com/52c854mb96-ship-it/SmartNotes/pull/22) | Instrukser versjon 3: de presise reglene (seksjon 7) for alle Claude-modeller, `\uleselig` bare når sammenhengen ikke avgjør, og maler for tegninger i kjemi og biologi |
 | [#23](https://github.com/52c854mb96-ship-it/SmartNotes/pull/23) | Opphavsrett: `LICENSE`, lisenslista i appen (Innstillinger → «Om SmartNotes» → «Lisenser»), kompetansemålene kontrollert mot Udir med NLOD-henvisning, og navnet på læreboka bare når brukeren har skrevet det selv |
+| [#24](https://github.com/52c854mb96-ship-it/SmartNotes/pull/24) | Geofag 1: fagprofil, PDF-malen «Atlas», fargetemaet «Fjell», kompetansemålene fra Udir og «Legg til fag» fra læreplanen (legges ikke inn av seg selv). Instrukser versjon 4 med enheter uten æ, ø, å og ° i `\qty` og `\unit` |
 
-**Tester:** omtrent 2 450 enhetstester (239 på serveren og 2 214 i web-appen, de fleste for modellene bak visualiseringene), 24 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, hele flyten for «Prøv med Haiku», lisenssiden og «Legg til fag» med Geofag 1) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
+**Tester:** omtrent 2 455 enhetstester (239 på serveren og 2 216 i web-appen, de fleste for modellene bak visualiseringene), 26 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, hele flyten for «Prøv med Haiku», lisenssiden, «Legg til fag» med Geofag 1 og forsiden) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 
