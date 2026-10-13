@@ -338,7 +338,7 @@ export interface ComparisonRow {
   cost_usd: number | null;
   /** Alt kjøringene for dette notatet har kostet, også de som er erstattet eller avbrutt. */
   spent_usd: number;
-  /** Versjonen av Haiku-instruksene kjøringen brukte (`HAIKU_PROMPT_VERSION`). */
+  /** Versjonen av instruksene kjøringen brukte (`PROMPT_VERSION` i `profiles/precise.ts`). */
   prompt_version: number;
   verdict: ComparisonVerdict | null;
   comment: string | null;

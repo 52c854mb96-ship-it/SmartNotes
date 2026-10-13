@@ -23,14 +23,19 @@ export function isProfile(id: string): id is SubjectProfile {
   return id in PROFILES;
 }
 
-/** Haiku-modellene får et eget tillegg til instruksen (se `profiles/haiku.ts`). */
-export function usesHaikuAddendum(model: string): boolean {
+/** Claude-modellene får de presise reglene (`profiles/precise.ts`) etter grunninstruksen. */
+export function usesPreciseRules(model: string): boolean {
+  return model.startsWith('claude-');
+}
+
+/** Bare Haiku får de viktigste reglene gjentatt til slutt (`HAIKU_CLOSING`). */
+export function usesHaikuClosing(model: string): boolean {
   return model.startsWith('claude-haiku');
 }
 
-/** Systeminstruksen for konvertering og retting med denne modellen. Stabil per modell, så den caches. */
+/** Systeminstruksen for konvertering og retting med denne modellen. Stabil per fag og modell, så den caches. */
 export function systemPromptFor(profile: Profile, model: string): string {
-  return usesHaikuAddendum(model) ? `${profile.systemPrompt}\n\n${profile.haikuAddendum}` : profile.systemPrompt;
+  return usesPreciseRules(model) ? `${profile.systemPrompt}\n\n${profile.preciseRules}` : profile.systemPrompt;
 }
 
 const preambleCache = new Map<string, string>();

@@ -5,7 +5,7 @@ import type { ComparisonSummaryResponse } from '@smartnotes/shared';
 import type { Config, Effort } from '../config.js';
 import type { ComparisonRow, NoteRow, Repo } from '../db.js';
 import { AbortedError, ConversionError } from '../errors.js';
-import { HAIKU_PROMPT_VERSION } from '../profiles/haiku.js';
+import { PROMPT_VERSION } from '../profiles/precise.js';
 import { getProfile } from '../profiles/index.js';
 import { type Storage, writeFileAtomic } from '../storage.js';
 import { costUsd, usageScope, type Usage } from '../usage.js';
@@ -28,8 +28,8 @@ import { errorExcerpt, replaceMissingFigures, sanitizeBody } from './latex.js';
 export const COMPARE_MODEL = 'claude-haiku-5-5';
 /** Haiku får tenke grundigere enn Sonnet (elevens valg 13. oktober 2026); det koster fortsatt en brøkdel. */
 export const COMPARE_EFFORT: Effort = 'high';
-/** Instruksversjonen sammenligningen bruker nå (Haiku-tillegget og grundigheten). */
-export const COMPARE_PROMPT_VERSION = HAIKU_PROMPT_VERSION;
+/** Instruksversjonen sammenligningen bruker nå (de presise reglene, Haikus avslutning og grundigheten). */
+export const COMPARE_PROMPT_VERSION = PROMPT_VERSION;
 /** Haiku 5.5 kan svare med opptil 128 000 tokens; grundigere tenkning og et langt notat skal ikke kuttes av. */
 export const COMPARE_MAX_TOKENS = 128_000;
 /** Minst tre rettingsrunder: en runde koster Haiku under ett øre, og LaTeX melder bare én feil per kompilering. */

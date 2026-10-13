@@ -9,56 +9,96 @@ import type { ConvertRequest } from '../src/pipeline/ai.js';
 import { AnthropicClaude } from '../src/pipeline/claude.js';
 import { COMPARE_EFFORT, COMPARE_FIX_ATTEMPTS, COMPARE_MAX_TOKENS } from '../src/pipeline/compare.js';
 import { assembleNoteDoc, compileLatex, replaceMissingFigures, sanitizeBody } from '../src/pipeline/latex.js';
-import { HAIKU_CLOSING, HAIKU_PROMPT_VERSION } from '../src/profiles/haiku.js';
 import { getProfile, PROFILE_IDS, readPreamble, systemPromptFor } from '../src/profiles/index.js';
+import { CLOSING, HAIKU_CLOSING, PROMPT_VERSION } from '../src/profiles/precise.js';
 
 /**
- * Fingeravtrykket av Haiku-instruksene for hver versjon. Endrer du tilleggene, avslutningen eller oppsettet i
- * sammenligningen (grundighet, svarlengde, rettingsrunder), øker du HAIKU_PROMPT_VERSION i profiles/haiku.ts og legger
- * inn det nye fingeravtrykket her. Da skilles elevens vurderinger av de gamle og de nye instruksene i Innstillinger.
+ * Fingeravtrykket av instruksene for hver versjon. Endrer du de presise reglene, avslutningene eller oppsettet i
+ * sammenligningen (grundighet, svarlengde, rettingsrunder), øker du PROMPT_VERSION i profiles/precise.ts og legger inn
+ * det nye fingeravtrykket her. Da skilles elevens vurderinger av de gamle og de nye instruksene i Innstillinger.
  */
 const FINGERPRINTS: Record<number, string> = {
   2: '1cd64847f6a76608',
+  3: 'c8f97971bcaecdbb',
 };
 
 const fingerprint = () =>
   createHash('sha256')
-    .update(PROFILE_IDS.map((id) => getProfile(id).haikuAddendum).join('\n---\n'))
+    .update(PROFILE_IDS.map((id) => getProfile(id).preciseRules).join('\n---\n'))
     .update(`\n---\n${HAIKU_CLOSING}`)
+    .update(`\n---\n${CLOSING}`)
     .update(`effort=${COMPARE_EFFORT};maxTokens=${COMPARE_MAX_TOKENS};fixAttempts=${COMPARE_FIX_ATTEMPTS}`)
     .digest('hex')
     .slice(0, 16);
 
-describe('Haiku-instruksene', () => {
-  it('legges bare til for Haiku; Sonnet og Opus får instruksen uendret', () => {
+describe('de presise reglene', () => {
+  it('legges til for alle Claude-modeller, men ikke for lokale modeller', () => {
     for (const id of PROFILE_IDS) {
       const profile = getProfile(id);
-      expect(systemPromptFor(profile, 'claude-sonnet-5-5')).toBe(profile.systemPrompt);
-      expect(systemPromptFor(profile, 'claude-opus-5-5')).toBe(profile.systemPrompt);
-      const haiku = systemPromptFor(profile, 'claude-haiku-5-5');
-      expect(haiku.startsWith(profile.systemPrompt)).toBe(true);
-      expect(haiku).toContain('# 7. Extra rules for this model');
-      expect(haiku).toContain('\\begin{samlet}');
+      for (const model of ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5']) {
+        const prompt = systemPromptFor(profile, model);
+        expect(prompt).toBe(`${profile.systemPrompt}\n\n${profile.preciseRules}`);
+        expect(prompt).toContain('# 7. Precise rules');
+        expect(prompt).toContain('\\begin{samlet}');
+      }
+      // Ollama-modellene får grunninstruksen alene (OllamaAi bruker profile.systemPrompt direkte).
+      expect(systemPromptFor(profile, 'qwen3.5:9b')).toBe(profile.systemPrompt);
+      expect(profile.preciseRules).not.toMatch(/Extra rules|this model/);
     }
-    // TikZ-malene er for fysikk; biologi beholder utklipp som vanlig valg.
-    expect(getProfile('physics').haikuAddendum).toContain('\\begin{circuitikz}');
-    expect(getProfile('biology').haikuAddendum).not.toContain('tikzpicture');
+  });
+
+  it('har maler for tegningene i hvert fag', () => {
+    const physics = getProfile('physics').preciseRules;
+    expect(physics).toContain('\\begin{circuitikz}');
+    const chemistry = getProfile('chemistry').preciseRules;
+    expect(chemistry).toContain('\\chemfig{');
+    expect(chemistry).toMatch(/^\\\[ \\ce\{.*->.*\} /m);
+    expect(chemistry).toContain('Reaksjonsforløp');
+    const biology = getProfile('biology').preciseRules;
+    expect(biology).toContain('\\begin{tabular}{c|cc}');
+    expect(biology).toContain('tikzpicture');
+    // Levende ting klippes fortsatt ut i biologi, og fysikkmalene står bare hos fysikk.
+    expect(biology).toMatch(/Crop drawings of living things/);
+    for (const other of [chemistry, biology]) expect(other).not.toContain('\\begin{circuitikz}');
+  });
+
+  // Reglene sier hvilke regler over de erstatter. Står ikke sitatet ordrett i grunninstruksen, peker de på ingenting.
+  it('erstatter bare regler som finnes ordrett i grunninstruksen', () => {
+    for (const id of PROFILE_IDS) {
+      const { systemPrompt, preciseRules } = getProfile(id);
+      const quoted = [...preciseRules.matchAll(/replaces "([^"]+)"/g)].map((m) => m[1]!);
+      expect(quoted.length).toBeGreaterThanOrEqual(3);
+      for (const q of quoted) expect(systemPrompt, `«${q}» finnes ikke i instruksen for ${id}`).toContain(q);
+    }
+  });
+
+  it('bruker \\uleselig bare når sammenhengen ikke avgjør', () => {
+    for (const id of PROFILE_IDS) {
+      const rules = getProfile(id).preciseRules;
+      expect(rules).toContain('## 7.4 Handwriting that is hard to read');
+      expect(rules).toContain('If the context leaves one sensible reading, write it as ordinary text, with no marking');
+      expect(rules).toContain('Use \\uleselig{...} only when two or more readings are still possible');
+    }
+    expect(HAIKU_CLOSING).toContain('bruk \\uleselig bare når to lesninger fortsatt er mulige');
   });
 
   it('har fått ny versjon når teksten er endret', () => {
     expect(
-      FINGERPRINTS[HAIKU_PROMPT_VERSION],
-      `Haiku-instruksene er endret. Øk HAIKU_PROMPT_VERSION og sett fingeravtrykket for den nye versjonen til ${fingerprint()}.`,
+      FINGERPRINTS[PROMPT_VERSION],
+      `Instruksene er endret. Øk PROMPT_VERSION og sett fingeravtrykket for den nye versjonen til ${fingerprint()}.`,
     ).toBe(fingerprint());
   });
 
-  // Malene Haiku får, må kompilere med fagets PDF-mal, ellers lærer den feil syntaks.
+  // Malene modellen får, må kompilere med fagets PDF-mal, ellers lærer den feil syntaks.
   for (const id of PROFILE_IDS) {
     it(`har maler som kompilerer med PDF-malen for ${id}`, async () => {
-      const addendum = getProfile(id).haikuAddendum;
+      const addendum = getProfile(id).preciseRules;
       // Malene står på egne linjer; i reglene nevnes miljøene midt i en linje.
-      const blocks = [...addendum.matchAll(/^\\begin\{(figure|formel|samlet|circuitikz)\}[\s\S]*?^\\end\{\1\}/gm)].map((m) => m[0]);
-      expect(blocks.length).toBeGreaterThanOrEqual(id === 'physics' ? 8 : 3);
+      const blocks = [
+        ...addendum.matchAll(/^\\begin\{(figure|formel|samlet|circuitikz|center)\}[\s\S]*?^\\end\{\1\}/gm),
+        ...addendum.matchAll(/^\\\[ .* \\\]$/gm),
+      ].map((m) => m[0]);
+      expect(blocks.length).toBeGreaterThanOrEqual({ physics: 8, chemistry: 7, biology: 6 }[id]);
       // Eksempelsvaret i sin helhet, slik SmartNotes behandler et svar (figuren finnes ikke her).
       const example = /<latex>\n([\s\S]*?)<\/latex>/.exec(addendum)?.[1];
       expect(example).toBeTruthy();
@@ -129,7 +169,7 @@ describe('kallet til Claude', () => {
     };
   }
 
-  it('sender Haiku-tillegget og den grundigere tenkningen til Haiku', async () => {
+  it('sender de presise reglene, avslutningen og den grundigere tenkningen til Haiku', async () => {
     const bodies = fakeStream(answer);
     const res = await new AnthropicClaude(config(), 'claude-haiku-5-5', { effort: COMPARE_EFFORT, maxTokens: COMPARE_MAX_TOKENS }).convert(await request());
     expect(res.body).toBe('Hei');
@@ -150,13 +190,23 @@ describe('kallet til Claude', () => {
     expect(res.meta.remarks).toEqual(['$\\Delta v$']);
   });
 
-  it('sender instruksen uendret til Sonnet, med vanlig grundighet', async () => {
+  it('sender de presise reglene til Sonnet, med vanlig grundighet og vanlig avslutning', async () => {
     const bodies = fakeStream(answer);
     await new AnthropicClaude(config(), 'claude-sonnet-5-5').convert(await request());
     const sent = bodies[0] as Sent;
-    expect(sent.system[0]!.text).toBe(getProfile('physics').systemPrompt);
+    const physics = getProfile('physics');
+    expect(sent.system[0]!.text).toBe(`${physics.systemPrompt}\n\n${physics.preciseRules}`);
     expect(sent.output_config.effort).toBe('medium');
     expect(sent.max_tokens).toBe(64_000);
-    expect(sent.messages[0]!.content.at(-1)!.text).toBe('Konverter notatet. Svar med <metadata> og <latex> som beskrevet.');
+    expect(sent.messages[0]!.content.at(-1)!.text).toBe(CLOSING);
+  });
+
+  it('sender de presise reglene også når Sonnet retter LaTeX-koden', async () => {
+    const bodies = fakeStream('<latex>Rettet</latex>');
+    const res = await new AnthropicClaude(config(), 'claude-sonnet-5-5').fix({ profile: getProfile('chemistry'), body: 'Feil', errorReport: 'Undefined control sequence' });
+    expect(res.body).toBe('Rettet');
+    const sent = bodies[0] as Sent;
+    expect(sent.system[0]!.text).toBe(systemPromptFor(getProfile('chemistry'), 'claude-sonnet-5-5'));
+    expect(sent.system[0]!.text).toContain('# 7. Precise rules');
   });
 });

@@ -212,7 +212,7 @@ function CompareView({ noteId }: { noteId: string | undefined }) {
             )}
             {settled?.promptOutdated && settled.status === 'done' && (
               <p className="inline-note">
-                Laget med eldre instrukser for Haiku (versjon {settled.promptVersion}). Velg «Lag på nytt …» for å prøve de
+                Laget med eldre instrukser (versjon {settled.promptVersion}). Velg «Lag på nytt …» for å prøve de
                 nye.
               </p>
             )}
