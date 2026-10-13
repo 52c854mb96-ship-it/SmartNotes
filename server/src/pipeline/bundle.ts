@@ -5,6 +5,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import type { Config } from '../config.js';
 import type { NoteRow, Repo } from '../db.js';
 import { HttpError, notFound } from '../errors.js';
+import { userTextbook } from '../presets.js';
 import { getProfile, readPreamble } from '../profiles/index.js';
 import { exists, type Storage } from '../storage.js';
 import { assembleBundleDoc, chapterLabel, compileLatex, formatErrors, type BundleNote, type BundleSection } from './latex.js';
@@ -50,7 +51,7 @@ export class Bundler {
     const file = await this.build(`chapter-${chapterId}`, subject.profile, {
       subjectName: subject.name,
       title: label,
-      subtitle: [subject.name, subject.textbook].filter(Boolean).join(' · '),
+      subtitle: [subject.name, userTextbook(subject)].filter(Boolean).join(' · '),
       headerLabel: label,
       sections: groups,
     });
@@ -72,7 +73,7 @@ export class Bundler {
     const file = await this.build(`subject-${subjectId}`, subject.profile, {
       subjectName: subject.name,
       title: subject.name,
-      subtitle: subject.textbook ? `Notater · ${subject.textbook}` : 'Notater',
+      subtitle: userTextbook(subject) ? `Notater · ${userTextbook(subject)}` : 'Notater',
       headerLabel: '',
       sections,
     });

@@ -247,7 +247,9 @@ Skriv tydelig i morgenrapporten om alt dette er på plass, og hva som eventuelt 
 
 Nattøkta skriver her de valgene den har tatt på egen hånd, så eleven kan se over dem om morgenen.
 
-- *(tom)*
+- **Lisensen** nevner GitHub-kontoen (52c854mb96-ship-it) som rettighetshaver, ikke navnet ditt, fordi repoet er offentlig. Vil du ha navnet ditt der, endrer du første linje i `LICENSE`.
+- **Fysikk 1 KM3:** Udir skriver selv «problemsstillinger» (med s). Nye fag får Udirs skrivemåte ordrett; faget ditt har fortsatt «problemstillinger». Vil du ha det likt Udir, kan faget legges inn på nytt eller målet rettes i en senere økt.
+- **Lærebøker som tidligere versjoner la inn** («ERGO Fysikk 1» og lignende) vises ikke lenger i samle-PDF-ene og sendes ikke til AI-en. Bruker du faktisk den boka og vil ha navnet med, skriver du det på nytt i faginnstillingene med litt annen tekst, for eksempel «ERGO Fysikk 1, Aschehoug».
 
 ## Logg
 
@@ -272,6 +274,17 @@ Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er nest
   - I tillegg tre presiseringer som skeptikerne avviste, men som er billige: kjemimalene kan bruke syntaks fra seksjon 3 og 4, 7.3 viser til feilene seksjon 1 nevner (også ubalanserte likninger), og helt uleselig tekst skrives fortsatt `\uleselig{[uleselig]}`. Krysningsskjema som rutenett stemmer nå med seksjon 3 i biologi.
   - Fingeravtrykket for versjon 3 er oppdatert (versjonen er ikke lagt ut ennå).
 - Fase 1b bygges parallelt i en egen arbeidskopi (`/home/user/sn-1b`, lokal gren `local/fase-1b`), og fase 2 i `/home/user/sn-2` oppå 1a og 1b. De flettes inn i rekkefølge etter at 1a er flettet.
+- Kl. 23.20: PR [#22](https://github.com/52c854mb96-ship-it/SmartNotes/pull/22) (fase 1a) er flettet etter grønn CI, og grenen er nullstilt fra `main`.
+- Fase 1b (opphavsrett), design og resultat:
+  - `LICENSE` (alle rettigheter forbeholdt; navnet på eieren står ikke, bare GitHub-kontoen) og `"license": "UNLICENSED"` i package.json. Omtalt i README.
+  - Lisenslista lages under byggingen (`web/build/licenses.ts`, ingen nye pakker): alle moduler fra `node_modules` som er med i bunten (også CSS), kopierte filer, hjelpekoden fra Vite og rolldown, service workeren (Workbox, workbox-build og modullasteren), fonter (KaTeX-fontene under SIL OFL 1.1) og kode som er bakt inn i en pakke (core-js i pdf.js). En lisens som ikke er godkjent, eller en font uten oppføring, stopper byggingen. Vises under Innstillinger → «Om SmartNotes» → «Lisenser».
+  - Kompetansemålene for Fysikk 1, Kjemi 1 og Biologi 1 er kontrollert ord for ord mot Udirs Grep (bokmål): alt stemmer, bortsett fra Fysikk 1 KM3, der Udir selv skriver «problemsstillinger». Appen bruker nå Udirs skrivemåte for nye fag; elevens eksisterende fag er ikke endret (se «Spørsmål til eleven»). En test sammenligner med Udir-data i `server/test/fixtures/udir-kompetansemaal.json`.
+  - NLOD-henvisning med lenke til lisensen og data.udir.no der kompetansemålene vises og i «Om SmartNotes», og at appen ikke er tilknyttet Udir eller noe forlag.
+  - Læreboka i faget står i samle-PDF-ene og sendes til AI-en bare når brukeren har skrevet den selv; lærebøkene tidligere versjoner la inn («ERGO Fysikk 1» osv.), kjennes igjen og regnes ikke med. Feltet i faget endres ikke.
+  - Forlagsnavn i koden: en test sjekker at de bare står i de gamle id-ene og lærebøkene som kjennes igjen.
+  - Stikkprøve av eksempeloppgavene i visualiseringene (4 av 8: kast fra balkong, trinse, akebakke, ballistisk pendel): egne tekster og egne tall i klassiske situasjoner, uten henvisninger til bøker eller eksamener.
+  - Gjennomgang (18 agenter): 15 funn, 9 bekreftet og rettet med tester (KaTeX-fontene stod som MIT, CSS fra pakker ble ikke sjekket, core-js i pdf.js manglet, modullasteren i service workeren manglet, NOTICE-filer, SPDX-uttrykk med parenteser, NLOD uten lenke, fontomtalen og en gammel rad i README).
+  - Geofag 1 er etter Udir GFG01-03 (kompetansemålsett KV972, 12 mål). Planens «GEO01-02» er geografi, og GFG01-02 er utgått.
 
 ## Morgenrapport
 

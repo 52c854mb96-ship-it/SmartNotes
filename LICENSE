@@ -1,0 +1,29 @@
+SmartNotes
+Copyright © 2026 innehaveren av GitHub-kontoen 52c854mb96-ship-it. Alle rettigheter forbeholdt.
+
+Kildekoden, PDF-malene, instruksene, tekstene, illustrasjonene og visualiseringene i dette
+repoet er offentlige slik at de kan leses, men de er ikke lisensiert for annen bruk. Uten
+skriftlig tillatelse fra rettighetshaveren er det ikke tillatt å kopiere, endre, distribuere,
+selge eller bruke dem i andre prosjekter, helt eller delvis, utover det loven tillater.
+GitHubs vilkår gir andre brukere rett til å se og forke offentlige repoer på GitHub; det gir
+ingen rett til å bruke innholdet ellers.
+
+Unntak:
+- Pakker og fonter fra andre følger sine egne lisenser. Pakkene som er med i web-appen, står
+  i appen under Innstillinger → «Om SmartNotes» → «Lisenser».
+- Kompetansemålene (server/src/presets.ts og server/test/fixtures/udir-kompetansemaal.json)
+  er hentet fra læreplanene i LK20 og inneholder data under norsk lisens for offentlige data
+  (NLOD) tilgjengeliggjort av Utdanningsdirektoratet.
+
+------------------------------------------------------------------------------------------
+
+SmartNotes
+Copyright © 2026 the owner of the GitHub account 52c854mb96-ship-it. All rights reserved.
+
+This repository is public so that it can be read, but no licence is granted to copy, modify,
+distribute, sell or use any part of it in other projects without written permission from the
+copyright holder, except as permitted by law. GitHub's terms let other users view and fork
+public repositories on GitHub; they grant no other rights. Third-party packages and fonts keep
+their own licences, and the competence aims contain data under the Norwegian Licence for
+Open Government Data (NLOD) made available by the Norwegian Directorate for Education and
+Training (Utdanningsdirektoratet).

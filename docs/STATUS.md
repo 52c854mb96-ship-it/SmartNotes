@@ -141,8 +141,8 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 - **Rottegnet (√) i `FormulaLine`** står litt for lavt. Kapittel 4 retter det lokalt; det bør rettes i `viz/kit/` for alle.
 - **De nye visualiseringene er ikke prøvd på en ekte iPad eller iPhone,** bare i WebKit-testene i CI.
 - **Bare én bruker:** appen har ett passord og én database. Vil andre bruke den i dag, trenger de hver sin egen server. Kontoer er fase 4 i [NATTPLAN.md](NATTPLAN.md).
-- **Udir er blokkert i skyøkta:** `data.udir.no` og `www.udir.no` ble avvist av nettverksregelen 13. oktober. Eleven kan legge dem til under Allowed domains i miljøet (se NATTPLAN, morgenlista).
-- **Repoet er offentlig og har ingen lisens.** Planen anbefaler en lisens som sier at alle rettigheter er forbeholdt, og eventuelt privat repo senere. Privat repo nå ville trolig bruke opp de gratis CI-minuttene. Eleven bestemmer.
+- **Udir:** `data.udir.no` og `www.udir.no` svarer i skyøkta fra 13. oktober (kveld). Kompetansemålene er kontrollert ord for ord mot Grep (se `server/test/fixtures/udir-kompetansemaal.json`).
+- **Repoet er offentlig med «alle rettigheter forbeholdt»** (`LICENSE`). Lisensene til pakkene i appen står under Innstillinger → «Om SmartNotes» → «Lisenser». Privat repo senere er fortsatt mulig; det ville trolig bruke opp de gratis CI-minuttene.
 - **Flashcards:** trykker eleven «Angre forrige» etter at en ny beste rekke er sendt til serveren, blir rekka ikke lavere igjen, fordi serveren beholder den høyeste.
 - **Stor hovedbunt:** hovedbunten i web-appen er rundt 710 kB (ca. 220 kB komprimert). KaTeX og visualiseringene lastes allerede først når de trengs.
 - **Sikkerhetskopi:** eleven laster ned kopien selv fra innstillingene (#17). Backup av volumet i Railway krever Pro-planen, og eleven har trolig Hobby (ca. 55 kr i måneden). Gjenoppretting er ikke bygd inn: arkivet pakkes ut, og innholdet legges i `/data` mens serveren står stille (se OPPSETT.md).

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { thirdPartyLicenses } from './build/licenses';
 
 const ACCENT = '#1F5FAD';
 
@@ -30,6 +31,7 @@ export default defineConfig({
   plugins: [
     react(),
     buildVersion(),
+    thirdPartyLicenses(import.meta.dirname),
     VitePWA({
       strategies: 'generateSW',
       registerType: 'autoUpdate',

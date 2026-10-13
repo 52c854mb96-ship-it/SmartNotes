@@ -80,6 +80,11 @@ export function AimsBlock({ subject, chapters, notes }: { subject: Subject; chap
           {list(cross)}
         </>
       )}
+      <p className="aims-source muted small">
+        Kompetansemålene er fra LK20. Inneholder data under{' '}
+        <a href="https://data.norge.no/nlod/no/2.0" target="_blank" rel="noopener noreferrer">norsk lisens for offentlige data (NLOD)</a>{' '}
+        tilgjengeliggjort av Utdanningsdirektoratet (<a href="https://data.udir.no" target="_blank" rel="noopener noreferrer">data.udir.no</a>).
+      </p>
       {!paneShown && inline && (
         <div className="aims-inline" role="region" aria-label={`Notater som dekker ${inline}`}>
           <div className="aims-inline-head">

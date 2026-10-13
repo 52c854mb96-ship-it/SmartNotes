@@ -8,6 +8,7 @@ import { ComparePage } from './pages/ComparePage';
 import { DeckPage } from './pages/DeckPage';
 import { FlashcardsPage } from './pages/FlashcardsPage';
 import { HomePage } from './pages/HomePage';
+import { LicensesPage } from './pages/LicensesPage';
 import { LoginPage } from './pages/LoginPage';
 import { NewDeckPage } from './pages/NewDeckPage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -71,6 +72,7 @@ const router = createBrowserRouter([
           { path: 'notat/:noteId', element: <NotePage /> },
           { path: 'notat/:noteId/sammenlign', element: <ComparePage /> },
           { path: 'innstillinger', element: <SettingsPage /> },
+          { path: 'innstillinger/lisenser', element: <LicensesPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

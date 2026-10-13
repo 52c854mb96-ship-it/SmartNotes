@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { CheckCircle2, CloudDownload, HardDriveDownload, LogOut, RefreshCw, XCircle } from 'lucide-react';
+import { CheckCircle2, CloudDownload, HardDriveDownload, LogOut, RefreshCw, Scale, XCircle } from 'lucide-react';
 import type {
   AiStatusResponse,
   BackupStatusResponse,
@@ -689,7 +689,7 @@ function StorageCard() {
   );
 }
 
-/** Kilder og lisens for kompetansemålene (NLOD krever kildehenvisning). */
+/** Kilder og lisenser: kompetansemålene (NLOD krever kildehenvisning), SmartNotes selv og pakkene med åpen kildekode. */
 function AboutCard() {
   return (
     <section className="card" aria-labelledby="about-h">
@@ -699,13 +699,20 @@ function AboutCard() {
         </h2>
       </div>
       <p className="card-text">
-        Kompetansemålene er hentet fra læreplanene i LK20 og inneholder data under Norsk lisens for offentlige data (NLOD),
-        tilgjengeliggjort av Utdanningsdirektoratet på data.udir.no. Temaene og deltemaene i fagene er SmartNotes&apos; egne.
+        Kompetansemålene er hentet fra læreplanene i LK20. Inneholder data under{' '}
+        <a href="https://data.norge.no/nlod/no/2.0" target="_blank" rel="noopener noreferrer">norsk lisens for offentlige data (NLOD)</a>{' '}
+        tilgjengeliggjort av Utdanningsdirektoratet (<a href="https://data.udir.no" target="_blank" rel="noopener noreferrer">data.udir.no</a>). Temaene og deltemaene i fagene er SmartNotes&apos; egne.
       </p>
       <p className="card-text">
         SmartNotes er ikke tilknyttet Utdanningsdirektoratet eller noe forlag. En innholdsfortegnelse du importerer fra din
         egen lærebok, er bare synlig for deg.
       </p>
+      <p className="card-text">SmartNotes: alle rettigheter forbeholdt. Appen bygger på pakker med åpen kildekode.</p>
+      <div className="card-actions">
+        <Link to="/innstillinger/lisenser" className="btn">
+          <Scale size={17} aria-hidden /> Lisenser
+        </Link>
+      </div>
     </section>
   );
 }

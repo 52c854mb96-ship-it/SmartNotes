@@ -293,6 +293,24 @@ describe('fag, kapitler og notater', () => {
     expect(empty.body.message).toMatch(/ingen ferdige notater/);
   });
 
+  it('har læreboka i undertittelen på samle-PDF-ene bare når brukeren har skrevet den selv', async () => {
+    const text = (pdf: Buffer) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-tekst-'));
+      fs.writeFileSync(path.join(dir, 'a.pdf'), pdf);
+      return execFileSync('pdftotext', ['-l', '1', path.join(dir, 'a.pdf'), '-'], { encoding: 'utf8' });
+    };
+    // Læreboka en tidligere versjon av SmartNotes la inn selv da faget ble opprettet.
+    expect((await call('PATCH', `/api/subjects/${physics.id}`, { json: { textbook: 'ERGO Fysikk 1' } })).status).toBe(200);
+    for (const url of [`/api/chapters/${chapters[0]!.id}/pdf`, `/api/subjects/${physics.id}/pdf`]) {
+      expect(text((await call('GET', url)).raw), url).not.toMatch(/ERGO/i);
+    }
+    expect((await call('PATCH', `/api/subjects/${physics.id}`, { json: { textbook: 'Min egen bok' } })).status).toBe(200);
+    for (const url of [`/api/chapters/${chapters[0]!.id}/pdf`, `/api/subjects/${physics.id}/pdf`]) {
+      expect(text((await call('GET', url)).raw), url).toContain('Min egen bok');
+    }
+    expect((await call('PATCH', `/api/subjects/${physics.id}`, { json: { textbook: null } })).status).toBe(200);
+  });
+
   it('inkrementell synk gir endringer og gravsteiner', async () => {
     const { cursor } = await sync();
     const del = await call('DELETE', `/api/chapters/${chapters[0]!.id}`);
