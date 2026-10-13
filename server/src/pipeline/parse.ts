@@ -61,14 +61,26 @@ function escapeLoneBackslashes(json: string): string {
 }
 
 /**
- * Feltene i metadataene er én linje, så tabulator og vognretur foran en bokstav er alltid LaTeX som JSON har lest som
- * escape-tegn (`\theta`, `\rho`), også utenfor `$…$`.
+ * LaTeX som JSON har lest som escape-tegn (`\theta` blir tabulator + «heta», `\nu` linjeskift + «u»). Tabulator og
+ * vognretur foran en bokstav er aldri meningen i metadataene. Titler, kapitler og koder er én linje, så der gjelder det
+ * også linjeskift; i merknader, der et ekte linjeskift kan stå, bare foran kjente kommandoer (`\nu`, `\neq` …).
  */
-function repairMetaControls<T>(value: T): T {
-  if (typeof value === 'string') return value.replace(/\t(?=[A-Za-z])/g, '\\t').replace(/\r(?=[A-Za-z])/g, '\\r') as T;
-  if (Array.isArray(value)) return value.map((v) => repairMetaControls(v)) as T;
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, repairMetaControls(v)])) as T;
+const oneLine = (s: string) => s.replace(/\t(?=[A-Za-z])/g, '\\t').replace(/\r(?=[A-Za-z])/g, '\\r').replace(/\n(?=[A-Za-z])/g, '\\n');
+const remarkLine = (s: string) =>
+  s
+    .replace(/\t(?=[A-Za-z])/g, '\\t')
+    .replace(/\r(?=[A-Za-z])/g, '\\r')
+    .replace(/\n(?=(?:u|eq|abla|eg|ot|otin|ewline|leq|geq)(?![A-Za-z]))/g, '\\n');
+
+function mapStrings(value: unknown, fn: (s: string) => string): unknown {
+  if (typeof value === 'string') return fn(value);
+  if (Array.isArray(value)) return value.map((v) => mapStrings(v, fn));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, mapStrings(v, fn)]));
   return value;
+}
+
+function repairMetaControls(obj: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(obj).map(([k, v]) => [k, mapStrings(v, k === 'remarks' ? remarkLine : oneLine)]));
 }
 
 /** Tolker metadata-JSON fra Claude tolerant: ugyldige felter blir ignorert i stedet for å feile. */

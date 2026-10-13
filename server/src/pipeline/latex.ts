@@ -79,12 +79,25 @@ const FORBIDDEN = [
 
 const FORBIDDEN_RE = new RegExp(String.raw`\\(${FORBIDDEN.map((f) => f.replace(/[{}]/g, '\\$&')).join('|')})(?![a-zA-Z])`, 'g');
 
+/** Omgivelser med ordrett tekst (programkode), der `%` og `\` betyr seg selv. */
+const VERBATIM_ENVS = String.raw`verbatim\*?|Verbatim|lstlisting|minted`;
+
 /**
  * Kode som normaliseringen ikke skal røre: tegninger (prosenttegn og hakeparenteser betyr noe annet der) og ordrett
  * tekst (`verbatim`, `\verb|…|`, programkode der `10 % 3` er riktig).
  */
-const PASS_THROUGH =
-  /\\begin\{(tikzpicture|circuitikz|verbatim\*?|Verbatim|lstlisting|minted)\}[\s\S]*?\\end\{\1\}|\\verb\*?([^a-zA-Z*\s])[^\n]*?\2/g;
+const PASS_THROUGH = new RegExp(
+  String.raw`\\begin\{(tikzpicture|circuitikz|${VERBATIM_ENVS})\}[\s\S]*?\\end\{\1\}|\\verb\*?([^a-zA-Z*\s])[^\n]*?\2`,
+  'g',
+);
+
+/** Ordrett tekst med innholdet i gruppe 2 (omgivelse) eller 4 (`\verb`), for søketeksten. */
+const VERBATIM = new RegExp(
+  String.raw`\\begin\{(${VERBATIM_ENVS})\}(?:\[[^\]\n]*\])?(?:\{[^}\n]*\})?([\s\S]*?)\\end\{\1\}|\\verb\*?([^a-zA-Z*\s])([^\n]*?)\3`,
+  'g',
+);
+
+const FLOAT = /\\begin\{(figure|table)(\*?)\}[\s\S]*?\\end\{\1\2\}/g;
 
 /**
  * Retter vanlige småfeil i en modells LaTeX som ellers gir kompileringsfeil eller stille feil i PDF-en. Bare mønstre
@@ -94,9 +107,12 @@ const PASS_THROUGH =
 export function normalizeBody(body: string): string {
   // \caption utenfor en figur (i en center-blokk, ofte rundt en tegning) feiler; \captionof virker overalt. En
   // center-blokk inne i en figur- eller tabellomgivelse er riktig fra før og hoppes over (den matches hel først).
-  body = body.replace(/\\begin\{(figure|table)(\*?)\}[\s\S]*?\\end\{\1\2\}|\\begin\{center\}[\s\S]*?\\end\{center\}/g, (block, float?: string) =>
-    float ? block : block.replace(/\\caption(?=\s*[[{])/g, isTableBlock(block) ? '\\captionof{table}' : '\\captionof{figure}'),
-  );
+  body = body.replace(/\\begin\{(figure|table)(\*?)\}[\s\S]*?\\end\{\1\2\}|\\begin\{center\}[\s\S]*?\\end\{center\}/g, (block, float?: string) => {
+    if (float) return block;
+    // En figur eller tabell inne i center-blokken har allerede en gyldig \caption.
+    const caption = isTableBlock(block.replace(FLOAT, '')) ? '\\captionof{table}' : '\\captionof{figure}';
+    return block.replace(/\\begin\{(figure|table)(\*?)\}[\s\S]*?\\end\{\1\2\}|\\caption(?=\s*[[{])/g, (m, f?: string) => (f ? m : caption));
+  });
   const out: string[] = [];
   let last = 0;
   for (const m of body.matchAll(PASS_THROUGH)) {
@@ -118,9 +134,72 @@ const TITLE_WORD: Record<string, RegExp> = {
   definisjon: /^\s*definisjon\s*[:\-–]\s*/i,
 };
 
+/** Indeksen rett etter `}` som lukker `{` på `open`, eller -1. */
+function groupEnd(s: string, open: number): number {
+  if (s[open] !== '{') return -1;
+  let depth = 0;
+  for (let i = open; i < s.length; i++) {
+    const c = s[i];
+    if (c === '\\') i++;
+    else if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) return i + 1;
+  }
+  return -1;
+}
+
+const ULESELIG_HOSTS: Record<string, number> = { qty: 2, SI: 2, num: 1, ce: 1, pu: 1 };
+
+/**
+ * `\uleselig` inne i tallet i `\qty`/`\num` stopper kompileringen (siunitx godtar bare tall), og inne i `\ce` blir
+ * formelen satt i kursiv uten senkede tall. Da flyttes markeringen ut, rundt hele størrelsen eller formelen:
+ * `\qty{\uleselig{9,81}}{m/s^2}` blir `\uleselig{\qty{9,81}{m/s^2}}`.
+ */
+function hoistUleselig(t: string): string {
+  if (!t.includes('\\uleselig')) return t;
+  let out = '';
+  let last = 0;
+  for (const m of t.matchAll(/\\(qty|SI|num|ce|pu)(?![A-Za-z])/g)) {
+    if (m.index < last) continue;
+    let i = m.index + m[0].length;
+    const opt = /^\s*\[[^\]]*\]/.exec(t.slice(i));
+    if (opt) i += opt[0].length;
+    const groups: [number, number][] = [];
+    for (let g = 0; g < ULESELIG_HOSTS[m[1]!]!; g++) {
+      const start = i + (/^\s*/.exec(t.slice(i))?.[0].length ?? 0);
+      const end = groupEnd(t, start);
+      if (end === -1) break;
+      groups.push([start, end]);
+      i = end;
+    }
+    if (groups.length !== ULESELIG_HOSTS[m[1]!]) continue;
+    const [first] = groups;
+    const inner = t.slice(first![0], first![1]);
+    if (!inner.includes('\\uleselig')) continue;
+    const cleaned = unwrapUleselig(inner);
+    out += `${t.slice(last, m.index)}\\uleselig{${t.slice(m.index, first![0])}${cleaned}${t.slice(first![1], i)}}`;
+    last = i;
+  }
+  return out + t.slice(last);
+}
+
+/** `\uleselig{X}` → `X` (alle forekomster). */
+function unwrapUleselig(s: string): string {
+  let out = '';
+  let last = 0;
+  for (const m of s.matchAll(/\\uleselig\s*(?=\{)/g)) {
+    if (m.index < last) continue;
+    const open = m.index + m[0].length;
+    const end = groupEnd(s, open);
+    if (end === -1) continue;
+    out += s.slice(last, m.index) + unwrapUleselig(s.slice(open + 1, end - 1));
+    last = end;
+  }
+  return out + s.slice(last);
+}
+
 function normalizeText(t: string): string {
   return (
-    t
+    hoistUleselig(t)
       // «35 %» uten \ blir en kommentar som stille kutter resten av linjen.
       .replace(/(\d)([ \t~]*)%/g, (_m, d: string, space: string) => `${d}${space ? '\\,' : ''}\\%`)
       // Boksen heter losning (uten ø).
@@ -184,7 +263,9 @@ const DRAWINGS = /\\begin\{(tikzpicture|circuitikz|axis)\}[\s\S]*?\\end\{\1\}/g;
  * argumentene beholdes (overskrifter, bildetekster, boksetitler), og matematikk blir stående som tegn.
  */
 export function latexToText(body: string, max = 30_000): string {
-  let t = body.replace(/(^|[^\\])%.*$/gm, '$1');
+  // Ordrett tekst (programkode) beholdes som tekst; et % der er ikke en kommentar.
+  let t = body.replace(VERBATIM, (_m, _env, block: string | undefined, _d, inline: string | undefined) => ` ${(block ?? inline ?? '').replace(/[\\%]/g, ' ')} `);
+  t = t.replace(/(^|[^\\])%.*$/gm, '$1');
   t = t.replace(DRAWINGS, ' ');
   t = t.replace(/\\originalfigur\s*(?:\[[^\]]*\])?\s*\{[^}]*\}/g, ' ');
   t = t.replace(/\\(?:begin|end)\{[^}]*\}(?:\[([^\]]*)\])?/g, (_m, opt: string | undefined) =>
@@ -216,23 +297,39 @@ export interface NoteDocInput {
 const EXTRA_PREAMBLE = String.raw`
 \newcommand{\snfjernet}[1]{\textcolor{snorange}{\texttt{[fjernet: \textbackslash #1]}}}
 \makeatletter
-% Holder en sammenhengende utregning eller forklaring på samme side. Innholdet settes først i en boks for å måles:
-% en kort blokk settes som én enhet (hel til neste side om den ikke får plass, også inne i en boks som brytes), og
-% en blokk som er høyere enn nesten en hel side, settes på nytt som vanlig tekst, så ingenting forsvinner nederst.
-% Tellerne (figurer, ligninger) settes tilbake før den andre settingen, og fotnoter i en kort blokk står rett under
-% den, som i en minipage. Brukes av Haiku.
+% Holder en sammenhengende utregning eller forklaring på samme side. Blokken settes én gang, slik den ville stått i
+% teksten (med listenummer, innrykk, fotnoter og tellere), men i en boks, og måles: en kort blokk legges inn som én
+% enhet og flyttes hel til neste side om den ikke får plass (også inne i en boks som brytes); en blokk som er høyere
+% enn nesten en hel side, pakkes ut igjen og brytes som vanlig, så ingenting forsvinner nederst. Innholdet leses ikke
+% som et argument, så \verb, verbatim og TikZ-etiketter med "..." virker, og LaTeX melder feil på riktig linje.
+% Fotnoter i blokken står under den (som i en minipage); inne i en boks samles de av boksen som vanlig.
 \newsavebox{\sn@samlet}
 \newskip\sn@samletskip
-\def\sn@savecounters{\begingroup\def\@elt##1{\global\csname c@##1\endcsname\the\csname c@##1\endcsname}%
-  \xdef\sn@restorecounters{\cl@@ckpt}\endgroup}
-\NewDocumentEnvironment{samlet}{+b}{\par\sn@savecounters
-  \setbox\sn@samlet\vbox{\hsize\linewidth\@parboxrestore\setlength{\parskip}{0.5\baselineskip}%
-    \def\@mpfn{mpfootnote}\def\thempfn{\thempfootnote}\c@mpfootnote\z@\let\@footnotetext\@mpfootnotetext
-    \noindent\ignorespaces#1\par\xdef\sn@samletdepth{\the\prevdepth}\global\sn@samletskip\lastskip\unskip\unpenalty\unskip
-    \ifvoid\@mpfootins\else\vskip\skip\@mpfootins\normalcolor\footnoterule\unvbox\@mpfootins\fi}%
+\newif\ifsn@inmp
+\def\sn@mpname{mpfootnote}
+\newenvironment{samlet}{\par
+  \ifx\@mpfn\sn@mpname\sn@inmptrue\else\sn@inmpfalse\fi
+  % En ny boks glemmer innrykket i en liste (\parshape); det settes på nytt, så linjene står der de ellers ville stått.
+  \setbox\sn@samlet\vbox\bgroup\parshape\@ne\@totalleftmargin\linewidth\allowdisplaybreaks[1]%
+    \ifsn@inmp\else\def\@mpfn{mpfootnote}\def\thempfn{\thempfootnote}\c@mpfootnote\z@\let\@footnotetext\@mpfootnotetext\fi
+    \ignorespaces}{\par
+    \xdef\sn@samletdepth{\the\prevdepth}\global\sn@samletskip\lastskip\unskip\unpenalty\unskip
+    \ifsn@inmp\else\ifvoid\@mpfootins\else\vskip\skip\@mpfootins\normalcolor\footnoterule\unvbox\@mpfootins
+      \xdef\sn@samletdepth{\the\prevdepth}\fi\fi
+  \egroup
+  % Avstanden til et nytt avsnitt, men ikke øverst i en boks.
+  \ifinner\ifnum\lastnodetype>\m@ne\vskip\parskip\fi\else\vskip\parskip\fi
   \ifdim\dimexpr\ht\sn@samlet+\dp\sn@samlet\relax>0.85\textheight
-    \sn@restorecounters{\allowdisplaybreaks[1]\noindent\ignorespaces#1\par}%
-  \else{\parfillskip\z@skip\noindent\vtop{\unvbox\sn@samlet}\par}\prevdepth\sn@samletdepth\relax\vskip\sn@samletskip\fi}{}
+    % Linjeavstanden til linjen før, som TeX ville lagt inn foran første linje.
+    \setbox\z@\vtop{\unvcopy\sn@samlet}%
+    \ifdim\ht\z@>\z@\ifdim\prevdepth>-\@m\p@\dimen@\dimexpr\baselineskip-\prevdepth-\ht\z@\relax
+      \ifdim\dimen@<\lineskiplimit\vskip\lineskip\else\vskip\dimen@\fi\fi\fi
+    \unvbox\sn@samlet
+  \else
+    % Begynner blokken med en formel, figur eller boks, har den sin egen avstand over seg.
+    \setbox\sn@samlet\vtop{\unvbox\sn@samlet}\ifdim\ht\sn@samlet=\z@\nointerlineskip\fi\box\sn@samlet
+  \fi
+  \prevdepth\sn@samletdepth\relax\vskip\sn@samletskip\ignorespacesafterend}
 \makeatother
 % \uleselig også i formler (et usikkert tegn eller symbol i en ligning). Den ytre gruppen gjør at en eksponent eller
 % et merke etter (\uleselig{v}^2, \uleselig{f}') ikke blir en dobbel eksponent.
@@ -462,8 +559,8 @@ export function errorExcerpt(body: string, errors: LatexErrorInfo[], bodyStartLi
     const rel = e.line !== null ? e.line - bodyStartLine + 1 : null;
     let snippet = '';
     if (rel !== null && rel > 0 && rel <= lines.length + 1) {
-      // samlet leser hele blokken før den settes, så LaTeX melder en feil inne i den på linjen med \end{samlet}.
-      // Utdraget viser da hele blokken (inntil 40 linjer før), så feilen er med.
+      // En feil som LaTeX først oppdager når en samlet-blokk slutter (en klamme eller omgivelse inne i den som ikke er
+      // lukket), meldes på linjen med \end{samlet}. Utdraget viser da hele blokken (inntil 40 linjer før).
       const start = /\\end\{samlet\}/.test(lines[rel - 1] ?? '') ? samletStart(lines, rel) : null;
       const from = Math.max(1, start !== null ? Math.max(start, rel - 40) : rel - radius);
       const to = Math.min(lines.length, rel + radius);

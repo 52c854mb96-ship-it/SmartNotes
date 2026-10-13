@@ -18,7 +18,7 @@ import { getProfile, PROFILE_IDS, readPreamble, systemPromptFor } from '../src/p
  * inn det nye fingeravtrykket her. Da skilles elevens vurderinger av de gamle og de nye instruksene i Innstillinger.
  */
 const FINGERPRINTS: Record<number, string> = {
-  2: '9f7b0d96533f4e9c',
+  2: '87634b0378fb0604',
 };
 
 const fingerprint = () =>

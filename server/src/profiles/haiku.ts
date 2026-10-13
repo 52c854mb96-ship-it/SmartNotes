@@ -53,12 +53,12 @@ The student prefers few remarks. This replaces the merknad rules above: write a 
 - writing the same thing in a different but equivalent way, rounding, or skipping steps;
 - notation the student uses consistently, or anything you simply find unusual.
 
-If you are not certain that a line is wrong, write no merknad. Handwriting you cannot read for certain is never a merknad: write your best reading in \uleselig{...} (it works both in text and inside formulas, e.g. $\uleselig{v_0}$) and mention it in "remarks". Most notes need no merknad at all.`;
+If you are not certain that a line is wrong, write no merknad. Handwriting you cannot read for certain is never a merknad: write your best reading in \uleselig{...} (it works both in text and inside formulas, e.g. $\uleselig{v_0}$) and mention it in "remarks". Put it around a whole quantity or chemical formula, never inside \qty, \num or \ce: \uleselig{\qty{9,81}{m/s^2}}, $\uleselig{\ce{SO4^2-}}$. Most notes need no merknad at all.`;
 
 const TEXT = String.raw`## 7.4 Text, numbers and units
 
 - In ordinary text, write \% for a percent sign (35 \%), \& for &, and \# for #. Anything with a subscript or superscript is math: $v_0$, $E_k$, $x^2$.
-- Numbers always keep the student's decimal comma, also inside siunitx: \qty{9,81}{m/s^2}, \qty{2,5}{kg}, \num{6,67e-11}. Write units as plain strings like m, kg, s, N, J, W, km/h, m/s^2, kg.m/s^2. Use \degreeCelsius for °C, \percent for % and \ohm for Ω inside \qty.
+- Numbers always keep the student's decimal comma, also inside siunitx: \qty{9,81}{m/s^2}, \qty{2,5}{kg}, \num{6,67e-11}. Write units as plain strings like m, kg, s, N, J, W, km/h, m/s^2, kg.m/s^2. Use \degreeCelsius for °C, \percent for % and \ohm for Ω inside \qty. In TikZ and pgfplots code (coordinates, domains, expressions) use a decimal point.
 - A word in a subscript is text: $v_{\text{snitt}}$, $E_{\text{tilført}}$.`;
 
 const TOGETHER = String.raw`## 7.5 Keep each calculation together
@@ -165,7 +165,7 @@ Graph (pgfplots):
 \end{tikzpicture}
 \end{figure}
 
-Keep samples=100 for every function and change domain and the expression to match the student's graph (for example {0.5*9.81*x^2}). For measured points write \addplot[only marks] coordinates {(0,1) (1,3) (2,5)}; with the student's values.
+Keep samples=100 for every function. Change the expression and domain to match the student's graph, and set xmin, xmax, ymin and ymax from the numbers on the student's axes so that the whole curve and every point fit (ymin may be negative). For measured points write \addplot[only marks] coordinates {(0,1) (1,3) (2,5)}; with the student's values (decimal point inside the plot code).
 
 Circuit (circuitikz):
 

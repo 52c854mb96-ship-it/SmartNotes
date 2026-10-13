@@ -89,6 +89,19 @@ a &= b \\[2pt]
     );
     const float = '\\begin{table}[H]\n\\begin{center}\n\\caption{Måledata}\n\\begin{tabular}{cc}a & b\\end{tabular}\n\\end{center}\n\\end{table}';
     expect(normalizeBody(float)).toBe(float);
+    const wrapped = String.raw`\begin{center}\begin{figure}[H]\centering\begin{tabular}{c}A\end{tabular}\caption{Krysning}\end{figure}\end{center}`;
+    expect(normalizeBody(wrapped)).toBe(wrapped);
+  });
+  it('flytter \\uleselig ut av \\qty, \\num og \\ce, så tallet kompilerer og formelen settes riktig', () => {
+    expect(normalizeBody(String.raw`\qty{\uleselig{9,81}}{m/s^2} og $\qty[mode=math]{9,8\uleselig{1}}{m/s^2}$`)).toBe(
+      String.raw`\uleselig{\qty{9,81}{m/s^2}} og $\uleselig{\qty[mode=math]{9,81}{m/s^2}}$`,
+    );
+    expect(normalizeBody(String.raw`\num{\uleselig{3,0}} \ce{SO\uleselig{4}^2-} \ce{2 H2 + \uleselig{O2} -> 2 H2O}`)).toBe(
+      String.raw`\uleselig{\num{3,0}} \uleselig{\ce{SO4^2-}} \uleselig{\ce{2 H2 + O2 -> 2 H2O}}`,
+    );
+    // Rundt hele størrelsen, i enheten eller uten \uleselig står det som før.
+    const ok = String.raw`\uleselig{\qty{9,81}{m/s^2}} \qty{9,81}{\uleselig{m}/s^2} \ce{H2O} $\uleselig{v}^2$`;
+    expect(normalizeBody(ok)).toBe(ok);
   });
   it('lar ordrett tekst og programkode være', () => {
     const code = '\\begin{verbatim}\nx = 10 % 3\n\\end{verbatim}\nOg \\verb|5 % n| i teksten.';
@@ -104,6 +117,17 @@ a &= b \\[2pt]
 });
 
 describe('latexToText', () => {
+  it('beholder ordrett tekst med prosenttegn i søketeksten', () => {
+    const text = latexToText(sanitizeBody(String.raw`Restdivisjon: \verb|17 % 5| gir 2 i Euler-metoden.
+\begin{verbatim}
+x = 10 % 3  # rest
+\end{verbatim}
+Etter koden. % en kommentar`));
+    expect(text).toContain('Euler-metoden');
+    expect(text).toContain('rest');
+    expect(text).toContain('Etter koden.');
+    expect(text).not.toContain('kommentar');
+  });
   it('beholder tekst, overskrifter og boksetitler, og fjerner kommandoer og tegninger', () => {
     const body = String.raw`\section{Newtons lover}
 % en kommentar
@@ -168,6 +192,11 @@ $F = ma$
       remarks: ['\\rho og \\nu og \\beta'],
     });
     expect(parseMeta(String.raw`{"title":"Vinkel \theta"}`).title).toBe('Vinkel \\theta');
+    // \nu i gyldig JSON blir linjeskift + «u»; i titler er det alltid LaTeX, i merknader bare foran kjente kommandoer.
+    expect(parseMeta(String.raw`{"title":"Frekvens \nu","remarks":["Usikker på \neq","a\ni b"]}`)).toMatchObject({
+      title: 'Frekvens \\nu',
+      remarks: ['Usikker på \\neq', 'a\ni b'],
+    });
     // Gyldige escape-tegn (også \u00e6) tolkes som før.
     expect(parseMeta(String.raw`{"title":"\u00c6 og \"sitat\" og \\vec"}`).title).toBe('Æ og "sitat" og \\vec');
   });

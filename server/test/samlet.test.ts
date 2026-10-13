@@ -24,7 +24,32 @@ SLUTT-${n}`;
 const longRows = Array.from({ length: 70 }, (_, i) => `x_{${i + 1}} &= ${i + 1} \\\\`).join('\n');
 
 const BODY = String.raw`\section{Samlet}
-Tekst før, med $\uleselig{v}^2$, $\uleselig{f}'(x)$, $\uleselig{v_0}$ og \uleselig{ord}.
+Tekst før, med $\uleselig{v}^2$, $\uleselig{f}'(x)$, $\uleselig{v_0}$ og \uleselig{ord}, og i størrelser og formler:
+\qty{\uleselig{9,81}}{m/s^2}, $g = \qty{9,8\uleselig{1}}{m/s^2}$, \num{\uleselig{3,0}}, \ce{\uleselig{SO4}^2-} og $\ce{SO\uleselig{4}^2-}$.
+\begin{samlet}
+Kode i blokken: \verb|10 % 3| gir VERB-REST.
+\begin{verbatim}
+x = 10 % 3  # VERBATIM-REST
+\end{verbatim}
+\end{samlet}
+\begin{eksempel}[Skråplan]
+Boksfotnote\footnote{BOKS-FN-1.}
+\begin{samlet}
+Kreftene på klossen\footnote{SAMLET-FN-I-BOKS.}:
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>={Stealth}]
+  \coordinate (A) at (0,0); \coordinate (B) at (4,0); \coordinate (C) at (4,2);
+  \draw[thick] (A) -- (B) -- (C) -- cycle;
+  \pic[draw, "$\alpha$", angle radius=8mm] {angle=B--A--C};
+  \draw (A) -- node[above, sloped] {$s$} (C);
+\end{tikzpicture}
+\caption{Skråplan}
+\end{figure}
+\begin{align*} G_x &= mg\sin\alpha \end{align*}
+\end{samlet}
+Etter\footnote{BOKS-FN-3.}
+\end{eksempel}
 \begin{samlet}
 En blokk med fotnote\footnote{FOTNOTE-I-SAMLET} og en figur:
 \begin{figure}[H]\centering\begin{tikzpicture}\draw (0,0) rectangle (2,1);\end{tikzpicture}\caption{Første}\end{figure}
@@ -35,6 +60,11 @@ En blokk med fotnote\footnote{FOTNOTE-I-SAMLET} og en figur:
 LISTEPUNKT-EN
 \begin{align*} a &= b \end{align*}
 \end{samlet}
+\item \begin{samlet}
+LISTEPUNKT-TO:
+\begin{center}SENTRERT\end{center}
+\end{samlet}
+\item VANLIG-PUNKT
 \end{enumerate}
 \begin{eksempel}[Ball]
 \begin{samlet}
@@ -44,13 +74,26 @@ ${calc(0)}
 ${Array.from({ length: 12 }, (_, i) => `Tekst mellom blokkene.\n\\begin{samlet}\n${calc(i + 1)}\n\\end{samlet}`).join('\n\n')}
 
 \begin{samlet}
+\section{Lang seksjon}
 LANG-START
+\begin{figure}[H]\centering\begin{tikzpicture}\draw (0,0) -- (1,0);\end{tikzpicture}\caption{Ytre}\end{figure}
+\begin{samlet}
+\begin{figure}[H]\centering\begin{tikzpicture}\draw (0,0) -- (0,1);\end{tikzpicture}\caption{Indre}\end{figure}
+\end{samlet}
 \begin{align*}
 ${longRows}
 x &= \text{slutt}
 \end{align*}
 LANG-SLUTT
 \end{samlet}
+\begin{enumerate}
+\item \begin{samlet}
+LANG-I-LISTE
+\begin{align*}
+${longRows}
+\end{align*}
+\end{samlet}
+\end{enumerate}
 \begin{figure}[H]\centering\begin{tikzpicture}\draw (0,0) -- (1,1);\end{tikzpicture}\caption{Tredje}\end{figure}
 `;
 
@@ -83,8 +126,23 @@ describe('samlet og \\uleselig', () => {
       for (let i = 1; i <= 70; i++) expect(text).toMatch(new RegExp(`x${i}\\s*=\\s*${i}\\b`));
       // Fotnoten i blokken står under den, tellerne telles én gang, og listenummeret står ved første linje.
       expect(text).toContain('FOTNOTE-I-SAMLET');
-      expect(text).toMatch(/Figur 1: Første[\s\S]*Figur 2: Andre[\s\S]*Figur 3: Tredje/);
+      // I en boks samler boksen fotnotene, også dem i blokken.
+      expect(text).toMatch(/Etter[\s\S]*BOKS-FN-1\.[\s\S]*SAMLET-FN-I-BOKS\.[\s\S]*BOKS-FN-3\./);
+      expect(text).toMatch(/Figur 1: Skråplan[\s\S]*Figur 2: Første[\s\S]*Figur 3: Andre[\s\S]*Figur 4: Ytre[\s\S]*Figur 5: Indre[\s\S]*Figur 6: Tredje/);
       expect(text).toMatch(/1\.\s+LISTEPUNKT-EN/);
+      expect(text).toMatch(/2\.\s+LISTEPUNKT-TO/);
+      // Med samme innrykk som et vanlig listepunkt.
+      const column = (marker: string) => {
+        const line = text.split('\n').find((l) => l.includes(marker))!;
+        return line.search(/\d\./);
+      };
+      expect(Math.abs(column('LISTEPUNKT-EN') - column('VANLIG-PUNKT'))).toBeLessThanOrEqual(1);
+      expect(text).toMatch(/\d\.\s+LANG-I-LISTE/);
+      // Ordrett tekst i en blokk, og ett bokmerke per overskrift.
+      expect(text).toContain('10 % 3 gir VERB-REST');
+      expect(text).toMatch(/x = 10 % 3\s+# VERBATIM-REST/);
+      const aux = fs.readFileSync(path.join(dir, 'main.aux'), 'utf8');
+      expect(aux.match(/Lang seksjon/g)?.length ?? 0).toBeLessThanOrEqual(2);
     }, 150_000);
   }
 
