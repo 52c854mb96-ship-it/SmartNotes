@@ -27,6 +27,7 @@ import type {
   ProgressRequest,
   ProgressResponse,
   PublicPresetsResponse,
+  QuotaResponse,
   RateComparisonRequest,
   RegisterRequest,
   ResetLinkResponse,
@@ -240,6 +241,7 @@ export const api = {
   authPresets: (signal?: AbortSignal) => json<PublicPresetsResponse>('GET', '/auth/presets', { signal, timeoutMs: 15_000 }),
   logout: () => json<{ ok: boolean }>('POST', '/auth/logout', { timeoutMs: 10_000, allow401: true }),
   me: () => json<MeResponse>('GET', '/auth/me', { allow401: true, timeoutMs: 10_000 }),
+  quota: (signal?: AbortSignal) => json<QuotaResponse>('GET', '/quota', { signal, timeoutMs: 10_000 }),
 
   sync: (since: number, signal?: AbortSignal) =>
     json<SyncResponse>('GET', `/sync?since=${since}`, { signal, timeoutMs: 45_000 }),

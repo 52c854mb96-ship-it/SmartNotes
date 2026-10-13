@@ -30,6 +30,7 @@ import { registerWorkerRoutes } from './routes/worker.js';
 import { RemoteHub } from './remote/hub.js';
 import { Storage } from './storage.js';
 import { findPreset } from './presets.js';
+import { Quota } from './quota.js';
 import { MeteredAi } from './usage.js';
 
 export interface AppContext {
@@ -43,6 +44,7 @@ export interface AppContext {
   bundler: Bundler;
   generator: FlashcardGenerator;
   comparer: Comparer;
+  quota: Quota;
 }
 
 /** Byggnummeret Vite skriver i index.html (`<meta name="smartnotes-build">`), eller null uten ferdigbygd web-app. */
@@ -62,7 +64,7 @@ function readWebBuild(webDist: string | null): string | null {
  */
 export async function buildApp(
   config: Config,
-  opts: { ai?: AiService; freeAi?: AiService; compareAi?: AiService; logger?: boolean } = {},
+  opts: { ai?: AiService; freeAi?: AiService; compareAi?: AiService; logger?: boolean; now?: () => number } = {},
 ): Promise<AppContext> {
   const app = Fastify({
     logger: opts.logger === false ? false : { level: process.env.LOG_LEVEL ?? 'info' },
@@ -107,7 +109,8 @@ export async function buildApp(
   const ai = opts.ai ? metered(opts.ai) : createAi(config, metered, hub);
   // Gratisbrukerne konverterer med Haiku (høy grundighet, Sonnet som reserve ved avslag); eieren med `ai`.
   const freeAi = opts.freeAi ? metered(opts.freeAi) : opts.ai ? null : createFreeConvertAi(config, metered);
-  const converter = new Converter(repo, storage, ai, config, app.log, freeAi ? { ai: freeAi, fixAttempts: 3 } : null);
+  const quota = new Quota(repo, config, opts.now);
+  const converter = new Converter(repo, storage, ai, config, app.log, freeAi ? { ai: freeAi, fixAttempts: 3 } : null, quota);
   const worker = new Worker(repo, converter, config.workerConcurrency, app.log);
   const bundler = new Bundler(repo, storage, config, app.log);
   const generator = new FlashcardGenerator(repo, storage, ai, app.log);
@@ -175,9 +178,9 @@ export async function buildApp(
     ai: aiTasks,
   }));
 
-  registerLibraryRoutes(app, { repo, storage, ai, converter, bundler });
-  registerNoteRoutes(app, { repo, storage, converter, worker, hub });
-  registerFlashcardRoutes(app, { repo, storage, ai, generator });
+  registerLibraryRoutes(app, { repo, storage, ai, converter, bundler, quota });
+  registerNoteRoutes(app, { repo, storage, converter, worker, hub, quota });
+  registerFlashcardRoutes(app, { repo, storage, ai, generator, quota });
   registerUsageRoutes(app, { repo, config });
   registerCompareRoutes(app, { repo, storage, comparer, config });
   registerBackupRoutes(app, { repo, storage, config });
@@ -232,5 +235,5 @@ export async function buildApp(
   });
 
   void storage.cleanTmp();
-  return { app, repo, storage, ai, hub, converter, worker, bundler, generator, comparer };
+  return { app, repo, storage, ai, hub, converter, worker, bundler, generator, comparer, quota };
 }

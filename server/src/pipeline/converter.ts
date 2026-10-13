@@ -9,8 +9,9 @@ import { userTextbook } from '../presets.js';
 import { getProfile, readPreamble, type Profile } from '../profiles/index.js';
 import { exists, type Storage, writeFileAtomic } from '../storage.js';
 import { jobScope, type Usage, setUsagePages } from '../usage.js';
+import type { Quota } from '../quota.js';
 import type { AiService, ChapterRef, ConvertRequest } from './ai.js';
-import { cropFigure, preparePages, type FileKind, type PageImage } from './images.js';
+import { cropFigure, figureIds, preparePages, type FileKind, type PageImage } from './images.js';
 import {
   assembleNoteDoc,
   chapterLabel,
@@ -64,6 +65,17 @@ export interface DocInfo {
   sectionLabel: string | null;
 }
 
+/** Gratiskvoten er brukt opp: notatet venter til `until` (neste døgn). Ikke en feil. */
+export class QuotaWait extends Error {
+  constructor(
+    readonly until: Date,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'QuotaWait';
+  }
+}
+
 /** AI-tjenesten for gratisbrukernes konverteringer (Haiku), og hvor mange rettingsrunder de får. */
 export interface FreePlanAi {
   ai: AiService;
@@ -82,6 +94,7 @@ export class Converter {
     private readonly config: Config,
     private readonly log: FastifyBaseLogger,
     private readonly free: FreePlanAi | null = null,
+    private readonly quota: Quota | null = null,
   ) {}
 
   /** AI-tjenesten og antall rettingsrunder for eieren av notatet. */
@@ -102,6 +115,11 @@ export class Converter {
     } catch (err) {
       if (err instanceof AbortedError) {
         this.log.info({ noteId: id, msg: err.message }, 'konvertering avbrutt');
+        return;
+      }
+      if (err instanceof QuotaWait) {
+        this.log.info({ noteId: id, until: err.until.toISOString() }, 'gratiskvoten er brukt – notatet venter til neste døgn');
+        this.repo.deferNote(id, err.until, err.message);
         return;
       }
       const e = err instanceof ConversionError ? err : new ConversionError('Uventet feil under konverteringen.');
@@ -134,6 +152,9 @@ export class Converter {
     await writeFileAtomic(this.storage.noteFile(id, 'pages.json'), JSON.stringify(pages, null, 2));
     this.repo.setPageCount(id, pages.length);
     setUsagePages(pages.length);
+    // Gratiskvoten: sidene telles her, rett før AI-en leser notatet (også ved «Konverter på nytt»).
+    const wait = this.quota?.startConversion(row.user_id, id, pages.length);
+    if (wait) throw new QuotaWait(wait.until, wait.message);
 
     // 2. Claude leser notatet
     this.repo.setStage(id, 'reading');
@@ -279,7 +300,7 @@ export class Converter {
     return this.cropFiguresInto(id, this.storage.pagesDir(id), pages, meta, this.storage.figuresDir(id));
   }
 
-  /** Klipper figurene AI-en fant ut av sidebildene i `pagesDir`, til `<id>.png` i `outDir` (som tømmes først). */
+  /** Klipper figurene AI-en fant ut av sidebildene i `pagesDir`, til `<id>.png` eller `<id>.jpg` i `outDir` (som tømmes først). */
   async cropFiguresInto(noteId: string, pagesDir: string, pages: PageImage[], meta: NoteMeta, outDir: string): Promise<Set<string>> {
     await fsp.rm(outDir, { recursive: true, force: true });
     await fsp.mkdir(outDir, { recursive: true });
@@ -300,7 +321,7 @@ export class Converter {
   /** Figurene som finnes for et notat (id-er uten filendelse). */
   async availableFigures(id: string): Promise<Set<string>> {
     const files = await fsp.readdir(this.storage.figuresDir(id)).catch(() => [] as string[]);
-    return new Set(files.filter((f) => f.endsWith('.png')).map((f) => f.slice(0, -4)));
+    return figureIds(files);
   }
 
   /**

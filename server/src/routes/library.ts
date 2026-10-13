@@ -12,6 +12,7 @@ import { aiConfigured } from '../pipeline/providers.js';
 import type { Converter } from '../pipeline/converter.js';
 import { fitScale, sniffKind } from '../pipeline/images.js';
 import { SUBJECT_PRESETS } from '../presets.js';
+import type { Quota } from '../quota.js';
 import { getProfile, isProfile } from '../profiles/index.js';
 import { isId, type Storage } from '../storage.js';
 import { cleanChapterInputs, parseTocText } from '../toc.js';
@@ -23,6 +24,8 @@ interface Deps {
   ai: AiService;
   converter: Converter;
   bundler: Bundler;
+  /** Gratiskvotene (innholdsfortegnelser med AI per døgn). */
+  quota?: Quota;
 }
 
 const name = z.string().trim().min(1, 'Navnet kan ikke være tomt.').max(80, 'Navnet er for langt.');
@@ -175,13 +178,15 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
     const s = requireSubject(mine(req), req.params.id);
     const body = parse(z.object({ text: z.string().max(50_000) }), req.body);
     const chapters = parseTocText(body.text);
-    // Delkapitler fra teksten kobles til kompetansemålene av Claude. Går det ikke, får de bare ingen mål.
-    if (s.aims.length && aiConfigured(ai, 'toc') && chapters.some((c) => c.sections?.length)) {
+    // Delkapitler fra teksten kobles til kompetansemålene av Claude. Går det ikke, eller er dagens gratiskvote brukt,
+    // får de bare ingen mål (teksten tolkes uten AI).
+    if (s.aims.length && aiConfigured(ai, 'toc') && chapters.some((c) => c.sections?.length) && !d.quota?.takeToc(requireUser(req).id, s.id)) {
       try {
         const mapped = await usageScope({ userId: requireUser(req).id, subjectId: s.id }, () => ai.mapSectionAims(getProfile(s.profile), chapters, s.aims));
         return { chapters: cleanChapterInputs(mapped.chapters, s.aims) };
       } catch (err) {
         req.log.warn({ err }, 'kunne ikke koble delkapitler til kompetansemål');
+        d.quota?.refund(requireUser(req).id, 'toc', s.id);
       }
     }
     return { chapters };
@@ -212,10 +217,14 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
       }
     }
     if (images.length === 0) throw badRequest('Last opp minst ett bilde av innholdsfortegnelsen.');
+    const blocked = d.quota?.takeToc(requireUser(req).id, s.id);
+    if (blocked) throw new HttpError(429, 'quota_exceeded', blocked);
     try {
       const read = await usageScope({ userId: requireUser(req).id, subjectId: s.id }, () => ai.extractToc(getProfile(s.profile), images, s.aims));
       return { chapters: cleanChapterInputs(read.chapters, s.aims) };
     } catch (err) {
+      // Lyktes ikke lesingen, telles den ikke mot dagens kvote.
+      d.quota?.refund(requireUser(req).id, 'toc', s.id);
       if (err instanceof ConversionError) throw new HttpError(err.retryable ? 503 : 422, 'claude_failed', err.message);
       throw err;
     }

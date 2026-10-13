@@ -493,7 +493,8 @@ function ProgressCard({ note }: { note: Note }) {
         <strong>{queued ? 'I kø' : stageText(note.stage)}</strong>
         <p>
           {queued
-            ? 'Notatet venter på tur – konverteringen starter straks. Du kan trygt lukke appen.'
+            ? // En melding mens notatet står i kø: dagens gratiskvote er brukt, eller et nytt forsøk etter en midlertidig feil.
+              `${note.error ?? 'Notatet venter på tur – konverteringen starter straks.'} Du kan trygt lukke appen.`
             : `${stageDescription(note.stage)} Du kan trygt lukke appen.`}
         </p>
         <ol className="steps" aria-label="Fremdrift">

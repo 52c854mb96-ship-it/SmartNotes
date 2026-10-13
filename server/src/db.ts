@@ -303,6 +303,21 @@ const MIGRATIONS: string[] = [
   CREATE TRIGGER decks_owner_fixed BEFORE UPDATE OF user_id ON decks BEGIN SELECT RAISE(ABORT, 'user_id kan ikke endres'); END;
   CREATE TRIGGER cards_owner_fixed BEFORE UPDATE OF user_id ON cards BEGIN SELECT RAISE(ABORT, 'user_id kan ikke endres'); END;
   `,
+  // 8: kvoter for gratisbrukerne. `quota_log` teller det som er brukt (sider når en konvertering starter, kortstokker og
+  // innholdsfortegnelser med AI). Bare på serveren (synkroniseres ikke). `last_claim_rev` gjør køen rettferdig: neste
+  // notat tas fra brukeren som har ventet lengst siden forrige tur (rev-telleren, som aldri står stille).
+  `
+  CREATE TABLE quota_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    amount INTEGER NOT NULL,
+    at INTEGER NOT NULL,
+    ref TEXT
+  );
+  CREATE INDEX quota_log_user_kind_at ON quota_log(user_id, kind, at);
+  ALTER TABLE users ADD COLUMN last_claim_rev INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 /** Eieren av appen (eleven): bruker 1, som fikk alle data da kontoene kom (migrering 7). */
@@ -324,7 +339,11 @@ export interface UserRow {
   created_at: string;
   updated_at: string;
   last_login_at: string | null;
+  last_claim_rev: number;
 }
+
+/** Det gratisbrukerne har tak på per døgn. */
+export type QuotaKind = 'pages' | 'decks' | 'toc';
 
 export interface InviteRow {
   id: string;
@@ -1175,15 +1194,19 @@ export class Repo {
     return this.db.transaction(() => {
       const r = this.db
         .prepare(
-          `SELECT * FROM notes WHERE status = 'queued' AND deleted = 0 AND (not_before IS NULL OR not_before <= ?)
-             AND user_id NOT IN (SELECT id FROM users WHERE disabled = 1)
-           ORDER BY created_at LIMIT 1`,
+          // Rettferdig kø: brukeren som har ventet lengst siden forrige tur, og så brukerens eldste notat. Notater fra
+          // stengte kontoer blir liggende.
+          `SELECT n.* FROM notes n JOIN users u ON u.id = n.user_id
+           WHERE n.status = 'queued' AND n.deleted = 0 AND (n.not_before IS NULL OR n.not_before <= ?) AND u.disabled = 0
+           ORDER BY u.last_claim_rev ASC, n.created_at ASC, n.rowid ASC LIMIT 1`,
         )
         .get(now()) as NoteRow | undefined;
       if (!r) return null;
+      const rev = this.nextRev();
+      this.db.prepare(`UPDATE users SET last_claim_rev = ? WHERE id = ?`).run(rev, r.user_id);
       this.db
         .prepare(`UPDATE notes SET status = 'processing', stage = 'preparing', error = NULL, attempts = attempts + 1, rev = ?, updated_at = ? WHERE id = ?`)
-        .run(this.nextRev(), now(), r.id);
+        .run(rev, now(), r.id);
       return this.getNoteRow(r.id);
     })();
   }
@@ -1297,6 +1320,46 @@ export class Repo {
     const stale = this.db.prepare(`SELECT id FROM notes WHERE status = 'done' AND stage IS NOT NULL AND deleted = 0`).all() as { id: string }[];
     for (const { id } of stale) this.finishRecompileWithoutChange(id);
     return rows.length;
+  }
+
+  /**
+   * Notatet venter til `notBefore` (gratiskvoten er brukt opp). Forsøket telles ikke som et mislykket forsøk, og
+   * meldingen vises på notatet.
+   */
+  deferNote(id: string, notBefore: Date, message: string): void {
+    this.db
+      .prepare(
+        `UPDATE notes SET status = 'queued', stage = NULL, error = ?, not_before = ?, attempts = MAX(attempts - 1, 0), rev = ?, updated_at = ?
+         WHERE id = ? AND deleted = 0`,
+      )
+      .run(message, notBefore.toISOString(), this.nextRev(), now(), id);
+  }
+
+  /** Notater brukeren har i køen (også de som venter på morgendagens kvote). */
+  queuedNoteCount(userId: number): number {
+    return (this.db.prepare(`SELECT COUNT(*) AS n FROM notes WHERE user_id = ? AND deleted = 0 AND status = 'queued'`).get(userId) as { n: number }).n;
+  }
+
+  // ---------- Kvoter (bare på serveren, ingen rev) ----------
+
+  quotaUsed(userId: number, kind: QuotaKind, since: number): number {
+    return (
+      this.db.prepare(`SELECT COALESCE(SUM(amount), 0) AS n FROM quota_log WHERE user_id = ? AND kind = ? AND at >= ?`).get(userId, kind, since) as {
+        n: number;
+      }
+    ).n;
+  }
+
+  addQuota(userId: number, kind: QuotaKind, amount: number, ref: string | null, at = Date.now()): void {
+    this.db.prepare(`INSERT INTO quota_log (user_id, kind, amount, at, ref) VALUES (?, ?, ?, ?, ?)`).run(userId, kind, amount, at, ref);
+  }
+
+  /** Forbruket til alle gratisbrukerne siden `since` (for dagsbudsjettet). */
+  freeUsageSince(since: number): UsageEntry[] {
+    const free = new Set(
+      (this.db.prepare(`SELECT id FROM users WHERE plan = 'free'`).all() as { id: number }[]).map((r) => r.id),
+    );
+    return this.usageSince(since).filter((e) => e.userId !== null && free.has(e.userId));
   }
 
   /** Notatene til en bruker som står i køen eller konverteres nå. */

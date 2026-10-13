@@ -109,6 +109,7 @@ function NoteRow({ note }: { note: Note }) {
           <span className="muted">{plural(note.pageCount, 'side', 'sider')}</span>
         </span>
         {note.status === 'failed' && note.error && <span className="wip-error">{note.error}</span>}
+        {note.status === 'queued' && note.error && <span className="muted small">{note.error}</span>}
       </span>
       {note.status === 'failed' && (
         <span className="wip-actions">

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { NoteLatexResponse, NotePagesResponse, SaveLatexResponse } from '@smartnotes/shared';
+import type { NoteLatexResponse, NotePagesResponse, SaveLatexResponse, QuotaResponse } from '@smartnotes/shared';
 import { requireUser } from '../auth.js';
 import type { NoteFileRow, Repo, UserRepo } from '../db.js';
 import { HttpError, badRequest, conflict, notFound } from '../errors.js';
@@ -16,6 +16,7 @@ import { MIME_BY_KIND, sniffKind, type FileKind, type PageImage } from '../pipel
 import { latexToText, replaceMissingFigures, sanitizeBody } from '../pipeline/latex.js';
 import type { Worker } from '../pipeline/worker.js';
 import type { RemoteHub } from '../remote/hub.js';
+import type { Quota } from '../quota.js';
 import { exists, isId, type Storage } from '../storage.js';
 import { parse, sendPdf } from './library.js';
 
@@ -26,6 +27,8 @@ interface Deps {
   worker: Worker;
   /** Køen for hjemmemaskinen, så et slettet notat ikke konverteres der. */
   hub?: RemoteHub;
+  /** Gratiskvotene (taket på notater i kø). */
+  quota?: Quota;
 }
 
 const EXT_BY_KIND: Record<FileKind, string> = { pdf: 'pdf', jpeg: 'jpg', png: 'png', webp: 'webp', heic: 'heic', gif: 'gif', tiff: 'tiff' };
@@ -37,6 +40,9 @@ const dateField = z
 
 export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
   const { repo, storage, converter, worker, hub } = d;
+
+  // Det brukeren har brukt av dagens gratiskvote (null for eieren).
+  app.get('/api/quota', async (req): Promise<QuotaResponse> => ({ quota: d.quota?.usage(requireUser(req).id) ?? null }));
 
   /** Det den innloggede brukeren eier; all lesing og skriving i rutene går gjennom det. */
   const mine = (req: FastifyRequest): UserRepo => repo.forUser(requireUser(req).id);
@@ -93,6 +99,10 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
       const subject = fields.subjectId && isId(fields.subjectId) ? r.getSubject(fields.subjectId) : null;
       if (!subject) throw badRequest('Faget finnes ikke (lenger).');
       if (files.length === 0) throw badRequest('Ingen filer ble lastet opp.');
+      // Taket på notater i kø for gratiskontoer. Aldri 429 her: opplastingskøen i appen prøver da på nytt i det
+      // uendelige. 403 gjør at opplastingen blir stående med meldingen, så eleven kan prøve igjen senere.
+      const full = d.quota?.queueFull(r.userId);
+      if (full) throw new HttpError(403, 'queue_full', full);
 
       // Hvis kapittelet er slettet mens opplastingen lå i køen, lar vi Claude velge i stedet.
       const chapterField = fields.chapterId?.trim() || 'auto';

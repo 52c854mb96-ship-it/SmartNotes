@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
  *   notes/<noteId>/source/<fil>     – originalopplastinger
  *   notes/<noteId>/pages/page-001.jpg – normaliserte sidebilder (det Claude ser)
  *   notes/<noteId>/pages.json
- *   notes/<noteId>/figures/fig1.png – figurer klippet ut fra originalen
+ *   notes/<noteId>/figures/fig1.png (eller .jpg) – figurer klippet ut fra originalen
  *   notes/<noteId>/note.tex         – dokumentkroppen (siste vellykkede)
  *   notes/<noteId>/draft.tex        – siste mislykkede forsøk (for feilsøking/redigering)
  *   notes/<noteId>/note.pdf

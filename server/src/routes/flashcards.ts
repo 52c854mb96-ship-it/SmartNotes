@@ -3,7 +3,8 @@ import { z } from 'zod';
 import type { ProgressResponse } from '@smartnotes/shared';
 import { requireUser } from '../auth.js';
 import { MASTER_LEVEL, type Repo, type UserRepo } from '../db.js';
-import { badRequest, notFound, offlineFeature } from '../errors.js';
+import type { Quota } from '../quota.js';
+import { HttpError, badRequest, notFound, offlineFeature } from '../errors.js';
 import type { FlashcardGenerator } from '../flashcards/generator.js';
 import { loadSourceNotes } from '../flashcards/generator.js';
 import { DIFFICULTIES, KINDS, MAX_CARDS, MAX_DECK_NOTES, MAX_SOURCE_CHARS, defaultDeckTitle } from '../flashcards/prompt.js';
@@ -17,6 +18,8 @@ interface Deps {
   storage: Storage;
   ai: AiService;
   generator: FlashcardGenerator;
+  /** Gratiskvotene (kortstokker per døgn). */
+  quota?: Quota;
 }
 
 const id = z.string().refine(isId, 'Ugyldig id.');
@@ -86,6 +89,9 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
     }
     const chars = notes.reduce((n, x) => n + x.body.length, 0);
     if (chars > MAX_SOURCE_CHARS) throw badRequest('Notatene har for mye tekst til én kortstokk. Velg færre notater.');
+    // Gratiskvoten telles når kortstokken lages (et nytt forsøk etter en feil telles ikke).
+    const blocked = d.quota?.takeDeck(r.userId, null);
+    if (blocked) throw new HttpError(429, 'quota_exceeded', blocked);
 
     const title =
       body.title ||
