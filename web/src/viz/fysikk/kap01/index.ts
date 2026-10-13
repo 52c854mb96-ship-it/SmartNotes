@@ -5,7 +5,7 @@ const viz: VizMeta[] = [
   {
     id: 'bevegelsesgrafer',
     chapter: '1',
-    sections: ['1C'],
+    sections: ['1.2'],
     title: 'Bevegelsesgrafer: s-t, v-t og a-t',
     summary:
       'En bil kjører langs en vei med målebånd. Styr startposisjon, startfart og akselerasjon og se bilen og de tre grafene henge sammen: stigningstall er fart, og areal under v-t-grafen er forflytning.',
@@ -29,7 +29,7 @@ const viz: VizMeta[] = [
   {
     id: 'fartskontroll',
     chapter: '1',
-    sections: ['1B', '1C'],
+    sections: ['1.2'],
     title: 'Streknings-ATK: snittfart og momentanfart',
     summary:
       'Styr farten til en bil gjennom en strekning med fartskamera i hver ende og se om sjåføren får bot. Snittfarten er stigningstallet til sekanten i s-t-grafen, momentanfarten stigningstallet til tangenten.',
@@ -53,7 +53,7 @@ const viz: VizMeta[] = [
   {
     id: 'bremselengde',
     chapter: '1',
-    sections: ['1D'],
+    sections: ['1.3'],
     title: 'Reaksjonslengde og bremselengde',
     summary:
       'En elg står i veien. Endre fart, reaksjonstid og føre og se om bilen rekker å stoppe, eller hvor fort den treffer. Dobbel fart gir dobbelt så lang reaksjonslengde, men fire ganger så lang bremselengde.',
@@ -81,7 +81,7 @@ const viz: VizMeta[] = [
   {
     id: 'gult-lys',
     chapter: '1',
-    sections: ['1B', '1D'],
+    sections: ['1.2', '1.3'],
     title: 'Gult lys: stoppe eller kjøre videre?',
     summary:
       'Lyset blir gult mens du nærmer deg et lyskryss. Med fart, reaksjonstid, bremsing og gultid ser du om bilen kan stoppe før stopplinja eller rekke over krysset før rødt, og hvor dilemmasonen er der ingen av delene går.',
@@ -110,7 +110,7 @@ const viz: VizMeta[] = [
   {
     id: 'forbikjoring',
     chapter: '1',
-    sections: ['1B', '1C', '1D'],
+    sections: ['1.2', '1.3'],
     title: 'Forbikjøring på landeveien',
     summary:
       'En bil akselererer forbi en lastebil mens en bil kommer imot. Velg fart, akselerasjon og avstand og se hvor lang tid og strekning forbikjøringen tar, om bilen rekker det, og s-t- og v-t-grafene til alle tre kjøretøyene.',
@@ -138,7 +138,7 @@ const viz: VizMeta[] = [
   {
     id: 'loddrett-kast',
     chapter: '1',
-    sections: ['1D'],
+    sections: ['1.3'],
     title: 'Loddrett kast',
     summary:
       'Mia kaster en tennisball rett opp i skolegården eller fra en balkong, og Jonas tar imot. Følg høyden og fartspila i scenen og grafene: i toppunktet er farten null, men akselerasjonen er fortsatt −g.',
@@ -165,7 +165,7 @@ const viz: VizMeta[] = [
   {
     id: 'simulering',
     chapter: '1',
-    sections: ['1E'],
+    sections: ['1.4'],
     title: 'Simulering av fall med luftmotstand',
     summary:
       'En fallskjermhopper hopper ut av flyet 4 000 m over bakken. Velg kroppsstilling og gå gjennom Eulers metode steg for steg: luftmotstanden og akselerasjonen regnes ut fra farten i starten av hvert steg, og farten nærmer seg terminalfarten. Se hvordan feilen vokser når tidssteget blir større.',
@@ -193,7 +193,7 @@ const viz: VizMeta[] = [
     id: 'eks-vt-graf',
     kind: 'eksempel',
     chapter: '1',
-    sections: ['1B', '1C', '1D'],
+    sections: ['1.2', '1.3'],
     title: 'Bil i bytrafikk: les av en v-t-graf',
     summary:
       'En bil kjører fra ett lyskryss til det neste. Les av v-t-grafen, finn akselerasjonen som stigningstall og strekningen som areal, regn ut gjennomsnittsfarten og skisser s-t-grafen, steg for steg.',
@@ -224,7 +224,7 @@ const viz: VizMeta[] = [
     id: 'eks-kast-balkong',
     kind: 'eksempel',
     chapter: '1',
-    sections: ['1D', '1E'],
+    sections: ['1.3', '1.4'],
     title: 'Golfball kastet rett opp fra en balkong',
     summary:
       'En golfball kastes rett opp fra en balkong og lander på plenen. Finn toppunktet, løs andregradslikningen for tiden og velg riktig løsning, finn farten ved plenen og drøft om det er rimelig å se bort fra luftmotstanden, steg for steg.',

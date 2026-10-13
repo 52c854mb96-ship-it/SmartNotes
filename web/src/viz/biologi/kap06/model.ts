@@ -1,5 +1,5 @@
 /**
- * Diffusjon og osmose (Bi 1 kapittel 6, KM5): ren modell uten React.
+ * Diffusjon og osmose (KM5): ren modell uten React.
  *
  * Diffusjon: oppløste partikler krysser en gjennomtrengelig membran mellom to like store rom. Hver partikkel krysser
  * tilfeldig med samme sannsynlighet per tid i begge retninger (transport.ts), så konsentrasjonsforskjellen avtar

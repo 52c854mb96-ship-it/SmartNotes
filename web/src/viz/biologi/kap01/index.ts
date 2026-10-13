@@ -1,6 +1,6 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 1 Liv (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 1 (Livets kjennetegn og systematikk). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'organisasjonsnivaer',

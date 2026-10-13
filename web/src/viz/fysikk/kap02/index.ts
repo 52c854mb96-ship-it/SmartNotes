@@ -8,7 +8,7 @@ const viz: VizMeta[] = [
   {
     id: 'friksjon',
     chapter: '2',
-    sections: ['2C'],
+    sections: ['2.3'],
     title: 'Statisk friksjon og glidefriksjon',
     summary: 'Dytt en tung kasse over tregulv, betong eller is, og se hvordan friksjonen følger dyttet helt til kassen begynner å gli.',
     keywords: ['friksjonstall', 'statisk friksjon', 'glidefriksjon', 'normalkraft', 'akselerasjon', 'kasse', 'tregulv', 'betong', 'is'],
@@ -17,7 +17,7 @@ const viz: VizMeta[] = [
   {
     id: 'fore-og-bremsing',
     chapter: '2',
-    sections: ['2C', '2E'],
+    sections: ['2.3', '2.2'],
     title: 'Friksjon og føre: bremselengde for en bil',
     summary:
       'Brems fullt på tørr asfalt, våt asfalt, snø eller is, med sommer- eller vinterdekk og med ABS eller låste hjul, og se om du rekker å stoppe før bilen i køen. Friksjonen R = μmg gir a = μg og bremselengden v₀²/(2μg).',
@@ -47,7 +47,7 @@ const viz: VizMeta[] = [
   {
     id: 'kraftpar',
     chapter: '2',
-    sections: ['2D'],
+    sections: ['2.2'],
     title: 'Kraftpar: bok, bord og jord',
     summary:
       'En lærebok ligger på skrivebordet. Følg kraftparene etter Newtons 3. lov helt ned til jordas sentrum, dytt på boka med hånda, og se med en sjekkliste hvorfor G og N ikke er et kraftpar.',
@@ -73,7 +73,7 @@ const viz: VizMeta[] = [
   {
     id: 'tautrekking',
     chapter: '2',
-    sections: ['2B', '2C', '2D', '2E'],
+    sections: ['2.2', '2.3'],
     title: 'Tautrekking: hvem drar hardest?',
     summary:
       'To lag drar i et tau på gress, på et glatt tregulv eller på is. Tauet drar like hardt i begge lagene, så det er friksjonen fra bakken som avgjør hvem som vinner, ikke hvem som er sterkest.',
@@ -104,7 +104,7 @@ const viz: VizMeta[] = [
   {
     id: 'koblede-klosser',
     chapter: '2',
-    sections: ['2E'],
+    sections: ['2.2'],
     title: 'Bil med tilhenger: velg system',
     summary:
       'En bil trekker en tilhenger med ved. Velg om systemet er hele vogntoget, bare hengeren eller bare bilen, og se at kraften i hengerfestet faller ut av kraftsummen når begge er med.',
@@ -131,7 +131,7 @@ const viz: VizMeta[] = [
   {
     id: 'skraplan',
     chapter: '2',
-    sections: ['2A', '2C', '2E'],
+    sections: ['2.1', '2.3', '2.2'],
     title: 'Kloss på skråplan',
     summary:
       'Løft en planke på labbenken med en kloss av tre, aluminium, gummi eller is. Se hvordan tyngden deles i G∥ og G⊥, og ved hvilken vinkel klossen begynner å gli.',
@@ -163,7 +163,7 @@ const viz: VizMeta[] = [
   {
     id: 'heis',
     chapter: '2',
-    sections: ['2B', '2E'],
+    sections: ['2.2'],
     title: 'Vekt i heis',
     summary:
       'Stå på en badevekt i heisen i en boligblokk og kjør opp, ned eller se hva som skjer når vaierne ryker. Vekta viser N/g, så det er akselerasjonen, ikke farten, som bestemmer hva den viser.',
@@ -190,7 +190,7 @@ const viz: VizMeta[] = [
   {
     id: 'luftmotstand',
     chapter: '2',
-    sections: ['2C', '2F'],
+    sections: ['2.3', '2.4'],
     title: 'Fall med luftmotstand',
     summary:
       'En fallskjermhopper hopper ut av flyet i 4 000 m høyde. Luftmotstanden vokser med farten til den er like stor som tyngden, og kroppsstillingen (hodet først, magen ned eller vingedrakt) bestemmer terminalfarten.',
@@ -219,7 +219,7 @@ const viz: VizMeta[] = [
   {
     id: 'strikkhopp',
     chapter: '2',
-    sections: ['2E', '2F'],
+    sections: ['2.2', '2.4'],
     title: 'Strikkhopp fra en bru',
     summary:
       'Velg masse, strikklengde og stivhet, og følg kreftene, høyden, farten og akselerasjonen fra fritt fall til hopperen er på vei opp igjen. Når er farten størst, og hvor stor blir akselerasjonen?',
@@ -230,7 +230,7 @@ const viz: VizMeta[] = [
     id: 'eks-skraplan',
     kind: 'eksempel',
     chapter: '2',
-    sections: ['2C', '2E'],
+    sections: ['2.3', '2.2'],
     title: 'Kasse som sklir ned en rampe',
     summary: 'Krefter, dekomponering av tyngden, Newtons 2. lov, fart nederst og grensevinkelen, steg for steg.',
     keywords: ['skråplan', 'rampe', 'friksjonstall', 'dekomponering', 'andre lov', 'grensevinkel', 'tidløs likning'],
@@ -240,7 +240,7 @@ const viz: VizMeta[] = [
     id: 'eks-trinse',
     kind: 'eksempel',
     chapter: '2',
-    sections: ['2B', '2C', '2E'],
+    sections: ['2.2', '2.3'],
     title: 'Vogn og lodd over en trinse',
     summary:
       'Krefter på vogna og loddet, akselerasjonen til systemet, snordraget og hvorfor det er mindre enn tyngden til loddet, farten og hva friksjon endrer, steg for steg.',

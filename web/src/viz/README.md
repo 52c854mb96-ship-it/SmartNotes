@@ -1,6 +1,6 @@
 # Visualiseringer
 
-Interaktive forklaringer til hvert kapittel i lærebøkene (ERGO Fysikk 1, Kjemi 1 og Bi 1). De vises på `/fag/:fag/visualiseringer` (oversikt) og `/fag/:fag/visualiseringer/k2-friksjon` (én visualisering), og lenkes fra kapittelsiden og notatsiden (etter delkapittel).
+Interaktive forklaringer til hvert tema i Fysikk 1, Kjemi 1 og Biologi 1 (LK20), ordnet etter SmartNotes' eget oppsett (`server/src/presets.ts`). De vises på `/fag/:fag/visualiseringer` (oversikt) og `/fag/:fag/visualiseringer/k2-friksjon` (én visualisering), og lenkes fra kapittelsiden og notatsiden (etter delkapittel).
 
 **Mønster å følge:** `fysikk/kap02/` (friksjon, kraftpar og koblede klosser), og for kjemi `kjemi/kap01/` og `kjemi/kap03/`. Les dem før du lager nye.
 
@@ -11,7 +11,7 @@ Interaktive forklaringer til hvert kapittel i lærebøkene (ERGO Fysikk 1, Kjemi
 ```
 viz/
   kit/              felles byggeklosser – importer alt fra '../../kit'
-  fysikk/           Fysikk 1 (ERGO Fysikk 1); kjemi/ og biologi/ er bygd opp på samme måte
+  fysikk/           Fysikk 1; kjemi/ og biologi/ er bygd opp på samme måte
     index.ts        samler kapitlene i faget (legg til nye kapitler her)
     kapNN/
       index.ts      liste med VizMeta for kapittelet (rekkefølgen = rekkefølgen på siden)
@@ -28,7 +28,7 @@ viz/
 {
   id: 'friksjon',               // små bokstaver og bindestrek; URL-nøkkel blir k2-friksjon
   chapter: '2',
-  sections: ['2C'],             // delkapitlene i læreboka (se server/src/textbooks.ts); kan være tom i kjemi/biologi
+  sections: ['2.3'],            // deltemaene i SmartNotes' oppsett (server/src/presets.ts); tom i kjemi/biologi
   title: 'Statisk friksjon og glidefriksjon',   // stor forbokstav bare i første ord
   summary: 'Én til to setninger om hva du kan utforske.',
   keywords: ['friksjonstall'],
@@ -176,7 +176,7 @@ Bruk alltid `VIZ.*`, aldri egne fargekoder. Samme størrelse har samme farge i a
 
 ## Regler
 
-- **Språk:** norsk bokmål. Stor forbokstav bare i første ord (aldri STORE BOKSTAVER), ingen emojier. Fysikkbegreper og symboler som i ERGO Fysikk 1: G, N, R (friksjon), L (luftmotstand), S (snordrag), F; v, a, s, t; E<sub>k</sub>, E<sub>p</sub>, W, P, p (bevegelsesmengde), I (impuls).
+- **Språk:** norsk bokmål. Stor forbokstav bare i første ord (aldri STORE BOKSTAVER), ingen emojier. Fysikkbegreper og symboler som i norsk skolefysikk: G, N, R (friksjon), L (luftmotstand), S (snordrag), F; v, a, s, t; E<sub>k</sub>, E<sub>p</sub>, W, P, p (bevegelsesmengde), I (impuls).
 - **Tall:** alltid `fmt()` (desimalkomma). Enheter med mellomrom: `12,0 N`, `1,50 m/s²`. Bruk `·` for gange og `−` (ekte minus) i tekst.
 - **Fysikk:** riktig først. Legg all regning i `model.ts` som rene funksjoner, og test dem (kjente lærebokeksempler, grensetilfeller, bevaringslover). Tilfeldige tall bare der fysikken er statistisk (f.eks. radioaktivt henfall), og da fra en enkel tallgenerator med fast frø, så tester og skjermbilder blir like hver gang.
 - **Ytterverdier:** alle kombinasjoner av glidebryterne skal gi fornuftige figurer uten `NaN`, piler som går ut av figuren eller tekst som overlapper (sjekk med `--extremes`).
@@ -203,7 +203,7 @@ Forhåndsvisningen trenger ikke server eller innlogging, og laster bare kapittel
 
 ## Kjemi
 
-Kjemi 1 (Aschehoug, LK20 KJE01-02). Samme oppbygning og regler som fysikk, med egne byggeklosser i `kjemi/kit/`.
+Kjemi 1 (LK20 KJE01-02). Samme oppbygning og regler som fysikk, med egne byggeklosser i `kjemi/kit/`.
 **Mønster å følge:** `kjemi/kap01/Bindingstype.tsx` (velg grunnstoffer, ΔEN-skala, atomer og ioner) og `kjemi/kap03/Stoffmengde.tsx` (mol-brua, formelfelt, begerglass med partikler, logaritmisk skala).
 
 ```
@@ -285,7 +285,7 @@ node scripts/viz-shot.mjs --port 5173 --fag kjemi --chapter 3 --out /tmp/shots -
 
 ## Biologi
 
-Biologi 1 (Bi 1, Gyldendal, 3. utgave 2021, LK20 BIO01-02). Samme oppbygning og regler som fysikk og kjemi, med egne byggeklosser i `biologi/kit/`.
+Biologi 1 (LK20 BIO01-02). Samme oppbygning og regler som fysikk og kjemi, med egne byggeklosser i `biologi/kit/`.
 **Mønster å følge:** `biologi/kap06/DiffusjonOgOsmose.tsx` (tre forsøk i én visualisering med `Segmented`, partikler som krysser en membran, graf over tid, celler i løsning) og `biologi/kap15/Flokkimmunitet.tsx` (SIR-modell, forhåndsvalg, rutenett med individer, avspilling i døgn).
 
 ```
@@ -297,7 +297,7 @@ viz/biologi/
 
 `import { Slider, Figure, Celle, Mitokondrie, BIO, solveSir, fmtPct } from '../kit';` – `biologi/kit/index.ts` eksporterer også `viz/kit` og de generelle hjelperne fra kjemi-kit-et: `seededRandom`, `placeParticles`, `jiggle`, `Box`, `Txt`, `Select`, `useContainerTextScale`, `Partikler`, `Begerglass`, `mixColor`, `fmtSig`. Bruk dem, ikke kopier dem.
 
-**Delkapitler:** innholdsfortegnelsen i Bi 1 er ikke bekreftet, så alle biologivisualiseringer har `sections: []` (de vises under kapittelet). Kapitlene (`server/src/textbooks.ts`): 1 Liv, 2 Systematikk, 3 Biologisk mangfold, 4 Forvaltning av naturressurser, 5 Cellestrukturer og cellefunksjon, 6 Transport og kommunikasjon i celler, 7 Celledeling, 8 Kommunikasjonssystemer i mennesket, 9 Transportsystemer i mennesket, 10 Transportsystemer i dyr, 11 Transportsystemer i planter, 12 Kommunikasjon og bevegelse i planter, 13 Formering, 14 Mikrobielle og virale sykdommer, 15 Bekjempelse av mikrobielle og virale sykdommer. Skriv kompetansemålene (KM1–KM11) som søkeord, f.eks. `keywords: [..., 'KM5']`.
+**Temaer:** biologi har åtte temaer i SmartNotes' oppsett (`server/src/presets.ts`), uten deltemaer, så alle biologivisualiseringer har `sections: []` (de vises under temaet). Mappene `kap01`–`kap15` er emner; `chapter` i `index.ts` er temaet emnet hører til: kap01–02 → 1, kap03–04 → 2, kap05–06 → 3, kap07 → 4, kap08–09 → 5, kap10–12 → 6, kap13 → 7, kap14–15 → 8. Nøkkelen er `k{tema}-{id}`, så id-ene må være unike innen hvert tema. Skriv kompetansemålene (KM1–KM11) som søkeord, f.eks. `keywords: [..., 'KM5']`.
 
 ### Byggeklosser (`biologi/kit/`)
 

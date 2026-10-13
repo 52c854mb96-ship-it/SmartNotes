@@ -31,7 +31,7 @@ const DIR = `web/src/viz/fysikk/kap${NN}`
 const SECTIONS = CH.sections.map((s) => `${s.code} ${s.title}`).join(', ')
 const OUT = `${SCRATCH}/fysikk-kap${NN}`
 
-const COMMON = `Du jobber med de interaktive visualiseringene i SmartNotes (web/src/viz/), faget fysikk (ERGO Fysikk 1, LK20). Eleven vil ha flere og bedre visualiseringer: praktiske situasjoner fra hverdagen, eksempeloppgaver i eksamensstil og et realistisk utseende som samtidig er maksimalt lett å forstå. Dette er den delen av appen eleven skal bruke mest, fordi den ikke koster penger å bruke. Kvalitet er viktigere enn fart.
+const COMMON = `Du jobber med de interaktive visualiseringene i SmartNotes (web/src/viz/), faget fysikk (Fysikk 1 etter læreplanen LK20). Eleven vil ha flere og bedre visualiseringer: praktiske situasjoner fra hverdagen, eksempeloppgaver i eksamensstil og et realistisk utseende som samtidig er maksimalt lett å forstå. Dette er den delen av appen eleven skal bruke mest, fordi den ikke koster penger å bruke. Kvalitet er viktigere enn fart.
 
 KAPITTEL ${CH.no} ${CH.title}. Delkapitler: ${SECTIONS}. Mappe: ${DIR}/.
 
@@ -49,7 +49,7 @@ ARBEIDSREGLER
   - index.ts endres med små, presise Edit-endringer. Les fila rett før du endrer den.
   - Eksisterende visualiseringer kan bruke og endre model.ts og model.test.ts.
 - Fag:
-  - Hold deg til pensum i ERGO Fysikk 1 (LK20) og delkapitlene over. Ikke ta inn Fysikk 2-stoff (sirkelbevegelse, bevegelsesmengde i to dimensjoner, induksjon, fotoelektrisk effekt, relativitetsteori, kvantefysikk utover Bohrs modell).
+  - Hold deg til læreplanen i Fysikk 1 (LK20) og deltemaene over. Ikke ta inn Fysikk 2-stoff (sirkelbevegelse, bevegelsesmengde i to dimensjoner, induksjon, fotoelektrisk effekt, relativitetsteori, kvantefysikk utover Bohrs modell).
   - Konstanter som i boka: g = 9,81 m/s², c = 3,00 · 10⁸ m/s, h = 6,63 · 10⁻³⁴ J s, e = 1,60 · 10⁻¹⁹ C, u = 1,66 · 10⁻²⁷ kg.
   - Symbolene står i README.
 - Fysikken skal være riktig: all regning i rene funksjoner med vitest-tester (kjente verdier, grensetilfeller, bevaringslover og alle tallsett).
@@ -215,7 +215,7 @@ DIN OPPGAVE: streng kontroll av ${ids.map((i) => `k${CH.no}-${i}`).join(', ')} i
 FAGLIG: les komponenten, modellen og testene, og kjør testene. Sjekk:
 - fysikken og tallene (regn etter selv)
 - at tekst, figur og svar stemmer med hverandre
-- begreper og symboler som i ERGO Fysikk 1
+- begreper og symboler som i norsk skolefysikk
 - at forklaringene retter opp misoppfatninger
 - for eksempeloppgavene: eksamensstil, at oppgaven er original, begrunnede steg, gjeldende siffer og alle tallsettene
 - pensum (ikke Fysikk 2), språk og stor forbokstav bare først

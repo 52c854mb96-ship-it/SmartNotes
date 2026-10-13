@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 6 Transport og kommunikasjon i celler (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 3 (Celler og cellemembraner). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'diffusjon-og-osmose',
-    chapter: '6',
+    chapter: '3',
     sections: [],
     title: 'Diffusjon og osmose',
     summary:
@@ -31,7 +31,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'membrantransport',
-    chapter: '6',
+    chapter: '3',
     sections: [],
     title: 'Transport gjennom cellemembranen',
     summary:
@@ -60,7 +60,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'cellesignalering',
-    chapter: '6',
+    chapter: '3',
     sections: [],
     title: 'Hormoner og signaler til cellen',
     summary:

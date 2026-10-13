@@ -75,7 +75,7 @@ Railway kjører serveren som synkroniserer enhetene og gjør om notatene til PDF
    | `ANTHROPIC_API_KEY` | API-nøkkelen fra steg 2 |
    | `PORT` | `8080` |
 
-   Har du bare Fysikk 1, legger du også inn `SEED_TEXTBOOKS` med verdien `ergo-fysikk-1`. Da legges bare det faget inn.
+   Har du bare Fysikk 1, legger du også inn `SEED_TEXTBOOKS` med verdien `fysikk-1-lk20`. Da legges bare det faget inn.
 
    For API-nøkkelen kan du velge **Seal** i menyen på variabelen. Da kan ingen lese den i Railway etterpå, men den kan byttes ut.
 2. Gå til **Settings → Networking** og trykk **Generate Domain**. Velg port **8080** hvis du blir spurt. Du får en adresse som `https://smartnotes-production-xxxx.up.railway.app`. Lagre den, for dette er adressen til appen.

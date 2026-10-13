@@ -1,5 +1,5 @@
 /**
- * Liv (Bi 1 kapittel 1, KM3 og KM5): organisasjonsnivåene fra molekyl til biosfære med ekte størrelser, og
+ * Liv (KM3 og KM5): organisasjonsnivåene fra molekyl til biosfære med ekte størrelser, og
  * kjennetegnene på liv brukt på grensetilfeller. Ren modell uten React.
  *
  * Kilder for størrelsene (avrundet, som i lærebøkene): DNA-dobbelthelixen er ca. 2 nm bred; mitokondrier er ca. 1–2 µm
@@ -44,7 +44,7 @@ export interface Level {
   id: LevelId;
   /** Navnet på nivået med stor forbokstav. */
   name: string;
-  /** Kort definisjon som i Bi 1. */
+  /** Kort definisjon. */
   definition: string;
   /** Hva nivået er bygd opp av (enhetene fra nivået under). */
   consistsOf: string;
@@ -256,7 +256,7 @@ export type CriterionId = 'celler' | 'stoffskifte' | 'vekst' | 'formering' | 're
 
 export interface Criterion {
   id: CriterionId;
-  /** Kjennetegnet slik det står i læreboka. */
+  /** Kjennetegnet, kort formulert. */
   name: string;
   /** Kort navn til kolonneoverskrifter og brytere. */
   short: string;
@@ -266,7 +266,7 @@ export interface Criterion {
   meaning: string;
 }
 
-/** Kjennetegnene på liv i Bi 1 (rekkefølgen er rekkefølgen i figuren). */
+/** Kjennetegnene på liv, i den rekkefølgen figuren viser dem (vår egen formulering). */
 export const CRITERIA: readonly Criterion[] = [
   { id: 'celler', name: 'Er bygd opp av celler', short: 'Celler', noun: 'celler', meaning: 'Alle levende organismer består av én eller flere celler.' },
   {
@@ -332,7 +332,7 @@ export interface Candidate {
 const m = (mark: Mark, why: string) => ({ mark, why });
 
 /**
- * Kandidatene. Vurderingene følger Bi 1 og vanlige lærebøker; grensetilfellene er bevisst valgt fordi de deler
+ * Kandidatene. Vurderingene følger vanlig biologi på VG2-nivå; grensetilfellene er bevisst valgt fordi de deler
  * kjennetegnene på ulike måter. «Bjørnedyr i dvale» = bjørnedyr (tardigrader, rekken Tardigrada) i tørkedvale
  * (tun-stadium), der stoffskiftet er nede i under 0,01 % av det normale (kryptobiose).
  */

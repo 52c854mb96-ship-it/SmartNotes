@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 10 Transportsystemer i dyr (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 6 (Transport og regulering hos dyr og planter). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'kretslop-hos-dyr',
-    chapter: '10',
+    chapter: '6',
     sections: [],
     title: 'Blodkretsløp hos ulike dyr',
     summary:
@@ -40,7 +40,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'respirasjon-hos-dyr',
-    chapter: '10',
+    chapter: '6',
     sections: [],
     title: 'Gassutveksling og kroppsstørrelse',
     summary:
@@ -71,7 +71,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'gjeller-motstrom',
-    chapter: '10',
+    chapter: '6',
     sections: [],
     title: 'Motstrøm i gjellene',
     summary:

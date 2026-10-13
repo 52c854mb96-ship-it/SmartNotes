@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 2 Systematikk (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 1 (Livets kjennetegn og systematikk). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'klassifisering',
-    chapter: '2',
+    chapter: '1',
     sections: [],
     title: 'Klassifisering fra domene til art',
     summary:
@@ -33,7 +33,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'slektskapstre',
-    chapter: '2',
+    chapter: '1',
     sections: [],
     title: 'Slektskapstre før og etter DNA',
     summary:

@@ -1,5 +1,5 @@
 /**
- * Cellestrukturer og cellefunksjon (Bi 1 kapittel 5, KM3, KM5): ren modell uten React, testet i model.test.ts.
+ * Cellestrukturer og cellefunksjon (KM3, KM5): ren modell uten React, testet i model.test.ts.
  *
  * 1. Cellen: struktur og funksjon for celledelene (lærebokformuleringer), hvilke deler som finnes i dyre-, plante- og
  *    bakterieceller, typiske størrelser, og plassering av etiketter uten overlapp.

@@ -25,7 +25,7 @@ const BIN = `${ROOT}/docs/workflows/bin`
 const BRANCH = args.branch
 const TRAILERS = args.trailers
 const FAG = args.fag // 'kjemi' | 'biologi'
-const BOOK = FAG === 'kjemi' ? 'Kjemi 1 (Aschehoug, LK20)' : 'Biologi 1 (Bi 1, Gyldendal, LK20)'
+const BOOK = FAG === 'kjemi' ? 'Kjemi 1 etter læreplanen LK20' : 'Biologi 1 etter læreplanen LK20'
 const FAGNAVN = FAG === 'kjemi' ? 'kjemi' : 'biologi'
 
 const BUILD_SCHEMA = {
@@ -73,6 +73,8 @@ const FINDINGS_SCHEMA = {
 function common(ch) {
   const NN = ch.no.padStart(2, '0')
   const DIR = `web/src/viz/${FAG}/kap${NN}`
+  // Nøkkelprefikset er temaet i SmartNotes' oppsett (server/src/presets.ts); i biologi har et tema flere mapper.
+  const K = ch.topic ?? ch.no
   const OUT = `${SCRATCH}/${FAG}-kap${NN}`
   return {
     NN,
@@ -80,7 +82,7 @@ function common(ch) {
     OUT,
     text: `Du jobber med de interaktive visualiseringene i SmartNotes (web/src/viz/), faget ${FAGNAVN} (${BOOK}). Eleven vil ha bedre visualiseringer: et realistisk utseende som samtidig er maksimalt lett å forstå, praktiske situasjoner og (der det passer) eksempeloppgaver i eksamensstil. Kvalitet er viktigere enn fart.
 
-KAPITTEL ${ch.no} ${ch.title}. Mappe: ${DIR}/. Delkapitlene i dette faget er ikke bekreftet (bortsett fra kjemi kapittel 1), så nye oppføringer bruker sections: [] (kjemi kapittel 1: velg blant 1.1–1.5 som de eksisterende).
+KAPITTEL ${ch.no} ${ch.title}. Mappe: ${DIR}/. Faget har ingen deltemaer i SmartNotes' oppsett, så oppføringer bruker sections: [] og chapter: '${K}'.
 
 LES FØRST (og spar på lesingen, bruksgrensen er knapp):
 - web/src/viz/README.md: «Illustrert realisme (scene-kit)», «Eksempeloppgaver», «Regler» og avsnittet om ${FAG === 'kjemi' ? 'Kjemi' : 'Biologi'} (byggeklosser, farger, konvensjoner, fallgruver).
@@ -97,7 +99,7 @@ ARBEIDSREGLER
   - index.ts endres med små, presise Edit-endringer. Les fila rett før.
   - Eksisterende visualiseringer kan bruke og endre model.ts.
 - Fag:
-  - Hold deg til pensum i ${BOOK} og kompetansemålene (se server/src/textbooks.ts).
+  - Hold deg til pensum i ${BOOK} og kompetansemålene (se server/src/presets.ts).
   - Begreper og konvensjoner som i README-avsnittet for faget.
   - Faglig riktig først: all regning i rene funksjoner med vitest-tester.
 - Språk: bokmål, stor forbokstav bare først, ingen emojier, desimalkomma via fmt eller fmtSig, ekte minus (−).
@@ -106,8 +108,8 @@ ARBEIDSREGLER
 - Verktøy: maskinen deles av mange agenter, så bruk disse.
   - Typesjekk: ${BIN}/tsc-sjekk.sh src/viz/${FAG}/kap${NN}
   - Tester: cd ${ROOT}/web && npx vitest run src/viz/${FAG}/kap${NN}
-  - Skjermbilder: ${BIN}/shot.sh --fag ${FAG} --ids k${ch.no}-a,k${ch.no}-b --out ${OUT}/<runde>. Det gir lyst og mørkt tema, i 1000 og 390 px. --extremes setter glidebryterne til min og maks, og --steps gir hvert steg i en eksempeloppgave. Vite kjører på port 5173.
-  - Forhåndsvisning: http://localhost:5173/viz-preview.html?fag=${FAG}&id=k${ch.no}-<id>&theme=dark
+  - Skjermbilder: ${BIN}/shot.sh --fag ${FAG} --ids k${K}-a,k${K}-b --out ${OUT}/<runde>. Det gir lyst og mørkt tema, i 1000 og 390 px. --extremes setter glidebryterne til min og maks, og --steps gir hvert steg i en eksempeloppgave. Vite kjører på port 5173.
+  - Forhåndsvisning: http://localhost:5173/viz-preview.html?fag=${FAG}&id=k${K}-<id>&theme=dark
   - Se på skjermbildene med Read-verktøyet, og vurder dem som en kritisk illustratør og lærer. Fagtemaet (${FAG === 'kjemi' ? '«Tavle», mørkegrønn flate i mørkt tema' : '«Salvie», varmt papir og dempet grønt'}) gjelder i forhåndsvisningen.
 - Ikke commit. Et eget steg gjør det.`,
   }
@@ -117,7 +119,7 @@ function polishPrompt(ch, id) {
   const c = common(ch)
   return `${c.text}
 
-DIN OPPGAVE: visuell finpuss av den eksisterende visualiseringen «${id}» (nøkkel k${ch.no}-${id}) i illustrert stil.
+DIN OPPGAVE: visuell finpuss av den eksisterende visualiseringen «${id}» (nøkkel k${K}-${id}) i illustrert stil.
 - Behold id-en, læringsmålet, modellen og testene. Rett feil hvis du finner noen.
 - Løft utseendet:
   - ekte utstyr og situasjoner der det finnes en scene, for eksempel en labbenk, en innsjø eller et menneske
@@ -138,7 +140,7 @@ function newPrompt(ch, item) {
   if (item.kind === 'eksempel') {
     return `${c.text}
 
-DIN OPPGAVE: lag eksempeloppgaven «${item.id}» (nøkkel k${ch.no}-${item.id}, kind: 'eksempel'): ${item.idea}
+DIN OPPGAVE: lag eksempeloppgaven «${item.id}» (nøkkel k${K}-${item.id}, kind: 'eksempel'): ${item.idea}
 - Følg «Eksempeloppgaver» i README og mønsteret EksSkraplan.tsx:
   - egen oppgavetekst i eksamensstil med en konkret situasjon
   - 3–5 deloppgaver som blir gradvis vanskeligere
@@ -156,7 +158,7 @@ Svar med id, status, filer, sammendrag og det som er uløst.`
   }
   return `${c.text}
 
-DIN OPPGAVE: lag den nye visualiseringen «${item.id}» (nøkkel k${ch.no}-${item.id}): ${item.idea}
+DIN OPPGAVE: lag den nye visualiseringen «${item.id}» (nøkkel k${K}-${item.id}): ${item.idea}
 - En praktisk situasjon fra hverdagen som gjør faget konkret.
 - Interaktiv: glidebrytere, valg, avspilling eller klikk. Explain endrer seg med tilstanden og retter opp misoppfatninger.
 - Illustrert realisme.
@@ -205,7 +207,7 @@ async function doChapter(ch) {
 
   const faglig = (ids) => `${c.text}
 
-DIN OPPGAVE: streng faglig kontroll av ${ids.map((i) => `k${ch.no}-${i}`).join(', ')}. Du er ${FAGNAVN}lærer på VG2 og sensor. Ikke rett noe selv. Lag en liste med funn.
+DIN OPPGAVE: streng faglig kontroll av ${ids.map((i) => `k${K}-${i}`).join(', ')}. Du er ${FAGNAVN}lærer på VG2 og sensor. Ikke rett noe selv. Lag en liste med funn.
 Les koden og testene, og kjør testene. Sjekk:
 - at det er faglig riktig (regn etter)
 - begreper, konvensjoner og symboler
@@ -219,8 +221,8 @@ Byggerapportene: ${reports}`
 
   const visuell = (ids) => `${c.text}
 
-DIN OPPGAVE: streng visuell kontroll av ${ids.map((i) => `k${ch.no}-${i}`).join(', ')}. Du er en erfaren lærebokillustratør og UX-designer. Ikke rett noe selv. Lag en liste med funn.
-Ta skjermbilder: ${BIN}/shot.sh --fag ${FAG} --ids ${ids.map((i) => `k${ch.no}-${i}`).join(',')} --extremes --steps --out ${c.OUT}/visuell-${ids[0]}. Se på hvert bilde. Sjekk:
+DIN OPPGAVE: streng visuell kontroll av ${ids.map((i) => `k${K}-${i}`).join(', ')}. Du er en erfaren lærebokillustratør og UX-designer. Ikke rett noe selv. Lag en liste med funn.
+Ta skjermbilder: ${BIN}/shot.sh --fag ${FAG} --ids ${ids.map((i) => `k${K}-${i}`).join(',')} --extremes --steps --out ${c.OUT}/visuell-${ids[0]}. Se på hvert bilde. Sjekk:
 - realisme og et profesjonelt uttrykk
 - tydelighet
 - overlapp, og ting som går ut av figuren
@@ -249,7 +251,7 @@ Byggerapportene: ${reports}`
     const fixed = await agent(
       `${c.text}
 
-DIN OPPGAVE: rett funnene fra kontrollen av ${ids.map((i) => `k${ch.no}-${i}`).join(', ')} (id «kapittel» gjelder hele kapittelet).
+DIN OPPGAVE: rett funnene fra kontrollen av ${ids.map((i) => `k${K}-${i}`).join(', ')} (id «kapittel» gjelder hele kapittelet).
 - Rett alle blokkerende funn.
 - Rett også forbedringene som gjør resultatet tydelig bedre. Begrunn kort de du lar være.
 - Kontrollørene kan ta feil: er du sikker på at et funn er feil, så forklar hvorfor i stedet for å rette.
@@ -266,7 +268,7 @@ Svar kort med hva du rettet og hva du lot være.`,
 
 DIN OPPGAVE: sluttsjekk av ${FAGNAVN} kapittel ${ch.no} før commit.
 1. Kjør typesjekk og testene for kapittelet, og rett feil i kapittelmappa.
-2. Ta skjermbilder: ${BIN}/shot.sh --fag ${FAG} --chapter ${ch.no} --extremes --out ${c.OUT}/slutt. Det skal ikke være noen FEIL (konsollfeil, NaN eller sidelengs scrolling). Rett tydelige feil.
+2. Ta skjermbilder: ${BIN}/shot.sh --fag ${FAG} --chapter ${K} --extremes --out ${c.OUT}/slutt. Det skal ikke være noen FEIL (konsollfeil, NaN eller sidelengs scrolling). Rett tydelige feil.
 3. Sjekk at rekkefølgen i index.ts er fornuftig og at det ikke ligger løse filer igjen.
 4. Commit og push kapittelet. Bare din mappe skal med, og andre kapitler kan committe samtidig (derfor løkka). Heredoc-en er commit-meldingen: tittel, tom linje og signaturlinjene. Kjør nøyaktig dette:
 cd ${ROOT}

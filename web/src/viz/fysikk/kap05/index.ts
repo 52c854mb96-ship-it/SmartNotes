@@ -5,7 +5,7 @@ const viz: VizMeta[] = [
   {
     id: 'gassmodell',
     chapter: '5',
-    sections: ['5A', '5B'],
+    sections: ['5.1'],
     title: 'Gassmodell: trykk og temperatur',
     summary:
       'Varm opp eller klem sammen en gass og se hvordan partiklene som støter mot stempelet, gir trykket. Følg linjene ned til det absolutte nullpunktet.',
@@ -15,7 +15,7 @@ const viz: VizMeta[] = [
   {
     id: 'blanding',
     chapter: '5',
-    sections: ['5C', '5D'],
+    sections: ['5.2'],
     title: 'Blanding og termisk likevekt',
     summary:
       'Bland varmt og kaldt vann, eller slipp en varm metallbit i vann. Energien det varme avgir, mottar det kalde, helt til temperaturene er like.',
@@ -25,7 +25,7 @@ const viz: VizMeta[] = [
   {
     id: 'varmekapasitet',
     chapter: '5',
-    sections: ['5D'],
+    sections: ['5.2'],
     title: 'Spesifikk varmekapasitet',
     summary: 'Varm opp to stoffer med samme masse og samme effekt, og se hvorfor vann bruker mye lengre tid enn metallene. Q = c·m·ΔT.',
     keywords: ['varmekapasitet', 'Q = cmΔT', 'effekt', 'oppvarming', 'kokepunkt', 'fordampingsvarme', 'vannkoker'],
@@ -34,7 +34,7 @@ const viz: VizMeta[] = [
   {
     id: 'forste-lov',
     chapter: '5',
-    sections: ['5E'],
+    sections: ['5.3'],
     title: 'Termofysikkens første lov',
     summary:
       'Tilfør eller ta bort varme, og press stempelet inn eller la gassen skyve det ut. Se hvordan ΔU = W + Q bestemmer om gassen blir varmere.',

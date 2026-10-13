@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 4 Forvaltning av naturressurser (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 2 (Økologi, biologisk mangfold og forvaltning). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'fangst-gjenfangst',
-    chapter: '4',
+    chapter: '2',
     sections: [],
     title: 'Fangst og gjenfangst',
     summary:
@@ -27,7 +27,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'baerekraftig-hosting',
-    chapter: '4',
+    chapter: '2',
     sections: [],
     title: 'Bærekraftig høsting',
     summary:
@@ -54,7 +54,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'klima-og-utbredelse',
-    chapter: '4',
+    chapter: '2',
     sections: [],
     title: 'Klimaendringer og utbredelse',
     summary:

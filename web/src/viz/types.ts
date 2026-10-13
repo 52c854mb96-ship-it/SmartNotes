@@ -8,9 +8,9 @@ import type { SubjectProfile } from '@smartnotes/shared';
 export interface VizMeta {
   /** Kort id innen kapittelet, små bokstaver og bindestrek, f.eks. «friksjon». */
   id: string;
-  /** Kapittelnummer i læreboka til faget (f.eks. ERGO Fysikk 1), f.eks. «2». */
+  /** Temanummeret i SmartNotes' eget oppsett for faget (server/src/presets.ts), f.eks. «2». */
   chapter: string;
-  /** Delkapitlene visualiseringen hører til, f.eks. ["2C"]. */
+  /** Deltemaene visualiseringen hører til, f.eks. ["2.3"]. */
   sections: string[];
   /** Kort tittel, stor forbokstav bare i første ord: «Statisk friksjon og glidefriksjon». */
   title: string;

@@ -2,7 +2,7 @@
 import { nuclideText } from '../kap07/elements';
 import { seededRandom } from '../kap07/random';
 
-/* ---------- Konstanter med verdiene i ERGO Fysikk 1 ---------- */
+/* ---------- Konstanter (vanlige tabellverdier) ---------- */
 
 /** Atommasseenheten (kg). */
 export const U_KG = 1.66e-27;

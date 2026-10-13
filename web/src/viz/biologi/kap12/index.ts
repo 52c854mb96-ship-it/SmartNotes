@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 12 Kommunikasjon og bevegelse i planter (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 6 (Transport og regulering hos dyr og planter). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'fototropisme',
-    chapter: '12',
+    chapter: '6',
     sections: [],
     title: 'Auksin, fototropisme og gravitropisme',
     summary:
@@ -32,7 +32,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'fotoperiode',
-    chapter: '12',
+    chapter: '6',
     sections: [],
     title: 'Fotoperiode og blomstring',
     summary:

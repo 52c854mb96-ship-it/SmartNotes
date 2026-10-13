@@ -1,7 +1,7 @@
 /** Ren fysikk for kapittel 7 Atomfysikk (ingen React), så den kan testes for seg. */
 import { elementName, elementSymbol } from './elements';
 
-/* ---------- Konstanter med verdiene i ERGO Fysikk 1 ---------- */
+/* ---------- Konstanter (vanlige tabellverdier) ---------- */
 
 /** Plancks konstant (J·s). */
 export const H_PLANCK = 6.63e-34;

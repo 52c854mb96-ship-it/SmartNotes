@@ -8,7 +8,7 @@ import sharp from 'sharp';
  */
 
 const PASSWORD = 'e2e-passord';
-/** Serveren legger inn ERGO Fysikk 1 ved første oppstart; falsk Claude velger første kapittel. */
+/** Serveren legger inn Fysikk 1 (eget oppsett etter LK20) ved første oppstart; falsk Claude velger første tema. */
 const CHAPTER = /Rettlinjet bevegelse/;
 /** Konvertering + synk kan ta litt tid på en treg CI-maskin. */
 const SLOW = { timeout: 90_000 };

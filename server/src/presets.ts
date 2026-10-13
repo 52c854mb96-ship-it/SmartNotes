@@ -1,16 +1,24 @@
 import type { ChapterInput, CompetenceAim, Section, SubjectProfile } from '@smartnotes/shared';
 
-/** Kjente lærebøker som kan legges inn som startoppsett (fag + kapitler + delkapitler + kompetansemål). */
-export interface TextbookPreset {
+/**
+ * Startoppsett for et fag etter læreplanen (LK20): kompetansemålene fra Udir og SmartNotes' egne temaer og deltemaer,
+ * skrevet ut fra målene. Oppsettet bygger ikke på noen lærebok; hver elev kan importere innholdsfortegnelsen i sin egen
+ * lærebok privat (faginnstillingene), som da kobles til de samme målene.
+ *
+ * Kompetansemålene er offentlige (læreplanene er forskrift, åndsverkloven § 14) og tilgjengelige fra Udir under
+ * Norsk lisens for offentlige data (NLOD). Se «Om SmartNotes» i innstillingene.
+ */
+export interface SubjectPreset {
   id: string;
+  /** Tidligere id-er for samme oppsett, så en database som allerede har det, ikke får det på nytt. */
+  aliases: string[];
   subjectName: string;
-  textbook: string;
   profile: SubjectProfile;
   aims: CompetenceAim[];
   chapters: (ChapterInput & { sections: Section[] })[];
 }
 
-/** Kompetansemål i Fysikk 1 (FYS01-02, LK20). Kilde: Udir, via Momentum (context/kompetansemaal.md). */
+/** Kompetansemål i Fysikk 1 (FYS01-02, LK20). Ordlyd fra Udir; bør sjekkes ord for ord mot Grep (data.udir.no). */
 const FYSIKK1_AIMS: CompetenceAim[] = [
   { code: 'KM1', text: 'planlegge og gjennomføre forsøk, analysere data og trekke konklusjoner', cross: true },
   { code: 'KM2', text: 'vurdere, bruke og lage modeller til å beskrive og forutsi fysiske fenomener', cross: true },
@@ -178,16 +186,12 @@ const BIOLOGI1_AIMS: CompetenceAim[] = [
 
 const s = (code: string, title: string, aims: string[]): Section => ({ code, title, aims });
 
-export const TEXTBOOKS: Record<string, TextbookPreset> = {
-  /**
-   * ERGO Fysikk 1 (Aschehoug, fagfornyelsen/LK20, 2021). Kapitler og delkapitler fra innholdsfortegnelsen,
-   * koblingen til kompetansemål fra Momentum (context/pensum-temaer.md og scripts/seed.ts).
-   * 7D Drivhuseffekten og 7E Atomets historie er ute av pensum og er ikke tatt med.
-   */
-  'ergo-fysikk-1': {
-    id: 'ergo-fysikk-1',
+export const SUBJECT_PRESETS: Record<string, SubjectPreset> = {
+  /** Fysikk 1: ti temaer i den rekkefølgen læreplanen bygger opp faget, med egne deltemaer. */
+  'fysikk-1-lk20': {
+    id: 'fysikk-1-lk20',
+    aliases: ['ergo-fysikk-1'],
     subjectName: 'Fysikk 1',
-    textbook: 'ERGO Fysikk 1',
     profile: 'physics',
     aims: FYSIKK1_AIMS,
     chapters: [
@@ -195,166 +199,134 @@ export const TEXTBOOKS: Record<string, TextbookPreset> = {
         number: '1',
         title: 'Rettlinjet bevegelse',
         sections: [
-          s('1A', 'Fysikk som målefag', ['KM1', 'KM2']),
-          s('1B', 'På rett vei', ['KM4']),
-          s('1C', 'Grafisk framstilling', ['KM4']),
-          s('1D', 'Konstant akselerasjon', ['KM4', 'KM5']),
-          s('1E', 'Simulering av bevegelse', ['KM1', 'KM4', 'KM6']),
+          s('1.1', 'Måling, enheter og usikkerhet', ['KM1', 'KM2']),
+          s('1.2', 'Posisjon, fart og bevegelsesgrafer', ['KM4']),
+          s('1.3', 'Bevegelse med konstant akselerasjon', ['KM4', 'KM5']),
+          s('1.4', 'Numerisk modellering av bevegelse', ['KM1', 'KM4', 'KM6']),
         ],
       },
       {
         number: '2',
-        title: 'Krefter',
+        title: 'Krefter og Newtons lover',
         sections: [
-          s('2A', 'Krefter', ['KM5']),
-          s('2B', 'Newtons 1. lov', ['KM5']),
-          s('2C', 'Friksjon og luftmotstand', ['KM5']),
-          s('2D', 'Newtons 3. lov', ['KM5']),
-          s('2E', 'Newtons 2. lov', ['KM5']),
-          s('2F', 'Når kreftene ikke er konstante', ['KM5', 'KM6']),
+          s('2.1', 'Kraftbegrepet og kraftdiagrammer', ['KM5']),
+          s('2.2', 'Newtons lover', ['KM5']),
+          s('2.3', 'Friksjon og luftmotstand', ['KM5']),
+          s('2.4', 'Krefter som varierer', ['KM5', 'KM6']),
         ],
       },
       {
         number: '3',
-        title: 'Mekanisk energi',
+        title: 'Arbeid og energi',
         sections: [
-          s('3A', 'Energi', ['KM5', 'KM8']),
-          s('3B', 'Arbeid', ['KM5', 'KM8']),
-          s('3C', 'Potensiell energi', ['KM5', 'KM7']),
-          s('3D', 'Kinetisk energi', ['KM5', 'KM7']),
-          s('3E', 'Bevaring av mekanisk energi', ['KM5', 'KM7', 'KM8']),
-          s('3F', 'Endring i mekanisk energi', ['KM5', 'KM7', 'KM8']),
+          s('3.1', 'Energi, arbeid og effekt', ['KM5', 'KM8']),
+          s('3.2', 'Kinetisk og potensiell energi', ['KM5', 'KM7']),
+          s('3.3', 'Bevaring og tap av mekanisk energi', ['KM5', 'KM7', 'KM8']),
         ],
       },
       {
         number: '4',
-        title: 'Kollisjoner og eksplosjoner',
+        title: 'Bevegelsesmengde og støt',
         sections: [
-          s('4A', 'Bevegelsesmengde', ['KM7']),
-          s('4B', 'Impulsloven', ['KM7']),
-          s('4C', 'Bevaring av bevegelsesmengde', ['KM7']),
-          s('4D', 'Ulike typer sentrale støt', ['KM7', 'KM8']),
+          s('4.1', 'Bevegelsesmengde og impuls', ['KM7']),
+          s('4.2', 'Bevaring av bevegelsesmengde', ['KM7']),
+          s('4.3', 'Elastiske og uelastiske støt', ['KM7', 'KM8']),
         ],
       },
       {
         number: '5',
-        title: 'Termisk energi',
+        title: 'Varme og termodynamikk',
         sections: [
-          s('5A', 'Trykk', ['KM10']),
-          s('5B', 'Temperatur', ['KM10']),
-          s('5C', 'Varme og indre energi', ['KM8', 'KM10']),
-          s('5D', 'Varmekapasitet', ['KM8', 'KM10']),
-          s('5E', 'Termofysikkens første lov', ['KM8', 'KM10']),
-          s('5F', 'Termofysikkens andre lov', ['KM3', 'KM8', 'KM10']),
+          s('5.1', 'Trykk og temperatur', ['KM10']),
+          s('5.2', 'Varme, indre energi og varmekapasitet', ['KM8', 'KM10']),
+          s('5.3', 'Termodynamikkens lover og virkningsgrad', ['KM3', 'KM8', 'KM10']),
         ],
       },
       {
         number: '6',
         title: 'Bølger og stråling',
-        sections: [s('6A', 'Bølger', ['KM2']), s('6B', 'Strålingslovene', ['KM11']), s('6C', 'Strålingsbalansen', ['KM3', 'KM12'])],
+        sections: [
+          s('6.1', 'Bølger og bølgeegenskaper', ['KM2']),
+          s('6.2', 'Stråling fra legemer med ulik temperatur', ['KM11']),
+          s('6.3', 'Jordas strålingsbalanse og klima', ['KM3', 'KM12']),
+        ],
       },
       {
         number: '7',
         title: 'Atomfysikk',
-        sections: [
-          s('7A', 'Atomets sammensetning', ['KM13']),
-          s('7B', 'Bohrs atommodell', ['KM2', 'KM13']),
-          s('7C', 'Emisjon og absorpsjon', ['KM13']),
-        ],
+        sections: [s('7.1', 'Atommodeller', ['KM2', 'KM13']), s('7.2', 'Emisjon, absorpsjon og spektre', ['KM13'])],
       },
       {
         number: '8',
         title: 'Kjernefysikk',
         sections: [
-          s('8A', 'Atomkjernen', ['KM2']),
-          s('8B', 'Bevaringslover for kjernereaksjoner', ['KM7', 'KM8']),
-          s('8C', 'Fisjon', ['KM3', 'KM8']),
-          s('8D', 'Fusjon', ['KM3', 'KM8', 'KM14']),
+          s('8.1', 'Atomkjernen, radioaktivitet og kjernereaksjoner', ['KM2', 'KM7', 'KM8']),
+          s('8.2', 'Fisjon og fusjon som energikilder', ['KM3', 'KM8', 'KM14']),
         ],
       },
       {
         number: '9',
         title: 'Astrofysikk',
-        sections: [s('9A', 'Verdensrommet', ['KM2']), s('9B', 'En stjerne blir til', ['KM14']), s('9C', 'Stjernedød', ['KM14'])],
+        sections: [
+          s('9.1', 'Universet, avstander og observasjoner', ['KM2']),
+          s('9.2', 'Stjerners liv og dannelsen av grunnstoffer', ['KM14']),
+        ],
       },
       {
         number: '10',
-        title: 'Elektrisitet',
+        title: 'Elektriske kretser',
         sections: [
-          s('10A', 'Elektrisk strøm', ['KM9']),
-          s('10B', 'Elektrisk spenning og resistans', ['KM9']),
-          s('10C', 'Koblinger av motstander', ['KM9']),
-          s('10D', 'Elektrisk energi og effekt', ['KM9']),
+          s('10.1', 'Ladning, strøm og spenning', ['KM9']),
+          s('10.2', 'Resistans og koblinger av motstander', ['KM9']),
+          s('10.3', 'Elektrisk energi og effekt', ['KM9']),
         ],
       },
     ],
   },
 
-  /**
-   * Kjemi 1 (Aschehoug, LK20, 2021; Haraldsrud, Sandtorv, Hushovd og Brandt). Kapitlene er godt belagt i forlagets
-   * egne sider og skolers planer. Delkapitlene er bare funnet for kapittel 1 (1.3 er mest usikker), og resten er ikke
-   * gjettet: eleven legger dem inn fra innholdsfortegnelsen (bilde) i faginnstillingene, som også kobler dem til målene.
-   * Kapittel 2 kalles «Periodiske egenskaper og reaksjoner» ett sted hos forlaget, men «Egenskaper og reaksjoner» i
-   * alle andre kilder.
-   */
-  'aschehoug-kjemi-1': {
-    id: 'aschehoug-kjemi-1',
+  /** Kjemi 1: åtte temaer etter læreplanen. Deltemaene legger eleven inn fra sin egen lærebok. */
+  'kjemi-1-lk20': {
+    id: 'kjemi-1-lk20',
+    aliases: ['aschehoug-kjemi-1'],
     subjectName: 'Kjemi 1',
-    textbook: 'Kjemi 1 (Aschehoug)',
     profile: 'chemistry',
     aims: KJEMI1_AIMS,
     chapters: [
-      {
-        number: '1',
-        title: 'Kjemiske bindinger',
-        sections: [
-          s('1.1', 'Hva er kjemi?', ['KM1', 'KM5']),
-          s('1.2', 'Atomer', ['KM6', 'KM11', 'KM5']),
-          s('1.3', 'Periodesystemet', ['KM6']),
-          s('1.4', 'Sterke bindinger', ['KM7', 'KM1']),
-          s('1.5', 'Svake bindinger', ['KM7', 'KM14']),
-        ],
-      },
-      { number: '2', title: 'Egenskaper og reaksjoner', sections: [] },
-      { number: '3', title: 'Støkiometri', sections: [] },
-      { number: '4', title: 'Termokjemi', sections: [] },
-      { number: '5', title: 'Organisk kjemi', sections: [] },
-      { number: '6', title: 'Likevekter', sections: [] },
-      { number: '7', title: 'Syrer og baser', sections: [] },
-      { number: '8', title: 'Miljøanalyse', sections: [] },
+      { number: '1', title: 'Atomer, periodesystemet og kjemiske bindinger', sections: [] },
+      { number: '2', title: 'Stoffers egenskaper og reaksjonstyper', sections: [] },
+      { number: '3', title: 'Stoffmengde og kjemiske beregninger', sections: [] },
+      { number: '4', title: 'Energi i kjemiske reaksjoner', sections: [] },
+      { number: '5', title: 'Organiske forbindelser', sections: [] },
+      { number: '6', title: 'Kjemisk likevekt', sections: [] },
+      { number: '7', title: 'Syrer, baser og pH', sections: [] },
+      { number: '8', title: 'Kjemisk analyse og miljø', sections: [] },
     ],
   },
 
-  /**
-   * Bi 1 (Gyldendal, 3. utgave 2021, LK20; Grønlien, Tandberg og Glørstad Tsigaridas). De 15 kapitlene er belagt av
-   * flere uavhengige elevkilder (middels sikkerhet; titlene på kapittel 8, 13 og 15 kan være litt annerledes i boka).
-   * Delkapitlene er bare funnet bruddstykkevis og er derfor ikke lagt inn: eleven importerer innholdsfortegnelsen.
-   */
-  'gyldendal-bi-1': {
-    id: 'gyldendal-bi-1',
+  /** Biologi 1: åtte temaer etter læreplanen. Deltemaene legger eleven inn fra sin egen lærebok. */
+  'biologi-1-lk20': {
+    id: 'biologi-1-lk20',
+    aliases: ['gyldendal-bi-1'],
     subjectName: 'Biologi 1',
-    textbook: 'Bi 1 (Gyldendal)',
     profile: 'biology',
     aims: BIOLOGI1_AIMS,
     chapters: [
-      { number: '1', title: 'Liv', sections: [] },
-      { number: '2', title: 'Systematikk', sections: [] },
-      { number: '3', title: 'Biologisk mangfold', sections: [] },
-      { number: '4', title: 'Forvaltning av naturressurser', sections: [] },
-      { number: '5', title: 'Cellestrukturer og cellefunksjon', sections: [] },
-      { number: '6', title: 'Transport og kommunikasjon i celler', sections: [] },
-      { number: '7', title: 'Celledeling', sections: [] },
-      { number: '8', title: 'Kommunikasjonssystemer i mennesket', sections: [] },
-      { number: '9', title: 'Transportsystemer i mennesket', sections: [] },
-      { number: '10', title: 'Transportsystemer i dyr', sections: [] },
-      { number: '11', title: 'Transportsystemer i planter', sections: [] },
-      { number: '12', title: 'Kommunikasjon og bevegelse i planter', sections: [] },
-      { number: '13', title: 'Formering', sections: [] },
-      { number: '14', title: 'Mikrobielle og virale sykdommer', sections: [] },
-      { number: '15', title: 'Bekjempelse av mikrobielle og virale sykdommer', sections: [] },
+      { number: '1', title: 'Livets kjennetegn og systematikk', sections: [] },
+      { number: '2', title: 'Økologi, biologisk mangfold og forvaltning', sections: [] },
+      { number: '3', title: 'Celler og cellemembraner', sections: [] },
+      { number: '4', title: 'Celledeling', sections: [] },
+      { number: '5', title: 'Mennesket: regulering og transport', sections: [] },
+      { number: '6', title: 'Transport og regulering hos dyr og planter', sections: [] },
+      { number: '7', title: 'Formering', sections: [] },
+      { number: '8', title: 'Sykdom, smitte og immunforsvar', sections: [] },
     ],
   },
 };
 
-/** Læreboksettene som legges inn som standard (rekkefølgen blir rekkefølgen i sidepanelet). */
-export const DEFAULT_SEED_TEXTBOOKS: string[] = Object.keys(TEXTBOOKS);
+/** Oppsettene som legges inn som standard (rekkefølgen blir rekkefølgen i sidepanelet). */
+export const DEFAULT_SEED_PRESETS: string[] = Object.keys(SUBJECT_PRESETS);
+
+/** Oppsettet med denne id-en, også under en tidligere id (for eksempel i SEED_TEXTBOOKS fra før). */
+export function findPreset(id: string): SubjectPreset | undefined {
+  return SUBJECT_PRESETS[id] ?? Object.values(SUBJECT_PRESETS).find((p) => p.aliases.includes(id));
+}

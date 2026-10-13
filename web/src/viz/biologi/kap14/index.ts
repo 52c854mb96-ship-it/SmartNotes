@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 14 Mikrobielle og virale sykdommer (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 8 (Sykdom, smitte og immunforsvar). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'bakterievekst',
-    chapter: '14',
+    chapter: '8',
     sections: [],
     title: 'Bakterievekst og temperatur',
     summary:
@@ -32,7 +32,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'smittespredning',
-    chapter: '14',
+    chapter: '8',
     sections: [],
     title: 'Smittespredning og R₀',
     summary:
@@ -59,7 +59,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'virusformering',
-    chapter: '14',
+    chapter: '8',
     sections: [],
     title: 'Hvordan virus formerer seg',
     summary:

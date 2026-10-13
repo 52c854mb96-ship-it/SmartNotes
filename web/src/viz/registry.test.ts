@@ -13,13 +13,12 @@ describe('registeret for visualiseringer', () => {
       expect(e.profile).toBe(profile);
       expect(e.id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
       expect(e.chapter).toMatch(/^\d+$/);
-      // Fysikk har bekreftede delkapitler. I kjemi og biologi kan listen være tom til innholdsfortegnelsen er bekreftet,
-      // og da vises visualiseringen etter kapittelet.
+      // Fysikk er koblet til deltemaene i SmartNotes' eget oppsett (server/src/presets.ts). Kjemi og biologi har ingen
+      // deltemaer der, og da vises visualiseringen etter temaet.
       if (profile === 'physics') expect(e.sections.length).toBeGreaterThan(0);
-      // «2C» i ERGO Fysikk 1, «3.2» eller «3A» i de andre bøkene: koden starter med kapittelnummeret,
-      // og minst ett av delkapitlene hører til kapittelet visualiseringen står under.
-      for (const code of e.sections) expect(code).toMatch(/^\d+([A-Z]|\.\d+)$/);
-      if (e.sections.length) expect(e.sections.some((code) => code.replace(/([A-Z]|\.\d+)$/, '') === e.chapter)).toBe(true);
+      // «2.3»: koden starter med temanummeret, og minst ett av deltemaene hører til temaet visualiseringen står under.
+      for (const code of e.sections) expect(code).toMatch(/^\d+\.\d+$/);
+      if (e.sections.length) expect(e.sections.some((code) => code.replace(/\.\d+$/, '') === e.chapter)).toBe(true);
       expect(e.title).not.toMatch(/^[A-ZÆØÅ ]{4,}$/);
       // Eksempeloppgaver har id som starter med «eks-», og bare de.
       expect(e.id.startsWith('eks-')).toBe(e.kind === 'eksempel');
@@ -40,8 +39,8 @@ describe('registeret for visualiseringer', () => {
     expect(hasVisualizations(null)).toBe(false);
     expect(getViz('physics', 'k2-friksjon')?.title).toBe('Statisk friksjon og glidefriksjon');
     expect(getViz(undefined, 'k2-friksjon')).toBeUndefined();
-    expect(vizForSection('physics', '2C').map((e) => e.key)).toContain('k2-friksjon');
-    expect(vizForSection('chemistry', '2C')).toEqual([]);
+    expect(vizForSection('physics', '2.3').map((e) => e.key)).toContain('k2-friksjon');
+    expect(vizForSection('chemistry', '2.3')).toEqual([]);
     expect(vizForSection('physics', null)).toEqual([]);
   });
 });

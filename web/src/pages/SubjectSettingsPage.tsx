@@ -116,7 +116,7 @@ function SubjectForm({ subject, online }: { subject: Subject; online: boolean })
           <input
             value={textbook}
             onChange={(e) => setTextbook(e.target.value)}
-            placeholder="F.eks. ERGO Fysikk 1"
+            placeholder="F.eks. navnet på læreboka di"
             maxLength={200}
             disabled={!online}
           />

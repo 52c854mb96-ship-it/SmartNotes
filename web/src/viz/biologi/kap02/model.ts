@@ -1,5 +1,5 @@
 /**
- * Systematikk (Bi 1 kapittel 2, KM2): klassifisering av 18 organismer i de åtte hovednivåene (domene → art) og tre
+ * Systematikk (KM2): klassifisering av 18 organismer i de åtte hovednivåene (domene → art) og tre
  * slektskapstrær for de samme organismene, bygd på ulike kriterier (ytre likhet, anatomi, DNA). Ren modell uten React.
  *
  * Kilder for klassifiseringen: Artsdatabanken/Artsnavnebasen og GBIF-ryggraden (2024), norske navn som i

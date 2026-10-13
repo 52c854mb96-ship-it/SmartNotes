@@ -1,5 +1,5 @@
 /**
- * Transportsystemer i dyr (Bi 1 kapittel 10, KM2 og KM3): ren modell uten React.
+ * Transportsystemer i dyr (KM2 og KM3): ren modell uten React.
  *
  * 1. Blodkretsløp hos ulike dyr: hjerterom, åpent/enkelt/dobbelt kretsløp, blanding av oksygenrikt og oksygenfattig
  *    blod i hjertekammeret, og blodtrykket langs kretsløpet.

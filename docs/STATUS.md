@@ -1,6 +1,6 @@
 # Status for SmartNotes
 
-> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 12. oktober 2026, i PR #19 (Prøv med Haiku). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
+> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 12. oktober 2026, i PR #15 (navneoppryddingen). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
 
 Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen dokumentasjon står i [README.md](../README.md) og [OPPSETT.md](OPPSETT.md).
 
@@ -8,7 +8,7 @@ Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen d
 
 SmartNotes er en personlig app for en elev på VG2. Eleven tar bilder av håndskrevne notater eller laster opp PDF-er. Claude leser dem og skriver dem om til LaTeX, og serveren lager pene PDF-er. Notatene sorteres etter fag, kapittel og delkapittel i læreboka.
 
-- **Fag:** Fysikk 1 (ERGO Fysikk 1), Kjemi 1 (Aschehoug) og Biologi 1 (Bi 1, Gyldendal), alle etter LK20.
+- **Fag:** Fysikk 1, Kjemi 1 og Biologi 1, alle etter LK20, med SmartNotes' egne temaer (ingen lærebok innebygd; eleven kan importere sin egen innholdsfortegnelse).
 - **Hvem bruker den:** eleven har bare Fysikk 1. Kjemi 1 og Biologi 1 er laget for at andre skal kunne bruke appen senere.
 - **Hvordan den kjører:** en PWA som fungerer uten nett, og én server (Docker) på Railway som synkroniserer alle enhetene (Mac, PC, iPad og mobil).
 - **Språk:** alt eleven ser, er på bokmål: appen, feilmeldingene og PDF-malene. Koden bruker engelske navn.
@@ -20,7 +20,7 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 | Funksjon | Kort beskrivelse | Hvor i koden |
 |---|---|---|
 | Konvertering | Sider → Claude (bilde) → LaTeX → PDF. Notatet gjengis tro mot originalen, og mulige feil markeres med en merknad i stedet for å rettes. Enkle figurer tegnes på nytt i TikZ, og kompliserte klippes ut. Kompileringsfeil rettes automatisk i inntil to runder. | `server/src/pipeline/` |
-| Fag og lærebøker | Kapitler og kompetansemål (ordrett fra Udir) for tre læreboksett. Delkapitler finnes foreløpig for Fysikk 1 og kapittel 1 i Kjemi 1. Claude velger kapittel og eventuelt delkapittel, og eleven kan flytte notatet selv. | `server/src/textbooks.ts`, `server/src/profiles/` |
+| Fag og temaer | Kompetansemål (ordrett fra Udir) og egne temaer for tre fag. Deltemaer finnes for Fysikk 1. Claude velger tema og eventuelt deltema, og eleven kan flytte notatet selv. | `server/src/presets.ts`, `server/src/profiles/` |
 | Import av innholdsfortegnelse | Tekst eller bilder → kapitler med delkapitler, koblet til kompetansemålene. | `server/src/toc.ts`, `web/src/pages/settings/ChapterImport.tsx` |
 | Søk | Ctrl/Cmd+K søker i titler og innhold, også uten nett. | `web/src/components/SearchPalette.tsx` |
 | Visualiseringer | 129 interaktive forklaringer, ordnet etter kapittel: 56 i fysikk, 31 i kjemi og 42 i biologi. Fysikk kapittel 1–4 har illustrert utseende (ekte gjenstander, lys, skygge og kraftpiler), praktiske situasjoner og to eksempeloppgaver per kapittel, der løsningen vises trinn for trinn. | `web/src/viz/` (les `README.md` der) |
@@ -60,12 +60,13 @@ Alt ble bygget 4.–11. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#12](https://github.com/52c854mb96-ship-it/SmartNotes/pull/12) | AI-lag: Claude eller lokal AI (Ollama) per oppgave, og måleverktøyet `npm run eval` |
 | [#13](https://github.com/52c854mb96-ship-it/SmartNotes/pull/13) | Hjemmemaskin: kø på serveren og klienten `npm run homeworker`, med rettelser etter en sikkerhetsgjennomgang. Av som standard |
 | [#14](https://github.com/52c854mb96-ship-it/SmartNotes/pull/14) | Lokal AI: Qwen3.5 som standard, én side per kall, reparasjon av LaTeX i JSON, riktig cache-pris for Sonnet 5.5, og denne fila |
+| [#15](https://github.com/52c854mb96-ship-it/SmartNotes/pull/15) | Navneopprydding: fagoppsett etter læreplanen (`server/src/presets.ts`) med SmartNotes' egne temaer i stedet for lærebøkenes innholdsfortegnelser, og ingen forlagsnavn. De gamle id-ene er aliaser, så eksisterende fag legges ikke inn på nytt |
 | [#16](https://github.com/52c854mb96-ship-it/SmartNotes/pull/16) | Haiku 5.5 for kortstokker og innholdsfortegnelser, med Sonnet som reserve ved avslag. Konverteringen blir på Sonnet til sammenligningen er gjort |
 | [#17](https://github.com/52c854mb96-ship-it/SmartNotes/pull/17) | Sikkerhetskopi fra appen: «Last ned sikkerhetskopi» i innstillingene, fordi backup av volumet i Railway krever Pro-planen. Retter også et sikkerhetshull fra starten: adresser med prosentkoder (`/%61pi/...`) slapp forbi innloggingen |
 | [#18](https://github.com/52c854mb96-ship-it/SmartNotes/pull/18) | Oppfølging etter en ny gjennomgang: filene til notatene skrives atomisk, så kopien holder seg uendret mens den lastes ned, tryggere steg for gjenoppretting, og lagrede PDF-er hentes på nytt etter en gjenoppretting |
 | [#19](https://github.com/52c854mb96-ship-it/SmartNotes/pull/19) | «Prøv med Haiku» på notatene: Haiku-versjonen ved siden av den vanlige, med elevens vurdering og en oppsummering i innstillingene |
 
-**Tester:** omtrent 2 380 enhetstester (180 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 20 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, og hele flyten for «Prøv med Haiku») og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
+**Tester:** omtrent 2 390 enhetstester (182 på serveren og 2 204 i web-appen, de fleste for modellene bak visualiseringene), 20 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, og hele flyten for «Prøv med Haiku») og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 
@@ -84,7 +85,7 @@ Ikke endre disse uten å spørre først.
 - **Prioritet (11. oktober):** å få ned kostnadene, så flere kan bruke appen, går foran visualiseringene. Fysikk kapittel 5–10 haster ikke. Målet er ingen eller lav kostnad, dekket av pro-brukere: en gratisversjon og en betalt pro-versjon med kvoter per dag, og lokal AI der det lønner seg. Planen står på en [privat side for eleven](https://claude.ai/artifact/RyN9UDgBgDiHQdXaFRpvck). Les den med Artifact-verktøyet (`action: "read"`). Den ligger ikke i repoet, fordi repoet er offentlig og planen handler om alder, familie og juss.
 - **Første brukere:** venner og klassen.
 - **Maskiner for lokal AI:** en PC med RTX 4060 (8 GB) og elevens Mac med M4 og 16 GB. En Mac mini som står på hele døgnet, kan bli aktuell senere. Maskinene står bare på deler av dagen foreløpig.
-- **Opphavsrett:** forlagsnavn og bøkenes innholdsfortegnelser skal ut. Bruk bare kilder vi har lov til, som kompetansemålene fra Udir (NLOD). Navneoppryddingen ligger i en egen PR som eleven skal se over før den flettes.
+- **Opphavsrett:** forlagsnavn og bøkenes innholdsfortegnelser skal ut. Bruk bare kilder vi har lov til, som kompetansemålene fra Udir (NLOD). Navneoppryddingen er gjort i #15. Eleven valgte å beholde rekkefølgen i Fysikk 1 og la fagene som allerede finnes, stå som de er.
 - **Drift:** Railway, ikke Fly.io, fordi eleven allerede har abonnement der. Railway deployer fra `main` med «Wait for CI».
 - **Innholdsfortegnelser:** importen for Kjemi 1 og Biologi 1 er utsatt, fordi eleven ikke har de fagene.
 
@@ -118,7 +119,7 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 
 1. **Settings → Source:** grenen skal være `main`, og «Wait for CI» skal være på.
 2. **Hvis eleven bare vil ha Fysikk 1:**
-   - Legg til variabelen `SEED_TEXTBOOKS` med verdien `ergo-fysikk-1`.
+   - Legg til variabelen `SEED_TEXTBOOKS` med verdien `fysikk-1-lk20`.
    - Er Kjemi 1 og Biologi 1 allerede lagt inn, slettes de i appen: tannhjulet på fagsiden → **Slett faget**. Et slettet fag kommer ikke tilbake.
 3. **Variabler:** `CLAUDE_MODEL`, `CLAUDE_MODEL_FLASHCARDS`, `CLAUDE_MODEL_TOC` og `CLAUDE_EFFORT` bør ikke være satt, ellers overstyrer de standardverdiene.
 4. **Lokal AI og hjemmemaskin** trenger ingen nye variabler før eleven vil prøve dem. Alt er av som standard, og forbruksloggen virker uten oppsett.
@@ -143,7 +144,7 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 Dette er bare forslag. Eleven bestemmer rekkefølgen. Detaljene står i bolkene i [planen](https://claude.ai/artifact/RyN9UDgBgDiHQdXaFRpvck).
 
 1. **Elevens beslutninger:** eleven leser planen og svarer på beslutningene i del 7, særlig motoren i betaen (Haiku eller lokal AI), repoet (lisens eller privat) og hvem som eier API-kontoen.
-2. **Navneoppryddingen (#15):** eleven har valgt å beholde rekkefølgen i Fysikk 1. Den flettes når eleven har lastet ned en sikkerhetskopi fra innstillingene og skrevet «backup tatt».
+2. **Etter navneoppryddingen (#15):** sjekk at eleven ikke har fått doble fag, og at visualiseringene fortsatt vises på notatene.
 3. **Måling (bolk 1):** eleven kjører `npm run eval` med Sonnet, Haiku og 3–5 lokale modeller på 10–20 egne sider, setter karakterer og sender CSV-fila. Uten dette er alle tall om kvalitet gjetninger.
 4. **Haiku (bolk 2):** kortstokker og innholdsfortegnelser er flyttet til Haiku (#16). Sammenligningen er bygget (#19): eleven velger «Prøv med Haiku …» på 5–10 notater og vurderer dem. Når oppsummeringen i Innstillinger har nok vurderinger, foreslår Claude modell for konverteringen, og eleven bestemmer (spør før `CLAUDE_MODEL` endres).
 5. **Kontoer, kvoter og personvern (bolk 4–6)** før venner og klassen inviteres. Store oppgaver, så still oppklaringsspørsmål først.

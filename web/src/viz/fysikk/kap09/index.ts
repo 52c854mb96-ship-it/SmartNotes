@@ -5,7 +5,7 @@ const viz: VizMeta[] = [
   {
     id: 'universets-skala',
     chapter: '9',
-    sections: ['9A'],
+    sections: ['9.1'],
     title: 'Avstander i universet',
     summary:
       'Reis utover på en logaritmisk skala fra romstasjonen til kanten av det observerbare universet, og se avstandene i km, AE og lysår og hvor lenge lyset er underveis.',
@@ -15,7 +15,7 @@ const viz: VizMeta[] = [
   {
     id: 'hr-diagram',
     chapter: '9',
-    sections: ['9B', '9C'],
+    sections: ['9.2'],
     title: 'HR-diagrammet',
     summary:
       'Finn kjente stjerner i HR-diagrammet og se hvorfor noen er kjemper og andre hvite dverger. Velg en masse og se hvor stjernen havner på hovedserien og hvor lenge den lever.',
@@ -25,7 +25,7 @@ const viz: VizMeta[] = [
   {
     id: 'stjernens-livslop',
     chapter: '9',
-    sections: ['9B', '9C'],
+    sections: ['9.2'],
     title: 'Livsløpet til en stjerne',
     summary:
       'Velg massen til en stjerne og følg den fra protostjerne til hvit dverg, nøytronstjerne eller svart hull, med veien i HR-diagrammet og fusjonen inni stjerna.',

@@ -8,7 +8,7 @@ import { buildApp, type AppContext } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { FakeClaude } from '../src/pipeline/claude.js';
 
-/** Delkapitler, kompetansemål og søketekst med ERGO Fysikk 1 lagt inn ved oppstart. */
+/** Delkapitler, kompetansemål og søketekst med Fysikk 1 (eget oppsett etter LK20) lagt inn ved oppstart. */
 let ctx: AppContext;
 let dataDir = '';
 let cookie = '';
@@ -38,7 +38,7 @@ async function waitFor(id: string, pred: (n: Note) => boolean): Promise<Note> {
 
 beforeAll(async () => {
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-sections-'));
-  const config = loadConfig({ ...process.env, NODE_ENV: 'test', DATA_DIR: dataDir, APP_PASSWORD: 'pw', WEB_DIST: '', SEED_TEXTBOOKS: 'ergo-fysikk-1' });
+  const config = loadConfig({ ...process.env, NODE_ENV: 'test', DATA_DIR: dataDir, APP_PASSWORD: 'pw', WEB_DIST: '', SEED_TEXTBOOKS: 'fysikk-1-lk20' });
   ctx = await buildApp({ ...config, webDist: null }, { ai: new FakeClaude(5), logger: false });
   ctx.worker.start();
   const login = await ctx.app.inject({
@@ -68,9 +68,9 @@ describe('delkapitler og kompetansemål', () => {
     chapters = s.chapters.sort((a, b) => a.position - b.position);
     expect(subject.aims.map((a) => a.code)).toEqual(Array.from({ length: 14 }, (_, i) => `KM${i + 1}`));
     expect(subject.aims.find((a) => a.code === 'KM1')?.cross).toBe(true);
-    expect(chapters[1]!.sections.map((x) => x.code)).toEqual(['2A', '2B', '2C', '2D', '2E', '2F']);
-    expect(chapters[1]!.sections.find((x) => x.code === '2F')?.aims).toEqual(['KM5', 'KM6']);
-    expect(chapters.flatMap((c) => c.sections)).toHaveLength(44);
+    expect(chapters[1]!.sections.map((x) => x.code)).toEqual(['2.1', '2.2', '2.3', '2.4']);
+    expect(chapters[1]!.sections.find((x) => x.code === '2.4')?.aims).toEqual(['KM5', 'KM6']);
+    expect(chapters.flatMap((c) => c.sections)).toHaveLength(29);
   });
 
   it('Claude velger kapittel og delkapittel, og notatet får søketekst', async () => {
@@ -92,18 +92,18 @@ describe('delkapitler og kompetansemål', () => {
     noteId = res.json<Note>().id;
     const done = await waitFor(noteId, (n) => n.status === 'done');
     expect(done.chapterId).toBe(chapters[0]!.id);
-    expect(done.section).toBe('1A');
+    expect(done.section).toBe('1.1');
     expect(done.searchText).toContain('Newtons første lov');
     expect(done.searchText).not.toContain('\\');
     const tex = await ctx.app.inject({ method: 'GET', url: `/api/notes/${noteId}/tex`, headers: { cookie } });
-    expect(tex.body).toContain('1A Fysikk som målefag');
+    expect(tex.body).toContain('1.1 Måling, enheter og usikkerhet');
   });
 
   it('brukeren kan bytte delkapittel, men bare til et som finnes i kapittelet', async () => {
-    const ok = await inject<Note>('PATCH', `/api/notes/${noteId}`, { section: '1c' });
+    const ok = await inject<Note>('PATCH', `/api/notes/${noteId}`, { section: '1.3' });
     expect(ok.status).toBe(200);
-    expect(ok.body.section).toBe('1C');
-    const bad = await inject<{ message: string }>('PATCH', `/api/notes/${noteId}`, { section: '2E' });
+    expect(ok.body.section).toBe('1.3');
+    const bad = await inject<{ message: string }>('PATCH', `/api/notes/${noteId}`, { section: '2.2' });
     expect(bad.status).toBe(400);
     expect(bad.body.message).toMatch(/Delkapittelet finnes ikke/);
   });
@@ -112,8 +112,8 @@ describe('delkapitler og kompetansemål', () => {
     const moved = await inject<Note>('PATCH', `/api/notes/${noteId}`, { chapterId: chapters[1]!.id });
     expect(moved.body.chapterId).toBe(chapters[1]!.id);
     expect(moved.body.section).toBeNull();
-    const both = await inject<Note>('PATCH', `/api/notes/${noteId}`, { chapterId: chapters[2]!.id, section: '3E' });
-    expect(both.body.section).toBe('3E');
+    const both = await inject<Note>('PATCH', `/api/notes/${noteId}`, { chapterId: chapters[2]!.id, section: '3.3' });
+    expect(both.body.section).toBe('3.3');
     await waitFor(noteId, (n) => n.stage === null);
   });
 

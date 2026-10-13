@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 5 Cellestrukturer og cellefunksjon (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 3 (Celler og cellemembraner). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'cellen',
-    chapter: '5',
+    chapter: '3',
     sections: [],
     title: 'Dyrecelle, plantecelle og bakteriecelle',
     summary:
@@ -35,7 +35,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'overflate-og-volum',
-    chapter: '5',
+    chapter: '3',
     sections: [],
     title: 'Overflate og volum',
     summary:
@@ -61,7 +61,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'fotosyntese-og-celleanding',
-    chapter: '5',
+    chapter: '3',
     sections: [],
     title: 'Fotosyntese og celleånding',
     summary:

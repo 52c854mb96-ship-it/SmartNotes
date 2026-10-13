@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 9 Transportsystemer i mennesket (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 5 (Mennesket: regulering og transport). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'hjertet-og-kretslopet',
-    chapter: '9',
+    chapter: '5',
     sections: [],
     title: 'Hjertet og det doble kretsløpet',
     summary:
@@ -38,7 +38,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'gassutveksling',
-    chapter: '9',
+    chapter: '5',
     sections: [],
     title: 'Gassutveksling og hemoglobin',
     summary:
@@ -66,7 +66,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'fordoyelse-og-enzymer',
-    chapter: '9',
+    chapter: '5',
     sections: [],
     title: 'Fordøyelse og enzymer',
     summary:

@@ -1269,8 +1269,9 @@ export class Repo {
   seed(
     presets: {
       id: string;
+      /** Tidligere id-er for samme oppsett (et oppsett som er lagt inn under en av dem, legges ikke inn på nytt). */
+      aliases?: string[];
       subjectName: string;
-      textbook: string;
       profile: SubjectProfile;
       aims: CompetenceAim[];
       chapters: (ChapterInput & { sections: Section[] })[];
@@ -1290,10 +1291,14 @@ export class Repo {
       const seeded = new Set<string>(row ? (JSON.parse(row.value) as string[]) : []);
       const existing = this.listSubjects();
       for (const preset of presets) {
-        if (seeded.has(preset.id)) continue;
+        const ids = [preset.id, ...(preset.aliases ?? [])];
+        if (ids.some((id) => seeded.has(id))) {
+          seeded.add(preset.id);
+          continue;
+        }
         seeded.add(preset.id);
-        if (existing.some((s) => s.textbook === preset.textbook && s.profile === preset.profile)) continue;
-        const subject = this.createSubject({ name: preset.subjectName, profile: preset.profile, textbook: preset.textbook, aims: preset.aims });
+        if (existing.some((s) => s.name === preset.subjectName && s.profile === preset.profile)) continue;
+        const subject = this.createSubject({ name: preset.subjectName, profile: preset.profile, textbook: null, aims: preset.aims });
         this.createChapters(subject.id, preset.chapters);
         created.push(preset.subjectName);
       }

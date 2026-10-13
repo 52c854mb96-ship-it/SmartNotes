@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 7 Celledeling (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 4 (Celledeling). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'mitose',
-    chapter: '7',
+    chapter: '4',
     sections: [],
     title: 'Cellesyklusen og mitosen',
     summary:
@@ -35,7 +35,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'meiose',
-    chapter: '7',
+    chapter: '4',
     sections: [],
     title: 'Meiose og kjønnsceller',
     summary:
@@ -61,7 +61,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'regulering-av-celledeling',
-    chapter: '7',
+    chapter: '4',
     sections: [],
     title: 'Regulering av celledelingen og kreft',
     summary:

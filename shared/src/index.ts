@@ -51,7 +51,7 @@ export interface Section {
 export interface Subject extends SyncedRow {
   name: string;
   profile: SubjectProfile;
-  /** Lærebok/emne, f.eks. «Ergo Fysikk 1» eller «FYS-MEK1110». Gis til Claude som kontekst. */
+  /** Lærebok/emne, f.eks. navnet på læreboka eleven bruker, eller «FYS-MEK1110». Gis til Claude som kontekst. */
   textbook: string | null;
   position: number;
   /** Kompetansemålene i faget (tom liste hvis ikke lagt inn). */

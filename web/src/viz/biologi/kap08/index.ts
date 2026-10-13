@@ -1,10 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/** Kapittel 8 Kommunikasjonssystemer i mennesket (Bi 1). Delkapitlene er ikke bekreftet ennå, så `sections` er tom. */
+/** Biologi, tema 5 (Mennesket: regulering og transport). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'nerveimpuls',
-    chapter: '8',
+    chapter: '5',
     sections: [],
     title: 'Nerveimpulsen',
     summary:
@@ -36,7 +36,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'synapse',
-    chapter: '8',
+    chapter: '5',
     sections: [],
     title: 'Signaloverføring i synapsen',
     summary:
@@ -67,7 +67,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'blodsukker',
-    chapter: '8',
+    chapter: '5',
     sections: [],
     title: 'Regulering av blodsukkeret',
     summary:

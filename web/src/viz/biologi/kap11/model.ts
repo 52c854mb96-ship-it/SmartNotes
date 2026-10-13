@@ -1,5 +1,5 @@
 /**
- * Transportsystemer i planter (Bi 1 kapittel 11, KM3): ren modell uten React.
+ * Transportsystemer i planter (KM3): ren modell uten React.
  *
  * 1. Transpirasjon: spalteåpninger, vannets vei fra jord til luft (kohesjon og spenning) og byttet mellom CO₂-opptak og
  *    vanntap. Stomatakonduktans etter Jarvis (1976), grenselaget etter Campbell og Norman (1998), vanndamptrykk etter Tetens.

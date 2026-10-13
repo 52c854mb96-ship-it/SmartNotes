@@ -243,7 +243,7 @@ describe('forespørsel til Claude', () => {
     const ctx = buildContext({
       profile: physicsProfile,
       subjectName: 'Fysikk',
-      textbook: 'Ergo Fysikk 1',
+      textbook: 'Min lærebok',
       chapters: [
         { alias: 'k1', number: '1', title: 'Fysikk og måling', sections: [{ code: '1A', title: 'Fysikk som målefag' }] },
         { alias: 'k2', number: '2', title: 'Bevegelse', sections: [] },
@@ -257,7 +257,7 @@ describe('forespørsel til Claude', () => {
     });
     expect(ctx).toContain('k2: 2 Bevegelse');
     expect(ctx).toContain('k1: 1 Fysikk og måling – delkapitler: 1A Fysikk som målefag');
-    expect(ctx).toContain('Lærebok/emne: Ergo Fysikk 1');
+    expect(ctx).toContain('Lærebok/emne: Min lærebok');
     expect(ctx).toContain('Ekstra instruksjoner fra brukeren: Side 2 er en fortsettelse');
   });
   it('systeminstruksen er stabil (ingen dato) for prompt-caching', () => {

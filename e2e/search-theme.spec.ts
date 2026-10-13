@@ -3,7 +3,7 @@ import sharp from 'sharp';
 
 /**
  * Søkepaletten (Ctrl+K), tema-velgeren og delkapittel-gruppene i notatlisten (tre kolonner på PC).
- * Falsk Claude legger notatet i første kapittel og første delkapittel: «1A Fysikk som målefag».
+ * Falsk Claude legger notatet i første tema og første deltema: «1.1 Måling, enheter og usikkerhet».
  */
 
 const PASSWORD = 'e2e-passord';
@@ -67,13 +67,13 @@ test('søk med Ctrl+K, tema og delkapitler i notatlisten', async ({ page }, info
   if (info.project.name === 'desktop') {
     const pane = page.getByRole('complementary', { name: 'Notatliste' });
     await expect(pane).toBeVisible();
-    await expect(pane.getByRole('heading', { name: /1A\s*Fysikk som målefag/ })).toBeVisible();
-    const group = pane.getByRole('region', { name: 'Fysikk som målefag' });
+    await expect(pane.getByRole('heading', { name: /1\.1\s*Måling, enheter og usikkerhet/ })).toBeVisible();
+    const group = pane.getByRole('region', { name: 'Måling, enheter og usikkerhet' });
     const link = group.getByRole('link', { name: new RegExp(title) });
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute('aria-current', 'page');
     // Delkapittel-velgeren i notatet viser det samme.
-    await expect(main(page).getByLabel('Delkapittel')).toHaveValue('1A');
+    await expect(main(page).getByLabel('Delkapittel')).toHaveValue('1.1');
   }
 
   // 3) Tema: Lys / Mørk / System settes som data-theme på <html> og huskes ved omlasting.

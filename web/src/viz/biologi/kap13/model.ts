@@ -1,5 +1,5 @@
 /**
- * Kapittel 13 Formering (Bi 1): ren biologi uten React, testet i model.test.ts.
+ * Formering: ren biologi uten React, testet i model.test.ts.
  *
  * 1. Kjønnet og ukjønnet formering: to bestander av samme art i et miljø som endrer seg (KM6, KM2).
  * 2. Menstruasjonssyklusen: skjematiske hormonkurver, follikkel, gulelegeme og livmorslimhinne (KM4, KM3).
@@ -304,7 +304,7 @@ export function specimens(count: number, seed: number): Specimen[] {
  * Skjematiske kurver (relative nivåer 0–1) slik lærebøkene tegner dem, ikke målte verdier: dag 1 er første
  * menstruasjonsdag, syklusen er 28 dager, og eggløsningen skjer dag 14. Kurvene er summer av glatte topper (Gauss-kurver)
  * som gjentas hver 28. dag. Livmorslimhinnen er ca. 2 mm etter menstruasjonen og 10–14 mm i gulelegemefasen
- * (typiske ultralydverdier). Kilder for formen: lærebokfigurer (Bi 1, Bios 1) og Store medisinske leksikon.
+ * (typiske ultralydverdier). Kilder for formen: vanlige fremstillinger i biologibøker og Store medisinske leksikon.
  */
 
 export type CycleScenario = 'vanlig' | 'graviditet' | 'p-piller';

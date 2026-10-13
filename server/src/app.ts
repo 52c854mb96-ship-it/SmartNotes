@@ -28,7 +28,7 @@ import { registerUsageRoutes } from './routes/usage.js';
 import { registerWorkerRoutes } from './routes/worker.js';
 import { RemoteHub } from './remote/hub.js';
 import { Storage } from './storage.js';
-import { TEXTBOOKS } from './textbooks.js';
+import { findPreset } from './presets.js';
 import { MeteredAi } from './usage.js';
 
 export interface AppContext {
@@ -66,9 +66,10 @@ export async function buildApp(config: Config, opts: { ai?: AiService; compareAi
 
   const storage = new Storage(config.dataDir);
   const repo = new Repo(storage.dbFile);
-  const unknown = config.seedTextbooks.filter((id) => !TEXTBOOKS[id]);
-  if (unknown.length > 0) app.log.warn({ unknown }, 'ukjente læreboksett i SEED_TEXTBOOKS – hoppes over');
-  const created = repo.seed(config.seedTextbooks.flatMap((id) => (TEXTBOOKS[id] ? [TEXTBOOKS[id]] : [])));
+  const unknown = config.seedTextbooks.filter((id) => !findPreset(id));
+  if (unknown.length > 0) app.log.warn({ unknown }, 'ukjente fagoppsett i SEED_TEXTBOOKS – hoppes over');
+  const presets = [...new Map(config.seedTextbooks.flatMap((id) => findPreset(id) ?? []).map((p) => [p.id, p])).values()];
+  const created = repo.seed(presets);
   if (created.length > 0) app.log.info({ created }, 'la inn fag fra læreboksett');
   // Hvert AI-kall logges i forbruksloggen (usage_log), også når det feiler.
   const metered = (inner: AiService) =>

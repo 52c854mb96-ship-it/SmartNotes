@@ -29,7 +29,7 @@ import {
 const TYPES: DecayType[] = ['alfa', 'beta-', 'beta+', 'gamma'];
 
 describe('masse og energi', () => {
-  it('1 u svarer til ca. 934 MeV med konstantene i ERGO (931,5 MeV med flere siffer)', () => {
+  it('1 u svarer til ca. 934 MeV med konstantene her (931,5 MeV med flere siffer)', () => {
     expect(massEnergyMeV(1)).toBeCloseTo((1.66e-27 * 9e16) / 1.6e-13, 6);
     expect(Math.abs(massEnergyMeV(1) - 931.5) / 931.5).toBeLessThan(0.003);
   });

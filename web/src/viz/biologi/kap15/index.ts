@@ -1,13 +1,10 @@
 import type { VizMeta } from '../../types';
 
-/**
- * Kapittel 15 Bekjempelse av mikrobielle og virale sykdommer (Bi 1). Delkapitlene er ikke bekreftet ennå, så
- * `sections` er tom.
- */
+/** Biologi, tema 8 (Sykdom, smitte og immunforsvar). Uten deltemaer, så `sections` er tom og visualiseringene vises etter temaet. */
 const viz: VizMeta[] = [
   {
     id: 'flokkimmunitet',
-    chapter: '15',
+    chapter: '8',
     sections: [],
     title: 'Vaksiner og flokkimmunitet',
     summary:
@@ -32,7 +29,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'immunforsvaret',
-    chapter: '15',
+    chapter: '8',
     sections: [],
     title: 'Immunforsvaret og hukommelsesceller',
     summary:
@@ -62,7 +59,7 @@ const viz: VizMeta[] = [
   },
   {
     id: 'antibiotikaresistens',
-    chapter: '15',
+    chapter: '8',
     sections: [],
     title: 'Antibiotikaresistens',
     summary:

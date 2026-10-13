@@ -16,7 +16,7 @@ import kap14 from './kap14';
 import kap15 from './kap15';
 
 /**
- * Biologi 1 etter læreboka Bi 1 (Gyldendal). Ett kapittel per mappe `kapNN/`, som i fysikk og kjemi.
+ * Biologi 1 etter læreplanen (LK20). Én mappe `kapNN/` per emne; `chapter` er temaet i SmartNotes' eget oppsett.
  * Felles byggeklosser for biologi ligger i `kit/` (se README, avsnittet «Biologi»). Legg nye kapitler inn i
  * kapittelrekkefølge.
  */

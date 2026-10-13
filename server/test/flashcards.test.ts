@@ -58,7 +58,7 @@ async function waitReady(deckId: string): Promise<Deck> {
 
 beforeAll(async () => {
   dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'smartnotes-flashcards-'));
-  const config = loadConfig({ ...process.env, NODE_ENV: 'test', DATA_DIR: dataDir, APP_PASSWORD: 'pw', WEB_DIST: '', SEED_TEXTBOOKS: 'ergo-fysikk-1' });
+  const config = loadConfig({ ...process.env, NODE_ENV: 'test', DATA_DIR: dataDir, APP_PASSWORD: 'pw', WEB_DIST: '', SEED_TEXTBOOKS: 'fysikk-1-lk20' });
   ctx = await buildApp({ ...config, webDist: null }, { ai: new FakeClaude(5), logger: false });
   const login = await ctx.app.inject({
     method: 'POST',
@@ -359,11 +359,11 @@ describe('opprydding og ledetekst', () => {
       subjectLabel: 'Fysikk',
       difficulty: 'hard',
       count: 20,
-      notes: [{ alias: 'n1', title: 'Kraft "og" bevegelse', chapter: '2 Krefter', section: '2E Newtons 2. lov', date: '2026-09-01', body: 'Innhold' }],
+      notes: [{ alias: 'n1', title: 'Kraft "og" bevegelse', chapter: '2 Krefter', section: '2.2 Newtons lover', date: '2026-09-01', body: 'Innhold' }],
     });
     expect(text).toContain('Vanskelighetsgrad: hard');
     expect(text).toContain('omtrent 20 til sammen');
-    expect(text).toContain(`<note id="n1" title="Kraft 'og' bevegelse" chapter="2 Krefter" section="2E Newtons 2. lov" date="2026-09-01">`);
+    expect(text).toContain(`<note id="n1" title="Kraft 'og' bevegelse" chapter="2 Krefter" section="2.2 Newtons lover" date="2026-09-01">`);
     expect(noteSourceText('% kommentar\nTekst\n\n\n\nMer')).toBe('Tekst\n\nMer');
   });
 });
