@@ -73,6 +73,7 @@ export const ROUTE_ACCESS: Record<string, Access> = {
   'PATCH /api/cards/:id': 'user',
   'DELETE /api/cards/:id': 'user',
   'POST /api/flashcards/progress': 'user',
+  'GET /api/quota': 'user',
 
   'GET /api/ai/status': 'owner',
   'GET /api/usage': 'owner',

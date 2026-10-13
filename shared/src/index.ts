@@ -280,6 +280,22 @@ export interface CreateInviteResponse {
   code: string;
 }
 
+/** Gratiskvotene for i dag (norsk døgn). Eieren har ingen tak og får `null`. */
+export interface QuotaUsage {
+  pages: { used: number; limit: number };
+  decks: { used: number; limit: number };
+  toc: { used: number; limit: number };
+  /** Høyst så mange notater i kø samtidig. */
+  queueMax: number;
+  /** Når tellingen starter på nytt (midnatt norsk tid). */
+  resetsAt: string;
+}
+
+/** GET /api/quota */
+export interface QuotaResponse {
+  quota: QuotaUsage | null;
+}
+
 /** POST /api/admin/users/:id/reset-link: appen lager lenken (`/nytt-passord#<token>`) av sin egen adresse. */
 export interface ResetLinkResponse {
   token: string;

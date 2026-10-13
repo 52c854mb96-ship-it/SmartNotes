@@ -655,6 +655,7 @@ describe('hver rute holder brukerne fra hverandre', () => {
     'PATCH /api/cards/:id': { req: (v) => ({ url: `/api/cards/${v.cardId}`, json: { front: 'Overtatt' } }) },
     'DELETE /api/cards/:id': { req: (v) => ({ url: `/api/cards/${v.cardId}` }) },
     // Fremgang på andres kort hoppes over i stillhet (appen sender en kø som kan være gammel).
+    'GET /api/quota': { skip: 'viser bare egen kvote (testet i quota.test.ts)' },
     'POST /api/flashcards/progress': {
       req: (v) => ({
         url: '/api/flashcards/progress',

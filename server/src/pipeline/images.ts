@@ -170,6 +170,10 @@ export interface FigureBox {
 /**
  * Klipper ut en figur fra et sidebilde. Boksen er i piksler (x0, y0, x1, y1).
  * Legger på litt marg og bleker bakgrunnen lett, slik at papirfargen ikke blir grå i PDF-en.
+ * `outFile` slutter på `.png`. Sidebildene er JPEG fra før, så et utklipp blir som regel en tredjedel til to tredjedeler så
+ * stort som JPEG (kvalitet 90, knapt synlig forskjell); da lagres det som `.jpg` ved siden av i stedet. Sparer JPEG under
+ * 30 prosent (flater nesten uten detaljer), blir det PNG. LaTeX finner begge, fordi `\originalfigur` bruker navnet uten
+ * filendelse.
  * Returnerer false hvis boksen er ugyldig.
  */
 export async function cropFigure(pageFile: string, page: { width: number; height: number }, box: FigureBox['box'], outFile: string): Promise<boolean> {
@@ -193,10 +197,21 @@ export async function cropFigure(pageFile: string, page: { width: number; height
   const width = right - left;
   const height = bottom - top;
   if (width < 16 || height < 16) return false;
-  await sharp(pageFile)
-    .extract({ left, top, width, height })
-    .normalise({ lower: 1, upper: 92 })
-    .png({ compressionLevel: 9 })
-    .toFile(outFile);
+  const region = sharp(pageFile).extract({ left, top, width, height }).normalise({ lower: 1, upper: 92 });
+  const [png, jpg] = await Promise.all([
+    region.clone().png({ compressionLevel: 9 }).toBuffer(),
+    region.clone().jpeg({ quality: 90, mozjpeg: true }).toBuffer(),
+  ]);
+  const asJpeg = outFile.endsWith('.png') && jpg.length < png.length * 0.7;
+  // En figur fra en tidligere kjøring i samme mappe (kommandolinjen og målingen gjenbruker mappen) fjernes først, også med
+  // den andre filendelsen, ellers ville LaTeX valgt den gamle. Filen skrives som en ny fil, aldri over en gammel.
+  const base = outFile.endsWith('.png') ? outFile.slice(0, -4) : outFile;
+  await Promise.all([fsp.rm(`${base}.png`, { force: true }), fsp.rm(`${base}.jpg`, { force: true })]);
+  await fsp.writeFile(asJpeg ? `${base}.jpg` : outFile, asJpeg ? jpg : png, { flag: 'wx' });
   return true;
+}
+
+/** Figurfilene i en mappe (`fig1.png` eller `fig1.jpg`), som id-er uten filendelse. */
+export function figureIds(files: string[]): Set<string> {
+  return new Set(files.filter((f) => /\.(png|jpg)$/.test(f)).map((f) => f.slice(0, -4)));
 }

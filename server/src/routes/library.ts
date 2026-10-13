@@ -12,6 +12,7 @@ import { aiConfigured } from '../pipeline/providers.js';
 import type { Converter } from '../pipeline/converter.js';
 import { fitScale, sniffKind } from '../pipeline/images.js';
 import { SUBJECT_PRESETS } from '../presets.js';
+import type { Quota } from '../quota.js';
 import { getProfile, isProfile } from '../profiles/index.js';
 import { isId, type Storage } from '../storage.js';
 import { cleanChapterInputs, parseTocText } from '../toc.js';
@@ -23,6 +24,8 @@ interface Deps {
   ai: AiService;
   converter: Converter;
   bundler: Bundler;
+  /** Gratiskvotene (innholdsfortegnelser med AI per døgn). */
+  quota?: Quota;
 }
 
 const name = z.string().trim().min(1, 'Navnet kan ikke være tomt.').max(80, 'Navnet er for langt.');
@@ -175,13 +178,18 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
     const s = requireSubject(mine(req), req.params.id);
     const body = parse(z.object({ text: z.string().max(50_000) }), req.body);
     const chapters = parseTocText(body.text);
-    // Delkapitler fra teksten kobles til kompetansemålene av Claude. Går det ikke, får de bare ingen mål.
-    if (s.aims.length && aiConfigured(ai, 'toc') && chapters.some((c) => c.sections?.length)) {
+    // Delkapitler fra teksten kobles til kompetansemålene av Claude. Går det ikke, eller er dagens gratiskvote brukt,
+    // får de bare ingen mål (teksten tolkes uten AI).
+    const wantsAims = s.aims.length > 0 && aiConfigured(ai, 'toc') && chapters.some((c) => c.sections?.length);
+    const ticket = wantsAims ? d.quota?.takeToc(requireUser(req).id, s.id) : undefined;
+    if (wantsAims && !ticket?.blocked) {
       try {
         const mapped = await usageScope({ userId: requireUser(req).id, subjectId: s.id }, () => ai.mapSectionAims(getProfile(s.profile), chapters, s.aims));
         return { chapters: cleanChapterInputs(mapped.chapters, s.aims) };
       } catch (err) {
         req.log.warn({ err }, 'kunne ikke koble delkapitler til kompetansemål');
+        // Svarte AI-en (og kallet ble betalt), teller det; ellers gis det tilbake.
+        if (ticket && !(err instanceof ConversionError && err.usage)) d.quota?.refund(requireUser(req).id, 'toc', s.id, ticket);
       }
     }
     return { chapters };
@@ -212,10 +220,14 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
       }
     }
     if (images.length === 0) throw badRequest('Last opp minst ett bilde av innholdsfortegnelsen.');
+    const ticket = d.quota?.takeToc(requireUser(req).id, s.id);
+    if (ticket?.blocked) throw new HttpError(429, 'quota_exceeded', ticket.blocked);
     try {
       const read = await usageScope({ userId: requireUser(req).id, subjectId: s.id }, () => ai.extractToc(getProfile(s.profile), images, s.aims));
       return { chapters: cleanChapterInputs(read.chapters, s.aims) };
     } catch (err) {
+      // Svarte ikke AI-en (nett, overbelastning), telles lesingen ikke mot dagens kvote. Et svar som ble betalt, teller.
+      if (ticket && !(err instanceof ConversionError && err.usage)) d.quota?.refund(requireUser(req).id, 'toc', s.id, ticket);
       if (err instanceof ConversionError) throw new HttpError(err.retryable ? 503 : 422, 'claude_failed', err.message);
       throw err;
     }

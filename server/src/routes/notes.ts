@@ -5,7 +5,7 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { NoteLatexResponse, NotePagesResponse, SaveLatexResponse } from '@smartnotes/shared';
+import type { NoteLatexResponse, NotePagesResponse, SaveLatexResponse, QuotaResponse } from '@smartnotes/shared';
 import { requireUser } from '../auth.js';
 import type { NoteFileRow, Repo, UserRepo } from '../db.js';
 import { HttpError, badRequest, conflict, notFound } from '../errors.js';
@@ -16,6 +16,7 @@ import { MIME_BY_KIND, sniffKind, type FileKind, type PageImage } from '../pipel
 import { latexToText, replaceMissingFigures, sanitizeBody } from '../pipeline/latex.js';
 import type { Worker } from '../pipeline/worker.js';
 import type { RemoteHub } from '../remote/hub.js';
+import type { Quota } from '../quota.js';
 import { exists, isId, type Storage } from '../storage.js';
 import { parse, sendPdf } from './library.js';
 
@@ -26,6 +27,8 @@ interface Deps {
   worker: Worker;
   /** Køen for hjemmemaskinen, så et slettet notat ikke konverteres der. */
   hub?: RemoteHub;
+  /** Gratiskvotene (taket på notater i kø). */
+  quota?: Quota;
 }
 
 const EXT_BY_KIND: Record<FileKind, string> = { pdf: 'pdf', jpeg: 'jpg', png: 'png', webp: 'webp', heic: 'heic', gif: 'gif', tiff: 'tiff' };
@@ -37,6 +40,9 @@ const dateField = z
 
 export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
   const { repo, storage, converter, worker, hub } = d;
+
+  // Det brukeren har brukt av dagens gratiskvote (null for eieren).
+  app.get('/api/quota', async (req): Promise<QuotaResponse> => ({ quota: d.quota?.usage(requireUser(req).id) ?? null }));
 
   /** Det den innloggede brukeren eier; all lesing og skriving i rutene går gjennom det. */
   const mine = (req: FastifyRequest): UserRepo => repo.forUser(requireUser(req).id);
@@ -93,6 +99,10 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
       const subject = fields.subjectId && isId(fields.subjectId) ? r.getSubject(fields.subjectId) : null;
       if (!subject) throw badRequest('Faget finnes ikke (lenger).');
       if (files.length === 0) throw badRequest('Ingen filer ble lastet opp.');
+      // Taket på notater i kø for gratiskontoer. Aldri 429 her: opplastingskøen i appen prøver da på nytt i det
+      // uendelige. 403 gjør at opplastingen blir stående med meldingen, så eleven kan prøve igjen senere.
+      const full = d.quota?.queueFull(r.userId);
+      if (full) throw new HttpError(403, 'queue_full', full);
 
       // Hvis kapittelet er slettet mens opplastingen lå i køen, lar vi Claude velge i stedet.
       const chapterField = fields.chapterId?.trim() || 'auto';
@@ -110,6 +120,13 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
         const filename = `${String(i + 1).padStart(3, '0')}.${EXT_BY_KIND[f.kind]}`;
         await fsp.rename(f.tmpFile, path.join(srcDir, filename));
         fileRows.push({ id: randomUUID(), position: i, original_name: f.originalName, mime: MIME_BY_KIND[f.kind], filename, size: f.size });
+      }
+      // En gang til rett før notatet lages, uten noe `await` imellom, så opplastinger som sendes samtidig, ikke alle slipper
+      // gjennom. Filene i `source/` ryddes da bort.
+      const fullNow = d.quota?.queueFull(r.userId);
+      if (fullNow) {
+        await storage.removeNote(noteId).catch(() => undefined);
+        throw new HttpError(403, 'queue_full', fullNow);
       }
       const note = r.createNote({
         id: noteId,
@@ -181,6 +198,9 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
     const r = mine(req);
     const row = requireNote(r, req.params.id);
     if (row.status === 'processing') throw conflict('Notatet konverteres allerede.');
+    // Taket på notater i kø gjelder også «Konverter på nytt» (et notat som allerede står i kø, teller ikke på nytt).
+    const full = row.status === 'queued' ? null : d.quota?.queueFull(r.userId);
+    if (full) throw new HttpError(403, 'queue_full', full);
     const body = parse(z.object({ instructions: z.string().max(2000).nullable().optional() }).default({}), req.body ?? {});
     const note = r.requeue(row.id, body.instructions === undefined ? undefined : body.instructions?.trim() || null);
     worker.kick();

@@ -7,6 +7,7 @@ import type {
   ComparisonSummaryResponse,
   ComparisonVerdict,
   HealthResponse,
+  QuotaUsage,
   UsageKind,
   UsageSummaryResponse,
 } from '@smartnotes/shared';
@@ -730,6 +731,44 @@ function AboutCard() {
   );
 }
 
+/** Det gratiskontoen har brukt av dagens kvote. */
+function QuotaLines() {
+  const { online } = useOnline();
+  const [quota, setQuota] = useState<QuotaUsage | null>(null);
+  useEffect(() => {
+    if (!online) return;
+    const ctrl = new AbortController();
+    api
+      .quota(ctrl.signal)
+      .then((r) => setQuota(r.quota))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [online]);
+  if (!quota) return null;
+  return (
+    <div className="stack">
+      <p className="card-text">Gratiskontoen har en kvote per døgn, som telles på nytt ved midnatt:</p>
+      <dl className="kv">
+        <dt>Sider konvertert</dt>
+        <dd>
+          {quota.pages.used} av {quota.pages.limit}
+        </dd>
+        <dt>Kortstokker</dt>
+        <dd>
+          {quota.decks.used} av {quota.decks.limit}
+        </dd>
+        <dt>Innholdsfortegnelser med AI</dt>
+        <dd>
+          {quota.toc.used} av {quota.toc.limit}
+        </dd>
+      </dl>
+      <p className="form-hint">
+        Er sidene brukt opp, venter notatene og konverteres etter midnatt. Høyst {quota.queueMax} notater kan stå i kø samtidig.
+      </p>
+    </div>
+  );
+}
+
 function AccountCard() {
   const navigate = useNavigate();
   const account = useAccount();
@@ -767,6 +806,7 @@ function AccountCard() {
         )}
       </div>
       {account?.plan === 'owner' && <OwnerNameForm />}
+      {account?.plan === 'free' && <QuotaLines />}
       <div className="card-actions">
         <button type="button" className="btn btn-danger-outline" onClick={() => void logout()}>
           <LogOut size={17} aria-hidden /> Logg ut

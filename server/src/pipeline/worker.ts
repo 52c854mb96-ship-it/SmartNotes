@@ -17,6 +17,8 @@ export class Worker {
     private readonly converter: Converter,
     private readonly concurrency: number,
     private readonly log: FastifyBaseLogger,
+    /** Klokka for `not_before` (samme som kvotene, så et notat som venter til midnatt, venter til den samme midnatten). */
+    private readonly now: () => number = Date.now,
   ) {}
 
   start(): void {
@@ -32,7 +34,7 @@ export class Worker {
   /** Kalles når et nytt notat er lagt i køen. */
   kick(): void {
     while (!this.stopped && this.running < this.concurrency) {
-      const row = this.repo.claimNextQueued();
+      const row = this.repo.claimNextQueued(new Date(this.now()));
       if (!row) return;
       this.running++;
       const p = this.converter

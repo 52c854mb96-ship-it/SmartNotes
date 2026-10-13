@@ -109,6 +109,19 @@ export interface Config {
     /** Modellen gratisbrukerne konverterer med (FREE_CONVERT_MODEL, standard Haiku 5.5). */
     freeConvertModel: string;
   };
+  /** Tak for gratiskontoene per norsk døgn (eieren har ingen tak). */
+  quota: {
+    /** Sider som konverteres (FREE_PAGES_PER_DAY, standard 15). */
+    pagesPerDay: number;
+    /** Kortstokker (FREE_DECKS_PER_DAY, standard 2). */
+    decksPerDay: number;
+    /** Innholdsfortegnelser og koblinger til kompetansemål med AI (FREE_TOC_PER_DAY, standard 3). */
+    tocPerDay: number;
+    /** Notater i kø samtidig per gratiskonto (FREE_QUEUE_MAX, standard 20). */
+    queueMax: number;
+    /** Det alle gratiskontoene samlet kan bruke på AI per døgn, i kroner til listepris (FREE_DAILY_BUDGET_NOK, standard 30; 0 = uten grense). */
+    dailyBudgetNok: number;
+  };
   /** Kurs fra dollar til kroner i oversikten over AI-forbruk (USD_NOK). */
   usdNok: number;
   version: string;
@@ -249,6 +262,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       resetHours: Math.max(1, int(env.RESET_LINK_HOURS, 48)),
       trustProxyHops: Math.max(0, int(env.TRUST_PROXY_HOPS, 1)),
       freeConvertModel: env.FREE_CONVERT_MODEL?.trim() || 'claude-haiku-5-5',
+    },
+    quota: {
+      pagesPerDay: Math.max(1, int(env.FREE_PAGES_PER_DAY, 15)),
+      decksPerDay: Math.max(0, int(env.FREE_DECKS_PER_DAY, 2)),
+      tocPerDay: Math.max(0, int(env.FREE_TOC_PER_DAY, 3)),
+      queueMax: Math.max(1, int(env.FREE_QUEUE_MAX, 20)),
+      dailyBudgetNok: Math.max(0, num(env.FREE_DAILY_BUDGET_NOK, 30)),
     },
     usdNok: num(env.USD_NOK, 10.5),
     version,
