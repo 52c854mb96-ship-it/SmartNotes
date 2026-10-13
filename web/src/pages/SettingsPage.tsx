@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { CheckCircle2, CloudDownload, HardDriveDownload, LogOut, RefreshCw, Scale, XCircle } from 'lucide-react';
+import { CheckCircle2, CloudDownload, Flag, HardDriveDownload, LogOut, RefreshCw, Scale, XCircle } from 'lucide-react';
 import type {
   AiStatusResponse,
   BackupStatusResponse,
@@ -24,6 +24,8 @@ import { downloadAllForOffline, logoutAndClear, requestPersistentStorage, syncNo
 import { Link, useNavigate } from 'react-router';
 import { planLabel, useAccount, useIsOwner } from '../lib/account';
 import { InviteCard, OwnerNameForm, UsersCard } from './settings/AccountAdmin';
+import { ContactLink } from './LegalPages';
+import { DeleteAccount } from './settings/DeleteAccount';
 
 export function SettingsPage() {
   useDocumentTitle('Innstillinger');
@@ -726,8 +728,40 @@ function AboutCard() {
         <Link to="/innstillinger/lisenser" className="btn">
           <Scale size={17} aria-hidden /> Lisenser
         </Link>
+        <Link to="/personvern" className="btn">
+          Personvern
+        </Link>
+        <Link to="/vilkar" className="btn">
+          Vilkår
+        </Link>
+        <Link to="/ai-bruk" className="btn">
+          Bruk av AI
+        </Link>
       </div>
+      <ReportLine />
     </section>
+  );
+}
+
+/** «Meld fra»: kontakten fra serveren (PRIVACY_CONTACT), for feil, innhold som ikke hører hjemme her, eller personvern. */
+function ReportLine() {
+  const { online } = useOnline();
+  const [contact, setContact] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!online) return;
+    const ctrl = new AbortController();
+    api
+      .legal(ctrl.signal)
+      .then((l) => setContact(l.contact))
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, [online]);
+  if (contact === undefined) return null;
+  return (
+    <p className="card-text">
+      <Flag size={15} aria-hidden className="inline-icon" /> Meld fra om feil, innhold som ikke hører hjemme her, eller noe om
+      personvern: <ContactLink contact={contact} subject="Melding fra SmartNotes" />
+    </p>
   );
 }
 
@@ -811,6 +845,7 @@ function AccountCard() {
         <button type="button" className="btn btn-danger-outline" onClick={() => void logout()}>
           <LogOut size={17} aria-hidden /> Logg ut
         </button>
+        {account && account.plan !== 'owner' && <DeleteAccount username={account.username} />}
       </div>
     </section>
   );

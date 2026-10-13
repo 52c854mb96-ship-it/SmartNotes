@@ -400,6 +400,14 @@ function NoteHeader({
           </span>
         </div>
       </div>
+      {note.pdfRev > 0 && (
+        <p className="note-ai-mark">
+          <Sparkles size={13} aria-hidden />
+          <span>
+            AI-generert fra notatene dine. Sjekk mot originalen, og følg skolens regler for AI. <Link to="/ai-bruk">Les mer</Link>
+          </span>
+        </p>
+      )}
     </header>
   );
 }

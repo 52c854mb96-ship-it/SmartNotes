@@ -11,12 +11,14 @@ import type {
   CreateDeckRequest,
   CreateFlashcardRequest,
   CreateInviteResponse,
+  DeleteAccountRequest,
   AddPresetSubjectRequest,
   CreateSubjectRequest,
   Deck,
   Flashcard,
   HealthResponse,
   InvitesResponse,
+  LegalInfo,
   LoginRequest,
   LoginResponse,
   MeResponse,
@@ -242,6 +244,9 @@ export const api = {
   logout: () => json<{ ok: boolean }>('POST', '/auth/logout', { timeoutMs: 10_000, allow401: true }),
   me: () => json<MeResponse>('GET', '/auth/me', { allow401: true, timeoutMs: 10_000 }),
   quota: (signal?: AbortSignal) => json<QuotaResponse>('GET', '/quota', { signal, timeoutMs: 10_000 }),
+  legal: (signal?: AbortSignal) => json<LegalInfo>('GET', '/legal', { signal, timeoutMs: 10_000 }),
+  deleteAccount: (password: string) =>
+    json<{ ok: boolean }>('DELETE', '/auth/account', { json: { password } satisfies DeleteAccountRequest, timeoutMs: 60_000 }),
 
   sync: (since: number, signal?: AbortSignal) =>
     json<SyncResponse>('GET', `/sync?since=${since}`, { signal, timeoutMs: 45_000 }),

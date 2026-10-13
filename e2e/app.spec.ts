@@ -69,6 +69,8 @@ test('logg inn, last opp, les PDF – også uten nett', async ({ page, context }
   await upload(page, title, /^Last opp$/);
   await expect(main(page).getByText(title).first()).toBeVisible();
   await openConvertedNote(page, title);
+  // Notatet er merket som laget av AI (også i bunnteksten på PDF-en, se server/test/personvern.test.ts).
+  await expect(page.getByText('AI-generert fra notatene dine.')).toBeVisible();
 
   // Vent til service workeren styrer siden, slik at appen kan lastes uten nett.
   await page.evaluate(async () => {

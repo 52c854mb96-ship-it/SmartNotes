@@ -228,6 +228,24 @@ export interface RegisterRequest {
   presetIds: string[];
   /** Brukeren bekrefter at hen er minst `minAge` år. */
   ageConfirmed: boolean;
+  /** Brukeren har lest og godtar vilkårene og personvernerklæringen. */
+  termsAccepted: boolean;
+}
+
+/** GET /api/legal: det personvernerklæringen og vilkårene viser. `null` vises som «[Fylles inn]». */
+export interface LegalInfo {
+  /** Behandlingsansvarlig (PRIVACY_CONTROLLER_NAME). */
+  controllerName: string | null;
+  /** Kontakt for spørsmål, sletting og «Meld fra» (PRIVACY_CONTACT): e-post eller annen kontakt. */
+  contact: string | null;
+  minAge: number;
+  freePagesPerDay: number;
+  freeDecksPerDay: number;
+}
+
+/** DELETE /api/auth/account: passordet bekrefter at det er brukeren selv. */
+export interface DeleteAccountRequest {
+  password: string;
 }
 
 /** GET /api/auth/presets: fagene man kan velge ved registrering, og aldersgrensen. */

@@ -23,6 +23,17 @@ export function AuthIntro() {
   );
 }
 
+/** Lenkene til personvernerklæringen, vilkårene og siden om bruk av AI, nederst på innloggingssidene. */
+export function LegalLinks() {
+  return (
+    <nav className="login-legal" aria-label="Personvern og vilkår">
+      <Link to="/personvern">Personvern</Link>
+      <Link to="/vilkar">Vilkår</Link>
+      <Link to="/ai-bruk">Bruk av AI</Link>
+    </nav>
+  );
+}
+
 /** Siden brukeren var på vei til, ellers forsiden (appen åpner ikke et fag av seg selv). */
 export function afterLoginTarget(from: string | undefined): string {
   return from && from.startsWith('/') && !from.startsWith('//') && !/^\/(logg-inn|registrer|nytt-passord)/.test(from) ? from : '/';
@@ -116,6 +127,7 @@ export function LoginPage() {
         <p className="login-switch">
           Har du fått en invitasjonskode? <Link to="/registrer">Lag en konto</Link>
         </p>
+        <LegalLinks />
       </main>
     </div>
   );
