@@ -110,6 +110,11 @@ Se **[docs/OPPSETT.md](docs/OPPSETT.md)** for en trinnvis instruks for alt du m�
 | `INVITE_DAYS` | `14` | Hvor lenge en invitasjonskode gjelder |
 | `RESET_LINK_HOURS` | `48` | Hvor lenge en lenke for nytt passord gjelder |
 | `TRUST_PROXY_HOPS` | `1` | Antall proxyer foran serveren (Railway: 1). Sett `0` når serveren nås direkte, ellers kan en klient late som den har en annen IP-adresse og slippe unna grensene for innlogging |
+| `FREE_PAGES_PER_DAY` | `15` | Sider en gratiskonto kan konvertere per døgn (norsk tid). Notater over kvoten venter til midnatt |
+| `FREE_DECKS_PER_DAY` | `2` | Kortstokker en gratiskonto kan lage per døgn |
+| `FREE_TOC_PER_DAY` | `3` | Innholdsfortegnelser en gratiskonto kan la AI-en lese per døgn |
+| `FREE_QUEUE_MAX` | `20` | Notater en gratiskonto kan ha i kø samtidig |
+| `FREE_DAILY_BUDGET_NOK` | `30` | Det alle gratiskontoene samlet kan bruke på AI per døgn, i kroner til listepris. Over budsjettet venter gratisjobbene til neste døgn; eieren merker ingenting. `0` = uten grense |
 
 ### Lokal AI med Ollama (valgfritt)
 
