@@ -9,12 +9,11 @@ import { useSubjects } from '../data';
 import { db } from '../db';
 import { useOnline } from '../lib/connectivity';
 import { formatChangedDay, plural } from '../lib/format';
+import { lastSubjectId } from '../lib/lastSubject';
 import { SubjectIcon, profileOf } from '../lib/subjects';
 import { newSubjectStore } from '../lib/ui';
 import { useSyncState } from '../sync';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
-
-export const LAST_SUBJECT_KEY = 'smartnotes:lastSubject';
 
 /** Antall notater og når noe sist ble endret, per fag (fra Dexie, så det virker uten nett). */
 function useSubjectStats(): Map<string, { notes: number; changedAt: string | null }> | undefined {
@@ -28,14 +27,6 @@ function useSubjectStats(): Map<string, { notes: number; changedAt: string | nul
     });
     return stats;
   }, []);
-}
-
-function lastSubjectId(): string | null {
-  try {
-    return localStorage.getItem(LAST_SUBJECT_KEY);
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -53,7 +44,8 @@ export function HomePage() {
     return subjects?.find((s) => s.id === id) ?? null;
   }, [subjects]);
 
-  if (subjects === undefined || (subjects.length === 0 && sync.running && !sync.lastSyncAt)) return <PageSkeleton />;
+  // Kortene venter også på tallene, ellers står «Ingen notater ennå» et øyeblikk før antallet kommer.
+  if (subjects === undefined || stats === undefined || (subjects.length === 0 && sync.running && !sync.lastSyncAt)) return <PageSkeleton />;
 
   const addSubject = (
     <button

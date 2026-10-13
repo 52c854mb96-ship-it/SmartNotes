@@ -5,6 +5,8 @@ import { expect, type Page } from '@playwright/test';
  * fagkortet og venter på fagsiden.
  */
 export async function openSubjectFromHome(page: Page, name: string): Promise<void> {
+  // Rett etter «Logg inn» er innloggingen kanskje ikke ferdig; en ny lasting da kunne avbryte den.
+  await expect(page).not.toHaveURL(/logg-inn/);
   if (new URL(page.url()).pathname !== '/') await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Fagene dine' })).toBeVisible();
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

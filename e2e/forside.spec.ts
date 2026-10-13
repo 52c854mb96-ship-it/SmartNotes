@@ -48,5 +48,18 @@ test('forsiden: presentasjon, fagene som kort og ingen automatisk videresending'
   await expect(page.getByRole('heading', { name: 'Fagene dine' })).toBeVisible();
   await page.waitForTimeout(1000);
   expect(new URL(page.url()).pathname).toBe('/');
+
+  // «Fortsett i …» gjelder også et fag som ble åpnet fra et kapittel (sidepanelet, søket), ikke bare fra fagsiden.
+  const biology = await page.evaluate(async () => {
+    const res = await fetch('/api/sync?since=0');
+    const body = (await res.json()) as { subjects: { id: string; name: string }[]; chapters: { id: string; subjectId: string; title: string }[] };
+    const subject = body.subjects.find((s) => s.name === 'Biologi 1')!;
+    return { subjectId: subject.id, chapter: body.chapters.find((c) => c.subjectId === subject.id)! };
+  });
+  await page.goto(`/fag/${biology.subjectId}/kapittel/${biology.chapter.id}`);
+  await expect(page.locator('html')).toHaveAttribute('data-subject', 'biology');
+  if (await topbar.isVisible()) await topbar.click();
+  else await page.locator('.sidebar .brand').click();
+  await expect(main.getByRole('link', { name: 'Fortsett i Biologi 1' })).toBeVisible();
   expect(errors).toEqual([]);
 });

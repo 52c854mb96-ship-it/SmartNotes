@@ -7,6 +7,7 @@ import { drawerStore, listCollapsedStore, openSearch, openUpload, searchStore, t
 import { isAcceptedFile } from '../lib/images';
 import { isListRoute } from '../lib/layout';
 import { NARROW_QUERY, WIDE_QUERY, useMediaQuery } from '../lib/media';
+import { rememberLastSubject } from '../lib/lastSubject';
 import { setSubjectTheme } from '../lib/theme';
 import { useActiveIds } from '../lib/useActive';
 import { useSubject } from '../data';
@@ -44,6 +45,11 @@ export function AppShell() {
   useEffect(() => {
     if (activeProfile !== undefined) setSubjectTheme(activeProfile);
   }, [activeProfile]);
+  // «Fortsett i …» på forsiden: faget brukeren sist var i, også når det ble åpnet fra et kapittel, et notat eller søket.
+  const activeSubjectId = activeSubject?.id;
+  useEffect(() => {
+    if (activeSubjectId) rememberLastSubject(activeSubjectId);
+  }, [activeSubjectId]);
   const firstPath = useRef(location.pathname);
   const [dragging, setDragging] = useState(false);
 
