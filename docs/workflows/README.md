@@ -77,6 +77,26 @@ Rekkefølgen og PR-ene følger elevens valg «én PR per fag»: fysikk 5–10, s
    - Hvert kapittel committes for seg. Et kapittel som blir avbrutt, stopper workflowen med «Avbrutt» når de andre er ferdige.
 3. **Til slutt:** samme sjekker som for fysikk, én PR for kjemi og én for biologi, flettet når CI er grønn. Fjern planfila når alt er ferdig (punkt 7 i planen).
 
+## Geofag 1
+
+Eleven bestilte 14. oktober 2026 visualiseringer for Geofag 1, bygd på samme måte som de andre fagene: 50 oppføringer (35 visualiseringer og 15 eksempeloppgaver) for de ni temaene, med ekte steder kort i forklaringene og tenkte steder med egne tall i eksempeloppgavene. Katalogen står i `geofag-katalog.json` (feltene `temaer`, `referanser`, `kit` og `notater`).
+
+| Fil | Hva den gjør |
+|---|---|
+| `geofag-kit.js` | Byggeklossene i `web/src/viz/geofag/kit/` (farger og lagmønstre, rene hjelpere med tester, seks komponentfamilier med galleri, `API.md` laget av `web/scripts/kit-api.mjs`) og de tre referansene k2-plategrenser, k6-grunnvann og k9-kotekart, med kontroll og retting. Ca. 19 agenter. Committer ikke. |
+| `geofag-kapittel.js` | Ett tema: visualiseringene i to spor, så eksempeloppgavene, kontroll i bunker på fire, retting i bunker på tre, og commit (og push) av bare temamappa. 6–14 agenter per tema. |
+| `geofag-katalog.json` | Argumentene: `temaer["N"]` er `args.tema`. KIT, REFS og NOTES er limt inn i skriptene fra katalogen; endres katalogen, limes de inn på nytt. |
+
+Slik kjøres det:
+1. **Egen arbeidskopi:** geofag ble bygd i en egen arbeidskopi mens flashcards ble bygd i hovedkopien, så de fikk hver sin PR: `git worktree add /home/user/SmartNotes/.claude/worktrees/geofag -b <arbeidsgrenen>-geofag origin/main`, med `.claude/worktrees/` i `.git/info/exclude`, og `npm ci` der. Alle ledetekstene bruker absolutte stier under `args.root`, fordi agentene ellers jobber i hovedkopien.
+2. **Egen port:** Vite startes fra arbeidskopien på port 5273 (`npx vite --port 5273 --strictPort` i `web/`), og `bin/shot.sh` leser porten fra `SHOT_PORT` (standard 5173), så skjermbildene ikke viser feil kopi. Galleribildene av scene-kit-et lages som i punkt 4 under «Før du starter», med `--port 5273`.
+3. **Kit-et først:** `Workflow({ scriptPath: '<root>/docs/workflows/geofag-kit.js', args: { scratch, root, port: 5273 } })`. Hovedøkten ser på galleriet og referansene, kjører `npm run typecheck`, web-testene og `npm run build`, legger til registertestene for referansene og endringen i `e2e/geofag.spec.ts` (lenken «Visualiseringer» finnes nå), og committer.
+4. **Temaene:** `Workflow({ scriptPath: '<root>/docs/workflows/geofag-kapittel.js', args: { tema: katalog.temaer["N"], scratch, branch, trailers, root, port: 5273, push: true } })`, høyst tre temaer samtidig mens annet arbeid pågår (fire ellers). Rekkefølge: 2, 5, 8 → 3, 4, 6 → 1, 7, 9. Med `push: false` committer temaet bare lokalt.
+5. **Kit-ønsker underveis:** temaagentene endrer aldri kit-et. Hovedøkten samler `kitWishes` og legger inn tillegg (nye props med standardverdier og nye komponenter, aldri endrede API-er) med `git commit -- web/src/viz/geofag/kit`, og lager `API.md` og galleribildene på nytt.
+6. **Til slutt:** flett `main` inn i geofag-grenen, oppdater dokumentasjonen (README i `viz/`, `CLAUDE.md`, `VISUALISERINGER-PLAN.md`, denne fila og `STATUS.md`), kjør hele kontrollen og lag én PR.
+
+Feller: ingen tittel kan være lik en deltematittel (VizCard har deltematitlene inne i lenka, og registertesten sjekker det), KM-koden står i keywords, og «Platene beveger seg: rygg, grop og fjellkjede» brukes av `e2e/geofag.spec.ts`.
+
 ## Når bruksgrensen stopper arbeidet
 
 Agentene dør når bruksgrensen nås. Skriptene oppdager det (`need()`) og stopper med feilen «Avbrutt: …».

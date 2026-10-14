@@ -12,7 +12,7 @@ import { NotFoundPage } from './NotFoundPage';
 
 type KindFilter = 'alle' | 'visualisering' | 'eksempel';
 
-/** Oversikt over de interaktive visualiseringene, ordnet etter kapitlene i læreboka. */
+/** Oversikt over de interaktive visualiseringene, ordnet etter temaene i faget. */
 export function VisualizationsPage() {
   const { subjectId } = useParams();
   const subject = useSubject(subjectId);
@@ -56,7 +56,7 @@ export function VisualizationsPage() {
       <div className="page">
         {back}
         <EmptyState icon={<Shapes size={30} aria-hidden />} title="Ingen visualiseringer for dette faget ennå">
-          <p>Visualiseringene lages etter kapitlene i læreboka, og finnes foreløpig for fysikk, kjemi og biologi.</p>
+          <p>Visualiseringene er ordnet etter temaene, og finnes for fysikk, kjemi, biologi og geofag.</p>
         </EmptyState>
       </div>
     );
@@ -76,7 +76,7 @@ export function VisualizationsPage() {
           <p className="page-subtitle">
             {plural(total, 'interaktiv forklaring', 'interaktive forklaringer')}
             {examples > 0 ? ` og ${plural(examples, 'eksempeloppgave', 'eksempeloppgaver')} med løsning steg for steg` : ''}, ordnet
-            etter kapitlene i læreboka. Dra i glidebryterne og se hva som skjer.
+            etter temaene. Dra i glidebryterne og se hva som skjer.
           </p>
         </div>
       </header>
@@ -85,7 +85,7 @@ export function VisualizationsPage() {
         <input
           type="search"
           className="viz-search"
-          placeholder="Filtrer, f.eks. friksjon eller 2E"
+          placeholder="Filtrer, f.eks. med et stikkord"
           aria-label="Filtrer visualiseringene"
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}

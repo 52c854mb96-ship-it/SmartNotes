@@ -4,13 +4,14 @@ import type { VizEntry, VizMeta } from './types';
 import fysikk from './fysikk';
 import kjemi from './kjemi';
 import biologi from './biologi';
+import geofag from './geofag';
 
 /**
  * Alle visualiseringer per fagtype, i kapittelrekkefølge. Hvert fag har sin egen mappe (`fysikk/`, `kjemi/`,
- * `biologi/`) med én undermappe per kapittel, og hvert kapittel eier sin egen `kapNN/index.ts`.
- * Nye visualiseringer legges til der (ikke her). Geofag har ingen visualiseringer ennå.
+ * `biologi/`, `geofag/`) med én undermappe per kapittel eller tema, og hvert kapittel eier sin egen `kapNN/index.ts`.
+ * Nye visualiseringer legges til der (ikke her). Fysikk og geofag har deltemaer; kjemi og biologi bare temaer.
  */
-const META_BY_PROFILE: Record<SubjectProfile, VizMeta[]> = { physics: fysikk, chemistry: kjemi, biology: biologi, geoscience: [] };
+const META_BY_PROFILE: Record<SubjectProfile, VizMeta[]> = { physics: fysikk, chemistry: kjemi, biology: biologi, geoscience: geofag };
 
 export function vizKey(m: Pick<VizMeta, 'chapter' | 'id'>): string {
   return `k${m.chapter}-${m.id}`;

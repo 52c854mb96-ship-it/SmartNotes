@@ -1,0 +1,1170 @@
+{
+ "_om": "Katalogen for Geofag 1 (planlagt og kontrollert 14. oktober 2026; eleven valgte omfanget med 50 oppføringer). Hvert tema kjøres med geofag-kapittel.js med args.tema = temaer[\"N\"]; referansene k2-plategrenser, k6-grunnvann og k9-kotekart lages i geofag-kit.js og står som reviewOnly i temaene.",
+ "referanser": [
+  {
+   "id": "plategrenser",
+   "title": "Platene beveger seg: rygg, grop og fjellkjede",
+   "sections": [
+    "2.2",
+    "2.3"
+   ],
+   "km": [
+    "KM2",
+    "KM10"
+   ],
+   "idea": "Referansevisualisering, lages i kit-kjøringen. Et snitt gjennom litosfæren og astenosfæren der eleven velger type med Segmented. Kjerne: spredningsrygg (konstruktiv eller divergerende plategrense; Den midtatlantiske ryggen), subduksjon (destruktiv eller konvergerende; hav mot kontinent eller hav mot hav) og kollisjon mellom kontinenter (Himalaya i dag, den kaledonske fjellkjeden for ca. 430–400 millioner år siden). Eleven setter platefarten (1–10 cm per år) og spiller av millioner av år: ny havbunn dannes og blir eldre og dypere bort fra ryggen, med magnetiske striper som speiler hverandre de siste 5 millioner årene (eldre havbunn tegnes uten striper, med en tekst om at stripene fortsetter, men ikke vises her); havplata dykker ned med jordskjelv langs en skrå sone og vulkaner over; og en fjellkjede løftes ved kollisjon. Bryteren «Vis krefter» viser drivkreftene som kraftpiler i VIZ-farger, platetrekk (den kalde, tunge plata synker) og ryggskyv, og teksten sier at mantelkonveksjonen og platene er samme system, ikke et transportbånd som drar platene. Bryteren «Hvor smelter det?» viser dekompresjonssmelting under ryggen (mantelen stiger, trykket faller, og den smelter delvis) og vann fra plata som senker smeltepunktet i mantelkilen over subduksjonssonen, så eleven ser hvorfor vulkanene ligger der de ligger (2.3). Tillegg: transformforkastning (konservativ, sett ovenfra) og «Varmt punkt (inne på en plate)», der Explain sier at et varmt punkt ikke er en plategrense, og at Island er både rygg og varmt punkt. Fartspiler i VIZ.velocity viser bevegelsen, markører viser hvor dypt jordskjelvene skjer, og Explain tar opp at platene ikke flyter på flytende magma. Etikettene og søkeordene har begge sett med fagord.",
+   "model": "model-plategrenser.ts (i kap02): plateavstand(v, t) (1 cm/år = 10 km per million år), havbunnsalder(x, halvfart), havdybde(alder) = 2500 + 350 · √(alder i millioner år) m (flater ut etter ca. 70 millioner år), POLARITET for de siste ca. 5 millioner år (Brunhes–Matuyama ved 0,78 millioner år; kilde i koden), striper(halvfart, tMax) (bare 0–5 millioner år, tomt utenfor), skjelvdybder(type), solidus(z, vann) og adiabat(z) (forenklede kurver, merket omtrentlige, med kilde) og GRENSE_TYPER (fagord i begge sett, bevegelse, drivkraft, landformer, vulkanisme, smelting, skjelvdyp, eksempler; varmt punkt merket som «ikke plategrense»). Tester: 2 cm/år i 100 millioner år gir 2000 km; havdybden er 2500 m ved ryggen og ca. 5000 m ved 50 millioner år; stripene er symmetriske om ryggen med bredde halvfart · varighet og tomme for alder over 5 millioner år; adiabaten under ryggen krysser tørr solidus mellom ca. 50 og 120 km dyp; våt solidus ligger minst 200 °C under tørr; alle felt er fylt ut for hver type.",
+   "sceneNeeds": "Geofag-kit: Plategrense (alle fem typene, med litosfære, astenosfære, magma, smeltesoner og mantelstrøm), Vulkan, LagMonstre (basalt for havskorpe, granitt for kontinentalskorpe), Stromlinjer og PlayBar med «millioner år». Scene-kit: Vann (havet), en smal stripe Himmel, Landskap type «fjell», ForceArrow i VIZ.velocity for platefarten og ForceArrow i VIZ-kraftfarger for platetrekk og ryggskyv.",
+   "no": "2"
+  },
+  {
+   "id": "grunnvann",
+   "title": "Grunnvann: grunnvannsspeil, brønn og Darcys lov",
+   "sections": [
+    "6.2",
+    "6.3"
+   ],
+   "km": [
+    "KM7",
+    "KM8"
+   ],
+   "idea": "Referansevisualisering, lages i kit-kjøringen. Et snitt gjennom en løsmasseavsetning og fjellet under med umettet sone, grunnvannsspeil og mettet sone, der grunnvannet strømmer fra høyt til lavt terreng og kommer ut i en elv. Eleven velger materiale (grus, sand, silt, leire eller oppsprukket fjell) og pumperate, og ser i en lupe at vannet ligger i porer og sprekker, ikke i underjordiske innsjøer, og at farten varierer fra meter per døgn i grus til millimeter per år i leire. Brønnen senker grunnvannsspeilet i en senkningstrakt, dyp og smal i tette masser og grunn og vid i grus. Et smittemerke fra en lekk kloakkledning eller husdyrgjødsel flytter seg mot brønnen, med antall døgn sammenlignet med kravet om minst 60 døgns oppholdstid i grunnen; kravet er en hygienisk barriere, fordi bakterier og virus dør eller holdes tilbake underveis. Bryteren «Nitrat» viser at nitrat fra en gjødslet åker ikke brytes ned i oksygenrikt grunnvann, men kommer fram uansett, bare senere og mer fortynnet, så tiltakene er sikringssone og mindre gjødsling. Eleven skal lære porøsitet, hydraulisk ledningsevne og grunnvannsspeil, og hvorfor breelvavsetninger er gode grunnvannsmagasiner.",
+   "model": "Bygger på hydrologi.ts i kit-et: MATERIALER (hydraulisk ledningsevne, f.eks. grus ca. 10⁻², sand 10⁻⁴, silt 10⁻⁶, leire 10⁻⁹ m/s, oppsprukket fjell 10⁻⁷–10⁻⁵, og effektiv porøsitet), darcy(K, gradient), porefart(q, n) og senkning(r, Q, T, R) etter Thiem (forenklet, r minst brønnradien). model-grunnvann.ts: reisetid(avstand, i, K, n), smittebarriere(reisetid) (minst 60 døgn; kravet kontrollert mot Mattilsynets veileder til drikkevannsforskriften og NGU, kilde i koden) og nitratVedBronn(c₀, fortynning) uten nedbrytning. Tester: q = K · i; porefarten er større enn q; senkningen er null ved påvirkningsradien og øker inn mot brønnen; reisetid = L/v; L = 0 eller gradient 0 gir aldri Infinity i teksten; leire gir mye lengre reisetid enn grus; nitratet når fram med c₀/fortynning uansett reisetid.",
+   "sceneNeeds": "Geofag-kit: Grunnvannssnitt, Bronn (borebrønn med pumpe og filter), LagMonstre (grus, sand, leire, fjell), Kornpakning (porene i en lupe), Stromlinjer (GEO.grunnvann) og Bygning (vannverk, hus og fjøs). Scene-kit: Himmel, Landskap type «aaser», Terreng type «gress», Gran, Vann (elva) og Dimension. Lokalt i kap06 (eier: grunnvann): åker og kloakkledning.",
+   "no": "6"
+  },
+  {
+   "id": "kotekart",
+   "title": "Kotekart og terrengprofil",
+   "sections": [
+    "9.1",
+    "9.2"
+   ],
+   "km": [
+    "KM12",
+    "KM11"
+   ],
+   "idea": "Referansevisualisering, lages i kit-kjøringen. Et kotekart over et tenkt norsk landskap (dal, åser, en topp, et vann og en elv) med høydelag, ekvidistanse og målestokk, der eleven legger en profillinje mellom A og B og ser terrengprofilet under, med overhøyde som kan endres. Eleven peker på et punkt og får høyde og helning i grader og prosent, og ser at tette koter betyr bratt terreng og at koter som danner en V oppover dalen, viser en elv. Vannskillet for elva tegnes, så eleven ser nedbørfeltet (kobling til tema 6 og 8). Profilet ligner terrengprofilet i SmartNotes' PDF-mal, så eleven kjenner det igjen fra notatene.",
+   "model": "Bygger på kart.ts i kit-et: hoydefelt(frø, former), koter(felt, ekvidistanse) (marching squares med sammenhengende linjer), terrengprofil(felt, A, B, n), helning(felt, x, y), vannskille(felt, utlop) (enkel D8) og kartavstand(maalestokk). model-kotekart.ts har det visningen trenger (forvalg for A og B, overhøyde). Tester: et skråplan gir riktig helning og rette, parallelle koter; kotene rundt en kjegle er sirkler; profilet starter og slutter i høyden til A og B; alle punktene i nedbørfeltet renner til utløpet; ekvidistanse 0 gir ingen uendelig løkke.",
+   "sceneNeeds": "Geofag-kit: Kotekart (høydelag GEO.hoydelag, koter GEO.kote, kotetall, elv, vann, nordpil, målestokk, profillinje) og Plot for profilet. Scene-kit: Terreng (profilet fylt), Gran og Dimension. A og B styres med glidebrytere for retning og plassering; dra-punkter er valgfrie (pekerhåndtering som i fysikk/kap01/gult-lys-graf.tsx).",
+   "no": "9"
+  }
+ ],
+ "kit": [
+  {
+   "name": "geofag/kit/index.ts",
+   "what": "Én import for alt i kapitlene: import { Slider, Figure, LagMonstre, GEO, … } from '../kit'. Eksporterer hele det felles kit-et ('../../kit') og navngitte re-eksporter (ikke export *) av de generelle hjelperne fra kjemi (seededRandom, placeParticles, jiggle, Box, Txt, Select, useContainerTextScale, Formel, TFormel, Reaksjon, TReaksjon, Begerglass, mixColor, fmtSig) og biologi (Etikett, Forvalg, PlayBar, fmtPct, fmtCount, solveOde), så felles navn som useSvgId bare kommer én gang, pluss alt under, og importerer geofag.css. Scene-kit-et importeres for seg fra '../../kit/scene'. Ingen navn kolliderer med scene-kit-et (Terreng, Vann, Landskap, Himmel, Underlag, Sol, Planet, Kloss, Termometer), det felles kit-et (Block, Label, Ground, Plot, Formula, clamp), biologi (Plante, Tre, Etikett) eller fysikkens lokale JordSnitt, FjellSnitt og Hus. Eksportlinjene for hjelperne legges inn i fase 1d, ikke av agentene som skriver hjelperne."
+  },
+  {
+   "name": "typer.ts (lages av hovedøkten i infra)",
+   "what": "MonsterId med lista over mønstre, ordrett i ledeteksten til agentene i fase 1: granitt, gneis, basalt, gabbro, diabas, sandstein, siltstein, leirskifer, glimmerskifer, kalkstein, marmor, kvartsitt, konglomerat, salt, kull, morene, breelv, leire, kvikkleire, sand, grus, torv, ur, aske og malmsone. monstre.tsx og bergarter.ts importerer typen herfra, så de kan skrives samtidig uten å vente på hverandre."
+  },
+  {
+   "name": "colors.ts og geofag.css (GEO, --geo-*)",
+   "what": "Tre blokker som --kj-*: lyst tema, mørkt via prefers-color-scheme (:root:not([data-theme='light'])) og [data-theme='dark'], kontrollert mot «Fjell» (mørk flate #1f2225, rustaksent #e09a72/#8f4b2e). Jordas indre: skorpeKontinent, skorpeHav, litosfare, astenosfare, nedreMantel, ytreKjerne, indreKjerne, magma, lava, aske (magma og lava skal ikke ligne VIZ.gravity #d4622a eller aksenten). Bergarter med { fill, line } for hver MonsterId. Vann og is: grunnvann, umettet, bre, firn, havis. Kart: kote, hoydelag[0..5], vannskille. Prosesser: nedbor, fordamping, avrenning, erosjon, avsetning. Ressurser: olje, gass, co2, gehalt[0..4] (sekvensiell). Datering: morIsotop, datterIsotop, polaritet.normal og .omvendt. Risiko: fare[0..3]. Tid: tid.* (dempede periodefarger). VIZ-farger brukes aldri på bergarter; farter og strømning tegnes med VIZ.velocity, og krefter (skråningen, platetrekk og ryggskyv) med VIZ som i fysikk."
+  },
+  {
+   "name": "felles.tsx",
+   "what": "useGeoScale() (1 på PC, ca. 1,5 på telefon: k = max(1, 0,85 · f), til krystaller, korn, isotopprikker og symboler) og useGeoStroke() (strektykkelser i mønstre og koter), bygd på useSceneScale og useStrokeScale, og geoHoyde(f, H) = H + 260 · (f − 1) for høyere viewBox på mobil."
+  },
+  {
+   "name": "Rene hjelpere med tester (data)",
+   "what": "geotid.ts (GEOLOGISK_TID etter ICS-kartet versjon 2023/09, devon 419,62; periodeVed, tilDognet, fmtAlder som aldri skriver «Ma» i løpende tekst), datering.ts (ISOTOPER for U–Pb, K–Ar og C-14 med halveringstid, forgrening, mineraler, lukketemperatur og måleområde, uten Rb–Sr; gjenvaerende, datterForhold, alderFraForhold, nullstilles(system, toppTemperatur, varighet), MARIN_RESERVOARALDER), mineraler.ts (MINERALER med gruppe og aniongruppe, SILIKATSTRUKTURER, RISSETESTER, MOHS_ABSOLUTT, muligeMineraler), bergarter.ts (BERGARTER med gruppe, dannelse, tekstur, tetthetsintervall, MonsterId og norske eksempler; MAGMATISKE med ni ruter, NORSKE_MAGMATISKE, SEDIMENTARE, METAMORFE, klassifiserMagmatisk, SYKLUS) og jorda.ts (JORDAS_LAG med nedre mantel, forenklet PREM: tetthetVed, gVed, trykkVed, temperaturVed, vpVed, vsVed; tettheter for vann, sjøvann, is, skorpe og mantel). Kilde i en kommentar ved hver tabell, og alle funksjoner gir null i stedet for NaN eller Infinity."
+  },
+  {
+   "name": "Rene hjelpere med tester (beregning)",
+   "what": "kornstorrelse.ts (KORNKLASSER, phi, Hjulström-kurvene, kornTilstand(d, v, iBevegelse), synkefart, kumulativKurve, dPersentil, graderingstall, krumningstall, sortering etter Folk og Ward), hydrologi.ts (GLOBALE_RESERVOARER, GLOBALE_STROMMER, oppholdstid, vannbalanse, MATERIALER, darcy, porefart, senkning, sannsynlighetIPerioden, plotteposisjon, gumbelTilpasning, flomMedGjentaksintervall), risiko.ts (SIKKERHETSKLASSER for flom og skred etter TEK17 § 7-2 og § 7-3, oppfyller, forventetSkade, risikoklasse; kvikkleire utenfor de årlige klassene, slik at eks-boligfelt virker selv om risiko kuttes), akser.ts (scaleLog, logTicks og tierpotenser skrevet på norsk, til LogPlot), kart.ts (hoydefelt, koter, terrengprofil, helning, vannskille, kartavstand) og statistikk.ts (middel, standardavvik, median, lineaerRegresjon). Empiriske kurver merket omtrentlige, toleranser i testene og null i stedet for NaN eller Infinity."
+  },
+  {
+   "name": "monstre.tsx: LagMonstre og lagFyll",
+   "what": "Én <defs> med et SVG-mønster per MonsterId, som på geologiske kart og i PDF-malen «Atlas»: sandstein prikker, siltstein korte streker og prikker, leirskifer skrå streker, kalkstein murstein, marmor murstein med årer, granitt små kryss, basalt og diabas v-er, gneis bølgete bånd, kvartsitt tette prikker, konglomerat ringer, salt kryssraster, kull tett mørk fyll med tynne linjer, morene kantete steiner i fin masse, breelv sorterte prikker med skråsjikt, leire vannrette streker, kvikkleire stiplet, torv strå, ur kantete blokker, aske prikker og malmsone flekker. lagFyll(type) gir url(#…) og strekfarge. Strektykkelser fra useGeoStroke, kontur rundt hvert lag og nok kontrast i mørkt tema."
+  },
+  {
+   "name": "snitt.tsx: Snittblokk, Lagpakke og Borekjerne",
+   "what": "Snittblokk: blokkdiagram med overflaten oppå i svakt perspektiv (terreng, vann, hav, fjord eller isdekke) og snittet foran; lag gis som funksjoner av x eller polygoner, og barna tegnes i snittets koordinater og klippes til snittet (fold, forkastning, gang, diskordans, magmakammer). Lagpakke: lagrekke med eldste lag nederst ({ type, tykkelse, navn }), pil «yngre», dybdeakse og etiketter i egen kolonne som flytter seg under figuren på smal skjerm. Borekjerne: stående sylinder med lys og skygge, lagene fra en Lagpakke-liste, valgfrie varv og prøvemerker."
+  },
+  {
+   "name": "tektonikk.tsx: JordasIndre, Plategrense og Vulkan",
+   "what": "JordasIndre: kule med utskåret kile eller helt snitt, lagene etter radiene i jorda.ts (skorpa gjort tykk nok til å synes), kjemisk eller mekanisk inndeling, dybdemarkør og ankerpunkter for etiketter. Plategrense type «spredning» | «subduksjon» (variant hav–kontinent og hav–hav) | «kollisjon» | «transform» (ovenfra) | «varmt-punkt» (inne på en plate), med litosfære, astenosfære, magma, smeltesoner (dekompresjon under ryggen, mantelkilen over plata), havgrop, skjelvsone, ankerpunkter for kraftpiler (platetrekk, ryggskyv), valgfrie magnetiske striper (bare 0–5 millioner år) og props t (millioner år) og fart. Vulkan type «skjold» | «strato» (også erodert), krater, magmakammer i snitt, lavastrøm, lavafontene og askesky (utbrudd 0–1), uten filtre."
+  },
+  {
+   "name": "landskap.tsx: Isbre, Elveleie, Fjellside, Bekk og Demning",
+   "what": "Isbre: «dalbre» (firn, sprekker, likevektslinje som prop, front som prop, endemorene, sidemorene, bresjø), «innlandsis» (tykkelse som prop) og «havis». Elveleie: «lengde» (fra fjell til delta, vannflate og korn på bunnen), «tverr» (vannstand, flomlinjer, flomslette, målepunkter) og «ovenfra» (meandre eller rett kanal); vannet klart, grumsete eller slamstrøm. Fjellside, Bekk og Demning kopiert fra fysikk/kap03/vannkraft-deler.tsx (FjellSnitt, Bekk, Demning) med nye navn og GEO-farger, ikke importert på tvers. Demning blir i kit-et fordi både hjulstrom og drikkevann bruker den."
+  },
+  {
+   "name": "vann.tsx: Grunnvannssnitt, Bronn, Nedbor og Stromlinjer",
+   "what": "Grunnvannssnitt: umettet sone, kapillærsone, grunnvannsspeil (profilfunksjon, så det kan vise senkningstrakt eller skråning) og mettet sone. Bronn: borebrønn i fjell, gravd brønn, observasjonsbrønn og energibrønn med foringsrør, filter, pumpe og vannstand (også som borehull). Nedbor: regn eller snø med intensitet, vind og fast frø, bygd på Regn og Snofall fra fysikk/kap02/fore-og-bremsing-deler.tsx (kopiert), med et valgfritt skydekke-lag for overskyet vær og regnvær, siden Himmel i scene-kit-et bare har sol og haugskyer. Stromlinjer: piler langs en sti med tykkelse etter mengde og valgfri bevegelse med t (mantelstrøm, isstrøm, grunnvann, karbon- og vannstrømmer, bølgefront); fargen velges av kapittelet."
+  },
+  {
+   "name": "korn.tsx: Korn, Kornpakning og Kornkurve",
+   "what": "Korn: ett korn med størrelse, rundhet (kantet til godt rundet) og bergartsfarge, lys fra øvre venstre, størrelse ganget med useGeoScale. Kornpakning: utsnitt (lupe) med pakkede korn og porer fylt med vann, olje, gass, CO₂, luft eller sement, eller leirpartikler, sortering som prop, plassering med placeParticles og fast frø. Kornkurve: kumulativ kornfordeling på LogPlot med bånd for leire, silt, sand og grus, høyere viewBox på mobil."
+  },
+  {
+   "name": "bygg.tsx: Bygning og Plattform",
+   "what": "Bygning: norsk trehus, hytte, garasje, skole, sykehjem, fjøs, vannverk og anrikningsverk sett fra siden, i riktige proporsjoner (px per m som prop), bygd på Hus i fysikk/kap03 (kopiert, nytt navn); gir skala og brukes til sikkerhetsklassene. Plattform: plattform på havet med valgfri borestreng ned i et snitt, i kit-et fordi petroleumssystem, co2-lagring, eks-oljefelt og eks-jordskjelv bruker den (to av dem bygges samtidig i tema 7)."
+  },
+  {
+   "name": "diagram.tsx og kotekart.tsx: LogPlot, Klimadiagram, GeoTidslinje og Kotekart",
+   "what": "LogPlot: plott med logaritmisk x, y eller begge (akser.ts, tierpotenser på norsk) og en valgfri ekstra høyreakse, i samme stil som Plot i det felles kit-et (som bare har lineære akser og ingen høyreakse); brukes av hjulstrom, vulkaner, Kornkurve, sikteanalyse og flomfrekvens i stedet for lokale akser. Klimadiagram: nedbør som grå søyler mot høyre akse og temperatur som mørk kurve mot venstre akse, som malen i PDF-ene, bygd på LogPlot med lineære akser, valgfri 0 °C-linje, H = 320 + 260 · (f − 1). GeoTidslinje: tidsakse i millioner år, tusen år eller år, lineær eller logaritmisk, med periodebånd fra GEOLOGISK_TID, zoom og hendelsesmerker, vannrett eller loddrett. Kotekart: kart fra et høydefelt i kart.ts med høydelag, koter (hver femte tykk med tall), elv, vann, kystlinje, vannskille, soner (faresoner, nedbørfelt, arealbruk), nordpil, målestokk og valgfri profillinje; tekst vokser på mobil."
+  },
+  {
+   "name": "stein.tsx: Krystall, Steinprove og Lupe",
+   "what": "Krystall form «prisme» (kvarts, zirkon) | «rombeeder» (kalkspat) | «terning» (pyritt, halitt, blyglans) | «oktaeder» (magnetitt, flusspat) | «tavle» (glimmer, biotitt, sanidin) | «dodekaeder» (granat), med glans, farge fra mineraler.ts og valgfrie isotopprikker. Steinprove: håndstykke med tekstur etter bergart (kornstørrelse, foliasjon, porfyr, lag, fossilavtrykk, glass), rundslipt eller kantet. Lupe: forstørrer et utsnitt gitt som children (brukes i mange temaer). Størrelser med useGeoScale. Kompass, Geologhammer, Strekplate og Syreflaske har bare én bruker og lages lokalt i kap09 og kap03."
+  },
+  {
+   "name": "galleri/ og API.md",
+   "what": "Seks gallerisider (geo-kart, geo-snitt, geo-tektonikk, geo-vann, geo-landskap, geo-stein) som forhåndsvisningen viser med ?galleri=geo-<familie> (fagtemaet «Fjell» settes), så galleri-shot.mjs --galleri geo-snitt virker. API.md genereres fra JSDoc av web/scripts/kit-api.mjs (nytt og committet, så det kan kjøres igjen når kit-et endres; kan også lage scene-kit-ets API.md), med kort oversikt per fil; kapittelagentene leser den og galleribildene i stedet for kildefilene."
+  },
+  {
+   "name": "Lokalt i temaene (ikke i kit-et)",
+   "what": "Brukes bare av én visualisering (og eventuelt eksempeloppgavene i samme tema) og lages i kapittelmappa av eieren: Seismogram (kap02, eks-jordskjelv), model-plategrenser.ts med POLARITET (kap02, plategrenser), felt-deler.tsx med Strekplate og Syreflaske (kap03, bestem-mineralet), tetraedertegningen (kap03, mineralgrupper), målesylinder og kjøkkenvekt (kap03, eks-steinprove), fossiler.tsx (kap04, relativ-alder), dalprofilet (kap05, isbre), Skandinavia-kartet (kap05, istider), jordprofilet (kap05, losmasser), fly med magnetometer (kap07, malmleting), Dagbrudd, Lastebil og deponi (kap07, malm), det seismiske snittet (kap07, petroleumssystem), skip (kap02 og kap07, hver sin), Skredbane (kap08, skraaning), leirpartikler (kap08, kvikkleire), Kompass og Geologhammer (kap09, strok-og-fall) og Siktesats (kap09, sikteanalyse). Ingen to visualiseringer deler en lokal del."
+  }
+ ],
+ "notater": "Omfang i katalogen (anbefalt variant): 35 visualiseringer og 15 eksempeloppgaver, 50 i alt. Tema 1: 2 + 1, tema 2: 3 + 2, tema 3: 6 + 1, tema 4: 3 + 2, tema 5: 6 + 2, tema 6: 4 + 2, tema 7: 4 + 2, tema 8: 4 + 2, tema 9: 3 + 1. Tre av dem (k2-plategrenser, k6-grunnvann og k9-kotekart) lages som referanser i kit-kjøringen og står som reviewOnly i temaene.\n\nEndret etter kontrollene: fire nye visualiseringer fyller hull i kompetansemålene: mineralgrupper (KM3, 3.1), sedimentare-bergarter (KM3), istider (5.2) og malmleting («danning og kartlegging» i KM9). De er egne oppføringer og ikke moduser, fordi flere oppføringer allerede var for tette for én agent. eks-snoskred er byttet ut med eks-fjellskred (fjellskred og flodbølge er den mest særnorske skredfaren). Forvitring er flyttet til tema 5 som k5-forvitring med 1.2 som ekstra deltema, så den vises på temasiden for tema 5 (ChapterPage bruker vizForChapter) og fortsatt ved notater i 1.2 (vizForSection). eks-nitrat heter nå eks-bronn og sammenligner smittestoffer, ikke nitrat, med kravet om 60 døgns oppholdstid. k2-plategrenser har fått tittelen «Platene beveger seg: rygg, grop og fjellkjede», som ikke er lik deltematittelen. De tetteste oppføringene (jordsystemene, karbonkretslop, plategrenser, vulkaner, relativ-alder, vannets-kretslop, isbre, forvitring, losmasser, malmleting, petroleumssystem) har en kjerne og et tillegg: agenten gjør kjernen ferdig før tillegget, og kontrollen godtar et enklere tillegg. Alt som kan velges i figuren, har en HTML-kontroll (knapper, Segmented eller Select) som hovedvei, og bygget på tomter i risiko står på faste tomter.\n\nLokale deler og eier: se den siste kit-oppføringen. Eksempeloppgavene bygges etter visualiseringene og kan importere eierens filer. Det som har flere visualiseringer som brukere (Plattform, Demning, Lupe, LogPlot), ligger i kit-et. Dette finnes ikke i scene-kit-et og lages lokalt eller i geofag-kit-et: regnvær og overskyet himmel (skydekke-laget i Nedbor), redskaper i hånda til Person (festes med personPunkter), skip, fly, traktor, fabrikkpipe og målestasjon.\n\nDekning: alle 26 deltemaer (2 + 3 + 3 + 3 + 4 + 3 + 3 + 3 + 2) har minst én oppføring, og hver oppføring har minst ett deltema i sitt eget tema. KM1 (tema 1, forvitring, istider, landheving, losmasser, co2-lagring), KM2 (tema 2), KM3 (tema 3, med mineralgrupper og sedimentære bergarter), KM4 (tema 4, eks-havbunnsspredning, eks-skjellsand), KM5 (relativ-alder, geologisk-tid, losmasser, landheving, eks-steinprove, eks-pukk, eks-skjellsand, sikteanalyse, kvikkleire), KM6 (tema 5), KM7 (tema 6, eks-vannforing), KM8 (grunnvann, drikkevann, eks-bronn, eks-nedborfelt), KM9 (tema 7, med dannelse og kartlegging i malmleting og seismikk i petroleumssystem), KM10 (tema 8, vulkaner, plategrenser, eks-jordskjelv, avrenning, eks-elveforbygning), KM11 (skraaning, flomfrekvens, risiko, eks-fjellskred, eks-boligfelt, kotekart), KM12 (tema 9). KM-kodene skrives også som søkeord, som i biologi. Fortsatt tynt: innsjøer i 6.2 og grunnvarme i 7.2 (begge i reserven), og KM5, KM11 og KM12 forutsetter eget feltarbeid, som visualiseringene bare kan støtte.\n\nReserve (alternativ C): seismiske-bolger (2.1, strålegang og skyggesone), vulkan-og-klima (1.2, nedkjøling etter store utbrudd), bergvarme (7.2, energibrønn og geotermi), innsjo (6.2, lagdeling og sirkulasjon rundt 4 °C), jorderosjon (5.4, kantsoner), avsetningsrate (4.1, borekjerne, varv og alder–dyp) og eks-snoskred (8.1, α–β-modellen; løsningen må da si at modellen gir hvor langt et skred kan nå, og at sikkerhetsklassen krever en vurdering av hvor ofte det skjer).\n\nAvgrensning mot andre fag: fysikk har halveringstid, strålingsbalanse, vannkraft og skråplanet med friksjon og planlegger c14 og varmepumpe. Geofag vinkles mot mineral, isotopsystem og lukketemperatur (C-14 holdes kort: hva som kan dateres, reservoareffekt og kalibrering), tilbakekobling i jordsystemene, poretrykk og kohesjon i skråningen, og vann som ressurs. Titlene skal være ulike, og søkeordene viser til det andre faget. Innad i geofag er oppføringene vinklet ulikt: losmasser (dannelse) mot sikteanalyse (metode), risiko (kart og klasser) mot eks-boligfelt (regning), plategrenser mot eks-havbunnsspredning, malmleting (dannelse og leting) mot malm (økonomi), og isbre, istider og landheving (én bre, klimasyklusene, jordskorpa).\n\nFakta som må sjekkes mot kilden og skrives i koden før de låses i tester: ICS-kartet versjon 2023/09 (devon 419,62), polaritetsskalaen for 0–5 millioner år, PREM, Shiklomanov 1993 og Trenberth mfl. 2007, IPCC AR6 figur 5.12, impulsresponsen i Joos mfl. 2013, Sclater og Christie 1980, Berger 1978 og EPICA Dome C (Jouzel mfl. 2007), NGU og NGF (korngrenser og løsmassenavn), NVE (kvikkleire 0,5 og 2 kPa, veileder 1/2019, klimapåslag, sikkerhetsmargin), TEK17 § 7-2 og § 7-3, Mattilsynet (60 døgns oppholdstid), Hjulström 1935 (avlest, med toleranser), marin grense og tidspunkt for isfrihet (Oslo ca. 220 m og ca. 10 800 år siden, Trondheim ca. 175 m), det globale havnivået etter istida, vannforbruk og lekkasje i Norge, metallinnhold i jordskorpa, CO₂-tetthet og VEI-tabellen. Er en verdi usikker, skriver teksten «omtrent» eller bruker egne tall. C-14 regnes med 5730 år og kalles «forenklet alder».\n\nE2e-tekster som ingen ny tittel eller sammendrag får inneholde: «Statisk friksjon og glidefriksjon», «Kassen står i ro.», «Kassen glir.», «Dytt F», «Kraftpar: bok, bord og jord», «Gravitasjonsparet», «Jorda trekker boka nedover», «Syre-base-titrering», «Vaksiner og flokkimmunitet» og nå «Platene beveger seg: rygg, grop og fjellkjede». I tillegg får ingen tittel være lik en av de 26 deltematitlene i Geofag 1, fordi VizCard har deltematitlene inne i lenka: en test som leter etter «Plategrenser og platebevegelser», ville truffet både visualiseringen og eks-havbunnsspredning. Ingen titler i katalogen bryter dette.\n\nNaN- og Infinity-feller: alder når P = 0, F når β = 0, 1/p når p = 0, Darcy og reisetid når L eller K er 0, Thiem når r = 0, grensegehalt når prisen er 0, log av 0 i Hjulström, LogPlot og VEI (tefravolum 0), ekvidistanse 0, d10 under minste sikt, ankomsttid når fjorddybden er 0, magnetisk anomali når z = 0 og porøsitet ved svært stort dyp. Modellen gir null, og komponenten viser «–» eller en forklaring. viz-shot leser textContent uten ordgrense, så formler som NaNO₃ skrives med Formel eller TFormel, og en tekstbit som slutter på «Na», skal ikke stå rett før en som starter på «N» (Nedbør, Norge, N 45° Ø).\n\nKonvensjoner til README-avsnittet «Geofag»: begreper som i Geofag 1 og hos Udir (geosfæren, hydrosfæren, atmosfæren, biosfæren; litosfære, astenosfære, nedre mantel; spredningsrygg, subduksjon, kollisjon, transformforkastning, med begge sett fagord: konstruktiv eller divergerende, destruktiv eller konvergerende, konservativ; hyposenter og episenter; dypbergart, gangbergart, dagbergart; mineralgruppe, silikat; diagenese; superposisjon, gjennomskjæring, diskordans; akkumulasjon, ablasjon, likevektslinje; morene, breelvavsetning, marin grense, isostasi; grunnvannsspeil, mettet og umettet sone; kildebergart, reservoarbergart, takbergart, felle; gjentaksintervall; strøk og fall, ekvidistanse, overhøyde). Enheter: «millioner år» i løpende tekst (fmtAlder), cm per år, m o.h., mm, m³/s, kPa, Pa·s. Eksempeloppgavene er alltid tenkte steder med egne tall; ekte steder brukes som eksempler i forklaringene (se spørsmål 3).",
+ "temaer": {
+  "1": {
+   "no": "1",
+   "title": "Jorda som system",
+   "sections": [
+    {
+     "code": "1.1",
+     "title": "Geosfæren, hydrosfæren, atmosfæren og biosfæren",
+     "km": [
+      "KM1"
+     ]
+    },
+    {
+     "code": "1.2",
+     "title": "Vekselvirkninger mellom jordsystemene",
+     "km": [
+      "KM1"
+     ]
+    }
+   ],
+   "km": [
+    "KM1"
+   ],
+   "viz": [
+    {
+     "id": "jordsystemene",
+     "title": "Fire jordsystemer i ett landskap",
+     "sections": [
+      "1.1",
+      "1.2"
+     ],
+     "km": [
+      "KM1"
+     ],
+     "idea": "Et snitt gjennom et vestnorsk landskap fra havet og fjorden opp til en bre viser geosfæren (berggrunn og løsmasser), hydrosfæren (hav, elv, bre og grunnvann), atmosfæren og biosfæren (skog, myr og tare) i én scene. Eleven velger et system med knapper i Controls, og delene som hører til det, lyses opp. Kjerne: fire hendelser (regnvær på fjellet, breen sliper dalen, elva frakter sand ut i fjorden, torv hoper seg opp i myra) spilles av steg for steg med PlayBar. Pilene hopper mellom systemene i scenen og i et lite diagram med fire bokser, og en 4 × 4-tabell over vekselvirkningene fylles ut som HTML under figuren, så den er leselig på mobil. Hvert steg viser drivkraften (sola, jordas indre varme eller tyngdekraften) og tidsskalaen. Tillegg: «røtter sprenger stein» og «vulkanutbrudd på Island». Utbruddet vises i et innfelt bilde merket «Island», og bare askeskyen driver inn over landskapet, så det ikke ser ut som det finnes aktive vulkaner på fastlandet. Explain tar opp misoppfatningen at systemene er adskilte «skuffer», og viser at nesten alle hendelsene ender med å endre geosfæren eller hydrosfæren (KM1).",
+     "model": "model-jordsystemene.ts: SYSTEMER (id, navn, deler i scenen) og HENDELSER (merket kjerne eller tillegg), der hver hendelse er en liste med steg { fra, til, prosess, forklaring, drivkraft: 'sol' | 'indre-varme' | 'tyngdekraft', tidsskala i sekunder }. samspillMatrise(hendelser) gir 4 × 4-tellinger, og stegVed(hendelse, t) gir aktivt steg. Tester: hvert steg går mellom to ulike, gyldige systemer; hver hendelse har minst to steg og minst ett steg som ender i geosfæren eller hydrosfæren; hendelsene berører til sammen alle fire systemene (ikke krav om tre per hendelse, så «røtter sprenger stein» slipper kunstige steg); matrisen er summen av stegene; stegVed er definert ved t = 0 og ved slutten.",
+     "sceneNeeds": "Scene-kit: Himmel, Landskap type «kyst», Vann (fjorden), Terreng, Gran og Lauvtre. Geofag-kit: Snittblokk med LagMonstre (berggrunn og løsmasser), Isbre (liten dalbre), Grunnvannssnitt (tynt), Nedbor (med skydekke), Vulkan (bare i det innfelte bildet) og Stromlinjer. Lokalt i kap01: systemdiagrammet med fire bokser og rammen for det innfelte bildet."
+    },
+    {
+     "id": "karbonkretslop",
+     "title": "Karbonets kretsløp: raskt og langsomt",
+     "sections": [
+      "1.2",
+      "1.1"
+     ],
+     "km": [
+      "KM1"
+     ],
+     "idea": "Et snitt fra land til dyphavet viser karbonreservoarene som illustrerte lagre: atmosfæren, vegetasjon og jordsmonn, havets overflate, dyphavet, kalkstein og andre sedimenter, og kull, olje og gass. Pilene er tykke i forhold til strømmen per år, og mengden i gigatonn karbon (Gt C) vises i Readouts når eleven velger et reservoar, ikke alle tallene samtidig i figuren. Kjerne, «Det raske kretsløpet»: fotosyntese, respirasjon og utveksling med havet. Eleven slipper ut en puls av CO₂ og ser to tall side om side: hvor lenge ett molekyl blir i lufta før det byttes med havet eller plantene (ca. 4 år), og hvor stor del av overskuddet som fortsatt er i lufta etter 10, 100 og 1000 år (ca. 40 % etter 100 år og ca. 20–25 % etter 1000 år); utvekslingen er bytte, ikke opprydding. Virkningen på hydrosfæren og geosfæren står i sentrum, slik KM1 spør etter: havet tar opp CO₂ og blir surere (pH ned ca. 0,1 siden førindustriell tid, det vil si ca. 26 % mer H⁺), og kalk løses. Tillegg, «Det langsomme kretsløpet»: vulkaner, forvitring av silikatbergarter og kalk som felles ut på havbunnen og føres ned i en subduksjonssone, med reaksjonene i TReaksjon og nettoreaksjonen CaSiO₃ + CO₂ → CaCO₃ + SiO₂ (halvparten av CO₂-en fra forvitringen frigjøres igjen når kalken felles ut). Eleven ser at den siste delen av overskuddet forsvinner først over titusener til hundretusener av år, langt lenger enn et menneskeliv. Det er ingen klimafremskrivning for 1850–2100; den hører mer hjemme i Geofag 2.",
+     "model": "model-karbonkretslop.ts: reservoarer og bruttostrømmer avrundet etter IPCC AR6 WG1 figur 5.12 (kilde i koden); oppholdstid(M, F) = M/F for ett molekyl; andelIgjen(t) for et overskudd etter impulsresponsen i Joos mfl. 2013 (fire ledd, a₀ ca. 0,217, den samme som IPCC AR5 bruker; kilde i koden); ppmFraGtC (1 ppm CO₂ = 2,124 Gt C); hPlussOkning(ΔpH) = 10^ΔpH − 1; strømmene i det langsomme kretsløpet (vulkaner ca. 0,1 Gt C per år mot menneskelige utslipp ca. 10). Tester: oppholdstiden for ett molekyl er 3–6 år i atmosfæren og 200–1500 år i dyphavet («hundrevis til tusen år»); andelIgjen(0) = 1, avtar monotont og gir 0,35–0,45 etter 100 år og 0,20–0,30 etter 1000 år; molekyltiden er mye kortere enn tiden overskuddet blir i lufta; ΔpH = 0,1 gir ca. 26 %; forholdet mellom menneskelige og vulkanske utslipp er ca. 100; nettoreaksjonen er balansert.",
+     "sceneNeeds": "Scene-kit: Himmel, Landskap, Vann (havet med dybdetoning), Gran, Lauvtre og ValueTag. Geofag-kit: Lagpakke eller Snittblokk med LagMonstre (kalkstein, leirskifer), Vulkan (liten), Plategrense type «subduksjon» (lite utsnitt), Stromlinjer (tykkelse etter mengde), TReaksjon (fra kjemi via kit-indeksen) og Plot. Lokalt i kap01: fabrikkpipe (finnes ikke i scene-kit-et)."
+    }
+   ],
+   "examples": [
+    {
+     "id": "eks-torvmyr",
+     "title": "Karbonlageret i en myr",
+     "sections": [
+      "1.2",
+      "1.1"
+     ],
+     "km": [
+      "KM1"
+     ],
+     "idea": "En kommune vil bygge hyttefelt på en myr på 12 hektar der torva er 3,0 m dyp (egne tall). a) Forklar hvordan myra er et samspill mellom biosfæren, hydrosfæren, atmosfæren og geosfæren (torvmose, vannmetning som hindrer nedbryting, CO₂ fra lufta, torv som ny løsmasse). b) Regn ut massen av karbon i myra (volum · tørr densitet ca. 0,10 tonn/m³ · karbonandel 0,50) og hvor mye CO₂ det tilsvarer (· 44/12). c) Torva vokser ca. 1 mm per år: hvor gammel er myra, og passer det med når isen smeltet i området? d) Når myra grøftes, synker overflaten ca. 2 cm per år, men bare en oppgitt andel (f.eks. halvparten) skyldes at torva brytes ned, resten at den synker sammen: regn ut det årlige utslippet av CO₂ og sammenlign med en bils årsutslipp (oppgitt). e) Vurder om myra bør bygges ut. Tre tallsett med ulike arealer, dybder, vekstrater og andeler.",
+     "model": "model-eks-torvmyr.ts: TORVMYR_TASKS og solveTorvmyr(task) gir volum, tørrmasse, karbonmasse, CO₂, alder, årlig utslipp ved grøfting (bare den nedbrutte delen av senkningen) og antall bilers årsutslipp; tekst, utregning og svar bruker samme funksjon. Tester: enhetene stemmer (ha → m², tonn), faktoren 44/12, alderen ligger mellom 1000 og 11 000 år i alle tallsettene, utslippet er proporsjonalt med arealet og med andelen som brytes ned, og ingen tallsett gir mer enn ca. 30 tonn CO₂ per hektar og år (IPCCs standardverdi for grøftet torv i boreale strøk er ca. 29; kilde i koden).",
+     "sceneNeeds": "Scene-kit: Himmel, Landskap type «aaser», Gran, Bil (sammenligningen) og Dimension (dybden). Geofag-kit: Snittblokk med LagMonstre (torv over morene over fjell) og Borekjerne (torvprøve). Lokalt: grøfter og hyttetomter som bygger seg opp med deloppgavene."
+    }
+   ],
+   "reviewOnly": [],
+   "lokalt": []
+  },
+  "2": {
+   "no": "2",
+   "title": "Jordas indre og platetektonikk",
+   "sections": [
+    {
+     "code": "2.1",
+     "title": "Jordas oppbygning",
+     "km": [
+      "KM2"
+     ]
+    },
+    {
+     "code": "2.2",
+     "title": "Plategrenser og platebevegelser",
+     "km": [
+      "KM2"
+     ]
+    },
+    {
+     "code": "2.3",
+     "title": "Jordskjelv, vulkaner og fjellkjeder",
+     "km": [
+      "KM2",
+      "KM10"
+     ]
+    }
+   ],
+   "km": [
+    "KM2",
+    "KM10"
+   ],
+   "viz": [
+    {
+     "id": "jordas-indre",
+     "title": "Jordas indre: lag, trykk og temperatur",
+     "sections": [
+      "2.1"
+     ],
+     "km": [
+      "KM2"
+     ],
+     "idea": "Jorda vises som en kule med en utskåret kile, og eleven drar en markør fra overflaten til sentrum (0–6371 km) og ser lag, fase (fast, plastisk eller flytende), tetthet, trykk og temperatur i store tall. En bryter veksler mellom den kjemiske inndelingen (skorpe, mantel, kjerne; havskorpa er ca. 7 km tykk, kontinentalskorpa ca. 35 km og opptil ca. 70 km under høye fjellkjeder) og den mekaniske (litosfære, astenosfære, nedre mantel, ytre og indre kjerne). Teksten nevner at nedre mantel også kalles mesosfære, som ikke er det samme som mesosfæren i atmosfæren fra tema 1. Segmented velger grafen ved siden av: «Tetthet», «Trykk og temperatur» eller «Bølgefart». Den siste viser at S-bølgene stopper i den ytre kjernen, og at det er slik vi vet at den er flytende, selv om ingen har boret dypere enn ca. 12 km. Explain tar opp misoppfatningene: mantelen er fast stein som kryper sakte, ikke flytende magma; platene er skorpe pluss den øverste mantelen; og den indre kjernen er fast fordi trykket er så stort, selv om den er varmere enn den ytre.",
+     "model": "Bygger på jorda.ts i kit-et (forenklet PREM, Dziewonski og Anderson 1981): JORDAS_LAG i begge inndelingene (skorpetykkelse ca. 7 km under hav og ca. 35 km under kontinent, litosfære ca. 100 km, overgangssone 410–660 km, kjerne–mantel-grensen 2891 km, indre kjerne fra 5150 km), tetthetVed, gVed (fra massen innenfor), trykkVed (integrert dp = ρg dr), temperaturVed (geoterm gjennom støttepunkter, merket omtrentlig), vpVed og vsVed. model-jordas-indre.ts har bare det visningen trenger (markørtekster, grafvalg). Tester (i kit-et og kapittelet): total masse 5,97 · 10²⁴ kg ± 1 %, g ved overflaten ca. 9,8 m/s², trykk ca. 136 GPa ved kjerne–mantel-grensen og 330–370 GPa i sentrum, vS = 0 i den ytre kjernen, alt definert ved 0 og 6371 km.",
+     "sceneNeeds": "Geofag-kit: JordasIndre (kule med utskåret kile, lagene i GEO-farger, markør), Plot, og etiketter i egen kolonne på mobil (useContainerTextScale). Scene-kit: Stjernehimmel bak og Callout."
+    },
+    {
+     "id": "vulkaner",
+     "title": "Vulkaner: lettflytende og seig magma",
+     "sections": [
+      "2.3"
+     ],
+     "km": [
+      "KM2",
+      "KM10"
+     ],
+     "idea": "Eleven styrer silikainnholdet i magmaen (ca. 48 % SiO₂ i basalt til ca. 72 % i ryolitt), temperaturen og gassinnholdet og ser at viskositeten endrer seg med mange tierpotenser, vist på en logaritmisk skala (LogPlot) sammen med vann, honning og asfalt. Lettflytende basaltlava gir rolige lavastrømmer og slake skjoldvulkaner, mens seig og gassrik magma gir eksplosive utbrudd med askesky fra bratte stratovulkaner. Vulkanen vises i snitt med magmakammer, og utbruddet plasseres på VEI-skalaen ut fra volumet av tefra (materiale som kastes ut), så et rolig utbrudd med mye lava får VEI 0–1. Typen kobles til der magmaen dannes: spredningsrygger og varme punkter under havet gir basalt, subduksjonssoner gir ofte andesitt (Andesfjellene og Japan som eksempler), og et varmt punkt under et kontinent kan gi ryolitt (Yellowstone), så «varmt punkt = basalt» ikke blir en regel. Beerenberg på Jan Mayen er det norske eksempelet: en stratovulkan av basalt nær en spredningsrygg, som viser at formen ikke alltid følger SiO₂. Explain nevner at svoveldioksid fra store utbrudd kan kjøle ned kloden i et par år.",
+     "model": "model-vulkaner.ts: viskositet(SiO₂, T, vann) som forenklet log-lineær tilnærming merket omtrentlig (basalt ved 1200 °C ca. 10–10³ Pa·s, ryolitt ved 800 °C ca. 10⁸–10¹¹ Pa·s); utbruddstype(η, gass) → 'effusivt' | 'mellom' | 'eksplosivt' med vulkanform og typisk helning (skjold 2–10°, strato 25–35°); VEI(tefravolum, type) (VEI 2 fra 10⁶ m³ tefra og én tierpotens per trinn fra VEI 2 og oppover; VEI 0–1 for effusive utbrudd uansett lavavolum; kilde i koden). Tester: viskositeten øker med SiO₂ og synker med temperatur og vanninnhold; VEI-grensene stemmer; et effusivt utbrudd med 1,5 km³ lava får VEI 0–1; tefravolum 0 gir VEI 0, ikke logaritmen av 0; endelige verdier ved alle ytterpunkter.",
+     "sceneNeeds": "Geofag-kit: Vulkan (skjold og strato, magmakammer, lavastrøm, askesky; GEO.magma, GEO.lava og GEO.aske, som ikke ligner VIZ.gravity eller aksentfargen), LagMonstre (basalt, aske), Plategrense (lite innfelt), LogPlot (viskositetsskalaen) og Bygning (skala). Scene-kit: Himmel, Landskap, Terreng og Vann. Askekartet Island–Norge er tatt ut."
+    }
+   ],
+   "examples": [
+    {
+     "id": "eks-jordskjelv",
+     "title": "Hvor var jordskjelvet?",
+     "sections": [
+      "2.3"
+     ],
+     "km": [
+      "KM2",
+      "KM10"
+     ],
+     "idea": "Et tenkt jordskjelv i Nordsjøen kjennes i tre tenkte kystbyer, og kommunene vil vite om det var nærmest en tenkt gassplattform eller et tenkt vindkraftfelt (egne posisjoner på et rutenett med km-skala). Tre seismografstasjoner med tenkte navn har registrert skjelvet. a) Les av tiden mellom P- og S-bølgen på de tre seismogrammene. b) Vis at avstanden er d = Δt · vP · vS/(vP − vS), og regn ut avstanden til hver stasjon med vP = 6,0 km/s og vS = 3,5 km/s. Δt gir egentlig avstanden til hyposenteret; skjelvet var grunt, så vi ser bort fra dybden og bruker den som avstand til episenteret (forklar forskjellen på de to). c) Finn episenteret ved å tegne en sirkel rundt hver stasjon, og avgjør hvilken installasjon som lå nærmest. d) Skjelvet hadde magnitude 4,5: hvor mange ganger mer energi frigjøres i et skjelv med magnitude 6,5? e) Forklar hvorfor det er jordskjelv i Norge selv om landet ligger midt på en plate (skyv fra ryggen i Atlanterhavet og landhevingen etter istida). Tre tallsett.",
+     "model": "model-eks-jordskjelv.ts: JORDSKJELV_TASKS (stasjoner, episenter, installasjoner, vP, vS, magnituder) og solveJordskjelv(task): Δt per stasjon (avrundet til 0,1 s som ved avlesning), avstander, episenter fra minste kvadraters trilaterasjon, nærmeste installasjon og energiforhold 10^(1,5 · ΔM). Tester: funnet episenter ligger innen 5 km fra det sanne, ΔM = 2 gir 1000, d er lineær i Δt, sirklene skjærer hverandre i alle tallsettene, og nærmeste installasjon er entydig (avstandene skiller seg med mer enn 10 km).",
+     "sceneNeeds": "Lokalt i kap02 (eier: eks-jordskjelv): Seismogram (tre spor med P- og S-innsats og tidsakse), rutenett-kart med km-skala, stasjoner, installasjoner og sirkler som tegnes etter hvert (ingen ekte kystlinje). Geofag-kit: Plattform og Kotekart (valgfritt som bakgrunn)."
+    },
+    {
+     "id": "eks-havbunnsspredning",
+     "title": "Magnetiske striper og spredningsfart",
+     "sections": [
+      "2.2"
+     ],
+     "km": [
+      "KM2",
+      "KM4"
+     ],
+     "idea": "Et forskningsskip måler magnetfeltet på tvers av en spredningsrygg, og borekjerner gir alderen på basalten (egne tall). a) Forklar hvorfor stripene med normal og omvendt polaritet ligger symmetrisk om ryggen. b) Grensen mellom dagens normale periode og forrige omvendte (0,78 millioner år) ligger 7,8 km fra ryggaksen: regn ut halv og hel spredningsfart i cm per år. c) Hvor gammel er havbunnen 600 km fra ryggen hvis farten har vært den samme, og hvor dyp er den (formelen for havdybde oppgitt)? d) Norge og Grønland begynte å skilles for ca. 55 millioner år siden: hvor bredt blir havet med denne farten? e) Vurder usikkerheten når farten ikke har vært konstant. Tre tallsett.",
+     "model": "model-eks-havbunnsspredning.ts: HAVBUNN_TASKS og solveHavbunn(task), som bruker plateavstand, havbunnsalder, havdybde og POLARITET (0–5 millioner år) fra model-plategrenser.ts; alderen 600 km fra ryggen regnes av farten, ikke av stripene. Tester: 7,8 km på 0,78 millioner år gir 1,0 cm/år halvfart, omregningen km per million år = mm per år, havdybden øker med alderen, stripemønsteret er symmetrisk.",
+     "sceneNeeds": "Geofag-kit: Plategrense type «spredning» med magnetiske striper (GEO.polaritet.normal og .omvendt), Borekjerne og Plot (magnetisk anomali). Scene-kit: Vann og Himmel. Lokalt i kap02: forskningsskip med magnetometer på slep (skip finnes ikke i scene-kit-et)."
+    }
+   ],
+   "reviewOnly": [
+    "plategrenser"
+   ],
+   "lokalt": [
+    "Seismogram (eier: eks-jordskjelv)",
+    "model-plategrenser.ts med POLARITET (eier: plategrenser, lages i kit-kjøringen)",
+    "skip (eier: eks-havbunnsspredning; kap07 lager sitt eget)"
+   ]
+  },
+  "3": {
+   "no": "3",
+   "title": "Mineraler og bergarter",
+   "sections": [
+    {
+     "code": "3.1",
+     "title": "Mineraler og mineralgrupper",
+     "km": [
+      "KM3"
+     ]
+    },
+    {
+     "code": "3.2",
+     "title": "Magmatiske, sedimentære og metamorfe bergarter",
+     "km": [
+      "KM3"
+     ]
+    },
+    {
+     "code": "3.3",
+     "title": "Bergartssyklusen",
+     "km": [
+      "KM3"
+     ]
+    }
+   ],
+   "km": [
+    "KM3"
+   ],
+   "viz": [
+    {
+     "id": "bestem-mineralet",
+     "title": "Bestem mineralet: hardhet, strek og spalting",
+     "sections": [
+      "3.1"
+     ],
+     "km": [
+      "KM3"
+     ],
+     "idea": "Eleven står ved et laboratoriebord med et ukjent mineral og utstyret en geolog bruker: neglen, en kobbermynt, en stålkniv eller glassplate, en strekplate, en magnet, en lupe og en dråpeflaske med fortynnet saltsyre. Testene velges med knapper i Controls (hovedveien, som virker på mobil og med tastatur), og klikk på utstyret i figuren er en snarvei. Resultatet vises i scenen: riper det eller ikke, strekfargen, om mineralet bruser eller er magnetisk, og spalteflatene i lupen. For hver test blir lista over mulige mineraler kortere, og eleven ser hvilke egenskaper som skiller kvarts fra kalkspat, feltspat fra kvarts og magnetitt fra hematitt. Mohs' skala vises som en stige ved siden av absolutt hardhet, så eleven ser at skalaen bare er en rekkefølge, og hvert mineral viser gruppen sin (som i mineralgrupper). Norske mineraler er med: granat, olivin, rutil, ilmenitt og kobberkis.",
+     "model": "Bygger på mineraler.ts i kit-et (MINERALER med formel, gruppe, aniongruppe, Mohs-intervall, tetthet, strek, glans, spalting, magnetisme, HCl-reaksjon og krystallform; RISSETESTER; MOHS_ABSOLUTT). model-bestem-mineralet.ts: testResultat(mineral, test) og muligeMineraler(observasjoner). Tester: de ti referansemineralene står i riktig rekkefølge; hvert mineral kan skilles fra de andre med testene (eller står på en liste over par som ikke kan skilles); bare kalkspat bruser kraftig; bare magnetitt er sterkt magnetisk; flere tester gir aldri flere kandidater; en kombinasjon som gir tom liste, fanges opp og forklares.",
+     "sceneNeeds": "Geofag-kit: Krystall (prisme, rombeeder, terning, oktaeder, tavle, dodekaeder) og Lupe. Scene-kit: Bord type «lab» og Rom. Lokalt i kap03 (eier: bestem-mineralet; eks-steinprove bruker dem): felt-deler.tsx med Strekplate og Syreflaske, og kobbermynt, kniv, magnet, streken på platen og bobler ved syreprøven (sirkler, ingen filtre)."
+    },
+    {
+     "id": "mineralgrupper",
+     "title": "Mineralgrupper: silikattetraederet bygger skorpa",
+     "sections": [
+      "3.1"
+     ],
+     "km": [
+      "KM3"
+     ],
+     "idea": "Eleven bygger silikatmineraler av SiO₄-tetraedre: Segmented velger struktur, og tetraedrene kobles sammen gjennom felles oksygenatomer til øysilikat (olivin, granat), enkeltkjede (pyroksen), dobbeltkjede (amfibol), sjiktsilikat (glimmer) og rammesilikat (kvarts, feltspat). For hver struktur vises forholdet mellom Si og O, hvilke ioner som binder strukturen sammen, og hvordan strukturen gir spaltingen: glimmer flises opp langs sjiktene, pyroksen og amfibol spalter i to retninger med ulik vinkel (ca. 87° og ca. 124°), og kvarts er et rammesilikat uten svake plan og får skjellformet brudd. Modusen «Alle gruppene» viser de andre mineralgruppene med aniongruppen sin: karbonater (kalkspat), oksider (magnetitt, hematitt, ilmenitt, rutil), sulfider (pyritt, kobberkis), sulfater (gips), halogenider (halitt, flusspat) og rene grunnstoffer (gull, grafitt). Et stolpediagram viser at silikatene utgjør over 90 % av jordskorpa, mest feltspat og kvarts. Eleven skal lære hva en mineralgruppe er, og at krystallstrukturen forklarer egenskapene som brukes i bestem-mineralet.",
+     "model": "Bygger på mineraler.ts i kit-et (MINERALER med gruppe og aniongruppe, SILIKATSTRUKTURER). model-mineralgrupper.ts: tetraedre(struktur, n) gir koordinatene til n sammenkoblede tetraedre (fast geometri), siORatio(struktur), delteHjorner(struktur) og SKORPA (andel av skorpa per mineral og gruppe, avrundet, kilde i koden). Tester: O per Si = 4 − delte hjørner/2 for alle strukturene (øy 4, enkeltkjede 3, dobbeltkjede 2,75, sjikt 2,5, ramme 2); gruppen til hvert mineral i MINERALER stemmer med aniongruppen i formelen (CO₃ gir karbonat, SO₄ sulfat, S uten O sulfid, SiO₄ silikat osv.); silikatandelen er over 90 % og andelene summerer til 100 %; tetraedrene inne i en enkeltkjede deler nøyaktig to hjørner.",
+     "sceneNeeds": "Geofag-kit: Krystall (glimmer, kvarts, kalkspat, pyritt, halitt), Steinprove (granitt med kornene merket) og Lupe. Felles kit: Plot for stolpediagrammet. Lokalt i kap03 (eier: mineralgrupper): tetraedertegningen (Si i midten og fire O, skyggelagt som en kule-og-pinne-modell i samme stil som kjemi/kit/molekyl.tsx)."
+    },
+    {
+     "id": "magmatiske-bergarter",
+     "title": "Magmatiske bergarter: avkjøling og kornstørrelse",
+     "sections": [
+      "3.2"
+     ],
+     "km": [
+      "KM3"
+     ],
+     "idea": "Et snitt gjennom jordskorpa med et magmakammer dypt nede, en gang og en lavastrøm på overflaten. Eleven velger hvor magmaen størkner og hvor mye SiO₂ den har, og ser avkjølingstiden (titusener av år dypt nede, dager til år i en lavastrøm) og krystallene som vokser i en lupe: grovkornet granitt og gabbro, middels kornet diabas i en gang, finkornet ryolitt og basalt, glass ved svært rask avkjøling (obsidian bare når smelta er felsisk, ellers basaltglass) og porfyr når avkjølingen skjer i to trinn. Bergarten plasseres i et skjema med ni ruter, felsisk–intermediær–mafisk mot dypbergart–gangbergart–dagbergart (granitt, dioritt, gabbro; granittporfyr, diorittporfyritt, diabas; ryolitt, andesitt, basalt). En bryter viser Bowens reaksjonsrekke: olivin krystalliserer først og kvarts sist. De norske bergartene fra Oslofeltet står som egne merker ved siden av skjemaet med riktig navn og en kort forklaring: larvikitt er en monzonitt og rombeporfyr en latitt, begge intermediære og rike på alkalier, så et skjema som bare ser på SiO₂, ville gitt dem feil navn. Velges de i Controls, vises de i lupen.",
+     "model": "Bygger på bergarter.ts i kit-et (MAGMATISKE med ni ruter, klassifiserMagmatisk(SiO₂, dyp) med grensene 52 % og 63 %, NORSKE_MAGMATISKE med larvikitt og rombeporfyr som egne oppføringer). model-magmatiske-bergarter.ts: avkjolingstid(tykkelse) ≈ L²/κ med κ ≈ 10⁻⁶ m²/s og L = halve tykkelsen; kornstorrelse(t) monoton på log-skala fra glass til ca. 10 mm; glassNavn(SiO₂); bowen(T); krystaller(n, størrelse, frø) med fast frø. Tester: et 1 km tykt legeme gir 10³–10⁵ år og en 10 m tykk lavastrøm i størrelsesorden ett år; kornstørrelsen øker med avkjølingstiden; alle ni rutene gir riktig navn på begge sider av 52 % og 63 %; glassNavn gir obsidian bare over 63 %; larvikitt og rombeporfyr klassifiseres ikke av skjemaet, men slås opp i NORSKE_MAGMATISKE; samme frø gir samme plassering.",
+     "sceneNeeds": "Geofag-kit: Snittblokk med magmakammer, gang og lavastrøm, Vulkan (liten), LagMonstre (granitt, basalt, diabas), Steinprove (granitt, ryolitt, gabbro, basalt, diabas, obsidian, larvikitt, rombeporfyr), Krystall og Lupe, useGeoScale. Scene-kit: Himmel, Terreng og Termometer."
+    },
+    {
+     "id": "sedimentare-bergarter",
+     "title": "Fra sediment til stein: sedimentære bergarter",
+     "sections": [
+      "3.2",
+      "3.3"
+     ],
+     "km": [
+      "KM3"
+     ],
+     "idea": "Et snitt fra land ut i havet viser hvor sedimentene havner: grus og stein nær land, sand på stranda og i deltaet, silt og leire lenger ut, skjell og kalkslam på en grunn sokkel, plantemateriale i en sump og salt i en grunn lagune som dampes inn. Eleven velger et sediment og spiller av begravingen: nye lag legges oppå, kornene presses sammen (kompaksjon, porøsiteten synker med dypet) og limes sammen av kvarts eller kalkspat som felles ut i porene (sementering), vist i en lupe. Navnet på de klastiske bergartene følger kornstørrelsen (konglomerat over 2 mm, sandstein, siltstein og leirskifer under 0,002 mm), mens kalkstein av skall, kull av planter og salt fra inndamping er kjemiske eller biogene. Fossiler blir liggende i lagene, og laggrensene viser at det eldste ligger nederst. Eksempler: kalkstein og leirskifer i Oslofeltet, saltet fra perm i Nordsjøen og kull på Svalbard. Eleven skal lære hvordan sedimentære bergarter dannes og klassifiseres, og at diagenesen er steget i bergartssyklusen mellom sediment og sedimentær bergart.",
+     "model": "Bygger på kornstorrelse.ts og bergarter.ts i kit-et (SEDIMENTARE med klastisk eller kjemisk/biogen, kornstørrelse og eksempler). model-sedimentare-bergarter.ts: porositet(z, materiale) etter Athy, φ = φ₀ · e^(−z/c), med φ₀ og c for sand og leire etter Sclater og Christie 1980 (kilde i koden, merket omtrentlig); lagtykkelse(z, h₀) med bevart kornvolum; klastiskNavn(d); avsetningsmiljo(x) for plasseringen i snittet. Tester: porøsiteten synker monotont med dypet og er φ₀ ved overflaten; kornvolumet h · (1 − φ) er bevart under kompaksjonen; leire mister mer porøsitet enn sand på samme dyp; klastiskNavn gir riktig navn på begge sider av 2 mm, 0,063 mm og 0,002 mm; z = 0 og svært stor z gir endelige verdier.",
+     "sceneNeeds": "Geofag-kit: Snittblokk og Lagpakke (lag med fossiler), LagMonstre (konglomerat, sandstein, siltstein, leirskifer, kalkstein, salt, kull), Korn og Kornpakning (lupe med sement), Elveleie (delta) og GeoTidslinje. Scene-kit: Himmel, Landskap type «kyst», Vann og Terreng type «grus». Lokalt i kap03 (eier: sedimentare-bergarter): skjell og plantemateriale i snittet."
+    },
+    {
+     "id": "metamorfose",
+     "title": "Trykk og temperatur lager nye bergarter",
+     "sections": [
+      "3.2",
+      "3.3"
+     ],
+     "km": [
+      "KM3"
+     ],
+     "idea": "Eleven drar et punkt i et trykk–temperatur-diagram, eller velger dybde og temperatur, og ser en leirskifer omdannes trinn for trinn til skifer, fyllitt, glimmerskifer, gneis og til slutt migmatitt, der den begynner å smelte. Ved siden av vises hvordan sandstein blir kvartsitt, kalkstein blir marmor og basalt blir grønnskifer, amfibolitt, blåskifer eller eklogitt. Linjer for geotermiske gradienter viser hvor det skjer i naturen: høy temperatur på lite dyp rundt en intrusjon (kontaktmetamorfose), der leirskifer blir hornfels, som rundt de permiske intrusjonene i Oslofeltet; normal gradient i en fjellkjede (regionalmetamorfose); og høyt trykk og lav temperatur i en subduksjonssone, der havskorpe blir blåskifer. Eklogitt dannes ved høyt trykk og høyere temperatur (over ca. 500 °C); eklogittene på Vestlandet ble dannet da kanten av Baltika ble dratt ned under Laurentia i den kaledonske kollisjonen, delvis over 100 km dypt (kontinental subduksjon). Teksturen i håndstykket endrer seg med graden: mineralene retter seg inn (foliasjon) og blir større, mens hornfels er finkornet og uten foliasjon. Explain understreker at metamorfose skjer i fast fase.",
+     "model": "model-metamorfose.ts: trykkFraDybde(z) = ρgz med ρ ≈ 2800 kg/m³ (ca. 27 MPa per km) og dybdeFraTrykk; geoterm(z, gradient); forenklede soner i P–T-rommet (diagenese; lav, middels og høy grad; kontaktmetamorfose ved lavt trykk og høy temperatur; blåskifer ved høyt trykk og lav temperatur; eklogitt ved høyt trykk og over ca. 500 °C; smelting av våt granitt fra ca. 650 °C), merket forenklet, med kilde; produkt(utgangsbergart, P, T) for leirskifer, sandstein, kalkstein og basalt. Tester: 1 GPa svarer til ca. 37 km; hvert punkt havner i nøyaktig én sone; leirskifer gir rekkefølgen skifer → fyllitt → glimmerskifer → gneis når T øker ved fast P; leirskifer ved 0,1 GPa og 600 °C gir hornfels; basalt ved 1,0 GPa og 300 °C gir blåskifer og ved 2,0 GPa og 700 °C eklogitt; kalkstein blir alltid marmor og sandstein kvartsitt.",
+     "sceneNeeds": "Geofag-kit: Steinprove (leirskifer, skifer, fyllitt, glimmerskifer, gneis, migmatitt, hornfels, marmor, kvartsitt, grønnskifer, amfibolitt, blåskifer, eklogitt), LagMonstre, Plategrense (lite innfelt subduksjonssnitt), Snittblokk med intrusjon og Plot (P–T-diagrammet)."
+    },
+    {
+     "id": "bergartssyklusen",
+     "title": "Bergartssyklusen: følg et kvartskorn",
+     "sections": [
+      "3.3",
+      "3.2"
+     ],
+     "km": [
+      "KM3"
+     ],
+     "idea": "Et stort landskapssnitt med fjell, elv, hav, en subduksjonssone og et magmakammer, der de tre bergartsgruppene og sedimentene har hver sin plass. Eleven følger stoffet i et kvartskorn og velger neste prosess med knapper i Controls blant dem som er mulige akkurat der: forvitring, erosjon og transport (kornet blir rundet og sortert), avsetning, sammenpressing og sementering (diagenese), trykk og varme, smelting (kornet smelter, og stoffet krystalliserer senere på nytt som nye korn), størkning eller heving. Kornet flytter seg i scenen, et syklusdiagram ved siden av (som tegnemalen i PDF-ene, med en merknad om at malen er forenklet) lyser opp pila, og en klokke teller geologisk tid. Eleven ser at syklusen har snarveier: en granitt kan bli gneis uten å bli sediment først, og en sandstein kan forvitre på nytt. Norske eksempler: gneis på Vestlandet, skifer og kalkstein i Oslofeltet og marmor i Nordland.",
+     "model": "Bygger på bergarter.ts i kit-et (SYKLUS). model-bergartssyklusen.ts: tilstander (magma, magmatisk bergart, sediment, sedimentær bergart, metamorf bergart), prosesser som kanter med navn, sted i scenen og typisk varighet; muligeProsesser(tilstand), gaa(sti) (summerer tiden og validerer) og posisjon(tilstand, steg). Tester: alle tilstander kan nås fra alle (sterkt sammenhengende graf); de fire navnene fra tegnemalen (størkning, forvitring, trykk og varme, smelting) står skrevet rett i testen med en kommentar om server/src/profiles/precise.ts (ingen import av serverkode), og testen sjekker at de finnes blant prosessene, ikke at listene er like; en ugyldig overgang avvises; tiden øker for hvert steg.",
+     "sceneNeeds": "Geofag-kit: Snittblokk med LagMonstre (granitt, sandstein, gneis), Plategrense (subduksjon), Vulkan, Elveleie med delta, Korn (kvartskornet med glorie) og GeoTidslinje. Scene-kit: Himmel, Landskap type «fjell» og Vann. Lokalt i kap03 (eier: bergartssyklusen): syklusdiagrammet."
+    }
+   ],
+   "examples": [
+    {
+     "id": "eks-steinprove",
+     "title": "En steinprøve fra stranda",
+     "sections": [
+      "3.1",
+      "3.2",
+      "3.3"
+     ],
+     "km": [
+      "KM3",
+      "KM5"
+     ],
+     "idea": "En elev finner en lys, grovkornet stein på stranda (egne tall): massen er 412 g, og når den senkes i en målesylinder, stiger vannet fra 500 mL til 655 mL (hver avlesning ±2 mL). a) Regn ut tettheten med usikkerhet, og sammenlign med tabellverdier for granitt, basalt og kalkstein. b) Steinen har korn på 2–5 mm av tre mineraler: et glassaktig som risser glass, et rosa med spalteflater som også risser glass, og svarte flak som kan flises opp med neglen. Hvilke mineraler er det, og hvilke mineralgrupper hører de til? c) Hvilken bergart er det, og hva sier kornstørrelsen om hvor den ble dannet? d) Saltsyre gir ingen reaksjon: hvilken bergart med lignende tetthet utelukker det? e) Beskriv veien steinen kan ha tatt til den lå rundslipt på stranda, med begrepene i bergartssyklusen (fraktet av isen, avsatt i en morene, vasket ut av bølgene). Tre tallsett (granitt, gabbro og marmor), der observasjonene følger bergarten.",
+     "model": "model-eks-steinprove.ts: STEIN_TASKS (bergart, masse, vannstand før og etter, avlesningsusikkerhet, observasjoner) og solveSteinprove(task) gir volum, tetthet med usikkerhet, kandidater fra BERGARTER og mineraler og grupper fra muligeMineraler (kit-et). Tester: tettheten i hvert tallsett ligger i intervallet for riktig bergart og, med usikkerheten, fortsatt utenfor minst én av de andre; mineralfiltreringen gir nøyaktig de forventede mineralene; 1 mL = 1 cm³; usikkerheten i volumet er summen av de to avlesningene.",
+     "sceneNeeds": "Scene-kit: Bord, Rom, Vann og Terreng type «grus» (stranda). Geofag-kit: Steinprove (rundslipt), Krystall og Lupe. Lokalt i kap03: kjøkkenvekt og målesylinder (smal sylinder med skala, i samme stil som Begerglass i kjemi-kit-et), og Syreflaske fra felt-deler.tsx (eier: bestem-mineralet)."
+    }
+   ],
+   "reviewOnly": [],
+   "lokalt": [
+    "felt-deler.tsx med Strekplate og Syreflaske (eier: bestem-mineralet)",
+    "tetraedertegningen (eier: mineralgrupper)",
+    "målesylinder og kjøkkenvekt (eier: eks-steinprove)"
+   ]
+  },
+  "4": {
+   "no": "4",
+   "title": "Geologisk tid og datering",
+   "sections": [
+    {
+     "code": "4.1",
+     "title": "Relativ alder og lagfølger",
+     "km": [
+      "KM4"
+     ]
+    },
+    {
+     "code": "4.2",
+     "title": "Radiometrisk datering",
+     "km": [
+      "KM4"
+     ]
+    },
+    {
+     "code": "4.3",
+     "title": "Den geologiske historien til et område",
+     "km": [
+      "KM5"
+     ]
+    }
+   ],
+   "km": [
+    "KM4",
+    "KM5"
+   ],
+   "viz": [
+    {
+     "id": "relativ-alder",
+     "title": "Hvilket lag er eldst? Relativ alder i et snitt",
+     "sections": [
+      "4.1",
+      "4.3"
+     ],
+     "km": [
+      "KM4",
+      "KM5"
+     ],
+     "idea": "Et geologisk snitt i tre tenkte scenarier som blir gradvis vanskeligere: en lagpakke gjennomsatt av en gang; en fold med en erosjonsflate (diskordans) og nye lag oppå; og en forkastning med inneslutninger, fossiler og løsmasser øverst. I modusen «Bestem rekkefølgen» velger eleven hendelsene fra eldst til yngst med knapper i en liste under figuren (hovedveien, som virker på mobil og med tastatur; klikk i snittet er en snarvei) og får tilbakemelding med prinsippet som avgjør: superposisjon, opprinnelig horisontal avsetning, gjennomskjæring, inneslutninger og fossilfølge. I modusen «Spill av historien» bygges snittet opp hendelse for hendelse langs en tidslinje, så eleven ser at en diskordans er tid som mangler. Oslofeltet nevnes bare i Explain, siden eksempeloppgaven eks-oslofeltet har det scenarioet. Eleven skal lære prinsippene for relativ datering og å lese den geologiske historien til et område (KM5).",
+     "model": "model-relativ-alder.ts: tre SCENARIER med enheter (lag, gang, forkastning, erosjonsflate, folding, løsmasser), geometrien etter hver hendelse og relasjoner av typen «A er eldre enn B fordi prinsipp P»; riktigRekkefolge (topologisk sortering), sjekkRekkefolge(scenario, forslag) gir første feil med prinsippet, snittVed(scenario, steg). Tester: relasjonsgrafene har ingen sykler; fasiten er gyldig; en gang som er eldre enn laget den skjærer gjennom, avvises med «gjennomskjæring»; hendelser uten innbyrdes relasjon kan bytte plass; hvert prinsipp brukes i minst ett av de tre scenariene; polygonene ligger innenfor snittet.",
+     "sceneNeeds": "Geofag-kit: Snittblokk og Lagpakke (fold, forkastning, gang, diskordans), LagMonstre (sandstein, leirskifer, kalkstein, konglomerat, diabas, morene) og GeoTidslinje. Scene-kit: Himmel, Terreng type «gress» og Gran. Lokalt i kap04 (eier: relativ-alder): fossilsymboler (trilobitt, ortoceratitt, armfoting) i fossiler.tsx, som eksempeloppgavene i tema 4 også bruker."
+    },
+    {
+     "id": "radiometrisk-datering",
+     "title": "Radiometrisk datering: klokker i mineralene",
+     "sections": [
+      "4.2"
+     ],
+     "km": [
+      "KM4"
+     ],
+     "idea": "Her står geologens spørsmål i sentrum, ikke selve henfallet (det har fysikk): hva som dateres, i hvilket mineral og med hvilken klokke. Eleven velger en bergart og et isotopsystem (U–Pb i zirkon fra granitt eller gneis, K–Ar i biotitt eller sanidin fra lava og askelag, og kort C-14 i skjell, tre og torv), og inne i et forstørret mineralkorn blir morisotoper til datterisotoper mens tiden spilles av, med forholdet D/P og alderen regnet ut. Teksten forklarer hvorfor klokka starter på null akkurat i disse mineralene: zirkon tar ikke opp bly når den krystalliserer, og argon slipper ut av smelta. Klokka starter når mineralet krystalliserer eller kjøles under lukketemperaturen, og en oppvarming som varer lenge (millioner av år) kan nullstille K–Ar i biotitt mens U–Pb i zirkon husker den første krystalliseringen. En glidebryter for måleusikkerheten viser hvorfor hver metode har et måleområde (C-14 bare til ca. 50 000 år). C-14 holdes kort: hva metoden kan datere, at skjell fra havet trenger en korreksjon for reservoareffekten, og at laboratoriene kalibrerer alderen; søkeordene viser til halveringstid i fysikk. Explain kobler til lagfølgen: sedimentære bergarter dateres indirekte med askelag eller ganger over og under.",
+     "model": "Bygger på datering.ts i kit-et: ISOTOPER (U-238 → Pb-206, T½ 4,468 milliarder år; K-40 → Ar-40, T½ 1,25 milliarder år med forgrening ca. 10,5 % til argon; C-14, 5730 år) med mineraler, lukketemperatur og måleområde, men uten Rb–Sr (den metoden trenger en isokron fordi det alltid finnes Sr-87 fra før); gjenvaerende, datterForhold, alderFraForhold og nullstilles(system, toppTemperatur, varighet). model-radiometrisk-datering.ts: relativUsikkerhet(D/P, σ) og brukbartOmraade(isotop, σ). Tester: D/P = 1 gir t = T½ uten forgrening; alderFraForhold(datterForhold(t)) = t; K–Ar med forgrening stemmer for et kjent tilfelle (forholdet 0,017 gir ca. 271 millioner år); P = 0 gir null (vises «–») og D/P = 0 gir alder 0; 400 °C i 10 millioner år nullstiller biotitt, men ikke zirkon, og 400 °C i noen få år nullstiller ingen av dem; usikkerheten blir stor ved svært små og svært store aldre.",
+     "sceneNeeds": "Geofag-kit: Krystall (forstørret zirkon, biotitt, sanidin) med isotopprikker i GEO.morIsotop og GEO.datterIsotop, Steinprove, GeoTidslinje og Plot. Scene-kit: Atomkjerne (lite innfelt bilde) og Termometer (oppvarmingen)."
+    },
+    {
+     "id": "geologisk-tid",
+     "title": "Jordas historie på et døgn",
+     "sections": [
+      "4.1",
+      "4.3"
+     ],
+     "km": [
+      "KM4",
+      "KM5"
+     ],
+     "idea": "Den geologiske tidsskalaen vises som et bånd med eoner, æraer og perioder i dempede farger og som en urskive der hele jordas historie (ca. 4,54 milliarder år) er ett døgn. Eleven drar en markør eller zoomer fra hele tiden til fanerozoikum og videre til kvartær, og ser hendelser som de eldste mineralene, de første sporene etter liv, oksygen i atmosfæren, den kambriske eksplosjonen, masseutryddelsene og istidene; dyr med skall kommer først rundt kl. 21, og mennesket de siste sekundene før midnatt. Bryteren «Norges historie» legger inn grunnfjellet, den kaledonske fjellkjededannelsen da Baltika og Laurentia kolliderte, riften og vulkanismen i Oslofeltet, kildebergartene for Nordsjøoljen i jura, åpningen av Norskehavet, istidene og slutten på siste istid for 11 700 år siden. Eleven klikker en hendelse (eller velger den i en liste) og får en kort forklaring og perioden den hører til.",
+     "model": "Bygger på geotid.ts i kit-et: GEOLOGISK_TID (eoner, æraer og perioder etter ICS-kartet versjon 2023/09, versjonen i koden; f.eks. kambrium 538,8, devon 419,62, perm 298,9, jura 201,4, paleogen 66,0, kvartær 2,58 millioner år, holocen 11 700 år), periodeVed(ma), tilDognet(ma), fmtAlder(ma). model-geologisk-tid.ts: HENDELSER og NORGES_HISTORIE med alder, usikkerhet og tekst. Tester: periodene ligger uten hull og overlapp innenfor hver rang; periodeVed(400) er devon og periodeVed(0,005) kvartær; tilDognet(4540) er 00:00:00 og tilDognet(0) er 24:00:00; hver hendelse ligger i perioden den er merket med; fmtAlder skriver norske tall.",
+     "sceneNeeds": "Geofag-kit: GeoTidslinje (bånd med GEO.tid-farger, zoom, markører) og små ikoner (Plategrense, Vulkan, Isbre). Scene-kit: Planet type «jorda» (valgfritt). Lokalt i kap04: urskiva og enkle silhuetter for hendelsene. Skjematisk tegning passer best her."
+    }
+   ],
+   "examples": [
+    {
+     "id": "eks-oslofeltet",
+     "title": "En veiskjæring i Oslofeltet",
+     "sections": [
+      "4.1",
+      "4.2",
+      "4.3"
+     ],
+     "km": [
+      "KM4",
+      "KM5"
+     ],
+     "idea": "Et snitt av en tenkt veiskjæring inspirert av Oslofeltet (egne lag og tall): foldede lag av leirskifer og kalkstein med fossiler, gjennomsatt av en loddrett gang av syenittporfyr, med en skurt erosjonsflate og morene øverst. a) Ordne hendelsene fra eldst til yngst og navngi prinsippet for hvert valg. b) Zirkon fra gangen har et målt forhold ²⁰⁶Pb/²³⁸U på ca. 0,0428: vis at alderen er ca. 270 millioner år (D/P = e^(λt) − 1, halveringstiden for U-238 oppgitt). c) Det yngste foldede laget har en art av trilobitt som bare levde i ordovicium (oppgitt tabell): gi en aldersramme for foldingen. d) Hva forteller morenen og den skurte flaten om den yngste historien? e) Forklar hvorfor U–Pb i zirkon gir krystalliseringsalderen selv om området senere ble varmet opp, mens en K–Ar-alder fra biotitt kunne blitt for lav. Tre tallsett.",
+     "model": "model-eks-oslofeltet.ts: OSLO_TASKS og solveOslofeltet(task) med egne hendelser og relasjoner (scenarioet er ikke det samme som i relativ-alder), alderFraForhold for U–Pb og periodeVed fra kit-et; aldersrammen for foldingen er mellom det yngste foldede laget og gangen. Tester: forholdet 0,0428 gir 270 ± 2 millioner år; gangens alder ligger i perm i alle tallsettene; rammen for foldingen er ikke tom; fasitrekkefølgen er gyldig.",
+     "sceneNeeds": "Geofag-kit: Snittblokk og Lagpakke med fold, gang og diskordans, LagMonstre, GeoTidslinje og Krystall (zirkon). Scene-kit: Vei, Bil (skala), Himmel og Gran. Lokalt: fossiler.tsx fra kap04 (eier: relativ-alder) og skuringsstriper."
+    },
+    {
+     "id": "eks-askelag",
+     "title": "Fossiler mellom to askelag",
+     "sections": [
+      "4.1",
+      "4.2"
+     ],
+     "km": [
+      "KM4"
+     ],
+     "idea": "I en lagpakke ligger et fossilførende sandsteinslag mellom to vulkanske askelag (egne tall). a) Forklar hvorfor sandsteinen ikke kan dateres direkte med radiometriske metoder, mens askelagene kan. b) Sanidin fra det nedre og det øvre askelaget har oppgitte forhold ⁴⁰Ar/⁴⁰K: regn ut begge aldrene. c) Gi aldersrammen for fossilene og hvilken periode det er (tabell over geologisk tid oppgitt). d) Et trestykke i morenen øverst har en oppgitt andel C-14 igjen: regn ut en forenklet alder (halveringstid 5730 år; laboratoriene kalibrerer), og forklar hvorfor C-14 ikke kan brukes på askelagene. e) Vurder feilkilder som kan gjøre aldrene for høye eller for lave (argon som har lekket ut, eldre korn blandet inn). Tre tallsett.",
+     "model": "model-eks-askelag.ts: ASKELAG_TASKS og solveAskelag(task) med alderFraForhold (K–Ar med forgrening, og C-14 med 5730 år som «forenklet alder») og periodeVed fra kit-et. Tester: den nedre alderen er større enn den øvre i alle tallsettene; begge ligger i perioden(e) oppgaven sier; C-14-alderen er under 50 000 år; svarene har fornuftig antall gjeldende siffer.",
+     "sceneNeeds": "Geofag-kit: Lagpakke med askelag (GEO.aske), sandstein, fossiler og morene øverst, Krystall (sanidin), GeoTidslinje og Borekjerne (valgfritt). Lokalt: fossiler.tsx fra kap04 (eier: relativ-alder) og trestykket."
+    }
+   ],
+   "reviewOnly": [],
+   "lokalt": [
+    "fossiler.tsx (eier: relativ-alder)"
+   ]
+  },
+  "5": {
+   "no": "5",
+   "title": "Landformer og landskapsprosesser",
+   "sections": [
+    {
+     "code": "5.1",
+     "title": "Forvitring, erosjon og avsetning",
+     "km": [
+      "KM6"
+     ]
+    },
+    {
+     "code": "5.2",
+     "title": "Isbreer og istider",
+     "km": [
+      "KM6"
+     ]
+    },
+    {
+     "code": "5.3",
+     "title": "Løsmasser og jordarter",
+     "km": [
+      "KM5",
+      "KM6"
+     ]
+    },
+    {
+     "code": "5.4",
+     "title": "Mennesket og landskapet",
+     "km": [
+      "KM6"
+     ]
+    }
+   ],
+   "km": [
+    "KM5",
+    "KM6"
+   ],
+   "viz": [
+    {
+     "id": "forvitring",
+     "title": "Forvitring: frost, vann og stein",
+     "sections": [
+      "5.1",
+      "1.2"
+     ],
+     "km": [
+      "KM6",
+      "KM1"
+     ],
+     "idea": "Kjerne, «Frostsprengning»: en fjellvegg med en vannfylt sprekk. Når vannet fryser, utvider det seg ca. 9 %, og isen kiler sprekken litt videre til en blokk løsner og faller ned i ura. Eleven stiller inn årsmiddeltemperatur, årsvariasjon og døgnvariasjon, eller velger forvalgene «kyst», «innland» og «høyfjell», og ser temperaturkurven gjennom året, antall fryse-tine-sykluser, timer i «frostvinduet» mellom ca. −3 og −8 °C og hvordan sprekken vokser over år. I den enkle modellen er det antall ganger temperaturen krysser 0 °C som teller, så frostsprengningen er størst vår og høst og i fjellet; Explain nyanserer at mye av frostforvitringen skjer når fjellet lenge ligger mellom ca. −3 og −8 °C og isen trekker til seg vann fra porene (issegregering), og at døgnsvingningene i lufta bare fryser de ytterste centimeterne av fjellet. Kjerne, «Kjemisk forvitring»: hydrolyse av feltspat til leire (TReaksjon) går raskere i varmt og fuktig klima (omtrent dobbelt så raskt per 10 °C), mens kalkoppløsning (TReaksjon) er unntaket, fordi kaldt vann løser mer CO₂ og oppløsningen mest følger vannmengden og CO₂ fra jorda. Tillegg, «Biologisk»: røtter som åpner sprekker (mekanisk) og syrer fra lav og røtter (kjemisk). Explain kobler til KM1 (atmosfæren, hydrosfæren og biosfæren bryter ned geosfæren) og til erosjonen i hjulstrom.",
+     "model": "model-forvitring.ts: T(t) = Tm + Aår · cos(2π(t − t₀)/365) + Adøgn · cos(2πt) med t i døgn; fryseTineSykluser(param) teller kryssinger av 0 °C med fast steg (1 time); timerIFrostvindu(param, −8, −3); sprekkVekst(n, vekstPerSyklus) (forenklet); kjemiskRate(T) = 2^((T − 10)/10) for silikatforvitring; co2Loselighet(T) (tabell, kilde i koden); volumokningVedFrysing = 1000/917 − 1. Tester: alltid over eller alltid under null gir 0 sykluser; Adøgn = 0 gir høyst 1 syklus per år; flest sykluser når Tm er nær 0 og døgnvariasjonen er stor; tellingen avhenger ikke av startdøgnet; alltid over 0 °C gir 0 timer i frostvinduet; volumøkningen er 9,0 ± 0,2 %; kjemiskRate dobles per 10 °C; CO₂ løses bedre i kaldt enn i varmt vann.",
+     "sceneNeeds": "Scene-kit: Himmel, Landskap type «fjell», Terreng type «sno» og «grus» (ura), Termometer og Gran. Geofag-kit: LagMonstre (granitt eller gneis), Klimadiagram (bare temperaturkurven med 0 °C-linja), Nedbor (snø) og TReaksjon (fra kjemi via kit-indeksen). Lokalt i kap05 (eier: forvitring): fjellvegg i snitt med sprekk og iskile i et forstørret utsnitt (useGeoScale)."
+    },
+    {
+     "id": "hjulstrom",
+     "title": "Hjulströms diagram: erosjon, transport og avsetning",
+     "sections": [
+      "5.1",
+      "5.4"
+     ],
+     "km": [
+      "KM6"
+     ],
+     "idea": "En elv i lengdesnitt fra et bratt fjellparti ned til et delta i en innsjø, med korn av leire, silt, sand, grus og stein på bunnen. Eleven endrer vannfarten, for eksempel under en flom, og ser hvilke korn som blir liggende, rives løs, fraktes svevende eller langs bunnen, eller legger seg, mens et punkt flytter seg i Hjulströms diagram med logaritmiske akser. Det overraskende er at fin sand rives lettest løs, mens leire trenger større fart fordi kornene henger sammen, men først legger seg når vannet nesten står stille. Når eleven senker farten etter flommen, ser hun at sand som allerede er i bevegelse, fraktes videre helt til punktet krysser avsetningskurven, mens sand som ligger i ro, blir liggende; det er selve poenget med de to kurvene. Nedover elva sorteres kornene: stein og grus blir liggende øverst, sand i deltaet og leire langt ute i innsjøen. En bryter viser hva som skjer når elva demmes opp eller rettes ut (5.4).",
+     "model": "Bygger på kornstorrelse.ts i kit-et: KORNKLASSER (norsk praksis, grenser i mm, kilde i koden), kornklasse(d), erosjonsfart(d) og avsetningsfart(d) som log–log-interpolasjon av Hjulströms kurver (ca. 1 m vanndyp, merket omtrentlig), kornTilstand(d, v, iBevegelse) → 'ligger' | 'eroderes' | 'transporteres' | 'avsettes' (over erosjonskurven eroderes et korn i ro og fraktes et korn i bevegelse; mellom kurvene blir et korn i ro liggende og et korn i bevegelse fraktes videre; under avsetningskurven avsettes et korn i bevegelse) og synkefart(d) (Stokes for fine korn). Tester: erosjonskurven har minimum for korn på 0,1–0,5 mm ved 0,15–0,35 m/s; leire på 0,001 mm trenger større fart enn sand på 0,3 mm; avsetningsfarten er alltid lavere enn erosjonsfarten; i mellomsonen blir et korn i ro liggende og et korn i bevegelse fraktes videre; tilstanden er entydig for hver kombinasjon av d, v og iBevegelse; endelig ved ytterpunktene.",
+     "sceneNeeds": "Geofag-kit: Elveleie (lengdeprofil med vann og korn), Korn (useGeoScale), LagMonstre (deltaavsetninger), Demning (oppdemmingen), LogPlot (log–log-aksene) og Stromlinjer. Scene-kit: Himmel, Landskap type «fjell», Vann (innsjøen), Terreng type «grus», Gran og ForceArrow i VIZ.velocity for strømfarten."
+    },
+    {
+     "id": "isbre",
+     "title": "Isbreen: massebalanse, bevegelse og landformer",
+     "sections": [
+      "5.2"
+     ],
+     "km": [
+      "KM6",
+      "KM1"
+     ],
+     "idea": "Kjerne: et lengdesnitt gjennom en dalbre med akkumulasjonsområdet øverst, ablasjonsområdet nederst og likevektslinja mellom. Eleven endrer sommertemperaturen og vintersnøen og spiller av tiår: likevektslinja flytter seg, massebalansen blir positiv eller negativ, og brefronten rykker fram eller trekker seg tilbake med forsinkelse, mens isen hele tiden strømmer nedover, også når fronten trekker seg tilbake. Står fronten stille lenge, bygges en endemorene, og når breen trekker seg tilbake, blir morenen liggende med en bresjø bak. Tillegg, modusen «Etter isen»: landformene breen etterlater, med U-dal, hengende sidedaler og fosser, botner, morenerygger, skuringsstriper og en fjord med terskel, sammenlignet med en V-formet elvedal.",
+     "model": "model-isbre.ts: likevektslinje(ΔT, ΔP) (ca. 150 m høyere per grad når nedbøren er uendret; mer nedbør motvirker), massebalanse(z, ela) = β · (z − ela) med øvre grense, nettobalanse(hypsometri, ela), frontlengde(t) med treg respons dL/dt = (Llikevekt − L)/τ løst med fast steg, isfart fra massefluksen, dalprofil(x, b) = a · |x|^b (b ≈ 1 V-dal, ca. 2 U-dal). Tester: massebalansen er null ved likevektslinja; +1 °C løfter linja ca. 150 m; negativ nettobalanse gir kortere bre; isfarten er positiv nedover også under tilbaketrekning; fronten går ikke forbi dalbunnen; endemorene bygges bare når fronten står nesten stille.",
+     "sceneNeeds": "Geofag-kit: Isbre (dalbre med firn, sprekker, likevektslinje, endemorene, sidemorene og bresjø), LagMonstre (morene, breelv), Elveleie (breelva), Fjellside og Stromlinjer i VIZ.velocity for isfarten. Scene-kit: Himmel, Landskap type «fjell», Terreng type «is», «sno» og «grus», Vann (fjorden), Gran og Person (skala). Lokalt i kap05 (eier: isbre): dalprofilet (V og U, hengende dal, fjord med terskel)."
+    },
+    {
+     "id": "istider",
+     "title": "Istider og mellomistider",
+     "sections": [
+      "5.2",
+      "1.2"
+     ],
+     "km": [
+      "KM6",
+      "KM1"
+     ],
+     "idea": "En kurve for de siste ca. 800 000 år (temperatur fra iskjerner i Antarktis, avrundet og merket som lokal temperatur) viser at istider og mellomistider har vekslet med sykluser på ca. 100 000 år, og at vi lever i en mellomistid (holocen, fra 11 700 år siden). Tre glidebrytere viser endringene i jordbanen (Milanković-syklusene: eksentrisitet med ca. 100 000 og 400 000 år, aksehelning 22,1–24,5° med ca. 41 000 år og presesjon med ca. 23 000 år) og hvordan de sammen endrer sommersola på høye nordlige breddegrader. En enkel ismodell viser at banen alene gir små utslag, og at tilbakekoblinger gjør dem store: bryterne «Albedo» (is og snø reflekterer sollyset) og «CO₂» (kaldere hav tar opp mer CO₂) slås av og på. Til slutt zoomer eleven inn på det skandinaviske isdekket på et skjematisk kart: ved maksimum for ca. 20 000 år siden, under avsmeltingen og i yngre dryas (ca. 12 900–11 700 år siden), da isen stoppet eller rykket fram og la opp Ra-morenene. Eleven skal lære at istidene er et samspill mellom jordbanen, isen, havet og atmosfæren (KM1), og at landskapet vi ser i dag, er formet av den siste.",
+     "model": "model-istider.ts: BANEPARAMETRE med periodene (forenklede sinuskurver etter Berger 1978, kilde i koden, merket forenklet), sommerinnstraling(t) (forenklet sum av de tre), isvolum(t, albedo, co2) (enkel terskelmodell løst med fast steg, merket kvalitativ), TEMPERATUR_800K (avrundede punkter fra EPICA Dome C, Jouzel mfl. 2007, med kilde og punkttetthet) og ISDEKKE (skjematiske omriss ved maksimum, under avsmeltingen og i yngre dryas, med alder). Tester: aksehelningen holder seg mellom 22,1 og 24,5°; periodene i komponentene stemmer; isvolumet svinger mindre uten albedo og CO₂ enn med; temperaturdataene er sortert etter tid, dekker 0–800 000 år og har laveste verdi 7–11 °C under dagens; yngre dryas ligger mellom 12 900 og 11 700 år, og holocen starter ved 11 700 år; t = 0 og t = 800 000 år gir endelige verdier.",
+     "sceneNeeds": "Geofag-kit: GeoTidslinje (tusen år, zoom), Isbre type «innlandsis», Plot for kurvene og Stromlinjer (isstrømmen). Scene-kit: Planet type «jorda» og Sol for jordbanen (skjematisk, ikke i skala) og Himmel. Lokalt i kap05 (eier: istider): skjematisk kart over Skandinavia (forenklet polygon, ikke kartdata) med isdekket og Ra-morenene."
+    },
+    {
+     "id": "landheving",
+     "title": "Landheving etter istida og marin grense",
+     "sections": [
+      "5.2",
+      "5.3"
+     ],
+     "km": [
+      "KM6",
+      "KM5",
+      "KM1"
+     ],
+     "idea": "Under siste istid presset et isdekke på opptil ca. 3 km jordskorpa ned i mantelen (isostasi), slik en båt synker når den lastes. Eleven spiller av tiden fra istidens maksimum til i dag og ser isen smelte, havet stige globalt og landet heve seg sakte, og hvor strandlinja går til hver tid. Den høyeste strandlinja etter isen er marin grense, som er strandlinja i det øyeblikket stedet ble isfritt; under den ble det avsatt marin leire som nå ligger på tørt land, grunnlaget for kvikkleire i tema 8. Eleven velger sted (Oslo-området med marin grense ca. 220 m o.h., Trondheimsområdet ca. 175 m, ytre Vestlandet med lav marin grense) og ser strandforskyvningskurven, der havet på ytre Vestlandet en periode steg raskere enn landet. Landet hever seg fortsatt noen millimeter per år. Tillegg, «Kysten»: gamle strandlinjer, hevede strandvoller og strandflaten og skjærgården, der Explain sier at dannelsen av strandflaten er omdiskutert (frostforvitring, bølger og is).",
+     "model": "model-landheving.ts: nedpressing(hIs) = hIs · 917/3300 (forklarer isostasi i likevekt); STEDER med tidspunktet stedet ble isfritt (Oslo ca. 10 800 år siden) og hvor mye nedpressing som var igjen da (Oslo ca. 280–300 m); gjenstaaende(t) = D_fri · e^(−(t − t_fri)/τ) med τ ca. 4000 år (forenklet); eustatisk(t) (tabell fra ca. −120 m for 20 000 år siden til 0 for ca. 7000 år siden, kilde i koden); strandlinje(sted, t) = D(t) − D(nå) + E(t); marinGrense(sted) = strandlinje(sted, t_fri); hevingNa(sted) i mm per år. Tester: 2000 m is gir ca. 556 m nedpressing i likevekt; marin grense er strandlinja i det stedet blir isfritt; Oslo-forvalget gir marin grense 200–240 m og heving i dag 3–7 mm per år; h(nå) = 0; kurven for Oslo faller monotont etter isfrihet; et sted med lite nedpressing og tidlig isfrihet får en periode med stigende relativt havnivå; istykkelse 0 gir endelige verdier.",
+     "sceneNeeds": "Geofag-kit: Snittblokk med isdekke, skorpe og mantel (GEO.skorpeKontinent, GEO.litosfare, GEO.astenosfare), Isbre type «innlandsis», LagMonstre (marin leire, morene), GeoTidslinje (tusen år), Stromlinjer (mantelen som strømmer inn under), Bygning (dagens by) og Plot. Scene-kit: Vann (stigende nivå), Landskap type «kyst», Himmel og Dimension (marin grense)."
+    },
+    {
+     "id": "losmasser",
+     "title": "Løsmasser i en norsk dal",
+     "sections": [
+      "5.3",
+      "5.4"
+     ],
+     "km": [
+      "KM5",
+      "KM6"
+     ],
+     "idea": "Et blokkdiagram av en dal etter istida med løsmassene slik de står på NGUs løsmassekart: bunnmorene og randmorene, breelvavsetninger i et delta ved marin grense, hav- og fjordavsetninger under marin grense, elveavsetninger, skredmateriale under en fjellvegg, torv i en myr og forvitringsmateriale på fjellet. Eleven velger en løsmasse med Select i Controls (hovedveien; klikk i figuren er en snarvei) og ser et utsnitt av kornene (kantete i morenen, rundet i breelvavsetningen), en ferdig kornfordelingskurve, sortering og lagdeling, hvordan den ble dannet og hva den betyr i dag: grus og sand som byggeråstoff, grunnvann, dyrka mark, byggegrunn og fare. Forklaringen tar opp forskjellen på usortert morene og sortert breelvmateriale, og at dalens historie kan leses av løsmassene (KM5). Tillegg, «Jordsmonn»: et gravd profil på valgt sted viser horisontene og hvordan jordsmonnet utvikler seg med nedbør, vegetasjon og tid, med podsol under barskog på morene og breelvsand (et blekt, utvasket lag over et rustfarget) og brunjord under lauvskog, som et eksempel på samspillet i KM1. Selve siktingen hører til tema 9.",
+     "model": "model-losmasser.ts: LOSMASSER (navn som på løsmassekartet, dannelse, sortering, rundhet, lagdeling, kornfordeling som log-normal i φ eller punkter, ledningsevne, bruk og fare) med kumulativ, persentil, sortering (Folk og Ward, klassenavn på bokmål) og graderingstall (d60/d10) fra kornstorrelse.ts; JORDSMONN (podsol og brunjord med horisonter og tykkelser) og podsolGrad(nedbør, barskog, tid). Tester: kurvene går monotont fra 0 til 100 %; morenen er dårlig eller svært dårlig sortert med graderingstall over 15, og breelvsanden godt sortert under 6; marin leire har mer enn 20 % finere enn 0,002 mm; sorteringen er uavhengig av middelkornstørrelsen; podsolGrad øker med nedbør og tid.",
+     "sceneNeeds": "Geofag-kit: Snittblokk (dal med løsmasser over fjell), LagMonstre (morene, breelv, leire, sand, torv, ur), Korn og Kornpakning, Kornkurve, Elveleie, Isbre (liten, i bakgrunnen) og Bygning. Scene-kit: Himmel, Landskap type «aaser», Terreng, Gran, Lauvtre, Vann og Vei. Lokalt i kap05 (eier: losmasser): jordprofilet med horisonter."
+    }
+   ],
+   "examples": [
+    {
+     "id": "eks-skjellsand",
+     "title": "Skjellsand høyt over havet",
+     "sections": [
+      "5.2",
+      "5.3",
+      "4.2"
+     ],
+     "km": [
+      "KM6",
+      "KM5",
+      "KM4"
+     ],
+     "idea": "På en gård 85 m over havet finner en elev skjellsand som ble avsatt på grunt vann nær stranda (egne tall). a) Forklar hvordan skjell som levde i havet, kan ligge 85 m over havet i dag. b) Skjellene har 34 % av den opprinnelige C-14-andelen: regn ut en forenklet alder med halveringstiden 5730 år, og forklar hvorfor laboratoriet trekker fra ca. 400 år for skjell fra havet (marin reservoareffekt) og i tillegg kalibrerer, så svaret er omtrentlig. c) Les av det globale havnivået for denne alderen på en oppgitt kurve, og regn ut hvor mye landet minst har hevet seg og den gjennomsnittlige landhevingen i mm per år (skjellene lå under vann, så høyden gir bare en nedre grense). d) Marin grense i området er 180 m: hva betyr det for grunnforholdene på gården? e) I dag hever landet seg ca. 4 mm per år mens havet stiger ca. 4 mm per år: vurder hva som skjer med strandlinja framover. Tre tallsett.",
+     "model": "model-eks-skjellsand.ts: SKJELL_TASKS og solveSkjellsand(task) med alderFraForhold (C-14 med 5730 år, «forenklet alder») minus reservoaralder, havnivået fra eustatisk(t) i model-landheving.ts for alderen i tallsettet, minste landheving = høyde − havnivå da (vanndybden gjør den større) og relativ endring i dag. Tester: alderen ligger mellom 8000 og 11 000 år i alle tallsettene; havnivået hentes fra eustatisk(t); den minste landhevingen er positiv, og gjennomsnittsfarten er større enn dagens; fortegnet i del e stemmer.",
+     "sceneNeeds": "Scene-kit: Landskap type «kyst», Vann, Himmel, Lauvtre og Person (spaden lages lokalt og festes med personPunkter). Geofag-kit: Snittblokk med skjellsand over marin leire, LagMonstre, GeoTidslinje og Bygning. Lokalt: skjell og gamle strandlinjer."
+    },
+    {
+     "id": "eks-elveforbygning",
+     "title": "En elv som rettes ut",
+     "sections": [
+      "5.4",
+      "5.1",
+      "8.2"
+     ],
+     "km": [
+      "KM6",
+      "KM10"
+     ],
+     "idea": "En meandrerende elv på en elveslette skal rettes ut for å vinne jordbruksland (egne tall): elveløpet er 12,0 km mellom to punkter som ligger 8,0 km fra hverandre i rett linje, med 6,0 m høydeforskjell. a) Regn ut slyngningsgraden og fallet før og etter utrettingen. b) Farten er proporsjonal med kvadratroten av fallet når dybden og bunnen er den samme (oppgitt): vis at farten øker med ca. 22 %. c) Bruk Hjulströms diagram til å finne hvilke kornstørrelser som ligger i ro på bunnen og nå begynner å eroderes. d) Forklar hva som skjer med flommen nedstrøms og med elvesletta. e) Vurder fordeler og ulemper for jordbruk, naturmangfold og flomfare. Tre tallsett.",
+     "model": "model-eks-elveforbygning.ts: ELV_TASKS og solveElveforbygning(task): slyngningsgrad, fall før og etter, fartsforhold √(L₁/L₂), farter og hvilke kornklasser som skifter fra 'ligger' til 'eroderes' med kornTilstand(d, v, false) fra kit-et. Tester: fartsforholdet er √(L₁/L₂); minst én kornklasse skifter tilstand i hvert tallsett; slyngningsgraden er over 1.",
+     "sceneNeeds": "Geofag-kit: Elveleie (ovenfra med meandre og rett kanal, og tverrsnitt), Kornpakning og Bygning. Scene-kit: Landskap type «aaser», Lauvtre og Vei. Lokalt: jorder og flomvoll."
+    }
+   ],
+   "reviewOnly": [],
+   "lokalt": [
+    "dalprofilet (eier: isbre)",
+    "Skandinavia-kartet (eier: istider)",
+    "jordprofilet (eier: losmasser)"
+   ]
+  },
+  "6": {
+   "no": "6",
+   "title": "Vann på jorda",
+   "sections": [
+    {
+     "code": "6.1",
+     "title": "Det hydrologiske kretsløpet",
+     "km": [
+      "KM7"
+     ]
+    },
+    {
+     "code": "6.2",
+     "title": "Grunnvann, elver og innsjøer",
+     "km": [
+      "KM7"
+     ]
+    },
+    {
+     "code": "6.3",
+     "title": "Ferskvann som ressurs",
+     "km": [
+      "KM8"
+     ]
+    }
+   ],
+   "km": [
+    "KM7",
+    "KM8"
+   ],
+   "viz": [
+    {
+     "id": "vannets-kretslop",
+     "title": "Vannets kretsløp: magasiner og oppholdstid",
+     "sections": [
+      "6.1"
+     ],
+     "km": [
+      "KM7"
+     ],
+     "idea": "Et snitt fra havet over kysten til fjellet viser magasinene (hav, isbreer og snø, grunnvann, innsjøer, jordfuktighet, elver og atmosfæren) og strømmene (fordampning, transpirasjon, nedbør, infiltrasjon, overflateavrenning og grunnvannsavrenning), med piltykkelse etter hvor mye vann som strømmer per år globalt. Kjerne: stolper viser at ca. 97 % er i havet og bare ca. 2,5 % er ferskvann, det meste is. Når eleven velger et magasin, viser Readouts mengden, strømmene inn og ut og oppholdstiden (ca. 9 døgn i atmosfæren, uker i elvene og tusenvis av år i havet og dypt grunnvann), i stedet for at alle tallene står i figuren på mobil. Tillegg: med «Følg en vanndråpe» spiller eleven av reisen til én dråpe, der hvert hopp velges med sannsynligheter fra strømmene (fast frø). Eleven skal lære magasin, strøm og oppholdstid, og at vannet på land hele tiden fornyes av nedbør.",
+     "model": "Bygger på hydrologi.ts i kit-et (GLOBALE_RESERVOARER etter Shiklomanov 1993 via USGS, GLOBALE_STROMMER i km³ per år etter Trenberth mfl. 2007: fordampning fra havet ca. 413 000, nedbør på havet 373 000, nedbør på land 113 000, fordampning fra land 73 000, avrenning 40 000; oppholdstid). model-vannets-kretslop.ts: overgangssannsynligheter (Markov-kjede fra strømmene) og draapereise(frø, n). Tester: kretsløpet er i balanse (413 000 − 373 000 = 113 000 − 73 000 = 40 000); andelene summerer til 100 %; oppholdstiden i atmosfæren er 8–10 døgn; overgangssannsynlighetene summerer til 1; samme frø gir samme reise.",
+     "sceneNeeds": "Scene-kit: Himmel med skyer og sol, Landskap type «fjell» og «kyst», Vann, Gran, Lauvtre og ValueTag. Geofag-kit: Isbre, Grunnvannssnitt, Elveleie, Nedbor og Stromlinjer (GEO.nedbor, GEO.fordamping, GEO.avrenning, GEO.grunnvann). Lokalt: markøren for dråpen."
+    },
+    {
+     "id": "avrenning",
+     "title": "Fra regnskyll til flomtopp: avrenning i et nedbørfelt",
+     "sections": [
+      "6.1",
+      "6.2",
+      "8.2"
+     ],
+     "km": [
+      "KM7",
+      "KM10"
+     ],
+     "idea": "Et lite nedbørfelt med en bekk gjennom et boligfelt. Eleven bestemmer hvor stor del av feltet som er skog, myr, dyrka mark og tette flater (tak og asfalt), og hvor kraftig og lang regnbygen er, og kan legge på snøsmelting (vårflom). Under regnet ser eleven vannet trekke ned i bakken eller renne av på overflaten, og et hydrogram viser vannføringen i bekken over tid sammen med nedbøren. Med mer asfalt kommer flomtoppen tidligere og blir høyere, mens skog, myr og innsjøer demper og forsinker den, og tiltak som grønne tak, regnbed og fordrøyningsbasseng gjør den lavere. Grøfting av myr kan gi det samme som asfalt, men Explain sier at effekten er omstridt, fordi grøftene også senker grunnvannet og gir mer plass til å lagre vann; hovedvekten ligger på tette flater og fordrøyning. Eleven skal lære hvordan menneskelig aktivitet endrer vannets kretsløp lokalt (KM7).",
+     "model": "model-avrenning.ts: infiltrasjonskapasitet per arealtype (Horton: f(t) = fc + (f₀ − fc) · e^(−kt)), overflateavrenning = nedbør − infiltrasjon (aldri negativ), snøsmelting med graddagmetoden (ca. 3–5 mm per °C per døgn), lineært magasin for bekken dQ/dt = (tilsig − Q)/k (kortere k for tette flater) løst med fast steg, fordrøyning som ekstra magasin; flomtopp, tidTilTopp, volum. Tester: vannbalansen nedbør = infiltrasjon + avrenning + lagret går opp; flere tette flater gir høyere og tidligere topp; fordrøyning senker toppen uten å endre volumet; null nedbør gir null avrenning; 0 % og 100 % tette flater gir endelige verdier; ingen smelting under 0 °C.",
+     "sceneNeeds": "Scene-kit: Landskap type «aaser», Terreng type «gress» og «jord», Vei, Bil, Gran og Lauvtre, med Himmel og et skydekke-lag fra Nedbor (Himmel har ikke regnvær). Geofag-kit: Nedbor, Elveleie (bekken med vannstand), Bygning, Grunnvannssnitt (tynt) og Plot (hydrogram med nedbørsstolper ovenfra). Lokalt: overvannsrør, regnbed og fordrøyningsbasseng."
+    },
+    {
+     "id": "drikkevann",
+     "title": "Nok vann til alle? Drikkevann i en tørr sommer",
+     "sections": [
+      "6.3"
+     ],
+     "km": [
+      "KM8",
+      "KM7"
+     ],
+     "idea": "En kommune henter drikkevann fra en oppdemmet innsjø, og eleven setter folketallet, forbruket per person (rundt 180 liter per døgn), lekkasjen i ledningsnettet (i Norge omtrent 30 % av vannet som produseres) og velger et normalår eller en tørkesommer. Eleven spiller av året og ser vannstanden i magasinet synke og stige, og når kommunen må innføre vanningsforbud. Tiltak kan prøves: tette lekkasjer, spare vann, ta i bruk en reservebrønn i grunnvannet eller slippe minstevannføring til elva. Segmented «Verden» sammenligner fornybart ferskvann per innbygger i noen land med Falkenmarks grenser for vannstress og vannmangel, så eleven ser at Norge har mye vann totalt, men at vann kan bli knapt lokalt og i tørre perioder, og at grunnvann mange steder tappes raskere enn det fornyes (KM8).",
+     "model": "model-drikkevann.ts: forbruk(befolkning, liter per person per døgn, lekkasje), daglig vannbalanse V(t+1) = V(t) + tilsig − uttak − overløp mellom tomt og fullt magasin, tilsig(dag, torrAar) som tenkt sesongkurve, dagerTilGrense og vanningsforbud ved en terskel, falkenmark(m³ per person og år) med grensene 1700, 1000 og 500 (landtall med kilde og år i koden). Tester: volumet blir aldri negativt eller større enn magasinet; massebalansen lukkes over året; mer lekkasje gir lavere minimum; null innbyggere gir ingen mangel; klassegrensene ligger riktig.",
+     "sceneNeeds": "Scene-kit: Himmel med sol, Landskap type «skog», Vann (innsjøen), Gran og Person. Geofag-kit: Demning (som hjulstrom også bruker), Bekk, Bygning (vannverk og hus), Bronn (reservebrønn) og Klimadiagram (normalår og tørkeår). Lokalt: målestav for vannstand og stolpediagram for landene."
+    }
+   ],
+   "examples": [
+    {
+     "id": "eks-bronn",
+     "title": "Gjødsel og kloakk oppstrøms en brønn",
+     "sections": [
+      "6.2",
+      "6.3"
+     ],
+     "km": [
+      "KM7",
+      "KM8"
+     ],
+     "idea": "En gård henter drikkevann fra en brønn i en breelvavsetning av sand (egne tall), og to observasjonsbrønner 250 m fra hverandre har grunnvannsspeil på 162,4 og 160,9 m o.h. a) Regn ut den hydrauliske gradienten. b) Bruk Darcys lov med K = 4 · 10⁻⁴ m/s og effektiv porøsitet 0,25 til å finne Darcy-hastigheten og porefarten i meter per døgn. c) En gjødselkjeller som kan lekke, ligger oppstrøms (avstand i tallsettet): hvor lang tid tar det før tarmbakterier kan nå brønnen, og er kravet om minst 60 døgns oppholdstid i grunnen oppfylt? d) En gjødslet åker ligger 400 m oppstrøms: hvor lang tid tar nitraten, og hvorfor hjelper det ikke at den bruker lang tid (nitrat brytes ikke ned i oksygenrikt grunnvann)? e) Vurder en sikringssone rundt brønnen, og forklar hvorfor grunnvann i sand og grus vanligvis er godt drikkevann, men ikke i oppsprukket fjell. Tre tallsett, der smittekilden i minst ett ligger nærmere enn kravet tillater og i ett lenger unna.",
+     "model": "model-eks-bronn.ts: BRONN_TASKS og solveBronn(task) med darcy, porefart og reisetid fra kit-et og smittebarriere fra model-grunnvann.ts. Tester: alle tall er positive og endelige; omregningen fra sekunder til døgn stemmer; grunntallsettet gir ca. 0,83 m per døgn og ca. 480 døgn for 400 m; minst ett tallsett gir under og ett over 60 døgn for smittekilden; nitrat regnes aldri som fjernet.",
+     "sceneNeeds": "Geofag-kit: Grunnvannssnitt, Bronn (tre brønner), LagMonstre (sand), Stromlinjer og Bygning (gård og fjøs). Scene-kit: Landskap type «aaser» og Dimension. Lokalt: åker med traktor og gjødselkjeller (traktor finnes ikke i scene-kit-et)."
+    },
+    {
+     "id": "eks-nedborfelt",
+     "title": "Vannbalansen i et nedbørfelt",
+     "sections": [
+      "6.1",
+      "6.2",
+      "6.3"
+     ],
+     "km": [
+      "KM7",
+      "KM8"
+     ],
+     "idea": "Et tenkt nedbørfelt på 85 km² i Sør-Norge får i snitt 1450 mm nedbør i året, og fordampningen er 350 mm (egne tall). a) Sett opp vannbalanselikningen, og regn ut avrenningen i mm per år og som middelvannføring i m³/s ved utløpet. b) Et klimadiagram for feltet (oppgitt) viser når det er overskudd og underskudd: forklar hvorfor vannføringen er lav om vinteren og størst i mai–juni, selv om det regner mest om høsten. c) Bruk en graddagmodell (ca. 4 mm smelting per døgn per grad over 0 °C) til å anslå hvor lang tid det tar å smelte 600 mm vannekvivalent snø ved 6 °C. d) Kommunen vil ta ut 0,15 m³/s til drikkevann: hvor stor andel av middelvannføringen er det, og når på året er uttaket mest problematisk? e) Vurder hvordan et varmere klima endrer vårflommen. Tre tallsett.",
+     "model": "model-eks-nedborfelt.ts: FELT_TASKS (areal, P, ET, månedsnormaler, uttak) og solveNedborfelt(task): Q = (P − ET) · A per sekund i et år, graddager og andelen uttak. Tester: 1100 mm over 85 km² gir ca. 2,96 m³/s; snøsmeltingen tar 25 døgn i grunntallsettet; månedsverdiene summerer til årsverdien; alle tallsettene gir positiv avrenning.",
+     "sceneNeeds": "Geofag-kit: Klimadiagram, Kotekart (feltet med vannskille), Elveleie og Nedbor (snø og regn). Scene-kit: Himmel, Landskap type «fjell», Terreng type «sno», Termometer og Gran. Lokalt: målestasjon ved utløpet."
+    }
+   ],
+   "reviewOnly": [
+    "grunnvann"
+   ],
+   "lokalt": []
+  },
+  "7": {
+   "no": "7",
+   "title": "Geologiske ressurser",
+   "sections": [
+    {
+     "code": "7.1",
+     "title": "Malm, mineraler og byggeråstoff",
+     "km": [
+      "KM9"
+     ]
+    },
+    {
+     "code": "7.2",
+     "title": "Energi fra undergrunnen",
+     "km": [
+      "KM9"
+     ]
+    },
+    {
+     "code": "7.3",
+     "title": "Utvinning og bærekraft",
+     "km": [
+      "KM9"
+     ]
+    }
+   ],
+   "km": [
+    "KM9"
+   ],
+   "viz": [
+    {
+     "id": "malmleting",
+     "title": "Hvordan malm blir til, og hvordan den blir funnet",
+     "sections": [
+      "7.1"
+     ],
+     "km": [
+      "KM9"
+     ],
+     "idea": "Kjerne, «Dannelse»: tre snitt viser hvordan metallene blir konsentrert nok til å bli malm. Ved magmatisk utskilling synker tunge oksider som ilmenitt og samles i et magmakammer (titan i Rogaland). Ved hydrotermal og vulkanogen dannelse sirkulerer varmt vann gjennom havbunnen ved en spredningsrygg, løser metaller og feller ut kobberkis og sinkblende der det møter kaldt sjøvann (kisforekomstene på Løkken og Røros ble dannet slik). Ved forvitring og avsetning blir tunge, slitesterke mineraler som rutil og gull liggende igjen i elvegrus og strandsand. Eleven ser anrikningsfaktoren: hvor mange ganger mer metall malmen har enn vanlig skorpe. Tillegg, «Let etter malm»: eleven flyr en tenkt magnetisk måling fra fly over et område dekket av morene, ser anomalien over et skjult malmlegeme og velger med glidebrytere hvor fem borehull skal settes; borekjernene viser gehalten, og et for grunt eller feilplassert hull bommer. Explain nevner Fensfeltet (sjeldne jordartsmetaller) og kritiske mineraler, og kobler leting og dannelse til utvinningen i malm.",
+     "model": "model-malmleting.ts: DANNELSESMATER (navn, prosess, metaller, norske eksempler), anrikningsfaktor(gehalt, skorpeinnhold) (skorpeinnhold med kilde i koden, f.eks. kobber ca. 30 ppm), magnetiskAnomali(x, legeme) for en magnetisert kule (forenklet, loddrett magnetisering), skjultLegeme(frø) og borehull(x, dyp, legeme) → gehalt langs hullet. Tester: anomalien er størst rett over legemet og symmetrisk om det; toppverdien avtar som 1/z³ med dypet for en kule; et hull rett over legemet som er dypt nok, treffer, og et hull langt unna gir gehalt 0; samme frø gir samme legeme; anrikningsfaktoren for 1 % kobber er ca. 300; z = 0 gir ingen deling på null.",
+     "sceneNeeds": "Geofag-kit: Snittblokk med magmakammer og havbunn, LagMonstre (gneis, morene, malmsone), Plategrense type «spredning» (lite utsnitt for den hydrotermale), Elveleie (elvegrus), Bronn som borehull, Borekjerne, Korn og Plot (anomalien). Scene-kit: Himmel, Landskap type «aaser», Terreng type «gress» og Vann. Lokalt i kap07 (eier: malmleting): fly med magnetometer og svarte røykere på havbunnen."
+    },
+    {
+     "id": "malm",
+     "title": "Når blir en forekomst til malm?",
+     "sections": [
+      "7.1",
+      "7.3"
+     ],
+     "km": [
+      "KM9"
+     ],
+     "idea": "En kobberforekomst vises som et snitt med blokker med ulik gehalt (prosent metall), funnet med borehull, og et dagbrudd som kan graves ut ovenfra. Eleven endrer metallprisen, kostnaden per tonn og utvinningsgraden og ser grensegehalten flytte seg: blokkene over grensen er malm, resten er gråberg, og dagbruddet blir større eller mindre, så malm er et økonomisk begrep, ikke bare et geologisk. Tallene viser tonn malm, tonn metall og tonn avgang (ved 1 % kobber blir ca. 99 % av malmen avgang), og en del om bærekraft viser deponi på land eller i fjord, gjenvinning og hvor lenge reservene varer (statisk levetid mot levetid når forbruket vokser). Norske eksempler: kobber i Repparfjorden, jernmalm i Rana, rutil i Engebø og pukk og grus, som er det vi tar ut mest av. Hvordan malmen ble til og ble funnet, står i malmleting.",
+     "model": "model-malm.ts: blokkmodell(frø) (gehalt fra en glatt log-normal funksjon med fast frø), grensegehalt(kostnad, pris, utvinning) = kostnad/(pris · utvinning), malmOgAvgang(blokker, grense, tetthet) → malm, metall, avgang, gråberg og snittgehalt, statiskLevetid(R, P) = R/P og dynamiskLevetid(R, P, r) = ln(1 + r · R/P)/r. Tester: høyere pris gir lavere grensegehalt og mer malm; malm + gråberg = alt som graves ut og metall + avgang = malm; samme frø gir samme blokker; pris 0 gir null (vises «–»), ikke Infinity; dynamisk levetid er kortere enn statisk når r > 0 og lik når r går mot 0.",
+     "sceneNeeds": "Geofag-kit: Snittblokk (berggrunn med gehaltsoner i GEO.gehalt, aldri VIZ-farger), LagMonstre (gneis og malmsone), Bronn som borehull og Bygning (anrikningsverk). Scene-kit: Himmel, Landskap type «fjell» og «kyst», Terreng type «grus», Vann (fjorden) og Person (skala). Lokalt i kap07 (eier: malm; eks-pukk bruker Lastebil): Dagbrudd, Lastebil og avgangsdeponi."
+    },
+    {
+     "id": "petroleumssystem",
+     "title": "Olje og gass: kildebergart, migrasjon og felle",
+     "sections": [
+      "7.2"
+     ],
+     "km": [
+      "KM9"
+     ],
+     "idea": "Et snitt gjennom et sedimentbasseng under Nordsjøen der eleven spiller av tiden fra jura til i dag: organisk rikt slam (kildebergarten) begraves stadig dypere, og temperaturen øker med dypet (ca. 30 °C per km). Når kildebergarten kommer inn i oljevinduet (ca. 60–120 °C; grensene oppgis noe ulikt), dannes olje, og dypere gass; oljen er lettere enn vannet og migrerer oppover gjennom porøse lag til den stoppes av en tett takbergart i en felle (antiklinal eller forkastning). En lupe viser at oljen ligger i porene i sandsteinen, ikke i en underjordisk sjø. Eleven endrer temperaturgradienten og begravingen og ser om kildebergarten er umoden, i oljevinduet, i gassvinduet eller overmoden. Tillegg, «Seismikk»: et seismisk snitt der laggrensene vises som reflektorer i toveis gangtid, og eleven finner antiklinalen på snittet før hun borer en brønn fra en plattform for å prøve å treffe fellen; Explain sier at slik kartlegges undergrunnen. Eleven skal lære leddene i et petroleumssystem.",
+     "model": "model-petroleumssystem.ts: temperaturVed(z, Thavbunn, gradient) med z målt fra havbunnen, vindu(T) → 'umoden' | 'olje' | 'gass' | 'overmoden' (grenser ca. 60, 120 og 200 °C, merket omtrentlige), begraving(t) (enkel innsynkningskurve), migrasjon(lag) (stopper under første tette lag), toveisGangtid(z, v) = 2z/v for det seismiske snittet, elementer(scenario) og treff(brønn, felle). Tester: 3 km under havbunnen med 30 °C per km og 5 °C ved havbunnen gir 95 °C og oljevindu; vinduene dekker alle temperaturer uten hull; dypere begraving gir aldri lavere modning; lavere gradient gir dypere oljevindu; et scenario uten takbergart gir ingen akkumulasjon; 2 km med 2000 m/s gir 2,0 s toveis gangtid.",
+     "sceneNeeds": "Geofag-kit: Snittblokk med hav og havbunn, Lagpakke med antiklinal og forkastning, LagMonstre (sandstein, leirskifer, kalkstein, salt), Kornpakning (porer med olje, gass og vann i GEO.olje, GEO.gass og GEO.grunnvann), Stromlinjer (migrasjon), Borekjerne, GeoTidslinje og Plattform (med borestreng). Scene-kit: Vann og Himmel. Lokalt i kap07 (eier: petroleumssystem): det seismiske snittet."
+    },
+    {
+     "id": "co2-lagring",
+     "title": "CO₂-lagring under havbunnen",
+     "sections": [
+      "7.3",
+      "7.2"
+     ],
+     "km": [
+      "KM9",
+      "KM1"
+     ],
+     "idea": "CO₂ fra industri fraktes med skip og pumpes ned i en porøs sandstein 1–3 km under havbunnen, under en tett takbergart, slik det er gjort på Sleipner siden 1996 og i Northern Lights siden 2025 (ekte steder etter svaret på spørsmål 3). Eleven endrer dypet og ser trykk og temperatur, at CO₂ under ca. 800 m er i superkritisk tilstand, tett som en væske, og tar mye mindre plass, og hvor stort porevolum en million tonn CO₂ trenger. En tidslinje over 10 000 år viser at lagringen blir sikrere over tid: først holdt av takbergarten, så fanget i små porer, løst i porevannet og til slutt bundet i nye mineraler. Explain kobler til karbonkretsløpet i tema 1: dette er en kunstig vei for karbon tilbake til geosfæren, og eleven får vurdere hva som kan gå galt (lekkasje langs gamle brønner).",
+     "model": "model-co2-lagring.ts: trykkVed(z) (hydrostatisk, ca. 10 MPa per km), temperaturVed(z), co2Tetthet(p, T) (tabellinterpolasjon i området, kritisk punkt 31,1 °C og 7,38 MPa, kilde i koden), porevolumBehov(masse, tetthet, porøsitet, fyllingsgrad) og lagringsandeler(t) (kvalitative kurver). Tester: CO₂ er superkritisk under 700–900 m med normal gradient; tettheten på 1–2 km er 600–800 kg/m³; andelene summerer til 1, og den mineraliserte andelen øker over tid; volumbehovet synker når tettheten øker.",
+     "sceneNeeds": "Geofag-kit: Snittblokk med hav, Lagpakke (sandstein som reservoar, leirskifer som takbergart), LagMonstre, Kornpakning (porer med CO₂ i GEO.co2 og saltvann), Stromlinjer, GeoTidslinje og Plattform. Scene-kit: Vann og Himmel. Lokalt i kap07 (eier: co2-lagring): skip med CO₂-tank (skip finnes ikke i scene-kit-et)."
+    }
+   ],
+   "examples": [
+    {
+     "id": "eks-pukk",
+     "title": "Pukk til en ny vei",
+     "sections": [
+      "7.1",
+      "7.3"
+     ],
+     "km": [
+      "KM9",
+      "KM5"
+     ],
+     "idea": "En kommune skal bygge 4,0 km ny vei, og veikroppen trenger forsterkningslag og bærelag av pukk med oppgitt bredde og tykkelse (egne tall). a) Regn ut volumet av pukk og massen når pukken har densitet 1,9 tonn per m³ i veien. b) Hvor mange lastebillass blir det med 30 tonn per lass? c) Ett pukkverk ligger 8 km unna og et annet 60 km unna: regn ut transportarbeidet i tonnkilometer og CO₂-utslippet for hvert av dem (utslipp per tonnkilometer oppgitt). d) Forklar hvilke bergarter som egner seg til pukk (hardhet, mineraler og hvordan kornene henger sammen), og hvorfor grus i breelvavsetninger også er verdifullt. e) Drøft konfliktene ved å åpne et nytt pukkverk nær boliger, og hva som kan gjøres når driften er over. Tre tallsett.",
+     "model": "model-eks-pukk.ts: PUKK_TASKS og solvePukk(task) gir volum, masse, antall lass (rundet opp), tonnkilometer og CO₂. Tester: antall lass rundes opp; tonnkilometer er proporsjonal med avstanden; tallsettene gir realistiske størrelser.",
+     "sceneNeeds": "Scene-kit: Vei, Bil, Himmel, Landskap type «aaser», Terreng type «grus» og Dimension. Geofag-kit: LagMonstre (pukk, grus og sand), Lagpakke (veikroppen i snitt), Steinprove (granitt og leirskifer) og Bygning. Lokalt i kap07: Lastebil (eier: malm) og knuseverk med haug."
+    },
+    {
+     "id": "eks-oljefelt",
+     "title": "Hvor mye olje er det i feltet?",
+     "sections": [
+      "7.2",
+      "7.3"
+     ],
+     "km": [
+      "KM9"
+     ],
+     "idea": "Et tenkt oljefelt i Nordsjøen (egne tall): fellen er 18 km², sandsteinen har netto tykkelse 45 m, porøsitet 24 % og oljemetning 70 %, og volumfaktoren er 1,3. a) Regn ut hvor mye olje det er i reservoaret målt ved overflaten (Sm³). b) Utvinningsgraden er 50 %: hvor mye kan produseres, og hvor mange fat er det (1 Sm³ = 6,29 fat)? c) Kildebergarten ligger 3,0 km under havbunnen, havbunnen har 6 °C og gradienten er 32 °C per km: avgjør om den er i olje- eller gassvinduet (grensene er omtrentlige). d) Hvor mye CO₂ blir det når oljen brennes (ca. 2,6 tonn CO₂ per Sm³), sammenlignet med Norges årlige utslipp (oppgitt)? e) Drøft utbyggingen i et bærekraftsperspektiv. Tre tallsett.",
+     "model": "model-eks-oljefelt.ts: OLJEFELT_TASKS og solveOljefelt(task): olje i reservoaret = A · h · φ · So/Bo, utvinnbart volum, fat, vindu(temperaturVed(…)) fra model-petroleumssystem.ts med dypet målt fra havbunnen, og CO₂. Tester: enhetene stemmer (km² · m → m³); utvinnbar olje er aldri mer enn det som finnes; grunntallsettet gir ca. 105 millioner Sm³, 102 °C og oljevindu; alle tallsettene ligger minst 15 °C fra en vindusgrense og gir 10–500 millioner Sm³; CO₂ er proporsjonal med produsert volum.",
+     "sceneNeeds": "Geofag-kit: Snittblokk med hav, Lagpakke med felle, Kornpakning (porer med olje og vann) og Plattform. Scene-kit: Vann, Himmel og Dimension."
+    }
+   ],
+   "reviewOnly": [],
+   "lokalt": [
+    "fly med magnetometer (eier: malmleting)",
+    "Dagbrudd, Lastebil og deponi (eier: malm)",
+    "det seismiske snittet (eier: petroleumssystem)",
+    "skip (eier: petroleumssystem; co2-lagring lager sitt eget hvis det trenger et)"
+   ]
+  },
+  "8": {
+   "no": "8",
+   "title": "Naturfarer",
+   "sections": [
+    {
+     "code": "8.1",
+     "title": "Skred",
+     "km": [
+      "KM10"
+     ]
+    },
+    {
+     "code": "8.2",
+     "title": "Flom",
+     "km": [
+      "KM10"
+     ]
+    },
+    {
+     "code": "8.3",
+     "title": "Risiko, forebygging og tilpasning",
+     "km": [
+      "KM10",
+      "KM11"
+     ]
+    }
+   ],
+   "km": [
+    "KM10",
+    "KM11"
+   ],
+   "viz": [
+    {
+     "id": "skraaning",
+     "title": "Når glir skråningen? Sikkerhetsfaktoren",
+     "sections": [
+      "8.1",
+      "8.3"
+     ],
+     "km": [
+      "KM10",
+      "KM11"
+     ],
+     "idea": "En li med et lag løsmasser over fjell og hus nederst, der et utsnitt av laget viser kreftene: tyngdens komponent langs skråningen som drar, og skjærstyrken fra friksjon og kohesjon som holder. Eleven endrer helningen, tykkelsen, materialet (morene, sand eller leire) og hvor høyt grunnvannet står etter langvarig regn eller snøsmelting, og kan slå skog av og på. Sikkerhetsfaktoren F vises på en måler, og faller den under 1, går et jordskred eller flomskred. Poenget er at vann i porene gir poretrykk som presser kornene fra hverandre og minsker friksjonen, så mye regn på kort tid er en vanlig utløser, og hogst, veier og fyllinger kan endre balansen. Explain viser at tørr sand uten kohesjon gir samme regning som klossen på skråplanet i fysikk (μ = tan φ), men legger vekten på poretrykket, kohesjonen og skogen, og viser at dette er modellering av risiko (KM11) og hvordan drenering og skog forebygger. Søkeordene viser til k2-friksjon i fysikk.",
+     "model": "model-skraaning.ts: sikkerhetsfaktor for en uendelig skråning, F = [c′ + (γ − m · γw) · z · cos²β · tan φ′]/(γ · z · sin β · cos β), med drivende og holdende spenning hver for seg til pilene, og MATERIALER med typiske φ′, c′ og γ. Tester: tørr sand uten kohesjon gir F = tan φ′/tan β, og F = 1 når β = φ′; mer vann gir alltid lavere F; F øker med kohesjonen; β = 0 eller z = 0 gir null (vises «svært stabil»), ikke Infinity.",
+     "sceneNeeds": "Scene-kit: Himmel, Landskap type «fjell», Terreng type «gress» og «jord», Gran (skogen som kan slås av) og ForceArrow med bryteren «Vis krefter» (VIZ.gravity for tyngdekomponenten, VIZ.normal, VIZ.friction for skjærstyrken). Geofag-kit: LagMonstre (morene, leire, sand, fjell), Grunnvannssnitt (grunnvannsspeilet i skråningen), Nedbor og Bygning. Lokalt i kap08 (eier: skraaning): måleren for F og Skredbane (løsneområde, skredløp og utløp)."
+    },
+    {
+     "id": "kvikkleire",
+     "title": "Kvikkleire: fra havbunn til skred",
+     "sections": [
+      "8.1",
+      "5.3"
+     ],
+     "km": [
+      "KM10",
+      "KM5"
+     ],
+     "idea": "Eleven følger marin leire gjennom tid: den avsettes på havbunnen etter istida med partiklene i en åpen «korthusstruktur» som saltet i porevannet holder sammen, landhevingen løfter den over havet (under marin grense), og ferskt grunnvann vasker ut saltet over tusenvis av år. Når saltinnholdet blir lavt, kan leira bli kvikk: den står fast så lenge den ligger urørt, men blir flytende når den omrøres. Eleven ser saltinnhold, uomrørt og omrørt skjærfasthet og sensitivitet, og kan utløse et skred ved at en bekk graver i foten av skråningen eller en fylling legges på toppen; skredet griper bakover og tar med seg store områder. Explain forklarer hvorfor kvikkleire bare finnes under marin grense, og at NVE kartlegger faresoner og sikrer bekker mot erosjon.",
+     "model": "model-kvikkleire.ts: utvasking(t, τ) (saltet avtar eksponentielt fra ca. 35 g/L, forenklet), omrortSkjaerfasthet(salt) (avtar monotont, kalibrert omtrentlig), sensitivitet = uomrørt/omrørt, erKvikkleire når omrørt skjærfasthet er under 0,5 kPa og erSprobrudd under 2 kPa (NVE og NGF, kilde i koden), retrogresjon(blokker) (skredet går bakover så lenge neste blokk er kvikk og skråningen er høy nok). Tester: saltet synker monotont; leira er ikke kvikk ved 35 g/L, men kvikk under ca. 5 g/L med standardverdiene; sensitiviteten øker når saltet synker; retrogresjonen stopper ved første blokk som ikke er kvikk; 0 g/L gir endelige verdier.",
+     "sceneNeeds": "Geofag-kit: Snittblokk (dal med marin leire under sand og morene, bekk i foten), LagMonstre (leire, kvikkleire, sand, morene), Bekk, Kornpakning og Bygning (gårder på kanten). Scene-kit: Landskap type «aaser», Lauvtre, Vei og Vann (havet i første steg). Lokalt i kap08 (eier: kvikkleire): leirpartikler i utsnitt (korthus med ioner og sammenrast struktur), useGeoScale."
+    },
+    {
+     "id": "flomfrekvens",
+     "title": "Hva betyr en 200-årsflom?",
+     "sections": [
+      "8.2",
+      "8.3"
+     ],
+     "km": [
+      "KM10",
+      "KM11"
+     ],
+     "idea": "En tenkt elv gjennom et tettsted med en måleserie på 60 år av årets største vannføring (tenkte data med fast frø), plottet mot gjentaksintervall med en tilpasset Gumbel-kurve. Eleven velger gjentaksintervall (10, 50, 200 eller 1000 år) og ser vannføringen og vannstanden for den flommen i scenen, der husene står i ulik høyde. Eleven velger også en periode, for eksempel 30 år for et boliglån, og ser sannsynligheten for minst én slik flom i perioden: en 200-årsflom har 0,5 % sannsynlighet hvert år, og ca. 22 % i løpet av 50 år. Bryteren «Klimapåslag» legger til 20 eller 40 % og viser at dagens 200-årsflom blir vanligere. Explain retter opp misoppfatningen at en 200-årsflom kommer én gang hvert 200. år, og viser at byggteknisk forskrift krever at boliger tåler en 200-årsflom.",
+     "model": "Bygger på hydrologi.ts i kit-et (sannsynlighetIPerioden(T, n) = 1 − (1 − 1/T)^n, plotteposisjon, gumbelTilpasning, flomMedGjentaksintervall) og risiko.ts (SIKKERHETSKLASSER for flom, F1–F3). model-flomfrekvens.ts: aarsmaksima(frø, n) og vannstand(Q) fra en vannføringskurve Q = a · (h − h₀)^b. Tester: T = 100 og n = 100 gir 0,634; T = 200 og n = 50 gir ca. 0,22; flomstørrelsen øker monotont med T; samme frø gir samme serie; tilpasningen finner parametrene igjen fra en lang syntetisk serie; T ≤ 1 gir null, ikke Infinity; vannstanden øker med Q.",
+     "sceneNeeds": "Scene-kit: Himmel, Landskap type «aaser», Vann (elva med vannstand), Terreng, Vei, Bil, Lauvtre og Dimension. Geofag-kit: Elveleie (tverrsnitt med flomlinjer), Bygning (hus i ulik høyde) og Plot. Lokalt i kap08 (eier: flomfrekvens): Gumbel-akse for gjentaksintervall."
+    },
+    {
+     "id": "risiko",
+     "title": "Fare og risiko: hvor trygt må det være å bygge?",
+     "sections": [
+      "8.3",
+      "8.1",
+      "8.2"
+     ],
+     "km": [
+      "KM10",
+      "KM11"
+     ],
+     "idea": "Et kart over en dal med koter, høydelag og faresoner for flom og skred (snøskred, steinsprang og jordskred), der hver sone har en årlig sannsynlighet (1/20, 1/100, 1/200, 1/1000 eller 1/5000). Eleven velger bygg (garasje, bolig, skole eller sykehjem) og plasserer dem på 4–6 faste tomter med Select i Controls (hovedveien; klikk på tomta i kartet er en snarvei), og ser om plasseringen oppfyller sikkerhetsklassene i byggteknisk forskrift for flom (F1–F3) og skred (S1–S3). Én tomt ligger på kvikkleire: der gir kartet ingen årlig sannsynlighet, men sier at det kreves geoteknisk utredning og dokumentert stabilitet (NVEs veileder 1/2019) før det kan bygges, eventuelt med sikring som erosjonssikring eller motfylling. Tiltak som en flomvoll eller en ledevoll flytter sonene, og et risikoregnskap viser forventet årlig skade (sannsynlighet × konsekvens) før og etter tiltaket, med en enkel risikomatrise. Eleven skal lære forskjellen på fare og risiko, og hvordan samfunnet forebygger og tilpasser seg (KM10, KM11).",
+     "model": "Bygger på risiko.ts i kit-et (SIKKERHETSKLASSER for flom og skred etter TEK17 § 7-2 og § 7-3, kilde og dato i koden, byggtypene forenklet etter veiledningen; oppfyller(bygg, sone); forventetSkade(bygg) = Σ p · K; risikoklasse(p, konsekvens); kvikkleire holdes utenfor de årlige klassene og gir «geoteknisk utredning kreves»). model-risiko.ts: TOMTER (4–6 faste) og sone(tomt, tiltak). Tester: klassegrensene stemmer med tabellen; en bolig i 1/100-sonen for skred oppfyller ikke S2; et tiltak øker aldri sannsynligheten; forventet skade er null uten bygg; risikoklassen øker med begge faktorene; kvikkleiretomta får aldri en årlig sannsynlighet eller «oppfyller».",
+     "sceneNeeds": "Geofag-kit: Kotekart (dalen med høydelag og faresoner i GEO.fare), Bygning (garasje, bolig, skole, sykehjem) og Elveleie. Scene-kit: Gran, og Himmel og Landskap i et lite perspektivbilde. Lokalt i kap08 (eier: risiko): flomvoll, ledevoll og risikomatrise."
+    }
+   ],
+   "examples": [
+    {
+     "id": "eks-fjellskred",
+     "title": "Fjellpartiet over fjorden",
+     "sections": [
+      "8.1",
+      "8.3"
+     ],
+     "km": [
+      "KM10",
+      "KM11"
+     ],
+     "idea": "Et tenkt ustabilt fjellparti over en tenkt fjord overvåkes med målinger (egne tall). a) Forklar hvorfor fjellskred løsner langs sprekker og svake plan, og hvorfor bratte fjellsider i Norge er utsatt etter istida (isen som støttet dalsidene, er borte, og vann og frost virker i sprekkene). b) Partiet er ca. 800 m bredt, 500 m langt og 50 m dypt: regn ut volumet og massen (densitet 2700 kg/m³ oppgitt). c) En sprekk åpner seg 4 cm per år, men de siste ukene 2 mm per døgn: regn om til samme enhet, og forklar hvorfor farten brukes til å sette farenivå (tabell med tenkte terskler for grønt, gult, oransje og rødt oppgitt). d) Faller partiet i fjorden, lager det en flodbølge som går med farten c = √(g · h) (oppgitt; gjelder bølger som er mye lengre enn fjorden er dyp): fjorden er 300 m dyp, så hvor lang tid tar bølgen til en tenkt bygd 6 km unna? e) Vurder hvorfor samfunnet her satser på overvåking, varsling og evakuering i stedet for å sikre fjellet, og hvilken sikkerhetsklasse en ny bolig i bygda må oppfylle. Tre tallsett med ulike farenivåer. Løsningen kan nevne de overvåkede fjellpartiene Åknes og Mannen og skredene i Loen og Tafjord som ekte eksempler, etter svaret på spørsmål 3.",
+     "model": "model-eks-fjellskred.ts: FJELLSKRED_TASKS og solveFjellskred(task): volum, masse, fartsomregning (mm per døgn og cm per år), farenivaa(fart, terskler) med tersklene oppgitt i oppgaven (merket tenkte), bolgefart(h) = √(g · h) og ankomsttid(avstand, h). Tester: √(9,81 · 300) ≈ 54 m/s, og 6 km gir ca. 110 s; ankomsttiden er proporsjonal med avstanden; h = 0 gir null, ikke Infinity; 2 mm per døgn er ca. 73 cm per år; tallsettene gir ulike farenivåer; skredklassen for boligen i bygda er en gyldig TEK17-klasse fra risiko.ts.",
+     "sceneNeeds": "Scene-kit: Himmel, Landskap type «fjell», Vann (fjorden med dybdetoning) og Dimension. Geofag-kit: Snittblokk (fjellpartiet med sprekker og glideplan), LagMonstre (gneis), Stromlinjer (bølgefronten) og Bygning (bygda). Lokalt i kap08: målestasjon (GPS-antenne og ekstensometer over sprekken) og bølgefronten over fjorden sett ovenfra."
+    },
+    {
+     "id": "eks-boligfelt",
+     "title": "Kan kommunen bygge på elvesletta?",
+     "sections": [
+      "8.2",
+      "8.3",
+      "8.1"
+     ],
+     "km": [
+      "KM10",
+      "KM11"
+     ],
+     "idea": "En kommune vil bygge boliger på en elveslette under marin grense (egne tall og kart). a) Forklar hva en 200-årsflom er. b) Regn ut sannsynligheten for at en bolig rammes av minst én 200-årsflom i løpet av 60 år. c) Bruk en tabell med årsflommer og en vannføringskurve til å finne vannstanden ved en 200-årsflom, legg på et klimapåslag på 20 % og en sikkerhetsmargin på høyden (oppgitt), og avgjør om tomtene ligger høyt nok etter sikkerhetsklasse F2. d) Grunnboringer viser leire med omrørt skjærfasthet 0,3 kPa: hva betyr det, og hvorfor krever det en geoteknisk utredning og dokumentert stabilitet før det kan bygges, i stedet for en årlig sannsynlighet? e) Lag en enkel risikovurdering for flommen (sannsynlighet og konsekvens) og foreslå tiltak. Tre tallsett med tydelige konklusjoner.",
+     "model": "model-eks-boligfelt.ts: BOLIGFELT_TASKS og solveBoligfelt(task) med sannsynlighetIPerioden og gumbelTilpasning fra hydrologi.ts, SIKKERHETSKLASSER og risikoklasse fra risiko.ts i kit-et, vannstand fra model-flomfrekvens.ts og erKvikkleire fra model-kvikkleire.ts; kvikkleiredelen gir bare «geoteknisk utredning kreves», aldri en sannsynlighet. Tester: sannsynligheten stemmer med formelen; klimapåslaget og sikkerhetsmarginen øker vannstanden; minst ett tallsett gir «kan bygges» og ett «kan ikke bygges»; ingen konklusjon ligger på grensen; kvikkleire gir alltid «utredning kreves».",
+     "sceneNeeds": "Geofag-kit: Snittblokk (elveslette med leire), Elveleie (flomnivå), LagMonstre, Kotekart (tomtekart) og Bygning. Scene-kit: Vei, Lauvtre, Terreng og ValueTag. Lokalt: risikomatrise i GEO.fare."
+    }
+   ],
+   "reviewOnly": [],
+   "lokalt": [
+    "Skredbane (eier: skraaning)",
+    "leirpartikler (eier: kvikkleire)"
+   ]
+  },
+  "9": {
+   "no": "9",
+   "title": "Feltarbeid og geofaglige metoder",
+   "sections": [
+    {
+     "code": "9.1",
+     "title": "Planlegging og innsamling av data",
+     "km": [
+      "KM12"
+     ]
+    },
+    {
+     "code": "9.2",
+     "title": "Bearbeiding, tolking og presentasjon",
+     "km": [
+      "KM11",
+      "KM12"
+     ]
+    }
+   ],
+   "km": [
+    "KM11",
+    "KM12"
+   ],
+   "viz": [
+    {
+     "id": "strok-og-fall",
+     "title": "Strøk og fall med kompass og klinometer",
+     "sections": [
+      "9.1",
+      "9.2"
+     ],
+     "km": [
+      "KM12"
+     ],
+     "idea": "Et blokkdiagram av en berghylle med skråstilte lag av sandstein og skifer, der en geolog legger et kompass med klinometer på en lagflate. Eleven dreier lagene (strøket) og vipper dem (fallet) og ser at strøket er retningen til en vannrett linje på lagflaten, mens fallet er vinkelen og retningen til den bratteste linja nedover. Resultatet skrives som strøk og fall (for eksempel N 40° Ø, 25° mot SØ) og tegnes med kartsymbolet på et lite geologisk kart. Segmented viser at et snitt som ikke står vinkelrett på strøket, som en veiskjæring, gir et mindre tilsynelatende fall. I modusen «Øv» får eleven noen lag og sjekker avlesningen sin.",
+     "model": "model-strok-og-fall.ts: planFraStrokOgFall(strøk, fall) → normalvektor (høyrehåndsregelen) og strokOgFallFraNormal, fallretning(strøk), tilsynelatendeFall(fall, θ) med tan α = tan δ · sin θ, kompassTekst(grader) («N 45° Ø») og treningsLag(frø). Tester: rundtur mellom plan og strøk og fall gir samme verdier; tilsynelatende fall er lik det sanne når snittet står vinkelrett på strøket og 0 langs strøket; fall 0° og 90° håndteres; kompassteksten for 0, 90, 135 og 270 grader stemmer og bruker Ø og V.",
+     "sceneNeeds": "Geofag-kit: Snittblokk (skråstilte lag), LagMonstre (sandstein, leirskifer) og Kotekart (lite kart med strøk- og fallsymbol). Scene-kit: Person (geologen; kompasset festes med personPunkter), Himmel, Gran og Terreng type «gress». Lokalt i kap09 (eier: strok-og-fall): Kompass (med klinometer og libelle, kan dreies og vippes) og Geologhammer."
+    },
+    {
+     "id": "sikteanalyse",
+     "title": "Sikteanalyse av en løsmasseprøve",
+     "sections": [
+      "9.2",
+      "5.3"
+     ],
+     "km": [
+      "KM12",
+      "KM5"
+     ],
+     "idea": "Eleven har samlet en løsmasseprøve og sikter den gjennom en siktesats (16, 8, 4, 2, 1, 0,5, 0,25, 0,125 og 0,063 mm). Tabellen med massen på hver sikt (forvalg: morene, breelvsand fra et delta, strandsand, elvegrus eller egne tall) gjøres om til en kornfordelingskurve med logaritmisk akse, og eleven leser av d10, d50 og d60, regner ut graderingstallet og klassifiserer prøven og sorteringen. Tolkningen kobles til dannelsen: godt sortert tyder på vann eller vind, usortert på morene. Metodiske poeng vises også: summen må stemme med startmassen (svinn), og det som går gjennom den minste sikten, kan ikke skilles uten slemmeanalyse. Eleven skal lære å bearbeide, tolke og presentere feltdata (KM12).",
+     "model": "Bygger på kornstorrelse.ts i kit-et: kumulativKurve(sikter, masser) (prosent gjennomgang), dPersentil(kurve, p) (lineært i log d), graderingstall Cu = d60/d10, krumningstall Cc, klassifiser(kurve) og sortering. model-sikteanalyse.ts: FORVALG og svinn(start, sum). Tester: kurven er monoton og ender på 100 %; d50 ligger mellom siktene der kurven krysser 50 %; et ensgradert materiale gir Cu nær 1; morene-forvalget gir Cu over 15 og breelvsanden under 6; d10 under minste sikt gir null («kan ikke bestemmes»), ikke NaN.",
+     "sceneNeeds": "Geofag-kit: Kornkurve (bygd på LogPlot), Korn og Kornpakning. Scene-kit: Bord type «lab» og Rom. Lokalt i kap09 (eier: sikteanalyse): Siktesats (stablede sikter med korn) og vekt."
+    }
+   ],
+   "examples": [
+    {
+     "id": "eks-vannforing",
+     "title": "Feltarbeid ved bekken: vannføring og kornstørrelse",
+     "sections": [
+      "9.1",
+      "9.2",
+      "6.2",
+      "5.1"
+     ],
+     "km": [
+      "KM12",
+      "KM7",
+      "KM6"
+     ],
+     "idea": "En klasse måler vannføringen i en bekk (egne tall): dybden er målt for hver 0,5 m over bekken, og en appelsin bruker oppgitte tider på å flyte 10,0 m. a) Lag en plan for målingene, og forklar hvorfor de gjentas. b) Regn ut tverrsnittsarealet med trapesmetoden. c) Regn ut overflatefarten, gjør den om til middelfart med korreksjonsfaktoren 0,8 (og forklar hvorfor den trengs), og finn vannføringen i m³/s og L/s. d) På en grusbanke er 20 korn målt: bruk Hjulströms diagram til å vurdere om bekken kan sette de største kornene i bevegelse ved den målte farten og ved flom, og om korn som alt er i bevegelse, fraktes videre. e) Drøft feilkilder, og hvordan resultatene bør presenteres med tabell, graf og usikkerhet. Tre tallsett.",
+     "model": "model-eks-vannforing.ts: VANNFORING_TASKS og solveVannforing(task): trapesareal, middel og standardavvik for tidene (statistikk.ts i kit-et), overflatefart, middelfart, Q og usikkerhet, og kornTilstand(d, v, iBevegelse) fra kornstorrelse.ts. Tester: trapesmetoden stemmer for et rektangel og en trekant; standardavviket er null når alle tidene er like; Q ligger mellom 10 og 2000 L/s i alle tallsettene; usikkerheten øker med spredningen.",
+     "sceneNeeds": "Scene-kit: Himmel, Landskap type «aaser», Terreng type «gress», Vann, Person (to elever), Maalebaand, Stoppeklokke, Gran og Lauvtre. Geofag-kit: Elveleie (tverrsnitt med målepunkter), Bekk og Korn. Lokalt: appelsin og målestav."
+    }
+   ],
+   "reviewOnly": [
+    "kotekart"
+   ],
+   "lokalt": [
+    "Kompass og Geologhammer (eier: strok-og-fall)",
+    "Siktesats (eier: sikteanalyse)"
+   ]
+  }
+ }
+}

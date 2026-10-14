@@ -6,7 +6,7 @@
  *   node scripts/viz-shot.mjs --port 5311 --chapter 2 --out /tmp/shots
  *   node scripts/viz-shot.mjs --port 5311 --ids k2-friksjon,k2-kraftpar --themes dark --widths 390
  *   node scripts/viz-shot.mjs --port 5311 --chapter 2 --extremes     # også med alle glidebrytere på min og på maks
- *   node scripts/viz-shot.mjs --port 5311 --fag kjemi --chapter 3     # kjemi eller biologi (standard: fysikk)
+ *   node scripts/viz-shot.mjs --port 5311 --fag kjemi --chapter 3     # kjemi, biologi eller geofag (standard: fysikk)
  *   node scripts/viz-shot.mjs --port 5311 --ids k2-eks-skraplan --steps   # eksempeloppgave: også ett bilde per steg
  *
  * Eksempeloppgaver (`.viz-example`) får alltid også et bilde av hele løsningen (`-alle`).

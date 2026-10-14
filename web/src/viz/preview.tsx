@@ -2,7 +2,7 @@
  * Forhåndsvisning av én visualisering uten resten av appen (ingen innlogging, server eller database).
  * Kun for utvikling: http://localhost:5173/viz-preview.html?fag=kjemi&id=k3-mol&theme=dark&width=390
  *
- * `fag` er fysikk (standard), kjemi eller biologi, og gir også fagets fargetema.
+ * `fag` er fysikk (standard), kjemi, biologi eller geofag, og gir også fagets fargetema.
  * Laster bare kapittelet som trengs, så en feil i et annet kapittel ikke stopper forhåndsvisningen.
  * Uten `id` vises en liste over visualiseringene i kapittelet `chapter` (eller alle kapitler i faget).
  */
@@ -17,7 +17,7 @@ import type { VizMeta } from './types';
 
 // `<fag>/kapNN/index.ts`
 const chapters = import.meta.glob<{ default: VizMeta[] }>('./*/kap*/index.ts');
-const SUBJECT_THEME: Record<string, string | null> = { fysikk: null, kjemi: 'chemistry', biologi: 'biology' };
+const SUBJECT_THEME: Record<string, string | null> = { fysikk: null, kjemi: 'chemistry', biologi: 'biology', geofag: 'geoscience' };
 
 const params = new URLSearchParams(location.search);
 const id = params.get('id') ?? '';
@@ -49,22 +49,32 @@ async function loadChapter(no: string): Promise<VizMeta[]> {
   return (await mod()).default;
 }
 
-/** Galleriet over scene-kit-et: ?galleri=kjoretoy (én familie) eller ?galleri=alle. */
+/**
+ * Galleriet over scene-kit-et: ?galleri=kjoretoy (én familie) eller ?galleri=alle. Geofag-kit-et har sitt eget galleri
+ * med prefikset «geo-»: ?galleri=geo-snitt eller ?galleri=geo-alle (med fagtemaet «Fjell»).
+ */
 const galleries = import.meta.glob<{ default: ComponentType }>('./kit/scene/galleri/*.tsx');
+const geoGalleries = import.meta.glob<{ default: ComponentType }>('./geofag/kit/galleri/*.tsx');
 
 async function showGallery(name: string) {
-  const keys = Object.keys(galleries)
+  const geo = name.startsWith('geo-');
+  const source = geo ? geoGalleries : galleries;
+  const want = geo ? name.slice(4) : name;
+  if (geo && !params.get('fag')) document.documentElement.setAttribute('data-subject', 'geoscience');
+  const keys = Object.keys(source)
     .filter((k) => !k.endsWith('/felles.tsx'))
-    .filter((k) => name === 'alle' || k.endsWith(`/${name}.tsx`))
+    .filter((k) => want === 'alle' || k.endsWith(`/${want}.tsx`))
     .sort();
   if (keys.length === 0) throw new Error(`Fant ikke galleriet «${name}»`);
-  const sections = await Promise.all(keys.map(async (k) => ({ name: k.replace(/^.*\/(.*)\.tsx$/, '$1'), Component: (await galleries[k]!()).default })));
+  const sections = await Promise.all(keys.map(async (k) => ({ name: k.replace(/^.*\/(.*)\.tsx$/, '$1'), Component: (await source[k]!()).default })));
   createRoot(root!).render(
     <StrictMode>
       <div data-viz-ready>
         {sections.map(({ name: n, Component }) => (
           <section key={n} className="viz" style={{ marginBottom: 24 }}>
-            <h2 style={{ margin: 0 }}>Scene-kit: {n}</h2>
+            <h2 style={{ margin: 0 }}>
+              {geo ? 'Geofag-kit' : 'Scene-kit'}: {n}
+            </h2>
             <Component />
           </section>
         ))}
