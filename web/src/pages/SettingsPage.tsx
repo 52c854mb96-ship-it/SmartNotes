@@ -787,7 +787,7 @@ function QuotaLines() {
         <dd>
           {quota.pages.used} av {quota.pages.limit}
         </dd>
-        <dt>Kortstokker</dt>
+        <dt>Kortstokker og svaralternativer</dt>
         <dd>
           {quota.decks.used} av {quota.decks.limit}
         </dd>
@@ -798,6 +798,7 @@ function QuotaLines() {
       </dl>
       <p className="form-hint">
         Er sidene brukt opp, venter notatene og konverteres etter midnatt. Høyst {quota.queueMax} notater kan stå i kø samtidig.
+        Svaralternativer til en kortstokk som finnes, teller som én kortstokk.
       </p>
     </div>
   );

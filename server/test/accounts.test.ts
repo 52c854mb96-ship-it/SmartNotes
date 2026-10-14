@@ -656,6 +656,8 @@ describe('hver rute holder brukerne fra hverandre', () => {
     'PATCH /api/decks/:id': { req: (v) => ({ url: `/api/decks/${v.deckId}`, json: { title: 'Overtatt' } }) },
     'DELETE /api/decks/:id': { req: (v) => ({ url: `/api/decks/${v.deckId}` }) },
     'POST /api/decks/:id/retry': { req: (v) => ({ url: `/api/decks/${v.deckId}/retry`, json: {} }) },
+    // Svaralternativer til offerets ferdige kortstokk: 404, ingen jobb startes og ingenting telles mot kvoten.
+    'POST /api/decks/:id/choices': { req: (v) => ({ url: `/api/decks/${v.deckId}/choices`, json: {} }) },
     'POST /api/decks/:id/cards': {
       req: (v) => ({ url: `/api/decks/${v.deckId}/cards`, json: { kind: 'concept', front: 'Inntrenger?', back: ['Ja'] } }),
     },

@@ -48,8 +48,12 @@ export function osloDay(now: number): { day: string; start: number; next: number
 export const QUOTA_MESSAGES = {
   pages: (limit: number) => `Dagens kvote er brukt – konverteres i morgen. Gratiskontoer kan konvertere ${limit} sider per døgn.`,
   budget: 'Dagens kvote er brukt – konverteres i morgen. Serveren har brukt opp det den kan bruke på gratiskontoer i dag.',
-  decks: (limit: number) => `Du har laget ${limit} kortstokker i dag, som er grensen for gratiskontoer. Prøv igjen i morgen.`,
+  decks: (limit: number) =>
+    `Du har brukt dagens ${limit} kortstokker, som er grensen for gratiskontoer. Svaralternativer til en kortstokk teller som én kortstokk. Prøv igjen i morgen.`,
   decksBudget: 'Serveren har brukt opp det den kan bruke på gratiskontoer i dag. Prøv å lage kortstokken i morgen.',
+  choices: (limit: number) =>
+    `Du har brukt dagens ${limit} kortstokker, som er grensen for gratiskontoer. Svaralternativer til en kortstokk teller som én kortstokk. Prøv igjen i morgen.`,
+  choicesBudget: 'Serveren har brukt opp det den kan bruke på gratiskontoer i dag. Prøv å lage svaralternativene i morgen.',
   toc: (limit: number) => `Du har latt AI-en lese ${limit} innholdsfortegnelser i dag, som er grensen for gratiskontoer. Prøv igjen i morgen.`,
   tocBudget: 'Serveren har brukt opp det den kan bruke på gratiskontoer i dag. Prøv igjen i morgen.',
   queue: (limit: number) => `Du har ${limit} notater i kø, som er grensen for gratiskontoer. Vent til noen er konvertert, og last opp på nytt.`,
@@ -110,6 +114,11 @@ export class Quota {
     return this.take(userId, 'decks', this.limits.decksPerDay, deckRef, QUOTA_MESSAGES.decks, QUOTA_MESSAGES.decksBudget).blocked;
   }
 
+  /** Før svaralternativer lages til en kortstokk som finnes: telles som én kortstokk, med egne meldinger. */
+  takeChoices(userId: number, deckId: string): string | null {
+    return this.take(userId, 'decks', this.limits.decksPerDay, deckId, QUOTA_MESSAGES.choices, QUOTA_MESSAGES.choicesBudget).blocked;
+  }
+
   /**
    * Før AI-en leser en innholdsfortegnelse eller kobler delkapitler til kompetansemål. `blocked` er meldingen når taket
    * er nådd; ellers er kallet telt, og `at` gis til `refund` hvis AI-en aldri svarte.
@@ -118,9 +127,9 @@ export class Quota {
     return this.take(userId, 'toc', this.limits.tocPerDay, ref, QUOTA_MESSAGES.toc, QUOTA_MESSAGES.tocBudget);
   }
 
-  /** Et nytt forsøk på noe som feilet (en kortstokk): telles ikke, men venter når dagsbudsjettet er brukt. */
-  retryBlocked(userId: number): string | null {
-    return this.limited(userId) && this.budgetUsed() ? QUOTA_MESSAGES.decksBudget : null;
+  /** Et nytt forsøk på noe som feilet (en kortstokk eller svaralternativer): telles ikke, men venter når dagsbudsjettet er brukt. */
+  retryBlocked(userId: number, message: string = QUOTA_MESSAGES.decksBudget): string | null {
+    return this.limited(userId) && this.budgetUsed() ? message : null;
   }
 
   private take(

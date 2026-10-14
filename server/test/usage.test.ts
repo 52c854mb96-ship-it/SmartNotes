@@ -81,10 +81,16 @@ describe('MeteredAi', () => {
     await usageScope({ deckId: 'd1' }, () =>
       ai.generateFlashcards({ subjectName: 'Fysikk 1', subjectLabel: 'Fysikk', difficulty: 'medium', count: null, notes: [] } as never),
     );
-    expect(log.map((e) => [e.kind, e.subjectId, e.deckId])).toEqual([
-      ['toc', 's1', null],
-      ['aims', null, null],
-      ['flashcards', null, 'd1'],
+    // Svaralternativer logges som kortstokker, på kortstokken de gjelder.
+    const choices = await usageScope({ deckId: 'd2' }, () =>
+      ai.generateChoices({ subjectName: 'Fysikk 1', subjectLabel: 'Fysikk', cards: [{ alias: 'k1', kind: 'concept', front: 'FEIL', back: ['x'] }] }).catch((e: unknown) => e),
+    );
+    expect(choices).toBeInstanceOf(ConversionError);
+    expect(log.map((e) => [e.kind, e.subjectId, e.deckId, e.ok])).toEqual([
+      ['toc', 's1', null, true],
+      ['aims', null, null, true],
+      ['flashcards', null, 'd1', true],
+      ['flashcards', null, 'd2', false],
     ]);
   });
 

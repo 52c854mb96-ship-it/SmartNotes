@@ -6,6 +6,14 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { loadConfig, type OllamaConfig } from '../src/config.js';
 import { ConversionError } from '../src/errors.js';
 import type { ConvertRequest } from '../src/pipeline/ai.js';
+import {
+  CHOICES_SYSTEM_PROMPT,
+  FLASHCARD_SYSTEM_PROMPT,
+  buildChoicesPrompt,
+  buildFlashcardPrompt,
+  flashcardSystemPrompt,
+  type FlashcardRequest,
+} from '../src/flashcards/prompt.js';
 import { AnthropicClaude, FakeClaude } from '../src/pipeline/claude.js';
 import { OllamaAi, mergeParts, ollamaError, partPage, repairLatexEscapes, scaleFigures, stripThinking } from '../src/pipeline/ollama.js';
 import { supportsServerFallback } from '../src/pipeline/claude.js';
@@ -170,6 +178,56 @@ describe('OllamaAi', () => {
 
     const bad = fakeOllama(() => answer('{"kort": []}'));
     await expect(new OllamaAi(CFG, bad.fetchImpl).generateFlashcards(req)).rejects.toThrow('Den lokale AI-en svarte ikke med kort');
+  });
+
+  it('kortstokker uten svaralternativer bruker samme instruks og skjema som før, og med dem får kortene "choices"', async () => {
+    const card = { note: 'n1', kind: 'concept', front: 'Hva er fart?', back: ['Strekning per tid'], detail: '' };
+    const req: FlashcardRequest = { subjectName: 'Fysikk 1', subjectLabel: 'Fysikk', difficulty: 'medium', count: null, notes: [] };
+    const plain = fakeOllama(() => answer(JSON.stringify({ cards: [card] })));
+    await new OllamaAi(CFG, plain.fetchImpl).generateFlashcards(req);
+    expect(plain.calls[0]!.body.messages[0]).toEqual({ role: 'system', content: FLASHCARD_SYSTEM_PROMPT });
+    expect(plain.calls[0]!.body.messages[1]!.content).toBe(buildFlashcardPrompt(req));
+    expect(JSON.stringify(plain.calls[0]!.body.format)).not.toContain('choices');
+
+    const choices = { correct: 'Strekning per tid', wrong: ['Tid per strekning', 'Kraft per masse', 'Masse ganger fart'] };
+    const withChoices = fakeOllama(() => answer(JSON.stringify({ cards: [{ ...card, choices }, { ...card, front: 'Hvorfor?', choices: null }] })));
+    const res = await new OllamaAi(CFG, withChoices.fetchImpl).generateFlashcards({ ...req, withChoices: true });
+    expect(res.cards.map((c) => c.choices)).toEqual([choices, null]);
+    expect(withChoices.calls[0]!.body.messages[0]!.content).toBe(flashcardSystemPrompt(true));
+    expect(withChoices.calls[0]!.body.messages[1]!.content).toContain('Svaralternativer: ja.');
+    expect(JSON.stringify(withChoices.calls[0]!.body.format)).toContain('choices');
+  });
+
+  it('lager svaralternativer til kort som finnes, med tekstmodellen og JSON-skjema', async () => {
+    const wrong = ['$\\frac{t}{s}$', '$\\frac{s}{t^2}$', '$\\beta \\cdot t$'];
+    const reply = { cards: [{ card: 'k1', choices: { correct: '$\\frac{s}{t}$', wrong } }, { card: 'k2', choices: null }] };
+    // Liten modell, enkel backslash i JSON foran f og b: \frac blir sideskift + «rac» og repareres.
+    const raw = JSON.stringify(reply).replace(/\\\\([fb])/g, '\\$1');
+    expect(raw).toContain('"$\\frac{s}{t}$"');
+    const ok = fakeOllama(() => answer(raw));
+    const req = {
+      subjectName: 'Fysikk 1',
+      subjectLabel: 'Fysikk',
+      cards: [
+        { alias: 'k1', kind: 'concept' as const, front: 'Hva er formelen for fart?', back: ['$v = \\frac{s}{t}$'] },
+        { alias: 'k2', kind: 'explain' as const, front: 'Hvorfor?', back: ['Fordi'] },
+      ],
+    };
+    const res = await new OllamaAi(CFG, ok.fetchImpl).generateChoices(req);
+    expect(res.cards).toEqual(reply.cards);
+    expect(res.usage).toMatchObject({ kind: 'flashcards', inputTokens: 4200, outputTokens: 900 });
+    expect(ok.calls[0]!.body.model).toBe('qwen3:8b');
+    expect(ok.calls[0]!.body.messages[0]).toEqual({ role: 'system', content: CHOICES_SYSTEM_PROMPT });
+    expect(ok.calls[0]!.body.messages[1]!.content).toBe(buildChoicesPrompt(req));
+    expect(ok.calls[0]!.body.format).toMatchObject({ type: 'object' });
+
+    const bad = fakeOllama(() => answer('{"kort": []}'));
+    await expect(new OllamaAi(CFG, bad.fetchImpl).generateChoices(req)).rejects.toThrow('Den lokale AI-en svarte ikke med svaralternativer. Prøv igjen.');
+    const long = fakeOllama(() => answer('{"cards": [', { done_reason: 'length' }));
+    const err = await new OllamaAi(CFG, long.fetchImpl).generateChoices(req).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ConversionError);
+    expect((err as ConversionError).message).toMatch(/for langt for den lokale AI-en/);
+    expect((err as ConversionError).usage).toMatchObject({ kind: 'flashcards' });
   });
 
   it('retter LaTeX som modellen skrev med enkel backslash i JSON', async () => {

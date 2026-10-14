@@ -12,7 +12,7 @@ import { AbortedError, ConversionError } from '../errors.js';
 import { parseMeta } from '../pipeline/parse.js';
 import type { AiService, ConvertRequest, ConvertResult, FixRequest } from '../pipeline/ai.js';
 import type { ChapterInput, CompetenceAim } from '@smartnotes/shared';
-import type { FlashcardRequest, RawFlashcard } from '../flashcards/prompt.js';
+import type { ChoicesRequest, FlashcardRequest, RawCardChoices, RawFlashcard } from '../flashcards/prompt.js';
 import type { Profile } from '../profiles/index.js';
 import { currentUsageRef, type Usage, type UsageRef } from '../usage.js';
 import { encodePages, type ClaimRequest, type RemoteCall, type RemoteMethod, type RemoteOutcome, type RemoteTask } from './protocol.js';
@@ -326,13 +326,28 @@ const metaSchema = z.object({
 });
 const sectionSchema = z.object({ code: z.string(), title: z.string(), aims: z.array(z.string()).default([]) });
 const chaptersSchema = z.array(z.object({ number: z.string().nullable(), title: z.string(), sections: z.array(sectionSchema).optional() }));
+/** Svaralternativer fra hjemmemaskinen. Uten feltet i skjemaet ville zod fjerne dem i stillhet. */
+const choicesWireSchema = z.object({ correct: z.string(), wrong: z.array(z.string()) });
 const RESULT_SCHEMAS = {
   convert: z.object({ meta: metaSchema, body: z.string(), usage: usageSchema }),
   fix: z.object({ body: z.string(), usage: usageSchema }),
   extractToc: z.object({ chapters: chaptersSchema, usage: usageSchema }),
   mapSectionAims: z.object({ chapters: chaptersSchema, usage: usageSchema }),
   generateFlashcards: z.object({
-    cards: z.array(z.object({ note: z.string(), kind: z.string(), front: z.string(), back: z.array(z.string()), detail: z.string() })),
+    cards: z.array(
+      z.object({
+        note: z.string(),
+        kind: z.string(),
+        front: z.string(),
+        back: z.array(z.string()),
+        detail: z.string(),
+        choices: choicesWireSchema.nullable().optional(),
+      }),
+    ),
+    usage: usageSchema,
+  }),
+  generateChoices: z.object({
+    cards: z.array(z.object({ card: z.string(), choices: choicesWireSchema.nullable() })),
     usage: usageSchema,
   }),
 } satisfies Record<RemoteMethod, z.ZodType>;
@@ -382,6 +397,10 @@ export class RemoteAi implements AiService {
 
   generateFlashcards(req: FlashcardRequest): Promise<{ cards: RawFlashcard[]; usage: Usage }> {
     return this.call('generateFlashcards', { method: 'generateFlashcards', req });
+  }
+
+  generateChoices(req: ChoicesRequest): Promise<{ cards: RawCardChoices[]; usage: Usage }> {
+    return this.call('generateChoices', { method: 'generateChoices', req });
   }
 
   private async call<M extends RemoteMethod>(method: M, call: RemoteCall, interactive = false): Promise<z.infer<(typeof RESULT_SCHEMAS)[M]>> {
@@ -444,5 +463,8 @@ export class RemoteWithFallback implements AiService {
   }
   generateFlashcards(req: FlashcardRequest) {
     return this.run((ai) => ai.generateFlashcards(req));
+  }
+  generateChoices(req: ChoicesRequest) {
+    return this.run((ai) => ai.generateChoices(req));
   }
 }

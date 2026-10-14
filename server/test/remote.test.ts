@@ -7,6 +7,7 @@ import type { AiStatusResponse, Note, Subject, SyncResponse } from '@smartnotes/
 import { buildApp, type AppContext } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { AbortedError, ConversionError } from '../src/errors.js';
+import type { FlashcardRequest } from '../src/flashcards/prompt.js';
 import { FakeClaude } from '../src/pipeline/claude.js';
 import { RemoteAi, RemoteHub, RemoteWithFallback, type RemoteHubOptions } from '../src/remote/hub.js';
 import { HomeWorker, loadEnvFile, parseHours, safeServerUrl } from '../src/remote/homeworker.js';
@@ -325,6 +326,41 @@ describe('RemoteAi og reserve', () => {
     const remote = new RemoteAi(stubHub({ ok: false, error: { message: 'skal ikke brukes', retryable: false } }, false));
     const ai = new RemoteWithFallback(remote, new FakeClaude(0), stubHub(null, false));
     expect((await ai.fix({ profile: getProfile('physics'), body: 'b', errorReport: '' })).usage.model).toBe('fake-claude');
+    const choices = await ai.generateChoices({ subjectName: 'F', subjectLabel: 'Fysikk', cards: [{ alias: 'k1', kind: 'concept', front: 'Hva?', back: ['Dette'] }] });
+    expect(choices.cards).toEqual([{ card: 'k1', choices: { correct: 'Dette', wrong: ['Feil svar A', 'Feil svar B', 'Feil svar C'] } }]);
+  });
+
+  it('svaralternativer fra hjemmemaskinen kommer fram og kontrolleres (zod fjerner dem ikke)', async () => {
+    const usage = { kind: 'flashcards', model: 'qwen', inputTokens: 5, outputTokens: 6, cacheReadTokens: 0, cacheWriteTokens: 0 };
+    const choices = { correct: 'Joule', wrong: ['Watt', 'Newton', 'Pascal'] };
+    const card = { note: 'n1', kind: 'concept', front: 'Enheten for energi?', back: ['Joule'], detail: '' };
+    const cardsReq: FlashcardRequest = { subjectName: 'F', subjectLabel: 'Fysikk', difficulty: 'easy', count: null, notes: [], withChoices: true };
+    const withChoices = await new RemoteAi(stubHub({ ok: true, result: { cards: [{ ...card, choices }, { ...card, choices: null }], usage } })).generateFlashcards(cardsReq);
+    expect(withChoices.cards.map((c) => c.choices)).toEqual([choices, null]);
+    // Kortstokker uten svaralternativer, som før.
+    const plain = await new RemoteAi(stubHub({ ok: true, result: { cards: [card], usage } })).generateFlashcards({ ...cardsReq, withChoices: false });
+    expect(plain.cards).toEqual([card]);
+
+    const req = { subjectName: 'F', subjectLabel: 'Fysikk', cards: [{ alias: 'k1', kind: 'concept' as const, front: 'Enheten for energi?', back: ['Joule'] }] };
+    const answer = { cards: [{ card: 'k1', choices }, { card: 'k2', choices: null }], usage };
+    expect(await new RemoteAi(stubHub({ ok: true, result: answer })).generateChoices(req)).toEqual(answer);
+    await expect(new RemoteAi(stubHub({ ok: true, result: { cards: [{ card: 'k1', choices: { correct: 1 } }], usage } })).generateChoices(req)).rejects.toThrow(
+      'uventet format',
+    );
+    await expect(new RemoteAi(stubHub({ ok: true, result: { cards: [{ card: 'k1' }], usage } })).generateChoices(req)).rejects.toThrow('uventet format');
+    // Kallet sendes med kortene, og forbruket fra en feil på hjemmemaskinen kommer med.
+    let sent: unknown = null;
+    const hub = {
+      submit: async (call: unknown) => {
+        sent = call;
+        return { ok: false, error: { message: 'For lite minne', retryable: false, usage } };
+      },
+      online: () => true,
+      status: () => ({ workers: [], waiting: 0, running: 0 }),
+    } as unknown as RemoteHub;
+    const err = await new RemoteAi(hub).generateChoices(req).catch((e: unknown) => e);
+    expect(sent).toEqual({ method: 'generateChoices', req });
+    expect(err).toMatchObject({ message: 'For lite minne', usage });
   });
 
   it('figur-id-er fra hjemmemaskinen kontrolleres, fordi de blir filnavn', async () => {
@@ -415,6 +451,23 @@ describe('RemoteAi og reserve', () => {
       tmp,
     );
     expect(failed).toEqual({ ok: false, error: { message: 'Testfeil fra falsk Claude.', retryable: false } });
+    // Svaralternativer (protokollversjon 2), også i nye kortstokker.
+    const choices = await executeRemoteCall(
+      { method: 'generateChoices', req: { subjectName: 'F', subjectLabel: 'Fysikk', cards: [{ alias: 'k1', kind: 'apply', front: 'Regn ut', back: ['**6 N**'] }] } },
+      new FakeClaude(0),
+      tmp,
+    );
+    expect(choices).toMatchObject({ ok: true, result: { cards: [{ card: 'k1', choices: { correct: '6 N', wrong: ['Feil svar A', 'Feil svar B', 'Feil svar C'] } }] } });
+    const deck = await executeRemoteCall(
+      {
+        method: 'generateFlashcards',
+        req: { subjectName: 'F', subjectLabel: 'Fysikk', difficulty: 'easy', count: null, withChoices: true, notes: [{ alias: 'n1', title: 'Fart', chapter: null, section: null, date: null, body: '' }] },
+      },
+      new FakeClaude(0),
+      tmp,
+    );
+    expect(deck).toMatchObject({ ok: true, result: { cards: [{ choices: { correct: 'Fart' } }, { choices: null }, { choices: { correct: expect.any(String) } }] } });
+    expect(PROTOCOL_VERSION).toBe(2);
   });
 });
 

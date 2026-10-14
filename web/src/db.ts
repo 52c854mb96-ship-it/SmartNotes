@@ -68,10 +68,10 @@ export interface ProgressEntry {
 export type PracticeOrder = 'notes' | 'shuffle';
 
 /**
- * Øvingsformen: Mestring (standard), Rask runde, Klassisk eller Luketekst. Logikken står i `flashcards/model.ts`.
- * Økter lagret før formene fantes, har ingen form og leses som Mestring (`normalizePracticeState`).
+ * Øvingsformen: Mestring (standard), Rask runde, Klassisk, Luketekst eller Flervalg (`choice`). Logikken står i
+ * `flashcards/model.ts`. Økter lagret før formene fantes, har ingen form og leses som Mestring (`normalizePracticeState`).
  */
-export type PracticeMode = 'mastery' | 'quick' | 'classic' | 'cloze';
+export type PracticeMode = 'mastery' | 'quick' | 'classic' | 'cloze' | 'choice';
 
 /** Klassisk: én gjennomgang av kortene, uten vurdering. */
 export interface PracticePass {
@@ -109,7 +109,7 @@ export interface PracticeState {
   mode?: PracticeMode;
   /** Klassisk: gjennomgangen som pågår. */
   pass?: PracticePass;
-  /** Rask runde og Luketekst: kortene eleven har kunnet i runden. De tas ikke inn i køen igjen. */
+  /** Rask runde, Luketekst og Flervalg: kortene eleven har kunnet i runden. De tas ikke inn i køen igjen. */
   done?: string[];
   /** Lengde: en kort økt på 10 eller 20 kort (null eller mangler = hele utvalget). */
   length?: PracticeLength | null;
@@ -119,6 +119,11 @@ export interface PracticeState {
   seen?: string[];
   /** Luketekst: rundenummeret som velger luka i hvert kort (`clozeOf`). Øker med 1 for hver nye runde. */
   clozeSeed?: number;
+  /**
+   * Flervalg: rundenummeret som stokker svaralternativene i hvert kort (`choiceOptions`), så rekkefølgen er den samme
+   * etter omlasting. Øker med 1 for hver nye runde.
+   */
+  choiceSeed?: number;
 }
 
 export interface MetaEntry {
@@ -167,10 +172,34 @@ db.version(3)
 
 // Versjon 4: flashcards. Kortstokker laget på en annen enhet før denne versjonen har lavere rev enn markøren,
 // så markøren nullstilles for en full synk.
+const STORES_V4 = { ...STORES_V3, decks: 'id, subjectId', cards: 'id, deckId', progress: 'key', practice: 'deckId' };
 db.version(4)
-  .stores({ ...STORES_V3, decks: 'id, subjectId', cards: 'id, deckId', progress: 'key', practice: 'deckId' })
+  .stores(STORES_V4)
   .upgrade(async (tx) => {
     await tx.table('meta').put({ key: 'syncCursor', value: 0 });
+  });
+
+// Versjon 5: flervalg. Kortene har fått `choices` og `choicesDeclined`, og kortstokkene `choicesStatus` og `choicesError`
+// (ingen nye indekser). Lokale rader mangler feltene: de settes til null her, og markøren nullstilles, så neste synk henter
+// alternativene og statusen. `.stores` må kalles også uten endringer, ellers får versjonen et tomt skjema i Dexie.
+db.version(5)
+  .stores(STORES_V4)
+  .upgrade(async (tx) => {
+    await tx.table('meta').put({ key: 'syncCursor', value: 0 });
+    await tx
+      .table('cards')
+      .toCollection()
+      .modify((c: Partial<Flashcard>) => {
+        if (c.choices === undefined) c.choices = null;
+        if (c.choicesDeclined === undefined) c.choicesDeclined = false;
+      });
+    await tx
+      .table('decks')
+      .toCollection()
+      .modify((d: Partial<Deck>) => {
+        if (d.choicesStatus === undefined) d.choicesStatus = null;
+        if (d.choicesError === undefined) d.choicesError = null;
+      });
   });
 
 // ---------- filinnhold ----------

@@ -303,6 +303,8 @@ export const api = {
   updateDeck: (id: string, req: UpdateDeckRequest) => json<Deck>('PATCH', `/decks/${enc(id)}`, { json: req }),
   deleteDeck: (id: string) => json<{ ok: boolean }>('DELETE', `/decks/${enc(id)}`),
   retryDeck: (id: string) => json<Deck>('POST', `/decks/${enc(id)}/retry`),
+  /** Svaralternativer til kortene som mangler dem (202, jobben går i bakgrunnen). Krever nett. */
+  requestChoices: (id: string) => json<Deck>('POST', `/decks/${enc(id)}/choices`),
   createCard: (deckId: string, req: CreateFlashcardRequest) =>
     json<Flashcard>('POST', `/decks/${enc(deckId)}/cards`, { json: req }),
   updateCard: (id: string, req: UpdateFlashcardRequest) => json<Flashcard>('PATCH', `/cards/${enc(id)}`, { json: req }),

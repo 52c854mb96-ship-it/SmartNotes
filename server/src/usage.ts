@@ -9,7 +9,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ChapterInput, CompetenceAim, UsageKind, UsageSummaryResponse } from '@smartnotes/shared';
 import { ConversionError } from './errors.js';
 import type { AiService, ConvertRequest, ConvertResult, FixRequest } from './pipeline/ai.js';
-import type { FlashcardRequest, RawFlashcard } from './flashcards/prompt.js';
+import type { ChoicesRequest, FlashcardRequest, RawCardChoices, RawFlashcard } from './flashcards/prompt.js';
 import type { Profile } from './profiles/index.js';
 
 export interface Usage {
@@ -135,6 +135,11 @@ export class MeteredAi implements AiService {
 
   generateFlashcards(req: FlashcardRequest): Promise<{ cards: RawFlashcard[]; usage: Usage }> {
     return this.meter('flashcards', () => this.inner.generateFlashcards(req), (r) => r.usage);
+  }
+
+  /** Logges som kortstokker («flashcards»), med kortstokken fra `jobScope`. */
+  generateChoices(req: ChoicesRequest): Promise<{ cards: RawCardChoices[]; usage: Usage }> {
+    return this.meter('flashcards', () => this.inner.generateChoices(req), (r) => r.usage);
   }
 
   private async meter<T>(kind: UsageKind, call: () => Promise<T>, usageOf: (result: T) => Usage): Promise<T> {

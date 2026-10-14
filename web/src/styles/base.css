@@ -482,6 +482,18 @@ textarea:focus {
   box-shadow: var(--focus-ring);
 }
 
+/* Et skjemafelt med feil (aria-invalid) er markert også uten fokus. */
+.field input[aria-invalid='true'],
+.field textarea[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.field input[aria-invalid='true']:focus,
+.field textarea[aria-invalid='true']:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
 input:disabled,
 select:disabled,
 textarea:disabled {

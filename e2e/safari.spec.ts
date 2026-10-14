@@ -169,10 +169,11 @@ test('flashcards: øvingsformene og luka i Safari', async ({ page }, info) => {
   await main.getByRole('button', { name: 'Lag kortstokk' }).click();
   await expect(page.getByRole('tab', { name: 'Øv' })).toBeVisible(SLOW);
 
-  // Velgeren: fire former på én rad, innenfor skjermen.
+  // Velgeren: fem former på én rad, innenfor skjermen. Flervalg er dempet: kortstokken har ingen svaralternativer.
   const picker = main.getByRole('radiogroup', { name: 'Øvingsform' });
   const radios = picker.getByRole('radio');
-  await expect(radios).toHaveCount(4);
+  await expect(radios).toHaveCount(5);
+  await expect(picker.getByRole('radio', { name: 'Flervalg' })).toHaveAttribute('aria-disabled', 'true');
   const first = await radios.first().boundingBox();
   const last = await radios.last().boundingBox();
   const width = page.viewportSize()?.width ?? 0;

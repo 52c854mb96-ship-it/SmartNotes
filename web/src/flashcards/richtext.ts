@@ -152,7 +152,7 @@ export function clozeCandidates(card: Pick<Flashcard, 'front' | 'back'>): Cloze[
 }
 
 /** FNV-1a: et fast tall for en tekst. */
-function hashString(s: string): number {
+export function hashString(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
   return h >>> 0;

@@ -201,7 +201,8 @@ async function scheduleNext(): Promise<void> {
   } else {
     const outboxPending = await db.outbox.where('state').anyOf('pending', 'uploading').count();
     const converting = await countNotesInProgress();
-    const generating = await db.decks.filter((d) => d.status === 'generating').count();
+    // Kortstokker der Claude lager kortene eller svaralternativene: følg med til de er ferdige.
+    const generating = await db.decks.filter((d) => d.status === 'generating' || d.choicesStatus === 'generating').count();
     const progressPending = await db.progress.count();
     if (outboxPending > 0 || progressPending > 0) delay = FAST_INTERVAL;
     else if (generating > 0) delay = document.visibilityState === 'hidden' ? SLOW_INTERVAL : FAST_INTERVAL;
@@ -350,8 +351,8 @@ async function flushProgress(): Promise<void> {
   await db.transaction('rw', [db.progress, db.cards, db.decks, db.meta], async () => {
     if (!(await stillAccount(sentAs))) return;
     await removeSentProgress(entries);
-    await mergeRows(db.cards, res.cards);
-    await mergeRows(db.decks, res.decks);
+    await mergeRows(db.cards, res.cards.map(cardRow));
+    await mergeRows(db.decks, res.decks.map(deckRow));
     await overlayPendingProgress();
   });
 }
@@ -416,9 +417,9 @@ async function applySync(res: SyncResponse, serverBehind: boolean, sentAs: numbe
   await db.transaction('rw', tables, async () => {
     // Svaret gjelder kontoen som var logget inn da forespørselen ble sendt; er enheten byttet siden, kastes det.
     if (!(await stillAccount(sentAs))) return;
-    // Eldre servere sender ikke kortstokker.
-    const decks = res.decks ?? [];
-    const cards = res.cards ?? [];
+    // Eldre servere sender ikke kortstokker (og ikke feltene for flervalg).
+    const decks = (res.decks ?? []).map(deckRow);
+    const cards = (res.cards ?? []).map(cardRow);
     if (res.full) {
       // Uendelig markør: ingen lokal rad regnes som nyere enn øyeblikksbildet.
       const keepAbove = serverBehind ? Infinity : res.cursor;
@@ -455,6 +456,23 @@ async function applySync(res: SyncResponse, serverBehind: boolean, sentAs: numbe
       { key: META.lastSyncAt, value: Date.now() },
     ]);
   });
+}
+
+/**
+ * Feltene for flervalg (`choices` og `choicesDeclined` på kortene, `choicesStatus` og `choicesError` på kortstokkene) er
+ * null (eller false) når serveren ikke sender dem (en eldre server etter en tilbakerulling), som i radene Dexie versjon 5
+ * fylte ut.
+ */
+function deckRow(d: Deck): Deck {
+  return d.choicesStatus === undefined || d.choicesError === undefined
+    ? { ...d, choicesStatus: d.choicesStatus ?? null, choicesError: d.choicesError ?? null }
+    : d;
+}
+
+function cardRow(c: Flashcard): Flashcard {
+  return c.choices === undefined || c.choicesDeclined === undefined
+    ? { ...c, choices: c.choices ?? null, choicesDeclined: c.choicesDeclined ?? false }
+    : c;
 }
 
 /** Legger inn rader fra serveren, men overskriver aldri en lokal rad med høyere rev. */
@@ -498,8 +516,8 @@ export async function applyServerRows(rows: {
     if (rows.subjects) await mergeRows(db.subjects, rows.subjects);
     if (rows.chapters) await mergeRows(db.chapters, rows.chapters);
     if (rows.notes) await mergeRows(db.notes, rows.notes);
-    if (rows.decks) await mergeRows(db.decks, rows.decks);
-    if (rows.cards) await mergeRows(db.cards, rows.cards);
+    if (rows.decks) await mergeRows(db.decks, rows.decks.map(deckRow));
+    if (rows.cards) await mergeRows(db.cards, rows.cards.map(cardRow));
     if (rows.decks || rows.cards) await overlayPendingProgress();
   });
 }

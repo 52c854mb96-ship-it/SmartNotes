@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classicKeys, clozeKeys, keyName, masteryKeys, quickKeys } from './keys';
+import { choiceKeys, classicKeys, clozeKeys, keyName, masteryKeys, quickKeys } from './keys';
 
 describe('tastekart', () => {
   it('bokstaver gjelder med og uten Shift, andre taster står som de er', () => {
@@ -65,5 +65,30 @@ describe('tastekart', () => {
     for (const key of [' ', 'Enter', 'ArrowRight', 'Z', 'd']) after[keyName(key)]?.();
     expect(calls).toEqual(['felt', 'felt', 'angre', 'neste', 'neste', 'neste', 'angre', 'detaljer']);
     expect(after[keyName('ArrowLeft')]).toBeUndefined();
+  });
+
+  it('Flervalg: 1–4 velger før svaret, neste kort etter, og D bare når forklaringen vises', () => {
+    const calls: string[] = [];
+    const h = {
+      count: 4,
+      pick: (i: number) => calls.push(`velg ${i}`),
+      next: () => calls.push('neste'),
+      undo: () => calls.push('angre'),
+    };
+    const before = choiceKeys({ ...h, answered: false });
+    for (const key of ['1', '2', '3', '4', 'z']) before[keyName(key)]?.();
+    expect(calls).toEqual(['velg 0', 'velg 1', 'velg 2', 'velg 3', 'angre']);
+    for (const key of ['5', '0', ' ', 'Enter', 'ArrowRight', 'ArrowLeft', 'd']) expect(before[keyName(key)]).toBeUndefined();
+    // Færre alternativer: bare så mange tall.
+    expect(choiceKeys({ ...h, count: 2, answered: false })['3']).toBeUndefined();
+
+    calls.length = 0;
+    const right = choiceKeys({ ...h, answered: true });
+    for (const key of [' ', 'Enter', 'ArrowRight', 'Z']) right[keyName(key)]?.();
+    expect(calls).toEqual(['neste', 'neste', 'neste', 'angre']);
+    for (const key of ['1', '4', 'd', 'ArrowLeft']) expect(right[keyName(key)]).toBeUndefined();
+    const wrong = choiceKeys({ ...h, answered: true, toggleDetail: () => calls.push('detaljer') });
+    wrong[keyName('D')]?.();
+    expect(calls.at(-1)).toBe('detaljer');
   });
 });

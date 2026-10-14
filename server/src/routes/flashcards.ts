@@ -3,11 +3,11 @@ import { z } from 'zod';
 import type { ProgressResponse } from '@smartnotes/shared';
 import { requireUser } from '../auth.js';
 import { MASTER_LEVEL, type Repo, type UserRepo } from '../db.js';
-import type { Quota } from '../quota.js';
+import { QUOTA_MESSAGES, type Quota } from '../quota.js';
 import { HttpError, badRequest, notFound, offlineFeature } from '../errors.js';
 import type { FlashcardGenerator } from '../flashcards/generator.js';
 import { loadSourceNotes } from '../flashcards/generator.js';
-import { DIFFICULTIES, KINDS, MAX_CARDS, MAX_DECK_NOTES, MAX_SOURCE_CHARS, defaultDeckTitle } from '../flashcards/prompt.js';
+import { DIFFICULTIES, KINDS, MAX_CARDS, MAX_DECK_NOTES, MAX_SOURCE_CHARS, choicesProblem, defaultDeckTitle } from '../flashcards/prompt.js';
 import type { AiService } from '../pipeline/ai.js';
 import { aiConfigured } from '../pipeline/providers.js';
 import { isId, type Storage } from '../storage.js';
@@ -32,6 +32,19 @@ const back = z
   .refine((lines) => lines.length <= 12, 'Svaret kan ha høyst 12 punkter.');
 const detail = z.string().trim().max(4000, 'Forklaringen er for lang.');
 const kind = z.enum(KINDS as [string, ...string[]], { message: 'Ukjent korttype.' }).transform((k) => k as (typeof KINDS)[number]);
+/** Et svaralternativ står på én linje: linjeskift og doble mellomrom blir ett mellomrom. */
+const choiceText = z
+  .string()
+  .max(2000, 'Et svaralternativ er for langt.')
+  .transform((t) => t.replace(/\s+/g, ' ').trim());
+/** Svaralternativer til flervalg, eller null for ingen (se `choicesProblem` for reglene). */
+const choices = z
+  .object({ correct: choiceText, wrong: z.array(choiceText).max(10, 'Skriv tre gale svar.') })
+  .superRefine((c, ctx) => {
+    const problem = choicesProblem(c);
+    if (problem) ctx.addIssue({ code: 'custom', message: problem });
+  })
+  .nullable();
 const isoTime = z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/, 'Ugyldig tidspunkt.');
 
 export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
@@ -64,6 +77,8 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
         difficulty: z.enum(DIFFICULTIES as [string, ...string[]], { message: 'Ukjent vanskelighetsgrad.' }),
         count: z.number().int().min(5, 'Velg minst 5 kort.').max(MAX_CARDS, `Høyst ${MAX_CARDS} kort i én kortstokk.`).nullable().default(null),
         title: z.string().trim().max(120, 'Navnet er for langt.').nullable().optional(),
+        // Bare når eleven krysser av: ingen kortstokk får svaralternativer automatisk.
+        withChoices: z.boolean().default(false),
       }),
       req.body,
     );
@@ -108,6 +123,7 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
       difficulty: body.difficulty as (typeof DIFFICULTIES)[number],
       noteIds: body.noteIds,
       count: body.count,
+      withChoices: body.withChoices,
     });
     if (!deck) throw notFound('Fant ikke faget.');
     generator.start(deck.id);
@@ -143,12 +159,46 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
     return restarted;
   });
 
+  /**
+   * Svaralternativer (flervalg) til kortene som mangler dem, i en ferdig kortstokk. Bare når eleven ber om det. Jobben går
+   * i bakgrunnen; appen følger med på `choicesStatus` via synk. Gratiskontoer: teller som én kortstokk i dagens kvote, men
+   * et nytt forsøk etter en feil telles ikke (som «Prøv igjen» for kortstokker). Kort AI-en allerede har avslått
+   * (`choicesDeclined`), sendes ikke igjen; er det bare slike igjen, svarer ruten 400 før noe telles.
+   */
+  app.post<{ Params: { id: string } }>('/api/decks/:id/choices', async (req, reply) => {
+    const r = mine(req);
+    const deck = requireDeck(r, req.params.id);
+    if (deck.status === 'generating') throw badRequest('Vent til kortene er laget, og prøv igjen.');
+    if (deck.status !== 'ready') throw badRequest('Kortene ble ikke laget. Trykk «Prøv igjen» på kortstokken først.');
+    // Allerede i gang (f.eks. et dobbelttrykk): ingen ny jobb og ingenting telles.
+    if (deck.choicesStatus === 'generating') {
+      generator.startChoices(deck.id);
+      reply.code(202);
+      return deck;
+    }
+    const cards = r.listCards(deck.id);
+    if (cards.length === 0) throw badRequest('Kortstokken har ingen kort.');
+    if (cards.every((c) => c.choices)) throw badRequest('Alle kortene har allerede svaralternativer.');
+    if (cards.every((c) => c.choices || c.choicesDeclined)) {
+      throw badRequest('Claude har allerede prøvd kortene som mangler svaralternativer, uten å finne gode. Du kan skrive dem selv når du redigerer kortet.');
+    }
+    if (!aiConfigured(ai, 'flashcards')) throw offlineFeature('Serveren mangler Claude API-nøkkel (ANTHROPIC_API_KEY), så svaralternativene kan ikke lages.');
+    const blocked =
+      deck.choicesStatus === 'failed' ? d.quota?.retryBlocked(r.userId, QUOTA_MESSAGES.choicesBudget) : d.quota?.takeChoices(r.userId, deck.id);
+    if (blocked) throw new HttpError(429, 'quota_exceeded', blocked);
+    const started = r.startChoices(deck.id);
+    if (!started) throw notFound('Fant ikke kortstokken.');
+    generator.startChoices(deck.id);
+    reply.code(202);
+    return started;
+  });
+
   // ---------- Kort ----------
 
   app.post<{ Params: { id: string } }>('/api/decks/:id/cards', async (req, reply) => {
     const r = mine(req);
     const deck = requireDeck(r, req.params.id);
-    const body = parse(z.object({ kind, front, back, detail: detail.default('') }), req.body);
+    const body = parse(z.object({ kind, front, back, detail: detail.default(''), choices: choices.default(null) }), req.body);
     if (r.listCards(deck.id).length >= MAX_CARDS * 2) throw badRequest('Kortstokken har for mange kort.');
     reply.code(201);
     return r.createCard(deck.id, body);
@@ -157,7 +207,10 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
   app.patch<{ Params: { id: string } }>('/api/cards/:id', async (req) => {
     const r = mine(req);
     const card = requireCard(r, req.params.id);
-    const body = parse(z.object({ kind: kind.optional(), front: front.optional(), back: back.optional(), detail: detail.optional() }), req.body);
+    const body = parse(
+      z.object({ kind: kind.optional(), front: front.optional(), back: back.optional(), detail: detail.optional(), choices: choices.optional() }),
+      req.body,
+    );
     return r.updateCard(card.id, body)!;
   });
 

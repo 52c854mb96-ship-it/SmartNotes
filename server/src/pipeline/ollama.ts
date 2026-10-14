@@ -13,7 +13,18 @@ import { z } from 'zod';
 import type { ChapterInput, CompetenceAim, UsageKind } from '@smartnotes/shared';
 import type { OllamaConfig } from '../config.js';
 import { ConversionError } from '../errors.js';
-import { FLASHCARD_SYSTEM_PROMPT, buildFlashcardPrompt, flashcardSchema, type FlashcardRequest, type RawFlashcard } from '../flashcards/prompt.js';
+import {
+  CHOICES_SYSTEM_PROMPT,
+  buildChoicesPrompt,
+  buildFlashcardPrompt,
+  choicesSchema,
+  flashcardSchemaFor,
+  flashcardSystemPrompt,
+  type ChoicesRequest,
+  type FlashcardRequest,
+  type RawCardChoices,
+  type RawFlashcard,
+} from '../flashcards/prompt.js';
 import type { Profile } from '../profiles/index.js';
 import { withUsage, zeroUsage, type Usage } from '../usage.js';
 import { TOC_AIMS_PROMPT, buildContext, tocSchema, type AiService, type ConvertRequest, type ConvertResult, type FixRequest } from './ai.js';
@@ -208,10 +219,21 @@ export class OllamaAi implements AiService {
   }
 
   async generateFlashcards(req: FlashcardRequest): Promise<{ cards: RawFlashcard[]; usage: Usage }> {
-    const res = await this.chat('flashcards', this.cfg.textModel, FLASHCARD_SYSTEM_PROMPT, buildFlashcardPrompt(req), { schema: flashcardSchema });
+    const schema = flashcardSchemaFor(req.withChoices);
+    const res = await this.chat('flashcards', this.cfg.textModel, flashcardSystemPrompt(req.withChoices), buildFlashcardPrompt(req), { schema });
     return this.withLocal(res.usage, () => {
       if (res.doneReason === 'length') throw new ConversionError('Utvalget ble for stort. Velg færre notater eller færre kort.');
-      return { cards: parseJson(flashcardSchema, res.content, 'Den lokale AI-en svarte ikke med kort. Prøv igjen.').cards, usage: res.usage };
+      return { cards: parseJson(schema, res.content, 'Den lokale AI-en svarte ikke med kort. Prøv igjen.').cards, usage: res.usage };
+    });
+  }
+
+  async generateChoices(req: ChoicesRequest): Promise<{ cards: RawCardChoices[]; usage: Usage }> {
+    const res = await this.chat('flashcards', this.cfg.textModel, CHOICES_SYSTEM_PROMPT, buildChoicesPrompt(req), { schema: choicesSchema });
+    return this.withLocal(res.usage, () => {
+      if (res.doneReason === 'length') {
+        throw new ConversionError('Svaret ble for langt for den lokale AI-en. Øk OLLAMA_MAX_TOKENS på maskinen med Ollama, eller slett noen kort.');
+      }
+      return { cards: parseJson(choicesSchema, res.content, 'Den lokale AI-en svarte ikke med svaralternativer. Prøv igjen.').cards, usage: res.usage };
     });
   }
 

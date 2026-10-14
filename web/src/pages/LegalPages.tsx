@@ -157,7 +157,8 @@ export function PrivacyPage() {
         <li>Dataene ligger på serveren til SmartNotes, som kjører hos skytjenesten Railway. Driftsloggen ligger også der.</li>
         <li>
           For å lese notatene sendes bildene av sidene til Anthropic, selskapet bak AI-modellen Claude. Teksten i notatene sendes
-          også dit når du lager en kortstokk, og innholdsfortegnelser når du lar AI-en lese dem. Hvordan Anthropic behandler og
+          også dit når du lager en kortstokk, spørsmålene og svarene på kortene (også kort du har skrevet eller endret selv) når
+          du ber om svaralternativer, og innholdsfortegnelser når du lar AI-en lese dem. Hvordan Anthropic behandler og
           lagrer dataene, står i Anthropics egne vilkår og personvernerklæring. Eieren av serveren kan la noen av oppgavene kjøres
           på en egen maskin i stedet.
         </li>
@@ -219,7 +220,8 @@ export function TermsPage() {
       <h2>Gratiskontoen</h2>
       <p>
         En gratiskonto kan konvertere <Num legal={legal} value={(i) => i.freePagesPerDay} /> sider og lage{' '}
-        <Num legal={legal} value={(i) => i.freeDecksPerDay} /> kortstokker per døgn. Notater over kvoten konverteres neste døgn.
+        <Num legal={legal} value={(i) => i.freeDecksPerDay} /> kortstokker per døgn. Svaralternativer til en kortstokk som
+        finnes, teller som én kortstokk. Notater over kvoten konverteres neste døgn.
       </p>
       <h2>Innhold og misbruk</h2>
       <p>
@@ -237,13 +239,17 @@ export function AiUsePage() {
       <p>
         AI-en leser håndskriften din og setter den opp som et ryddig dokument. Den skal ikke skrive nye notater for deg: innholdet
         skal være ditt, og mulige feil markeres med en merknad i stedet for å rettes i stillhet. Kortstokkene lages også av AI-en,
-        fra notatene dine.
+        fra notatene dine, og når du ber om det, lager den svaralternativer til flervalg.
       </p>
       <h2>AI-en kan ta feil</h2>
       <ul>
         <li>Les gjennom PDF-en, særlig formler, tall og enheter.</li>
         <li>Ta merknadene på alvor, og sjekk dem mot boka eller læreren.</li>
         <li>Et spørsmål eller svar i en kortstokk kan være feil. Stoler du ikke på det, slett kortet.</li>
+        <li>
+          Et svaralternativ som skal være galt, kan også være riktig. Stoler du ikke på det, rett eller fjern alternativene når du
+          redigerer kortet.
+        </li>
       </ul>
       <h2>I skolearbeidet</h2>
       <ul>

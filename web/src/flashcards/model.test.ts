@@ -2,18 +2,24 @@ import { describe, expect, it } from 'vitest';
 import type { Flashcard } from '@smartnotes/shared';
 import type { PracticeState } from '../db';
 import {
+  CHOICE_MAX_LEVEL,
   MASTER,
   addActiveTime,
   buildPass,
   buildQueue,
   buildQuickQueue,
+  choiceOptions,
   correctPct,
   emptyRound,
+  choiceCounts,
+  hasChoices,
+  isPracticeMode,
   knownFirstTry,
   masteryPct,
   normalizePracticeState,
   pickChunk,
   rate,
+  rateChoice,
   rateCloze,
   rateQuick,
   reconcilePass,
@@ -41,6 +47,8 @@ function card(id: string, over: Partial<Flashcard> = {}): Flashcard {
     position: Number(id.replace(/\D/g, '')) || 0,
     level: 0,
     levelAt: null,
+    choices: null,
+    choicesDeclined: false,
     rev: 1,
     deleted: false,
     createdAt: '',
@@ -407,6 +415,148 @@ describe('Luketekst', () => {
   });
 });
 
+describe('Flervalg', () => {
+  const choices = { correct: 'Newton', wrong: ['Joule', 'Watt', 'Pascal'] };
+
+  it('riktig gir ett nivå opp, men høyst 2, og tar kortet ut av runden', () => {
+    const from0 = rateChoice(emptyRound(queue(3)), ctx({ c1: 0, c2: 0, c3: 0 }, 3), true)!;
+    expect(from0).toMatchObject({ cardId: 'c1', level: 1, back: 0, mastered: false, write: true });
+    expect(from0.round.queue).toEqual(['c2', 'c3']);
+    expect(from0.round.done).toEqual(['c1']);
+    expect(from0.round).toMatchObject({ answered: 1, correct: 1, streak: 1, grades: { c1: 3 } });
+    expect(from0.fx).toMatchObject({ flash: 'ok', pop: { text: '✓', tone: 'ok' }, burst: 0, bump: true });
+    expect(from0.fx.feedback).toEqual({ text: 'Nivå 1 av 3. Kortet er ferdig for denne runden.', tone: 'ok' });
+
+    expect(rateChoice(emptyRound(queue(3)), ctx({ c1: 1, c2: 0, c3: 0 }, 3), true)!).toMatchObject({ level: 2, write: true });
+    const capped = rateChoice(emptyRound(queue(3)), ctx({ c1: 2, c2: 0, c3: 0 }, 3), true)!;
+    expect(capped).toMatchObject({ level: CHOICE_MAX_LEVEL, mastered: false });
+    expect(capped.round.queue).toEqual(['c2', 'c3']);
+    expect(capped.fx.feedback).toEqual({ text: 'Nivå 2 av 3, det høyeste flervalg gir. Kortet er ferdig for denne runden.', tone: 'ok' });
+  });
+
+  it('riktig senker aldri et mestret kort, og formen gjør aldri et kort mestret', () => {
+    const kept = rateChoice(emptyRound(queue(2)), ctx({ c1: 3, c2: 0 }, 3), true)!;
+    expect(kept).toMatchObject({ level: MASTER, mastered: false });
+    expect(kept.fx.feedback.text).toBe('Nivå 3 av 3. Kortet er ferdig for denne runden.');
+    let level = 0;
+    for (let i = 0; i < 6; i++) {
+      const out = rateChoice(emptyRound(['c1', 'c2']), ctx({ c1: level, c2: 0 }, 3), true)!;
+      expect(out.mastered).toBe(false);
+      level = out.level;
+    }
+    expect(level).toBe(CHOICE_MAX_LEVEL);
+  });
+
+  it('galt gir nivå 0 (også for et mestret kort) og legger kortet sist', () => {
+    const missed = rateChoice({ ...emptyRound(queue(3)), streak: 4 }, ctx({ c1: 3, c2: 0, c3: 0 }, 3), false)!;
+    expect(missed).toMatchObject({ level: 0, back: 2, mastered: false, write: true });
+    expect(missed.round.queue).toEqual(['c2', 'c3', 'c1']);
+    expect(missed.round).toMatchObject({ done: [], streak: 0, correct: 0, answered: 1, grades: { c1: 1 } });
+    expect(missed.fx).toMatchObject({ flash: 'bad', pop: { text: '✕', tone: 'bad' }, burst: 0, bump: false });
+    expect(missed.fx.feedback).toEqual({ text: 'Tilbake til nivå 0. Kortet kommer igjen til slutt.', tone: 'bad' });
+    const alone = rateChoice(emptyRound(['c1']), ctx({ c1: 1 }, 3), false)!;
+    expect(alone.round.queue).toEqual(['c1']);
+    expect(alone.fx.feedback.text).toBe('Tilbake til nivå 0. Kortet kommer tilbake med en gang.');
+  });
+
+  it('et riktig svar sendes bare når nivået endres; et galt sendes alltid', () => {
+    for (const before of [0, 1]) expect(rateChoice(emptyRound(queue(2)), ctx({ c1: before, c2: 0 }, 3), true)!.write).toBe(true);
+    for (const before of [2, 3]) {
+      expect(rateChoice(emptyRound(queue(2)), ctx({ c1: before, c2: 0 }, 3), true)!).toMatchObject({ level: before, write: false });
+    }
+    for (const before of [0, 1, 2, 3]) {
+      expect(rateChoice(emptyRound(queue(2)), ctx({ c1: before, c2: 0 }, 3), false)!).toMatchObject({ level: 0, write: true });
+    }
+  });
+
+  it('en runde med ett galt svar: rekka, «Beste», misses og kort uten alternativer som i Rask runde', () => {
+    // c1 og c3 har alternativer, c2 har ingen og øves med «Kunne» / «Kunne ikke» (rateQuick).
+    const cards = [card('c1', { choices }), card('c2'), card('c3', { choices })];
+    const levels = new Map(queue(3).map((id) => [id, 0]));
+    let round = emptyRound(queue(3), 1);
+    let best = 2;
+    // c1 galt, c2 «Kunne», c3 riktig, c1 riktig.
+    const answers = [false, true, true, true];
+    const streaks: number[] = [];
+    for (const answer of answers) {
+      const current = cards.find((c) => c.id === round.queue[0])!;
+      const context = { ...ctx({}, 3, best, queue(3)), levels };
+      const out = (hasChoices(current) ? rateChoice(round, context, answer) : rateQuick(round, context, answer))!;
+      if (out.write) levels.set(out.cardId, out.level);
+      round = out.round;
+      best = out.best;
+      streaks.push(round.streak);
+    }
+    expect(streaks).toEqual([0, 1, 2, 3]);
+    expect(best).toBe(3);
+    expect(round.queue).toEqual([]);
+    expect(round.done).toEqual(['c2', 'c3', 'c1']);
+    expect(round).toMatchObject({ answered: 4, correct: 3, grades: { c1: 1, c2: 3, c3: 3 } });
+    expect(Object.fromEntries(levels)).toEqual({ c1: 1, c2: 1, c3: 1 });
+    expect(repetitionChoices(cards, round.grades).misses).toEqual(['c1']);
+    expect(knownFirstTry(queue(3), round.grades)).toBe(2);
+  });
+
+  it('tom kø gir null', () => {
+    expect(rateChoice(emptyRound([]), ctx({}, 3), true)).toBeNull();
+  });
+
+  it('kort med og uten alternativer', () => {
+    expect(hasChoices(card('c1', { choices }))).toBe(true);
+    expect(hasChoices(card('c1'))).toBe(false);
+    expect(hasChoices(undefined)).toBe(false);
+    // Rader fra før flervalg (Dexie før versjon 5) mangler feltet.
+    expect(hasChoices({ choices: undefined } as unknown as Flashcard)).toBe(false);
+    expect(hasChoices(card('c1', { choices: { correct: ' ', wrong: ['a', 'b', 'c'] } }))).toBe(false);
+    expect(hasChoices(card('c1', { choices: { correct: 'a', wrong: [] } }))).toBe(false);
+    expect(choiceOptions(card('c1'), 0)).toBeNull();
+  });
+
+  it('teller kortene med alternativer, de AI-en kan prøve, og de den har avslått', () => {
+    const choices = { correct: 'a', wrong: ['b', 'c', 'd'] };
+    const cards = [
+      card('c1', { choices }),
+      card('c2'),
+      card('c3', { choicesDeclined: true }),
+      // Har kortet alternativer (skrevet av eleven), teller ikke merket.
+      card('c4', { choices, choicesDeclined: true }),
+      // Kort fra før feltet fantes.
+      { ...card('c5'), choicesDeclined: undefined } as unknown as Flashcard,
+    ];
+    expect(choiceCounts(cards)).toEqual({ have: 2, untried: 2, declined: 1 });
+    expect(choiceCounts([])).toEqual({ have: 0, untried: 0, declined: 0 });
+  });
+
+  it('fire alternativer der nøyaktig ett er riktig', () => {
+    const options = choiceOptions(card('c1', { choices }), 0)!;
+    expect(options).toHaveLength(4);
+    expect(options.filter((o) => o.correct)).toEqual([{ text: 'Newton', correct: true }]);
+    expect(options.map((o) => o.text).sort()).toEqual(['Joule', 'Newton', 'Pascal', 'Watt']);
+  });
+
+  it('rekkefølgen er fast for samme kort og runde, og stokkes på nytt i neste runde', () => {
+    const texts = (id: string, seed: number) => choiceOptions(card(id, { choices }), seed)!.map((o) => o.text);
+    for (const seed of [0, 1, 7, -3]) expect(texts('c1', seed)).toEqual(texts('c1', seed));
+    // Tall som ikke er heltall, leses som heltallet (en lagret økt med rare verdier).
+    expect(texts('c1', 2.7)).toEqual(texts('c1', 2));
+    expect(texts('c1', Number.NaN)).toEqual(texts('c1', 0));
+    // Over ti runder kommer det minst tre ulike rekkefølger, og kort med samme alternativer stokkes ulikt.
+    const rounds = new Set(Array.from({ length: 10 }, (_, seed) => texts('c1', seed).join('|')));
+    expect(rounds.size).toBeGreaterThanOrEqual(3);
+    const decks = new Set(queue(10).map((id) => texts(id, 0).join('|')));
+    expect(decks.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it('det riktige svaret havner like ofte på hver plass', () => {
+    const counts = [0, 0, 0, 0];
+    for (let i = 0; i < 2000; i++) {
+      const at = choiceOptions(card(`k${i}`, { choices }), i % 7)!.findIndex((o) => o.correct);
+      counts[at]! += 1;
+    }
+    for (const n of counts) expect(n).toBeGreaterThan(400);
+  });
+});
+
 describe('Klassisk', () => {
   const sel = [card('c1'), card('c2', { level: 3 }), card('c3'), card('c4', { level: 3 })];
   const ids = ['c1', 'c2', 'c3', 'c4'];
@@ -473,6 +623,10 @@ describe('Lengde', () => {
     expect(again).toEqual({ ids: ['c1', 'c2', 'c3', 'c4'], seen: ['c1', 'c2', 'c3', 'c4'] });
     // Slettede kort glemmes.
     expect(pickChunk(sel, 'notes', 2, 'quick', ['c9', 'c1']).seen).toEqual(['c1', 'c2', 'c3']);
+    // Flervalg og Luketekst velger som Rask runde (også mestrede kort og kort uten alternativer).
+    for (const mode of ['choice', 'cloze'] as const) {
+      expect(pickChunk(sel, 'notes', 4, mode, first.seen)).toEqual(second);
+    }
   });
 });
 
@@ -515,5 +669,15 @@ describe('lagret økt', () => {
     const s = normalizePracticeState(odd as unknown as PracticeState);
     expect(s).toMatchObject({ mode: 'mastery', length: null, pass: { ids: ['c1', 'c2'], index: 2, marked: ['c1'] } });
     expect(s.clozeSeed).toBeUndefined();
+  });
+
+  it('Flervalg: formen, kortene eleven har kunnet og frøet for rekkefølgen beholdes', () => {
+    const choice: PracticeState = { ...old, mode: 'choice', length: 20, subsetKind: 'chunk', seen: ['c1'], done: ['c1'], choiceSeed: 4 };
+    expect(isPracticeMode('choice')).toBe(true);
+    expect(normalizePracticeState(choice)).toEqual(choice);
+    const odd = normalizePracticeState({ ...choice, choiceSeed: 1.5, done: ['c1', 7] } as unknown as PracticeState);
+    expect(odd).toMatchObject({ mode: 'choice', done: ['c1'] });
+    expect(odd.choiceSeed).toBeUndefined();
+    expect(normalizePracticeState({ ...choice, choiceSeed: '2' } as unknown as PracticeState).choiceSeed).toBeUndefined();
   });
 });

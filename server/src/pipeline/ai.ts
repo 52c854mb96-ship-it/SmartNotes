@@ -5,7 +5,7 @@
 import type { ChapterInput, CompetenceAim } from '@smartnotes/shared';
 import { z } from 'zod';
 import type { Config } from '../config.js';
-import type { FlashcardRequest, RawFlashcard } from '../flashcards/prompt.js';
+import type { ChoicesRequest, FlashcardRequest, RawCardChoices, RawFlashcard } from '../flashcards/prompt.js';
 import type { Profile } from '../profiles/index.js';
 import { aimsForPrompt } from '../toc.js';
 import type { Usage } from '../usage.js';
@@ -63,8 +63,13 @@ export interface AiService {
   ): Promise<{ chapters: ChapterInput[]; usage: Usage }>;
   /** Kobler delkapitlene (fra innlimt tekst) til kompetansemålene. Gir tilbake de samme kapitlene med `aims` fylt inn. */
   mapSectionAims(profile: Profile, chapters: ChapterInput[], aims: CompetenceAim[]): Promise<{ chapters: ChapterInput[]; usage: Usage }>;
-  /** Lager flashcards fra notatene (LaTeX). */
+  /** Lager flashcards fra notatene (LaTeX), med svaralternativer når `req.withChoices` er satt. */
   generateFlashcards(req: FlashcardRequest): Promise<{ cards: RawFlashcard[]; usage: Usage }>;
+  /**
+   * Lager svaralternativer (flervalg) til kort som finnes, ut fra spørsmålet og svaret på hvert kort. Bare når eleven ber
+   * om det (POST /api/decks/:id/choices). Samme leverandør og modell som kortstokkene, og samme `kind` i forbruksloggen.
+   */
+  generateChoices(req: ChoicesRequest): Promise<{ cards: RawCardChoices[]; usage: Usage }>;
 }
 
 export const TOC_AIMS_PROMPT = (aims: CompetenceAim[]) => `

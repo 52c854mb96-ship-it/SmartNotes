@@ -62,6 +62,9 @@ class Answering implements AiService {
   generateFlashcards() {
     return this.answer({ cards: [{ note: 'n1', kind: 'concept' as const, front: this.model, back: [], detail: '' }], usage: zeroUsage('flashcards', this.model) });
   }
+  generateChoices() {
+    return this.answer({ cards: [{ card: 'k1', choices: { correct: this.model, wrong: ['a', 'b', 'c'] } }], usage: zeroUsage('flashcards', this.model) });
+  }
 }
 
 /** Bytter hver Claude-tjeneste ut med `Answering`, logger kallene, og noterer hvilke modeller som ble laget. */
@@ -83,6 +86,7 @@ function answeringAi(config: ReturnType<typeof loadConfig>, failing: Record<stri
 const profile = getProfile('physics');
 const convertReq = { profile } as ConvertRequest;
 const cardsReq = { subjectName: 'Fysikk 1', subjectLabel: 'Fysikk', difficulty: 'medium', count: null, notes: [] } as never;
+const choicesReq = { subjectName: 'Fysikk 1', subjectLabel: 'Fysikk', cards: [{ alias: 'k1', kind: 'concept' as const, front: 'Hva er g?', back: ['9,81 m/s²'] }] };
 
 describe('Claude-modell per oppgave', () => {
   it('Sonnet konverterer, Haiku lager kortstokker og leser innholdsfortegnelser', async () => {
@@ -117,6 +121,22 @@ describe('Claude-modell per oppgave', () => {
       ['toc', 'claude-haiku-5-5', false],
       ['toc', 'claude-sonnet-5-5', true],
     ]);
+  });
+
+  it('svaralternativer går til samme modell som kortstokkene, med Sonnet som reserve ved avslag', async () => {
+    const { ai, log } = answeringAi(loadConfig(base));
+    expect((await ai.generateChoices(choicesReq)).cards[0]!.choices!.correct).toBe('claude-haiku-5-5');
+    const refusing = answeringAi(loadConfig(base), { 'claude-haiku-5-5': 'refuse' });
+    expect((await refusing.ai.generateChoices(choicesReq)).cards[0]!.choices!.correct).toBe('claude-sonnet-5-5');
+    // Logges som kortstokker, også avslaget.
+    expect([...log, ...refusing.log].map((e) => [e.kind, e.model, e.ok])).toEqual([
+      ['flashcards', 'claude-haiku-5-5', true],
+      ['flashcards', 'claude-haiku-5-5', false],
+      ['flashcards', 'claude-sonnet-5-5', true],
+    ]);
+    // Med en egen modell for kortstokkene følger svaralternativene den.
+    const sonnetCards = answeringAi(loadConfig({ ...base, CLAUDE_MODEL_FLASHCARDS: 'claude-sonnet-5-5' }));
+    expect((await sonnetCards.ai.generateChoices(choicesReq)).cards[0]!.choices!.correct).toBe('claude-sonnet-5-5');
   });
 
   it('andre feil enn avslag sendes ikke til reserven', async () => {
@@ -169,6 +189,7 @@ describe('Claude-modell per oppgave', () => {
       const { ai } = answeringAi(config, {}, hub);
       expect((await ai.convert(convertReq)).body).toBe('claude-sonnet-5-5');
       expect((await ai.generateFlashcards(cardsReq)).cards[0]!.front).toBe('claude-haiku-5-5');
+      expect((await ai.generateChoices(choicesReq)).cards[0]!.choices!.correct).toBe('claude-haiku-5-5');
     } finally {
       hub.close();
     }

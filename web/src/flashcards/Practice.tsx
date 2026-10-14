@@ -5,6 +5,7 @@ import { plural } from '../lib/format';
 import { confirmDialog } from '../lib/ui';
 import { recordBest, restoreBest, savePractice, setCardLevels } from './actions';
 import { useCardFace } from './CardFace';
+import { ChoicesHelp } from './ChoicesPanel';
 import { ClassicPass } from './ClassicPass';
 import { usePracticeState } from './data';
 import { KIND_FILTER_LABEL, KINDS } from './labels';
@@ -16,6 +17,7 @@ import {
   buildQueue,
   buildQuickQueue,
   emptyRound,
+  hasChoices,
   masteryPct,
   normalizePracticeState,
   pickChunk,
@@ -87,7 +89,8 @@ function begin(cards: Flashcard[], f: ViewFilter): { filter: ViewFilter; queue: 
 /**
  * Det som er felles for formene: nivåene, utvalget, formen og filtrene, runden som lagres, rekorden, kortet som vises,
  * angring, tilbakemelding og pausen. Formen (`MasteryRound`, `QuickRound` eller `ClassicPass`) viser kortet og står for
- * vurderingen.
+ * vurderingen. Flervalg kan bare velges når kort i utvalget har svaralternativer; ellers gir velgeren forklaringen
+ * (`ChoicesHelp`) med «Lag svaralternativer».
  */
 function PracticeSession({ deck, cards, notes, initial, active = true }: Props & { initial: PracticeState | null }) {
   // ---------- Nivåer: lokale vurderinger gjelder til databasen har tatt dem igjen ----------
@@ -144,6 +147,7 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
     };
     if (filter.subset) filter.subsetKind = saved?.subsetKind ?? 'repeat';
     const seed = saved?.clozeSeed ?? 0;
+    const choiceSeed = saved?.choiceSeed ?? 0;
     // En økt uten noe gjort (f.eks. etter «Nullstill fremgang» med en lengde valgt) starter som en ny runde.
     const fresh =
       !valid ||
@@ -152,7 +156,7 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
         : filter.length !== null && !filter.subset && saved.queue.length === 0 && saved.answered === 0);
     if (fresh) {
       const start = begin(cards, filter);
-      return { filter: start.filter, round: emptyRound(start.queue, saved?.streak ?? 0), pass: start.pass, seed };
+      return { filter: start.filter, round: emptyRound(start.queue, saved?.streak ?? 0), pass: start.pass, seed, choiceSeed };
     }
     const sel = selectCards(cards, filter);
     const round: Round = {
@@ -162,9 +166,9 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
       correct: saved.correct,
       streak: saved.streak,
     };
-    if (filter.mode === 'quick' || filter.mode === 'cloze') round.done = saved.done;
+    if (filter.mode === 'quick' || filter.mode === 'cloze' || filter.mode === 'choice') round.done = saved.done;
     const pass = filter.mode === 'classic' && saved.pass ? reconcilePass(saved.pass, sel) : null;
-    return { filter, round, pass, seed };
+    return { filter, round, pass, seed, choiceSeed };
   });
   const [filter, setFilter] = useState<ViewFilter>(init.filter);
   const [round, setRound] = useState<Round>(init.round);
@@ -172,7 +176,19 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
   const [pass, setPass] = useState<PracticePass | null>(init.pass);
   /** Luketekst: rundenummeret som velger luka i hvert kort. */
   const [clozeSeed, setClozeSeed] = useState(init.seed);
+  /** Flervalg: rundenummeret som stokker svaralternativene i hvert kort (`choiceOptions`). */
+  const [choiceSeed, setChoiceSeed] = useState(init.choiceSeed);
   const selection = useMemo(() => selectCards(effCards, filter), [effCards, filter]);
+  /** Flervalg kan velges: kort i utvalget har svaralternativer. */
+  const choiceReady = useMemo(() => selection.some(hasChoices), [selection]);
+  /** Forklaringen ved velgeren er åpen (eleven trykket på Flervalg uten svaralternativer). */
+  const [choicesHelp, setChoicesHelp] = useState(false);
+  const generatingChoices = deck.choicesStatus === 'generating';
+  /** Eleven lukket «Lager svaralternativer …»: skjult til jobben er ferdig (toasten sier fra da). */
+  const [busyClosed, setBusyClosed] = useState(false);
+  useEffect(() => {
+    if (!generatingChoices) setBusyClosed(false);
+  }, [generatingChoices]);
 
   // Kortene kan endres mens man øver (synk fra en annen enhet, redigering): køen eller gjennomgangen følger etter.
   useEffect(() => {
@@ -205,8 +221,9 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
       ...(round.done ? { done: round.done } : {}),
       ...(pass ? { pass } : {}),
       clozeSeed,
+      choiceSeed,
     });
-  }, [deck.id, filter, round, pass, clozeSeed]);
+  }, [deck.id, filter, round, pass, clozeSeed, choiceSeed]);
 
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [localBest, setLocalBest] = useState<number | null>(null);
@@ -253,6 +270,7 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
       setRound((r) => emptyRound(start.queue, r.streak));
       setPass(start.pass);
       if (start.filter.mode === 'cloze') setClozeSeed((n) => n + 1);
+      if (start.filter.mode === 'choice') setChoiceSeed((n) => n + 1);
       showFace('question', false);
       setUndoStack([]);
       setFeedback('', '');
@@ -275,6 +293,13 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
     face.refocus();
   };
 
+  /** «Lukk» på forklaringen ved velgeren (også «Lager svaralternativer …»): fokus tilbake til kortet. */
+  const closeChoicesHelp = () => {
+    setChoicesHelp(false);
+    if (generatingChoices) setBusyClosed(true);
+    face.refocus();
+  };
+
   // Et notatfilter eller repetisjonsutvalg uten kort igjen (slettet her eller på en annen enhet): tilbake til alle kort.
   useEffect(() => {
     const noteGone = filter.noteId !== null && !groups.includes(filter.noteId);
@@ -291,9 +316,18 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
     // kortet: fokus går til spørsmålet (eller ingen steder, når runden ikke har noe kort).
     if (fromPointer) (document.activeElement as HTMLElement | null)?.blur();
     if (mode === filter.mode) return;
+    if (mode === 'choice' && !choiceReady) {
+      setChoicesHelp(true);
+      return;
+    }
+    setChoicesHelp(false);
     changeFilter({ mode });
     if (fromPointer) showFace('question', true);
   };
+  const unavailable = useMemo(
+    () => new Set<PracticeMode>(choiceReady || filter.mode === 'choice' ? [] : ['choice']),
+    [choiceReady, filter.mode],
+  );
   const nextChunk = useMemo<NextChunk | null>(() => {
     if (filter.length === null || !usesLength(filter.mode)) return null;
     const all = selectCards(effCards, { ...filter, subset: null });
@@ -323,7 +357,21 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
 
   return (
     <div ref={rootRef} className="fc-practice">
-      <ModePicker mode={filter.mode} onChange={changeMode} />
+      <ModePicker mode={filter.mode} onChange={changeMode} unavailable={unavailable} onUnavailable={() => setChoicesHelp(true)} />
+      {/* Forklaringen når eleven trykket på Flervalg, og «Lager svaralternativer …» mens Claude lager dem. */}
+      {(choicesHelp || (generatingChoices && !busyClosed)) && (
+        <ChoicesHelp
+          deck={deck}
+          cards={effCards}
+          ready={choiceReady}
+          autoFocus={choicesHelp}
+          onPractice={() => changeMode('choice', true)}
+          onClose={closeChoicesHelp}
+        />
+      )}
+      {filter.mode === 'choice' && selection.length > 0 && !choiceReady && (
+        <p className="fc-mode-note">Ingen av kortene i utvalget har svaralternativer, så de øves som i en rask runde.</p>
+      )}
       <div className="fc-controls">
         {(groups.length > 1 || filter.noteId !== null) && (
           <label className="field fc-control-wide">
@@ -398,7 +446,13 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
       ) : filter.mode === 'mastery' ? (
         <MasteryRound session={session} round={round} setRound={setRound} />
       ) : (
-        <QuickRound session={session} round={round} setRound={setRound} cloze={filter.mode === 'cloze' ? clozeSeed : null} />
+        <QuickRound
+          session={session}
+          round={round}
+          setRound={setRound}
+          cloze={filter.mode === 'cloze' ? clozeSeed : null}
+          choice={filter.mode === 'choice' ? choiceSeed : null}
+        />
       )}
 
       <div ref={liveRef} className="sr-only" aria-live="polite" />

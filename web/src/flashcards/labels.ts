@@ -41,14 +41,15 @@ export const DIFFICULTIES: FlashcardDifficulty[] = ['easy', 'medium', 'hard', 'm
 /** Valgene for antall kort. null = la Claude velge. */
 export const COUNT_CHOICES: (number | null)[] = [null, 10, 20, 30, 50];
 
-/** Øvingsformene, i rekkefølgen velgeren viser dem. */
-export const MODES: PracticeMode[] = ['mastery', 'quick', 'classic', 'cloze'];
+/** Øvingsformene, i rekkefølgen velgeren viser dem. Flervalg står sist: den krever kort med svaralternativer. */
+export const MODES: PracticeMode[] = ['mastery', 'quick', 'classic', 'cloze', 'choice'];
 
 export const MODE_LABEL: Record<PracticeMode, string> = {
   mastery: 'Mestring',
   quick: 'Rask runde',
   classic: 'Klassisk',
   cloze: 'Luketekst',
+  choice: 'Flervalg',
 };
 
 /** Én forklarende linje under velgeren «Øvingsform». */
@@ -57,4 +58,6 @@ export const MODE_HINT: Record<PracticeMode, string> = {
   quick: 'Ett riktig svar per kort. Kortene du ikke kunne, kommer igjen til slutt.',
   classic: 'Snu og gå videre. Endrer ikke mestringen.',
   cloze: 'Skriv begrepet som mangler i svaret. En riktig luke gir minst nivå 1, men aldri mestret. Kort uten luke flytter nivåene som i en rask runde.',
+  choice:
+    'Velg det riktige av fire svar. Riktig gir ett nivå opp, men høyst nivå 2. Galt gir nivå 0, og kortet kommer igjen til slutt. Kort uten svaralternativer øves som i en rask runde.',
 };
