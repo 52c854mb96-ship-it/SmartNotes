@@ -76,12 +76,13 @@ export class FlashcardGenerator {
     private readonly log: FastifyBaseLogger,
   ) {}
 
-  /** Ved oppstart: fortsett med kortstokker som ikke ble ferdige. */
+  /** Ved oppstart: fortsett med kortstokker (og svaralternativer) som ikke ble ferdige. */
   resume(): void {
     this.stopped = false;
     const ids = this.repo.generatingDeckIds();
     if (ids.length > 0) this.log.info({ count: ids.length }, 'lager ferdig avbrutte kortstokker');
     for (const id of ids) this.start(id);
+    for (const id of this.repo.generatingChoicesDeckIds()) this.startChoices(id);
   }
 
   start(deckId: string): void {
@@ -90,6 +91,20 @@ export class FlashcardGenerator {
       .catch((err) => this.log.error({ err, deckId }, 'generering av kort krasjet'))
       .finally(() => this.active.delete(deckId));
     this.active.set(deckId, p);
+  }
+
+  /**
+   * Lager svaralternativer til kortene i en ferdig kortstokk som mangler dem (POST /api/decks/:id/choices og `resume`).
+   * Kortstokken står allerede med `choices_status` = 'generating' (`Repo.startChoices`), og jobben avslutter med
+   * `Repo.completeChoices` eller `Repo.failChoices`. Må tåle å bli kalt flere ganger for samme kortstokk (som `start`).
+   *
+   * TODO(steg 2): AI-kallet (`AiService.generateChoices` med kortenes tekst, i `jobScope` med eieren og `deckId`), stopp
+   * for stengt eller slettet konto før kallet og før lagringen, nye forsøk ved midlertidige feil, og opprydding. Til da
+   * blir kortstokken stående som «generating».
+   */
+  startChoices(deckId: string): void {
+    if (this.stopped) return;
+    this.log.debug({ deckId }, 'svaralternativer bestilt');
   }
 
   /** Venter på pågående arbeid (tester og nedstenging). */

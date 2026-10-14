@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { FlashcardDifficulty, FlashcardInput, FlashcardKind } from '@smartnotes/shared';
+import type { FlashcardChoices, FlashcardDifficulty, FlashcardInput, FlashcardKind } from '@smartnotes/shared';
 
 /** Høyst så mange kort i én kortstokk. */
 export const MAX_CARDS = 80;
@@ -7,6 +7,11 @@ export const MAX_CARDS = 80;
 export const MAX_DECK_NOTES = 40;
 /** Høyst så mye LaTeX (tegn) fra notatene til sammen. Mer enn dette får ikke plass i én forespørsel. */
 export const MAX_SOURCE_CHARS = 400_000;
+
+/** Antall gale svar i et flervalg (med det riktige blir det fire alternativer). */
+export const WRONG_CHOICES = 3;
+/** Høyst så mange tegn i ett svaralternativ: flervalg er korte svar på én linje. */
+export const MAX_CHOICE_CHARS = 150;
 
 export const KINDS: FlashcardKind[] = ['concept', 'explain', 'apply'];
 export const DIFFICULTIES: FlashcardDifficulty[] = ['easy', 'medium', 'hard', 'mixed'];
@@ -158,6 +163,35 @@ export function cleanFlashcards(raw: RawFlashcard[], aliases: Map<string, string
     if (out.length >= MAX_CARDS) break;
   }
   return out;
+}
+
+/**
+ * Et svaralternativ slik det sammenlignes: uten store bokstaver, mellomrom, **fet**-markering og punktum eller utropstegn
+ * til slutt. «2,0 m/s.» og «2,0m/s» er da det samme svaret. Appen bruker den samme regelen når eleven redigerer.
+ */
+export function normalizeChoice(s: string): string {
+  return s
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/\*\*/g, '')
+    .replace(/\s+/g, '')
+    .replace(/[.!]+$/, '');
+}
+
+/**
+ * Hva som er galt med et sett svaralternativer (norsk melding til eleven), eller null når det kan brukes: et riktig svar,
+ * tre gale svar som ikke er tomme, er ulike og ikke er like det riktige, og ingen lengre enn MAX_CHOICE_CHARS.
+ */
+export function choicesProblem(c: FlashcardChoices): string | null {
+  const blank = 'eller la alle feltene for svaralternativer stå tomme.';
+  if (!normalizeChoice(c.correct)) return `Skriv det riktige svaret kort, ${blank}`;
+  if (c.wrong.length !== WRONG_CHOICES || c.wrong.some((w) => !normalizeChoice(w))) return `Skriv tre gale svar, ${blank}`;
+  if ([c.correct, ...c.wrong].some((x) => x.length > MAX_CHOICE_CHARS)) return `Et svaralternativ kan ha høyst ${MAX_CHOICE_CHARS} tegn.`;
+  const correct = normalizeChoice(c.correct);
+  const wrong = c.wrong.map(normalizeChoice);
+  if (wrong.includes(correct)) return 'Et galt svar kan ikke være likt det riktige svaret.';
+  if (new Set(wrong).size !== wrong.length) return 'De tre gale svarene må være ulike.';
+  return null;
 }
 
 /** Navn på en kortstokk når brukeren ikke har gitt et. */

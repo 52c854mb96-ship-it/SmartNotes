@@ -41,6 +41,7 @@ function card(id: string, over: Partial<Flashcard> = {}): Flashcard {
     position: Number(id.replace(/\D/g, '')) || 0,
     level: 0,
     levelAt: null,
+    choices: null,
     rev: 1,
     deleted: false,
     createdAt: '',

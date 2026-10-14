@@ -7,8 +7,10 @@ import type {
   ComparisonStatus,
   ComparisonVerdict,
   Deck,
+  DeckChoicesStatus,
   DeckStatus,
   Flashcard,
+  FlashcardChoices,
   FlashcardDifficulty,
   FlashcardInput,
   FlashcardKind,
@@ -318,6 +320,16 @@ const MIGRATIONS: string[] = [
   CREATE INDEX quota_log_user_kind_at ON quota_log(user_id, kind, at);
   ALTER TABLE users ADD COLUMN last_claim_rev INTEGER NOT NULL DEFAULT 0;
   `,
+  // 9: flervalg. Et kort kan ha svaralternativer (JSON {correct, wrong}, eller NULL). En kortstokk husker om eleven ba om
+  // alternativer da den ble laget (`with_choices`, bare på serveren, som `requested_count`), og har en status for jobben
+  // som lager alternativer til en kortstokk som finnes (`choices_status` 'generating' | 'failed' | NULL, med feilmelding).
+  // Ingen rader endres, så rev står stille; appen synker alt på nytt (Dexie versjon 5) for å få de nye feltene.
+  `
+  ALTER TABLE cards ADD COLUMN choices TEXT;
+  ALTER TABLE decks ADD COLUMN with_choices INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE decks ADD COLUMN choices_status TEXT;
+  ALTER TABLE decks ADD COLUMN choices_error TEXT;
+  `,
 ];
 
 /** Eieren av appen (eleven): bruker 1, som fikk alle data da kontoene kom (migrering 7). */
@@ -445,6 +457,10 @@ export interface DeckRow {
   error: string | null;
   best: number;
   usage: string | null;
+  /** 1 når eleven ba om svaralternativer da kortstokken ble laget (migrering 9). */
+  with_choices: number;
+  choices_status: DeckChoicesStatus | null;
+  choices_error: string | null;
   rev: number;
   deleted: number;
   created_at: string;
@@ -463,6 +479,8 @@ interface CardRow {
   position: number;
   level: number;
   level_at: string | null;
+  /** JSON `FlashcardChoices`, eller NULL (migrering 9). */
+  choices: string | null;
   rev: number;
   deleted: number;
   created_at: string;
@@ -585,6 +603,22 @@ function parseJsonArray(s: string): unknown[] {
   }
 }
 
+/** Svaralternativene til et kort, eller null når kolonnen er tom eller ikke har riktig form. */
+function parseChoices(s: string | null): FlashcardChoices | null {
+  if (!s) return null;
+  try {
+    const v = JSON.parse(s) as Partial<FlashcardChoices> | null;
+    if (v && typeof v.correct === 'string' && Array.isArray(v.wrong) && v.wrong.every((w) => typeof w === 'string')) {
+      return { correct: v.correct, wrong: [...v.wrong] };
+    }
+  } catch {
+    /* ugyldig JSON: ingen alternativer */
+  }
+  return null;
+}
+
+const choicesJson = (c: FlashcardChoices | null | undefined): string | null => (c ? JSON.stringify({ correct: c.correct, wrong: c.wrong }) : null);
+
 function isAim(v: unknown): v is CompetenceAim {
   const a = v as CompetenceAim;
   return !!a && typeof a.code === 'string' && typeof a.text === 'string' && typeof a.cross === 'boolean';
@@ -640,6 +674,8 @@ export function toDeck(r: DeckRow): Deck {
     status: r.status,
     error: r.error,
     best: r.best,
+    choicesStatus: r.choices_status === 'generating' || r.choices_status === 'failed' ? r.choices_status : null,
+    choicesError: r.choices_error,
     rev: r.rev,
     deleted: r.deleted === 1,
     createdAt: r.created_at,
@@ -659,6 +695,7 @@ export function toCard(r: CardRow): Flashcard {
     position: r.position,
     level: r.level,
     levelAt: r.level_at,
+    choices: parseChoices(r.choices),
     rev: r.rev,
     deleted: r.deleted === 1,
     createdAt: r.created_at,
@@ -1402,15 +1439,35 @@ export class Repo {
     return r ? toDeck(r) : null;
   }
 
-  createDeck(input: { subjectId: string; title: string; difficulty: FlashcardDifficulty; noteIds: string[]; count: number | null }): Deck {
+  /** `withChoices`: kortene lages med svaralternativer (bare når eleven har bedt om det). */
+  createDeck(input: {
+    subjectId: string;
+    title: string;
+    difficulty: FlashcardDifficulty;
+    noteIds: string[];
+    count: number | null;
+    withChoices?: boolean;
+  }): Deck {
     const id = randomUUID();
     const t = now();
     this.db
       .prepare(
-        `INSERT INTO decks (id, user_id, subject_id, title, difficulty, note_ids, requested_count, status, rev, created_at, updated_at)
-         VALUES (?, (SELECT user_id FROM subjects WHERE id = ?), ?, ?, ?, ?, ?, 'generating', ?, ?, ?)`,
+        `INSERT INTO decks (id, user_id, subject_id, title, difficulty, note_ids, requested_count, with_choices, status, rev, created_at, updated_at)
+         VALUES (?, (SELECT user_id FROM subjects WHERE id = ?), ?, ?, ?, ?, ?, ?, 'generating', ?, ?, ?)`,
       )
-      .run(id, input.subjectId, input.subjectId, input.title, input.difficulty, JSON.stringify(input.noteIds), input.count, this.nextRev(), t, t);
+      .run(
+        id,
+        input.subjectId,
+        input.subjectId,
+        input.title,
+        input.difficulty,
+        JSON.stringify(input.noteIds),
+        input.count,
+        input.withChoices ? 1 : 0,
+        this.nextRev(),
+        t,
+        t,
+      );
     return this.getDeck(id)!;
   }
 
@@ -1464,15 +1521,78 @@ export class Repo {
     const ids: string[] = [];
     const t = now();
     const insert = this.db.prepare(
-      `INSERT INTO cards (id, user_id, deck_id, note_id, kind, front, back, detail, position, rev, created_at, updated_at)
-       VALUES (?, (SELECT user_id FROM decks WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO cards (id, user_id, deck_id, note_id, kind, front, back, detail, choices, position, rev, created_at, updated_at)
+       VALUES (?, (SELECT user_id FROM decks WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const c of cards) {
       const id = randomUUID();
-      insert.run(id, deckId, deckId, c.noteId, c.kind, c.front, JSON.stringify(c.back), c.detail, position++, this.nextRev(), t, t);
+      insert.run(id, deckId, deckId, c.noteId, c.kind, c.front, JSON.stringify(c.back), c.detail, choicesJson(c.choices), position++, this.nextRev(), t, t);
       ids.push(id);
     }
     return ids;
+  }
+
+  // ---------- Svaralternativer til en kortstokk som finnes ----------
+
+  /**
+   * Starter jobben som lager svaralternativer (`choices_status` = 'generating'). Bare for en ferdig kortstokk uten en jobb
+   * i gang; gir null ellers (eller når kortstokken er slettet).
+   */
+  startChoices(id: string): Deck | null {
+    const res = this.db
+      .prepare(
+        `UPDATE decks SET choices_status = 'generating', choices_error = NULL, rev = ?, updated_at = ?
+         WHERE id = ? AND deleted = 0 AND status = 'ready' AND (choices_status IS NULL OR choices_status = 'failed')`,
+      )
+      .run(this.nextRev(), now(), id);
+    return res.changes > 0 ? this.getDeck(id) : null;
+  }
+
+  /** Jobben for svaralternativer feilet: eleven ser meldingen og kan prøve igjen. */
+  failChoices(id: string, message: string): void {
+    this.db
+      .prepare(`UPDATE decks SET choices_status = 'failed', choices_error = ?, rev = ?, updated_at = ? WHERE id = ? AND deleted = 0 AND choices_status = 'generating'`)
+      .run(message, this.nextRev(), now(), id);
+  }
+
+  /**
+   * Lagrer svaralternativene fra jobben og avslutter den. Et kort får dem bare når det fortsatt finnes i kortstokken, ikke
+   * har fått alternativer i mellomtiden (f.eks. fra eleven) og har samme spørsmål og svar som da jobben leste det; ellers
+   * passer de kanskje ikke lenger. Gir null når kortstokken er slettet i mellomtiden, ellers kortstokken og hvor mange
+   * kort som fikk alternativer.
+   */
+  completeChoices(
+    id: string,
+    results: { card: Pick<Flashcard, 'id' | 'front' | 'back'>; choices: FlashcardChoices }[],
+  ): { deck: Deck; updated: number } | null {
+    return this.db.transaction(() => {
+      if (!this.getDeckRow(id)) return null;
+      const t = now();
+      const update = this.db.prepare(
+        `UPDATE cards SET choices = ?, rev = ?, updated_at = ?
+         WHERE id = ? AND deck_id = ? AND deleted = 0 AND choices IS NULL AND front = ? AND back = ?`,
+      );
+      let updated = 0;
+      for (const { card, choices } of results) {
+        updated += update.run(choicesJson(choices), this.nextRev(), t, card.id, id, card.front, JSON.stringify(card.back)).changes;
+      }
+      this.db
+        .prepare(`UPDATE decks SET choices_status = NULL, choices_error = NULL, rev = ?, updated_at = ? WHERE id = ?`)
+        .run(this.nextRev(), t, id);
+      return { deck: this.getDeck(id)!, updated };
+    })();
+  }
+
+  /** Kortstokker med en jobb for svaralternativer i gang (f.eks. da serveren stoppet); stengte kontoer hoppes over. */
+  generatingChoicesDeckIds(): string[] {
+    return (
+      this.db
+        .prepare(
+          `SELECT id FROM decks WHERE choices_status = 'generating' AND deleted = 0 AND user_id NOT IN (SELECT id FROM users WHERE disabled = 1)
+           ORDER BY updated_at`,
+        )
+        .all() as { id: string }[]
+    ).map((r) => r.id);
   }
 
   private softDeleteDeck(id: string, t: string): void {
@@ -1505,13 +1625,23 @@ export class Repo {
     return this.getCard(id!)!;
   }
 
-  /** Endrer innholdet i et kort. Mestringsnivået beholdes. */
+  /** Endrer innholdet i et kort. Mestringsnivået beholdes. Svaralternativer: utelatt = uendret, null = fjernes. */
   updateCard(id: string, patch: Partial<FlashcardInput>): Flashcard | null {
     const c = this.getCard(id);
     if (!c) return null;
+    const choices = patch.choices === undefined ? c.choices : patch.choices;
     this.db
-      .prepare(`UPDATE cards SET kind = ?, front = ?, back = ?, detail = ?, rev = ?, updated_at = ? WHERE id = ?`)
-      .run(patch.kind ?? c.kind, patch.front ?? c.front, JSON.stringify(patch.back ?? c.back), patch.detail ?? c.detail, this.nextRev(), now(), id);
+      .prepare(`UPDATE cards SET kind = ?, front = ?, back = ?, detail = ?, choices = ?, rev = ?, updated_at = ? WHERE id = ?`)
+      .run(
+        patch.kind ?? c.kind,
+        patch.front ?? c.front,
+        JSON.stringify(patch.back ?? c.back),
+        patch.detail ?? c.detail,
+        choicesJson(choices),
+        this.nextRev(),
+        now(),
+        id,
+      );
     return this.getCard(id);
   }
 
@@ -2045,6 +2175,11 @@ export class UserRepo {
 
   restartDeck(id: string): Deck | null {
     return this.owns('decks', id) ? this.repo.restartDeck(id) : null;
+  }
+
+  /** Starter jobben for svaralternativer (se `Repo.startChoices`). */
+  startChoices(id: string): Deck | null {
+    return this.owns('decks', id) ? this.repo.startChoices(id) : null;
   }
 
   deleteDeck(id: string): boolean {

@@ -112,6 +112,12 @@ export type FlashcardKind = 'concept' | 'explain' | 'apply';
 /** generating = Claude lager kortene, ready = klar til øving, failed = se `error` (kan prøves igjen). */
 export type DeckStatus = 'generating' | 'ready' | 'failed';
 
+/**
+ * Jobben som lager svaralternativer til kortene i en ferdig kortstokk (POST /api/decks/:id/choices):
+ * generating = Claude lager dem, failed = se `choicesError` (eleven kan prøve igjen). Uten jobb er statusen null.
+ */
+export type DeckChoicesStatus = 'generating' | 'failed';
+
 /** En kortstokk laget fra ett eller flere notater i et fag. */
 export interface Deck extends SyncedRow {
   subjectId: string;
@@ -124,6 +130,20 @@ export interface Deck extends SyncedRow {
   error: string | null;
   /** Lengste rekke svar på rad som var «delvis» eller bedre. Høyeste verdi vinner ved synk. */
   best: number;
+  /** Svaralternativer som lages til en kortstokk som finnes (null = ingen jobb i gang og ingen feil). */
+  choicesStatus: DeckChoicesStatus | null;
+  /** Norsk feilmelding når `choicesStatus` er `failed`, ellers null. */
+  choicesError: string | null;
+}
+
+/**
+ * Svaralternativer til flervalg: ett kort riktig svar på én linje og tre gale som ligner det (samme markering som
+ * kortene). De gale svarene er ulike, og ingen er lik det riktige (etter normalisering, se `normalizeChoice` på serveren).
+ */
+export interface FlashcardChoices {
+  correct: string;
+  /** Nøyaktig tre gale svar. */
+  wrong: string[];
 }
 
 /**
@@ -146,6 +166,8 @@ export interface Flashcard extends SyncedRow {
   level: number;
   /** Når nivået sist ble satt (klientens klokke, ISO). Siste vurdering vinner ved synk mellom enheter. */
   levelAt: string | null;
+  /** Svaralternativer til flervalg, eller null når kortet ikke har dem (lages bare når eleven ber om det). */
+  choices: FlashcardChoices | null;
 }
 
 /** POST /api/decks – kortene lages i bakgrunnen; følg med på `status` via synk. */
@@ -157,6 +179,8 @@ export interface CreateDeckRequest {
   count: number | null;
   /** Navn på kortstokken. Tomt = lages fra kapittelet eller notatene. */
   title?: string | null;
+  /** Lag også svaralternativer (flervalg) til kortene. Av som standard; bare når eleven krysser av. */
+  withChoices?: boolean;
 }
 
 export interface UpdateDeckRequest {
@@ -168,6 +192,8 @@ export interface FlashcardInput {
   front: string;
   back: string[];
   detail: string;
+  /** Svaralternativer, eller null/utelatt for ingen. Ved endring (PATCH): utelatt = uendret, null = fjern dem. */
+  choices?: FlashcardChoices | null;
 }
 
 /** POST /api/decks/:id/cards */
@@ -175,6 +201,12 @@ export type CreateFlashcardRequest = FlashcardInput;
 
 /** PATCH /api/cards/:id */
 export type UpdateFlashcardRequest = Partial<FlashcardInput>;
+
+/*
+ * POST /api/decks/:id/choices (uten innhold) lager svaralternativer til kortene i en ferdig kortstokk som mangler dem.
+ * Svaret (202) er kortstokken med `choicesStatus: 'generating'`; følg med via synk. Krever nett. Gratiskontoer: teller
+ * som én kortstokk i dagens kvote (429 `quota_exceeded`), men et nytt forsøk etter `failed` telles ikke.
+ */
 
 /**
  * POST /api/flashcards/progress – fremgang fra øving, også det som ble gjort offline. Et kortnivå lagres bare hvis `at`

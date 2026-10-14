@@ -49,7 +49,7 @@ describe('migrering 8 (kvoter)', () => {
     const subject = old.createSubject({ userId: OWNER_ID, name: 'Fysikk 1', profile: 'physics' });
     const rev = old.currentRev();
     old.close();
-    const repo = new Repo(file);
+    const repo = new Repo(file, { migrateTo: 8 });
     expect(repo.db.pragma('user_version', { simple: true })).toBe(8);
     expect(repo.getUser(OWNER_ID)).toMatchObject({ last_claim_rev: 0 });
     expect(repo.currentRev()).toBe(rev);
