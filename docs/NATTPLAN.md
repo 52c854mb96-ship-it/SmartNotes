@@ -375,7 +375,70 @@ Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er nest
     - lagrede samle-PDF-er fikk ikke bunnteksten (nøkkelen tar nå med det felles tillegget), og teksten lovet merket også på PDF-er fra før;
     - morgenlista manglet punktene om Railway og Anthropic som ikke er sjekket.
   - typecheck, test (306 + 2224), build og e2e (39) er grønne lokalt.
+  - Kl. 02.18: PR [#29](https://github.com/52c854mb96-ship-it/SmartNotes/pull/29) (personvern og vilkår) er laget, og flettet kl. 02.33 etter grønn CI. Grenen er nullstilt fra `main`.
+- Kl. 02.40: alle fem fasene er ferdige. Morgenrapporten under er skrevet (PR [#30](https://github.com/52c854mb96-ship-it/SmartNotes/pull/30)), og rutinen `trig_012T5E4abuLufG4xWyNs5BfB` er slettet.
 
 ## Morgenrapport
 
-*(skrives av nattøkta når alt er ferdig, eller om morgenen 14. oktober)*
+Skrevet av nattøkta 14. oktober kl. 02.40. Alle fem fasene er ferdige, og alt er flettet inn i `main` etter grønn CI.
+
+### Flettet i natt
+
+| PR | Fase | Innhold |
+|---|---|---|
+| [#22](https://github.com/52c854mb96-ship-it/SmartNotes/pull/22) | 1a | Instrukser versjon 3: de presise reglene for alle Claude-modeller, `\uleselig` bare når sammenhengen ikke avgjør, og tegnemaler for kjemi og biologi |
+| [#23](https://github.com/52c854mb96-ship-it/SmartNotes/pull/23) | 1b | Opphavsrett: `LICENSE`, lisenslista i appen, kompetansemålene kontrollert mot Udir med NLOD-henvisning |
+| [#24](https://github.com/52c854mb96-ship-it/SmartNotes/pull/24) | 2 | Geofag 1: fagprofil, PDF-malen «Atlas», fargetemaet «Fjell» og «Legg til fag» fra læreplanen |
+| [#25](https://github.com/52c854mb96-ship-it/SmartNotes/pull/25) | 3 | Forside med fagene som kort |
+| [#26](https://github.com/52c854mb96-ship-it/SmartNotes/pull/26) | 4 | Kontoer på serveren: brukere, invitasjoner, innlogging med brukernavn, eierskap på hver rute, Haiku for gratiskontoer |
+| [#27](https://github.com/52c854mb96-ship-it/SmartNotes/pull/27) | 4 | Kontoer i appen: registrering med invitasjon, nytt passord, kontobytte, «Inviter en elev» og «Brukere» |
+| [#28](https://github.com/52c854mb96-ship-it/SmartNotes/pull/28) | 5a | Kvoter for gratiskontoer, tak på køen, dagsbudsjett, rettferdig kø og utklipp som JPEG |
+| [#29](https://github.com/52c854mb96-ship-it/SmartNotes/pull/29) | 5b | Personvern og vilkår, «AI-generert» i PDF-ene, «Meld fra» og «Slett kontoen» |
+| [#30](https://github.com/52c854mb96-ship-it/SmartNotes/pull/30) | – | Denne morgenrapporten |
+
+Hver fase ble gjennomgått av uavhengige kontrollører (Workflow), og hvert bekreftet funn er rettet med en test. Tallene står i loggen over.
+
+### Ikke testet med ekte Claude
+
+Skyøkta har ingen API-nøkkel, så alt er testet med en falsk Claude. Dette er ikke prøvd på ekte notater:
+
+- **De presise reglene** (versjon 4) med Sonnet og Haiku: om formelboksene, merknadene, `\uleselig` og tegnemalene blir brukt slik reglene sier. Malene kompilerer i testene, men det sier ikke hvordan modellen bruker dem.
+- **Geofag 1:** hele konverteringen, også klimadiagram, terrengprofil og lagrekke.
+- **Gratiskontoene:** at Haiku 5.5 med høy grundighet og tre rettingsrunder gir gode nok notater, og at et avslag går videre til Sonnet.
+- **Kvotene og dagsbudsjettet** regner med listeprisene i koden. Det er ikke sammenlignet med det Anthropic Console faktisk viser.
+- **Innholdsfortegnelse med AI og kortstokker** for en elev (samme kode som for deg, men med elevens tak).
+
+Ikke prøvd på en ekte iPad eller iPhone, bare i nettlesertestene (Chromium og WebKit).
+
+### Klar for en testelev?
+
+**Koden er klar, men ikke prøvd på Railway.** Det som må være på plass, og hvor det står:
+
+- Fase 4 og 5 er flettet: **ja** (#26–#29). Lagt ut på Railway: **ikke sjekket** (nattøkta har ikke tilgang til Railway). Railway skal legge ut `main` av seg selv når CI er grønn.
+- En invitasjon er laget og registreringen testet ende til ende: **i testene ja, på Railway nei**. Det gjør du i punkt 4 under.
+- Tak, kø og «Slett konto» virker: **ja i testene** (falsk klokke for kvotene, og sletting som fjerner alt og ikke noe annet).
+
+Gjør punktene under i rekkefølge, så er appen klar for en annen elev.
+
+### Morgenlista i rekkefølge
+
+1. **Sjekk at den nye versjonen er lagt ut:** Railway → tjenesten → **Deployments**. Den øverste skal være grønn og ha meldingen «Morgenrapport for natt til 14. oktober (#30)» (eller #29). Logg inn i appen som før (passordet ditt, brukernavnet kan stå tomt). Brukernavnet ditt er `eier`, og du kan endre det i Innstillinger → Konto.
+2. **Ta en sikkerhetskopi:** Innstillinger → «Sikkerhetskopi» → last ned, før noen andre registrerer seg.
+3. **Variabler i Railway** (tjenesten → **Variables**, så **Deploy**):
+   - `PRIVACY_CONTROLLER_NAME`: navnet til den som er ansvarlig for personopplysningene (deg eller en forelder);
+   - `PRIVACY_CONTACT`: en e-postadresse (eller annen kontakt) for personvern, sletting og «Meld fra».
+   - Kvotene trenger ingen variabler. Vil du endre dem, står `FREE_PAGES_PER_DAY`, `FREE_DECKS_PER_DAY`, `FREE_TOC_PER_DAY`, `FREE_QUEUE_MAX` og `FREE_DAILY_BUDGET_NOK` i README. `TRUST_PROXY_HOPS` skal ikke settes (standarden 1 er riktig for Railway).
+4. **Prøv registreringen selv:** Innstillinger → **Inviter en elev** → **Lag invitasjon**, åpne lenken i et privat vindu eller på mobilen, og lag en testkonto. Last opp ett notat, og se at det konverteres. Slett så testkontoen med Innstillinger → Konto → **Slett kontoen**.
+5. **Anthropic Console** → Settings → **Limits**: sett en månedlig grense (planens forslag: 20 USD, varsel ved 10 USD).
+6. **La en voksen lese** personvernerklæringen og vilkårene i appen, og sjekke det erklæringen med vilje ikke påstår noe om: hvilken region Railway-tjenesten og volumet ligger i, hvor lenge Railway beholder driftsloggen, og hva Anthropics vilkår for API-et sier om lagring og trening. Planen anbefaler også at en voksen eier API-kontoen før andre bruker appen.
+7. **Send invitasjonen** til eleven.
+
+Og hele tiden:
+- **Ikke rull tilbake** i Railway til en versjon fra før kontoene etter at en elev har registrert seg. Den gamle versjonen kjenner ikke kontoene og ville vist elevens fag og notater som dine.
+- **Avslag hos en gratiskonto:** avslår Haiku et notat, prøves det på nytt med Sonnet, som koster mer.
+
+### Se gjerne over
+
+Valgene nattøkta tok på egen hånd, står under «Spørsmål til eleven» over: blant annet lisensteksten, aldersgrensen, kvotene, at kontosperren nå også gjelder deg, at slettede notater blir liggende som tittel og tekst merket som slettet, og at PDF-er fra før får merket «AI-generert» først når de kompileres på nytt.
+
+Rutinen som vekket nattøkta hver time (`trig_012T5E4abuLufG4xWyNs5BfB`), er slettet.
