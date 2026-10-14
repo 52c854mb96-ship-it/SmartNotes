@@ -1,24 +1,39 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router';
-import { LogIn } from 'lucide-react';
+import { FileText, GalleryVerticalEnd, LogIn, Shapes } from 'lucide-react';
 import { api, errorMessage } from '../api';
 import { Logo } from '../components/Logo';
 import { PasswordField } from '../components/PasswordField';
 import { Spinner } from '../components/Status';
 import { useAuth, useOnline } from '../lib/connectivity';
 import { finishLogin } from '../lib/login';
+import { APP_TITLE } from '../lib/useDocumentTitle';
 
-/** Innledningen på innloggingssidene: hva SmartNotes er, og at betaen er lukket. */
+/**
+ * Innledningen på innloggingssidene: en kort versjon av presentasjonen på forsiden (så nye elever ser hva de
+ * registrerer seg til), og at betaen er lukket. Holdes kort, så skjemaet ikke havner langt nede på mobil.
+ */
 export function AuthIntro() {
   return (
     <div className="login-brand">
-      <Logo size={56} />
-      <h1>SmartNotes</h1>
-      <p className="login-tagline">Håndskrevne notater blir til ryddige PDF-er, sortert etter tema i faget.</p>
-      <p className="login-about">
-        For Fysikk 1, Kjemi 1, Biologi 1 og Geofag 1 i videregående. SmartNotes er i en lukket beta: du trenger en
-        invitasjon fra en som bruker appen.
+      <Logo size={48} />
+      <h1>{APP_TITLE}</h1>
+      <p className="login-tagline">
+        Notater og flashcards i fysikk, kjemi, biologi og geofag for videregående, med visualiseringer til mange av
+        temaene.
       </p>
+      <ul className="login-pitch" role="list" aria-label="Dette er SmartNotes">
+        <li>
+          <FileText size={16} aria-hidden /> Håndskrevne notater blir pene PDF-er, sortert etter tema.
+        </li>
+        <li>
+          <Shapes size={16} aria-hidden /> Visualiseringer der du styrer tallene selv.
+        </li>
+        <li>
+          <GalleryVerticalEnd size={16} aria-hidden /> Flashcards fra dine egne notater.
+        </li>
+      </ul>
+      <p className="login-about">SmartNotes er i en lukket beta: du trenger en invitasjon fra en som bruker appen.</p>
     </div>
   );
 }

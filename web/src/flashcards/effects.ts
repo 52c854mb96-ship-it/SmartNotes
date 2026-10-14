@@ -84,3 +84,16 @@ export function centerOf(el: Element | null): Point {
   const r = el.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
 }
+
+/**
+ * Alle effektene fra en vurdering: blink på kortet, merket som spretter opp, rekke-pillen, partikler og meldingen.
+ * Felles for formene som flytter nivåene (Mestring, Rask runde og Luketekst).
+ */
+export function playEffects(fx: Effects, at: { card: Element | null; streak: Element | null; live: Element | null }): void {
+  const center = centerOf(at.card);
+  flash(at.card, fx.flash);
+  pop(fx.pop.text, fx.pop.tone, fx.pop.word, center);
+  if (fx.bump) bump(at.streak);
+  burst(center, fx.burst);
+  if (fx.toast) toast(fx.toast.text, fx.toast.tone, at.live);
+}

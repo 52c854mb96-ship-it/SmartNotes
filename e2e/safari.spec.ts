@@ -137,3 +137,79 @@ test('søk og visualiseringer i Safari', async ({ page }, info) => {
   await page.locator('main').getByRole('slider', { name: 'Dytt F' }).fill('200');
   await expect(page.locator('main').getByText('Kassen glir.')).toBeVisible();
 });
+
+test('flashcards: øvingsformene og luka i Safari', async ({ page }, info) => {
+  await login(page);
+  const subjectId = new URL(page.url()).pathname.split('/')[2]!;
+  const main = page.locator('main');
+
+  // Et konvertert notat å lage kort av (falsk Claude: tre kort, kort 2 har «nøkkelbegrep» i fet skrift).
+  const title = `Kort ${info.project.name}`;
+  await page.getByRole('button', { name: 'Last opp notater' }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Last opp notater' });
+  await dialog.locator('input[type=file]').first().setInputFiles({ name: 'side1.jpg', mimeType: 'image/jpeg', buffer: await notePage(title) });
+  await dialog.getByLabel(/Tittel/).fill(title);
+  await dialog.getByRole('button', { name: /^Last opp$/ }).click();
+  await expect(dialog).toBeHidden();
+  let noteId = '';
+  await expect
+    .poll(async () => {
+      const notes = await page.evaluate(
+        async () => ((await (await fetch('/api/sync?since=0')).json()) as { notes: { id: string; title: string; status: string }[] }).notes,
+      );
+      const n = notes.find((x) => x.title === title);
+      noteId = n?.id ?? '';
+      return n?.status;
+    }, SLOW)
+    .toBe('done');
+  await page.goto(`/fag/${subjectId}/flashcards/ny?notat=${noteId}`);
+  // Forhåndsvalget gjelder bare notater enheten alt vet er ferdige; et notat som nettopp ble ferdig, velges for hånd.
+  await main.getByRole('checkbox', { name: new RegExp(`^${title}\\b`) }).check();
+  await expect(main.getByText('1 notat valgt')).toBeVisible();
+  await main.getByRole('button', { name: 'Lag kortstokk' }).click();
+  await expect(page.getByRole('tab', { name: 'Øv' })).toBeVisible(SLOW);
+
+  // Velgeren: fire former på én rad, innenfor skjermen.
+  const picker = main.getByRole('radiogroup', { name: 'Øvingsform' });
+  const radios = picker.getByRole('radio');
+  await expect(radios).toHaveCount(4);
+  const first = await radios.first().boundingBox();
+  const last = await radios.last().boundingBox();
+  const width = page.viewportSize()?.width ?? 0;
+  console.log(`DIAG flashcards-velger [${info.project.name}]`, JSON.stringify({ first, last, width }));
+  expect(first && last).toBeTruthy();
+  expect(Math.abs((first?.y ?? 0) - (last?.y ?? 0))).toBeLessThan(2);
+  expect((last?.x ?? 0) + (last?.width ?? 0)).toBeLessThanOrEqual(width);
+
+  // Rask runde: «Kunne ikke» og «Kunne» side om side, store nok for tommelen.
+  await picker.getByRole('radio', { name: 'Rask runde' }).click();
+  await expect(picker.getByRole('radio', { name: 'Rask runde' })).toHaveAttribute('aria-checked', 'true');
+  const card = main.locator('.fc-card');
+  const no = main.getByRole('button', { name: /^Kunne ikke/ });
+  const yes = main.getByRole('button', { name: /^Kunne(?!\s*ikke)/ });
+  await card.getByRole('button', { name: 'Trykk for å snu kortet' }).click();
+  await expect(yes).toBeEnabled();
+  const a = await no.boundingBox();
+  const b = await yes.boundingBox();
+  console.log(`DIAG flashcards-knapper [${info.project.name}]`, JSON.stringify({ no: a, yes: b }));
+  expect(a && b).toBeTruthy();
+  expect(Math.abs((a?.y ?? 0) - (b?.y ?? 0))).toBeLessThan(2);
+  expect(a?.height ?? 0).toBeGreaterThanOrEqual(44);
+  expect(b?.height ?? 0).toBeGreaterThanOrEqual(44);
+  expect((b?.x ?? 0) + (b?.width ?? 0)).toBeLessThanOrEqual(width);
+  await yes.click();
+  await expect(main.getByText('Nivå 1 av 3. Kortet er ferdig for denne runden.')).toBeVisible();
+
+  // Luketekst: feltet i kort 2 kan brukes med tastaturet (WebKit stopper skriving under user-select: none).
+  await picker.getByRole('radio', { name: 'Luketekst' }).click();
+  await card.getByRole('button', { name: 'Trykk for å snu kortet' }).click();
+  await yes.click();
+  const field = main.getByRole('textbox', { name: 'Begrepet som mangler' });
+  await expect(field).toBeVisible();
+  await field.click();
+  await field.pressSequentially('nøkkelbegrep');
+  await expect(field).toHaveValue('nøkkelbegrep');
+  await field.press('Enter');
+  await expect(field).toHaveClass(/is-right/);
+  await expect(main.getByRole('button', { name: 'Neste', exact: true })).toBeFocused();
+});

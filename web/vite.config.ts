@@ -41,9 +41,13 @@ export default defineConfig({
       includeManifestIcons: false,
       manifest: {
         id: '/',
-        name: 'SmartNotes',
+        // Det fulle navnet (som på forsiden); short_name står under ikonet, der det er plass til få tegn.
+        name: 'SmartNotes – Realfag VGS',
         short_name: 'SmartNotes',
-        description: 'Håndskrevne notater i fysikk, kjemi, biologi og geofag som pene LaTeX-PDF-er, sortert etter tema.',
+        description:
+          'Notater og flashcards i fysikk, kjemi, biologi og geofag for videregående, med visualiseringer til mange av ' +
+          'temaene. ' +
+          'Håndskrevne notater blir pene PDF-er, sortert etter tema.',
         lang: 'nb',
         dir: 'ltr',
         start_url: '/',

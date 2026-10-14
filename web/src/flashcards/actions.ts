@@ -109,3 +109,32 @@ export async function restoreBest(deckId: string, best: number): Promise<void> {
 export async function savePractice(state: PracticeState): Promise<void> {
   await db.practice.put({ ...state, updatedAt: Date.now() });
 }
+
+/**
+ * «Nullstill fremgang» for hele kortstokken: økta på denne enheten begynner på nytt, men øvingsformen og lengden
+ * beholdes. En økt uten form (bare Mestring) slettes, som før formene fantes.
+ */
+export async function resetPractice(deckId: string): Promise<void> {
+  await db.transaction('rw', db.practice, async () => {
+    const old = await db.practice.get(deckId);
+    if (!old?.mode && !old?.length) {
+      await db.practice.delete(deckId);
+      return;
+    }
+    await db.practice.put({
+      deckId,
+      noteId: null,
+      kind: null,
+      order: 'notes',
+      subset: null,
+      queue: [],
+      grades: {},
+      answered: 0,
+      correct: 0,
+      streak: 0,
+      updatedAt: Date.now(),
+      mode: old.mode,
+      length: old.length ?? null,
+    });
+  });
+}

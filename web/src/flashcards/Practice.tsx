@@ -1,37 +1,42 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Coffee, RotateCcw, Undo2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Deck, Flashcard, FlashcardKind, Note } from '@smartnotes/shared';
-import type { PracticeOrder, PracticeState } from '../db';
+import type { PracticeLength, PracticeMode, PracticeOrder, PracticePass, PracticeState } from '../db';
 import { plural } from '../lib/format';
 import { confirmDialog } from '../lib/ui';
 import { recordBest, restoreBest, savePractice, setCardLevels } from './actions';
+import { useCardFace } from './CardFace';
+import { ClassicPass } from './ClassicPass';
 import { usePracticeState } from './data';
-import { bump, burst, centerOf, flash, pop, toast } from './effects';
-import { KIND_FILTER_LABEL, KIND_LABEL, KINDS } from './labels';
+import { KIND_FILTER_LABEL, KINDS } from './labels';
+import { MasteryRound } from './MasteryRound';
+import { ModePicker } from './ModePicker';
 import {
-  BREAK_MS,
-  MASTER,
   OWN_CARDS,
-  UNDO_LIMIT,
-  addActiveTime,
+  buildPass,
   buildQueue,
-  correctPct,
+  buildQuickQueue,
   emptyRound,
-  isGrade,
-  levelOf,
-  masteredCount,
   masteryPct,
-  rate,
+  normalizePracticeState,
+  pickChunk,
+  reconcilePass,
   reconcileQueue,
-  repetitionChoices,
+  reconcileQuickQueue,
   selectCards,
-  type Filter,
-  type Grade,
   type Round,
-  type Tone,
 } from './model';
-import { parseBackLine } from './richtext';
-import { RichParagraphs, RichText } from './RichText';
+import { BreakBar, PauseOverlay } from './Pause';
+import { QuickRound } from './QuickRound';
+import {
+  useFeedback,
+  usesLength,
+  type BestStreak,
+  type NextChunk,
+  type Session,
+  type UndoEntry,
+  type ViewFilter,
+} from './session';
+import { useBreakClock } from './useBreakClock';
 
 interface Props {
   deck: Deck;
@@ -56,51 +61,34 @@ export function Practice(props: Props) {
   return <PracticeSession {...props} initial={saved} />;
 }
 
-interface UndoEntry {
-  round: Round;
-  cardId: string;
-  level: number;
-  /** Beste rekke før vurderingen (angring setter den tilbake, som i originalen). */
-  best: number;
+const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
+const samePass = (a: PracticePass, b: PracticePass) => a.index === b.index && sameList(a.ids, b.ids) && sameList(a.marked, b.marked);
+
+/** En lagret kø mot dagens kort: Mestring tar bare kort som ikke er mestret, Rask runde og Luketekst tar alle. */
+function reconcileFor(mode: PracticeMode, queue: string[], selection: Flashcard[], done: string[] | undefined): string[] {
+  return mode === 'mastery' ? reconcileQueue(queue, selection) : reconcileQuickQueue(queue, selection, done);
 }
 
 /**
- * Pauseklokka per kortstokk lever utenfor komponenten, så den teller videre når man bytter fane eller side og kommer
- * tilbake (inaktiv tid over 2 minutter teller uansett ikke).
+ * En ny runde med utvalget `f`. Er en lengde valgt og ikke noe utvalg gitt, plukkes den neste korte økta (`pickChunk`,
+ * lagt i `subset`). Klassisk får en ny gjennomgang, de andre formene en ny kø.
  */
-const breakClocks = new Map<string, { sinceBreak: number; lastAction: number; due: boolean }>();
-
-function breakClock(deckId: string) {
-  let c = breakClocks.get(deckId);
-  if (!c) breakClocks.set(deckId, (c = { sinceBreak: 0, lastAction: Date.now(), due: false }));
-  return c;
+function begin(cards: Flashcard[], f: ViewFilter): { filter: ViewFilter; queue: string[]; pass: PracticePass | null } {
+  let filter: ViewFilter = f.subset ? f : { ...f, subsetKind: undefined };
+  if (!filter.subset && filter.length !== null && usesLength(filter.mode)) {
+    const chunk = pickChunk(selectCards(cards, filter), filter.order, filter.length, filter.mode, filter.seen);
+    filter = chunk.ids.length ? { ...filter, subset: chunk.ids, subsetKind: 'chunk', seen: chunk.seen } : { ...filter, seen: chunk.seen };
+  }
+  const sel = selectCards(cards, filter);
+  if (filter.mode === 'classic') return { filter, queue: [], pass: buildPass(sel, filter.order) };
+  return { filter, queue: filter.mode === 'mastery' ? buildQueue(sel, filter.order) : buildQuickQueue(sel, filter.order), pass: null };
 }
 
-type ViewFilter = Filter & { order: PracticeOrder };
-
-const GRADES: { grade: Grade; label: string; hint: string }[] = [
-  { grade: 1, label: 'Feil', hint: 'Husket ikke' },
-  { grade: 2, label: 'Delvis', hint: 'Noe manglet' },
-  { grade: 3, label: 'Bra', hint: 'Det viktigste' },
-  { grade: 4, label: 'Perfekt', hint: 'Alt, uten å nøle' },
-];
-
-/** Fokus i faner og menyer: piltastene og tallene hører til dem, ikke til øvingen. */
-function inWidget(el: Element | null): boolean {
-  return !!el?.closest('[role="tablist"], [role="menu"], [role="listbox"]');
-}
-
-function isEditable(el: Element | null): boolean {
-  return (
-    el instanceof HTMLInputElement ||
-    el instanceof HTMLTextAreaElement ||
-    el instanceof HTMLSelectElement ||
-    (el instanceof HTMLElement && el.isContentEditable)
-  );
-}
-
-const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
-
+/**
+ * Det som er felles for formene: nivåene, utvalget, formen og filtrene, runden som lagres, rekorden, kortet som vises,
+ * angring, tilbakemelding og pausen. Formen (`MasteryRound`, `QuickRound` eller `ClassicPass`) viser kortet og står for
+ * vurderingen.
+ */
 function PracticeSession({ deck, cards, notes, initial, active = true }: Props & { initial: PracticeState | null }) {
   // ---------- Nivåer: lokale vurderinger gjelder til databasen har tatt dem igjen ----------
   const [overrides, setOverrides] = useState<Map<string, { level: number; at: string }>>(() => new Map());
@@ -141,35 +129,61 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
 
   // ---------- Utvalg og runde ----------
   const [init] = useState(() => {
-    // Et lagret notatfilter kan peke på kort som er slettet siden: da starter vi på hele kortstokken.
-    const valid = !!initial && (initial.noteId === null || groups.includes(initial.noteId));
+    // Eldre økter (uten form) leses som Mestring. Et lagret notatfilter kan peke på kort som er slettet siden: da
+    // starter vi på hele kortstokken.
+    const saved = initial ? normalizePracticeState(initial) : null;
+    const valid = !!saved && (saved.noteId === null || groups.includes(saved.noteId));
     const filter: ViewFilter = {
-      noteId: valid ? initial.noteId : null,
-      kind: initial?.kind ?? null,
-      subset: valid ? initial.subset : null,
-      order: initial?.order ?? 'notes',
+      noteId: valid ? saved.noteId : null,
+      kind: saved?.kind ?? null,
+      subset: valid ? saved.subset : null,
+      order: saved?.order ?? 'notes',
+      mode: saved?.mode ?? 'mastery',
+      length: saved?.length ?? null,
+      seen: valid ? saved.seen : [],
     };
+    if (filter.subset) filter.subsetKind = saved?.subsetKind ?? 'repeat';
+    const seed = saved?.clozeSeed ?? 0;
+    // En økt uten noe gjort (f.eks. etter «Nullstill fremgang» med en lengde valgt) starter som en ny runde.
+    const fresh =
+      !valid ||
+      (filter.mode === 'classic'
+        ? !saved.pass
+        : filter.length !== null && !filter.subset && saved.queue.length === 0 && saved.answered === 0);
+    if (fresh) {
+      const start = begin(cards, filter);
+      return { filter: start.filter, round: emptyRound(start.queue, saved?.streak ?? 0), pass: start.pass, seed };
+    }
     const sel = selectCards(cards, filter);
-    const round: Round = valid
-      ? {
-          queue: reconcileQueue(initial.queue, sel),
-          grades: initial.grades,
-          answered: initial.answered,
-          correct: initial.correct,
-          streak: initial.streak,
-        }
-      : emptyRound(buildQueue(sel, filter.order), initial?.streak ?? 0);
-    return { filter, round };
+    const round: Round = {
+      queue: filter.mode === 'classic' ? [] : reconcileFor(filter.mode, saved.queue, sel, saved.done),
+      grades: saved.grades,
+      answered: saved.answered,
+      correct: saved.correct,
+      streak: saved.streak,
+    };
+    if (filter.mode === 'quick' || filter.mode === 'cloze') round.done = saved.done;
+    const pass = filter.mode === 'classic' && saved.pass ? reconcilePass(saved.pass, sel) : null;
+    return { filter, round, pass, seed };
   });
   const [filter, setFilter] = useState<ViewFilter>(init.filter);
   const [round, setRound] = useState<Round>(init.round);
+  /** Klassisk: gjennomgangen. */
+  const [pass, setPass] = useState<PracticePass | null>(init.pass);
+  /** Luketekst: rundenummeret som velger luka i hvert kort. */
+  const [clozeSeed, setClozeSeed] = useState(init.seed);
   const selection = useMemo(() => selectCards(effCards, filter), [effCards, filter]);
 
-  // Kortene kan endres mens man øver (synk fra en annen enhet, redigering): køen følger etter.
+  // Kortene kan endres mens man øver (synk fra en annen enhet, redigering): køen eller gjennomgangen følger etter.
   useEffect(() => {
-    const q = reconcileQueue(round.queue, selection);
-    if (!sameList(q, round.queue)) setRound((r) => ({ ...r, queue: reconcileQueue(r.queue, selection) }));
-  }, [selection, round.queue]);
+    if (filter.mode === 'classic') {
+      if (!pass) setPass(buildPass(selection, filter.order));
+      else if (!samePass(reconcilePass(pass, selection), pass)) setPass((p) => (p ? reconcilePass(p, selection) : p));
+      return;
+    }
+    const q = reconcileFor(filter.mode, round.queue, selection, round.done);
+    if (!sameList(q, round.queue)) setRound((r) => ({ ...r, queue: reconcileFor(filter.mode, r.queue, selection, r.done) }));
+  }, [selection, round.queue, round.done, filter.mode, filter.order, pass]);
 
   useEffect(() => {
     void savePractice({
@@ -184,165 +198,69 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
       correct: round.correct,
       streak: round.streak,
       updatedAt: 0,
+      mode: filter.mode,
+      length: filter.length,
+      ...(filter.subset ? { subsetKind: filter.subsetKind ?? 'repeat' } : {}),
+      seen: filter.seen,
+      ...(round.done ? { done: round.done } : {}),
+      ...(pass ? { pass } : {}),
+      clozeSeed,
     });
-  }, [deck.id, filter, round]);
+  }, [deck.id, filter, round, pass, clozeSeed]);
 
-  const [flipped, setFlipped] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [localBest, setLocalBest] = useState<number | null>(null);
-  const best = localBest ?? deck.best;
+  const bestValue = localBest ?? deck.best;
   // Rekorden fra andre enheter (via synk) gjelder når den er høyere.
   useEffect(() => {
     if (localBest !== null && deck.best > localBest) setLocalBest(null);
   }, [deck.best, localBest]);
-
-  // ---------- Tilbakemelding ----------
-  const [feedback, setFeedbackState] = useState<{ text: string; tone: Tone | '' }>({ text: '', tone: '' });
-  const feedbackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const setFeedback = useCallback((text: string, tone: Tone | '') => {
-    setFeedbackState({ text, tone });
-    clearTimeout(feedbackTimer.current);
-    if (text) feedbackTimer.current = setTimeout(() => setFeedbackState({ text: '', tone: '' }), 3500);
-  }, []);
-  useEffect(() => () => clearTimeout(feedbackTimer.current), []);
-
-  // ---------- Pause ----------
-  const clock = breakClock(deck.id);
-  const [breakDue, setBreakDueState] = useState(clock.due);
-  const setBreakDue = useCallback(
-    (due: boolean) => {
-      clock.due = due;
-      setBreakDueState(due);
-    },
-    [clock],
+  const best = useMemo<BestStreak>(
+    () => ({
+      value: bestValue,
+      record: (n) => {
+        setLocalBest(n);
+        void recordBest(deck.id, n);
+      },
+      restore: (n) => {
+        setLocalBest(n);
+        void restoreBest(deck.id, n);
+      },
+    }),
+    [bestValue, deck.id],
   );
-  const [pausedAt, setPausedAt] = useState<number | null>(null);
-  const tick = useCallback(() => {
-    const now = Date.now();
-    clock.sinceBreak = addActiveTime(clock.sinceBreak, clock.lastAction, now);
-    clock.lastAction = now;
-    if (clock.sinceBreak >= BREAK_MS) setBreakDue(true);
-  }, [clock, setBreakDue]);
-  const endPause = () => {
-    setPausedAt(null);
-    clock.sinceBreak = 0;
-    clock.lastAction = Date.now();
-    focusNext.current = flipped ? 'answer' : 'question';
-  };
 
-  // ---------- Elementer for effektene og fokus ----------
+  const feedback = useFeedback();
+  const setFeedback = feedback.set;
+  const clock = useBreakClock(deck.id);
+
+  // ---------- Kortet som vises ----------
   const rootRef = useRef<HTMLDivElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const questionRef = useRef<HTMLParagraphElement>(null);
-  const answerRef = useRef<HTMLUListElement>(null);
-  const streakRef = useRef<HTMLSpanElement>(null);
   const liveRef = useRef<HTMLDivElement>(null);
-  // Etter snu og vurdering flyttes fokus til svaret eller det nye spørsmålet, så skjermlesere leser det opp og fokus
-  // ikke blir stående på en knapp som forsvant eller ble deaktivert.
-  const focusNext = useRef<'question' | 'answer' | null>(null);
-  useEffect(() => {
-    const target = focusNext.current;
-    if (!target) return;
-    focusNext.current = null;
-    const activeEl = document.activeElement;
-    if (activeEl && activeEl !== document.body && !rootRef.current?.contains(activeEl)) return;
-    (target === 'answer' ? answerRef.current : questionRef.current)?.focus({ preventScroll: true });
-  });
-
-  const current = round.queue.length ? effCards.find((c) => c.id === round.queue[0]) : undefined;
+  const currentId = filter.mode === 'classic' ? pass?.ids[pass.index] : round.queue[0];
+  const current = currentId === undefined ? undefined : effCards.find((c) => c.id === currentId);
+  const face = useCardFace(current, clock.tick, rootRef);
+  const showFace = face.show;
 
   const restart = useCallback(
     (next: ViewFilter, resetIds: string[] = []) => {
-      // Nivåene som nullstilles, gjelder allerede for den nye køen.
+      // Nivåene som nullstilles, gjelder allerede for den nye runden.
       const reset = new Set(resetIds);
-      const sel = selectCards(effCards, next).map((c) => (reset.has(c.id) ? { ...c, level: 0 } : c));
+      const all = effCards.map((c) => (reset.has(c.id) ? { ...c, level: 0 } : c));
       if (resetIds.length) setLevels(resetIds, 0);
-      setFilter(next);
-      setRound((r) => emptyRound(buildQueue(sel, next.order), r.streak));
-      setFlipped(false);
-      setDetailOpen(false);
+      const start = begin(all, next);
+      setFilter(start.filter);
+      setRound((r) => emptyRound(start.queue, r.streak));
+      setPass(start.pass);
+      if (start.filter.mode === 'cloze') setClozeSeed((n) => n + 1);
+      showFace('question', false);
       setUndoStack([]);
       setFeedback('', '');
     },
-    [effCards, setLevels, setFeedback],
+    [effCards, setLevels, showFace, setFeedback],
   );
 
-  // ---------- Handlinger ----------
-  const flip = useCallback(() => {
-    if (!current) return;
-    tick();
-    if (flipped) setDetailOpen(false);
-    focusNext.current = flipped ? 'question' : 'answer';
-    setFlipped(!flipped);
-  }, [current, flipped, tick]);
-
-  const toggleDetail = useCallback(() => {
-    if (!current?.detail) return;
-    tick();
-    if (!detailOpen && !flipped) {
-      setFlipped(true);
-      focusNext.current = 'answer';
-    }
-    setDetailOpen(!detailOpen);
-  }, [current, detailOpen, flipped, tick]);
-
-  const onRate = useCallback(
-    (grade: Grade) => {
-      if (!flipped || !current) return;
-      tick();
-      const levels = new Map(effCards.map((c) => [c.id, levelOf(c)]));
-      const out = rate(round, {
-        grade,
-        levels,
-        best,
-        groupOf: (id) => {
-          const c = effCards.find((x) => x.id === id);
-          return c ? (c.noteId ?? OWN_CARDS) : null;
-        },
-        groupCards: (g) => effCards.filter((c) => (c.noteId ?? OWN_CARDS) === g).map((c) => c.id),
-        groupName,
-      });
-      if (!out) return;
-      setUndoStack((s) => [...s.slice(-(UNDO_LIMIT - 1)), { round, cardId: out.cardId, level: levels.get(out.cardId) ?? 0, best }]);
-      setLevels([out.cardId], out.level);
-      if (out.best > best) {
-        setLocalBest(out.best);
-        void recordBest(deck.id, out.best);
-      }
-      setRound(out.round);
-      setFlipped(false);
-      setDetailOpen(false);
-      focusNext.current = 'question';
-
-      const center = centerOf(cardRef.current);
-      flash(cardRef.current, out.fx.flash);
-      pop(out.fx.pop.text, out.fx.pop.tone, out.fx.pop.word, center);
-      if (out.fx.bump) bump(streakRef.current);
-      burst(center, out.fx.burst);
-      if (out.fx.toast) toast(out.fx.toast.text, out.fx.toast.tone, liveRef.current);
-      setFeedback(out.fx.feedback.text, out.fx.feedback.tone);
-    },
-    [flipped, current, tick, effCards, round, best, groupName, setLevels, deck.id, setFeedback],
-  );
-
-  const onUndo = useCallback(() => {
-    const last = undoStack[undoStack.length - 1];
-    if (!last) return;
-    setUndoStack((s) => s.slice(0, -1));
-    setRound(last.round);
-    setLevels([last.cardId], last.level);
-    if (last.best < best) {
-      setLocalBest(last.best);
-      void restoreBest(deck.id, last.best);
-    }
-    setFlipped(true);
-    setDetailOpen(false);
-    focusNext.current = 'answer';
-    setFeedback('Angret.', '');
-  }, [undoStack, setLevels, setFeedback, best, deck.id]);
-
-  const onReset = async () => {
+  const resetProgress = async () => {
     const ok = await confirmDialog({
       title: 'Nullstille fremgangen?',
       body: `Mestringen for ${selection.length === 1 ? 'kortet' : `de ${selection.length} kortene`} i dette utvalget settes tilbake til null, også på de andre enhetene dine.`,
@@ -352,31 +270,10 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
     if (ok) restart({ ...filter }, selection.map((c) => c.id));
   };
 
-  // ---------- Tastatur ----------
-  const handlers = useRef({ flip, toggleDetail, onRate, onUndo });
-  handlers.current = { flip, toggleDetail, onRate, onUndo };
-  const paused = pausedAt !== null;
-  useEffect(() => {
-    if (paused || !active) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (document.querySelector('dialog[open]')) return;
-      const focused = document.activeElement;
-      if (isEditable(focused) || inWidget(focused)) return;
-      const h = handlers.current;
-      if (e.key === ' ' || e.key === 'Enter') {
-        if (focused instanceof HTMLButtonElement || focused instanceof HTMLAnchorElement || focused?.tagName === 'SUMMARY') return;
-        e.preventDefault();
-        h.flip();
-      } else if (isGrade(Number(e.key))) h.onRate(Number(e.key) as Grade);
-      else if (e.key === 'ArrowLeft') h.onRate(1);
-      else if (e.key === 'ArrowRight') h.onRate(3);
-      else if (e.key === 'z' || e.key === 'Z') h.onUndo();
-      else if (e.key === 'd' || e.key === 'D') h.toggleDetail();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [paused, active]);
+  const endPause = () => {
+    clock.endPause();
+    face.refocus();
+  };
 
   // Et notatfilter eller repetisjonsutvalg uten kort igjen (slettet her eller på en annen enhet): tilbake til alle kort.
   useEffect(() => {
@@ -386,16 +283,50 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
   }, [groups, filter, selection.length, restart]);
 
   // ---------- Visning ----------
-  const mastered = masteredCount(selection);
-  const pct = masteryPct(selection);
   const groupPct = (g: string | null) => masteryPct(selectCards(effCards, { noteId: g, kind: filter.kind, subset: null }));
-  const changeFilter = (patch: Partial<ViewFilter>) => restart({ ...filter, ...patch, subset: null });
+  // Et nytt filter, en ny form eller en ny lengde starter en ny runde (og en ny omgang med korte økter).
+  const changeFilter = (patch: Partial<ViewFilter>) => restart({ ...filter, ...patch, subset: null, seen: [] });
+  const changeMode = (mode: PracticeMode, fromPointer: boolean) => {
+    // Etter et klikk skal fokus ikke bli stående i velgeren, der piltastene og mellomrom hører til velgeren og ikke til
+    // kortet: fokus går til spørsmålet (eller ingen steder, når runden ikke har noe kort).
+    if (fromPointer) (document.activeElement as HTMLElement | null)?.blur();
+    if (mode === filter.mode) return;
+    changeFilter({ mode });
+    if (fromPointer) showFace('question', true);
+  };
+  const nextChunk = useMemo<NextChunk | null>(() => {
+    if (filter.length === null || !usesLength(filter.mode)) return null;
+    const all = selectCards(effCards, { ...filter, subset: null });
+    const count = pickChunk(all, 'notes', filter.length, filter.mode, filter.seen).ids.length;
+    return count ? { count, start: () => restart({ ...filter, subset: null }) } : null;
+  }, [effCards, filter, restart]);
+  const session: Session = {
+    cards: effCards,
+    selection,
+    current,
+    filter,
+    groups,
+    groupName,
+    setLevels,
+    best,
+    restart,
+    resetProgress,
+    nextChunk,
+    face,
+    undoStack,
+    setUndoStack,
+    feedback,
+    tick: clock.tick,
+    keysOn: !clock.paused && active,
+    liveRef,
+  };
 
   return (
     <div ref={rootRef} className="fc-practice">
+      <ModePicker mode={filter.mode} onChange={changeMode} />
       <div className="fc-controls">
         {(groups.length > 1 || filter.noteId !== null) && (
-          <label className="field">
+          <label className="field fc-control-wide">
             <span className="field-label">Notat</span>
             <select value={filter.noteId ?? ''} onChange={(e) => changeFilter({ noteId: e.currentTarget.value || null })}>
               <option value="">Alle notater ({groupPct(null)} %)</option>
@@ -428,313 +359,50 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
             <option value="shuffle">Blandet</option>
           </select>
         </label>
+        {/* Står alltid alene på sin rad på mobil (det tredje valget etter «Korttype» og «Rekkefølge»). */}
+        {usesLength(filter.mode) && (
+          <label className="field fc-control-wide">
+            <span className="field-label">Lengde</span>
+            <select
+              value={filter.length ?? ''}
+              onChange={(e) => changeFilter({ length: e.currentTarget.value ? (Number(e.currentTarget.value) as PracticeLength) : null })}
+            >
+              <option value="">Alle kort</option>
+              <option value="10">10 kort</option>
+              <option value="20">20 kort</option>
+            </select>
+          </label>
+        )}
       </div>
 
-      {breakDue && !paused && (
-        <div className="fc-breakbar" role="status">
-          <span>Du har øvd i 30 minutter. En kort pause hjelper hukommelsen.</span>
-          <span className="fc-breakbar-actions">
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              onClick={() => {
-                setBreakDue(false);
-                setPausedAt(Date.now());
-              }}
-            >
-              <Coffee size={16} aria-hidden /> Ta pause
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => {
-                setBreakDue(false);
-                clock.sinceBreak = 0;
-              }}
-            >
-              Fortsett
-            </button>
-          </span>
-        </div>
-      )}
+      {clock.due && !clock.paused && <BreakBar onPause={clock.startPause} onContinue={clock.skipBreak} />}
 
       {filter.subset && (
         <div className="fc-repeat-note">
-          <span>Repetisjon av {plural(filter.subset.length, 'kort', 'kort')}</span>
-          <button type="button" className="link-btn" onClick={() => restart({ ...filter, subset: null })}>
+          <span>
+            {filter.subsetKind === 'chunk' ? 'Økt på' : 'Repetisjon av'} {plural(filter.subset.length, 'kort', 'kort')}
+          </span>
+          {/* Fra en kort økt slås lengden av; fra en repetisjon fortsetter øvingen som før (med lengden, neste økt). */}
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => (filter.subsetKind === 'chunk' ? changeFilter({ length: null }) : restart({ ...filter, subset: null }))}
+          >
             Tilbake til hele utvalget
           </button>
         </div>
       )}
 
-      <div className="fc-status">
-        <span>{selection.length > 0 && `${mastered} av ${selection.length} mestret`}</span>
-        <span className="fc-pills">
-          <span ref={streakRef} className={`fc-pill${round.streak >= 5 ? ' is-hot' : ''}`}>
-            Rekke {round.streak}
-          </span>
-          <span className="fc-pill is-best">Beste {best}</span>
-        </span>
-      </div>
-      <div
-        className="fc-bar"
-        role="progressbar"
-        aria-label="Mestring i utvalget"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={pct}
-      >
-        <div style={{ width: `${pct}%` }} />
-      </div>
-
-      {current ? (
-        <>
-          <div
-            ref={cardRef}
-            className={`fc-card${flipped ? ' is-flipped' : ''}`}
-            onClick={(e) => {
-              if ((e.target as Element).closest('.fc-detail-btn, .fc-detail, .fc-flip-hint')) return;
-              flip();
-            }}
-          >
-            <div className="fc-meta">
-              <span className="fc-source">{groupName(current.noteId ?? OWN_CARDS)}</span>
-              <span className="fc-meta-right">
-                <span className="fc-dots" role="img" aria-label={`Nivå ${levelOf(current)} av ${MASTER}`}>
-                  {Array.from({ length: MASTER }, (_, i) => (
-                    <i key={i} className={i < levelOf(current) ? 'is-on' : undefined} />
-                  ))}
-                </span>
-                <span className={`fc-tag fc-tag-${current.kind}`}>{KIND_LABEL[current.kind]}</span>
-              </span>
-            </div>
-            <p ref={questionRef} className="fc-question" tabIndex={-1}>
-              <RichText text={current.front} />
-            </p>
-            {flipped ? (
-              <ul ref={answerRef} className="fc-answer" tabIndex={-1} aria-label="Svar">
-                {current.back.map((line, i) => {
-                  const l = parseBackLine(line);
-                  return (
-                    <li key={i} className={l.label ? 'is-label' : undefined}>
-                      <RichText text={l.text} />
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <button type="button" className="fc-flip-hint" onClick={flip}>
-                Trykk for å snu kortet
-              </button>
-            )}
-            {current.detail && (
-              <button type="button" className="fc-detail-btn" aria-expanded={detailOpen} onClick={toggleDetail}>
-                {detailOpen ? 'Skjul detaljert forklaring' : 'Detaljert forklaring'}
-              </button>
-            )}
-            {detailOpen && current.detail && (
-              <div className="fc-detail">
-                <RichParagraphs text={current.detail} />
-              </div>
-            )}
-          </div>
-
-          <div className="fc-rate" role="group" aria-label="Hvor godt svarte du?">
-            {GRADES.map((g) => (
-              <button key={g.grade} type="button" className={`fc-g${g.grade}`} disabled={!flipped} onClick={() => onRate(g.grade)}>
-                {g.label}
-                <small>{g.hint}</small>
-              </button>
-            ))}
-          </div>
-          <div className={`fc-feedback${feedback.tone ? ` is-${feedback.tone}` : ''}`} aria-live="polite">
-            {feedback.text}
-          </div>
-          <div className="fc-sub">
-            <button type="button" className="link-btn" disabled={!undoStack.length} onClick={onUndo}>
-              <Undo2 size={15} aria-hidden /> Angre forrige
-            </button>
-            <button type="button" className="link-btn" onClick={() => void onReset()}>
-              <RotateCcw size={15} aria-hidden /> Nullstill fremgang i dette utvalget
-            </button>
-          </div>
-          <p className="fc-keys">
-            <span>
-              <kbd>Mellomrom</kbd> snu
-            </span>
-            <span>
-              <kbd>1</kbd>–<kbd>4</kbd> vurder svaret
-            </span>
-            <span>
-              <kbd>D</kbd> detaljert forklaring
-            </span>
-            <span>
-              <kbd>Z</kbd> angre
-            </span>
-          </p>
-        </>
+      {filter.mode === 'classic' ? (
+        pass && <ClassicPass session={session} pass={pass} setPass={setPass} />
+      ) : filter.mode === 'mastery' ? (
+        <MasteryRound session={session} round={round} setRound={setRound} />
       ) : (
-        <Done
-          selection={selection}
-          round={round}
-          best={best}
-          filter={filter}
-          groups={groups}
-          groupName={groupName}
-          groupDone={(g) => selectCards(effCards, { noteId: g, kind: filter.kind, subset: null }).every((c) => levelOf(c) >= MASTER)}
-          onRepeat={(ids) => restart({ ...filter, subset: ids }, ids)}
-          onRepeatAll={() => {
-            const all = selectCards(effCards, { ...filter, subset: null });
-            restart({ ...filter, subset: null }, all.map((c) => c.id));
-          }}
-          onNext={(g) => restart({ ...filter, noteId: g, subset: null })}
-          undo={undoStack.length > 0 ? onUndo : null}
-        />
+        <QuickRound session={session} round={round} setRound={setRound} cloze={filter.mode === 'cloze' ? clozeSeed : null} />
       )}
 
       <div ref={liveRef} className="sr-only" aria-live="polite" />
-      {paused && <PauseOverlay since={pausedAt} onResume={endPause} />}
+      {clock.paused && <PauseOverlay since={clock.pausedAt} onResume={endPause} />}
     </div>
-  );
-}
-
-function Done({
-  selection,
-  round,
-  best,
-  filter,
-  groups,
-  groupName,
-  groupDone,
-  onRepeat,
-  onRepeatAll,
-  onNext,
-  undo,
-}: {
-  selection: Flashcard[];
-  round: Round;
-  best: number;
-  filter: ViewFilter;
-  groups: string[];
-  groupName: (g: string) => string;
-  groupDone: (g: string) => boolean;
-  onRepeat: (ids: string[]) => void;
-  onRepeatAll: () => void;
-  onNext: (g: string) => void;
-  undo: (() => void) | null;
-}) {
-  if (selection.length === 0) {
-    return (
-      <section className="fc-done" aria-live="polite">
-        <h2>Ingen kort med dette utvalget</h2>
-        <p className="muted">Velg et annet notat eller en annen korttype.</p>
-      </section>
-    );
-  }
-  const choices = repetitionChoices(selection, round.grades);
-  const next = filter.noteId !== null ? groups.find((g) => g !== filter.noteId && !groupDone(g)) : undefined;
-  const allCount = filter.subset ? null : choices.all.length;
-  return (
-    <section className="fc-done is-win" aria-live="polite">
-      <h2>Alt i dette utvalget er mestret</h2>
-      <p className="muted">
-        Hvert kort er besvart riktig flere ganger med andre kort imellom. Velg hva du vil repetere, eller gå videre.
-      </p>
-      {round.answered > 0 && (
-        <div className="fc-stats">
-          <div>
-            <b>{round.answered}</b>
-            <span>svar i økta</span>
-          </div>
-          <div>
-            <b>{correctPct(round)} %</b>
-            <span>delvis eller bedre</span>
-          </div>
-          <div>
-            <b>{best}</b>
-            <span>beste rekke</span>
-          </div>
-        </div>
-      )}
-      <h3 className="fc-repeat-title">Repeter</h3>
-      <div className="fc-repeat">
-        {choices.misses.length > 0 && (
-          <button type="button" className="fc-repeat-btn is-primary" onClick={() => onRepeat(choices.misses)}>
-            <span className="fc-repeat-label">De du ikke kunne</span>
-            <span className="fc-repeat-meta">
-              {plural(choices.misses.length, 'kort', 'kort')} du svarte «Feil» på minst én gang
-            </span>
-          </button>
-        )}
-        {choices.unsure.length > choices.misses.length && (
-          <button
-            type="button"
-            className={`fc-repeat-btn${choices.misses.length === 0 ? ' is-primary' : ''}`}
-            onClick={() => onRepeat(choices.unsure)}
-          >
-            <span className="fc-repeat-label">{choices.misses.length > 0 ? 'Også de du var usikker på' : 'De du var usikker på'}</span>
-            <span className="fc-repeat-meta">{plural(choices.unsure.length, 'kort', 'kort')} med «Feil» eller «Delvis»</span>
-          </button>
-        )}
-        <button type="button" className="fc-repeat-btn" onClick={onRepeatAll}>
-          <span className="fc-repeat-label">{filter.subset ? 'Hele utvalget på nytt' : 'Alle på nytt'}</span>
-          <span className="fc-repeat-meta">
-            {allCount !== null ? `${plural(allCount, 'kort', 'kort')} fra nivå 0` : 'Alle kortene i utvalget fra nivå 0'}
-          </span>
-        </button>
-        {next && (
-          <button type="button" className="fc-repeat-btn" onClick={() => onNext(next)}>
-            <span className="fc-repeat-label">Gå videre til {groupName(next)}</span>
-            <span className="fc-repeat-meta">Neste notat som ikke er mestret</span>
-          </button>
-        )}
-      </div>
-      {undo && (
-        <div className="fc-sub">
-          <button type="button" className="link-btn" onClick={undo}>
-            <Undo2 size={15} aria-hidden /> Angre forrige
-          </button>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function PauseOverlay({ since, onResume }: { since: number | null; onResume: () => void }) {
-  const [now, setNow] = useState(() => Date.now());
-  const ref = useRef<HTMLDialogElement>(null);
-  const resume = useRef(onResume);
-  resume.current = onResume;
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  // Ekte modal dialog: fokus holdes inne, bakgrunnen kan ikke brukes, og Esc betyr «Fortsett å øve».
-  useLayoutEffect(() => {
-    const dialog = ref.current;
-    if (!dialog) return;
-    if (!dialog.open) dialog.showModal();
-    const onCancel = (e: Event) => {
-      e.preventDefault();
-      resume.current();
-    };
-    dialog.addEventListener('cancel', onCancel);
-    return () => {
-      dialog.removeEventListener('cancel', onCancel);
-      if (dialog.open) dialog.close();
-    };
-  }, []);
-  const s = Math.max(0, Math.floor((now - (since ?? now)) / 1000));
-  return (
-    <dialog ref={ref} className="fc-pause" aria-labelledby="fc-pause-title">
-      <h2 id="fc-pause-title">Pause</h2>
-      <div className="fc-pause-clock" aria-hidden>
-        {Math.floor(s / 60)}:{String(s % 60).padStart(2, '0')}
-      </div>
-      <p>Se bort fra skjermen, strekk på deg og drikk litt vann. Fremgangen din er lagret.</p>
-      <button type="button" className="btn btn-primary btn-lg" onClick={onResume} autoFocus>
-        Fortsett å øve
-      </button>
-    </dialog>
   );
 }

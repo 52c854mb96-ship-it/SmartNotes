@@ -67,6 +67,25 @@ export interface ProgressEntry {
 /** Rekkefølgen kortene øves i. */
 export type PracticeOrder = 'notes' | 'shuffle';
 
+/**
+ * Øvingsformen: Mestring (standard), Rask runde, Klassisk eller Luketekst. Logikken står i `flashcards/model.ts`.
+ * Økter lagret før formene fantes, har ingen form og leses som Mestring (`normalizePracticeState`).
+ */
+export type PracticeMode = 'mastery' | 'quick' | 'classic' | 'cloze';
+
+/** Klassisk: én gjennomgang av kortene, uten vurdering. */
+export interface PracticePass {
+  /** Kortene i gjennomgangen, i rekkefølgen de vises (også mestrede). */
+  ids: string[];
+  /** Kortet som vises. `ids.length` betyr at gjennomgangen er ferdig. */
+  index: number;
+  /** Kortene eleven har merket for å øve mer på, i gjennomgangens rekkefølge. */
+  marked: string[];
+}
+
+/** Lengde: antall kort i en kort økt. */
+export type PracticeLength = 10 | 20;
+
 /** Øktene lagres per kortstokk på denne enheten, så man kan gå fra og fortsette der man slapp. */
 export interface PracticeState {
   deckId: string;
@@ -85,6 +104,21 @@ export interface PracticeState {
   correct: number;
   streak: number;
   updatedAt: number;
+  // Feltene under kom med øvingsformene. De er valgfrie og ikke indeksert, så de trenger ingen ny databaseversjon.
+  /** Øvingsformen (mangler i eldre økter, som da er Mestring). Huskes per kortstokk. */
+  mode?: PracticeMode;
+  /** Klassisk: gjennomgangen som pågår. */
+  pass?: PracticePass;
+  /** Rask runde og Luketekst: kortene eleven har kunnet i runden. De tas ikke inn i køen igjen. */
+  done?: string[];
+  /** Lengde: en kort økt på 10 eller 20 kort (null eller mangler = hele utvalget). */
+  length?: PracticeLength | null;
+  /** Hva `subset` er: en repetisjon etter runden eller en kort økt (mangler = repetisjon). */
+  subsetKind?: 'repeat' | 'chunk';
+  /** Rask runde med lengde: kortene eleven alt har hatt i denne omgangen. */
+  seen?: string[];
+  /** Luketekst: rundenummeret som velger luka i hvert kort (`clozeOf`). Øker med 1 for hver nye runde. */
+  clozeSeed?: number;
 }
 
 export interface MetaEntry {

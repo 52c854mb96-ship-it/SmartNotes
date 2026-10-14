@@ -46,6 +46,9 @@ export async function register(browser: Browser, link: string, username: string,
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(link);
+  // Nye elever ser hva de registrerer seg til: den korte presentasjonen fra forsiden.
+  await expect(page.getByRole('heading', { name: 'SmartNotes – Realfag VGS', level: 1 })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'Dette er SmartNotes' }).getByRole('listitem')).toHaveCount(3);
   // Koden står i skjemaet, men ikke lenger i adressefeltet.
   await expect(page.getByLabel('Invitasjonskode')).toHaveValue(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
   await expect(page).toHaveURL(/\/registrer$/);

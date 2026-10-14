@@ -2,13 +2,20 @@ import { Fragment, type ReactNode } from 'react';
 import { renderTex, useKatex } from './katex';
 import { paragraphs, parseInline } from './richtext';
 
-/** Tekst med **fet** og $formler$ (se richtext.ts). */
-export function RichText({ text }: { text: string }) {
+/** En luke i teksten (Luketekst): delen `part` av `parseInline(text)` byttes ut med `node`. */
+export interface Gap {
+  part: number;
+  node: ReactNode;
+}
+
+/** Tekst med **fet** og $formler$ (se richtext.ts), eventuelt med en luke. */
+export function RichText({ text, gap }: { text: string; gap?: Gap }) {
   const { katex } = useKatex();
   const parts = parseInline(text);
   return (
     <>
       {parts.map((p, i) => {
+        if (gap && i === gap.part) return <Fragment key={i}>{gap.node}</Fragment>;
         let node: ReactNode;
         if (p.type === 'text') node = p.text;
         else if (katex)
