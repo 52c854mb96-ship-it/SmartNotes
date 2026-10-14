@@ -13,18 +13,68 @@ import { useAuth } from '../lib/connectivity';
  */
 
 const MISSING = '[Fylles inn]';
+const CACHE_KEY = 'smartnotes-legal';
 
-function useLegal(): LegalInfo | null {
-  const [info, setInfo] = useState<LegalInfo | null>(null);
+/** Opplysningene fra serveren, eller hvorfor de mangler ennå: de hentes, eller enheten er uten nett. */
+type Legal = { info: LegalInfo; state: 'ok' } | { info: null; state: 'loading' | 'offline' };
+
+function cached(): LegalInfo | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? (JSON.parse(raw) as LegalInfo) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Henter ansvarlig, kontakt og tallene fra serveren. Det siste svaret huskes på enheten, så sidene er riktige også uten
+ * nett. «[Fylles inn]» vises bare når serveren har svart at verdien mangler.
+ */
+function useLegal(): Legal {
+  const [legal, setLegal] = useState<Legal>(() => {
+    const info = cached();
+    return info ? { info, state: 'ok' } : { info: null, state: 'loading' };
+  });
   useEffect(() => {
     const ctrl = new AbortController();
     api
       .legal(ctrl.signal)
-      .then(setInfo)
-      .catch(() => {});
+      .then((info) => {
+        setLegal({ info, state: 'ok' });
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(info));
+        } catch {
+          /* privat modus */
+        }
+      })
+      .catch(() => {
+        if (!ctrl.signal.aborted) setLegal((l) => (l.info ? l : { info: null, state: 'offline' }));
+      });
     return () => ctrl.abort();
   }, []);
-  return info;
+  return legal;
+}
+
+/** En verdi fra serveren som ikke er hentet ennå. */
+function Pending({ state }: { state: 'loading' | 'offline' }) {
+  return <span className="muted">{state === 'loading' ? '…' : '(krever nett)'}</span>;
+}
+
+/** Ansvarlig: navnet, «[Fylles inn]» når det mangler på serveren, eller en plassholder mens det hentes. */
+function Controller({ legal }: { legal: Legal }) {
+  if (!legal.info) return <Pending state={legal.state} />;
+  return legal.info.controllerName ? <strong>{legal.info.controllerName}</strong> : <strong className="legal-missing">{MISSING}</strong>;
+}
+
+function Contact({ legal, subject }: { legal: Legal; subject: string }) {
+  if (!legal.info) return <Pending state={legal.state} />;
+  return <ContactLink contact={legal.info.contact} subject={subject} />;
+}
+
+/** Et tall fra serveren (alder, kvoter), eller en plassholder mens det hentes. */
+function Num({ legal, value }: { legal: Legal; value: (info: LegalInfo) => number }) {
+  return legal.info ? <>{value(legal.info)}</> : <Pending state={legal.state} />;
 }
 
 /** Kontakten som lenke når det er en e-postadresse, ellers som tekst. */
@@ -66,13 +116,13 @@ function LegalLayout({ title, updated, children }: { title: string; updated: str
 }
 
 export function PrivacyPage() {
-  const info = useLegal();
+  const legal = useLegal();
   return (
     <LegalLayout title="Personvernerklæring" updated="14. oktober 2026">
       <h2>Hvem er ansvarlig</h2>
       <p>
-        Ansvarlig for personopplysningene i SmartNotes er <strong>{info?.controllerName ?? MISSING}</strong>. Spørsmål, ønske om
-        innsyn eller sletting sender du til <ContactLink contact={info?.contact} subject="Personvern i SmartNotes" />.
+        Ansvarlig for personopplysningene i SmartNotes er <Controller legal={legal} />. Spørsmål, ønske om innsyn eller sletting
+        sender du til <Contact legal={legal} subject="Personvern i SmartNotes" />.
       </p>
 
       <h2>Hva som lagres</h2>
@@ -88,18 +138,23 @@ export function PrivacyPage() {
         </li>
         <li>
           Innloggingene dine og enhetene du har logget inn fra, som tilfeldige koder i informasjonskapsler. Enhetskoden gjør at
-          kontoen din ikke sperres for deg når noen andre prøver feil passord.
+          kontoen din ikke sperres for deg når noen andre prøver feil passord. Til hver innlogging lagres også hvilken nettleser
+          og hvilket system den kom fra, slik nettleseren selv oppgir det.
         </li>
         <li>
           En logg over AI-bruken: tidspunkt, modell, antall tokens og sider og beregnet pris. Den har ikke noe av innholdet i
           notatene.
+        </li>
+        <li>
+          En driftslogg på serveren med tidspunkt, IP-adresse og adresse (URL) for hver forespørsel, og feilmeldinger fra
+          oppsettet av PDF-ene, som kan ta med et lite utdrag av teksten i et notat. Loggen brukes til drift og sikkerhet.
         </li>
       </ul>
       <p>SmartNotes har ingen reklame, ingen sporing og ingen analyseverktøy.</p>
 
       <h2>Hvor dataene er, og hvem som får dem</h2>
       <ul>
-        <li>Dataene ligger på serveren til SmartNotes, som kjører hos skytjenesten Railway.</li>
+        <li>Dataene ligger på serveren til SmartNotes, som kjører hos skytjenesten Railway. Driftsloggen ligger også der.</li>
         <li>
           For å lese notatene sendes bildene av sidene til Anthropic, selskapet bak AI-modellen Claude. Teksten i notatene sendes
           også dit når du lager en kortstokk, og innholdsfortegnelser når du lar AI-en lese dem. Hvordan Anthropic behandler og
@@ -116,37 +171,40 @@ export function PrivacyPage() {
       <h2>Hvor lenge</h2>
       <p>
         Dataene blir liggende til du sletter dem eller kontoen. Sletter du et notat, slettes bildene og PDF-ene fra serveren med en
-        gang, mens tittelen og teksten blir liggende i databasen, merket som slettet, til du sletter kontoen. Kopien på en enhet
-        slettes når du logger ut der. Sikkerhetskopier som eieren har lastet ned, kan fortsatt inneholde dataene dine til de
-        slettes.
+        gang (også samle-PDF-ene for kapittelet og faget), mens tittelen og teksten blir liggende i databasen, merket som slettet,
+        til du sletter kontoen. Kopien på en enhet slettes når du logger ut der. Sikkerhetskopier som eieren har lastet ned, kan
+        fortsatt inneholde dataene dine til de slettes. Driftsloggen slettes ikke når du sletter kontoen; hvor lenge den
+        beholdes, bestemmes av oppsettet hos Railway.
       </p>
 
       <h2>Slik sletter du</h2>
       <p>
-        Innstillinger → Konto → «Slett kontoen» sletter alt du har på serveren: fag, notater, PDF-er, kortstokker og loggen over
-        AI-bruken. Det kan ikke angres.
+        Innstillinger → Konto → «Slett kontoen» sletter alt du har på serveren: fag, notater, PDF-er, kortstokker, innloggingene og
+        loggen over AI-bruken (ikke driftsloggen). Det kan ikke angres.
       </p>
 
       <h2>Rettighetene dine</h2>
       <p>
         Du kan be om innsyn i, retting av og sletting av opplysningene om deg, og du kan klage til Datatilsynet. Kontakt{' '}
-        <ContactLink contact={info?.contact} subject="Personvern i SmartNotes" />.
+        <Contact legal={legal} subject="Personvern i SmartNotes" />.
       </p>
     </LegalLayout>
   );
 }
 
 export function TermsPage() {
-  const info = useLegal();
+  const legal = useLegal();
   return (
     <LegalLayout title="Vilkår" updated="14. oktober 2026">
       <p>
         SmartNotes er i en lukket beta. Appen er gratis, uten garantier, og kan endres eller legges ned. Ansvarlig er{' '}
-        <strong>{info?.controllerName ?? MISSING}</strong>.
+        <Controller legal={legal} />.
       </p>
       <h2>For å bruke SmartNotes</h2>
       <ul>
-        <li>Du må være minst {info?.minAge ?? 15} år.</li>
+        <li>
+          Du må være minst <Num legal={legal} value={(i) => i.minAge} /> år.
+        </li>
         <li>
           Last bare opp det du har rett til: dine egne notater. Ikke last opp andres materiale, som sider fra lærebøker, uten
           lov.
@@ -160,13 +218,13 @@ export function TermsPage() {
       </ul>
       <h2>Gratiskontoen</h2>
       <p>
-        En gratiskonto kan konvertere {info?.freePagesPerDay ?? 15} sider og lage {info?.freeDecksPerDay ?? 2} kortstokker per
-        døgn. Notater over kvoten konverteres neste døgn.
+        En gratiskonto kan konvertere <Num legal={legal} value={(i) => i.freePagesPerDay} /> sider og lage{' '}
+        <Num legal={legal} value={(i) => i.freeDecksPerDay} /> kortstokker per døgn. Notater over kvoten konverteres neste døgn.
       </p>
       <h2>Innhold og misbruk</h2>
       <p>
         Innhold som bryter vilkårene, kan fjernes etter varsel, og kontoen kan stenges. Ser du noe som ikke hører hjemme her, kan du
-        melde fra til <ContactLink contact={info?.contact} subject="Melding om innhold i SmartNotes" />.
+        melde fra til <Contact legal={legal} subject="Melding om innhold i SmartNotes" />.
       </p>
     </LegalLayout>
   );
@@ -191,7 +249,8 @@ export function AiUsePage() {
       <ul>
         <li>Følg reglene skolen din har for bruk av AI.</li>
         <li>
-          PDF-ene er merket «AI-generert». Ikke lever dem som innlevering eller bruk dem på en prøve der det ikke er lov.
+          PDF-ene som lages nå, er merket «AI-generert» nederst på sidene. Ikke lever dem som innlevering eller bruk dem på en
+          prøve der det ikke er lov.
         </li>
         <li>Blir du spurt om du har brukt AI, si det som det er.</li>
       </ul>

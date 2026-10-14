@@ -68,6 +68,20 @@ export class Storage {
     await fsp.rm(this.noteDir(noteId), { recursive: true, force: true });
   }
 
+  /**
+   * Fjerner alle versjoner av samle-PDF-ene med disse prefiksene (`chapter-<id>`, `subject-<id>`), for eksempel når et
+   * notat, et kapittel, et fag eller en konto slettes. En PDF som skrives akkurat nå (`.tmp`), rydder `Bundler` selv.
+   */
+  async removeBundles(prefixes: string[]): Promise<void> {
+    if (prefixes.length === 0) return;
+    const files = await fsp.readdir(this.bundlesRoot).catch(() => [] as string[]);
+    await Promise.all(
+      files
+        .filter((f) => !f.endsWith('.tmp') && prefixes.some((p) => f.startsWith(`${p}-`)))
+        .map((f) => fsp.rm(path.join(this.bundlesRoot, f), { force: true })),
+    );
+  }
+
   /** Rydder bort gamle midlertidige mapper (f.eks. etter krasj). */
   async cleanTmp(maxAgeMs = 6 * 3600_000): Promise<void> {
     const entries = await fsp.readdir(this.tmpRoot, { withFileTypes: true }).catch(() => []);

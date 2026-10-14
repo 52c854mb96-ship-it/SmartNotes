@@ -878,6 +878,8 @@ export class Repo {
   // ---------- Forbrukslogg ----------
 
   logUsage(e: UsageEntry): void {
+    // Et kall som var i gang da kontoen ble slettet, skriver ikke inn en ny rad for den slettede brukeren.
+    if (e.userId != null && !this.getUser(e.userId)) return;
     this.db
       .prepare(
         `INSERT INTO usage_log (at, kind, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
@@ -1352,6 +1354,7 @@ export class Repo {
   }
 
   addQuota(userId: number, kind: QuotaKind, amount: number, ref: string | null, at = Date.now()): void {
+    if (!this.getUser(userId)) return;
     this.db.prepare(`INSERT INTO quota_log (user_id, kind, amount, at, ref) VALUES (?, ?, ?, ?, ?)`).run(userId, kind, amount, at, ref);
   }
 

@@ -191,6 +191,8 @@ export function registerNoteRoutes(app: FastifyInstance, d: Deps): void {
     // Venter notatet på hjemmemaskinen, trengs ikke svaret lenger.
     hub?.cancel((ref) => ref.noteId === row.id);
     await storage.removeNote(row.id).catch(() => undefined);
+    // Samle-PDF-ene med notatet (kapittelet og faget) lages på nytt neste gang de åpnes.
+    await storage.removeBundles([`subject-${row.subject_id}`, ...(row.chapter_id ? [`chapter-${row.chapter_id}`] : [])]);
     return { ok: true };
   });
 

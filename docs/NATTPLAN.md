@@ -238,7 +238,8 @@ Skriv tydelig i morgenrapporten om alt dette er på plass, og hva som eventuelt 
 **Om morgenen** (nattøkta fyller ut lista):
 - Les morgenrapporten nederst i denne fila.
 - **Før en annen elev logger inn:**
-  - fyll inn ansvarlig og kontakt (variablene i Railway);
+  - fyll inn ansvarlig og kontakt: variablene `PRIVACY_CONTROLLER_NAME` og `PRIVACY_CONTACT` i Railway (steg i OPPSETT.md, «Personvern og vilkår»);
+  - sjekk det personvernerklæringen ikke påstår noe om, fordi det ikke kunne sjekkes i natt: hvilken region Railway-tjenesten og volumet ligger i (Settings i Railway), hvor lenge Railway beholder driftsloggen, og hva Anthropics vilkår for API-et sier om lagring og trening på dataene;
   - la gjerne en forelder lese personvernerklæringen og vilkårene;
   - sett en månedlig grense i Anthropic Console → Settings → Limits (planens forslag: grense 20 USD, varsel ved 10 USD);
   - planen anbefaler også at en voksen eier API-kontoen før andre bruker appen.
@@ -258,6 +259,9 @@ Nattøkta skriver her de valgene den har tatt på egen hånd, så eleven kan se 
 - **Kortstokker og innholdsfortegnelser for andre elever** går til den samme AI-en som dine (standard Haiku hos Anthropic). Slår du på hjemmemaskinen for disse oppgavene, gjelder det også elevene, og notatene deres behandles da på din maskin. Konverteringen deres går alltid til Haiku hos Anthropic.
 - **Kvotene for gratiskontoer** (kan endres med variabler i Railway): 15 sider (`FREE_PAGES_PER_DAY`), 2 kortstokker (`FREE_DECKS_PER_DAY`) og 3 innholdsfortegnelser med AI (`FREE_TOC_PER_DAY`) per døgn, høyst 20 notater i kø (`FREE_QUEUE_MAX`) og et felles dagsbudsjett på 30 kroner (`FREE_DAILY_BUDGET_NOK`). Det første notatet i et døgn får starte selv om det har flere sider enn taket.
 - **Utklipp** lagres som JPEG når det sparer minst 30 prosent, ellers som PNG. **Originalfilene** (`source/`) slettes ikke etter konverteringen, fordi «Konverter på nytt», «Prøv med Haiku» og sikkerhetskopien trenger dem.
+- **Slettede notater:** bildene og PDF-ene slettes med en gang, men tittelen og teksten blir liggende i databasen merket som slettet (det trengs for synken til enhetene) til eleven sletter kontoen. Personvernerklæringen sier det.
+- **«AI-generert» på PDF-er fra før:** merket kommer når notatet kompileres på nytt. Jeg har ikke kompilert alle notatene dine på nytt i natt (det ville tatt tid på serveren og endret PDF-ene uten at du ba om det). Si fra hvis du vil det.
+- **Driftsloggen** på serveren (Railway) har IP-adressen og adressen til hver forespørsel, som den har hatt hele tiden. Den slettes ikke ved «Slett kontoen». Personvernerklæringen sier det.
 - **Kontosperren** gjelder nå også deg: 10 feil passord fra nye enheter i løpet av et kvarter sperrer kontoen for nye enheter i et kvarter. Enheter du har logget inn fra før, slipper alltid inn. Før kontoene stengte 50 feil ute alle.
 
 ## Logg
@@ -352,6 +356,24 @@ Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er nest
     - en innholdsfortegnelse ble gitt tilbake også når AI-en hadde svart (og kallet var betalt), og tilbakebetalingen etter midnatt havnet i feil døgn;
     - en modell som mangler i pristabellen, ble regnet som gratis i dagsbudsjettet (nå den dyreste prisen);
     - et utklipp fra en tidligere kjøring med den andre filendelsen ble liggende, og LaTeX kunne ta det gamle.
+  - Kl. 01.38: PR [#28](https://github.com/52c854mb96-ship-it/SmartNotes/pull/28) (kvoter) er laget, og flettet kl. 01.52 etter grønn CI. Grenen er nullstilt fra `main`.
+- Fase 5b (personvern og vilkår), design og resultat (bygget i `/home/user/sn-5b`):
+  - Egne sider som kan leses uten innlogging: personvernerklæring (`/personvern`), vilkår (`/vilkar`) og «Trygg og ærlig bruk av AI» (`/ai-bruk`), på enkel bokmål. Lenker fra innloggingen, registreringen, nytt passord og Innstillinger.
+  - Ansvarlig og kontakt kommer fra `PRIVACY_CONTROLLER_NAME` og `PRIVACY_CONTACT` (`GET /api/legal`), med «[Fylles inn]» i rødt når de mangler.
+  - Registreringen krever at eleven godtar vilkårene og personvernerklæringen (`users.terms_accepted_at`).
+  - Vilkårene: bare egne notater, bare egen læring og ingen deling, ikke lever AI-tekst som eget arbeid der det ikke er lov, AI-en kan ta feil, og innhold kan fjernes etter varsel.
+  - Personvernerklæringen sier hva som lagres (også nettleseren per innlogging og driftsloggen med IP-adresser), at bildene sendes til Anthropic og dataene ligger hos Railway (uten påstander om hva de gjør, se morgenlista), hvor lenge, hvem som ser hva, og hvordan man sletter.
+  - «AI-generert med SmartNotes» nederst på sidene i PDF-ene (felles tillegg i malen, så også samle-PDF-ene) og på notatsiden, og «Meld fra» til kontakten.
+  - «Slett kontoen» (Innstillinger → Konto, med passordet) sletter alle radene og filene til eleven, også samle-PDF-ene, økter, enheter og forbruksloggen. Eieren kan ikke slette seg selv. Forbruksloggen har ikke noe innhold fra notatene (testet).
+  - Gjennomgang (tre kontrollører og én skeptiker per funn, 20 agenter): 17 funn, 13 bekreftet (9 ulike) og rettet med tester:
+    - passordsjekken ved sletting talte forsøkene etter scrypt, så forsøk sendt samtidig slapp forbi grensen, og den kunne fylle køen for passordsjekker (nå som ved innloggingen);
+    - slettingen avbrøt bare kallene på hjemmemaskinen for notater, ikke kortstokker og innholdsfortegnelser;
+    - et AI-kall som var i gang, kunne skrive en ny rad i forbruksloggen for den slettede brukeren;
+    - samle-PDF-er ble liggende når et notat, et kapittel eller et fag ble slettet, og en som ble laget mens noe ble slettet;
+    - personvernerklæringen nevnte ikke nettleseren som lagres per innlogging eller driftsloggen med IP-adresser;
+    - sidene viste «[Fylles inn]» og standardtallene mens de lastet og uten nett (nå huskes det siste svaret);
+    - lagrede samle-PDF-er fikk ikke bunnteksten (nøkkelen tar nå med det felles tillegget), og teksten lovet merket også på PDF-er fra før;
+    - morgenlista manglet punktene om Railway og Anthropic som ikke er sjekket.
 
 ## Morgenrapport
 

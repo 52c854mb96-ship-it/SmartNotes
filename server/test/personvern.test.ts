@@ -9,6 +9,7 @@ import type { CreateInviteResponse, Deck, InvitesResponse, LegalInfo, LoginRespo
 import { buildApp, type AppContext } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { OWNER_ID } from '../src/db.js';
+import { bundleKey, type BuildInput } from '../src/pipeline/bundle.js';
 import { FakeClaude } from '../src/pipeline/claude.js';
 
 /**
@@ -172,10 +173,126 @@ describe('slett konto', () => {
     expect((await owner.sync()).subjects.length).toBeGreaterThan(0);
   }, 120_000);
 
+  it('teller passordforsøk sendt samtidig før sjekken, så bare fem slipper gjennom', async () => {
+    const victim = await student('samtidig');
+    const tries = await Promise.all(
+      Array.from({ length: 10 }, (_, i) => victim.client.call<{ error: string }>('DELETE', '/api/auth/account', { json: { password: `feil-${i}` } })),
+    );
+    expect(tries.filter((r) => r.status === 403 && r.body.error === 'wrong_password')).toHaveLength(5);
+    expect(tries.filter((r) => r.status === 429 && r.body.error === 'too_many_attempts')).toHaveLength(5);
+    // Riktig passord hjelper ikke før sperren er over, og kontoen er urørt.
+    expect((await victim.client.call('DELETE', '/api/auth/account', { json: { password: 'passord-123' } })).status).toBe(429);
+    expect(ctx.repo.getUser(victim.userId)).not.toBeNull();
+  });
+
+  it('gir tilbake forsøket når passordet stemmer', async () => {
+    const victim = await student('riktig-etter-feil');
+    for (let i = 0; i < 4; i++) {
+      expect((await victim.client.call('DELETE', '/api/auth/account', { json: { password: `feil-${i}` } })).status).toBe(403);
+    }
+    expect((await victim.client.call('DELETE', '/api/auth/account', { json: { password: 'passord-123' } })).status).toBe(200);
+  });
+
+  it('avbryter alle brukerens kall på hjemmemaskinen, og det som var i gang, skriver ingen nye rader etterpå', async () => {
+    const victim = await student('i-gang');
+    const other = await student('i-gang-annen');
+    // Et kall uten notat (som en innholdsfortegnelse eller en kortstokk) og et for en annen elev venter på hjemmemaskinen.
+    const call = { method: 'mapSectionAims' as const, profile: 'physics' as const, chapters: [], aims: [] };
+    const mine = ctx.hub.submit(call, { ref: { userId: victim.userId, subjectId: victim.subjectId } });
+    const theirs = ctx.hub.submit(call, { ref: { userId: other.userId, subjectId: other.subjectId } });
+    const waiting = ctx.hub.status().waiting;
+    expect((await victim.client.call('DELETE', '/api/auth/account', { json: { password: 'passord-123' } })).status).toBe(200);
+    expect(await mine).toMatchObject({ ok: false });
+    expect(ctx.hub.status().waiting).toBe(waiting - 1);
+    ctx.hub.cancel((ref) => ref.userId === other.userId);
+    expect(await theirs).toMatchObject({ ok: false });
+
+    // Et AI-kall eller en tilbakebetaling som blir ferdig etter slettingen, skriver ikke inn den slettede brukeren igjen.
+    ctx.repo.logUsage({
+      at: Date.now(),
+      kind: 'convert',
+      provider: 'anthropic',
+      model: 'claude-haiku-5-5',
+      inputTokens: 10,
+      outputTokens: 10,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      durationMs: 1,
+      ok: true,
+      error: null,
+      noteId: null,
+      deckId: null,
+      subjectId: victim.subjectId,
+      userId: victim.userId,
+      pages: 1,
+    });
+    ctx.repo.addQuota(victim.userId, 'toc', -1, victim.subjectId);
+    for (const table of ['usage_log', 'quota_log']) {
+      expect(ctx.repo.db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE user_id = ?`).get(victim.userId), table).toEqual({ n: 0 });
+    }
+  });
+
   it('lar ikke eieren slette sin egen konto', async () => {
     const res = await owner.call<{ message: string }>('DELETE', '/api/auth/account', { json: { password: PASSWORD } });
     expect(res.status).toBe(400);
     expect(res.body.message).toBe('Eieren kan ikke slette sin egen konto.');
     expect(ctx.repo.getUser(OWNER_ID)).not.toBeNull();
+  });
+});
+
+describe('samle-PDF-er etter sletting', () => {
+  const bundles = (prefix: string) => fs.readdirSync(ctx.storage.bundlesRoot).filter((f) => f.startsWith(`${prefix}-`));
+
+  it('fjernes når et notat, et kapittel eller et fag slettes', async () => {
+    const s = await student('samle');
+    const chapter = (await s.client.sync()).chapters.find((c) => c.subjectId === s.subjectId)!;
+    const note = await convertedNote(s.client, s.subjectId);
+    expect((await s.client.call('PATCH', `/api/notes/${note.id}`, { json: { chapterId: chapter.id } })).status).toBe(200);
+    await ctx.worker.idle();
+    const second = await convertedNote(s.client, s.subjectId);
+    const build = async () => {
+      expect((await s.client.call('GET', `/api/subjects/${s.subjectId}/pdf`)).status).toBe(200);
+      expect((await s.client.call('GET', `/api/chapters/${chapter.id}/pdf`)).status).toBe(200);
+      expect(bundles(`subject-${s.subjectId}`)).toHaveLength(1);
+      expect(bundles(`chapter-${chapter.id}`)).toHaveLength(1);
+    };
+
+    await build();
+    expect((await s.client.call('DELETE', `/api/notes/${second.id}`)).status).toBe(200);
+    expect(bundles(`subject-${s.subjectId}`)).toHaveLength(0);
+
+    await build();
+    expect((await s.client.call('DELETE', `/api/chapters/${chapter.id}`)).status).toBe(200);
+    expect(bundles(`chapter-${chapter.id}`)).toHaveLength(0);
+    await ctx.worker.idle();
+
+    expect((await s.client.call('GET', `/api/subjects/${s.subjectId}/pdf`)).status).toBe(200);
+    expect(bundles(`subject-${s.subjectId}`)).toHaveLength(1);
+    expect((await s.client.call('DELETE', `/api/subjects/${s.subjectId}`)).status).toBe(200);
+    expect(bundles(`subject-${s.subjectId}`)).toHaveLength(0);
+  }, 180_000);
+
+  it('blir ikke liggende når notatet slettes mens PDF-en lages', async () => {
+    const s = await student('samle-underveis');
+    const note = await convertedNote(s.client, s.subjectId);
+    const tmpBefore = new Set(fs.readdirSync(ctx.storage.tmpRoot));
+    const pending = s.client.call<{ error: string }>('GET', `/api/subjects/${s.subjectId}/pdf`);
+    // Vent til LaTeX arbeider med samle-PDF-en (en ny `bundle-*`-mappe), og slett notatet da.
+    const start = Date.now();
+    while (!fs.readdirSync(ctx.storage.tmpRoot).some((d) => d.startsWith('bundle-') && !tmpBefore.has(d))) {
+      if (Date.now() - start > 20_000) throw new Error('Samle-PDF-en startet ikke');
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    expect((await s.client.call('DELETE', `/api/notes/${note.id}`)).status).toBe(200);
+    const res = await pending;
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('changed');
+    expect(bundles(`subject-${s.subjectId}`)).toHaveLength(0);
+  }, 120_000);
+
+  it('lages på nytt når det felles tillegget endres (for eksempel bunnteksten «AI-generert»)', () => {
+    const input: BuildInput = { subjectName: 'Fysikk 1', title: 'Fysikk 1', subtitle: 'Notater', headerLabel: '', sections: [] };
+    expect(bundleKey('\\documentclass{article}', input)).toBe(bundleKey('\\documentclass{article}', input));
+    expect(bundleKey('\\documentclass{article}', input, 'før')).not.toBe(bundleKey('\\documentclass{article}', input, 'etter'));
   });
 });

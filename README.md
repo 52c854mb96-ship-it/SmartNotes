@@ -170,7 +170,7 @@ Hver side sendes som et bilde i høy oppløsning (ca. 4 800 tokens). Med Claude 
 
 Bildene av notatene sendes til Anthropics API for å bli lest. Originalene, LaTeX-koden og PDF-ene lagres bare på din egen server og på enhetene dine.
 
-Appen har en personvernerklæring (`/personvern`), vilkår (`/vilkar`) og en side om trygg og ærlig bruk av AI (`/ai-bruk`), lenket fra innloggingen, registreringen og Innstillinger. Nye brukere må godta vilkårene og personvernerklæringen for å lage en konto. Ansvarlig og kontakt fylles inn med `PRIVACY_CONTROLLER_NAME` og `PRIVACY_CONTACT`. PDF-ene er merket «AI-generert med SmartNotes» nederst på hver side. En elev kan slette kontoen sin med alt den har på serveren (Innstillinger → Konto → «Slett kontoen»); eieren kan ikke slette sin egen.
+Appen har en personvernerklæring (`/personvern`), vilkår (`/vilkar`) og en side om trygg og ærlig bruk av AI (`/ai-bruk`), lenket fra innloggingen, registreringen og Innstillinger. Nye brukere må godta vilkårene og personvernerklæringen for å lage en konto. Ansvarlig og kontakt fylles inn med `PRIVACY_CONTROLLER_NAME` og `PRIVACY_CONTACT`. PDF-er som lages fra nå av, er merket «AI-generert med SmartNotes» nederst på sidene (et notat som finnes fra før, får merket når det kompileres på nytt). En elev kan slette kontoen sin med alt den har på serveren (Innstillinger → Konto → «Slett kontoen»); eieren kan ikke slette sin egen.
 
 ## Utvikling og tester
 
