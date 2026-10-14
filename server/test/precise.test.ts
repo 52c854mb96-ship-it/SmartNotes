@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { SubjectProfile } from '@smartnotes/shared';
 import { loadConfig } from '../src/config.js';
 import type { ConvertRequest } from '../src/pipeline/ai.js';
 import { AnthropicClaude } from '../src/pipeline/claude.js';
@@ -16,16 +17,24 @@ import { CLOSING, HAIKU_CLOSING, PROMPT_VERSION } from '../src/profiles/precise.
  * Fingeravtrykket av instruksene for hver versjon. Endrer du de presise reglene, avslutningene eller oppsettet i
  * sammenligningen (grundighet, svarlengde, rettingsrunder), øker du PROMPT_VERSION i profiles/precise.ts og legger inn
  * det nye fingeravtrykket her. Da skilles elevens vurderinger av de gamle og de nye instruksene i Innstillinger.
+ * Fra versjon 5 er også grunninstruksen og rettingsinstruksen til hvert fag med; versjon 2–4 ble regnet ut uten dem
+ * (testen sjekker bare gjeldende versjon).
  */
 const FINGERPRINTS: Record<number, string> = {
   2: '1cd64847f6a76608',
   3: '03b4656a8f0592f9',
   4: 'da51f20db33a32d2',
+  5: '2f88a7768af21f48',
 };
 
 const fingerprint = () =>
   createHash('sha256')
-    .update(PROFILE_IDS.map((id) => getProfile(id).preciseRules).join('\n---\n'))
+    .update(
+      PROFILE_IDS.map((id) => {
+        const p = getProfile(id);
+        return `${p.systemPrompt}\n${p.preciseRules}\n${p.fixInstructions}`;
+      }).join('\n---\n'),
+    )
     .update(`\n---\n${HAIKU_CLOSING}`)
     .update(`\n---\n${CLOSING}`)
     .update(`effort=${COMPARE_EFFORT};maxTokens=${COMPARE_MAX_TOKENS};fixAttempts=${COMPARE_FIX_ATTEMPTS}`)
@@ -141,12 +150,44 @@ describe('de presise reglene', () => {
 
   it('bruker \\uleselig bare når sammenhengen ikke avgjør', () => {
     for (const id of PROFILE_IDS) {
-      const rules = getProfile(id).preciseRules;
+      const { systemPrompt, preciseRules: rules } = getProfile(id);
       expect(rules).toContain('## 7.4 Handwriting that is hard to read');
       expect(rules).toContain('If the context leaves one sensible reading, write it as ordinary text, with no marking');
       expect(rules).toContain('Use \\uleselig{...} only when two or more readings are still possible');
+      expect(rules).toContain('If you cannot name a second reading that also fits the sentence and the task');
+      // Grunninstruksen (også for lokale modeller) sier det samme, så Haiku ikke får to regler som strider mot hverandre.
+      expect(systemPrompt, id).toContain('If one sensible reading fits, write it as ordinary text');
+      expect(systemPrompt, id).not.toContain('is hard to read, write your best reading inside');
+      expect(systemPrompt, id).toContain('and name both readings in "remarks"');
+      expect(systemPrompt, id).not.toContain('vanskelige å lese');
+      // En bedre passende fagterm er ikke en annen lesning: elevens eget ord skal stå.
+      expect(rules).toContain("Never replace the student's word with a more precise term");
     }
-    expect(HAIKU_CLOSING).toContain('bruk \\uleselig bare når to lesninger fortsatt er mulige');
+    expect(HAIKU_CLOSING).toContain('bruk \\uleselig bare når to lesninger fortsatt er mulige (skriv begge i remarks)');
+  });
+
+  // Et notat om virkningsgraden til en kran havnet i termodynamikken (5.3), fordi ordet «virkningsgrad» bare sto i den
+  // tittelen. Kapittelet skal velges etter hva notatet handler om, med et eksempel fra faget selv.
+  it('velger kapittel etter innholdet, ikke etter et ord i tittelen', () => {
+    const examples: Record<SubjectProfile, RegExp> = {
+      physics: /virkningsgrad for an electric motor, crane, lift/,
+      chemistry: /ΔH for burning methane/,
+      biology: /diffusion and osmosis across a cell membrane/,
+      geoscience: /landslide or flood that threatens people/,
+    };
+    for (const id of PROFILE_IDS) {
+      const { systemPrompt, preciseRules: rules } = getProfile(id);
+      expect(systemPrompt, id).toContain('not a single word that also appears in a chapter or section title');
+      expect(rules, id).toContain('"chapter" and "section": choose them from what the note is about');
+      expect(rules, id).toMatch(examples[id]);
+      expect(rules, id).not.toContain('first taught');
+      for (const [other, re] of Object.entries(examples)) if (other !== id) expect(rules, id).not.toMatch(re);
+    }
+    expect(HAIKU_CLOSING).toContain('velg kapittel og delkapittel etter hva notatet handler om');
+    // Et vannkraftverk regnes med W = mgh, som kranen, og hører til energikapittelet (som visualiseringen k3-vannkraft).
+    const physics = getProfile('physics').preciseRules;
+    expect(physics).toMatch(/hydroelectric power plant[^.]*belongs to the chapter about work and energy/);
+    expect(physics).not.toMatch(/(?<!thermal |hydroelectric )power plant/);
   });
 
   it('har fått ny versjon når teksten er endret', () => {
