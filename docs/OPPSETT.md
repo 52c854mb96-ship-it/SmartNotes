@@ -97,9 +97,9 @@ Senere skjer alt automatisk: hver gang noe flettes inn i `main` og CI er grønn,
 ## Steg 7: Logg inn og test
 
 1. Åpne adressen fra steg 5 på PC-en og logg inn med passordet. Brukernavnet kan stå tomt (du er eieren). Under Innstillinger → **Konto** kan du gi deg selv et brukernavn; standard er `eier`.
-2. Fagene **Fysikk 1**, **Kjemi 1** og **Biologi 1** ligger klare med kapitlene og kompetansemålene fra lærebøkene.
-   - **Har du bare Fysikk 1** og ser de andre fagene likevel (variabelen `SEED_TEXTBOOKS` fra steg 5 manglet), sletter du dem i appen: tannhjulet på fagsiden → **Slett faget**. Et slettet fag kommer ikke tilbake.
-   - **Har du boka i Kjemi 1 eller Biologi 1:** der mangler de fleste delkapitlene, fordi de ikke kunne bekreftes på nett. Åpne faget, trykk **Importer innholdsfortegnelsen** og ta bilde av innholdsfortegnelsen i boka, ett bilde per side. Da legges delkapitlene inn og kobles til kompetansemålene.
+2. Fagene **Fysikk 1**, **Kjemi 1** og **Biologi 1** ligger klare med SmartNotes' egne temaer og kompetansemålene fra læreplanen (LK20, ordrett fra Udir). Geofag 1 legges ikke inn av seg selv; vil du ha det, trykker du **Legg til fag** → **Fra læreplanen**.
+   - **Har du bare Fysikk 1** og ser de andre fagene likevel (variabelen `SEED_TEXTBOOKS` fra steg 5 manglet), sletter du dem i appen: tannhjulet på fagsiden → **Slett faget**. Faget legges ikke inn igjen av seg selv. Vil du ha det tilbake senere, legger du det til med **Legg til fag** → **Fra læreplanen**, men notatene i det er borte.
+   - **Vil du heller ha kapitlene i din egen lærebok** (Kjemi 1 og Biologi 1 har bare temaer, uten deltemaer): åpne faget, trykk **Importer innholdsfortegnelsen** og ta bilde av innholdsfortegnelsen i boka, ett bilde per side. Da legges kapitlene og delkapitlene inn og kobles til kompetansemålene.
 3. Trykk **Last opp notater** og last opp et ekte notat på 2–3 sider (bilder eller PDF).
 4. Etter 1–3 minutter er PDF-en klar. Sjekk at:
    - notatet havnet i riktig kapittel og delkapittel,

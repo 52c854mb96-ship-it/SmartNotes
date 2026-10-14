@@ -143,6 +143,12 @@ function num(v: string | undefined, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+/** Som `num`, men `0` er en gyldig verdi (for eksempel «uten grense»). */
+function nonNegative(v: string | undefined, fallback: number): number {
+  const n = v ? Number.parseFloat(v.replace(',', '.')) : Number.NaN;
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
 function int(v: string | undefined, fallback: number): number {
   const n = v ? Number.parseInt(v, 10) : Number.NaN;
   return Number.isFinite(n) ? n : fallback;
@@ -274,7 +280,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       decksPerDay: Math.max(0, int(env.FREE_DECKS_PER_DAY, 2)),
       tocPerDay: Math.max(0, int(env.FREE_TOC_PER_DAY, 3)),
       queueMax: Math.max(1, int(env.FREE_QUEUE_MAX, 20)),
-      dailyBudgetNok: Math.max(0, num(env.FREE_DAILY_BUDGET_NOK, 30)),
+      dailyBudgetNok: nonNegative(env.FREE_DAILY_BUDGET_NOK, 30),
     },
     usdNok: num(env.USD_NOK, 10.5),
     version,

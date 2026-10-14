@@ -417,7 +417,7 @@ Ikke prøvd på en ekte iPad eller iPhone, bare i nettlesertestene (Chromium og 
 
 **Koden er klar, men ikke prøvd på Railway.** Det som må være på plass, og hvor det står:
 
-- Fase 4 og 5 er flettet: **ja** (#26–#29). Lagt ut på Railway: **ikke sjekket** (nattøkta har ikke tilgang til Railway). Railway skal legge ut `main` av seg selv når CI er grønn.
+- Fase 4 og 5 er flettet: **ja** (#26–#29). Lagt ut på Railway: **ikke sjekket** (nattøkta har ikke tilgang til Railway). Railway skal legge ut `main` av seg selv når CI er grønn. *(Eleven bekreftet 14. oktober at siste deploy stemmer, se steg 1.)*
 - En invitasjon er laget og registreringen testet ende til ende: **i testene ja, på Railway nei**. Det gjør du i punkt 4 under.
 - Tak, kø og «Slett konto» virker: **ja i testene** (falsk klokke for kvotene, og sletting som fjerner alt og ikke noe annet).
 
@@ -434,7 +434,7 @@ Gjør punktene under i rekkefølge, så er appen klar for en annen elev.
 4. **Venter (eleven tar stilling senere).** **Prøv registreringen selv:** Innstillinger → **Inviter en elev** → **Lag invitasjon**, åpne lenken i et privat vindu eller på mobilen, og lag en testkonto. Last opp ett notat, og se at det konverteres. Slett så testkontoen med Innstillinger → Konto → **Slett kontoen**.
 5. **Gjort 14. oktober.** **Anthropic Console** → Settings → **Limits**: sett en månedlig grense (planens forslag: 20 USD, varsel ved 10 USD).
 6. **Venter (eleven tar stilling senere).** **La en voksen lese** personvernerklæringen og vilkårene i appen, og sjekke det erklæringen med vilje ikke påstår noe om: hvilken region Railway-tjenesten og volumet ligger i, hvor lenge Railway beholder driftsloggen, og hva Anthropics vilkår for API-et sier om lagring og trening. Planen anbefaler også at en voksen eier API-kontoen før andre bruker appen.
-7. **Venter (eleven tar stilling senere).** **Send invitasjonen** til eleven.
+7. **Venter (eleven tar stilling senere).** **Lag en ny invitasjon og send lenken** til eleven. Den fra punkt 4 er brukt av testkontoen, og en invitasjon gjelder bare i 14 dager.
 
 Og hele tiden:
 - **Ikke rull tilbake** i Railway til en versjon fra før kontoene etter at en elev har registrert seg. Den gamle versjonen kjenner ikke kontoene og ville vist elevens fag og notater som dine.

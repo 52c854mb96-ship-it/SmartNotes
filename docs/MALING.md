@@ -103,7 +103,7 @@ npm run eval --workspace server -- notater --flashcards \
 | Valg | Betydning |
 |---|---|
 | `--models` | Kommaliste. `anthropic:<modell>`, `ollama:<modell>` eller `fake` (testinnhold, for å prøve verktøyet). Etter en Ollama-modell kan du skrive hvordan den oppgir figurbokser: `@thousandths` (standard, Qwen3.5 og Qwen3-VL), `@thousandths-yx` (y før x, prøv det hvis figurene havner feil med Gemma) eller `@pixels` (Qwen2.5-VL) |
-| `--subject` | `physics` (standard), `chemistry` eller `biology`, altså hvilke instrukser og hvilken PDF-mal som brukes |
+| `--subject` | `physics` (standard), `chemistry`, `biology` eller `geoscience`, altså hvilke instrukser og hvilken PDF-mal som brukes |
 | `--reference` | Modellen de andre sammenlignes med. Standard er den første i listen |
 | `--flashcards` | Lag også kortstokker |
 | `--chapters` | Kapitler modellen kan velge mellom, for eksempel `"1 Bevegelse;2 Krefter"`. Uten dette er kapittelet fast, og modellen kan bare konsentrere seg om å lese |
