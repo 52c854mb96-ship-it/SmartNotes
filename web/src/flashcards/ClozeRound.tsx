@@ -38,6 +38,7 @@ export function ClozeRound({
   focusField,
   keysOn,
   tick,
+  onCheck,
   onDone,
   onUndo,
 }: {
@@ -49,6 +50,8 @@ export function ClozeRound({
   focusField: RefObject<boolean>;
   keysOn: boolean;
   tick: () => void;
+  /** Svaret er sjekket eller vist (linja om forrige kort forsvinner, så bare resultatet står). */
+  onCheck: () => void;
   onDone: (outcome: ClozeOutcome) => void;
   onUndo: () => void;
 }) {
@@ -71,11 +74,13 @@ export function ClozeRound({
   const check = () => {
     if (outcome || !typed.trim()) return;
     tick();
+    onCheck();
     setOutcome(matchesTerm(typed, cloze.term) ? 'right' : 'wrong');
   };
   const reveal = () => {
     if (outcome) return;
     tick();
+    onCheck();
     setOutcome('shown');
   };
   const overrule = () => {

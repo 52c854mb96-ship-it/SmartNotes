@@ -125,6 +125,7 @@ export function QuickRound({
               focusField={focusGap}
               keysOn={session.keysOn}
               tick={tick}
+              onCheck={() => feedback.set('', '')}
               onDone={onCloze}
               onUndo={onUndo}
             />
