@@ -13,9 +13,10 @@ import type { SubjectProfile } from '@smartnotes/shared';
  */
 
 /**
- * Versjonen av instruksene: de presise reglene (alle Claude-modeller), avslutningen til Haiku og oppsettet i
- * sammenligningen (grundighet, svarlengde, rettingsrunder). Øk den når noe av dette endres, så vurderingene i
- * Innstillinger skilles per versjon. `precise.test.ts` feiler hvis teksten endres uten at versjonen økes.
+ * Versjonen av instruksene: grunninstruksen og rettingsinstruksen til hvert fag, de presise reglene (alle
+ * Claude-modeller), avslutningene og oppsettet i sammenligningen (grundighet, svarlengde, rettingsrunder). Øk den når
+ * noe av dette endres, så vurderingene i Innstillinger skilles per versjon. `precise.test.ts` feiler hvis teksten
+ * endres uten at versjonen økes (fra versjon 5 er grunn- og rettingsinstruksen med i fingeravtrykket).
  * - 1 (12. oktober 2026): den vanlige instruksen uten tillegg.
  * - 2 (13. oktober): tillegget for Haiku.
  * - 3 (14. oktober): `\uleselig` bare når sammenhengen ikke avgjør, maler for kjemi og biologi, og reglene for alle
@@ -67,9 +68,9 @@ If you are not certain that a line is wrong, write no merknad. Most notes need n
 const HANDWRITING = String.raw`## 7.4 Handwriting that is hard to read
 
 Handwriting that is hard to read is never a merknad. This replaces "If a word, number or symbol is hard to read" in section 1:
-1. First read it from its context: the words around it, the subject and the topic of the note, the task it belongs to, and the formula or calculation it belongs to. A word that is only partly legible is usually the word that makes sense in the sentence (for example "energi" after "kinetisk" in a note about energy), a heading or label next to a calculation usually names what that calculation finds, and a symbol or number is usually the one used in the lines before or after it.
+1. First read it from its context: the words around it, the subject and the topic of the note, the task it belongs to, and the formula or calculation it belongs to. A word that is only partly legible is usually the word that makes sense in the sentence (for example "energi" after "kinetisk" in a note about energy), a heading or label next to a calculation is usually about what that calculation finds, in the student's own words, and a symbol or number is usually the one used in the lines before or after it.
 2. If the context leaves one sensible reading, write it as ordinary text, with no marking and no remark. Reading a word from its context is not inventing content; adding a word that is not written is. Untidy, joined-up or slanted handwriting is no reason to mark a word.
-3. Use \uleselig{...} only when two or more readings are still possible and they mean something different, for example a digit that could be 3 or 8, a sign that could be + or −, or a word that could be "øker" or "synker". Before you use it, name the other reading: write your best reading inside \uleselig and both readings in "remarks" (for example «3,5 m eller 8,5 m»). If you cannot name a second reading that also fits the sentence and the task and means something different, write your best reading as ordinary text instead. \uleselig works both in text and inside formulas, e.g. $\uleselig{v_0}$. Put it around a whole quantity or chemical formula, never inside \qty, \num, \ang or \ce: \uleselig{\qty{9,81}{m/s^2}}, $\uleselig{\ce{SO4^2-}}$. Something that cannot be read at all is written \uleselig{[uleselig]}, as section 1 says; for a number with a unit, write \uleselig{[uleselig]}~\unit{kg} instead of \qty.`;
+3. Use \uleselig{...} only when two or more readings are still possible and they mean something different, for example a digit that could be 3 or 8, a sign that could be + or −, or a word that could be "øker" or "synker". Before you use it, name the other reading: write your best reading inside \uleselig and both readings in "remarks" (for example «3,5 m eller 8,5 m»). If you cannot name a second reading that also fits the sentence and the task and means something different, write your best reading as ordinary text instead. A second reading must also fit the letters you can see: a word that only fits the calculation better does not count. Never replace the student's word with a more precise term (if the letters read "kraft" but the calculation finds work, write "kraft"). \uleselig works both in text and inside formulas, e.g. $\uleselig{v_0}$. Put it around a whole quantity or chemical formula, never inside \qty, \num, \ang or \ce: \uleselig{\qty{9,81}{m/s^2}}, $\uleselig{\ce{SO4^2-}}$. Something that cannot be read at all is written \uleselig{[uleselig]}, as section 1 says; for a number with a unit, write \uleselig{[uleselig]}~\unit{kg} instead of \qty.`;
 
 const TEXT = String.raw`## 7.5 Text, numbers and units
 
@@ -296,7 +297,7 @@ Use colour only where the student used colour (red, blue, sngreen, snorange, bla
 /** Et eksempel per fag på et ord som hører til flere kapitler, så modellen velger kapittel etter innholdet. */
 const CHAPTER_EXAMPLE: Record<SubjectProfile, string> = {
   physics:
-    'For example, virkningsgrad for a motor, crane, lift or person that lifts a load (W = mgh, P = W/t) belongs to the chapter about work and energy, while virkningsgrad for a heat engine, power plant or heat pump belongs to the chapter about heat and thermodynamics.',
+    'For example, virkningsgrad for an electric motor, crane, lift or person that lifts a load, and for a hydroelectric power plant where water falls a height (W = mgh, P = W/t), belongs to the chapter about work and energy, while virkningsgrad for a heat engine (a petrol or diesel engine, or a thermal power plant that burns fuel) and the varmefaktor of a heat pump belong to the chapter about heat and thermodynamics.',
   chemistry:
     'For example, a note that finds ΔH for burning methane from bond enthalpies belongs to the chapter about energy in chemical reactions, while a note about how alkanes react and are named belongs to the chapter about organic compounds.',
   biology:
@@ -305,11 +306,22 @@ const CHAPTER_EXAMPLE: Record<SubjectProfile, string> = {
     'For example, erosion and deposition that shape a valley or a delta belong to the chapter about landforms and landscape processes, while a landslide or flood that threatens people belongs to the chapter about natural hazards.',
 };
 
+/**
+ * Hva «hva notatet handler om» betyr i hvert fag. Grunninstruksen har én felles ordlyd, fordi svarformatet (seksjon 6)
+ * skal være likt i alle fag (`profiles.test.ts`).
+ */
+const CHAPTER_FOCUS: Record<SubjectProfile, string> = {
+  physics: 'its situation, quantities and formulas',
+  chemistry: 'the substances, reactions and calculations it works with',
+  biology: 'the processes, structures and organisms it explains',
+  geoscience: 'the processes, landforms, places and data it describes',
+};
+
 const METADATA = (subject: SubjectProfile) => String.raw`## 7.8 Metadata
 
 All strings in the JSON are plain text: no LaTeX, no backslashes, no dollar signs and no straight double quotes inside a string (use «» for quotes). Write symbols in plain letters or words, for example "v0", "Ek", "delta v", "alfa".
 
-"chapter" and "section": choose them from what the note is about, that is the situation, the quantities and the formulas the student works with, not from a single word in the note title that also appears in a chapter or section title. The same word can belong to several chapters. ${CHAPTER_EXAMPLE[subject]} When two chapters still fit, choose the one where the main formula or idea of the note is first taught.`;
+"chapter" and "section": choose them from what the note is about (${CHAPTER_FOCUS[subject]}), not from a single word in the note title that also appears in a chapter or section title. The same word can belong to several chapters. ${CHAPTER_EXAMPLE[subject]}`;
 
 const EXAMPLE = String.raw`## 7.9 Example answer
 
@@ -422,7 +434,7 @@ const CHECKLIST = (subject: SubjectProfile) => String.raw`## 7.10 Check before y
 - Every calculation with several steps is one align*, inside a samlet block.
 ${DRAWING_CHECK[subject]}
 - Percent signs in text are written \%, and numbers keep the decimal comma.
-- "chapter" and "section" match what the note is about (its situation and formulas), not a single word in its title.
+- "chapter" and "section" match what the note is about (${CHAPTER_FOCUS[subject]}), not a single word in its title.
 - The JSON strings are plain text without LaTeX.`;
 
 const DRAWINGS: Record<SubjectProfile, string> = {

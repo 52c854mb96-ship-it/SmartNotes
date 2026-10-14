@@ -146,6 +146,12 @@ describe('startoppsett', () => {
 });
 
 describe('fagoppsettene', () => {
+  // Et notat om virkningsgraden til en kran havnet i 5.3, fordi ordet bare sto der. Det står nå også i 3.3.
+  it('Fysikk 1 har virkningsgrad også i 3.3, ikke bare i termodynamikken', () => {
+    const k3 = fysikk.chapters.find((c) => c.number === '3')!;
+    expect(k3.sections.find((s) => s.code === '3.3')?.title).toMatch(/virkningsgrad/);
+  });
+
   it('standard er fysikk, kjemi og biologi, i den rekkefølgen', async () => {
     const { DEFAULT_SEED_PRESETS } = await import('../src/presets.js');
     expect(DEFAULT_SEED_PRESETS).toEqual(['fysikk-1-lk20', 'kjemi-1-lk20', 'biologi-1-lk20']);
