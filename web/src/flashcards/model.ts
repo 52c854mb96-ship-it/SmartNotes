@@ -15,10 +15,15 @@
  *   Klassisk    Bla gjennom alle kortene og merk dem du vil øve mer på. Rører ikke nivåene, rekka eller «Beste».
  *   Luketekst   Motoren fra Rask runde. Riktig luke gir minst nivå 1 og senker aldri; feil eller «Vis» rører ikke
  *               nivået. Formen kan altså aldri gjøre et kort mestret.
+ *   Flervalg    Motoren fra Rask runde, for kort med svaralternativer (`choices`): fire alternativer i en fast rekkefølge
+ *               per kort og runde (`choiceOptions`). Riktig gir ett nivå opp, men høyst nivå 2 (å kjenne igjen er
+ *               lettere enn å huske), og senker aldri. Galt gir nivå 0 og legger kortet sist. Kort uten alternativer
+ *               øves som i Rask runde (`rateQuick`).
  * Lengde (10 eller 20 kort) gjør utvalget mindre med `pickChunk`; reglene er formens.
  */
-import type { Flashcard, FlashcardKind } from '@smartnotes/shared';
+import type { Flashcard, FlashcardChoices, FlashcardKind } from '@smartnotes/shared';
 import type { PracticeLength, PracticeMode, PracticePass, PracticeState } from '../db';
+import { hashString } from './richtext';
 
 export type { PracticeLength, PracticeMode, PracticePass };
 
@@ -119,7 +124,7 @@ export interface Round {
   answered: number;
   correct: number;
   streak: number;
-  /** Rask runde og Luketekst: kortene eleven har kunnet i runden (følger med i angrestakken). */
+  /** Rask runde, Luketekst og Flervalg: kortene eleven har kunnet i runden (følger med i angrestakken). */
   done?: string[];
 }
 
@@ -362,6 +367,81 @@ export function rateCloze(round: Round, ctx: QuickContext, outcome: ClozeOutcome
   return quickStep(round, ctx, right, (before) => (right ? Math.max(before, 1) : before), 'Nivået er uendret.', false);
 }
 
+// ---------- Flervalg ----------
+
+/** Det høyeste nivået et riktig svar i Flervalg gir. Å kjenne igjen svaret er lettere enn å huske det. */
+export const CHOICE_MAX_LEVEL = 2;
+
+/**
+ * Om kortet har svaralternativer. Kort fra før flervalg kan mangle feltet (undefined) til de er synket på nytt, og regnes
+ * da som kort uten.
+ */
+export function hasChoices<T extends Pick<Flashcard, 'choices'>>(card: T | undefined): card is T & { choices: FlashcardChoices } {
+  const c = card?.choices;
+  return !!c && typeof c.correct === 'string' && c.correct.trim() !== '' && Array.isArray(c.wrong) && c.wrong.length > 0;
+}
+
+/** Ett av svaralternativene i Flervalg. */
+export interface ChoiceOption {
+  /** Teksten, med den samme markeringen som kortene (**fet** og $formler$). */
+  text: string;
+  /** Det riktige svaret. */
+  correct: boolean;
+}
+
+/** Tilfeldige tall i [0, 1) som er de samme for samme nøkkel (mulberry32, startet fra en hash av nøkkelen). */
+export function seededRandom(key: string): () => number {
+  let a = hashString(key);
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Svaralternativene i kortet for runden `seed` (det riktige og de gale), eller null når kortet ikke har noen (da øves
+ * det som i Rask runde). Rekkefølgen er tilfeldig, men fast for samme kort og runde, så den er den samme etter omlasting
+ * og når kortet kommer igjen i runden. Neste runde (`seed + 1`) stokker på nytt.
+ */
+export function choiceOptions(card: Pick<Flashcard, 'id' | 'choices'>, seed: number): ChoiceOption[] | null {
+  if (!hasChoices(card)) return null;
+  const turn = Number.isFinite(seed) ? Math.trunc(seed) : 0;
+  const options: ChoiceOption[] = [
+    { text: card.choices.correct, correct: true },
+    ...card.choices.wrong.map((text) => ({ text, correct: false })),
+  ];
+  return shuffle(options, seededRandom(`${card.id}:${turn}`));
+}
+
+/**
+ * Flervalg, for kort med svaralternativer (kort uten bruker `rateQuick`). Riktig (`right`) gir ett nivå opp, men høyst
+ * CHOICE_MAX_LEVEL, senker aldri et kort som står høyere og tar kortet ut av runden. Galt gir nivå 0 og legger kortet
+ * sist, som «Kunne ikke». Formen gjør altså aldri et kort mestret. Rekka og «Beste» telles som i Rask runde. Et galt svar
+ * sendes alltid (en vurdering); et riktig svar sendes bare når nivået endres, så et høyere nivå fra en annen enhet som
+ * ennå ikke er synket, ikke blir skrevet over. Gir null hvis køen er tom.
+ */
+export function rateChoice(round: Round, ctx: QuickContext, right: boolean): RateOutcome | null {
+  const cardId = round.queue[0];
+  if (cardId === undefined) return null;
+  const before = levelIn(ctx.levels, cardId);
+  const out = quickStep(
+    round,
+    ctx,
+    right,
+    (b) => (right ? Math.max(b, Math.min(b + 1, CHOICE_MAX_LEVEL)) : 0),
+    'Tilbake til nivå 0.',
+    !right,
+  );
+  if (!out || !right || before !== CHOICE_MAX_LEVEL) return out;
+  const feedback: Effects['feedback'] = {
+    text: `Nivå ${CHOICE_MAX_LEVEL} av ${MASTER}, det høyeste flervalg gir. Kortet er ferdig for denne runden.`,
+    tone: 'ok',
+  };
+  return { ...out, fx: { ...out.fx, feedback } };
+}
+
 /** Rask runde: kortene i utvalget eleven kunne med en gang (bare «Kunne» i runden). */
 export function knownFirstTry(ids: string[], grades: Record<string, number>): number {
   return ids.filter((id) => grades[id] === 3).length;
@@ -417,8 +497,9 @@ export interface Chunk {
 }
 
 /**
- * De neste `n` kortene til en kort økt, i valgt rekkefølge. Mestring tar de første som ikke er mestret. Rask runde og
- * Luketekst tar de første eleven ikke har hatt i denne omgangen (`seen`); når alle er sett, begynner en ny omgang.
+ * De neste `n` kortene til en kort økt, i valgt rekkefølge. Mestring tar de første som ikke er mestret. Rask runde,
+ * Luketekst og Flervalg tar de første eleven ikke har hatt i denne omgangen (`seen`); når alle er sett, begynner en ny
+ * omgang.
  */
 export function pickChunk(
   selection: Flashcard[],
@@ -439,7 +520,8 @@ export function pickChunk(
 
 // ---------- Lagret økt ----------
 
-export const isPracticeMode = (v: unknown): v is PracticeMode => v === 'mastery' || v === 'quick' || v === 'classic' || v === 'cloze';
+export const isPracticeMode = (v: unknown): v is PracticeMode =>
+  v === 'mastery' || v === 'quick' || v === 'classic' || v === 'cloze' || v === 'choice';
 
 /** En lagret økt med feltene formene trenger, alltid satt. */
 export type NormalizedPractice = PracticeState & {
@@ -456,7 +538,7 @@ const idList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is 
  * repetisjon, og felt med ugyldige verdier fjernes eller får standardverdien.
  */
 export function normalizePracticeState(s: PracticeState): NormalizedPractice {
-  const { pass, clozeSeed, subsetKind, ...rest } = s;
+  const { pass, clozeSeed, choiceSeed, subsetKind, ...rest } = s;
   const out: NormalizedPractice = {
     ...rest,
     mode: isPracticeMode(s.mode) ? s.mode : 'mastery',
@@ -472,6 +554,7 @@ export function normalizePracticeState(s: PracticeState): NormalizedPractice {
     out.pass = { ids, index, marked: ids.filter((id) => marked.has(id)) };
   }
   if (Number.isInteger(clozeSeed)) out.clozeSeed = clozeSeed;
+  if (Number.isInteger(choiceSeed)) out.choiceSeed = choiceSeed;
   return out;
 }
 

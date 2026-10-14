@@ -6,12 +6,16 @@ import { confirmDialog, toast } from '../lib/ui';
 import { plural } from '../lib/format';
 import { deleteCard } from './actions';
 import { CardEditor } from './CardEditor';
+import { ChoiceSummary } from './ChoiceSummary';
 import { KIND_LABEL } from './labels';
-import { MASTER, OWN_CARDS, levelOf } from './model';
+import { MASTER, OWN_CARDS, hasChoices, levelOf } from './model';
 import { parseBackLine, plainText } from './richtext';
 import { RichParagraphs, RichText } from './RichText';
 
-/** Alle kortene i kortstokken, gruppert per notat, med søk, redigering og sletting (som «Mål-mal» i originalen). */
+/**
+ * Alle kortene i kortstokken, gruppert per notat, med søk, redigering og sletting (som «Mål-mal» i originalen).
+ * Svaralternativene (flervalg) står diskret under svaret, og søket finner dem også.
+ */
 export function CardList({ deck, cards, notes, online }: { deck: Deck; cards: Flashcard[]; notes: Note[]; online: boolean }) {
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<Flashcard | null | 'new'>(null);
@@ -20,7 +24,10 @@ export function CardList({ deck, cards, notes, online }: { deck: Deck; cards: Fl
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
     const match = (c: Flashcard) =>
-      !q || [c.front, ...c.back, c.detail].some((t) => plainText(t).toLowerCase().includes(q));
+      !q ||
+      [c.front, ...c.back, c.detail, ...(hasChoices(c) ? [c.choices.correct, ...c.choices.wrong] : [])].some((t) =>
+        plainText(t).toLowerCase().includes(q),
+      );
     const order = [...deck.noteIds];
     for (const c of cards) if (c.noteId && !order.includes(c.noteId)) order.push(c.noteId);
     order.push(OWN_CARDS);
@@ -103,6 +110,7 @@ export function CardList({ deck, cards, notes, online }: { deck: Deck; cards: Fl
                     <RichParagraphs text={c.detail} />
                   </div>
                 )}
+                {hasChoices(c) && <ChoiceSummary choices={c.choices} />}
                 <div className="fc-item-actions">
                   <button type="button" className="btn btn-sm" onClick={() => setEditing(c)} disabled={!online}>
                     <Pencil size={15} aria-hidden /> Rediger

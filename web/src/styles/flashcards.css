@@ -234,6 +234,14 @@
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
 }
 
+.fc-new-choices {
+  gap: 2px;
+}
+
+.fc-new-choices .field-note {
+  padding-left: 30px;
+}
+
 .fc-new-actions {
   display: flex;
   flex-wrap: wrap;
@@ -274,6 +282,97 @@
   font-size: 13.5px;
   line-height: 1.45;
   color: var(--text-2);
+}
+
+/* Flervalg uten svaralternativer: dempet, men et trykk gir forklaringen */
+.fc-mode-switch .segment[aria-disabled='true'] {
+  color: var(--text-3);
+  opacity: 0.6;
+}
+
+.fc-mode-note {
+  margin: -2px 2px 12px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+/* Svaralternativer: «Lag svaralternativer», «Lager …» og feilen (fanen «Alle kort» og ved velgeren) */
+.fc-choices {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px 8px 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.fc-choices:focus {
+  outline: none;
+}
+
+.fc-choices > svg,
+.fc-choices > .spinner {
+  flex: none;
+  margin-top: 2px;
+  color: var(--text-2);
+}
+
+.fc-choices > .spinner {
+  margin: 3px 3px 0;
+}
+
+.fc-choices.is-error {
+  border-color: var(--danger);
+}
+
+.fc-choices.is-error > svg {
+  color: var(--danger);
+}
+
+.fc-choices.is-ready {
+  border-color: var(--fc-good);
+}
+
+.fc-choices.is-ready > svg {
+  color: var(--fc-good-text);
+}
+
+.fc-choices-body {
+  flex: 1;
+  min-width: 0;
+  padding-right: 6px;
+}
+
+.fc-choices-title {
+  margin: 0 0 2px;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.fc-choices-text {
+  margin: 0;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.fc-choices-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.fc-choices-body .form-error {
+  margin: 8px 0 0;
+}
+
+.fc-choices-close {
+  margin: -6px 0 -6px auto;
 }
 
 .fc-controls {
@@ -1046,13 +1145,14 @@
 }
 
 /*
- * Svarknappene (Mestring, Rask runde og Klassisk) blir stående nederst i bildet når de ellers ville havnet under kanten,
- * f.eks. på telefonen med velgeren og filtrene over kortet eller med et langt svar, så eleven slipper å rulle for å
- * svare. Bakgrunnen dekker kortet som ruller under dem.
+ * Svarknappene (Mestring, Rask runde og Klassisk, og «Neste» i Flervalg) blir stående nederst i bildet når de ellers ville
+ * havnet under kanten, f.eks. på telefonen med velgeren og filtrene over kortet eller med et langt svar, så eleven slipper
+ * å rulle for å svare. Bakgrunnen dekker kortet som ruller under dem.
  */
 .fc-rate,
 .fc-two,
-.fc-nav {
+.fc-nav,
+.fc-choice-actions {
   position: sticky;
   bottom: 0;
   z-index: 2;
@@ -1062,7 +1162,8 @@
 }
 
 .fc-nav button,
-.fc-cloze-actions button {
+.fc-cloze-actions button,
+.fc-choice-actions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1081,7 +1182,8 @@
 }
 
 .fc-nav button:not(:disabled):hover,
-.fc-cloze-actions button:not(:disabled):hover {
+.fc-cloze-actions button:not(:disabled):hover,
+.fc-choice-actions button:not(:disabled):hover {
   background: var(--surface-2);
 }
 
@@ -1092,14 +1194,16 @@
 }
 
 .fc-nav .fc-nav-next,
-.fc-cloze-actions .fc-cloze-main {
+.fc-cloze-actions .fc-cloze-main,
+.fc-choice-actions .fc-choice-next {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--on-accent);
 }
 
 .fc-nav .fc-nav-next:not(:disabled):hover,
-.fc-cloze-actions .fc-cloze-main:not(:disabled):hover {
+.fc-cloze-actions .fc-cloze-main:not(:disabled):hover,
+.fc-choice-actions .fc-choice-next:not(:disabled):hover {
   border-color: var(--accent-hover);
   background: var(--accent-hover);
 }
@@ -1165,7 +1269,8 @@
   margin-left: 4px;
 }
 
-.fc-cloze-result {
+.fc-cloze-result,
+.fc-choice-result {
   min-height: 1.4em;
   margin: 10px 0 0;
   text-align: center;
@@ -1173,11 +1278,13 @@
   color: var(--text-3);
 }
 
-.fc-cloze-result.is-ok {
+.fc-cloze-result.is-ok,
+.fc-choice-result.is-ok {
   color: var(--fc-good-text);
 }
 
-.fc-cloze-result.is-bad {
+.fc-cloze-result.is-bad,
+.fc-choice-result.is-bad {
   color: var(--fc-bad-text);
 }
 
@@ -1194,6 +1301,158 @@
 
 .fc-cloze-actions > :only-child {
   grid-column: 1 / -1;
+}
+
+/*
+ * Flervalg: spørsmålet og alternativene på kortet. Kortet snus ikke, så det er bare så høyt som innholdet. Alternativene
+ * står under hverandre i full bredde på mobil og to og to på bredere skjermer, med store trykkflater.
+ */
+.fc-card.is-choice {
+  min-height: 0;
+  cursor: auto;
+}
+
+.fc-card.is-choice .fc-question {
+  margin: 4px 0 18px;
+}
+
+.fc-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.fc-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 14px 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.02rem;
+  line-height: 1.35;
+  text-align: left;
+  overflow-wrap: anywhere;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    opacity 0.15s;
+}
+
+.fc-option:not([aria-disabled='true']):hover {
+  border-color: var(--text-3);
+  background: var(--surface-2);
+}
+
+.fc-option[aria-disabled='true'] {
+  cursor: default;
+}
+
+.fc-option-key {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text-3);
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.fc-option-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.fc-option-mark {
+  flex: none;
+}
+
+.fc-option.is-right {
+  border-color: var(--fc-good);
+  background: color-mix(in srgb, var(--fc-good) 13%, var(--surface));
+  color: var(--fc-good-text);
+}
+
+.fc-option.is-right .fc-option-key {
+  background: color-mix(in srgb, var(--fc-good) 22%, var(--surface));
+  color: var(--fc-good-text);
+}
+
+.fc-option.is-wrong {
+  border-color: var(--fc-bad);
+  background: color-mix(in srgb, var(--fc-bad) 11%, var(--surface));
+  color: var(--fc-bad-text);
+}
+
+.fc-option.is-wrong .fc-option-key {
+  background: color-mix(in srgb, var(--fc-bad) 20%, var(--surface));
+  color: var(--fc-bad-text);
+}
+
+.fc-option.is-dim {
+  opacity: 0.55;
+}
+
+/* Baksiden etter et galt svar */
+.fc-answer.fc-choice-back {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.fc-choice-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+/* Svaralternativene under svaret i «Alle kort» og i forhåndsvisningen */
+.fc-choice-summary {
+  margin-top: 12px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.fc-choice-summary-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-3);
+}
+
+.fc-choice-summary ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fc-choice-summary li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  overflow-wrap: anywhere;
+}
+
+.fc-choice-summary li.is-right {
+  border-color: color-mix(in srgb, var(--fc-good) 55%, transparent);
+  color: var(--fc-good-text);
+}
+
+.fc-choice-summary li > svg {
+  flex: none;
 }
 
 /* Ferdig med runden */
@@ -1410,6 +1669,49 @@
 }
 
 /* Redigering */
+.fc-editor-choices {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.fc-editor-choices > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--tap);
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.fc-editor-choices[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.fc-editor-choices-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 14px 14px;
+}
+
+.fc-editor-choices-body .field-note {
+  margin: 0;
+}
+
+.fc-editor-wrong {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.fc-editor-wrong > legend {
+  margin-bottom: 6px;
+  padding: 0;
+}
+
 .fc-editor .fc-preview {
   display: flex;
   flex-direction: column;
@@ -1457,12 +1759,12 @@
   }
 
   /*
-   * Fire former side om side på én linje: kolonnene får bredden teksten trenger, og resten av plassen deles likt (så
-   * «Rask runde» ikke brytes). Under 360 px blir det 2 × 2, se under.
+   * Fem former side om side på én linje: kolonnene får bredden teksten trenger, og resten av plassen deles likt (så
+   * «Rask runde» ikke brytes). Under 400 px blir de litt tettere, og under 360 px står de på to rader, se under.
    */
   .fc-mode-switch {
     display: grid;
-    grid-template-columns: repeat(4, auto);
+    grid-template-columns: repeat(5, auto);
     width: 100%;
   }
 
@@ -1477,7 +1779,8 @@
   }
 
   .fc-nav button,
-  .fc-cloze-actions button {
+  .fc-cloze-actions button,
+  .fc-choice-actions button {
     min-height: 56px;
     padding: 0 10px;
   }
@@ -1518,9 +1821,28 @@
   }
 }
 
-/* De smaleste telefonene: formene i to rader med to. */
+@media (max-width: 400px) {
+  .fc-mode-switch {
+    gap: 2px;
+    padding: 3px;
+  }
+
+  .fc-mode-switch .segment {
+    padding: 0 4px;
+    font-size: 12.5px;
+  }
+}
+
+/* De smaleste telefonene: formene i to rader (tre og to). */
 @media (max-width: 359px) {
   .fc-mode-switch {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* Flervalg på bredere skjermer: alternativene to og to. */
+@media (min-width: 600px) {
+  .fc-options {
     grid-template-columns: 1fr 1fr;
   }
 }

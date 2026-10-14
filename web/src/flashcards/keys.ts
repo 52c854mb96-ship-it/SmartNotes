@@ -12,7 +12,10 @@ import type { Grade } from './model';
  */
 export type KeyMap = Partial<Record<string, () => void>>;
 
-/** Fokus i faner, menyer og radiogrupper (f.eks. «Øvingsform»): piltastene og tallene hører til dem, ikke til øvingen. */
+/**
+ * Fokus i faner, menyer og radiogrupper (f.eks. «Øvingsform»): piltastene og tallene hører til dem, ikke til øvingen.
+ * Svaralternativene i Flervalg står i en vanlig `group`, så tallene virker der.
+ */
 export function inWidget(el: Element | null): boolean {
   return !!el?.closest('[role="tablist"], [role="menu"], [role="listbox"], [role="radiogroup"]');
 }
@@ -130,4 +133,27 @@ export function clozeKeys(h: {
 }): KeyMap {
   if (!h.checked) return { ' ': h.focusField, Enter: h.focusField, z: h.undo };
   return { ' ': h.next, Enter: h.next, ArrowRight: h.next, z: h.undo, d: h.toggleDetail };
+}
+
+/**
+ * Flervalg, kort med svaralternativer. Før svaret velger 1–4 alternativet med det nummeret (bare så mange tall som det
+ * er alternativer). Etter svaret går mellomrom, Enter og høyre pil til neste kort, og D viser forklaringen når den
+ * vises (`toggleDetail`, bare etter et galt svar). Z angrer.
+ */
+export function choiceKeys(h: {
+  answered: boolean;
+  count: number;
+  pick: (index: number) => void;
+  next: () => void;
+  undo: () => void;
+  toggleDetail?: () => void;
+}): KeyMap {
+  if (!h.answered) {
+    const keys: KeyMap = { z: h.undo };
+    for (let i = 0; i < Math.min(h.count, 9); i++) keys[String(i + 1)] = () => h.pick(i);
+    return keys;
+  }
+  const keys: KeyMap = { ' ': h.next, Enter: h.next, ArrowRight: h.next, z: h.undo };
+  if (h.toggleDetail) keys.d = h.toggleDetail;
+  return keys;
 }

@@ -6,10 +6,16 @@ import type { ChapterInput, CompetenceAim, SubjectProfile } from '@smartnotes/sh
 import type { Config, Effort } from '../config.js';
 import { ConversionError } from '../errors.js';
 import {
-  FLASHCARD_SYSTEM_PROMPT,
+  CHOICES_SYSTEM_PROMPT,
+  buildChoicesPrompt,
   buildFlashcardPrompt,
-  flashcardSchema,
+  choicesSchema,
+  flashcardSchemaFor,
+  flashcardSystemPrompt,
+  type ChoicesRequest,
   type FlashcardRequest,
+  type RawCardChoices,
+  type RawChoices,
   type RawFlashcard,
 } from '../flashcards/prompt.js';
 import { systemPromptFor, usesHaikuClosing, type Profile } from '../profiles/index.js';
@@ -283,29 +289,42 @@ export class AnthropicClaude implements AiService {
   }
 
   async generateFlashcards(req: FlashcardRequest): Promise<{ cards: RawFlashcard[]; usage: Usage }> {
+    // Uten `withChoices` er instruksen, brukermeldingen og skjemaet nøyaktig som før flervalg fantes.
+    const msg = await this.structured(flashcardSystemPrompt(req.withChoices), buildFlashcardPrompt(req), flashcardSchemaFor(req.withChoices), flashcardError);
+    const usage = usageOf('flashcards', msg);
+    return { cards: withUsage(usage, () => parseFlashcardMessage(msg, req.withChoices)), usage };
+  }
+
+  async generateChoices(req: ChoicesRequest): Promise<{ cards: RawCardChoices[]; usage: Usage }> {
+    const msg = await this.structured(CHOICES_SYSTEM_PROMPT, buildChoicesPrompt(req), choicesSchema, choicesError);
+    const usage = usageOf('flashcards', msg);
+    return { cards: withUsage(usage, () => parseChoicesMessage(msg)), usage };
+  }
+
+  /**
+   * Strømmet kall med JSON-skjema, adaptiv tenkning og server-side fallback (kortstokker og svaralternativer). Formatet
+   * sendes uten `parse`, så SDK-en ikke tolker svaret selv: et avkuttet eller avslått svar skal gi en norsk melding (se
+   * parseFlashcardMessage), ikke en generell feil.
+   */
+  private async structured(system: string, user: string, format: z.ZodType, mapError: (err: unknown) => ConversionError): Promise<Anthropic.Beta.BetaMessage> {
     const client = this.requireClient();
-    // Formatet sendes uten `parse`, så SDK-en ikke tolker svaret selv: et avkuttet eller avslått svar skal gi en norsk
-    // melding (se parseFlashcardMessage), ikke en generell feil.
-    const { schema } = zodOutputFormat(flashcardSchema);
-    let msg: Anthropic.Beta.BetaMessage;
+    const { schema } = zodOutputFormat(format);
     try {
-      msg = await client.beta.messages
+      return await client.beta.messages
         .stream({
           model: this.modelId,
           max_tokens: 64_000,
           thinking: { type: 'adaptive' },
           output_config: { effort: 'medium', format: { type: 'json_schema', schema } },
-          system: [{ type: 'text', text: FLASHCARD_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
-          messages: [{ role: 'user', content: buildFlashcardPrompt(req) }],
+          system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+          messages: [{ role: 'user', content: user }],
           // Avslår modellens sikkerhetsfiltre feilaktig (f.eks. biologi om virus), prøves en anbefalt reservemodell.
           ...(this.config.useFallbacks && supportsServerFallback(this.modelId) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
         })
         .finalMessage();
     } catch (err) {
-      throw flashcardError(err);
+      throw mapError(err);
     }
-    const usage = usageOf('flashcards', msg);
-    return { cards: withUsage(usage, () => parseFlashcardMessage(msg)), usage };
   }
 }
 
@@ -319,19 +338,57 @@ export function flashcardError(err: unknown): ConversionError {
   return e;
 }
 
-/** Kortene i svaret fra Claude. Avslag, avkuttet svar og ugyldig JSON gir norske feilmeldinger. */
-export function parseFlashcardMessage(msg: { stop_reason: string | null; content: Array<{ type: string }> }): RawFlashcard[] {
-  if (msg.stop_reason === 'refusal') throw new RefusalError('Claude avslo å lage kort av disse notatene.');
-  if (msg.stop_reason === 'max_tokens') throw new ConversionError('Utvalget ble for stort. Velg færre notater eller færre kort.');
+/** Som flashcardError, men for svaralternativer til kort som finnes. */
+export function choicesError(err: unknown): ConversionError {
+  const e = mapApiError(err);
+  if (e.message === 'Uventet feil under konverteringen.') return new ConversionError('Uventet feil da svaralternativene skulle lages. Prøv igjen.');
+  if (e.message.startsWith('Claude kunne ikke behandle notatet')) {
+    return new ConversionError(e.message.replace('Claude kunne ikke behandle notatet', 'Claude kunne ikke lage svaralternativer til kortene'));
+  }
+  return e;
+}
+
+/**
+ * JSON-svaret fra Claude etter at stop_reason er sjekket: avslag gir RefusalError (prøves med reservemodellen), avkuttet
+ * svar og ugyldig JSON gir de norske meldingene i `messages`.
+ */
+function parseCardsMessage<T extends z.ZodType>(
+  msg: { stop_reason: string | null; content: Array<{ type: string }> },
+  schema: T,
+  messages: { refusal: string; tooLong: string; invalid: string },
+): z.infer<T> {
+  if (msg.stop_reason === 'refusal') throw new RefusalError(messages.refusal);
+  if (msg.stop_reason === 'max_tokens') throw new ConversionError(messages.tooLong);
   let data: unknown;
   try {
     data = JSON.parse(textOf(msg.content));
   } catch {
-    throw new ConversionError('Claude svarte ikke med kort. Prøv igjen.');
+    throw new ConversionError(messages.invalid);
   }
-  const parsed = flashcardSchema.safeParse(data);
-  if (!parsed.success) throw new ConversionError('Claude svarte ikke med kort. Prøv igjen.');
-  return parsed.data.cards;
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) throw new ConversionError(messages.invalid);
+  return parsed.data;
+}
+
+/**
+ * Kortene i svaret fra Claude. Avslag, avkuttet svar og ugyldig JSON gir norske feilmeldinger. Med `withChoices` leses
+ * også svaralternativene (ellers ville skjemaet fjerne dem).
+ */
+export function parseFlashcardMessage(msg: { stop_reason: string | null; content: Array<{ type: string }> }, withChoices?: boolean): RawFlashcard[] {
+  return parseCardsMessage(msg, flashcardSchemaFor(withChoices), {
+    refusal: 'Claude avslo å lage kort av disse notatene.',
+    tooLong: 'Utvalget ble for stort. Velg færre notater eller færre kort.',
+    invalid: 'Claude svarte ikke med kort. Prøv igjen.',
+  }).cards;
+}
+
+/** Svaralternativene i svaret fra Claude, med norske feilmeldinger som for kortene. */
+export function parseChoicesMessage(msg: { stop_reason: string | null; content: Array<{ type: string }> }): RawCardChoices[] {
+  return parseCardsMessage(msg, choicesSchema, {
+    refusal: 'Claude avslo å lage svaralternativer til disse kortene.',
+    tooLong: 'Kortstokken har for mange kort til at svaralternativene kan lages i én omgang. Slett noen kort, og prøv igjen.',
+    invalid: 'Claude svarte ikke med svaralternativer. Prøv igjen.',
+  }).cards;
 }
 
 // ---------- Falsk Claude (utvikling og tester) ----------
@@ -389,12 +446,15 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
 
   /**
    * Tre kort per notat (begrep, forklaring, anvendelse) med formel, fet skrift og overskriftslinje, så visningen kan
-   * testes. Med `count` lages så mange kort (gjentatt over notatene). Et notat med «FEIL» i tittelen gir feil.
+   * testes. Med `count` lages så mange kort (gjentatt over notatene). Et notat med «FEIL» i tittelen gir feil. Med
+   * `withChoices` får begreps- og regnekortet svaralternativer (det riktige er tittelen eller $6{,}0\ \text{N}$), mens
+   * forklaringskortet får null, som et åpent kort.
    */
   async generateFlashcards(req: FlashcardRequest): Promise<{ cards: RawFlashcard[]; usage: Usage }> {
     await new Promise((r) => setTimeout(r, this.delayMs));
     if (req.notes.some((n) => /FEIL/.test(n.title))) throw new ConversionError('Testfeil fra falsk Claude.');
     const formula = req.subjectLabel === 'Kjemi' ? String.raw`$\ce{2H2 + O2 -> 2H2O}$` : String.raw`$F = m \cdot a$`;
+    const choices = (c: RawChoices | null) => (req.withChoices ? { choices: c } : {});
     const perNote = (n: FlashcardRequest['notes'][number]): RawFlashcard[] => [
       {
         note: n.alias,
@@ -402,6 +462,7 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
         front: `Hva handler notatet «${n.title}» om?`,
         back: [`**${n.title}**`, `Formel: ${formula}`],
         detail: `Dette er et testkort fra falsk Claude.\n\nTenk på det som en huskelapp: ${formula} er en formel.`,
+        ...choices({ correct: n.title, wrong: [...FAKE_WRONG] }),
       },
       {
         note: n.alias,
@@ -409,6 +470,7 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
         front: `Forklar hovedideen i «${n.title}».`,
         back: ['!Tre punkter', 'Første punkt', 'Andre punkt med **nøkkelbegrep**', String.raw`Tredje punkt med $v = \frac{s}{t}$`],
         detail: '',
+        ...choices(null),
       },
       {
         note: n.alias,
@@ -416,6 +478,7 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
         front: String.raw`${n.title}: regn ut $F$ når $m = 2{,}0\ \text{kg}$ og $a = 3{,}0\ \text{m/s}^2$.`,
         back: [String.raw`$F = m \cdot a$`, String.raw`$F = 2{,}0 \cdot 3{,}0\ \text{N} = 6{,}0\ \text{N}$`],
         detail: 'Sett inn tallene i Newtons andre lov.',
+        ...choices({ correct: String.raw`$6{,}0\ \text{N}$`, wrong: [String.raw`$5{,}0\ \text{N}$`, String.raw`$1{,}5\ \text{N}$`, String.raw`$6{,}0\ \text{kg}$`] }),
       },
     ];
     let cards = req.notes.flatMap(perNote);
@@ -429,6 +492,20 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
     return { cards, usage: this.usage('flashcards') };
   }
 
+  /**
+   * Svaralternativer til kortene: det riktige er den første svarlinjen (uten **fet** skrift og «!»-linjer), de gale er
+   * «Feil svar A–C». Forklaringskort får null, som åpne kort. Et kort med «FEIL» i spørsmålet gir feil.
+   */
+  async generateChoices(req: ChoicesRequest): Promise<{ cards: RawCardChoices[]; usage: Usage }> {
+    await new Promise((r) => setTimeout(r, this.delayMs));
+    if (req.cards.some((c) => /FEIL/.test(c.front))) throw new ConversionError('Testfeil fra falsk Claude.');
+    const cards = req.cards.map((c): RawCardChoices => {
+      const first = c.back.find((l) => !l.startsWith('!'))?.replace(/\*\*/g, '') ?? '';
+      return { card: c.alias, choices: c.kind === 'explain' || !first ? null : { correct: first, wrong: [...FAKE_WRONG] } };
+    });
+    return { cards, usage: this.usage('flashcards') };
+  }
+
   /** Kobler hvert delkapittel til det første målet som ikke går på tvers av kapitlene. */
   async mapSectionAims(_profile: Profile, chapters: ChapterInput[], aims: CompetenceAim[]): Promise<{ chapters: ChapterInput[]; usage: Usage }> {
     const first = aims.find((a) => !a.cross)?.code;
@@ -438,6 +515,9 @@ Dette er et testnotat laget uten Claude (${req.pages.length} ${req.pages.length 
     };
   }
 }
+
+/** De gale svarene fra falsk Claude, så testene vet hvilket alternativ som er riktig. */
+const FAKE_WRONG = ['Feil svar A', 'Feil svar B', 'Feil svar C'] as const;
 
 const sec = (code: string, title: string) => ({ code, title, aims: [] as string[] });
 

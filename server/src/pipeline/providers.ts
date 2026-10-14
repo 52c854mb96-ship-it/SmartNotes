@@ -6,7 +6,7 @@
  */
 import type { ChapterInput, CompetenceAim } from '@smartnotes/shared';
 import { AI_TASKS, type AiProviderId, type AiTask, type Config } from '../config.js';
-import type { FlashcardRequest } from '../flashcards/prompt.js';
+import type { ChoicesRequest, FlashcardRequest } from '../flashcards/prompt.js';
 import type { Profile } from '../profiles/index.js';
 import type { AiService, ConvertRequest, FixRequest } from './ai.js';
 import { AnthropicClaude, FakeClaude, RefusalError, supportsServerFallback } from './claude.js';
@@ -47,6 +47,10 @@ export class RoutedAi implements AiService {
   }
   generateFlashcards(req: FlashcardRequest) {
     return this.byTask.flashcards.generateFlashcards(req);
+  }
+  /** Svaralternativer følger kortstokkene (samme leverandør og modell). */
+  generateChoices(req: ChoicesRequest) {
+    return this.byTask.flashcards.generateChoices(req);
   }
 }
 
@@ -96,6 +100,9 @@ export class RefusalFallback implements AiService {
   }
   generateFlashcards(req: FlashcardRequest) {
     return this.run((ai) => ai.generateFlashcards(req));
+  }
+  generateChoices(req: ChoicesRequest) {
+    return this.run((ai) => ai.generateChoices(req));
   }
 }
 

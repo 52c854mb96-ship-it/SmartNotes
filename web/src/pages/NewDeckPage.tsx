@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ChevronLeft, Sparkles } from 'lucide-react';
 import type { Chapter, FlashcardDifficulty, Note } from '@smartnotes/shared';
@@ -21,7 +21,10 @@ interface ChapterTree {
   sections: NoteGroup[];
 }
 
-/** Ny kortstokk: velg notater (hele kapitler eller delkapitler med ett trykk), vanskelighetsgrad og antall kort. */
+/**
+ * Ny kortstokk: velg notater (hele kapitler eller delkapitler med ett trykk), vanskelighetsgrad og antall kort, og om
+ * Claude også skal lage svaralternativer (flervalg). Det er av som standard: alternativene lages bare når eleven ber om det.
+ */
 export function NewDeckPage() {
   const { subjectId } = useParams();
   const [params] = useSearchParams();
@@ -46,6 +49,8 @@ export function NewDeckPage() {
   const [difficulty, setDifficulty] = useState<FlashcardDifficulty>('mixed');
   const [count, setCount] = useState<number | null>(null);
   const [title, setTitle] = useState('');
+  const [withChoices, setWithChoices] = useState(false);
+  const choicesNoteId = useId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -111,6 +116,8 @@ export function NewDeckPage() {
         difficulty,
         count,
         title: title.trim() || null,
+        // Uten avkrysning sendes ingenting om svaralternativer (serveren bruker false).
+        ...(withChoices ? { withChoices: true } : {}),
       });
       navigate(`/fag/${subject.id}/flashcards/${deck.id}`, { replace: true });
     } catch (err) {
@@ -235,6 +242,22 @@ export function NewDeckPage() {
           </div>
           {count === null && <span className="field-note">Claude velger ut fra hvor mye stoff notatene har.</span>}
         </fieldset>
+
+        <div className="field fc-new-choices">
+          <label className="check-row">
+            <input
+              type="checkbox"
+              className="checkbox"
+              checked={withChoices}
+              aria-describedby={choicesNoteId}
+              onChange={(e) => setWithChoices(e.currentTarget.checked)}
+            />
+            <span>Lag også svaralternativer (flervalg)</span>
+          </label>
+          <span id={choicesNoteId} className="field-note">
+            Claude lager tre gale svar som ligner det riktige. Det tar litt lenger tid.
+          </span>
+        </div>
 
         <label className="field">
           <span className="field-label">

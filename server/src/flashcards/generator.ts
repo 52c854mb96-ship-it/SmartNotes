@@ -6,11 +6,18 @@ import type { AiService } from '../pipeline/ai.js';
 import { getProfile } from '../profiles/index.js';
 import type { Storage } from '../storage.js';
 import { jobScope } from '../usage.js';
-import { cleanFlashcards, noteSourceText, type FlashcardSourceNote } from './prompt.js';
+import { cleanCardChoices, cleanFlashcards, noteSourceText, type FlashcardSourceNote } from './prompt.js';
 
 /** Hvor mange ganger en midlertidig feil (overbelastning, nett) prøves før kortstokken markeres som feilet. */
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 15_000;
+
+/** Meldingen når en midlertidig feil har vart alle forsøkene; her må eleven selv trykke «Prøv igjen». */
+const RETRY_LATER = 'Fikk ikke kontakt med AI-en. Trykk «Prøv igjen» om litt.';
+
+/** Når ingen av kortene fikk brukbare svaralternativer (f.eks. bare forklaringskort med lange svar). */
+export const NO_CHOICES_MESSAGE =
+  'Claude fant ingen kort med svar som passer til flervalg (svaret må kunne skrives kort, på én linje). Du kan skrive svaralternativer selv når du redigerer et kort.';
 
 /** LaTeX-teksten til et ferdig notat (siste vellykkede versjon), eller null. */
 async function noteBody(storage: Storage, noteId: string): Promise<string | null> {
@@ -63,17 +70,22 @@ export async function loadSourceNotes(
 /**
  * Lager kortene i bakgrunnen: Claude får notatene, svaret ryddes og lagres, og kortstokken blir «ready» (eller
  * «failed» med en norsk feilmelding). Kortstokker som var under arbeid da serveren stoppet, lages på nytt ved oppstart.
+ * Lager også svaralternativer (flervalg) til kortene i en ferdig kortstokk når eleven ber om det (`startChoices`).
  */
 export class FlashcardGenerator {
   private readonly active = new Map<string, Promise<void>>();
+  /** Jobber for svaralternativer, per kortstokk (egen liste, så de ikke stenger for en ny generering av kortene). */
+  private readonly activeChoices = new Map<string, Promise<void>>();
   private readonly sleepers = new Set<() => void>();
   private stopped = false;
 
+  /** `retryDelayMs`: ventetiden før nytt forsøk etter en midlertidig feil (ganges med forsøket; kortere i testene). */
   constructor(
     private readonly repo: Repo,
     private readonly storage: Storage,
     private readonly ai: AiService,
     private readonly log: FastifyBaseLogger,
+    private readonly retryDelayMs = RETRY_DELAY_MS,
   ) {}
 
   /** Ved oppstart: fortsett med kortstokker (og svaralternativer) som ikke ble ferdige. */
@@ -96,20 +108,20 @@ export class FlashcardGenerator {
   /**
    * Lager svaralternativer til kortene i en ferdig kortstokk som mangler dem (POST /api/decks/:id/choices og `resume`).
    * Kortstokken står allerede med `choices_status` = 'generating' (`Repo.startChoices`), og jobben avslutter med
-   * `Repo.completeChoices` eller `Repo.failChoices`. Må tåle å bli kalt flere ganger for samme kortstokk (som `start`).
-   *
-   * TODO(steg 2): AI-kallet (`AiService.generateChoices` med kortenes tekst, i `jobScope` med eieren og `deckId`), stopp
-   * for stengt eller slettet konto før kallet og før lagringen, nye forsøk ved midlertidige feil, og opprydding. Til da
-   * blir kortstokken stående som «generating».
+   * `Repo.completeChoices` eller `Repo.failChoices`. Kan kalles flere ganger for samme kortstokk (et dobbelttrykk gir
+   * ingen ny jobb).
    */
   startChoices(deckId: string): void {
-    if (this.stopped) return;
-    this.log.debug({ deckId }, 'svaralternativer bestilt');
+    if (this.stopped || this.activeChoices.has(deckId)) return;
+    const p = this.withRetries(deckId, 'svaralternativer', () => this.makeChoices(deckId), (message) => this.repo.failChoices(deckId, message))
+      .catch((err) => this.log.error({ err, deckId }, 'svaralternativer krasjet'))
+      .finally(() => this.activeChoices.delete(deckId));
+    this.activeChoices.set(deckId, p);
   }
 
   /** Venter på pågående arbeid (tester og nedstenging). */
   async idle(): Promise<void> {
-    while (this.active.size > 0) await Promise.allSettled([...this.active.values()]);
+    while (this.active.size + this.activeChoices.size > 0) await Promise.allSettled([...this.active.values(), ...this.activeChoices.values()]);
   }
 
   /** Stopper nye forsøk. Kortstokker som ikke ble ferdige, blir liggende som «generating» og fortsetter ved neste oppstart. */
@@ -130,24 +142,32 @@ export class FlashcardGenerator {
     });
   }
 
-  private async run(deckId: string): Promise<void> {
+  private run(deckId: string): Promise<void> {
+    return this.withRetries(deckId, 'kort', () => this.generate(deckId), (message) => this.repo.failDeck(deckId, message));
+  }
+
+  /**
+   * Kjører `work` med nye forsøk ved midlertidige feil. Til slutt får `fail` en norsk melding eleven ser, med «Prøv igjen».
+   * Avbrutt av serveren selv, eller serveren stenger: ingenting lagres, og jobben fortsetter ved neste oppstart.
+   */
+  private async withRetries(deckId: string, what: 'kort' | 'svaralternativer', work: () => Promise<void>, fail: (message: string) => void): Promise<void> {
     for (let attempt = 1; ; attempt++) {
       try {
-        await this.generate(deckId);
+        await work();
         return;
       } catch (err) {
-        // Avbrutt av serveren selv, eller serveren stenger: kortstokken fortsetter ved neste oppstart.
         if (err instanceof AbortedError || (this.stopped && err instanceof ConversionError && err.retryable)) return;
-        const e = err instanceof ConversionError ? err : new ConversionError('Uventet feil da kortene skulle lages. Prøv igjen.');
-        if (!(err instanceof ConversionError)) this.log.error({ err, deckId }, 'uventet feil i generering av kort');
+        const unexpected = what === 'kort' ? 'Uventet feil da kortene skulle lages. Prøv igjen.' : 'Uventet feil da svaralternativene skulle lages. Prøv igjen.';
+        const e = err instanceof ConversionError ? err : new ConversionError(unexpected);
+        if (!(err instanceof ConversionError)) this.log.error({ err, deckId }, `uventet feil da ${what} skulle lages`);
         if (e.retryable && attempt < MAX_ATTEMPTS) {
           this.log.warn({ deckId, attempt, message: e.message }, 'midlertidig feil – prøver igjen');
-          await this.sleep(RETRY_DELAY_MS * attempt);
+          await this.sleep(this.retryDelayMs * attempt);
           if (this.stopped) return;
           continue;
         }
         // Meldingene for midlertidige feil lover et nytt forsøk; her må eleven selv trykke «Prøv igjen».
-        this.repo.failDeck(deckId, e.retryable ? 'Fikk ikke kontakt med AI-en. Trykk «Prøv igjen» om litt.' : e.message);
+        fail(e.retryable ? RETRY_LATER : e.message);
         return;
       }
     }
@@ -180,6 +200,8 @@ export class FlashcardGenerator {
         difficulty: deck.difficulty,
         count: row.requested_count,
         notes,
+        // Bare når eleven krysset av; ellers er forespørselen nøyaktig som før flervalg fantes.
+        ...(row.with_choices === 1 ? { withChoices: true } : {}),
       }),
     );
     const clean = cleanFlashcards(cards, aliases);
@@ -187,5 +209,50 @@ export class FlashcardGenerator {
     if (this.disabled(row.user_id, deckId)) return;
     const done = this.repo.completeDeck(deckId, clean, usage);
     if (done) this.log.info({ deckId, cards: clean.length, ms: Date.now() - started, usage }, 'kortstokk laget');
+  }
+
+  /**
+   * Om jobben for svaralternativer skal stoppe fordi kontoen er borte eller stengt. En slettet konto har ingen rader å
+   * lagre i; en stengt får feilmeldingen og kan prøve igjen når kontoen er åpnet.
+   */
+  private choicesStopped(userId: number, deckId: string): boolean {
+    const user = this.repo.getUser(userId);
+    if (!user) return true;
+    if (!user.disabled) return false;
+    this.repo.failChoices(deckId, 'Kontoen ble stengt mens svaralternativene ble laget. Prøv igjen når den er åpnet.');
+    return true;
+  }
+
+  /**
+   * Svaralternativer til kortene som mangler dem: AI-en får bare kortenes tekst (spørsmål og svar), ikke notatene. Svaret
+   * ryddes (`cleanCardChoices`), og `Repo.completeChoices` lagrer dem bare på kort som er uendret siden de ble lest.
+   */
+  private async makeChoices(deckId: string): Promise<void> {
+    const row = this.repo.getDeckRow(deckId);
+    if (!row || row.choices_status !== 'generating') return;
+    const subject = this.repo.getSubject(row.subject_id);
+    if (!subject) return;
+    // En stengt eller slettet konto får ikke laget alternativer (heller ikke en jobb som var i gang da kontoen ble stengt).
+    if (this.choicesStopped(row.user_id, deckId)) return;
+    const missing = this.repo.listCards(deckId).filter((c) => !c.choices);
+    // Alle kortene har fått alternativer i mellomtiden (eleven har skrevet dem selv): ingenting å lage.
+    if (missing.length === 0) {
+      this.repo.completeChoices(deckId, []);
+      return;
+    }
+    const byAlias = new Map(missing.map((c, i) => [`k${i + 1}`, c]));
+    const started = Date.now();
+    const { cards, usage } = await jobScope({ userId: row.user_id, deckId, subjectId: subject.id }, () =>
+      this.ai.generateChoices({
+        subjectName: subject.name,
+        subjectLabel: getProfile(subject.profile).label,
+        cards: [...byAlias].map(([alias, c]) => ({ alias, kind: c.kind, front: c.front, back: c.back })),
+      }),
+    );
+    const results = cleanCardChoices(cards, byAlias);
+    if (results.length === 0) throw new ConversionError(NO_CHOICES_MESSAGE);
+    if (this.choicesStopped(row.user_id, deckId)) return;
+    const done = this.repo.completeChoices(deckId, results);
+    if (done) this.log.info({ deckId, cards: done.updated, asked: missing.length, ms: Date.now() - started, usage }, 'svaralternativer laget');
   }
 }

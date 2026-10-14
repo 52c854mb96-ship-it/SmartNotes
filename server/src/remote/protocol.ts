@@ -7,13 +7,16 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import type { ChapterInput, CompetenceAim, SubjectProfile } from '@smartnotes/shared';
 import { ConversionError } from '../errors.js';
-import type { FlashcardRequest } from '../flashcards/prompt.js';
+import type { ChoicesRequest, FlashcardRequest } from '../flashcards/prompt.js';
 import type { AiService, ConvertRequest } from '../pipeline/ai.js';
 import { getProfile } from '../profiles/index.js';
 import type { Usage } from '../usage.js';
 
-/** Versjon av protokollen. Økes når formatet endres, så gamle hjemmemaskiner får beskjed om å oppdatere. */
-export const PROTOCOL_VERSION = 1;
+/**
+ * Versjon av protokollen. Økes når formatet endres, så gamle hjemmemaskiner får beskjed om å oppdatere.
+ * 2: svaralternativer (flervalg): `generateChoices`, og `withChoices` og `choices` i kortstokkene.
+ */
+export const PROTOCOL_VERSION = 2;
 
 /** Et sidebilde som sendes med oppgaven (JPEG i base64). */
 export interface WirePage {
@@ -27,7 +30,8 @@ export type RemoteCall =
   | { method: 'fix'; req: { profile: SubjectProfile; body: string; errorReport: string } }
   | { method: 'extractToc'; profile: SubjectProfile; images: { data: string; mediaType: 'image/jpeg' | 'image/png' }[]; aims: CompetenceAim[] }
   | { method: 'mapSectionAims'; profile: SubjectProfile; chapters: ChapterInput[]; aims: CompetenceAim[] }
-  | { method: 'generateFlashcards'; req: FlashcardRequest };
+  | { method: 'generateFlashcards'; req: FlashcardRequest }
+  | { method: 'generateChoices'; req: ChoicesRequest };
 
 export type RemoteMethod = RemoteCall['method'];
 
@@ -111,5 +115,7 @@ async function run(call: RemoteCall, ai: AiService, tmpDir: string): Promise<unk
       return ai.mapSectionAims(getProfile(call.profile), call.chapters, call.aims);
     case 'generateFlashcards':
       return ai.generateFlashcards(call.req);
+    case 'generateChoices':
+      return ai.generateChoices(call.req);
   }
 }

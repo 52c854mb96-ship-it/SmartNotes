@@ -1,24 +1,42 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { createHash, randomUUID } from 'node:crypto';
+import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
+import { z } from 'zod';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from 'vitest';
 import type { CreateInviteResponse, Deck, Flashcard, FlashcardChoices, LoginResponse, ProgressResponse, Subject, SyncResponse } from '@smartnotes/shared';
 import { buildApp, type AppContext } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { OWNER_ID, Repo } from '../src/db.js';
+import { AbortedError, ConversionError } from '../src/errors.js';
+import { FlashcardGenerator, NO_CHOICES_MESSAGE } from '../src/flashcards/generator.js';
 import {
+  CHOICES_SYSTEM_PROMPT,
+  FLASHCARD_SYSTEM_PROMPT,
+  buildChoicesPrompt,
   buildFlashcardPrompt,
   choicesProblem,
+  cleanCardChoices,
+  cleanChoices,
   cleanFlashcards,
   defaultDeckTitle,
+  flashcardChoicesSchema,
+  flashcardSchema,
+  flashcardSchemaFor,
+  flashcardSystemPrompt,
   noteSourceText,
   normalizeChoice,
+  type ChoicesRequest,
+  type FlashcardRequest,
+  type RawCardChoices,
   MAX_CARDS,
   MAX_CHOICE_CHARS,
 } from '../src/flashcards/prompt.js';
-import { FakeClaude, RefusalError, flashcardError, parseFlashcardMessage } from '../src/pipeline/claude.js';
+import type { AiService } from '../src/pipeline/ai.js';
+import { FakeClaude, RefusalError, choicesError, flashcardError, parseChoicesMessage, parseFlashcardMessage } from '../src/pipeline/claude.js';
 import { QUOTA_MESSAGES } from '../src/quota.js';
+import { currentUsageRef, usageScope, zeroUsage, type UsageRef } from '../src/usage.js';
 
 /** Flashcards: kortstokker fra notater, redigering av kort og fremgang som synkes mellom enheter. */
 let ctx: AppContext;
@@ -407,7 +425,7 @@ describe('flervalg: data og ruter', () => {
     expect(await patch({ correct: 'x', wrong: ['a', ' ', 'c'] })).toBe('Skriv tre gale svar, eller la alle feltene for svaralternativer stå tomme.');
     expect(await patch({ correct: 'x', wrong: ['a', 'b', 'c', 'd'] })).toBe('Skriv tre gale svar, eller la alle feltene for svaralternativer stå tomme.');
     expect(await patch({ correct: '**2,0 m/s**', wrong: ['2,0m/s.', 'b', 'c'] })).toBe('Et galt svar kan ikke være likt det riktige svaret.');
-    expect(await patch({ correct: 'x', wrong: ['Newton', 'newton', 'c'] })).toBe('De tre gale svarene må være ulike.');
+    expect(await patch({ correct: 'x', wrong: ['**Newton**', ' Newton.', 'c'] })).toBe('De tre gale svarene må være ulike.');
     expect(await patch({ correct: 'x'.repeat(MAX_CHOICE_CHARS + 1), wrong: ['a', 'b', 'c'] })).toBe(`Et svaralternativ kan ha høyst ${MAX_CHOICE_CHARS} tegn.`);
     expect(await patch({ correct: 'x', wrong: 'a, b, c' })).toBeTruthy();
     // Ingenting ble lagret.
@@ -424,16 +442,20 @@ describe('flervalg: data og ruter', () => {
   });
 
   it('normaliserer svaralternativene før de sammenlignes', () => {
-    expect(normalizeChoice('  **Newton**. ')).toBe('newton');
+    expect(normalizeChoice('  **Newton**. ')).toBe('Newton');
     expect(normalizeChoice('2,0 m/s!')).toBe(normalizeChoice('2,0m/s'));
-    expect(normalizeChoice('$F = m \\cdot a$')).toBe('$f=m\\cdota$');
+    expect(normalizeChoice('$F = m \\cdot a$')).toBe('$F=m\\cdota$');
     expect(normalizeChoice(' . ')).toBe('');
+    // Store og små bokstaver teller: et galt prefiks eller en annen formel er et ekte galt svar.
+    expect(choicesProblem({ correct: '2,0 MJ', wrong: ['2,0 mJ', '2,0 kJ', '20 MJ'] })).toBeNull();
+    expect(choicesProblem({ correct: '$\\ce{CO}$', wrong: ['$\\ce{Co}$', '$\\ce{CO2}$', '$\\ce{C}$'] })).toBeNull();
     expect(choicesProblem(good)).toBeNull();
-    expect(choicesProblem({ correct: 'Ja', wrong: ['Nei', 'Kanskje', 'ja.'] })).toBe('Et galt svar kan ikke være likt det riktige svaret.');
+    expect(choicesProblem({ correct: 'Ja', wrong: ['Nei', 'Kanskje', 'Ja.'] })).toBe('Et galt svar kan ikke være likt det riktige svaret.');
   });
 
   it('«Lag svaralternativer» starter en jobb for kortene som mangler dem, og synker statusen', async () => {
-    const start = vi.spyOn(ctx.generator, 'startChoices');
+    // Bare ruten her: jobben selv testes under «flervalg: jobben».
+    const start = vi.spyOn(ctx.generator, 'startChoices').mockImplementation(() => {});
     try {
       const cursor = (await sync()).cursor;
       const res = await inject<Deck>('POST', `/api/decks/${deck.id}/choices`);
@@ -541,6 +563,9 @@ describe('flervalg: data og ruter', () => {
     expect((await inject('POST', `/api/decks/${created.body.id}/choices`)).status).toBe(404);
     expect(ctx.repo.getDeck(created.body.id)!.choicesStatus).toBeNull();
 
+    // Bare ruten og kvoten her: jobben stubbes, så statusen ikke endres i bakgrunnen.
+    const start = vi.spyOn(ctx.generator, 'startChoices').mockImplementation(() => {});
+    onTestFinished(() => start.mockRestore());
     const first = await injectAs<Deck>(student, 'POST', `/api/decks/${created.body.id}/choices`);
     expect(first.status).toBe(202);
     expect(ctx.quota.usage(userId)!.decks.used).toBe(2);
@@ -564,6 +589,303 @@ describe('flervalg: data og ruter', () => {
     expect(ctx.repo.generatingChoicesDeckIds()).not.toContain(created.body.id);
     ctx.repo.db.prepare(`UPDATE users SET disabled = 0 WHERE id = ?`).run(userId);
     ctx.repo.failChoices(created.body.id, 'Testfeil.');
+  });
+});
+
+describe('flervalg: jobben', () => {
+  const owned = (deckId: string) => ctx.repo.listCards(deckId);
+  const deckOf = async (deckId: string) => (await sync()).decks.find((d) => d.id === deckId)!;
+
+  it('ny kortstokk med «Lag også svaralternativer»: kortene får alternativer der de passer, og bare da', async () => {
+    const spy = vi.spyOn(ctx.ai, 'generateFlashcards');
+    onTestFinished(() => spy.mockRestore());
+    const a = doneNote({ title: 'Newtons lover' });
+    const withChoices = (await inject<Deck>('POST', '/api/decks', { subjectId: subject.id, noteIds: [a], difficulty: 'easy', withChoices: true })).body;
+    expect((await waitReady(withChoices.id)).status).toBe('ready');
+    expect(spy.mock.calls.at(-1)![0]).toMatchObject({ withChoices: true });
+    const cards = (await sync()).cards.filter((c) => c.deckId === withChoices.id);
+    expect(cards.map((c) => [c.kind, c.choices])).toEqual([
+      ['concept', { correct: 'Newtons lover', wrong: ['Feil svar A', 'Feil svar B', 'Feil svar C'] }],
+      // Et åpent forklaringskort får ingen alternativer og øves som før.
+      ['explain', null],
+      ['apply', { correct: '$6{,}0\\ \\text{N}$', wrong: ['$5{,}0\\ \\text{N}$', '$1{,}5\\ \\text{N}$', '$6{,}0\\ \\text{kg}$'] }],
+    ]);
+
+    // Uten avkrysningen er forespørselen som før: feltet er ikke med i det hele tatt.
+    const plain = (await inject<Deck>('POST', '/api/decks', { subjectId: subject.id, noteIds: [a], difficulty: 'easy' })).body;
+    await waitReady(plain.id);
+    expect(spy.mock.calls.at(-1)![0]).not.toHaveProperty('withChoices');
+    expect(owned(plain.id).every((c) => c.choices === null)).toBe(true);
+  });
+
+  it('«Lag svaralternativer» lager dem til kortene som mangler dem, ut fra kortenes tekst, og logger forbruket på kortstokken', async () => {
+    const a = doneNote({ title: 'Akselerasjon', body: '\\section{Akselerasjon}\nHemmelig notattekst som ikke skal sendes.\n' });
+    const deck = (await inject<Deck>('POST', '/api/decks', { subjectId: subject.id, noteIds: [a], difficulty: 'easy' })).body;
+    await waitReady(deck.id);
+    const [concept, explain, apply] = owned(deck.id) as [Flashcard, Flashcard, Flashcard];
+    // Et kort med egne alternativer beholder dem og sendes ikke med.
+    const own = { correct: 'Fart per tid', wrong: ['Strekning per tid', 'Kraft per masse', 'Tid per fart'] };
+    await inject('PATCH', `/api/cards/${concept.id}`, { choices: own });
+    const extra = (await inject<Flashcard>('POST', `/api/decks/${deck.id}/cards`, { kind: 'concept', front: 'Hva er enheten for kraft?', back: ['**newton** (N)'] })).body;
+
+    const spy = vi.spyOn(ctx.ai, 'generateChoices');
+    onTestFinished(() => spy.mockRestore());
+    const before = ctx.repo.usageSince(0).length;
+    const res = await inject<Deck>('POST', `/api/decks/${deck.id}/choices`);
+    expect(res.status).toBe(202);
+    await ctx.generator.idle();
+
+    const req = spy.mock.calls[0]![0];
+    expect(req).toEqual({
+      subjectName: subject.name,
+      subjectLabel: 'Fysikk',
+      cards: [
+        { alias: 'k1', kind: 'explain', front: explain.front, back: explain.back },
+        { alias: 'k2', kind: 'apply', front: apply.front, back: apply.back },
+        { alias: 'k3', kind: 'concept', front: 'Hva er enheten for kraft?', back: ['**newton** (N)'] },
+      ],
+    });
+    expect(buildChoicesPrompt(req)).not.toContain('Hemmelig notattekst');
+
+    expect(await deckOf(deck.id)).toMatchObject({ choicesStatus: null, choicesError: null });
+    const after = new Map(owned(deck.id).map((c) => [c.id, c.choices]));
+    expect(after.get(concept.id)).toEqual(own);
+    expect(after.get(explain.id)).toBeNull();
+    expect(after.get(apply.id)).toEqual({ correct: '$F = m \\cdot a$', wrong: ['Feil svar A', 'Feil svar B', 'Feil svar C'] });
+    // **Fet** skrift fjernes fra alternativene (den ville røpe det riktige).
+    expect(after.get(extra.id)).toEqual({ correct: 'newton (N)', wrong: ['Feil svar A', 'Feil svar B', 'Feil svar C'] });
+
+    const rows = ctx.repo.usageSince(0).slice(before);
+    expect(rows.map((r) => [r.kind, r.userId, r.deckId, r.subjectId, r.noteId, r.ok])).toEqual([['flashcards', OWNER_ID, deck.id, subject.id, null, true]]);
+  });
+
+  it('en feil gir «failed» med norsk melding, og «Prøv igjen» lager dem', async () => {
+    const a = doneNote({ title: 'Energi' });
+    const deck = (await inject<Deck>('POST', '/api/decks', { subjectId: subject.id, noteIds: [a], difficulty: 'easy' })).body;
+    await waitReady(deck.id);
+    const bad = (await inject<Flashcard>('POST', `/api/decks/${deck.id}/cards`, { kind: 'concept', front: 'FEIL i kortet', back: ['Joule'] })).body;
+    expect((await inject('POST', `/api/decks/${deck.id}/choices`)).status).toBe(202);
+    await ctx.generator.idle();
+    expect(await deckOf(deck.id)).toMatchObject({ choicesStatus: 'failed', choicesError: 'Testfeil fra falsk Claude.' });
+    expect(owned(deck.id).every((c) => c.choices === null)).toBe(true);
+
+    await inject('PATCH', `/api/cards/${bad.id}`, { front: 'Hva er enheten for energi?' });
+    const retry = await inject<Deck>('POST', `/api/decks/${deck.id}/choices`);
+    expect(retry.status).toBe(202);
+    expect(retry.body).toMatchObject({ choicesStatus: 'generating', choicesError: null });
+    await ctx.generator.idle();
+    expect(await deckOf(deck.id)).toMatchObject({ choicesStatus: null, choicesError: null });
+    expect(ctx.repo.getCard(bad.id)!.choices).toEqual({ correct: 'Joule', wrong: ['Feil svar A', 'Feil svar B', 'Feil svar C'] });
+  });
+
+  it('når ingen kort får brukbare alternativer, feiler jobben med en forklaring', async () => {
+    const a = doneNote({ title: 'Drøfting' });
+    const deck = (await inject<Deck>('POST', '/api/decks', { subjectId: subject.id, noteIds: [a], difficulty: 'easy' })).body;
+    await waitReady(deck.id);
+    // Bare forklaringskortet mangler alternativer, og falsk Claude gir det null (som et åpent kort).
+    const good = { correct: 'Riktig', wrong: ['Galt 1', 'Galt 2', 'Galt 3'] };
+    for (const c of owned(deck.id).filter((c) => c.kind !== 'explain')) await inject('PATCH', `/api/cards/${c.id}`, { choices: good });
+    expect((await inject('POST', `/api/decks/${deck.id}/choices`)).status).toBe(202);
+    await ctx.generator.idle();
+    expect(await deckOf(deck.id)).toMatchObject({ choicesStatus: 'failed', choicesError: NO_CHOICES_MESSAGE });
+  });
+
+  describe('med en styrt AI', () => {
+    let userId = 0;
+    let own: Subject;
+
+    /** En generator med en AI som bare kan lage svaralternativer, og kort ventetid før nye forsøk. */
+    const generatorWith = (generateChoices: (req: ChoicesRequest) => Promise<{ cards: RawCardChoices[] }>) => {
+      const calls: { req: ChoicesRequest; ref: UsageRef }[] = [];
+      const ai = {
+        generateChoices: async (req: ChoicesRequest) => {
+          calls.push({ req, ref: currentUsageRef() });
+          return { usage: zeroUsage('flashcards', 'styrt'), ...(await generateChoices(req)) };
+        },
+      } as unknown as AiService;
+      return { gen: new FlashcardGenerator(ctx.repo, ctx.storage, ai, ctx.app.log, 1), calls };
+    };
+    const answer = (req: ChoicesRequest) => ({
+      cards: req.cards.map((c) => ({ card: c.alias, choices: { correct: `Riktig ${c.alias}`, wrong: ['Galt 1', 'Galt 2', 'Galt 3'] } })),
+    });
+
+    /** En ferdig kortstokk med tre kort uten alternativer, og jobben for svaralternativer startet (status «generating»). */
+    const readyDeck = (): Deck => {
+      const deck = ctx.repo.createDeck({ subjectId: own.id, title: 'Styrt', difficulty: 'easy', noteIds: [], count: null });
+      ctx.repo.completeDeck(
+        deck.id,
+        ['Første', 'Andre', 'Tredje'].map((front) => ({ kind: 'concept' as const, front: `${front}?`, back: [front], detail: '', noteId: null })),
+        null,
+      );
+      expect(ctx.repo.startChoices(deck.id)).not.toBeNull();
+      return deck;
+    };
+
+    beforeAll(() => {
+      const t = new Date().toISOString();
+      userId = Number(
+        ctx.repo.db.prepare(`INSERT INTO users (username, password_hash, plan, created_at, updated_at) VALUES ('styrt-elev', NULL, 'free', ?, ?)`).run(t, t)
+          .lastInsertRowid,
+      );
+      own = ctx.repo.createSubject({ userId, name: 'Fysikk 1', profile: 'physics' });
+    });
+
+    it('kjører i jobScope med eieren av kortstokken, ikke den som startet jobben, og rydder i svaret', async () => {
+      const deck = readyDeck();
+      const [first, second, third] = owned(deck.id) as [Flashcard, Flashcard, Flashcard];
+      const { gen, calls } = generatorWith(async () => ({
+        cards: [
+          { card: 'k1', choices: { correct: ' Riktig ', wrong: ['Galt 1', '**Galt 2**', 'Galt 3', 'Galt 4'] } },
+          // Et galt svar er likt det riktige: ingen alternativer til det kortet.
+          { card: 'k2', choices: { correct: 'Ja', wrong: ['Nei', 'Ja.', 'Kanskje'] } },
+          { card: 'k3', choices: null },
+          { card: 'k3', choices: { correct: 'Svar', wrong: ['a', 'b', 'c'] } },
+          // Ukjente kort og et kort som allerede er besvart, hoppes over.
+          { card: 'k9', choices: { correct: 'x', wrong: ['a', 'b', 'c'] } },
+          { card: 'k1', choices: { correct: 'Annet', wrong: ['a', 'b', 'c'] } },
+        ],
+      }));
+      // Startet inne i en annen brukers forespørsel (eierens): forbruket hører likevel til eleven og kortstokken.
+      await usageScope({ userId: OWNER_ID, noteId: 'et-notat' }, async () => gen.startChoices(deck.id));
+      await gen.idle();
+      expect(calls.map((c) => c.ref)).toEqual([{ userId, deckId: deck.id, subjectId: own.id }]);
+      expect(ctx.repo.getDeck(deck.id)).toMatchObject({ choicesStatus: null, choicesError: null });
+      expect(ctx.repo.getCard(first.id)!.choices).toEqual({ correct: 'Riktig', wrong: ['Galt 1', 'Galt 2', 'Galt 3'] });
+      expect(ctx.repo.getCard(second.id)!.choices).toBeNull();
+      expect(ctx.repo.getCard(third.id)!.choices).toEqual({ correct: 'Svar', wrong: ['a', 'b', 'c'] });
+    });
+
+    it('et dobbelttrykk gir ikke to jobber', async () => {
+      const deck = readyDeck();
+      const { gen, calls } = generatorWith(async (req) => answer(req));
+      gen.startChoices(deck.id);
+      gen.startChoices(deck.id);
+      await gen.idle();
+      expect(calls).toHaveLength(1);
+      expect(owned(deck.id).every((c) => c.choices)).toBe(true);
+    });
+
+    it('en stengt konto stopper jobben før AI-kallet', async () => {
+      const deck = readyDeck();
+      const { gen, calls } = generatorWith(async (req) => answer(req));
+      ctx.repo.setDisabled(userId, true);
+      try {
+        gen.startChoices(deck.id);
+        await gen.idle();
+      } finally {
+        ctx.repo.setDisabled(userId, false);
+      }
+      expect(calls).toEqual([]);
+      expect(ctx.repo.getDeck(deck.id)).toMatchObject({
+        choicesStatus: 'failed',
+        choicesError: 'Kontoen ble stengt mens svaralternativene ble laget. Prøv igjen når den er åpnet.',
+      });
+    });
+
+    it('en konto som stenges mens AI-en jobber, får ingenting lagret', async () => {
+      const deck = readyDeck();
+      const { gen } = generatorWith(async (req) => {
+        ctx.repo.setDisabled(userId, true);
+        return answer(req);
+      });
+      try {
+        gen.startChoices(deck.id);
+        await gen.idle();
+      } finally {
+        ctx.repo.setDisabled(userId, false);
+      }
+      expect(owned(deck.id).every((c) => c.choices === null)).toBe(true);
+      expect(ctx.repo.getDeck(deck.id)!.choicesStatus).toBe('failed');
+    });
+
+    it('en konto som slettes mens AI-en jobber, får ingenting lagret og gir ingen feil', async () => {
+      const t = new Date().toISOString();
+      const gone = Number(
+        ctx.repo.db.prepare(`INSERT INTO users (username, password_hash, plan, created_at, updated_at) VALUES ('slettes', NULL, 'free', ?, ?)`).run(t, t)
+          .lastInsertRowid,
+      );
+      const s = ctx.repo.createSubject({ userId: gone, name: 'Fysikk 1', profile: 'physics' });
+      const deck = ctx.repo.createDeck({ subjectId: s.id, title: 'Slettes', difficulty: 'easy', noteIds: [], count: null });
+      ctx.repo.completeDeck(deck.id, [{ kind: 'concept', front: 'Hva?', back: ['Dette'], detail: '', noteId: null }], null);
+      ctx.repo.startChoices(deck.id);
+      const error = vi.spyOn(ctx.app.log, 'error');
+      onTestFinished(() => error.mockRestore());
+      const { gen, calls } = generatorWith(async (req) => {
+        expect(ctx.repo.deleteUser(gone)).not.toBeNull();
+        return answer(req);
+      });
+      gen.startChoices(deck.id);
+      await gen.idle();
+      expect(calls).toHaveLength(1);
+      expect(ctx.repo.getDeckRow(deck.id)).toBeNull();
+      expect(ctx.repo.db.prepare(`SELECT COUNT(*) AS n FROM cards WHERE deck_id = ?`).get(deck.id)).toEqual({ n: 0 });
+      expect(error).not.toHaveBeenCalled();
+      // En jobb for en konto som allerede er slettet, gjør ingenting.
+      gen.startChoices(deck.id);
+      await gen.idle();
+      expect(calls).toHaveLength(1);
+    });
+
+    it('midlertidige feil prøves igjen; vedvarer de, kan eleven trykke «Prøv igjen»', async () => {
+      const deck = readyDeck();
+      let n = 0;
+      const once = generatorWith(async (req) => {
+        if (++n === 1) throw new ConversionError('Claude har for mange forespørsler akkurat nå. Prøver igjen om litt.', true);
+        return answer(req);
+      });
+      once.gen.startChoices(deck.id);
+      await once.gen.idle();
+      expect(once.calls).toHaveLength(2);
+      expect(ctx.repo.getDeck(deck.id)!.choicesStatus).toBeNull();
+      expect(owned(deck.id).every((c) => c.choices)).toBe(true);
+
+      const busy = readyDeck();
+      const always = generatorWith(async () => {
+        throw new ConversionError('Fikk ikke kontakt med Claude. Prøver igjen om litt.', true);
+      });
+      always.gen.startChoices(busy.id);
+      await always.gen.idle();
+      expect(always.calls).toHaveLength(3);
+      expect(ctx.repo.getDeck(busy.id)).toMatchObject({ choicesStatus: 'failed', choicesError: 'Fikk ikke kontakt med AI-en. Trykk «Prøv igjen» om litt.' });
+
+      // En uventet feil (ikke fra AI-en) gir en generell melding.
+      const odd = readyDeck();
+      const crash = generatorWith(async () => {
+        throw new TypeError('x is undefined');
+      });
+      crash.gen.startChoices(odd.id);
+      await crash.gen.idle();
+      expect(ctx.repo.getDeck(odd.id)!.choicesError).toBe('Uventet feil da svaralternativene skulle lages. Prøv igjen.');
+    });
+
+    it('avbrutt ved nedstengning: ingenting lagres, og jobben fortsetter ved neste oppstart', async () => {
+      const deck = readyDeck();
+      const aborted = generatorWith(async () => {
+        throw new AbortedError('Serveren startet på nytt. Prøver igjen om litt.');
+      });
+      aborted.gen.startChoices(deck.id);
+      await aborted.gen.idle();
+      expect(ctx.repo.getDeck(deck.id)!.choicesStatus).toBe('generating');
+      expect(ctx.repo.generatingChoicesDeckIds()).toContain(deck.id);
+
+      // Serveren stenger mens jobben venter på et nytt forsøk: ingen feilmelding.
+      const stopping = generatorWith(async () => {
+        stopping.gen.stop();
+        throw new ConversionError('Fikk ikke kontakt med Claude. Prøver igjen om litt.', true);
+      });
+      stopping.gen.startChoices(deck.id);
+      await stopping.gen.idle();
+      expect(ctx.repo.getDeck(deck.id)!.choicesStatus).toBe('generating');
+      // En stoppet generator tar ikke nye jobber.
+      stopping.gen.startChoices(deck.id);
+      expect(stopping.calls).toHaveLength(1);
+
+      const next = generatorWith(async (req) => answer(req));
+      next.gen.startChoices(deck.id);
+      await next.gen.idle();
+      expect(ctx.repo.getDeck(deck.id)!.choicesStatus).toBeNull();
+      expect(owned(deck.id).every((c) => c.choices)).toBe(true);
+    });
   });
 });
 
@@ -620,6 +942,32 @@ describe('svar fra Claude', () => {
 
   it('feilmeldingene handler om kort, ikke om konvertering', () => {
     expect(flashcardError(new Error('x')).message).toBe('Uventet feil da kortene skulle lages. Prøv igjen.');
+    expect(choicesError(new Error('x')).message).toBe('Uventet feil da svaralternativene skulle lages. Prøv igjen.');
+    expect(choicesError(new RefusalError('Claude avslo å lage svaralternativer til disse kortene.'))).toBeInstanceOf(RefusalError);
+  });
+
+  it('svaralternativene i kortene leses bare når de ble bedt om', () => {
+    const choices = { correct: 'Strekning per tid', wrong: ['a', 'b', 'c'] };
+    const withChoices = JSON.stringify({ cards: [{ note: 'n1', kind: 'concept', front: 'Hva er fart?', back: ['s/t'], detail: '', choices }] });
+    expect(parseFlashcardMessage(text(withChoices), true)[0]!.choices).toEqual(choices);
+    // Uten avkrysningen er skjemaet som før, og et felt modellen likevel sendte, forsvinner.
+    expect(parseFlashcardMessage(text(withChoices))[0]).not.toHaveProperty('choices');
+    // Med avkrysningen må hvert kort ha feltet (null for kort som ikke passer).
+    expect(() => parseFlashcardMessage(text(ok), true)).toThrow('Claude svarte ikke med kort. Prøv igjen.');
+  });
+
+  it('tolker svaralternativer til kort som finnes, med egne norske meldinger', () => {
+    const answer = JSON.stringify({ cards: [{ card: 'k1', choices: { correct: 'Joule', wrong: ['Watt', 'Newton', 'Pascal'] } }, { card: 'k2', choices: null }] });
+    expect(parseChoicesMessage(text(answer))).toEqual([
+      { card: 'k1', choices: { correct: 'Joule', wrong: ['Watt', 'Newton', 'Pascal'] } },
+      { card: 'k2', choices: null },
+    ]);
+    expect(() => parseChoicesMessage(text('{"cards": [', 'refusal'))).toThrow(RefusalError);
+    expect(() => parseChoicesMessage(text('{"cards": [', 'refusal'))).toThrow('Claude avslo å lage svaralternativer til disse kortene.');
+    expect(() => parseChoicesMessage(text(answer.slice(0, 30), 'max_tokens'))).toThrow(
+      'Kortstokken har for mange kort til at svaralternativene kan lages i én omgang. Slett noen kort, og prøv igjen.',
+    );
+    expect(() => parseChoicesMessage(text(ok))).toThrow('Claude svarte ikke med svaralternativer. Prøv igjen.');
   });
 });
 
@@ -636,11 +984,117 @@ describe('opprydding og ledetekst', () => {
       aliases,
     );
     expect(out).toEqual([
-      { kind: 'concept', front: 'Hva er fart?', back: ['Strekning per tid'], detail: 'Forklaring', noteId: 'note-1' },
-      { kind: 'concept', front: 'Ukjent type', back: ['x'], detail: '', noteId: null },
+      { kind: 'concept', front: 'Hva er fart?', back: ['Strekning per tid'], detail: 'Forklaring', choices: null, noteId: 'note-1' },
+      { kind: 'concept', front: 'Ukjent type', back: ['x'], detail: '', choices: null, noteId: null },
     ]);
     const many = Array.from({ length: 200 }, (_, i) => ({ note: 'n1', kind: 'explain', front: `Spørsmål ${i}`, back: ['svar'], detail: '' }));
     expect(cleanFlashcards(many, aliases)).toHaveLength(MAX_CARDS);
+  });
+
+  it('rydder i svaralternativene fra AI-en', () => {
+    const wrong = ['Galt 1', 'Galt 2', 'Galt 3'];
+    expect(cleanChoices(null)).toBeNull();
+    expect(cleanChoices(undefined)).toBeNull();
+    // Én linje, uten **fet** skrift, og de tre første brukbare gale svarene.
+    expect(cleanChoices({ correct: ' **Newton**\n(N) ', wrong: ['Galt  1', ...wrong.slice(1), 'Galt 4'] })).toEqual({ correct: 'Newton (N)', wrong });
+    // Like eller tomme gale svar hoppes over; er det færre enn tre igjen, får kortet ingen alternativer.
+    expect(cleanChoices({ correct: 'Ja', wrong: ['Ja.', 'Nei', ' ', 'Nei!', 'Kanskje', 'Aldri', 'Alltid'] })).toEqual({ correct: 'Ja', wrong: ['Nei', 'Kanskje', 'Aldri'] });
+    expect(cleanChoices({ correct: 'Ja', wrong: ['Ja.', 'Nei', 'Nei.', 'Kanskje'] })).toBeNull();
+    expect(cleanChoices({ correct: 'Ja', wrong: ['Nei', 'Kanskje'] })).toBeNull();
+    // For lange svar og formler som ikke lukkes.
+    expect(cleanChoices({ correct: 'x'.repeat(MAX_CHOICE_CHARS + 1), wrong })).toBeNull();
+    expect(cleanChoices({ correct: 'Ja', wrong: [...wrong.slice(0, 2), 'y'.repeat(MAX_CHOICE_CHARS + 1)] })).toBeNull();
+    expect(cleanChoices({ correct: '$F = ma', wrong })).toBeNull();
+    expect(cleanChoices({ correct: '$F = ma$', wrong: ['$F = m/a', ...wrong] })).toEqual({ correct: '$F = ma$', wrong });
+    // Et dollartegn med backslash foran er ikke en formel.
+    expect(cleanChoices({ correct: 'Koster \\$5', wrong })).toEqual({ correct: 'Koster \\$5', wrong });
+    expect(cleanChoices({ correct: ' . ', wrong })).toBeNull();
+
+    const cards = new Map([
+      ['k1', 'kort-1'],
+      ['k2', 'kort-2'],
+    ]);
+    expect(
+      cleanCardChoices(
+        [
+          { card: 'k2', choices: null },
+          { card: ' k1 ', choices: { correct: 'A', wrong } },
+          { card: 'k1', choices: { correct: 'B', wrong } },
+          { card: 'k3', choices: { correct: 'C', wrong } },
+          { card: 'k2', choices: { correct: 'D', wrong } },
+        ],
+        cards,
+      ),
+    ).toEqual([
+      { card: 'kort-1', choices: { correct: 'A', wrong } },
+      { card: 'kort-2', choices: { correct: 'D', wrong } },
+    ]);
+
+    // cleanFlashcards: brukbare alternativer beholdes, resten blir null.
+    const out = cleanFlashcards(
+      [
+        { note: 'n1', kind: 'concept', front: 'Hva er g?', back: ['9,81 m/s²'], detail: '', choices: { correct: '9,81 m/s²', wrong: ['9,81 m/s', '98,1 m/s²', '1,0 m/s²'] } },
+        { note: 'n1', kind: 'explain', front: 'Hvorfor?', back: ['Fordi'], detail: '', choices: null },
+        { note: 'n1', kind: 'apply', front: 'Regn ut', back: ['6 N'], detail: '', choices: { correct: '6 N', wrong: ['6 N.', '5 N', '4 N'] } },
+      ],
+      new Map([['n1', 'note-1']]),
+    );
+    expect(out.map((c) => c.choices)).toEqual([{ correct: '9,81 m/s²', wrong: ['9,81 m/s', '98,1 m/s²', '1,0 m/s²'] }, null, null]);
+  });
+
+  it('uten «Lag også svaralternativer» er instruksen, brukermeldingen og skjemaet byte for byte som før', () => {
+    const sha = (s: string) => createHash('sha256').update(s).digest('hex');
+    const req: FlashcardRequest = {
+      subjectName: 'Fysikk 1',
+      subjectLabel: 'Fysikk',
+      difficulty: 'mixed',
+      count: null,
+      notes: [
+        { alias: 'n1', title: 'Kraft', chapter: '2 Krefter', section: '2E Newtons 2. lov', date: '2026-09-01', body: 'Innhold $F = ma$' },
+        { alias: 'n2', title: 'Fart', chapter: null, section: null, date: null, body: 'Mer' },
+      ],
+    };
+    // Fingeravtrykkene er regnet ut fra versjonen før flervalg (main etter #33).
+    expect(sha(FLASHCARD_SYSTEM_PROMPT)).toBe('73168f148febe1a296f99846071b78655b265d53260ece50cb62b7839b8d3210');
+    expect(sha(buildFlashcardPrompt(req))).toBe('76856ad10c2541ded41ddb5c544ec678abdd09d5175f9b8dc60b84b76d0f0504');
+    expect(sha(buildFlashcardPrompt({ ...req, count: 20 }))).toBe('32bf14294454490d0e586cbba2ec96e4ad1dbdff00f6453664de893a6dbffd7f');
+    expect(sha(JSON.stringify(z.toJSONSchema(flashcardSchema)))).toBe('3162baaa54614acb3c18d541f8b1c9a19e0bd2f7b7277af88d90528733d8dc53');
+    expect(sha(JSON.stringify(zodOutputFormat(flashcardSchema).schema))).toBe('ef57f3c51cf3f588c0eb6b187f6396c08eda3eaef38f3e335f9cf465de56660b');
+    // Det er dette som sendes når eleven ikke har krysset av (feltet utelatt eller false).
+    for (const withChoices of [undefined, false]) {
+      expect(flashcardSystemPrompt(withChoices)).toBe(FLASHCARD_SYSTEM_PROMPT);
+      expect(buildFlashcardPrompt({ ...req, withChoices })).toBe(buildFlashcardPrompt(req));
+      expect(flashcardSchemaFor(withChoices)).toBe(flashcardSchema);
+    }
+  });
+
+  it('med «Lag også svaralternativer» får instruksen en egen del, og skjemaet feltet "choices"', () => {
+    const req: FlashcardRequest = { subjectName: 'Kjemi 1', subjectLabel: 'Kjemi', difficulty: 'easy', count: 10, notes: [], withChoices: true };
+    const system = flashcardSystemPrompt(true);
+    expect(system.startsWith(FLASHCARD_SYSTEM_PROMPT.slice(0, FLASHCARD_SYSTEM_PROMPT.lastIndexOf('\n\nSvar\n')))).toBe(true);
+    expect(system.endsWith(FLASHCARD_SYSTEM_PROMPT.slice(FLASHCARD_SYSTEM_PROMPT.lastIndexOf('\n\nSvar\n')))).toBe(true);
+    expect(system.split('Svaralternativer ("choices")')).toHaveLength(2);
+    expect(system.indexOf('Svaralternativer ("choices")')).toBeLessThan(system.lastIndexOf('\n\nSvar\n'));
+    expect(system).toContain(`høyst ${MAX_CHOICE_CHARS}`);
+    expect(system).toContain('Sett "choices" til null');
+    expect(buildFlashcardPrompt(req)).toContain('Svaralternativer: ja.');
+    expect(buildFlashcardPrompt({ ...req, withChoices: false })).not.toContain('Svaralternativer');
+    expect(flashcardSchemaFor(true)).toBe(flashcardChoicesSchema);
+    expect(JSON.stringify(zodOutputFormat(flashcardChoicesSchema).schema)).toContain('"choices"');
+
+    // Instruksen for kort som finnes, har de samme reglene, og brukermeldingen bare kortenes tekst.
+    expect(CHOICES_SYSTEM_PROMPT).toContain(`høyst ${MAX_CHOICE_CHARS}`);
+    expect(CHOICES_SYSTEM_PROMPT).toContain('"card" er id-en til kortet');
+    expect(CHOICES_SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(
+      buildChoicesPrompt({
+        subjectName: 'Kjemi 1',
+        subjectLabel: 'Kjemi',
+        cards: [{ alias: 'k1', kind: 'apply', front: ' Hva er pH i $\\ce{HCl}$? ', back: ['!Svar', 'pH = 1'] }],
+      }),
+    ).toBe(
+      ['Fag: Kjemi 1 (kjemi)', '', '<cards>', '<card id="k1" kind="apply">', 'Spørsmål: Hva er pH i $\\ce{HCl}$?', 'Svar:', '- !Svar', '- pH = 1', '</card>', '</cards>', '', 'Lag svaralternativer til kortene.'].join('\n'),
+    );
   });
 
   it('navn på kortstokken', () => {

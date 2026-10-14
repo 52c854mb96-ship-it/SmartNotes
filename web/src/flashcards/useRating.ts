@@ -3,9 +3,9 @@ import { playEffects } from './effects';
 import { OWN_CARDS, UNDO_LIMIT, levelOf, type QuickContext, type RateOutcome, type Round } from './model';
 import type { Session } from './session';
 
-/** Vurderingene i formene som flytter nivåene (Mestring, Rask runde og Luketekst). */
+/** Vurderingene i formene som flytter nivåene (Mestring, Rask runde, Luketekst og Flervalg). */
 export interface Rating {
-  /** Nivåene og gruppene akkurat nå, til `rate`, `rateQuick` og `rateCloze`. */
+  /** Nivåene og gruppene akkurat nå, til `rate`, `rateQuick`, `rateCloze` og `rateChoice`. */
   context: () => QuickContext;
   /**
    * Bruker utfallet av en vurdering: angrestakken, nivået (også på de andre enhetene, når `out.write`), rekorden,
@@ -15,9 +15,10 @@ export interface Rating {
   apply: (out: RateOutcome | null, focus?: boolean) => void;
   /**
    * Angrer forrige vurdering: runden, nivået og rekorden settes tilbake, og kortet vises med svaret. Med `showAnswer`
-   * false vises spørsmålet, uten å flytte fokus (et kort med luke i Luketekst).
+   * false vises spørsmålet, uten å flytte fokus (et kort med luke i Luketekst), eller med fokus på spørsmålet når
+   * `focusQuestion` er sann (et kort med svaralternativer i Flervalg).
    */
-  undo: (showAnswer?: boolean) => void;
+  undo: (showAnswer?: boolean, focusQuestion?: boolean) => void;
 }
 
 export function useRating(
@@ -63,7 +64,7 @@ export function useRating(
   );
 
   const undo = useCallback(
-    (showAnswer = true) => {
+    (showAnswer = true, focusQuestion = false) => {
       const last = undoStack[undoStack.length - 1];
       if (!last) return;
       setUndoStack((s) => s.slice(0, -1));
@@ -71,7 +72,7 @@ export function useRating(
       if (last.wrote !== false) setLevels([last.cardId], last.level);
       if (last.best < best.value) best.restore(last.best);
       if (showAnswer) show('answer');
-      else show('question', false);
+      else show('question', focusQuestion);
       setFeedback('Angret.', '');
     },
     [undoStack, setUndoStack, setRound, setLevels, best, show, setFeedback],

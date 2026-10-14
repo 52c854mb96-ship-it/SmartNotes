@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ChevronLeft, CircleAlert, ListChecks, Pencil, RotateCcw, Trash2, GalleryVerticalEnd } from 'lucide-react';
 import type { Deck, Flashcard, Note } from '@smartnotes/shared';
@@ -9,6 +9,7 @@ import { Modal } from '../components/Modal';
 import { useSubject, useSubjectNotes } from '../data';
 import { deleteDeck, renameDeck, resetPractice, retryDeck, setCardLevels } from '../flashcards/actions';
 import { CardList } from '../flashcards/CardList';
+import { ChoicesPanel } from '../flashcards/ChoicesPanel';
 import { useDeck, useDeckCards } from '../flashcards/data';
 import { DIFFICULTY_LABEL } from '../flashcards/labels';
 import { Practice } from '../flashcards/Practice';
@@ -34,6 +35,14 @@ export function DeckPage() {
   const [resetting, setResetting] = useState(false);
   const { online } = useOnline();
   useDocumentTitle(deck ? `${deck.title} · Flashcards` : null);
+
+  // Svaralternativene lages i bakgrunnen: si fra når de er klare (en feil vises i fanen «Alle kort» og ved velgeren).
+  const choicesStatus = deck?.choicesStatus;
+  const prevChoices = useRef(choicesStatus);
+  useEffect(() => {
+    if (prevChoices.current === 'generating' && choicesStatus === null) toast('Svaralternativene er klare.', { kind: 'success' });
+    prevChoices.current = choicesStatus;
+  }, [choicesStatus]);
 
   if (subject === undefined || deck === undefined || cards === undefined || notes === undefined) return <PageSkeleton />;
   if (subject === null) return <NotFoundPage what="faget" />;
@@ -163,6 +172,7 @@ export function DeckPage() {
             {!resetting && <PracticeTab deck={deck} cards={cards} notes={notes} active={tab === 'ov'} />}
           </div>
           <div id="fc-panel-kort" role="tabpanel" aria-labelledby="fc-tab-kort" hidden={tab !== 'kort'}>
+            {cards.length > 0 && <ChoicesPanel deck={deck} cards={cards} />}
             <CardList deck={deck} cards={cards} notes={notes} online={online} />
           </div>
         </>

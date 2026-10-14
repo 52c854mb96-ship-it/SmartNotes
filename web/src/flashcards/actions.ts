@@ -9,6 +9,10 @@ import { applyServerRows, syncNow, syncProgressSoon } from '../sync';
 
 // ---------- Kortstokker ----------
 
+/**
+ * Ny kortstokk. Med `withChoices` lager Claude også svaralternativer (flervalg) til kortene; det skjer bare når eleven
+ * krysser av, og ellers sendes ingenting om alternativer (serveren bruker false).
+ */
 export async function createDeck(req: CreateDeckRequest): Promise<Deck> {
   const deck = await api.createDeck(req);
   await applyServerRows({ decks: [deck] });
@@ -25,6 +29,20 @@ export async function renameDeck(id: string, title: string): Promise<Deck> {
 
 export async function retryDeck(id: string): Promise<Deck> {
   const deck = await api.retryDeck(id);
+  await applyServerRows({ decks: [deck] });
+  void syncNow();
+  return deck;
+}
+
+/**
+ * «Lag svaralternativer»: Claude lager alternativer til kortene i kortstokken som mangler dem, i bakgrunnen. Krever nett
+ * (feiler med `NetworkError` uten). Kortstokken kommer tilbake med `choicesStatus: 'generating'`, og synken følger med
+ * til alternativene er laget (`choicesStatus` null) eller jobben har feilet (`failed`, med `choicesError`). Etter en
+ * feil er det samme kallet «Prøv igjen». For gratiskontoer teller det første kallet som én kortstokk i dagens kvote
+ * (`ApiError` 429 `quota_exceeded` med en norsk melding når den er brukt).
+ */
+export async function requestChoices(id: string): Promise<Deck> {
+  const deck = await api.requestChoices(id);
   await applyServerRows({ decks: [deck] });
   void syncNow();
   return deck;

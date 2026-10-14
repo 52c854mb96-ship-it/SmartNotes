@@ -1,14 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Flashcard, FlashcardKind } from '@smartnotes/shared';
 import { errorMessage } from '../api';
 import { Modal } from '../components/Modal';
 import { toast } from '../lib/ui';
 import { createCard, updateCard } from './actions';
+import { ChoiceSummary } from './ChoiceSummary';
+import { MAX_CHOICE_CHARS, WRONG_CHOICES, choiceFieldsOf, readChoiceFields, type ChoiceField, type ChoiceFields } from './choices';
 import { KIND_HINT, KIND_LABEL, KINDS } from './labels';
+import { hasChoices } from './model';
 import { backToText, parseBackLine, textToBack } from './richtext';
 import { RichParagraphs, RichText } from './RichText';
 
-/** Redigerer et kort, eller lager et nytt (card = null). */
+/**
+ * Redigerer et kort, eller lager et nytt (card = null). Svaralternativene til flervalg er valgfrie: tomme felt gir et
+ * kort uten (og fjerner dem fra et kort som hadde dem). Feltene sjekkes med de samme reglene og meldingene som serveren
+ * (`readChoiceFields`).
+ */
 export function CardEditor({
   open,
   deckId,
@@ -24,6 +31,11 @@ export function CardEditor({
   const [front, setFront] = useState('');
   const [back, setBack] = useState('');
   const [detail, setDetail] = useState('');
+  const [choiceFields, setChoiceFields] = useState<ChoiceFields>(() => choiceFieldsOf(null));
+  const [choicesOpen, setChoicesOpen] = useState(false);
+  /** Feltet for svaralternativer som har feil (markeres og får fokus). */
+  const [badChoice, setBadChoice] = useState<ChoiceField | null>(null);
+  const choiceRefs = useRef<Partial<Record<string, HTMLInputElement | null>>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,17 +45,41 @@ export function CardEditor({
     setFront(card?.front ?? '');
     setBack(card ? backToText(card.back) : '');
     setDetail(card?.detail ?? '');
+    setChoiceFields(choiceFieldsOf(card?.choices));
+    setChoicesOpen(hasChoices(card ?? undefined));
+    setBadChoice(null);
     setError(null);
   }, [open, card]);
+
+  const setCorrect = (correct: string) => {
+    setBadChoice(null);
+    setChoiceFields((f) => ({ ...f, correct }));
+  };
+  const setWrong = (i: number, text: string) => {
+    setBadChoice(null);
+    setChoiceFields((f) => ({ ...f, wrong: f.wrong.map((w, j) => (j === i ? text : w)) }));
+  };
+  const anyChoice = choiceFields.correct.trim() !== '' || choiceFields.wrong.some((w) => w.trim() !== '');
 
   const lines = textToBack(back);
   const save = async () => {
     if (!front.trim()) return setError('Spørsmålet kan ikke være tomt.');
     if (!lines.length) return setError('Svaret må ha minst ett punkt.');
+    const read = readChoiceFields(choiceFields);
+    if (!read.ok) {
+      setChoicesOpen(true);
+      setBadChoice(read.field);
+      setError(read.error);
+      // Feltet kan ligge i en lukket del: fokus etter at den er åpnet.
+      setTimeout(() => choiceRefs.current[String(read.field)]?.focus(), 0);
+      return;
+    }
+    setBadChoice(null);
     setBusy(true);
     setError(null);
     try {
-      const input = { kind, front: front.trim(), back: lines, detail: detail.trim() };
+      // `choices` sendes alltid: null gir et kort uten svaralternativer (og fjerner dem ved redigering).
+      const input = { kind, front: front.trim(), back: lines, detail: detail.trim(), choices: read.choices };
       if (card) await updateCard(card.id, input);
       else await createCard(deckId, input);
       toast(card ? 'Kortet er lagret.' : 'Kortet er lagt til.', { kind: 'success' });
@@ -112,6 +148,61 @@ export function CardEditor({
           </span>
           <textarea rows={4} value={detail} onChange={(e) => setDetail(e.currentTarget.value)} maxLength={4000} />
         </label>
+        <details className="fc-editor-choices" open={choicesOpen} onToggle={(e) => setChoicesOpen(e.currentTarget.open)}>
+          <summary>
+            Svaralternativer til flervalg <span className="optional">(valgfritt)</span>
+          </summary>
+          <div className="fc-editor-choices-body">
+            <p className="field-note">
+              Skriv det riktige svaret kort, på én linje, og tre gale svar som ligner det. La alle feltene stå tomme for et kort
+              uten svaralternativer.
+            </p>
+            <label className="field">
+              <span className="field-label">Kort riktig svar</span>
+              <input
+                ref={(el) => {
+                  choiceRefs.current.correct = el;
+                }}
+                type="text"
+                value={choiceFields.correct}
+                maxLength={MAX_CHOICE_CHARS}
+                aria-invalid={badChoice === 'correct' || undefined}
+                onChange={(e) => setCorrect(e.currentTarget.value)}
+              />
+            </label>
+            <fieldset className="field fc-editor-wrong">
+              <legend className="field-label">Gale svar</legend>
+              {Array.from({ length: WRONG_CHOICES }, (_, i) => (
+                <input
+                  key={i}
+                  ref={(el) => {
+                    choiceRefs.current[String(i)] = el;
+                  }}
+                  type="text"
+                  aria-label={`Galt svar ${i + 1}`}
+                  value={choiceFields.wrong[i] ?? ''}
+                  maxLength={MAX_CHOICE_CHARS}
+                  aria-invalid={badChoice === i || undefined}
+                  onChange={(e) => setWrong(i, e.currentTarget.value)}
+                />
+              ))}
+            </fieldset>
+            {anyChoice && (
+              <div>
+                <button
+                  type="button"
+                  className="link-btn"
+                  onClick={() => {
+                    setChoiceFields(choiceFieldsOf(null));
+                    setBadChoice(null);
+                  }}
+                >
+                  Fjern svaralternativene
+                </button>
+              </div>
+            )}
+          </div>
+        </details>
         {(front.trim() || lines.length > 0) && (
           <div className="fc-preview" aria-label="Forhåndsvisning">
             <span className="field-label">Forhåndsvisning</span>
@@ -134,6 +225,7 @@ export function CardEditor({
                   <RichParagraphs text={detail} />
                 </div>
               )}
+              {anyChoice && <ChoiceSummary choices={choiceFields} />}
             </div>
           </div>
         )}
