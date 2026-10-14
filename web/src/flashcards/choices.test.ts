@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_CHOICE_CHARS, choiceFieldsOf, choiceLine, normalizeChoice, readChoiceFields, type ChoiceFields } from './choices';
+import { MAX_CHOICE_CHARS, choiceFieldsOf, choiceLine, choicesChanged, normalizeChoice, readChoiceFields, type ChoiceFields } from './choices';
 
 const fields = (correct: string, ...wrong: string[]): ChoiceFields => ({ correct, wrong: [...wrong, '', '', ''].slice(0, 3) });
 
@@ -75,5 +75,27 @@ describe('svaralternativer i redigeringen', () => {
     expect(normalizeChoice('é')).toBe('é');
     expect(normalizeChoice('mJ')).not.toBe(normalizeChoice('MJ'));
     expect(choiceLine(' a \n  b\t')).toBe('a b');
+  });
+  it('samme svar med et annet LaTeX-mellomrom er likt, og en formel uten innhold er tom', () => {
+    expect(readChoiceFields(fields('$6{,}0\\ \\text{N}$', '$6{,}0\\,\\text{N}$', 'b', 'c'))).toEqual({
+      ok: false,
+      error: 'Et galt svar kan ikke være likt det riktige svaret.',
+      field: 0,
+    });
+    expect(readChoiceFields(fields('$ $', 'a', 'b', 'c'))).toMatchObject({ ok: false, field: 'correct' });
+    expect(normalizeChoice('$6{,}0~\\mathrm{N}$')).toBe(normalizeChoice('6,0 N'));
+  });
+
+  it('ved redigering sendes alternativene bare når eleven har endret dem', () => {
+    const choices = { correct: 'Newton', wrong: ['Joule', 'Watt', 'Pascal'] };
+    // Urørte felt: tomme på et kort uten, eller de samme på et kort med (mellomrom i endene teller ikke).
+    expect(choicesChanged(null, choiceFieldsOf(null))).toBe(false);
+    expect(choicesChanged(undefined, fields(' ', '', '\n'))).toBe(false);
+    expect(choicesChanged(choices, choiceFieldsOf(choices))).toBe(false);
+    expect(choicesChanged(choices, fields(' Newton ', 'Joule', 'Watt  ', 'Pascal'))).toBe(false);
+    // Tømte, skrevne eller endrede felt.
+    expect(choicesChanged(choices, choiceFieldsOf(null))).toBe(true);
+    expect(choicesChanged(null, fields('Newton', 'Joule', 'Watt', 'Pascal'))).toBe(true);
+    expect(choicesChanged(choices, fields('Newton', 'Joule', 'Watt', 'Bar'))).toBe(true);
   });
 });

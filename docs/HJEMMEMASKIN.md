@@ -144,7 +144,7 @@ Om dette fungerer helt uten pålogging etter en omstart, er ikke prøvd ennå. I
 |---|---|
 | «Serveren godtok ikke WORKER_TOKEN» | Nøkkelen i `.env` er ikke lik den i Railway. Sjekk at det ikke er mellomrom på slutten |
 | «Serveren har ikke slått på hjemmemaskinen» | `WORKER_TOKEN` mangler i Railway, eller `SMARTNOTES_URL` er feil |
-| «Hjemmemaskinen har en annen versjon …» | Kjør `git pull` og `npm ci`, og start hjemmemaskinen på nytt |
+| «Hjemmemaskinen har en annen versjon …» eller «Oppdater hjemmemaskinen» | Kjør `git pull` og `npm ci`, og start hjemmemaskinen på nytt. Protokollversjon 2 (oktober 2026) kom med svaralternativer til flervalg, så en hjemmemaskin fra før må oppdateres |
 | «Fikk ikke kontakt med den lokale AI-en (Ollama …)» | Start Ollama |
 | «Modellen … finnes ikke i Ollama» | Kjør kommandoen `ollama pull …` som står i meldingen |
 | «Den lokale maskinen har ikke nok minne …» | Velg en mindre modell, eller sett `OLLAMA_IMAGE_MAX_EDGE` lavere (for eksempel `1280`) |

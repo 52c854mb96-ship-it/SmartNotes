@@ -162,7 +162,8 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
   /**
    * Svaralternativer (flervalg) til kortene som mangler dem, i en ferdig kortstokk. Bare når eleven ber om det. Jobben går
    * i bakgrunnen; appen følger med på `choicesStatus` via synk. Gratiskontoer: teller som én kortstokk i dagens kvote, men
-   * et nytt forsøk etter en feil telles ikke (som «Prøv igjen» for kortstokker).
+   * et nytt forsøk etter en feil telles ikke (som «Prøv igjen» for kortstokker). Kort AI-en allerede har avslått
+   * (`choicesDeclined`), sendes ikke igjen; er det bare slike igjen, svarer ruten 400 før noe telles.
    */
   app.post<{ Params: { id: string } }>('/api/decks/:id/choices', async (req, reply) => {
     const r = mine(req);
@@ -178,6 +179,9 @@ export function registerFlashcardRoutes(app: FastifyInstance, d: Deps): void {
     const cards = r.listCards(deck.id);
     if (cards.length === 0) throw badRequest('Kortstokken har ingen kort.');
     if (cards.every((c) => c.choices)) throw badRequest('Alle kortene har allerede svaralternativer.');
+    if (cards.every((c) => c.choices || c.choicesDeclined)) {
+      throw badRequest('Claude har allerede prøvd kortene som mangler svaralternativer, uten å finne gode. Du kan skrive dem selv når du redigerer kortet.');
+    }
     if (!aiConfigured(ai, 'flashcards')) throw offlineFeature('Serveren mangler Claude API-nøkkel (ANTHROPIC_API_KEY), så svaralternativene kan ikke lages.');
     const blocked =
       deck.choicesStatus === 'failed' ? d.quota?.retryBlocked(r.userId, QUOTA_MESSAGES.choicesBudget) : d.quota?.takeChoices(r.userId, deck.id);

@@ -323,9 +323,12 @@ const MIGRATIONS: string[] = [
   // 9: flervalg. Et kort kan ha svaralternativer (JSON {correct, wrong}, eller NULL). En kortstokk husker om eleven ba om
   // alternativer da den ble laget (`with_choices`, bare på serveren, som `requested_count`), og har en status for jobben
   // som lager alternativer til en kortstokk som finnes (`choices_status` 'generating' | 'failed' | NULL, med feilmelding).
+  // `choices_declined` = 1 når AI-en har fått kortet uten å gi brukbare alternativer (f.eks. et langt svar): det sendes
+  // ikke på nytt før spørsmålet, svaret eller korttypen endres, eller eleven skriver eller fjerner alternativer selv.
   // Ingen rader endres, så rev står stille; appen synker alt på nytt (Dexie versjon 5) for å få de nye feltene.
   `
   ALTER TABLE cards ADD COLUMN choices TEXT;
+  ALTER TABLE cards ADD COLUMN choices_declined INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE decks ADD COLUMN with_choices INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE decks ADD COLUMN choices_status TEXT;
   ALTER TABLE decks ADD COLUMN choices_error TEXT;
@@ -481,6 +484,8 @@ interface CardRow {
   level_at: string | null;
   /** JSON `FlashcardChoices`, eller NULL (migrering 9). */
   choices: string | null;
+  /** 1 når AI-en har fått kortet uten å gi brukbare svaralternativer (migrering 9). */
+  choices_declined: number;
   rev: number;
   deleted: number;
   created_at: string;
@@ -696,6 +701,7 @@ export function toCard(r: CardRow): Flashcard {
     level: r.level,
     levelAt: r.level_at,
     choices: parseChoices(r.choices),
+    choicesDeclined: r.choices_declined === 1,
     rev: r.rev,
     deleted: r.deleted === 1,
     createdAt: r.created_at,
@@ -1504,11 +1510,15 @@ export class Repo {
       .run(message, this.nextRev(), now(), id);
   }
 
-  /** Lagrer de genererte kortene og gjør kortstokken klar. Gir null hvis kortstokken er slettet i mellomtiden. */
+  /**
+   * Lagrer de genererte kortene og gjør kortstokken klar. Gir null hvis kortstokken er slettet i mellomtiden. Ba eleven
+   * om svaralternativer (`with_choices`), har AI-en allerede fått hvert kort: de uten alternativer merkes som avslått.
+   */
   completeDeck(id: string, cards: (FlashcardInput & { noteId: string | null })[], usage: unknown): Deck | null {
     return this.db.transaction(() => {
-      if (!this.getDeckRow(id)) return null;
-      this.insertCards(id, cards);
+      const row = this.getDeckRow(id);
+      if (!row) return null;
+      this.insertCards(id, cards, row.with_choices === 1);
       this.db
         .prepare(`UPDATE decks SET status = 'ready', error = NULL, usage = ?, rev = ?, updated_at = ? WHERE id = ?`)
         .run(usage === undefined ? null : JSON.stringify(usage), this.nextRev(), now(), id);
@@ -1516,17 +1526,20 @@ export class Repo {
     })();
   }
 
-  private insertCards(deckId: string, cards: (FlashcardInput & { noteId: string | null })[]): string[] {
+  /** `declineMissing`: AI-en ble bedt om svaralternativer til kortene, så de som mangler dem, merkes som avslått. */
+  private insertCards(deckId: string, cards: (FlashcardInput & { noteId: string | null })[], declineMissing = false): string[] {
     let position = (this.db.prepare(`SELECT COALESCE(MAX(position), -1) + 1 AS p FROM cards WHERE deck_id = ? AND deleted = 0`).get(deckId) as { p: number }).p;
     const ids: string[] = [];
     const t = now();
     const insert = this.db.prepare(
-      `INSERT INTO cards (id, user_id, deck_id, note_id, kind, front, back, detail, choices, position, rev, created_at, updated_at)
-       VALUES (?, (SELECT user_id FROM decks WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO cards (id, user_id, deck_id, note_id, kind, front, back, detail, choices, choices_declined, position, rev, created_at, updated_at)
+       VALUES (?, (SELECT user_id FROM decks WHERE id = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const c of cards) {
       const id = randomUUID();
-      insert.run(id, deckId, deckId, c.noteId, c.kind, c.front, JSON.stringify(c.back), c.detail, choicesJson(c.choices), position++, this.nextRev(), t, t);
+      const choices = choicesJson(c.choices);
+      const declined = declineMissing && choices === null ? 1 : 0;
+      insert.run(id, deckId, deckId, c.noteId, c.kind, c.front, JSON.stringify(c.back), c.detail, choices, declined, position++, this.nextRev(), t, t);
       ids.push(id);
     }
     return ids;
@@ -1557,29 +1570,37 @@ export class Repo {
 
   /**
    * Lagrer svaralternativene fra jobben og avslutter den. Et kort får dem bare når det fortsatt finnes i kortstokken, ikke
-   * har fått alternativer i mellomtiden (f.eks. fra eleven) og har samme spørsmål og svar som da jobben leste det; ellers
-   * passer de kanskje ikke lenger. Gir null når kortstokken er slettet i mellomtiden, ellers kortstokken og hvor mange
-   * kort som fikk alternativer.
+   * har fått alternativer i mellomtiden (f.eks. fra eleven) og har samme spørsmål, svar og korttype som da jobben leste
+   * det; ellers passer de kanskje ikke lenger. Kortene i `sent` (alle AI-en fikk) som ikke fikk alternativer, merkes som
+   * avslått (`choices_declined`, med ny rev) på de samme vilkårene, så et nytt trykk ikke sender dem igjen. Gir null når
+   * kortstokken er slettet i mellomtiden, ellers kortstokken, hvor mange kort som fikk alternativer og hvor mange som ble
+   * avslått.
    */
   completeChoices(
     id: string,
-    results: { card: Pick<Flashcard, 'id' | 'front' | 'back'>; choices: FlashcardChoices }[],
-  ): { deck: Deck; updated: number } | null {
+    results: { card: Pick<Flashcard, 'id' | 'kind' | 'front' | 'back'>; choices: FlashcardChoices }[],
+    sent: Pick<Flashcard, 'id' | 'kind' | 'front' | 'back'>[] = [],
+  ): { deck: Deck; updated: number; declined: number } | null {
     return this.db.transaction(() => {
       if (!this.getDeckRow(id)) return null;
       const t = now();
-      const update = this.db.prepare(
-        `UPDATE cards SET choices = ?, rev = ?, updated_at = ?
-         WHERE id = ? AND deck_id = ? AND deleted = 0 AND choices IS NULL AND front = ? AND back = ?`,
-      );
+      const unchanged = `id = ? AND deck_id = ? AND deleted = 0 AND choices IS NULL AND kind = ? AND front = ? AND back = ?`;
+      const update = this.db.prepare(`UPDATE cards SET choices = ?, choices_declined = 0, rev = ?, updated_at = ? WHERE ${unchanged}`);
+      const decline = this.db.prepare(`UPDATE cards SET choices_declined = 1, rev = ?, updated_at = ? WHERE ${unchanged} AND choices_declined = 0`);
       let updated = 0;
       for (const { card, choices } of results) {
-        updated += update.run(choicesJson(choices), this.nextRev(), t, card.id, id, card.front, JSON.stringify(card.back)).changes;
+        updated += update.run(choicesJson(choices), this.nextRev(), t, card.id, id, card.kind, card.front, JSON.stringify(card.back)).changes;
+      }
+      const answered = new Set(results.map((r) => r.card.id));
+      let declined = 0;
+      for (const card of sent) {
+        if (answered.has(card.id)) continue;
+        declined += decline.run(this.nextRev(), t, card.id, id, card.kind, card.front, JSON.stringify(card.back)).changes;
       }
       this.db
         .prepare(`UPDATE decks SET choices_status = NULL, choices_error = NULL, rev = ?, updated_at = ? WHERE id = ?`)
         .run(this.nextRev(), t, id);
-      return { deck: this.getDeck(id)!, updated };
+      return { deck: this.getDeck(id)!, updated, declined };
     })();
   }
 
@@ -1625,19 +1646,28 @@ export class Repo {
     return this.getCard(id!)!;
   }
 
-  /** Endrer innholdet i et kort. Mestringsnivået beholdes. Svaralternativer: utelatt = uendret, null = fjernes. */
+  /**
+   * Endrer innholdet i et kort. Mestringsnivået beholdes. Svaralternativer: utelatt = uendret, null = fjernes. Et kort AI-en
+   * har avslått (`choices_declined`), kan få alternativer fra AI-en igjen når spørsmålet, svaret eller korttypen endres, og
+   * når eleven skriver eller fjerner alternativer selv.
+   */
   updateCard(id: string, patch: Partial<FlashcardInput>): Flashcard | null {
     const c = this.getCard(id);
     if (!c) return null;
     const choices = patch.choices === undefined ? c.choices : patch.choices;
+    const kind = patch.kind ?? c.kind;
+    const front = patch.front ?? c.front;
+    const back = JSON.stringify(patch.back ?? c.back);
+    const reset = patch.choices !== undefined || kind !== c.kind || front !== c.front || back !== JSON.stringify(c.back);
     this.db
-      .prepare(`UPDATE cards SET kind = ?, front = ?, back = ?, detail = ?, choices = ?, rev = ?, updated_at = ? WHERE id = ?`)
+      .prepare(`UPDATE cards SET kind = ?, front = ?, back = ?, detail = ?, choices = ?, choices_declined = ?, rev = ?, updated_at = ? WHERE id = ?`)
       .run(
-        patch.kind ?? c.kind,
-        patch.front ?? c.front,
-        JSON.stringify(patch.back ?? c.back),
+        kind,
+        front,
+        back,
         patch.detail ?? c.detail,
         choicesJson(choices),
+        c.choicesDeclined && !reset ? 1 : 0,
         this.nextRev(),
         now(),
         id,

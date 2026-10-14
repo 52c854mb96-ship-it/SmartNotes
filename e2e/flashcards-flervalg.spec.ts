@@ -29,7 +29,7 @@ interface Choices {
 interface SyncData {
   notes: { id: string; title: string; status: string }[];
   decks: { id: string; choicesStatus: string | null; choicesError: string | null }[];
-  cards: { id: string; deckId: string; level: number; position: number; front: string; choices: Choices | null }[];
+  cards: { id: string; deckId: string; level: number; position: number; front: string; choices: Choices | null; choicesDeclined: boolean }[];
 }
 
 const syncData = (page: Page) => page.evaluate(async () => (await (await fetch('/api/sync?since=0')).json()) as SyncData);
@@ -66,6 +66,23 @@ const knew = (page: Page) => main(page).getByRole('button', { name: /^Kunne(?!\s
 const options = (page: Page) => main(page).getByRole('group', { name: 'Svaralternativer' }).getByRole('button');
 const nextButton = (page: Page) => main(page).getByRole('button', { name: 'Neste', exact: true });
 const firstQuestion = (title: string) => `Hva handler notatet «${title}» om?`;
+
+/**
+ * Ruller så alternativet står rett over linja med resultatet og «Neste» nederst i bildet: det nederste eleven kan trykke
+ * på uten å rulle videre.
+ */
+const scrollAboveBar = (page: Page, option: ReturnType<typeof options>) =>
+  option.evaluate((el) => {
+    const bar = document.querySelector('.fc-choice-actions');
+    if (bar) window.scrollBy(0, el.getBoundingClientRect().bottom - bar.getBoundingClientRect().top + 2);
+  });
+
+/** Om punktet midt i elementet hører til elementet selv (ikke dekket av linja nederst eller noe annet). */
+const uncovered = (option: ReturnType<typeof options>) =>
+  option.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+  });
 
 /** De gale svarene fra falsk Claude (i teksten til alternativet, også LaTeX-koden som KaTeX legger ved). */
 const WRONG = ['Feil svar', '5{,}0', '1{,}5', '\\text{kg}'];
@@ -187,14 +204,30 @@ test.describe('flashcards: flervalg', () => {
     await expect(options(page)).toHaveCount(4);
     expect(await main(page).locator('.fc-option-text').allInnerTexts()).toEqual(order);
 
-    // Galt svar: det valgte blir rødt og det riktige grønt, og baksiden og den detaljerte forklaringen vises.
+    // Galt svar: det valgte blir rødt og det riktige grønt, og baksiden og den detaljerte forklaringen vises. Linja med
+    // resultatet og «Neste» står nederst fra starten («Neste» av), så den aldri dekker alternativet eleven trykker på,
+    // heller ikke når det står nederst i bildet; etter valget rulles starten av baksiden fram over linja.
     const wrong = options(page).filter({ hasText: 'Feil svar A' });
     const right = options(page).filter({ hasText: title });
+    await expect(nextButton(page)).toBeDisabled();
+    await expect(main(page).locator('.fc-choice-result')).toHaveText('Velg ett av de fire svarene.');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await scrollAboveBar(page, wrong);
+    expect(await uncovered(wrong)).toBe(true);
     await wrong.click();
     await expect(wrong).toHaveClass(/is-wrong/);
     await expect(right).toHaveClass(/is-right/);
     await expect(main(page).getByText('Ikke riktig.')).toBeVisible();
+    await expect(main(page).getByText('Ikke riktig.')).toBeInViewport();
+    expect(await uncovered(wrong)).toBe(true);
     await expect(card(page).locator('.fc-answer')).toContainText(title);
+    await expect
+      .poll(async () => {
+        const answer = await card(page).locator('.fc-answer').boundingBox();
+        const bar = await main(page).locator('.fc-choice-actions').boundingBox();
+        return (answer?.y ?? Infinity) < (bar?.y ?? 0);
+      })
+      .toBe(true);
     await expect(nextButton(page)).toBeFocused();
     await expect.poll(async () => (await nextButton(page).boundingBox())?.y ?? Infinity).toBeLessThan(page.viewportSize()!.height);
     await card(page).getByRole('button', { name: 'Detaljert forklaring' }).click();
@@ -233,9 +266,10 @@ test.describe('flashcards: flervalg', () => {
     await options(page).filter({ hasText: title }).click();
     await nextButton(page).click();
 
-    await expect(main(page).getByRole('heading', { name: '2 av 3 kunne du med en gang' })).toBeVisible();
+    await expect(main(page).getByRole('heading', { name: '2 av 3 riktige med en gang' })).toBeVisible();
     await expect(main(page).locator('.fc-done')).toContainText('Et riktig svar gir ett nivå opp, men høyst nivå 2');
-    await expect(main(page).getByRole('button', { name: /De du ikke kunne/ })).toBeVisible();
+    await expect(main(page).locator('.fc-done')).toContainText('falt til nivå 0 og står nå på nivå 1');
+    await expect(main(page).getByRole('button', { name: /De du svarte feil på/ })).toBeVisible();
     await expect(main(page).getByRole('button', { name: /Øv dem med mestring/ })).toBeVisible();
     await expect(main(page).getByRole('button', { name: /Ny runde med alle/ })).toBeVisible();
     await expect.poll(() => serverLevels(page, deckId), SLOW).toEqual([1, 1, 1]);
@@ -243,15 +277,22 @@ test.describe('flashcards: flervalg', () => {
     // To nye runder med bare riktige svar: kortene med alternativer stopper på nivå 2, forklaringskortet blir mestret.
     await main(page).getByRole('button', { name: /Ny runde med alle/ }).click();
     for (let i = 0; i < 3; i++) await answerRight(page);
-    await expect(main(page).getByRole('heading', { name: '3 av 3 kunne du med en gang' })).toBeVisible();
+    await expect(main(page).getByRole('heading', { name: '3 av 3 riktige med en gang' })).toBeVisible();
     await expect.poll(() => serverLevels(page, deckId), SLOW).toEqual([2, 2, 2]);
     await main(page).getByRole('button', { name: /Ny runde med alle/ }).click();
     await options(page).filter({ hasText: title }).click();
     await nextButton(page).click();
     await expect(main(page).getByText('Nivå 2 av 3, det høyeste flervalg gir. Kortet er ferdig for denne runden.')).toBeVisible();
     for (let i = 0; i < 2; i++) await answerRight(page);
-    await expect(main(page).getByRole('heading', { name: '3 av 3 kunne du med en gang' })).toBeVisible();
+    await expect(main(page).getByRole('heading', { name: '3 av 3 riktige med en gang' })).toBeVisible();
     await expect.poll(() => serverLevels(page, deckId), SLOW).toEqual([2, 3, 2]);
+
+    // Claude har allerede fått forklaringskortet: «Alle kort» sier det rolig, uten knappen (et nytt trykk ville ikke gitt noe).
+    expect((await serverCards(page, deckId)).map((c) => c.choicesDeclined)).toEqual([false, true, false]);
+    await page.getByRole('tab', { name: 'Alle kort' }).click();
+    const panel = main(page).locator('#fc-panel-kort .fc-choices');
+    await expect(panel).toContainText('2 av 3 kort har svaralternativer. Claude fant ingen gode til de andre');
+    await expect(panel.getByRole('button', { name: 'Lag svaralternativer' })).toHaveCount(0);
   });
 
   test('uten svaralternativer kan Flervalg ikke velges, og «Lag svaralternativer» lager dem', async ({ page }, info) => {
@@ -260,13 +301,23 @@ test.describe('flashcards: flervalg', () => {
     const deckId = await makeDeck(page, subjectId, noteId, title, false);
     expect((await serverCards(page, deckId)).map((c) => c.choices)).toEqual([null, null, null]);
 
-    // Formen er dempet, og piltastene hopper over den.
+    // Formen er dempet. Piltastene gir den fokus uten å velge den, og mellomrom gir forklaringen.
     await expect(mode(page, 'Flervalg')).toHaveAttribute('aria-disabled', 'true');
+    const help = main(page).locator('#fc-panel-ov .fc-choices');
     if (info.project.name === 'desktop') {
       await mode(page, 'Mestring').focus();
       await page.keyboard.press('End');
-      await expect(mode(page, 'Luketekst')).toHaveAttribute('aria-checked', 'true');
+      await expect(mode(page, 'Flervalg')).toBeFocused();
+      await expect(mode(page, 'Flervalg')).toHaveAttribute('aria-checked', 'false');
+      await expect(mode(page, 'Mestring')).toHaveAttribute('aria-checked', 'true');
       await page.keyboard.press('ArrowRight');
+      await expect(mode(page, 'Mestring')).toBeFocused();
+      await expect(mode(page, 'Mestring')).toHaveAttribute('aria-checked', 'true');
+      await page.keyboard.press('ArrowLeft');
+      await expect(mode(page, 'Flervalg')).toBeFocused();
+      await page.keyboard.press(' ');
+      await expect(help).toContainText('Flervalg trenger svaralternativer');
+      await expect(help).toBeFocused();
       await expect(mode(page, 'Mestring')).toHaveAttribute('aria-checked', 'true');
     }
 
@@ -274,16 +325,17 @@ test.describe('flashcards: flervalg', () => {
     await mode(page, 'Flervalg').click({ force: true });
     await expect(mode(page, 'Flervalg')).toHaveAttribute('aria-checked', 'false');
     await expect(mode(page, 'Mestring')).toHaveAttribute('aria-checked', 'true');
-    const help = main(page).locator('#fc-panel-ov .fc-choices');
     await expect(help).toContainText('Flervalg trenger svaralternativer');
     await expect(help).toContainText('Ingen av kortene har svaralternativer ennå.');
     await expect(card(page)).toContainText(firstQuestion(title));
 
     // «Lag svaralternativer»: Claude lager dem i bakgrunnen.
+    // Knappen forsvinner, men fokus blir i forklaringen (ikke på siden), også når den bytter til «Nå kan du øve …».
     await help.getByRole('button', { name: 'Lag svaralternativer' }).click();
     await expect(help).toContainText('Lager svaralternativer …');
     await expect(help).toContainText('Nå kan du øve med flervalg', SLOW);
     await expect(page.getByText('Svaralternativene er klare.')).toBeVisible();
+    await expect(help).toBeFocused();
     await expect(mode(page, 'Flervalg')).not.toHaveAttribute('aria-disabled', 'true');
     const after = await serverCards(page, deckId);
     expect(after.map((c) => c.choices?.correct ?? null)).toEqual([title, null, '$F = m \\cdot a$']);
@@ -294,11 +346,12 @@ test.describe('flashcards: flervalg', () => {
     await expect(help).toHaveCount(0);
     await expect(options(page)).toHaveCount(4);
 
-    // «Alle kort»: alternativene vises diskret, og knappen står for kortet som mangler dem.
+    // «Alle kort»: alternativene vises diskret. Claude fant ingen til forklaringskortet, så ingen knapp, bare en rolig linje.
     await page.getByRole('tab', { name: 'Alle kort' }).click();
     const panel = main(page).locator('#fc-panel-kort .fc-choices');
-    await expect(panel).toContainText('2 av 3 kort har svaralternativer.');
-    await expect(panel.getByRole('button', { name: 'Lag svaralternativer' })).toBeVisible();
+    await expect(panel).toContainText('2 av 3 kort har svaralternativer. Claude fant ingen gode til de andre');
+    await expect(panel).toContainText('Du kan skrive dem selv når du redigerer et kort.');
+    await expect(panel.getByRole('button', { name: 'Lag svaralternativer' })).toHaveCount(0);
     const items = main(page).locator('details.fc-item');
     await items.nth(0).locator('summary').click();
     await expect(items.nth(0).locator('.fc-choice-summary')).toContainText('Feil svar A');
@@ -313,8 +366,11 @@ test.describe('flashcards: flervalg', () => {
     await editor.getByLabel('Galt svar 2').fill('grunnbegrep');
     await editor.getByLabel('Galt svar 3').fill('grunnbegrep');
     await editor.getByRole('button', { name: 'Lagre' }).click();
+    // Meldingen står rett under feltene, i bildet, og feltet med feilen er markert og viser til den.
     await expect(editor.getByRole('alert')).toHaveText('Et galt svar kan ikke være likt det riktige svaret.');
+    await expect(editor.getByRole('alert')).toBeInViewport();
     await expect(editor.getByLabel('Galt svar 1')).toHaveAttribute('aria-invalid', 'true');
+    await expect(editor.getByLabel('Galt svar 1')).toHaveAccessibleDescription('Et galt svar kan ikke være likt det riktige svaret.');
     await expect(editor.getByLabel('Galt svar 1')).toBeFocused();
     await editor.getByLabel('Galt svar 1').fill('sidebegrep');
     await editor.getByRole('button', { name: 'Lagre' }).click();
@@ -336,7 +392,9 @@ test.describe('flashcards: flervalg', () => {
     await editor.getByRole('button', { name: 'Lagre' }).click();
     await expect(editor).toBeHidden();
     await expect.poll(async () => (await serverCards(page, deckId))[1]?.choices).toBeNull();
-    await expect(panel).toContainText('2 av 3 kort har svaralternativer.');
+    // Kortet eleven selv tok alternativene fra, kan Claude prøve igjen.
+    await expect(panel).toContainText('2 av 3 kort har svaralternativer. Claude kan prøve å lage dem til 1 kort som mangler dem.');
+    await expect(panel.getByRole('button', { name: 'Lag svaralternativer' })).toBeVisible();
   });
 
   test('en feil vises med «Prøv igjen»', async ({ page }, info) => {
@@ -368,7 +426,8 @@ test.describe('flashcards: flervalg', () => {
     await edit.getByRole('button', { name: 'Lagre' }).click();
     await expect(edit).toBeHidden();
     await panel.getByRole('button', { name: 'Prøv igjen' }).click();
-    await expect(panel).toContainText('3 av 4 kort har svaralternativer.', SLOW);
+    await expect(panel).toContainText('3 av 4 kort har svaralternativer. Claude fant ingen gode til de andre', SLOW);
+    await expect(panel.getByRole('button')).toHaveCount(0);
     await expect
       .poll(async () => (await serverCards(page, deckId)).map((c) => c.choices?.correct ?? null))
       .toEqual([title, null, '$F = m \\cdot a$', 'newton']);

@@ -10,7 +10,7 @@ import { buildApp, type AppContext } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { OWNER_ID, Repo } from '../src/db.js';
 import { AbortedError, ConversionError } from '../src/errors.js';
-import { FlashcardGenerator, NO_CHOICES_MESSAGE } from '../src/flashcards/generator.js';
+import { FlashcardGenerator } from '../src/flashcards/generator.js';
 import {
   CHOICES_SYSTEM_PROMPT,
   FLASHCARD_SYSTEM_PROMPT,
@@ -444,8 +444,18 @@ describe('flervalg: data og ruter', () => {
   it('normaliserer svaralternativene før de sammenlignes', () => {
     expect(normalizeChoice('  **Newton**. ')).toBe('Newton');
     expect(normalizeChoice('2,0 m/s!')).toBe(normalizeChoice('2,0m/s'));
-    expect(normalizeChoice('$F = m \\cdot a$')).toBe('$F=m\\cdota$');
+    expect(normalizeChoice('$F = m \\cdot a$')).toBe('F=m\\cdota');
     expect(normalizeChoice(' . ')).toBe('');
+    // Det samme svaret med LaTeX-mellomrom, {,} eller \\text rundt enheten; en formel uten innhold er tom.
+    for (const same of ['$6{,}0\\ \\text{N}$', '$6{,}0\\,\\text{N}$', '$6{,}0~\\text{N}$', '$6{,}0\\;\\mathrm{N}$', '6,0 N']) {
+      expect(normalizeChoice(same), same).toBe('6,0N');
+    }
+    for (const empty of ['$ $', '$\\,$', '$\\quad$', '$~$']) expect(normalizeChoice(empty), empty).toBe('');
+    expect(normalizeChoice('Koster \\$5')).toBe('Koster\\$5');
+    expect(choicesProblem({ correct: '$6{,}0\\ \\text{N}$', wrong: ['$6{,}0\\,\\text{N}$', '$5{,}0\\ \\text{N}$', '$6{,}0\\ \\text{kg}$'] })).toBe(
+      'Et galt svar kan ikke være likt det riktige svaret.',
+    );
+    expect(choicesProblem({ correct: '$ $', wrong: ['a', 'b', 'c'] })).toBe('Skriv det riktige svaret kort, eller la alle feltene for svaralternativer stå tomme.');
     // Store og små bokstaver teller: et galt prefiks eller en annen formel er et ekte galt svar.
     expect(choicesProblem({ correct: '2,0 MJ', wrong: ['2,0 mJ', '2,0 kJ', '20 MJ'] })).toBeNull();
     expect(choicesProblem({ correct: '$\\ce{CO}$', wrong: ['$\\ce{Co}$', '$\\ce{CO2}$', '$\\ce{C}$'] })).toBeNull();
@@ -610,12 +620,16 @@ describe('flervalg: jobben', () => {
       ['explain', null],
       ['apply', { correct: '$6{,}0\\ \\text{N}$', wrong: ['$5{,}0\\ \\text{N}$', '$1{,}5\\ \\text{N}$', '$6{,}0\\ \\text{kg}$'] }],
     ]);
+    // AI-en har allerede fått forklaringskortet: det er avslått, så «Lag svaralternativer» ikke sender det igjen.
+    expect(cards.map((c) => c.choicesDeclined)).toEqual([false, true, false]);
+    const again = await inject<{ message: string }>('POST', `/api/decks/${withChoices.id}/choices`);
+    expect(again.status).toBe(400);
 
     // Uten avkrysningen er forespørselen som før: feltet er ikke med i det hele tatt.
     const plain = (await inject<Deck>('POST', '/api/decks', { subjectId: subject.id, noteIds: [a], difficulty: 'easy' })).body;
     await waitReady(plain.id);
     expect(spy.mock.calls.at(-1)![0]).not.toHaveProperty('withChoices');
-    expect(owned(plain.id).every((c) => c.choices === null)).toBe(true);
+    expect(owned(plain.id).every((c) => c.choices === null && !c.choicesDeclined)).toBe(true);
   });
 
   it('«Lag svaralternativer» lager dem til kortene som mangler dem, ut fra kortenes tekst, og logger forbruket på kortstokken', async () => {
@@ -678,16 +692,46 @@ describe('flervalg: jobben', () => {
     expect(ctx.repo.getCard(bad.id)!.choices).toEqual({ correct: 'Joule', wrong: ['Feil svar A', 'Feil svar B', 'Feil svar C'] });
   });
 
-  it('når ingen kort får brukbare alternativer, feiler jobben med en forklaring', async () => {
+  it('kort uten brukbare alternativer merkes som avslått: ingen feil, og de sendes ikke igjen før de endres', async () => {
     const a = doneNote({ title: 'Drøfting' });
     const deck = (await inject<Deck>('POST', '/api/decks', { subjectId: subject.id, noteIds: [a], difficulty: 'easy' })).body;
     await waitReady(deck.id);
     // Bare forklaringskortet mangler alternativer, og falsk Claude gir det null (som et åpent kort).
     const good = { correct: 'Riktig', wrong: ['Galt 1', 'Galt 2', 'Galt 3'] };
     for (const c of owned(deck.id).filter((c) => c.kind !== 'explain')) await inject('PATCH', `/api/cards/${c.id}`, { choices: good });
+    const explain = owned(deck.id).find((c) => c.kind === 'explain')!;
+    expect(explain.choicesDeclined).toBe(false);
+    const spy = vi.spyOn(ctx.ai, 'generateChoices');
+    onTestFinished(() => spy.mockRestore());
+    const cursor = (await sync()).cursor;
     expect((await inject('POST', `/api/decks/${deck.id}/choices`)).status).toBe(202);
     await ctx.generator.idle();
-    expect(await deckOf(deck.id)).toMatchObject({ choicesStatus: 'failed', choicesError: NO_CHOICES_MESSAGE });
+    // Ingen feil (et nytt forsøk ville gitt det samme), og kortet er merket med ny rev, så alle enhetene får det med seg.
+    expect(await deckOf(deck.id)).toMatchObject({ choicesStatus: null, choicesError: null });
+    const changes = await sync(cursor);
+    expect(changes.cards).toEqual([expect.objectContaining({ id: explain.id, choices: null, choicesDeclined: true })]);
+
+    // Et nytt trykk: 400 med en forklaring, uten AI-kall og uten jobb.
+    const again = await inject<{ message: string }>('POST', `/api/decks/${deck.id}/choices`);
+    expect(again.status).toBe(400);
+    expect(again.body.message).toBe(
+      'Claude har allerede prøvd kortene som mangler svaralternativer, uten å finne gode. Du kan skrive dem selv når du redigerer kortet.',
+    );
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(ctx.repo.getDeck(deck.id)!.choicesStatus).toBeNull();
+
+    // Bare forklaringen endret: fortsatt avslått. Nytt svar: kortet kan sendes igjen.
+    expect((await inject<Flashcard>('PATCH', `/api/cards/${explain.id}`, { detail: 'Mer forklaring' })).body.choicesDeclined).toBe(true);
+    expect((await inject<Flashcard>('PATCH', `/api/cards/${explain.id}`, { back: ['Kort svar'] })).body.choicesDeclined).toBe(false);
+    expect((await inject('POST', `/api/decks/${deck.id}/choices`)).status).toBe(202);
+    await ctx.generator.idle();
+    expect(spy.mock.calls[1]![0].cards).toEqual([{ alias: 'k1', kind: 'explain', front: explain.front, back: ['Kort svar'] }]);
+    expect(ctx.repo.getCard(explain.id)!.choicesDeclined).toBe(true);
+
+    // Alternativer eleven skriver eller fjerner selv, nullstiller merket.
+    const written = await inject<Flashcard>('PATCH', `/api/cards/${explain.id}`, { choices: good });
+    expect(written.body).toMatchObject({ choices: good, choicesDeclined: false });
+    expect((await inject<Flashcard>('PATCH', `/api/cards/${explain.id}`, { choices: null })).body).toMatchObject({ choices: null, choicesDeclined: false });
   });
 
   describe('med en styrt AI', () => {
@@ -752,6 +796,8 @@ describe('flervalg: jobben', () => {
       expect(ctx.repo.getDeck(deck.id)).toMatchObject({ choicesStatus: null, choicesError: null });
       expect(ctx.repo.getCard(first.id)!.choices).toEqual({ correct: 'Riktig', wrong: ['Galt 1', 'Galt 2', 'Galt 3'] });
       expect(ctx.repo.getCard(second.id)!.choices).toBeNull();
+      // Kortet uten brukbare alternativer er avslått; de to andre fikk alternativer.
+      expect([first, second, third].map((c) => ctx.repo.getCard(c.id)!.choicesDeclined)).toEqual([false, true, false]);
       expect(ctx.repo.getCard(third.id)!.choices).toEqual({ correct: 'Svar', wrong: ['a', 'b', 'c'] });
     });
 
@@ -911,7 +957,7 @@ describe('migrering 9 (flervalg)', () => {
       expect(repo.getDeckRow('d1')).toMatchObject({ with_choices: 0, choices_status: null, choices_error: null });
       const all = repo.sync(OWNER_ID, 0);
       expect(all.decks).toEqual([expect.objectContaining({ id: 'd1', best: 4, choicesStatus: null, choicesError: null })]);
-      expect(all.cards).toEqual([expect.objectContaining({ id: 'k1', level: 2, choices: null })]);
+      expect(all.cards).toEqual([expect.objectContaining({ id: 'k1', level: 2, choices: null, choicesDeclined: false })]);
       // Ingen rader har fått ny rev: en enhet med cursoren fra før får ingenting nytt (appen synker alt på nytt selv).
       expect([repo.sync(OWNER_ID, 11).decks, repo.sync(OWNER_ID, 11).cards].flat()).toEqual([]);
       // En ødelagt verdi gir ingen alternativer i stedet for en feil.
@@ -1077,6 +1123,15 @@ describe('opprydding og ledetekst', () => {
     expect(system.indexOf('Svaralternativer ("choices")')).toBeLessThan(system.lastIndexOf('\n\nSvar\n'));
     expect(system).toContain(`høyst ${MAX_CHOICE_CHARS}`);
     expect(system).toContain('Sett "choices" til null');
+    // Regnekort får sluttsvaret som riktig svar; gale svar kan hentes utenfor kortet, men aldri være et annet riktig svar.
+    for (const prompt of [system, CHOICES_SYSTEM_PROMPT]) {
+      expect(prompt).toContain('"correct" sluttsvaret');
+      expect(prompt).toContain('også når de ikke står på kortet');
+      expect(prompt).toContain('som et annet riktig svar når spørsmålet har flere');
+      expect(prompt).not.toContain('lange utregninger');
+    }
+    expect(CHOICES_SYSTEM_PROMPT).toContain('Skriv på norsk bokmål');
+    expect(CHOICES_SYSTEM_PROMPT).not.toContain('Ikke ta med stoff kortet ikke har');
     expect(buildFlashcardPrompt(req)).toContain('Svaralternativer: ja.');
     expect(buildFlashcardPrompt({ ...req, withChoices: false })).not.toContain('Svaralternativer');
     expect(flashcardSchemaFor(true)).toBe(flashcardChoicesSchema);

@@ -1,11 +1,19 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { Flashcard, FlashcardKind } from '@smartnotes/shared';
 import { errorMessage } from '../api';
 import { Modal } from '../components/Modal';
 import { toast } from '../lib/ui';
 import { createCard, updateCard } from './actions';
 import { ChoiceSummary } from './ChoiceSummary';
-import { MAX_CHOICE_CHARS, WRONG_CHOICES, choiceFieldsOf, readChoiceFields, type ChoiceField, type ChoiceFields } from './choices';
+import {
+  MAX_CHOICE_CHARS,
+  WRONG_CHOICES,
+  choiceFieldsOf,
+  choicesChanged,
+  readChoiceFields,
+  type ChoiceField,
+  type ChoiceFields,
+} from './choices';
 import { KIND_HINT, KIND_LABEL, KINDS } from './labels';
 import { hasChoices } from './model';
 import { backToText, parseBackLine, textToBack } from './richtext';
@@ -13,8 +21,10 @@ import { RichParagraphs, RichText } from './RichText';
 
 /**
  * Redigerer et kort, eller lager et nytt (card = null). Svaralternativene til flervalg er valgfrie: tomme felt gir et
- * kort uten (og fjerner dem fra et kort som hadde dem). Feltene sjekkes med de samme reglene og meldingene som serveren
- * (`readChoiceFields`).
+ * kort uten, og eleven som tømmer feltene på et kort som hadde dem, fjerner dem. Ved redigering sendes alternativene bare
+ * når eleven har endret dem (`choicesChanged`), så alternativer en jobb lagrer mens skjemaet står åpent, ikke slettes.
+ * Feltene sjekkes med de samme reglene og meldingene som serveren (`readChoiceFields`); en feil i dem står rett under
+ * feltene, knyttet til feltet med `aria-describedby`.
  */
 export function CardEditor({
   open,
@@ -36,6 +46,7 @@ export function CardEditor({
   /** Feltet for svaralternativer som har feil (markeres og får fokus). */
   const [badChoice, setBadChoice] = useState<ChoiceField | null>(null);
   const choiceRefs = useRef<Partial<Record<string, HTMLInputElement | null>>>({});
+  const choiceErrorId = useId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,35 +62,47 @@ export function CardEditor({
     setError(null);
   }, [open, card]);
 
-  const setCorrect = (correct: string) => {
+  /** Eleven retter svaralternativene: feilen i dem er ikke lenger aktuell. */
+  const clearChoiceError = () => {
+    if (badChoice !== null) setError(null);
     setBadChoice(null);
+  };
+  const setCorrect = (correct: string) => {
+    clearChoiceError();
     setChoiceFields((f) => ({ ...f, correct }));
   };
   const setWrong = (i: number, text: string) => {
-    setBadChoice(null);
+    clearChoiceError();
     setChoiceFields((f) => ({ ...f, wrong: f.wrong.map((w, j) => (j === i ? text : w)) }));
   };
   const anyChoice = choiceFields.correct.trim() !== '' || choiceFields.wrong.some((w) => w.trim() !== '');
 
   const lines = textToBack(back);
   const save = async () => {
-    if (!front.trim()) return setError('Spørsmålet kan ikke være tomt.');
-    if (!lines.length) return setError('Svaret må ha minst ett punkt.');
-    const read = readChoiceFields(choiceFields);
-    if (!read.ok) {
+    if (!front.trim() || !lines.length) {
+      setBadChoice(null);
+      return setError(front.trim() ? 'Svaret må ha minst ett punkt.' : 'Spørsmålet kan ikke være tomt.');
+    }
+    // Et nytt kort sender alltid alternativene (null = ingen). Ved redigering bare når eleven har endret dem: utelatt
+    // betyr «uendret» på serveren, og tømte felt gir null, som fjerner dem.
+    const send = !card || choicesChanged(card.choices, choiceFields);
+    const read = send ? readChoiceFields(choiceFields) : null;
+    if (read && !read.ok) {
       setChoicesOpen(true);
       setBadChoice(read.field);
       setError(read.error);
-      // Feltet kan ligge i en lukket del: fokus etter at den er åpnet.
-      setTimeout(() => choiceRefs.current[String(read.field)]?.focus(), 0);
+      // Feltet kan ligge i en lukket del: fokus etter at den er åpnet, og meldingen under feltene inn i bildet.
+      setTimeout(() => {
+        choiceRefs.current[String(read.field)]?.focus();
+        document.getElementById(choiceErrorId)?.scrollIntoView({ block: 'nearest' });
+      }, 0);
       return;
     }
     setBadChoice(null);
     setBusy(true);
     setError(null);
     try {
-      // `choices` sendes alltid: null gir et kort uten svaralternativer (og fjerner dem ved redigering).
-      const input = { kind, front: front.trim(), back: lines, detail: detail.trim(), choices: read.choices };
+      const input = { kind, front: front.trim(), back: lines, detail: detail.trim(), ...(read ? { choices: read.choices } : {}) };
       if (card) await updateCard(card.id, input);
       else await createCard(deckId, input);
       toast(card ? 'Kortet er lagret.' : 'Kortet er lagt til.', { kind: 'success' });
@@ -169,6 +192,7 @@ export function CardEditor({
                   value={choiceFields.correct}
                   maxLength={MAX_CHOICE_CHARS}
                   aria-invalid={badChoice === 'correct' || undefined}
+                  aria-describedby={badChoice === 'correct' ? choiceErrorId : undefined}
                   onChange={(e) => setCorrect(e.currentTarget.value)}
                 />
               </label>
@@ -185,10 +209,17 @@ export function CardEditor({
                     value={choiceFields.wrong[i] ?? ''}
                     maxLength={MAX_CHOICE_CHARS}
                     aria-invalid={badChoice === i || undefined}
+                    aria-describedby={badChoice === i ? choiceErrorId : undefined}
                     onChange={(e) => setWrong(i, e.currentTarget.value)}
                   />
                 ))}
               </fieldset>
+              {/* En feil i svaralternativene står her, rett under feltene, og ikke nederst i skjemaet. */}
+              {badChoice !== null && error && (
+                <p id={choiceErrorId} className="form-error" role="alert">
+                  {error}
+                </p>
+              )}
               {anyChoice && (
                 <div>
                   <button
@@ -196,7 +227,7 @@ export function CardEditor({
                     className="link-btn"
                     onClick={() => {
                       setChoiceFields(choiceFieldsOf(null));
-                      setBadChoice(null);
+                      clearChoiceError();
                     }}
                   >
                     Fjern svaralternativene
@@ -232,7 +263,7 @@ export function CardEditor({
             </div>
           </div>
         )}
-        {error && (
+        {error && badChoice === null && (
           <p className="form-error" role="alert">
             {error}
           </p>

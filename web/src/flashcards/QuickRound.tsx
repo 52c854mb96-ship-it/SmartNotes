@@ -260,8 +260,8 @@ function doneText(variant: QuickVariant, missed: boolean, someWithout: boolean):
     return 'Riktige luker gir minst nivå 1, men gjør aldri et kort mestret. Kortene uten luke flytter nivåene som i en rask runde.';
   }
   if (variant === 'choice') {
-    const base = `Et riktig svar gir ett nivå opp, men høyst nivå ${CHOICE_MAX_LEVEL}, for å kjenne igjen svaret er lettere enn å huske det.`;
-    const miss = missed ? ' Kortene du svarte feil på, falt til nivå 0.' : '';
+    const base = `Et riktig svar gir ett nivå opp, men høyst nivå ${CHOICE_MAX_LEVEL}, fordi det er lettere å kjenne igjen svaret enn å huske det.`;
+    const miss = missed ? ' Kortene du svarte feil på, falt til nivå 0 og står nå på nivå 1.' : '';
     const rest = someWithout ? ' Kortene uten svaralternativer flyttet nivåene som i en rask runde.' : '';
     return base + miss + rest;
   }
@@ -310,9 +310,7 @@ export function QuickDone({
   const someWithout = variant === 'choice' && !selection.every(hasChoices);
   return (
     <section className="fc-done is-win" aria-live="polite">
-      <h2>
-        {known} av {total} kunne du med en gang
-      </h2>
+      <h2>{variant === 'choice' ? `${known} av ${total} riktige med en gang` : `${known} av ${total} kunne du med en gang`}</h2>
       <p className="muted">{doneText(variant, misses.length > 0, someWithout)}</p>
       {round.answered > 0 && (
         <div className="fc-stats">
@@ -343,7 +341,7 @@ export function QuickDone({
         {misses.length > 0 && (
           <Choice
             primary={!nextChunk}
-            label="De du ikke kunne"
+            label={variant === 'choice' ? 'De du svarte feil på' : 'De du ikke kunne'}
             meta={`${plural(misses.length, 'kort', 'kort')} i en ny runde`}
             onClick={() => restart({ ...filter, subset: misses, subsetKind: 'repeat' })}
           />

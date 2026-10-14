@@ -158,11 +158,13 @@ Svar
  * Formlene har egne regler i hver instruks.
  */
 const CHOICE_RULES = String.raw`- "correct" er det riktige svaret kort, på én linje (helst under 80 tegn, høyst ${MAX_CHOICE_CHARS}): et begrep, et tall med enhet, en formel eller en kort setning. Det skal si det samme som svaret på kortet.
-- "wrong" er nøyaktig tre gale svar som ligner det riktige og virker troverdige for en elev som ikke kan stoffet godt: typiske misforståelser, feil enhet eller prefiks, glemt kvadrat eller faktor, feil fortegn, et begrep som lett forveksles, eller årsak og virkning byttet om.
-- Et galt svar må aldri også være riktig, heller ikke med andre ord, med en annen enhet for den samme verdien eller som en avrunding. De fire alternativene skal være ulike.
+- For en regneoppgave er "correct" sluttsvaret (tallet med enhet, eller uttrykket oppgaven ber om), ikke utregningen, også når svaret på kortet viser hele utregningen. De gale svarene er sluttsvar eleven får med typiske regnefeil: glemt kvadrat eller faktor, feil prefiks eller enhet, feil fortegn, eller teller og nevner byttet om.
+- "wrong" er nøyaktig tre gale svar som ligner det riktige og virker troverdige for en elev som ikke kan stoffet godt: typiske misforståelser, feil enhet, et begrep som lett forveksles, eller årsak og virkning byttet om.
+- Det riktige svaret bygger bare på kortet. De gale svarene kan hente begreper, enheter og verdier fra faget på VG2-nivå som eleven lett forveksler med det riktige, også når de ikke står på kortet eller i notatene.
+- Et galt svar må aldri også være riktig: heller ikke med andre ord, med en annen enhet for den samme verdien, som en avrunding, som et annet riktig svar når spørsmålet har flere («Nevn et eksempel på …»: er svaret «neon», kan ikke «argon» være galt), som en del av det riktige svaret, eller som et mer generelt svar som også stemmer («kovalent binding» når svaret er «polar kovalent binding»). De fire alternativene skal være ulike.
 - Alle fire har samme form og omtrent samme lengde (er det riktige et tall med enhet, er de gale det også), så formen ikke røper svaret. Ikke bruk «alle svarene over», «ingen av dem» eller tullesvar.
 - Ikke bruk **fet** skrift eller «!»-linjer i alternativene.
-- Sett "choices" til null for kort der svaret ikke kan skrives kort på én linje, for eksempel åpne drøftinger, forklaringer i flere ledd og lange utregninger.`;
+- Sett "choices" til null for kort uten ett kort svar på én linje, for eksempel åpne drøftinger, forklaringer i flere ledd og «vis at»-oppgaver der svaret er en hel utledning, og når det ikke finnes tre troverdige gale svar som er sikkert gale.`;
 
 /** Delen om svaralternativer i instruksen for nye kort. Bare med når eleven har bedt om dem (`withChoices`). */
 const CHOICES_SECTION = String.raw`Svaralternativer ("choices")
@@ -210,11 +212,11 @@ export const CHOICES_SYSTEM_PROMPT = String.raw`Du lager svaralternativer til fl
 
 For hvert kort
 ${CHOICE_RULES}
-- Bygg alternativene på spørsmålet og svaret på kortet. Ikke ta med stoff kortet ikke har.
+- Skriv på norsk bokmål, med de samme fagbegrepene som kortet.
 
 Formler
 - Skriv matematikk og symboler i LaTeX mellom enkle dollartegn, som på kortene: $F = m \cdot a$, $9{,}81\ \text{m/s}^2$.
-- Bruk bare vanlig LaTeX-matematikk (\frac, \sqrt, ^, _, \vec, \Delta, \cdot, \approx, \text{…}). Ikke bruk \qty, \SI, \num, \unit eller andre makroer.
+- Bruk bare vanlig LaTeX-matematikk (\frac, \sqrt, ^, _, \vec, \Delta, \cdot, \approx, \text{…}). Ikke bruk \qty, \SI, \num, \unit eller lignende makroer for tall og enheter (kortene kan ikke vise dem).
 - Kjemiske formler skrives med \ce{…} inne i dollartegn: $\ce{H2O}$, $\ce{SO4^2-}$.
 - Desimaltall skrives med komma, som i norske lærebøker: $9{,}81$ inne i formler og 9,81 i vanlig tekst.
 
@@ -269,14 +271,20 @@ export function cleanFlashcards(raw: RawFlashcard[], aliases: Map<string, string
 }
 
 /**
- * Et svaralternativ slik det sammenlignes: uten mellomrom, **fet**-markering og punktum eller utropstegn til slutt.
- * «2,0 m/s.» og «2,0m/s» er da det samme svaret. Store og små bokstaver teller, for i realfag er «2,0 mJ» og «2,0 MJ»
- * (eller CO og Co) ulike svar. Appen bruker den samme regelen når eleven redigerer.
+ * Et svaralternativ slik det sammenlignes: uten mellomrom (også LaTeX-mellomrom som \, og ~), **fet**-markering,
+ * dollartegn rundt formler, \text{…} og \mathrm{…} rundt enheter og punktum eller utropstegn til slutt, og med {,} som
+ * komma. «2,0 m/s.», «2,0m/s» og «$2{,}0\ \text{m/s}$» er da det samme svaret, og en formel uten innhold («$ $») er tom.
+ * Store og små bokstaver teller, for i realfag er «2,0 mJ» og «2,0 MJ» (eller CO og Co) ulike svar. Appen bruker den
+ * samme regelen når eleven redigerer (web/src/flashcards/choices.ts).
  */
 export function normalizeChoice(s: string): string {
   return s
     .normalize('NFC')
     .replace(/\*\*/g, '')
+    .replace(/\\(?:[,;:! ]|q?quad\b)|~/g, '')
+    .replace(/\{,\}/g, ',')
+    .replace(/\\(?:text|mathrm)\{([^{}]*)\}/g, '$1')
+    .replace(/(?<!\\)\$/g, '')
     .replace(/\s+/g, '')
     .replace(/[.!]+$/, '');
 }

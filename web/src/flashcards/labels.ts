@@ -58,5 +58,6 @@ export const MODE_HINT: Record<PracticeMode, string> = {
   quick: 'Ett riktig svar per kort. Kortene du ikke kunne, kommer igjen til slutt.',
   classic: 'Snu og gå videre. Endrer ikke mestringen.',
   cloze: 'Skriv begrepet som mangler i svaret. En riktig luke gir minst nivå 1, men aldri mestret. Kort uten luke flytter nivåene som i en rask runde.',
-  choice: 'Velg det riktige av fire svar. Riktig gir ett nivå opp, men høyst nivå 2. Kort uten svaralternativer øves som i en rask runde.',
+  choice:
+    'Velg det riktige av fire svar. Riktig gir ett nivå opp, men høyst nivå 2. Galt gir nivå 0, og kortet kommer igjen til slutt. Kort uten svaralternativer øves som i en rask runde.',
 };

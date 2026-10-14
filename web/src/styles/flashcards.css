@@ -280,10 +280,9 @@
   color: var(--text-2);
 }
 
-/* Flervalg uten svaralternativer: dempet, men et trykk gir forklaringen */
+/* Flervalg uten svaralternativer: dempet, men et trykk (eller mellomrom) gir forklaringen */
 .fc-mode-switch .segment[aria-disabled='true'] {
   color: var(--text-3);
-  opacity: 0.6;
 }
 
 .fc-mode-note {
@@ -306,7 +305,8 @@
   font-size: 14px;
 }
 
-.fc-choices:focus {
+.fc-choices:focus,
+.fc-tabpanel:focus {
   outline: none;
 }
 
@@ -1184,7 +1184,8 @@
 }
 
 .fc-nav button:disabled,
-.fc-cloze-actions button:disabled {
+.fc-cloze-actions button:disabled,
+.fc-choice-actions button:disabled {
   opacity: 0.4;
   cursor: default;
 }
@@ -1403,9 +1404,22 @@
   border-top: 1px solid var(--border);
 }
 
+/*
+ * Resultatet og «Neste» står nederst i bildet fra starten («Neste» av til eleven har valgt), så linja aldri dukker opp
+ * over alternativet eleven nettopp trykket på, og resultatet synes uten at eleven ruller.
+ */
 .fc-choice-actions {
   display: grid;
   grid-template-columns: 1fr;
+}
+
+.fc-choice-actions .fc-choice-result {
+  margin: 0 0 6px;
+}
+
+.fc-choice-actions .fc-choice-result.is-ok,
+.fc-choice-actions .fc-choice-result.is-bad {
+  font-weight: 600;
 }
 
 /* Svaralternativene under svaret i «Alle kort» og i forhåndsvisningen */

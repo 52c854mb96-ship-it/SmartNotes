@@ -48,10 +48,11 @@ export function osloDay(now: number): { day: string; start: number; next: number
 export const QUOTA_MESSAGES = {
   pages: (limit: number) => `Dagens kvote er brukt – konverteres i morgen. Gratiskontoer kan konvertere ${limit} sider per døgn.`,
   budget: 'Dagens kvote er brukt – konverteres i morgen. Serveren har brukt opp det den kan bruke på gratiskontoer i dag.',
-  decks: (limit: number) => `Du har laget ${limit} kortstokker i dag, som er grensen for gratiskontoer. Prøv igjen i morgen.`,
+  decks: (limit: number) =>
+    `Du har brukt dagens ${limit} kortstokker, som er grensen for gratiskontoer. Svaralternativer til en kortstokk teller som én kortstokk. Prøv igjen i morgen.`,
   decksBudget: 'Serveren har brukt opp det den kan bruke på gratiskontoer i dag. Prøv å lage kortstokken i morgen.',
   choices: (limit: number) =>
-    `Gratiskontoer kan lage ${limit} kortstokker per døgn, og svaralternativer til en kortstokk teller som én. Dagens er brukt, så prøv igjen i morgen.`,
+    `Du har brukt dagens ${limit} kortstokker, som er grensen for gratiskontoer. Svaralternativer til en kortstokk teller som én kortstokk. Prøv igjen i morgen.`,
   choicesBudget: 'Serveren har brukt opp det den kan bruke på gratiskontoer i dag. Prøv å lage svaralternativene i morgen.',
   toc: (limit: number) => `Du har latt AI-en lese ${limit} innholdsfortegnelser i dag, som er grensen for gratiskontoer. Prøv igjen i morgen.`,
   tocBudget: 'Serveren har brukt opp det den kan bruke på gratiskontoer i dag. Prøv igjen i morgen.',

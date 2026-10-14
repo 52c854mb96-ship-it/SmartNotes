@@ -459,8 +459,9 @@ async function applySync(res: SyncResponse, serverBehind: boolean, sentAs: numbe
 }
 
 /**
- * Feltene for flervalg (`choices` på kortene, `choicesStatus` og `choicesError` på kortstokkene) er null når serveren
- * ikke sender dem (en eldre server etter en tilbakerulling), som i radene Dexie versjon 5 fylte ut.
+ * Feltene for flervalg (`choices` og `choicesDeclined` på kortene, `choicesStatus` og `choicesError` på kortstokkene) er
+ * null (eller false) når serveren ikke sender dem (en eldre server etter en tilbakerulling), som i radene Dexie versjon 5
+ * fylte ut.
  */
 function deckRow(d: Deck): Deck {
   return d.choicesStatus === undefined || d.choicesError === undefined
@@ -469,7 +470,9 @@ function deckRow(d: Deck): Deck {
 }
 
 function cardRow(c: Flashcard): Flashcard {
-  return c.choices === undefined ? { ...c, choices: null } : c;
+  return c.choices === undefined || c.choicesDeclined === undefined
+    ? { ...c, choices: c.choices ?? null, choicesDeclined: c.choicesDeclined ?? false }
+    : c;
 }
 
 /** Legger inn rader fra serveren, men overskriver aldri en lokal rad med høyere rev. */

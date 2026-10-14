@@ -38,16 +38,33 @@ export function choiceLine(s: string): string {
 }
 
 /**
- * Et svaralternativ slik det sammenlignes: uten mellomrom, **fet**-markering og punktum eller utropstegn til slutt.
- * «2,0 m/s.» og «2,0m/s» er da det samme svaret. Store og små bokstaver teller, for i realfag er «2,0 mJ» og «2,0 MJ»
- * (eller CO og Co) ulike svar. Samme regel som `normalizeChoice` på serveren.
+ * Et svaralternativ slik det sammenlignes: uten mellomrom (også LaTeX-mellomrom som \, og ~), **fet**-markering,
+ * dollartegn rundt formler, \text{…} og \mathrm{…} rundt enheter og punktum eller utropstegn til slutt, og med {,} som
+ * komma. «2,0 m/s.», «2,0m/s» og «$2{,}0\ \text{m/s}$» er da det samme svaret, og en formel uten innhold («$ $») er tom.
+ * Store og små bokstaver teller, for i realfag er «2,0 mJ» og «2,0 MJ» (eller CO og Co) ulike svar. Samme regel som
+ * `normalizeChoice` på serveren.
  */
 export function normalizeChoice(s: string): string {
   return s
     .normalize('NFC')
     .replace(/\*\*/g, '')
+    .replace(/\\(?:[,;:! ]|q?quad\b)|~/g, '')
+    .replace(/\{,\}/g, ',')
+    .replace(/\\(?:text|mathrm)\{([^{}]*)\}/g, '$1')
+    .replace(/(?<!\\)\$/g, '')
     .replace(/\s+/g, '')
     .replace(/[.!]+$/, '');
+}
+
+/**
+ * Om eleven har endret svaralternativene fra det redigeringen startet med (`original`, kortets alternativer). Bare da
+ * sendes de når kortet lagres: utelatt betyr «uendret» på serveren, så alternativer som en jobb har lagret mens skjemaet
+ * sto åpent, blir stående. Mellomrom i endene og doble mellomrom teller ikke som en endring (`choiceLine`).
+ */
+export function choicesChanged(original: FlashcardChoices | null | undefined, fields: ChoiceFields): boolean {
+  const start = choiceFieldsOf(original);
+  if (choiceLine(start.correct) !== choiceLine(fields.correct)) return true;
+  return start.wrong.some((w, i) => choiceLine(w) !== choiceLine(fields.wrong[i] ?? ''));
 }
 
 /**

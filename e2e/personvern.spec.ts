@@ -12,6 +12,8 @@ test('personvernerklæringen, vilkårene og siden om AI kan leses uten innloggin
   await expect(page.getByRole('heading', { name: 'Personvernerklæring', level: 1 })).toBeVisible();
   await expect(page.getByText('[Fylles inn]').first()).toBeVisible();
   await expect(page.getByText(/sendes bildene av sidene til Anthropic/)).toBeVisible();
+  // Kortenes tekst, også egne kort, sendes når eleven ber om svaralternativer.
+  await expect(page.getByText(/også kort du har skrevet eller endret selv\) når du ber om svaralternativer/)).toBeVisible();
   await page.getByRole('main').getByRole('link', { name: 'Vilkår' }).click();
   await expect(page.getByRole('heading', { name: 'Vilkår', level: 1 })).toBeVisible();
   await expect(page.getByText(/Last bare opp det du har rett til/)).toBeVisible();

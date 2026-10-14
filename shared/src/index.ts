@@ -168,6 +168,12 @@ export interface Flashcard extends SyncedRow {
   levelAt: string | null;
   /** Svaralternativer til flervalg, eller null når kortet ikke har dem (lages bare når eleven ber om det). */
   choices: FlashcardChoices | null;
+  /**
+   * AI-en har fått kortet uten å gi brukbare svaralternativer (ofte fordi svaret er for langt til flervalg). «Lag
+   * svaralternativer» sender det ikke på nytt før spørsmålet, svaret eller korttypen endres, eller eleven skriver eller
+   * fjerner alternativer selv. Eleven kan alltid skrive dem selv.
+   */
+  choicesDeclined: boolean;
 }
 
 /** POST /api/decks – kortene lages i bakgrunnen; følg med på `status` via synk. */
@@ -203,9 +209,10 @@ export type CreateFlashcardRequest = FlashcardInput;
 export type UpdateFlashcardRequest = Partial<FlashcardInput>;
 
 /*
- * POST /api/decks/:id/choices (uten innhold) lager svaralternativer til kortene i en ferdig kortstokk som mangler dem.
- * Svaret (202) er kortstokken med `choicesStatus: 'generating'`; følg med via synk. Krever nett. Gratiskontoer: teller
- * som én kortstokk i dagens kvote (429 `quota_exceeded`), men et nytt forsøk etter `failed` telles ikke.
+ * POST /api/decks/:id/choices (uten innhold) lager svaralternativer til kortene i en ferdig kortstokk som mangler dem og
+ * ikke er avslått (`choicesDeclined`). Svaret (202) er kortstokken med `choicesStatus: 'generating'`; følg med via synk.
+ * Krever nett. Gratiskontoer: teller som én kortstokk i dagens kvote (429 `quota_exceeded`), men et nytt forsøk etter
+ * `failed` telles ikke. 400 uten å telle når ingen kort mangler alternativer, eller alle som mangler, er avslått.
  */
 
 /**

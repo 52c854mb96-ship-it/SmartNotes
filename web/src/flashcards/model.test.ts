@@ -11,6 +11,7 @@ import {
   choiceOptions,
   correctPct,
   emptyRound,
+  choiceCounts,
   hasChoices,
   isPracticeMode,
   knownFirstTry,
@@ -47,6 +48,7 @@ function card(id: string, over: Partial<Flashcard> = {}): Flashcard {
     level: 0,
     levelAt: null,
     choices: null,
+    choicesDeclined: false,
     rev: 1,
     deleted: false,
     createdAt: '',
@@ -508,6 +510,21 @@ describe('Flervalg', () => {
     expect(hasChoices(card('c1', { choices: { correct: ' ', wrong: ['a', 'b', 'c'] } }))).toBe(false);
     expect(hasChoices(card('c1', { choices: { correct: 'a', wrong: [] } }))).toBe(false);
     expect(choiceOptions(card('c1'), 0)).toBeNull();
+  });
+
+  it('teller kortene med alternativer, de AI-en kan prøve, og de den har avslått', () => {
+    const choices = { correct: 'a', wrong: ['b', 'c', 'd'] };
+    const cards = [
+      card('c1', { choices }),
+      card('c2'),
+      card('c3', { choicesDeclined: true }),
+      // Har kortet alternativer (skrevet av eleven), teller ikke merket.
+      card('c4', { choices, choicesDeclined: true }),
+      // Kort fra før feltet fantes.
+      { ...card('c5'), choicesDeclined: undefined } as unknown as Flashcard,
+    ];
+    expect(choiceCounts(cards)).toEqual({ have: 2, untried: 2, declined: 1 });
+    expect(choiceCounts([])).toEqual({ have: 0, untried: 0, declined: 0 });
   });
 
   it('fire alternativer der nøyaktig ett er riktig', () => {

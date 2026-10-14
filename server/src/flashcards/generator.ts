@@ -15,10 +15,6 @@ const RETRY_DELAY_MS = 15_000;
 /** Meldingen når en midlertidig feil har vart alle forsøkene; her må eleven selv trykke «Prøv igjen». */
 const RETRY_LATER = 'Fikk ikke kontakt med AI-en. Trykk «Prøv igjen» om litt.';
 
-/** Når ingen av kortene fikk brukbare svaralternativer (f.eks. bare forklaringskort med lange svar). */
-export const NO_CHOICES_MESSAGE =
-  'Claude fant ingen kort med svar som passer til flervalg (svaret må kunne skrives kort, på én linje). Du kan skrive svaralternativer selv når du redigerer et kort.';
-
 /** LaTeX-teksten til et ferdig notat (siste vellykkede versjon), eller null. */
 async function noteBody(storage: Storage, noteId: string): Promise<string | null> {
   for (const name of ['note.tex', 'draft.tex'] as const) {
@@ -224,8 +220,10 @@ export class FlashcardGenerator {
   }
 
   /**
-   * Svaralternativer til kortene som mangler dem: AI-en får bare kortenes tekst (spørsmål og svar), ikke notatene. Svaret
-   * ryddes (`cleanCardChoices`), og `Repo.completeChoices` lagrer dem bare på kort som er uendret siden de ble lest.
+   * Svaralternativer til kortene som mangler dem og ikke er avslått: AI-en får bare kortenes tekst (spørsmål og svar), ikke
+   * notatene. Svaret ryddes (`cleanCardChoices`), og `Repo.completeChoices` lagrer dem bare på kort som er uendret siden
+   * de ble lest. Kortene uten brukbare alternativer merkes som avslått, så et nytt trykk ikke sender dem igjen. Det er ingen
+   * feil når ingen kort får alternativer (f.eks. bare forklaringer med lange svar): et nytt forsøk ville gitt det samme.
    */
   private async makeChoices(deckId: string): Promise<void> {
     const row = this.repo.getDeckRow(deckId);
@@ -234,8 +232,8 @@ export class FlashcardGenerator {
     if (!subject) return;
     // En stengt eller slettet konto får ikke laget alternativer (heller ikke en jobb som var i gang da kontoen ble stengt).
     if (this.choicesStopped(row.user_id, deckId)) return;
-    const missing = this.repo.listCards(deckId).filter((c) => !c.choices);
-    // Alle kortene har fått alternativer i mellomtiden (eleven har skrevet dem selv): ingenting å lage.
+    const missing = this.repo.listCards(deckId).filter((c) => !c.choices && !c.choicesDeclined);
+    // Alle kortene har fått alternativer i mellomtiden (eleven har skrevet dem selv), eller er avslått: ingenting å lage.
     if (missing.length === 0) {
       this.repo.completeChoices(deckId, []);
       return;
@@ -250,9 +248,13 @@ export class FlashcardGenerator {
       }),
     );
     const results = cleanCardChoices(cards, byAlias);
-    if (results.length === 0) throw new ConversionError(NO_CHOICES_MESSAGE);
     if (this.choicesStopped(row.user_id, deckId)) return;
-    const done = this.repo.completeChoices(deckId, results);
-    if (done) this.log.info({ deckId, cards: done.updated, asked: missing.length, ms: Date.now() - started, usage }, 'svaralternativer laget');
+    const done = this.repo.completeChoices(deckId, results, missing);
+    if (done) {
+      this.log.info(
+        { deckId, cards: done.updated, declined: done.declined, asked: missing.length, ms: Date.now() - started, usage },
+        'svaralternativer laget',
+      );
+    }
   }
 }

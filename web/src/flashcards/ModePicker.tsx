@@ -8,8 +8,9 @@ import { MODE_HINT, MODE_LABEL, MODES } from './labels';
  * øvingen kan flytte fokus ut av velgeren.
  *
  * En form i `unavailable` (Flervalg uten kort med svaralternativer) kan ikke velges: den vises dempet med
- * `aria-disabled`, piltastene hopper over den, og et trykk på den gir `onUnavailable` (forklaringen) i stedet for et
- * bytte. Formen som er valgt, er alltid tilgjengelig.
+ * `aria-disabled`, og et trykk på den (eller mellomrom og Enter) gir `onUnavailable` (forklaringen) i stedet for et
+ * bytte. Piltastene, Home og End flytter fokus dit uten å bytte form, så forklaringen kan nås med tastaturet. Formen som
+ * er valgt, er alltid tilgjengelig.
  */
 export function ModePicker({
   mode,
@@ -25,19 +26,21 @@ export function ModePicker({
   const labelId = useId();
   const hintId = useId();
   const off = (m: PracticeMode) => m !== mode && !!unavailable?.has(m);
-  const usable = MODES.filter((m) => !off(m));
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const i = usable.indexOf(mode);
+    // Fra formen som har fokus: det kan være en form som ikke kan velges (og da ikke er valgt).
+    const focused = (e.target as HTMLElement).dataset.value as PracticeMode | undefined;
+    const at = MODES.indexOf(focused && MODES.includes(focused) ? focused : mode);
+    const n = MODES.length;
     let next = -1;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (i + 1) % usable.length;
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (i - 1 + usable.length) % usable.length;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (at + 1) % n;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (at - 1 + n) % n;
     else if (e.key === 'Home') next = 0;
-    else if (e.key === 'End') next = usable.length - 1;
+    else if (e.key === 'End') next = n - 1;
     if (next < 0) return;
     e.preventDefault();
-    const value = usable[next]!;
-    onChange(value, false);
+    const value = MODES[next]!;
+    if (!off(value)) onChange(value, false);
     e.currentTarget.querySelector<HTMLElement>(`[data-value="${value}"]`)?.focus();
   };
 

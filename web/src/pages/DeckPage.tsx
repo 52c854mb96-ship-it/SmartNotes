@@ -7,11 +7,13 @@ import { PageSkeleton } from '../components/EmptyState';
 import { Menu } from '../components/Menu';
 import { Modal } from '../components/Modal';
 import { useSubject, useSubjectNotes } from '../data';
+import { db } from '../db';
 import { deleteDeck, renameDeck, resetPractice, retryDeck, setCardLevels } from '../flashcards/actions';
 import { CardList } from '../flashcards/CardList';
 import { ChoicesPanel } from '../flashcards/ChoicesPanel';
 import { useDeck, useDeckCards } from '../flashcards/data';
 import { DIFFICULTY_LABEL } from '../flashcards/labels';
+import { hasChoices } from '../flashcards/model';
 import { Practice } from '../flashcards/Practice';
 import { useOnline } from '../lib/connectivity';
 import { plural } from '../lib/format';
@@ -36,13 +38,30 @@ export function DeckPage() {
   const { online } = useOnline();
   useDocumentTitle(deck ? `${deck.title} · Flashcards` : null);
 
-  // Svaralternativene lages i bakgrunnen: si fra når de er klare (en feil vises i fanen «Alle kort» og ved velgeren).
+  // Svaralternativene lages i bakgrunnen: si fra når jobben er ferdig (en feil vises i fanen «Alle kort» og ved velgeren).
+  // Kortene med alternativer telles da jobben startet og når den er ferdig, rett fra databasen: kortene og kortstokken
+  // kommer i samme synk, men de to spørringene på siden kan oppdateres hver for seg.
   const choicesStatus = deck?.choicesStatus;
   const prevChoices = useRef(choicesStatus);
+  const haveAtStart = useRef<number | null>(null);
   useEffect(() => {
-    if (prevChoices.current === 'generating' && choicesStatus === null) toast('Svaralternativene er klare.', { kind: 'success' });
+    const prev = prevChoices.current;
     prevChoices.current = choicesStatus;
-  }, [choicesStatus]);
+    if (choicesStatus !== 'generating') haveAtStart.current = null;
+    else if (haveAtStart.current === null && cards) haveAtStart.current = cards.filter(hasChoices).length;
+    if (prev !== 'generating' || choicesStatus !== null || !deckId) return;
+    const before = haveAtStart.current;
+    void db.cards
+      .where('deckId')
+      .equals(deckId)
+      .toArray()
+      .then((rows) => {
+        if (before === null || rows.filter(hasChoices).length > before) toast('Svaralternativene er klare.', { kind: 'success' });
+        else toast('Claude fant ingen gode svaralternativer til kortene som manglet dem. Du kan skrive dem selv når du redigerer et kort.');
+      });
+  }, [choicesStatus, cards, deckId]);
+  /** «Alle kort»: får fokus når panelet for svaralternativer forsvinner etter et trykk på knappen der. */
+  const cardsPanelRef = useRef<HTMLDivElement>(null);
 
   if (subject === undefined || deck === undefined || cards === undefined || notes === undefined) return <PageSkeleton />;
   if (subject === null) return <NotFoundPage what="faget" />;
@@ -171,8 +190,18 @@ export function DeckPage() {
           <div id="fc-panel-ov" role="tabpanel" aria-labelledby="fc-tab-ov" hidden={tab !== 'ov'}>
             {!resetting && <PracticeTab deck={deck} cards={cards} notes={notes} active={tab === 'ov'} />}
           </div>
-          <div id="fc-panel-kort" role="tabpanel" aria-labelledby="fc-tab-kort" hidden={tab !== 'kort'}>
-            {cards.length > 0 && <ChoicesPanel deck={deck} cards={cards} />}
+          <div
+            ref={cardsPanelRef}
+            id="fc-panel-kort"
+            className="fc-tabpanel"
+            role="tabpanel"
+            aria-labelledby="fc-tab-kort"
+            hidden={tab !== 'kort'}
+            tabIndex={-1}
+          >
+            {cards.length > 0 && (
+              <ChoicesPanel deck={deck} cards={cards} onGone={() => cardsPanelRef.current?.focus({ preventScroll: true })} />
+            )}
             <CardList deck={deck} cards={cards} notes={notes} online={online} />
           </div>
         </>

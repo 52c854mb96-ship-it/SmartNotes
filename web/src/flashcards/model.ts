@@ -381,6 +381,21 @@ export function hasChoices<T extends Pick<Flashcard, 'choices'>>(card: T | undef
   return !!c && typeof c.correct === 'string' && c.correct.trim() !== '' && Array.isArray(c.wrong) && c.wrong.length > 0;
 }
 
+/**
+ * Svaralternativene i en kortstokk: kortene som har dem (`have`), de «Lag svaralternativer» kan sende til AI-en
+ * (`untried`), og de AI-en har fått uten å gi brukbare (`declined`, ofte fordi svaret er for langt til flervalg). De
+ * avslåtte sendes ikke igjen før de endres; eleven kan skrive alternativene selv.
+ */
+export function choiceCounts(cards: Pick<Flashcard, 'choices' | 'choicesDeclined'>[]): { have: number; untried: number; declined: number } {
+  let have = 0;
+  let declined = 0;
+  for (const c of cards) {
+    if (hasChoices(c)) have++;
+    else if (c.choicesDeclined) declined++;
+  }
+  return { have, untried: cards.length - have - declined, declined };
+}
+
 /** Ett av svaralternativene i Flervalg. */
 export interface ChoiceOption {
   /** Teksten, med den samme markeringen som kortene (**fet** og $formler$). */

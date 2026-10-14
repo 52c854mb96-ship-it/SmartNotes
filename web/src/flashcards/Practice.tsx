@@ -183,6 +183,12 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
   const choiceReady = useMemo(() => selection.some(hasChoices), [selection]);
   /** Forklaringen ved velgeren er åpen (eleven trykket på Flervalg uten svaralternativer). */
   const [choicesHelp, setChoicesHelp] = useState(false);
+  const generatingChoices = deck.choicesStatus === 'generating';
+  /** Eleven lukket «Lager svaralternativer …»: skjult til jobben er ferdig (toasten sier fra da). */
+  const [busyClosed, setBusyClosed] = useState(false);
+  useEffect(() => {
+    if (!generatingChoices) setBusyClosed(false);
+  }, [generatingChoices]);
 
   // Kortene kan endres mens man øver (synk fra en annen enhet, redigering): køen eller gjennomgangen følger etter.
   useEffect(() => {
@@ -287,6 +293,13 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
     face.refocus();
   };
 
+  /** «Lukk» på forklaringen ved velgeren (også «Lager svaralternativer …»): fokus tilbake til kortet. */
+  const closeChoicesHelp = () => {
+    setChoicesHelp(false);
+    if (generatingChoices) setBusyClosed(true);
+    face.refocus();
+  };
+
   // Et notatfilter eller repetisjonsutvalg uten kort igjen (slettet her eller på en annen enhet): tilbake til alle kort.
   useEffect(() => {
     const noteGone = filter.noteId !== null && !groups.includes(filter.noteId);
@@ -346,14 +359,14 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
     <div ref={rootRef} className="fc-practice">
       <ModePicker mode={filter.mode} onChange={changeMode} unavailable={unavailable} onUnavailable={() => setChoicesHelp(true)} />
       {/* Forklaringen når eleven trykket på Flervalg, og «Lager svaralternativer …» mens Claude lager dem. */}
-      {(choicesHelp || deck.choicesStatus === 'generating') && (
+      {(choicesHelp || (generatingChoices && !busyClosed)) && (
         <ChoicesHelp
           deck={deck}
           cards={effCards}
           ready={choiceReady}
           autoFocus={choicesHelp}
           onPractice={() => changeMode('choice', true)}
-          onClose={choicesHelp ? () => setChoicesHelp(false) : undefined}
+          onClose={closeChoicesHelp}
         />
       )}
       {filter.mode === 'choice' && selection.length > 0 && !choiceReady && (

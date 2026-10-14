@@ -179,8 +179,8 @@ db.version(4)
     await tx.table('meta').put({ key: 'syncCursor', value: 0 });
   });
 
-// Versjon 5: flervalg. Kortene har fått `choices`, og kortstokkene `choicesStatus` og `choicesError` (ingen nye
-// indekser). Lokale rader mangler feltene: de settes til null her, og markøren nullstilles, så neste synk henter
+// Versjon 5: flervalg. Kortene har fått `choices` og `choicesDeclined`, og kortstokkene `choicesStatus` og `choicesError`
+// (ingen nye indekser). Lokale rader mangler feltene: de settes til null her, og markøren nullstilles, så neste synk henter
 // alternativene og statusen. `.stores` må kalles også uten endringer, ellers får versjonen et tomt skjema i Dexie.
 db.version(5)
   .stores(STORES_V4)
@@ -191,6 +191,7 @@ db.version(5)
       .toCollection()
       .modify((c: Partial<Flashcard>) => {
         if (c.choices === undefined) c.choices = null;
+        if (c.choicesDeclined === undefined) c.choicesDeclined = false;
       });
     await tx
       .table('decks')
