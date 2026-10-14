@@ -152,56 +152,59 @@ export function CardEditor({
           <summary>
             Svaralternativer til flervalg <span className="optional">(valgfritt)</span>
           </summary>
-          <div className="fc-editor-choices-body">
-            <p className="field-note">
-              Skriv det riktige svaret kort, på én linje, og tre gale svar som ligner det. La alle feltene stå tomme for et kort
-              uten svaralternativer.
-            </p>
-            <label className="field">
-              <span className="field-label">Kort riktig svar</span>
-              <input
-                ref={(el) => {
-                  choiceRefs.current.correct = el;
-                }}
-                type="text"
-                value={choiceFields.correct}
-                maxLength={MAX_CHOICE_CHARS}
-                aria-invalid={badChoice === 'correct' || undefined}
-                onChange={(e) => setCorrect(e.currentTarget.value)}
-              />
-            </label>
-            <fieldset className="field fc-editor-wrong">
-              <legend className="field-label">Gale svar</legend>
-              {Array.from({ length: WRONG_CHOICES }, (_, i) => (
+          {/* Feltene finnes bare når delen er åpen (et kort uten alternativer har dem lukket). */}
+          {choicesOpen && (
+            <div className="fc-editor-choices-body">
+              <p className="field-note">
+                Skriv det riktige svaret kort, på én linje, og tre gale svar som ligner det. La alle feltene stå tomme for et kort
+                uten svaralternativer.
+              </p>
+              <label className="field">
+                <span className="field-label">Kort riktig svar</span>
                 <input
-                  key={i}
                   ref={(el) => {
-                    choiceRefs.current[String(i)] = el;
+                    choiceRefs.current.correct = el;
                   }}
                   type="text"
-                  aria-label={`Galt svar ${i + 1}`}
-                  value={choiceFields.wrong[i] ?? ''}
+                  value={choiceFields.correct}
                   maxLength={MAX_CHOICE_CHARS}
-                  aria-invalid={badChoice === i || undefined}
-                  onChange={(e) => setWrong(i, e.currentTarget.value)}
+                  aria-invalid={badChoice === 'correct' || undefined}
+                  onChange={(e) => setCorrect(e.currentTarget.value)}
                 />
-              ))}
-            </fieldset>
-            {anyChoice && (
-              <div>
-                <button
-                  type="button"
-                  className="link-btn"
-                  onClick={() => {
-                    setChoiceFields(choiceFieldsOf(null));
-                    setBadChoice(null);
-                  }}
-                >
-                  Fjern svaralternativene
-                </button>
-              </div>
-            )}
-          </div>
+              </label>
+              <fieldset className="field fc-editor-wrong">
+                <legend className="field-label">Gale svar</legend>
+                {Array.from({ length: WRONG_CHOICES }, (_, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => {
+                      choiceRefs.current[String(i)] = el;
+                    }}
+                    type="text"
+                    aria-label={`Galt svar ${i + 1}`}
+                    value={choiceFields.wrong[i] ?? ''}
+                    maxLength={MAX_CHOICE_CHARS}
+                    aria-invalid={badChoice === i || undefined}
+                    onChange={(e) => setWrong(i, e.currentTarget.value)}
+                  />
+                ))}
+              </fieldset>
+              {anyChoice && (
+                <div>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => {
+                      setChoiceFields(choiceFieldsOf(null));
+                      setBadChoice(null);
+                    }}
+                  >
+                    Fjern svaralternativene
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </details>
         {(front.trim() || lines.length > 0) && (
           <div className="fc-preview" aria-label="Forhåndsvisning">

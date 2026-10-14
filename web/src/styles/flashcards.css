@@ -238,10 +238,6 @@
   gap: 2px;
 }
 
-.fc-new-choices .field-note {
-  padding-left: 30px;
-}
-
 .fc-new-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1760,7 +1756,7 @@
 
   /*
    * Fem former side om side på én linje: kolonnene får bredden teksten trenger, og resten av plassen deles likt (så
-   * «Rask runde» ikke brytes). Under 400 px blir de litt tettere, og under 360 px står de på to rader, se under.
+   * «Rask runde» ikke brytes). Under 430 px blir de litt tettere og mindre, og under 360 px står de på to rader, se under.
    */
   .fc-mode-switch {
     display: grid;
@@ -1769,7 +1765,7 @@
   }
 
   .fc-mode-switch .segment {
-    padding: 0 6px;
+    padding: 0 5px;
     font-size: 13.5px;
     white-space: nowrap;
   }
@@ -1821,7 +1817,7 @@
   }
 }
 
-@media (max-width: 400px) {
+@media (max-width: 430px) {
   .fc-mode-switch {
     gap: 2px;
     padding: 3px;
@@ -1829,7 +1825,19 @@
 
   .fc-mode-switch .segment {
     padding: 0 4px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 400px) {
+  .fc-mode-switch .segment {
     font-size: 12.5px;
+  }
+}
+
+@media (max-width: 380px) {
+  .fc-mode-switch .segment {
+    font-size: 12px;
   }
 }
 
