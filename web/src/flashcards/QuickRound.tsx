@@ -7,9 +7,11 @@ import { Choice } from './Choice';
 import { ClozeRound } from './ClozeRound';
 import { quickKeys, usePracticeKeys } from './keys';
 import {
+  MASTER,
   OWN_CARDS,
   correctPct,
   knownFirstTry,
+  levelOf,
   rateCloze,
   rateQuick,
   repetitionChoices,
@@ -193,7 +195,9 @@ export function QuickRound({
 
 /**
  * Etter Rask runde (og Luketekst): hvor mange kort eleven kunne med en gang, og valgene videre. Ingen av dem nullstiller
- * nivåene: kortene eleven ikke kunne, i en ny runde eller med mestring, eller alle på nytt.
+ * nivåene: kortene eleven ikke kunne, i en ny runde eller med mestring, eller alle på nytt. Mestring hopper over
+ * mestrede kort, så «Øv dem med mestring» tar bare de bommede som ikke er mestret (i Luketekst kan et mestret kort
+ * bommes uten å falle).
  */
 export function QuickDone({
   session,
@@ -221,6 +225,10 @@ export function QuickDone({
     round.grades,
   );
   const { misses } = repetitionChoices(selection, round.grades);
+  const missed = new Set(misses);
+  const open = selection.filter((c) => missed.has(c.id) && levelOf(c) < MASTER).map((c) => c.id);
+  /** Runden gjaldt bare noen kort (en repetisjon eller en kort økt), så «på nytt» gir de samme kortene. */
+  const same = filter.subset !== null;
   return (
     <section className="fc-done is-win" aria-live="polite">
       <h2>
@@ -229,7 +237,9 @@ export function QuickDone({
       <p className="muted">
         {cloze
           ? 'Riktige luker gir minst nivå 1, men gjør aldri et kort mestret. Kortene uten luke flytter nivåene som i en rask runde.'
-          : 'Kortene du kunne, gikk ett nivå opp. De du ikke kunne, er tilbake på nivå 0 og kommer også med i Mestring.'}
+          : misses.length > 0
+            ? 'Kortene du kunne med en gang, gikk ett nivå opp, høyst til mestret. De du ikke kunne, falt til nivå 0 og står nå på nivå 1.'
+            : 'Alle kortene gikk ett nivå opp, og kort som alt var mestret, er fortsatt mestret.'}
       </p>
       {round.answered > 0 && (
         <div className="fc-stats">
@@ -258,24 +268,24 @@ export function QuickDone({
           />
         )}
         {misses.length > 0 && (
-          <>
-            <Choice
-              primary={!nextChunk}
-              label="De du ikke kunne"
-              meta={`${plural(misses.length, 'kort', 'kort')} i en ny runde, nivåene beholdes`}
-              onClick={() => restart({ ...filter, subset: misses, subsetKind: 'repeat' })}
-            />
-            <Choice
-              label="Øv dem med mestring"
-              meta="Grundig: kortene kommer igjen til du kan dem"
-              onClick={() => restart({ ...filter, mode: 'mastery', subset: misses, subsetKind: 'repeat', seen: [] })}
-            />
-          </>
+          <Choice
+            primary={!nextChunk}
+            label="De du ikke kunne"
+            meta={`${plural(misses.length, 'kort', 'kort')} i en ny runde`}
+            onClick={() => restart({ ...filter, subset: misses, subsetKind: 'repeat' })}
+          />
+        )}
+        {open.length > 0 && (
+          <Choice
+            label="Øv dem med mestring"
+            meta={`Grundig: ${plural(open.length, 'kort', 'kort')}${open.length < misses.length ? ' som ikke er mestret,' : ''} kommer igjen til du kan dem`}
+            onClick={() => restart({ ...filter, mode: 'mastery', subset: open, subsetKind: 'repeat', seen: [] })}
+          />
         )}
         <Choice
           primary={!nextChunk && misses.length === 0}
-          label={cloze ? 'Ny runde med alle' : 'Ny rask runde med alle'}
-          meta={`${plural(total, 'kort', 'kort')}, nivåene beholdes`}
+          label={same ? (cloze ? 'Samme kort i en ny runde' : 'Samme kort i en ny rask runde') : cloze ? 'Ny runde med alle' : 'Ny rask runde med alle'}
+          meta={`${plural(total, 'kort', 'kort')}${same ? (filter.subsetKind === 'chunk' ? ' fra økta' : ' fra repetisjonen') : ''}, uten å nullstille`}
           onClick={() => restart({ ...filter })}
         />
       </div>

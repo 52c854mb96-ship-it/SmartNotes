@@ -1304,7 +1304,7 @@ select.inline-input {
 }
 
 .home-continue {
-  margin-bottom: 28px;
+  margin: -6px 0 16px;
 }
 
 .home-continue a {

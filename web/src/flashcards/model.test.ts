@@ -379,6 +379,32 @@ describe('Luketekst', () => {
     }
     expect(level).toBe(1);
   });
+
+  it('nivået sendes bare når det endres, så en annen enhets høyere nivå ikke blir skrevet over', () => {
+    for (const before of [0, 1, 2, 3]) {
+      for (const outcome of ['wrong', 'shown'] as const) {
+        expect(rateCloze(emptyRound(queue(2)), ctx({ c1: before, c2: 0 }, 3), outcome)!.write).toBe(false);
+      }
+    }
+    expect(rateCloze(emptyRound(queue(2)), ctx({ c1: 0, c2: 0 }, 3), 'right')!).toMatchObject({ level: 1, write: true });
+    for (const before of [1, 2, 3]) {
+      expect(rateCloze(emptyRound(queue(2)), ctx({ c1: before, c2: 0 }, 3), 'right')!).toMatchObject({ level: before, write: false });
+    }
+    // Mestring og Rask runde er vurderinger og sendes alltid, også når nivået står («Delvis», «Kunne» på 3).
+    expect(rate(emptyRound(queue(2)), ctx({ c1: 2, c2: 0 }, 2))!.write).toBe(true);
+    expect(rateQuick(emptyRound(queue(2)), ctx({ c1: 3, c2: 0 }, 3), true)!.write).toBe(true);
+    expect(rateQuick(emptyRound(queue(2)), ctx({ c1: 0, c2: 0 }, 1), false)!.write).toBe(true);
+  });
+
+  it('et mestret kort med feil luke er bommet, men kommer ikke med i Mestring (QuickDone filtrerer det bort)', () => {
+    const out = rateCloze(emptyRound(['c1', 'c2']), ctx({ c1: 3, c2: 0 }, 3), 'wrong')!;
+    expect(out.level).toBe(MASTER);
+    expect(out.round.grades).toEqual({ c1: 1 });
+    const sel = [card('c1', { level: 3 }), card('c2')];
+    const { misses } = repetitionChoices(sel, out.round.grades);
+    expect(misses).toEqual(['c1']);
+    expect(buildQueue(selectCards(sel, { noteId: null, kind: null, subset: misses }), 'notes')).toEqual([]);
+  });
 });
 
 describe('Klassisk', () => {

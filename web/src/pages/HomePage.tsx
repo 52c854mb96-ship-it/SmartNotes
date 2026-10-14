@@ -44,7 +44,7 @@ const FEATURES: Feature[] = [
     title: 'Visualiseringer',
     text:
       'Interaktive forklaringer der du styrer tallene selv og ser hva som skjer, for eksempel med en kasse som sklir, ' +
-      'en titrering eller en vaksine som stopper smitte. Mange temaer har også eksempeloppgaver med løsning steg for ' +
+      'en titrering eller en vaksine som stopper smitte. Noen temaer har også eksempeloppgaver med løsning steg for ' +
       'steg.',
     why: 'Når du ser en sammenheng endre seg, blir den ofte lettere å forstå enn en formel på papir.',
     link: (s) =>
@@ -54,7 +54,9 @@ const FEATURES: Feature[] = [
     id: 'flashcards',
     icon: GalleryVerticalEnd,
     title: 'Flashcards',
-    text: 'Lag kortstokker fra dine egne notater. Svar i hodet, snu kortet og se om du kunne det, grundig med mestring eller raskt.',
+    text:
+      'Lag kortstokker fra dine egne notater. Svar i hodet, snu kortet og se om du kunne det. Øv grundig med mestring, ' +
+      'eller ta en rask runde når du har lite tid.',
     why:
       'Å hente fram svaret fra hukommelsen er en av de best dokumenterte måtene å lære på, og virker bedre enn å ' +
       'lese notatene om igjen.',
@@ -114,11 +116,20 @@ export function HomePage() {
         <div className="home-hero-text">
           <h1 className="page-title">{APP_TITLE}</h1>
           <p className="home-intro">
-            Notater, visualiseringer og flashcards i fysikk, kjemi, biologi og geofag, etter læreplanen for videregående
-            (LK20).
+            Notater og flashcards i fysikk, kjemi, biologi og geofag etter læreplanen for videregående (LK20), med
+            interaktive visualiseringer til mange av temaene.
           </p>
         </div>
       </header>
+
+      {/* Rett under ingressen, så eleven slipper å rulle forbi presentasjonen på telefonen hver gang appen åpnes. */}
+      {last && (
+        <p className="home-continue">
+          <Link to={`/fag/${last.id}`}>
+            Fortsett i {last.name} <ArrowRight size={16} aria-hidden />
+          </Link>
+        </p>
+      )}
 
       <ul className="home-features" role="list" aria-label="Dette er SmartNotes">
         {FEATURES.map((f) => (
@@ -128,14 +139,6 @@ export function HomePage() {
       <p className="home-flow">
         <strong>Slik henger det sammen:</strong> skriv i timen, forstå med visualiseringene, øv med flashcards.
       </p>
-
-      {last && (
-        <p className="home-continue">
-          <Link to={`/fag/${last.id}`}>
-            Fortsett i {last.name} <ArrowRight size={16} aria-hidden />
-          </Link>
-        </p>
-      )}
 
       <section aria-labelledby="home-subjects-h">
         <div className="home-section-head">

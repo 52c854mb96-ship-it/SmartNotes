@@ -4,9 +4,10 @@ import { MODE_HINT, MODE_LABEL, MODES } from './labels';
 
 /**
  * «Øvingsform» øverst på fanen «Øv»: en radiogruppe med piltaster (som `ThemeSwitch`) og én linje om formen under.
- * Et nytt valg starter en ny runde i den formen.
+ * Et nytt valg starter en ny runde i den formen. `fromPointer` er sann for et klikk eller trykk (ikke tastaturet), så
+ * øvingen kan flytte fokus ut av velgeren.
  */
-export function ModePicker({ mode, onChange }: { mode: PracticeMode; onChange: (mode: PracticeMode) => void }) {
+export function ModePicker({ mode, onChange }: { mode: PracticeMode; onChange: (mode: PracticeMode, fromPointer: boolean) => void }) {
   const labelId = useId();
   const hintId = useId();
 
@@ -20,7 +21,7 @@ export function ModePicker({ mode, onChange }: { mode: PracticeMode; onChange: (
     if (next < 0) return;
     e.preventDefault();
     const value = MODES[next]!;
-    onChange(value);
+    onChange(value, false);
     e.currentTarget.querySelector<HTMLElement>(`[data-value="${value}"]`)?.focus();
   };
 
@@ -45,7 +46,8 @@ export function ModePicker({ mode, onChange }: { mode: PracticeMode; onChange: (
             tabIndex={m === mode ? 0 : -1}
             data-value={m}
             className="segment"
-            onClick={() => onChange(m)}
+            // Mellomrom og Enter på knappen gir et klikk med `detail` 0: da blir fokus stående i velgeren.
+            onClick={(e) => onChange(m, e.detail > 0)}
           >
             {MODE_LABEL[m]}
           </button>

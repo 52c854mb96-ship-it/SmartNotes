@@ -45,7 +45,8 @@ export default defineConfig({
         name: 'SmartNotes – Realfag VGS',
         short_name: 'SmartNotes',
         description:
-          'Notater, visualiseringer og flashcards i fysikk, kjemi, biologi og geofag for videregående. ' +
+          'Notater og flashcards i fysikk, kjemi, biologi og geofag for videregående, med visualiseringer til mange av ' +
+          'temaene. ' +
           'Håndskrevne notater blir pene PDF-er, sortert etter tema.',
         lang: 'nb',
         dir: 'ltr',

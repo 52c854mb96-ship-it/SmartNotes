@@ -149,7 +149,7 @@ export function MasteryRound({
 
 /**
  * Etter runden i Mestring: alt i utvalget er mestret. Repeter det eleven ikke kunne, alt (fra nivå 0, eller i en rask
- * runde som beholder nivåene), ta neste korte økt, eller gå til neste notat.
+ * runde uten nullstilling), ta neste korte økt, eller gå til neste notat.
  */
 export function MasteryDone({
   selection,
@@ -175,7 +175,10 @@ export function MasteryDone({
   groupDone: (g: string) => boolean;
   onRepeat: (ids: string[]) => void;
   onRepeatAll: () => void;
-  /** «Rask runde med alle»: de samme kortene, uten å nullstille nivåene. */
+  /**
+   * «Rask runde med alle» (eller med de samme kortene i en repetisjon eller kort økt), uten å nullstille nivåene. Med en
+   * lengde valgt og ingen økt (alt var mestret) plukker den rask runden i økter på så mange kort.
+   */
   onQuick: () => void;
   onNext: (g: string) => void;
   nextChunk: NextChunk | null;
@@ -192,6 +195,10 @@ export function MasteryDone({
   const choices = repetitionChoices(selection, round.grades);
   const next = filter.noteId !== null ? groups.find((g) => g !== filter.noteId && !groupDone(g)) : undefined;
   const allCount = filter.subset ? null : choices.all.length;
+  const quickMeta =
+    !filter.subset && filter.length !== null && choices.all.length > filter.length
+      ? `${plural(filter.length, 'kort', 'kort')} om gangen, uten å nullstille`
+      : `${plural(choices.all.length, 'kort', 'kort')}, uten å nullstille`;
   return (
     <section className="fc-done is-win" aria-live="polite">
       <h2>
@@ -248,8 +255,8 @@ export function MasteryDone({
         )}
         <Choice
           primary={!nextChunk && choices.unsure.length === 0}
-          label="Rask runde med alle"
-          meta={`${plural(choices.all.length, 'kort', 'kort')}, nivåene beholdes`}
+          label={filter.subset ? 'Rask runde med de samme kortene' : 'Rask runde med alle'}
+          meta={quickMeta}
           onClick={onQuick}
         />
         <Choice

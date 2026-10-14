@@ -8,8 +8,8 @@ export interface Rating {
   /** Nivåene og gruppene akkurat nå, til `rate`, `rateQuick` og `rateCloze`. */
   context: () => QuickContext;
   /**
-   * Bruker utfallet av en vurdering: angrestakken, nivået (også på de andre enhetene), rekorden, runden, effektene og
-   * linja under knappene. Neste spørsmål vises; med `focus` false flyttes ikke fokus dit (Luketekst flytter det til
+   * Bruker utfallet av en vurdering: angrestakken, nivået (også på de andre enhetene, når `out.write`), rekorden,
+   * runden, effektene og linja under knappene. Neste spørsmål vises; med `focus` false flyttes ikke fokus dit (Luketekst flytter det til
    * feltet selv).
    */
   apply: (out: RateOutcome | null, focus?: boolean) => void;
@@ -48,8 +48,11 @@ export function useRating(
     (out: RateOutcome | null, focus = true) => {
       if (!out) return;
       const before = levelOf(cards.find((c) => c.id === out.cardId));
-      setUndoStack((s) => [...s.slice(-(UNDO_LIMIT - 1)), { round, cardId: out.cardId, level: before, best: best.value }]);
-      setLevels([out.cardId], out.level);
+      setUndoStack((s) => [
+        ...s.slice(-(UNDO_LIMIT - 1)),
+        { round, cardId: out.cardId, level: before, best: best.value, wrote: out.write },
+      ]);
+      if (out.write) setLevels([out.cardId], out.level);
       if (out.best > best.value) best.record(out.best);
       setRound(out.round);
       show('question', focus);
@@ -65,7 +68,7 @@ export function useRating(
       if (!last) return;
       setUndoStack((s) => s.slice(0, -1));
       setRound(last.round);
-      setLevels([last.cardId], last.level);
+      if (last.wrote !== false) setLevels([last.cardId], last.level);
       if (last.best < best.value) best.restore(last.best);
       if (showAnswer) show('answer');
       else show('question', false);

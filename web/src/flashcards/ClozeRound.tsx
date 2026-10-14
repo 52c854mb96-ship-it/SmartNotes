@@ -3,7 +3,7 @@ import type { Flashcard } from '@smartnotes/shared';
 import { CardDetail, CardMeta, type CardFaceState } from './CardFace';
 import { clozeKeys, usePracticeKeys } from './keys';
 import type { ClozeOutcome } from './model';
-import { matchesTerm, parseBackLine, type Cloze } from './richtext';
+import { parseBackLine, termMatch, type Cloze } from './richtext';
 import { RichText } from './RichText';
 
 /** Ordet slik eleven skrev det, uten forskjell på store og små bokstaver eller mellomrom rundt. */
@@ -18,8 +18,12 @@ function scrollAboveKeyboard(e: FocusEvent<HTMLInputElement>): void {
   }, 300);
 }
 
-const RESULT: Record<ClozeOutcome, string> = {
+/** Resultatet slik eleven ser det. `near` er godtatt med én skrivefeil og teller som riktig. */
+type ClozeResult = ClozeOutcome | 'near';
+
+const RESULT: Record<ClozeResult, string> = {
   right: 'Riktig.',
+  near: 'Godtatt, men sjekk skrivemåten.',
   wrong: 'Ikke riktig.',
   shown: 'Svaret vises.',
 };
@@ -27,7 +31,8 @@ const RESULT: Record<ClozeOutcome, string> = {
 /**
  * Luketekst, et kort med luke: spørsmålet og svarpunktene vises med ett nøkkelbegrep byttet ut med et felt. Eleven
  * skriver ordet og trykker Enter (eller «Sjekk»), eller «Vis» for å gi opp. Feltet blir grønt eller rødt og fasiten
- * vises; er eleven uenig i rettingen, gjør «Jeg hadde rett» svaret riktig. Vurderingen (`onDone`) kommer først med
+ * vises; et svar med én skrivefeil godtas, men fasiten står ved siden av (det kan være et annet fagord). Er eleven
+ * uenig i rettingen, gjør «Jeg hadde rett» svaret riktig. Vurderingen (`onDone`) kommer først med
  * «Neste», så eleven rekker å se fasiten. Komponenten får ny `key` for hvert kort, så feltet starter tomt.
  */
 export function ClozeRound({
@@ -56,7 +61,8 @@ export function ClozeRound({
   onUndo: () => void;
 }) {
   const [typed, setTyped] = useState('');
-  const [outcome, setOutcome] = useState<ClozeOutcome | null>(null);
+  const [result, setResult] = useState<ClozeResult | null>(null);
+  const outcome: ClozeOutcome | null = result === 'near' ? 'right' : result;
   const inputRef = useRef<HTMLInputElement>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
 
@@ -75,17 +81,18 @@ export function ClozeRound({
     if (outcome || !typed.trim()) return;
     tick();
     onCheck();
-    setOutcome(matchesTerm(typed, cloze.term) ? 'right' : 'wrong');
+    const match = termMatch(typed, cloze.term);
+    setResult(match === 'exact' ? 'right' : match === 'typo' ? 'near' : 'wrong');
   };
   const reveal = () => {
     if (outcome) return;
     tick();
     onCheck();
-    setOutcome('shown');
+    setResult('shown');
   };
   const overrule = () => {
     tick();
-    setOutcome('right');
+    setResult('right');
   };
   const next = () => {
     if (outcome) onDone(outcome);
@@ -121,7 +128,7 @@ export function ClozeRound({
         <input
           ref={inputRef}
           type="text"
-          className={`fc-gap${outcome === 'right' ? ' is-right' : outcome === 'wrong' ? ' is-wrong' : ''}`}
+          className={`fc-gap${result === 'right' ? ' is-right' : result === 'near' ? ' is-near' : result === 'wrong' ? ' is-wrong' : ''}`}
           style={{ width: `${Math.min(Math.max(cloze.term.length, 6) + 3, 26)}ch` }}
           value={typed}
           readOnly={outcome !== null}
@@ -160,11 +167,14 @@ export function ClozeRound({
         {outcome && <CardDetail card={card} face={face} />}
       </div>
 
-      <p className={`fc-cloze-result${outcome === 'right' ? ' is-ok' : outcome ? ' is-bad' : ''}`} aria-live="polite">
-        {outcome && (
+      <p
+        className={`fc-cloze-result${result === 'right' ? ' is-ok' : result === 'near' ? ' is-mid' : result ? ' is-bad' : ''}`}
+        aria-live="polite"
+      >
+        {result && (
           <>
-            {RESULT[outcome]}
-            {outcome !== 'right' && ` Fasit: ${cloze.term}.`}
+            {RESULT[result]}
+            {result !== 'right' && ` Fasit: ${cloze.term}.`}
           </>
         )}
       </p>

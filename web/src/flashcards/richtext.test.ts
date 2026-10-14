@@ -8,6 +8,7 @@ import {
   parseBackLine,
   parseInline,
   plainText,
+  termMatch,
   textToBack,
 } from './richtext';
 
@@ -92,6 +93,13 @@ describe('luker', () => {
     expect(clozeOf(card(['**Fotosyntese** lager sukker', 'Fotosyntesen skjer i kloroplastene'], 'Hva gjør plantene?'), 0)).toBeNull();
   });
 
+  it('to motsatte begreper i samme kort: det ene som står synlig, godtas ikke i luka for det andre', () => {
+    const c = card(['**Elastisk** støt: den kinetiske energien er bevart', '**Uelastisk** støt: noe går over til varme'], 'Hva skiller støtene?');
+    expect(clozeCandidates(c).map((x) => x.term)).toEqual(['Elastisk', 'Uelastisk']);
+    expect(matchesTerm('elastisk', 'Uelastisk')).toBe(false);
+    expect(matchesTerm('uelastisk', 'Elastisk')).toBe(false);
+  });
+
   it('fraser på mer enn tre ord og kort uten fet tekst blir ikke luke', () => {
     expect(clozeOf(card(['Det er **summen av alle kreftene**']), 0)).toBeNull();
     expect(clozeOf(card(['Det er **summen av kreftene**']), 0)?.term).toBe('summen av kreftene');
@@ -119,6 +127,31 @@ describe('retting av luka', () => {
     expect(matchesTerm('pulsen', 'puls')).toBe(true);
     expect(matchesTerm('farten', 'fart')).toBe(true);
     expect(matchesTerm('Newtons første lov', 'Newton første lov')).toBe(true);
+    // Dobbel konsonant og -el-ord, begge veier.
+    for (const [x, y] of [
+      ['strømmen', 'strøm'],
+      ['strømmer', 'strøm'],
+      ['summen', 'sum'],
+      ['rommet', 'rom'],
+      ['partikler', 'partikkel'],
+      ['reduksjonsmidler', 'reduksjonsmiddel'],
+      ['sykler', 'sykkel'],
+      ['modellen', 'modeller'],
+      ['modell', 'modellen'],
+    ]) {
+      expect(matchesTerm(x!, y!), `${x} for ${y}`).toBe(true);
+      expect(matchesTerm(y!, x!), `${y} for ${x}`).toBe(true);
+    }
+    expect(matchesTerm('kraften', 'kreft')).toBe(false);
+    expect(matchesTerm('kreft', 'kraften')).toBe(false);
+    expect(matchesTerm('sump', 'sum')).toBe(false);
+  });
+
+  it('enheter med hevet og senket skrift kan skrives med vanlige tall', () => {
+    expect(matchesTerm('m/s2', 'm/s²')).toBe(true);
+    expect(matchesTerm('m/s^2', 'm/s²')).toBe(true);
+    expect(matchesTerm('CO2', 'CO₂')).toBe(true);
+    expect(matchesTerm('m/s', 'm/s²')).toBe(false);
   });
 
   it('én skrivefeil i ord på seks bokstaver eller mer', () => {
@@ -130,6 +163,37 @@ describe('retting av luka', () => {
     expect(matchesTerm('akslerasjn', 'akselerasjon')).toBe(false);
     expect(matchesTerm('fard', 'fart')).toBe(false);
     expect(matchesTerm('nasse', 'masse')).toBe(false);
+  });
+
+  it('motsatte og ulike fagord godtas ikke som skrivefeil', () => {
+    for (const [x, y] of [
+      ['elastisk', 'uelastisk'],
+      ['polare', 'upolare'],
+      ['mettet', 'umettet'],
+      ['løselig', 'uløselig'],
+      ['organisk', 'uorganisk'],
+      ['metanol', 'etanol'],
+      ['fenotype', 'genotype'],
+      ['fisjon', 'fusjon'],
+      ['alkaner', 'alkener'],
+      ['alkan', 'alken'],
+      ['propan', 'propen'],
+    ]) {
+      expect(matchesTerm(x!, y!), `${x} for ${y}`).toBe(false);
+      expect(matchesTerm(y!, x!), `${y} for ${x}`).toBe(false);
+    }
+    expect(matchesTerm('alkan', 'alkener')).toBe(false);
+    expect(matchesTerm('elastiske', 'uelastisk')).toBe(false);
+  });
+
+  it('et treff med skrivefeil skilles fra et likt svar, så fasiten kan vises', () => {
+    expect(termMatch('Akselerasjonen', 'akselerasjon')).toBe('exact');
+    expect(termMatch('meterpersekund', 'meter per sekund')).toBe('exact');
+    expect(termMatch('akselerasjn', 'akselerasjon')).toBe('typo');
+    expect(termMatch('Newtons førse lov', 'Newtons første lov')).toBe('typo');
+    // Par ingen bokstavregel skiller: godtatt, men med fasiten ved siden av.
+    expect(termMatch('kromatin', 'kromatid')).toBe('typo');
+    expect(termMatch('fusjon', 'fisjon')).toBeNull();
   });
 
   it('feil ord og tomt svar godtas ikke', () => {

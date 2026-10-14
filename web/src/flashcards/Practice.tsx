@@ -286,8 +286,13 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
   const groupPct = (g: string | null) => masteryPct(selectCards(effCards, { noteId: g, kind: filter.kind, subset: null }));
   // Et nytt filter, en ny form eller en ny lengde starter en ny runde (og en ny omgang med korte økter).
   const changeFilter = (patch: Partial<ViewFilter>) => restart({ ...filter, ...patch, subset: null, seen: [] });
-  const changeMode = (mode: PracticeMode) => {
-    if (mode !== filter.mode) changeFilter({ mode });
+  const changeMode = (mode: PracticeMode, fromPointer: boolean) => {
+    // Etter et klikk skal fokus ikke bli stående i velgeren, der piltastene og mellomrom hører til velgeren og ikke til
+    // kortet: fokus går til spørsmålet (eller ingen steder, når runden ikke har noe kort).
+    if (fromPointer) (document.activeElement as HTMLElement | null)?.blur();
+    if (mode === filter.mode) return;
+    changeFilter({ mode });
+    if (fromPointer) showFace('question', true);
   };
   const nextChunk = useMemo<NextChunk | null>(() => {
     if (filter.length === null || !usesLength(filter.mode)) return null;
@@ -377,7 +382,12 @@ function PracticeSession({ deck, cards, notes, initial, active = true }: Props &
           <span>
             {filter.subsetKind === 'chunk' ? 'Økt på' : 'Repetisjon av'} {plural(filter.subset.length, 'kort', 'kort')}
           </span>
-          <button type="button" className="link-btn" onClick={() => changeFilter({ length: null })}>
+          {/* Fra en kort økt slås lengden av; fra en repetisjon fortsetter øvingen som før (med lengden, neste økt). */}
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => (filter.subsetKind === 'chunk' ? changeFilter({ length: null }) : restart({ ...filter, subset: null }))}
+          >
             Tilbake til hele utvalget
           </button>
         </div>

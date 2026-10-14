@@ -37,6 +37,8 @@ export interface UndoEntry {
   level: number;
   /** Beste rekke før vurderingen (angring setter den tilbake, som i originalen). */
   best: number;
+  /** Vurderingen sendte nivået (`RateOutcome.write`); mangler = ja. Bare da skrives det gamle nivået tilbake. */
+  wrote?: boolean;
 }
 
 /** Linja under knappene som sier hva vurderingen gjorde. Forsvinner av seg selv. */

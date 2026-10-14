@@ -56,5 +56,5 @@ export const MODE_HINT: Record<PracticeMode, string> = {
   mastery: 'Grundig: kortene kommer igjen til du har svart riktig flere ganger. Tar lengst tid.',
   quick: 'Ett riktig svar per kort. Kortene du ikke kunne, kommer igjen til slutt.',
   classic: 'Snu og gå videre. Endrer ikke mestringen.',
-  cloze: 'Skriv begrepet som mangler i svaret. Riktige svar teller litt, men gjør aldri et kort mestret.',
+  cloze: 'Skriv begrepet som mangler i svaret. En riktig luke gir minst nivå 1, men aldri mestret. Kort uten luke flytter nivåene som i en rask runde.',
 };

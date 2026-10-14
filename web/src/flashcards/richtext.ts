@@ -175,11 +175,12 @@ export function clozeOf(card: Pick<Flashcard, 'id' | 'front' | 'back'>, seed: nu
 const ENDINGS = ['enes', 'erne', 'ene', 'ens', 'ets', 'ane', 'en', 'et', 'er', 'a', 'e', 's'];
 /** Ord med så mange bokstaver tåler én skrivefeil. */
 const TYPO_MIN = 6;
+const VOWEL = /[aeiouyæøå]/;
 
-/** Ordene i en tekst med små bokstaver, uten tegnsetting og aksenter (æ, ø og å beholdes). */
+/** Ordene i en tekst med små bokstaver, uten tegnsetting og aksenter (æ, ø og å beholdes; ² og ₂ blir 2). */
 function words(s: string): string[] {
   return s
-    .normalize('NFD')
+    .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, (m) => (m === '\u030a' ? m : ''))
     .normalize('NFC')
     .toLowerCase()
@@ -187,9 +188,18 @@ function words(s: string): string[] {
     .filter(Boolean);
 }
 
-/** Ordet selv og ordet uten hver endelse det kan ha. */
+/**
+ * Stammen skrevet likt i alle bøyningene: «partikkel» → «partikl» (som i «partikler»), «middel» → «midl», og dobbel
+ * konsonant til slutt blir enkel («strømm» → «strøm», «summ» → «sum»).
+ */
+function canon(s: string): string {
+  return s.replace(/([bcdfghjklmnpqrstvwxz])el$/, '$1l').replace(/([bcdfghjklmnpqrstvwxz])\1(l?)$/, '$1$2');
+}
+
+/** Ordet selv og ordet uten hver endelse det kan ha, også med stammen skrevet likt (`canon`). */
 function stems(w: string): string[] {
-  return [w, ...ENDINGS.filter((e) => w.length - e.length >= 2 && w.endsWith(e)).map((e) => w.slice(0, -e.length))];
+  const raw = [w, ...ENDINGS.filter((e) => w.length - e.length >= 2 && w.endsWith(e)).map((e) => w.slice(0, -e.length))];
+  return [...new Set([...raw, ...raw.map(canon)])];
 }
 
 /** Ett tegn satt inn, fjernet eller byttet, eller to nabotegn i bytte rekkefølge (Damerau-Levenshtein ≤ 1). */
@@ -205,14 +215,32 @@ function withinOneEdit(a: string, b: string): boolean {
   return a.length > b.length ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);
 }
 
-function sameWord(typed: string, expected: string, typos: boolean): boolean {
+/** Like lange ord som skiller seg i bare én bokstav, og den er en vokal i begge («fisjon» og «fusjon»). */
+function vowelSwap(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const diff = [...a].flatMap((ch, i) => (ch === b[i] ? [] : [i]));
+  return diff.length === 1 && VOWEL.test(a[diff[0]!]!) && VOWEL.test(b[diff[0]!]!);
+}
+
+/**
+ * En skrivefeil som godtas. Aldri i første bokstav («elastisk» for «uelastisk», «metanol» for «etanol») og aldri én
+ * vokal byttet med en annen («fisjon» og «fusjon», «alkan» og «alken»): der blir det ofte et annet fagord.
+ */
+function typo(a: string, b: string): boolean {
+  return a[0] === b[0] && !vowelSwap(a, b) && withinOneEdit(a, b);
+}
+
+/** Hvor godt et ord stemmer: likt (også med en annen endelse), med én skrivefeil, eller ikke. */
+type WordMatch = 'exact' | 'typo' | null;
+
+function sameWord(typed: string, expected: string, typos: boolean): WordMatch {
   const a = stems(typed);
   const b = stems(expected);
-  if (a.some((x) => b.includes(x))) return true;
-  if (!typos || expected.length < TYPO_MIN) return false;
-  if (withinOneEdit(typed, expected)) return true;
+  if (a.some((x) => b.includes(x))) return 'exact';
+  if (!typos || expected.length < TYPO_MIN) return null;
+  if (typo(typed, expected)) return 'typo';
   // Skrivefeil og endelse samtidig («akselerasjnen»): bare mellom stammer som ikke er for korte.
-  return a.some((x) => x.length >= 5 && b.some((y) => y.length >= 5 && withinOneEdit(x, y)));
+  return a.some((x) => x.length >= 5 && b.some((y) => y.length >= 5 && typo(x, y))) ? 'typo' : null;
 }
 
 /** Begrepet står i teksten, også med en annen endelse («farten» i et spørsmål om «fart»). */
@@ -225,13 +253,22 @@ function containsTerm(text: string, term: string): boolean {
 }
 
 /**
- * Om det eleven skrev i luka, er begrepet. Store og små bokstaver, mellomrom, tegnsetting og aksenter spiller ingen
- * rolle, vanlige endelser godtas, og ord på seks bokstaver eller mer tåler én skrivefeil. Æ, ø og å er egne bokstaver.
+ * Hvor godt det eleven skrev i luka, stemmer med begrepet: `exact` (store og små bokstaver, mellomrom, tegnsetting,
+ * aksenter og vanlige endelser spiller ingen rolle), `typo` (godtatt med én skrivefeil i et ord på seks bokstaver eller
+ * mer, så fasiten bør vises) eller null. Æ, ø og å er egne bokstaver.
  */
-export function matchesTerm(typed: string, term: string): boolean {
+export function termMatch(typed: string, term: string): 'exact' | 'typo' | null {
   const a = words(typed);
   const b = words(term);
-  if (!a.length || !b.length) return false;
-  if (a.length === b.length && a.every((w, i) => sameWord(w, b[i]!, true))) return true;
+  if (!a.length || !b.length) return null;
+  if (a.length === b.length) {
+    const each = a.map((w, i) => sameWord(w, b[i]!, true));
+    if (each.every((m) => m !== null)) return each.every((m) => m === 'exact') ? 'exact' : 'typo';
+  }
   return sameWord(a.join(''), b.join(''), true);
+}
+
+/** Om det eleven skrev i luka, godtas (likt eller med én skrivefeil, se `termMatch`). */
+export function matchesTerm(typed: string, term: string): boolean {
+  return termMatch(typed, term) !== null;
 }

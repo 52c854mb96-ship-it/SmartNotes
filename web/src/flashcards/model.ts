@@ -158,6 +158,11 @@ export interface RateOutcome {
   back: number;
   /** Kortet ble mestret av denne vurderingen. */
   mastered: boolean;
+  /**
+   * Nivået sendes (også til de andre enhetene). Usann i Luketekst når nivået står urørt: en ny skriving med nytt
+   * tidspunkt kunne ellers vinne over et høyere nivå fra en annen enhet som ennå ikke er synket.
+   */
+  write: boolean;
   best: number;
   fx: Effects;
 }
@@ -259,7 +264,7 @@ export function rate(round: Round, ctx: RateContext): RateOutcome | null {
     allDone: queue.length === 0,
     feedback,
   });
-  return { round: next, cardId, level, back, mastered, best: t.best, fx };
+  return { round: next, cardId, level, back, mastered, write: true, best: t.best, fx };
 }
 
 // ---------- Rask runde og Luketekst ----------
@@ -287,7 +292,8 @@ export function reconcileQuickQueue(queue: string[], selection: Flashcard[], don
 /**
  * Felles motor: «Kunne» tar kortet ut av runden (inn i `done`), ellers legges det sist i køen. Nivået er formens.
  * Rekka og «Beste» telles som «Bra» (kunne) og «Feil» (kunne ikke), og `grades` får 3 eller 1, så
- * `repetitionChoices(...).misses` gir kortene eleven ikke kunne.
+ * `repetitionChoices(...).misses` gir kortene eleven ikke kunne. Med `writeSame` sendes nivået også når det er uendret
+ * (en vurdering, som i Mestring); ellers bare når det endres.
  */
 function quickStep(
   round: Round,
@@ -295,6 +301,7 @@ function quickStep(
   known: boolean,
   levelFor: (before: number) => number,
   missText: string,
+  writeSame: boolean,
 ): RateOutcome | null {
   const cardId = round.queue[0];
   if (cardId === undefined) return null;
@@ -330,7 +337,7 @@ function quickStep(
     allDone: queue.length === 0,
     feedback,
   });
-  return { round: next, cardId, level, back, mastered, best: t.best, fx };
+  return { round: next, cardId, level, back, mastered, write: writeSame || level !== before, best: t.best, fx };
 }
 
 /**
@@ -338,7 +345,7 @@ function quickStep(
  * nivå 0 som «Feil» og legger kortet sist. Gir null hvis køen er tom.
  */
 export function rateQuick(round: Round, ctx: QuickContext, known: boolean): RateOutcome | null {
-  return quickStep(round, ctx, known, (before) => schedule(before, known ? 3 : 1).level, 'Tilbake til nivå 0.');
+  return quickStep(round, ctx, known, (before) => schedule(before, known ? 3 : 1).level, 'Tilbake til nivå 0.', true);
 }
 
 /** Luketekst: riktig ord, feil ord, eller «Vis» (eleven ga opp). */
@@ -347,11 +354,12 @@ export type ClozeOutcome = 'right' | 'wrong' | 'shown';
 /**
  * Luketekst, for kort med luke (kort uten luke bruker `rateQuick`). Riktig luke løfter kortet til minst nivå 1 og
  * senker det aldri, og tar det ut av runden. Feil eller «Vis» rører ikke nivået (rettingen kan ta feil, for eksempel
- * med synonymer) og legger kortet sist. En luke er et hint, så formen gjør aldri et kort mestret.
+ * med synonymer) og legger kortet sist. En luke er et hint, så formen gjør aldri et kort mestret. Nivået sendes bare
+ * når det endres (en riktig luke på nivå 0), så Luketekst aldri skriver over et høyere nivå fra en annen enhet.
  */
 export function rateCloze(round: Round, ctx: QuickContext, outcome: ClozeOutcome): RateOutcome | null {
   const right = outcome === 'right';
-  return quickStep(round, ctx, right, (before) => (right ? Math.max(before, 1) : before), 'Nivået er uendret.');
+  return quickStep(round, ctx, right, (before) => (right ? Math.max(before, 1) : before), 'Nivået er uendret.', false);
 }
 
 /** Rask runde: kortene i utvalget eleven kunne med en gang (bare «Kunne» i runden). */

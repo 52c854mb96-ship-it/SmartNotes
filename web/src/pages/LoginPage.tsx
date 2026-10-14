@@ -19,7 +19,8 @@ export function AuthIntro() {
       <Logo size={48} />
       <h1>{APP_TITLE}</h1>
       <p className="login-tagline">
-        Notater, visualiseringer og flashcards i fysikk, kjemi, biologi og geofag for videregående.
+        Notater og flashcards i fysikk, kjemi, biologi og geofag for videregående, med visualiseringer til mange av
+        temaene.
       </p>
       <ul className="login-pitch" role="list" aria-label="Dette er SmartNotes">
         <li>

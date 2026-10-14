@@ -61,6 +61,13 @@ const knew = (page: Page) => main(page).getByRole('button', { name: /^Kunne(?!\s
 const didNotKnow = (page: Page) => main(page).getByRole('button', { name: /^Kunne ikke/ });
 const firstQuestion = (title: string) => `Hva handler notatet «${title}» om?`;
 
+/** Nedre kant av svarknappene (`selector`) i bildet. De skal kunne nås uten å rulle, også på telefonen. */
+const bottomOf = async (page: Page, selector: string) => {
+  const box = await main(page).locator(selector).boundingBox();
+  return box ? box.y + box.height : Infinity;
+};
+const viewportHeight = (page: Page) => page.viewportSize()!.height;
+
 /** Logger inn og gir notatet `title` (lastes opp og konverteres første gang) og faget det ligger i. */
 async function setup(page: Page, title: string): Promise<{ subjectId: string; noteId: string }> {
   await page.goto('/');
@@ -119,9 +126,10 @@ test.describe('flashcards: øvingsformer', () => {
     const { subjectId, noteId } = await setup(page, title);
     const deckId = await makeDeck(page, subjectId, noteId, title);
 
-    // Mestring er standard, med «Lengde».
+    // Mestring er standard, med «Lengde». Vurderingsknappene står i bildet uten at eleven må rulle.
     await expect(mode(page, 'Mestring')).toHaveAttribute('aria-checked', 'true');
     await expect(main(page).getByLabel('Lengde')).toBeVisible();
+    await expect.poll(() => bottomOf(page, '.fc-rate')).toBeLessThanOrEqual(viewportHeight(page));
 
     await mode(page, 'Klassisk').click();
     await expect(mode(page, 'Klassisk')).toHaveAttribute('aria-checked', 'true');
@@ -131,6 +139,7 @@ test.describe('flashcards: øvingsformer', () => {
     await expect(main(page).getByText(/^Rekke \d/)).toHaveCount(0);
     await expect(card(page)).toContainText(firstQuestion(title));
     await expect(card(page)).toContainText('Svar i hodet før du snur.');
+    await expect.poll(() => bottomOf(page, '.fc-nav')).toBeLessThanOrEqual(viewportHeight(page));
 
     // Snu og merk det første kortet.
     await flip(page);
@@ -187,6 +196,18 @@ test.describe('flashcards: øvingsformer', () => {
     await expect(main(page).getByText('Igjen 3 av 3')).toBeVisible();
     await expect(main(page).getByText('Rekke 0')).toBeVisible();
     await expect(knew(page)).toBeDisabled();
+    await expect.poll(() => bottomOf(page, '.fc-two')).toBeLessThanOrEqual(viewportHeight(page));
+
+    if (info.project.name === 'desktop') {
+      // Etter et klikk på formen hører tastene til kortet: mellomrom snur, og høyre pil bytter ikke form.
+      await page.keyboard.press(' ');
+      await expect(card(page).locator('.fc-answer')).toBeVisible();
+      await page.keyboard.press(' ');
+      await expect(card(page).locator('.fc-answer')).toHaveCount(0);
+      await page.keyboard.press('ArrowRight');
+      await expect(mode(page, 'Rask runde')).toHaveAttribute('aria-checked', 'true');
+      await expect(main(page).getByText('Igjen 3 av 3')).toBeVisible();
+    }
 
     await flip(page);
     await didNotKnow(page).click();
@@ -264,7 +285,7 @@ test.describe('flashcards: øvingsformer', () => {
       await knew(page).click();
     }
     await expect(main(page).getByRole('heading', { name: '3 av 3 kunne du med en gang' })).toBeVisible();
-    await expect(main(page).getByText('Kortene du kunne, gikk ett nivå opp.', { exact: false })).toBeVisible();
+    await expect(main(page).getByText('Alle kortene gikk ett nivå opp', { exact: false })).toBeVisible();
 
     await context.setOffline(false);
     await expect.poll(() => serverLevels(page, deckId), SLOW).toEqual([1, 1, 1]);
@@ -304,7 +325,23 @@ test.describe('flashcards: øvingsformer', () => {
     await expect(card(page)).toContainText('Forklar hovedideen');
     await expect(card(page)).toContainText('(4)');
 
-    // Tilbake til hele utvalget: lengden blir «Alle kort».
+    // En repetisjon midt i øktene: «Tilbake til hele utvalget» beholder lengden og gir neste økt (en ny omgang).
+    await flip(page);
+    await didNotKnow(page).click();
+    for (let i = 0; i < 10; i++) {
+      await flip(page);
+      await knew(page).click();
+    }
+    await expect(main(page).getByRole('heading', { name: '9 av 10 kunne du med en gang' })).toBeVisible();
+    await main(page).getByRole('button', { name: /^De du ikke kunne/ }).click();
+    await expect(main(page).getByText('Repetisjon av 1 kort')).toBeVisible();
+    await main(page).getByRole('button', { name: 'Tilbake til hele utvalget' }).click();
+    await expect(main(page).getByText('Økt på 10 kort')).toBeVisible();
+    await expect(main(page).getByText('Igjen 10 av 10')).toBeVisible();
+    await expect(main(page).getByLabel('Lengde')).toHaveValue('10');
+    await expect(card(page)).toContainText(firstQuestion(title));
+
+    // Tilbake til hele utvalget fra en økt: lengden blir «Alle kort».
     await main(page).getByRole('button', { name: 'Tilbake til hele utvalget' }).click();
     await expect(main(page).getByText('Igjen 20 av 20')).toBeVisible();
     await expect(main(page).getByLabel('Lengde')).toHaveValue('');
@@ -371,5 +408,17 @@ test.describe('flashcards: øvingsformer', () => {
     await expect(card(page)).toContainText('regn ut');
     // Luketekst gjør aldri et kort mestret: kort 2 blir på nivå 1.
     await expect.poll(async () => (await serverLevels(page, deckId))[1], SLOW).toBe(1);
+
+    // Én skrivefeil godtas, men fasiten står ved siden av (det kan være et annet fagord).
+    await flip(page);
+    await knew(page).click();
+    await main(page).getByRole('button', { name: /Ny runde med alle/ }).click();
+    await flip(page);
+    await knew(page).click();
+    await field.fill('nøkkelbegrp');
+    await field.press('Enter');
+    await expect(field).toHaveClass(/is-near/);
+    await expect(main(page).getByText('Godtatt, men sjekk skrivemåten. Fasit: nøkkelbegrep.')).toBeVisible();
+    await expect(card(page).locator('.fc-gap-answer')).toHaveText('nøkkelbegrep');
   });
 });

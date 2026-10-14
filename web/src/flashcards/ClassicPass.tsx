@@ -143,7 +143,7 @@ function ClassicDone({ session, pass, onBack }: { session: Session; pass: Practi
           <Choice
             primary
             label={marked.length === 1 ? 'Rask runde med det merkede kortet' : `Rask runde med de ${marked.length} merkede`}
-            meta="Ett riktig svar per kort, og nivåene flyttes"
+            meta="Ett riktig svar per kort, og svarene flytter nivåene"
             onClick={() => restart({ ...filter, mode: 'quick', subset: marked, subsetKind: 'repeat', seen: [] })}
           />
         )}
