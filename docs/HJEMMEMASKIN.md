@@ -31,7 +31,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 Reserven (`REMOTE_FALLBACK=anthropic`) bruker samme Claude-modell som oppgaven ellers ville brukt (i dag Sonnet 5.5 for konvertering og Haiku 5.5 for kortstokker og innholdsfortegnelser), og den tar over med en gang. Mens hjemmemaskinen er av, koster det altså like mye som uten hjemmemaskin. La den stå på `none` hvis notatene heller kan vente.
 
-Med `AI_PROVIDER_CONVERT` går bare konverteringen til hjemmemaskinen. Vil du også lage kortstokkene der, legger du til `AI_PROVIDER_FLASHCARDS` med verdien `remote`. Med `AI_PROVIDER` = `remote` går alt dit, også import av innholdsfortegnelser.
+Med `AI_PROVIDER_CONVERT` går bare konverteringen til hjemmemaskinen, og bare for dine egne notater: notatene til gratiskontoene konverteres alltid med Claude Haiku hos Anthropic. Kortstokker og innholdsfortegnelser følger `AI_PROVIDER_FLASHCARDS` og `AI_PROVIDER_TOC` for alle brukere, så slår du dem på her, behandles også elevenes notater på hjemmemaskinen. Vil du også lage kortstokkene der, legger du til `AI_PROVIDER_FLASHCARDS` med verdien `remote`. Med `AI_PROVIDER` = `remote` går alt dit, også import av innholdsfortegnelser.
 
 Railway starter serveren på nytt etter endringen. Under **Innstillinger → Server** i appen står det nå «Ingen hjemmemaskin på nett».
 

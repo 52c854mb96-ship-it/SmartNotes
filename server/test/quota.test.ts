@@ -402,5 +402,16 @@ describe('gratiskvoten', () => {
     });
     expect(quota.budgetUsed()).toBe(true);
   });
+
+  it('har ikke noe dagsbudsjett med FREE_DAILY_BUDGET_NOK=0, og bruker standarden for en tom eller ugyldig verdi', () => {
+    const off = loadConfig({ NODE_ENV: 'test', APP_PASSWORD: 'x', FREE_DAILY_BUDGET_NOK: '0' });
+    expect(off.quota.dailyBudgetNok).toBe(0);
+    // Dagen i forrige test har forbruk langt over 30 kroner.
+    expect(new Quota(ctx.repo, off, () => Date.parse('2026-11-02T10:00:00Z')).budgetUsed()).toBe(false);
+    expect(loadConfig({ NODE_ENV: 'test', APP_PASSWORD: 'x', FREE_DAILY_BUDGET_NOK: '12,5' }).quota.dailyBudgetNok).toBe(12.5);
+    for (const v of ['', 'mange', '-5']) {
+      expect(loadConfig({ NODE_ENV: 'test', APP_PASSWORD: 'x', FREE_DAILY_BUDGET_NOK: v }).quota.dailyBudgetNok, v).toBe(30);
+    }
+  });
 });
 

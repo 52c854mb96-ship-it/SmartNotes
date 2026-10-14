@@ -2,7 +2,7 @@
 
 Last opp bilder eller PDF-er av de håndskrevne notatene dine, og få dem tilbake som pene LaTeX-PDF-er. Notatene sorteres automatisk etter lærebokas kapitler. Appen fungerer både på og uten nett, og synkroniseres mellom Mac, PC, iPad og mobil.
 
-Appen er laget for **Fysikk 1**, **Kjemi 1** og **Biologi 1** (VG2, LK20). Hvert fag har sin egen LaTeX-mal, sitt eget fargetema og egne instrukser til Claude, og flere fag kan legges til (se [Nye fag](#nye-fag)).
+Appen er laget for **Fysikk 1**, **Kjemi 1** og **Biologi 1** (VG2, LK20), og **Geofag 1** kan legges til med «Legg til fag» → «Fra læreplanen». Hvert fag har sin egen LaTeX-mal, sitt eget fargetema og egne instrukser til Claude, og flere fag kan legges til (se [Nye fag](#nye-fag)).
 
 ## Hva appen gjør
 
@@ -12,11 +12,11 @@ Appen er laget for **Fysikk 1**, **Kjemi 1** og **Biologi 1** (VG2, LK20). Hvert
   - Formler, enheter (siunitx, desimalkomma) og vektorer settes riktig.
   - Enkle tegninger tegnes på nytt i TikZ, som kraftdiagrammer, grafer og kretser. Kompliserte tegninger klippes ut fra originalbildet.
   - Definisjoner, viktige formler, eksempler og oppgaver får hver sin fargede boks.
-  - Ord som er vanskelige å lese, markeres med ?.
-- **Temaer og deltemaer.** Fagene legges inn etter læreplanene (LK20) med kompetansemålene fra Udir og SmartNotes' egne temaer: Fysikk 1 (10 temaer med 29 deltemaer), Kjemi 1 (8 temaer) og Biologi 1 (8 temaer). Claude plasserer hvert notat på riktig tema og deltema, og du kan flytte det selv. Vil du heller ha kapitlene i din egen lærebok, tar du bilde av innholdsfortegnelsen. Da legges kapitlene og delkapitlene inn for deg og kobles til de samme kompetansemålene.
-- **Kompetansemål.** Hvert delkapittel er koblet til kompetansemålene i faget (Fysikk 1: KM1–KM14, Kjemi 1: KM1–KM17, Biologi 1: KM1–KM11, ordrett fra Udir), så du kan se og filtrere notatene etter mål før eksamen.
+  - Ord som er vanskelige å lese, tolkes ut fra sammenhengen. Bare når to lesninger med ulik mening er mulige, markeres ordet med ?.
+- **Temaer og deltemaer.** Fagene legges inn etter læreplanene (LK20) med kompetansemålene fra Udir og SmartNotes' egne temaer: Fysikk 1 (10 temaer med 29 deltemaer), Kjemi 1 (8 temaer) og Biologi 1 (8 temaer), og Geofag 1 (9 temaer med 26 deltemaer), som ikke legges inn av seg selv, men kan legges til med «Legg til fag». Claude plasserer hvert notat på riktig tema og deltema, og du kan flytte det selv. Vil du heller ha kapitlene i din egen lærebok, tar du bilde av innholdsfortegnelsen. Da legges kapitlene og delkapitlene inn for deg og kobles til de samme kompetansemålene.
+- **Kompetansemål.** Hvert delkapittel er koblet til kompetansemålene i faget (Fysikk 1: KM1–KM14, Kjemi 1: KM1–KM17, Biologi 1: KM1–KM11, Geofag 1: KM1–KM12, ordrett fra Udir), så du kan se og filtrere notatene etter mål før eksamen.
 - **Søk.** Ctrl/Cmd+K søker i titler og innholdet i alle notatene, også uten nett.
-- **Tre kolonner.** På iPad og PC ser du kapitler, notater og PDF side om side. Lys, mørk eller systemtema, og hvert fag har sine egne farger (fysikk «Blekk», kjemi «Tavle», biologi «Salvie») og sin egen PDF-mal (Klassisk, Moderne og Lærebok).
+- **Tre kolonner.** På iPad og PC ser du kapitler, notater og PDF side om side. Lys, mørk eller systemtema, og hvert fag har sine egne farger (fysikk «Blekk», kjemi «Tavle», biologi «Salvie», geofag «Fjell») og sin egen PDF-mal (Klassisk, Moderne, Lærebok og Atlas).
 - **Visualiseringer.** Interaktive forklaringer til hvert kapittel, der du styrer situasjonen selv med glidebrytere og knapper. I fysikk: friksjon, kraftpar, energibevaring, støt, bølger, Bohrs atommodell, halveringstid og koblinger. I kjemi: elektronkonfigurasjon, molekylform, redoks, balansering, entalpi, organisk navnsetting, likevekt, titrering og spektrofotometri. I biologi: klassifisering og slektskapstrær, diffusjon og osmose, mitose og meiose, nerveimpulsen, blodsukkerregulering, gassutveksling, transpirasjon, smittespredning, flokkimmunitet og antibiotikaresistens. Tallene, grafene og forklaringen oppdateres mens du drar. De ligger under **Visualiseringer** i sidepanelet og lenkes fra kapitlene og notatene.
 - **Flashcards.** Marker notatene du vil øve på (hele kapitler eller delkapitler med ett trykk) og velg vanskelighetsgrad: lett (begreper og fakta, korte svar), middels (forklare sammenhenger), vanskelig (drøfte og regne, utfyllende svar) eller blandet. Claude lager spørsmål og svar, med formler der det trengs. Du snur kortet, vurderer svaret fra 1 (feil) til 4 (perfekt) og går rett videre til neste kort. Kort du ikke kunne, kommer igjen etter noen få andre, og et kort er mestret når du har svart riktig på det flere ganger. Etter runden velger du om du vil repetere bare de du ikke kunne, også de du var usikker på, eller alle. Kortstokkene og fremgangen synkes mellom enhetene, og enkeltkort kan redigeres eller slettes. Flashcards ligger i sidepanelet under hvert fag.
 - **Samle-PDF.** Last ned et helt kapittel eller hele faget som én PDF med innholdsliste.
@@ -46,7 +46,7 @@ Appen er laget for **Fysikk 1**, **Kjemi 1** og **Biologi 1** (VG2, LK20). Hvert
 |---|---|
 | `web/` | Web-appen: React, Vite, Dexie (IndexedDB), pdf.js og service worker |
 | `server/` | API, konverteringskø, Claude-integrasjon, LaTeX-kompilering og samle-PDF-er |
-| `server/latex/<fag>/preamble.tex` | LaTeX-malene (`physics`, `chemistry`, `biology`): pakker, bokser, sidehode |
+| `server/latex/<fag>/preamble.tex` | LaTeX-malene (`physics`, `chemistry`, `biology`, `geoscience`): pakker, bokser, sidehode |
 | `server/src/profiles/<fag>.ts` | Instruksene Claude får for notater i faget |
 | `server/src/presets.ts` | Fagoppsettene: kompetansemålene fra Udir (ordrett, NLOD) og SmartNotes' egne temaer og deltemaer |
 | `web/src/viz/` | Visualiseringene, én mappe per fag og kapittel |
@@ -192,13 +192,14 @@ ANTHROPIC_API_KEY=... npm run convert --workspace server -- ~/Bilder/side1.jpg ~
 
 ## Nye fag
 
-Hvert fag har en *profil* med LaTeX-mal, fargetema og instrukser til Claude. Fysikk, kjemi og biologi finnes allerede. Slik legger du til et nytt:
+Hvert fag har en *profil* med LaTeX-mal, fargetema og instrukser til Claude. Fysikk, kjemi, biologi og geofag finnes allerede. Slik legger du til et nytt (hele lista over steder et nytt fag må registreres, står under «Subject profiles» i `CLAUDE.md`):
 
-1. Lag `server/latex/<fag>/preamble.tex` (ta utgangspunkt i en av de tre malene).
+1. Lag `server/latex/<fag>/preamble.tex` (ta utgangspunkt i en av de fire malene).
 2. Lag `server/src/profiles/<fag>.ts` med instrukser, og registrer profilen i `server/src/profiles/index.ts`.
-3. Legg til profil-id-en i `SubjectProfile` i `shared/src/index.ts` og i `web/src/lib/subjects.tsx` (navn, ikon og PDF-mal), og eventuelt et fargetema i `web/src/styles/subjects.css`.
-4. Valgfritt: et fagoppsett i `server/src/presets.ts` med kompetansemålene ordrett fra Udir (og i `server/test/fixtures/udir-kompetansemaal.json`) og egne temaer, aldri en læreboks innholdsfortegnelse.
-5. Valgfritt: visualiseringer i `web/src/viz/<fag>/` (se `web/src/viz/README.md`).
+3. Legg til profil-id-en i `SubjectProfile` i `shared/src/index.ts` og i `web/src/lib/subjects.tsx` (navn, ikon og PDF-mal), og et fargetema i `web/src/lib/theme.ts`, det tidlige temaskriptet i `web/index.html` og `web/src/styles/subjects.css`.
+4. Registrer faget i de presise reglene, `server/src/profiles/precise.ts` (`DRAWINGS` og `DRAWING_CHECK`), øk `PROMPT_VERSION` og fingeravtrykket i `server/test/precise.test.ts`, og legg til en falsk innholdsfortegnelse og et falskt notat i `server/src/pipeline/claude.ts` og en tom liste i `web/src/viz/registry.ts`.
+5. Valgfritt: et fagoppsett i `server/src/presets.ts` med kompetansemålene ordrett fra Udir (og i `server/test/fixtures/udir-kompetansemaal.json`) og egne temaer, aldri en læreboks innholdsfortegnelse.
+6. Valgfritt: visualiseringer i `web/src/viz/<fag>/` (se `web/src/viz/README.md`).
 
 ## Lisens
 

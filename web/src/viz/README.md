@@ -213,7 +213,7 @@ viz/kjemi/
   kapNN/            index.ts, model.ts, model.test.ts, Navn.tsx (som i fysikk)
 ```
 
-`import { Slider, Figure, Formel, Atom, KJEMI, fmtSig } from '../kit';` – `kjemi/kit/index.ts` eksporterer også `viz/kit`, så du trenger bare én import. Delkapitler: kapittel 1 har 1.1–1.5 (`sections: ['1.4']`); for kapittel 2–8 er de ikke bekreftet ennå, så bruk `sections: []` (vises da under kapittelet).
+`import { Slider, Figure, Formel, Atom, KJEMI, fmtSig } from '../kit';` – `kjemi/kit/index.ts` eksporterer også `viz/kit`, så du trenger bare én import. Delkapitler: fagoppsettet for Kjemi 1 har bare temaer uten deltemaer (siden #15), så bruk `sections: []` (visualiseringen vises da under temaet).
 
 ### Byggeklosser (`kjemi/kit/`)
 
