@@ -252,7 +252,7 @@ export const SUBJECT_PRESETS: Record<string, SubjectPreset> = {
         sections: [
           s('3.1', 'Energi, arbeid og effekt', ['KM5', 'KM8']),
           s('3.2', 'Kinetisk og potensiell energi', ['KM5', 'KM7']),
-          s('3.3', 'Bevaring og tap av mekanisk energi', ['KM5', 'KM7', 'KM8']),
+          s('3.3', 'Bevaring og tap av mekanisk energi, virkningsgrad', ['KM5', 'KM7', 'KM8']),
         ],
       },
       {

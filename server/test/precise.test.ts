@@ -21,6 +21,7 @@ const FINGERPRINTS: Record<number, string> = {
   2: '1cd64847f6a76608',
   3: '03b4656a8f0592f9',
   4: 'da51f20db33a32d2',
+  5: '7a5b938219753834',
 };
 
 const fingerprint = () =>
@@ -141,12 +142,35 @@ describe('de presise reglene', () => {
 
   it('bruker \\uleselig bare når sammenhengen ikke avgjør', () => {
     for (const id of PROFILE_IDS) {
-      const rules = getProfile(id).preciseRules;
+      const { systemPrompt, preciseRules: rules } = getProfile(id);
       expect(rules).toContain('## 7.4 Handwriting that is hard to read');
       expect(rules).toContain('If the context leaves one sensible reading, write it as ordinary text, with no marking');
       expect(rules).toContain('Use \\uleselig{...} only when two or more readings are still possible');
+      expect(rules).toContain('If you cannot name a second reading that also fits the sentence and the task');
+      // Grunninstruksen (også for lokale modeller) sier det samme, så Haiku ikke får to regler som strider mot hverandre.
+      expect(systemPrompt, id).toContain('If one sensible reading fits, write it as ordinary text');
+      expect(systemPrompt, id).not.toContain('is hard to read, write your best reading inside');
     }
-    expect(HAIKU_CLOSING).toContain('bruk \\uleselig bare når to lesninger fortsatt er mulige');
+    expect(HAIKU_CLOSING).toContain('bruk \\uleselig bare når to lesninger fortsatt er mulige (skriv begge i remarks)');
+  });
+
+  // Et notat om virkningsgraden til en kran havnet i termodynamikken (5.3), fordi ordet «virkningsgrad» bare sto i den
+  // tittelen. Kapittelet skal velges etter hva notatet handler om, med et eksempel fra faget selv.
+  it('velger kapittel etter innholdet, ikke etter et ord i tittelen', () => {
+    const examples: Record<string, RegExp> = {
+      physics: /virkningsgrad for a motor, crane, lift/,
+      chemistry: /ΔH for burning methane/,
+      biology: /diffusion and osmosis across a cell membrane/,
+      geoscience: /landslide or flood that threatens people/,
+    };
+    for (const id of PROFILE_IDS) {
+      const { systemPrompt, preciseRules: rules } = getProfile(id);
+      expect(systemPrompt, id).toContain('not a single word that also appears in a chapter or section title');
+      expect(rules, id).toContain('"chapter" and "section": choose them from what the note is about');
+      expect(rules, id).toMatch(examples[id]!);
+      for (const [other, re] of Object.entries(examples)) if (other !== id) expect(rules, id).not.toMatch(re);
+    }
+    expect(HAIKU_CLOSING).toContain('velg kapittel og delkapittel etter hva notatet handler om');
   });
 
   it('har fått ny versjon når teksten er endret', () => {

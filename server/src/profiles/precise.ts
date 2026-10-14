@@ -22,8 +22,10 @@ import type { SubjectProfile } from '@smartnotes/shared';
  *   Claude-modeller. En sammenligning vurderer fortsatt Haiku; den vanlige versjonen av notatet har reglene bare hvis
  *   den er konvertert etter at versjon 3 ble lagt ut.
  * - 4 (14. oktober): Geofag 1 (egne tegneregler og maler), og enheter i `\qty` og `\unit` uten æ, ø, å og °.
+ * - 5 (14. oktober): kapittel og delkapittel etter hva notatet handler om, ikke etter et ord i tittelen (et notat om
+ *   virkningsgraden til en kran havnet i termodynamikken), og `\uleselig` bare når modellen kan nevne en annen lesning.
  */
-export const PROMPT_VERSION = 4;
+export const PROMPT_VERSION = 5;
 
 const INTRO = String.raw`# 7. Precise rules
 
@@ -64,10 +66,10 @@ If you are not certain that a line is wrong, write no merknad. Most notes need n
 
 const HANDWRITING = String.raw`## 7.4 Handwriting that is hard to read
 
-Handwriting that is hard to read is never a merknad. This replaces "If a word, number or symbol is hard to read, write your best reading inside \uleselig{...}" in section 1:
-1. First read it from its context: the words around it, the subject and the topic of the note, and the formula or calculation it belongs to. A word that is only partly legible is usually the word that makes sense in the sentence (for example "energi" after "kinetisk" in a note about energy), and a symbol or number is usually the one used in the lines before or after it.
-2. If the context leaves one sensible reading, write it as ordinary text, with no marking and no remark. Reading a word from its context is not inventing content; adding a word that is not written is.
-3. Use \uleselig{...} only when two or more readings are still possible and they mean something different, for example a digit that could be 3 or 8, a sign that could be + or −, or a word that could be "øker" or "synker". Write your best reading inside it and mention it in "remarks". It works both in text and inside formulas, e.g. $\uleselig{v_0}$. Put it around a whole quantity or chemical formula, never inside \qty, \num, \ang or \ce: \uleselig{\qty{9,81}{m/s^2}}, $\uleselig{\ce{SO4^2-}}$. Something that cannot be read at all is written \uleselig{[uleselig]}, as section 1 says; for a number with a unit, write \uleselig{[uleselig]}~\unit{kg} instead of \qty.`;
+Handwriting that is hard to read is never a merknad. This replaces "If a word, number or symbol is hard to read" in section 1:
+1. First read it from its context: the words around it, the subject and the topic of the note, the task it belongs to, and the formula or calculation it belongs to. A word that is only partly legible is usually the word that makes sense in the sentence (for example "energi" after "kinetisk" in a note about energy), a heading or label next to a calculation usually names what that calculation finds, and a symbol or number is usually the one used in the lines before or after it.
+2. If the context leaves one sensible reading, write it as ordinary text, with no marking and no remark. Reading a word from its context is not inventing content; adding a word that is not written is. Untidy, joined-up or slanted handwriting is no reason to mark a word.
+3. Use \uleselig{...} only when two or more readings are still possible and they mean something different, for example a digit that could be 3 or 8, a sign that could be + or −, or a word that could be "øker" or "synker". Before you use it, name the other reading: write your best reading inside \uleselig and both readings in "remarks" (for example «3,5 m eller 8,5 m»). If you cannot name a second reading that also fits the sentence and the task and means something different, write your best reading as ordinary text instead. \uleselig works both in text and inside formulas, e.g. $\uleselig{v_0}$. Put it around a whole quantity or chemical formula, never inside \qty, \num, \ang or \ce: \uleselig{\qty{9,81}{m/s^2}}, $\uleselig{\ce{SO4^2-}}$. Something that cannot be read at all is written \uleselig{[uleselig]}, as section 1 says; for a number with a unit, write \uleselig{[uleselig]}~\unit{kg} instead of \qty.`;
 
 const TEXT = String.raw`## 7.5 Text, numbers and units
 
@@ -291,9 +293,23 @@ Cycle: the boxes around a circle, with an arrow from each box to the next, and a
 
 Use colour only where the student used colour (red, blue, sngreen, snorange, black).`;
 
-const METADATA = String.raw`## 7.8 Metadata
+/** Et eksempel per fag på et ord som hører til flere kapitler, så modellen velger kapittel etter innholdet. */
+const CHAPTER_EXAMPLE: Record<SubjectProfile, string> = {
+  physics:
+    'For example, virkningsgrad for a motor, crane, lift or person that lifts a load (W = mgh, P = W/t) belongs to the chapter about work and energy, while virkningsgrad for a heat engine, power plant or heat pump belongs to the chapter about heat and thermodynamics.',
+  chemistry:
+    'For example, a note that finds ΔH for burning methane from bond enthalpies belongs to the chapter about energy in chemical reactions, while a note about how alkanes react and are named belongs to the chapter about organic compounds.',
+  biology:
+    'For example, diffusion and osmosis across a cell membrane belong to the chapter about cells and cell membranes, while transport of oxygen in the blood belongs to the chapter about the human body, and transport of water in a plant to the chapter about animals and plants.',
+  geoscience:
+    'For example, erosion and deposition that shape a valley or a delta belong to the chapter about landforms and landscape processes, while a landslide or flood that threatens people belongs to the chapter about natural hazards.',
+};
 
-All strings in the JSON are plain text: no LaTeX, no backslashes, no dollar signs and no straight double quotes inside a string (use «» for quotes). Write symbols in plain letters or words, for example "v0", "Ek", "delta v", "alfa".`;
+const METADATA = (subject: SubjectProfile) => String.raw`## 7.8 Metadata
+
+All strings in the JSON are plain text: no LaTeX, no backslashes, no dollar signs and no straight double quotes inside a string (use «» for quotes). Write symbols in plain letters or words, for example "v0", "Ek", "delta v", "alfa".
+
+"chapter" and "section": choose them from what the note is about, that is the situation, the quantities and the formulas the student works with, not from a single word in the note title that also appears in a chapter or section title. The same word can belong to several chapters. ${CHAPTER_EXAMPLE[subject]} When two chapters still fit, choose the one where the main formula or idea of the note is first taught.`;
 
 const EXAMPLE = String.raw`## 7.9 Example answer
 
@@ -318,7 +334,7 @@ Omtrent 20 \% av energien går tapt som varme. Ballen kastes fra høyden \ulesel
 \originalfigur[0.5]{fig1}{Skisse av kastet}
 </latex>
 <metadata>
-{"title": "Kinetisk energi", "chapter": "k3", "section": "3.1", "new_chapter": null, "date": "2026-10-13", "figures": [{"id": "fig1", "page": 2, "box": [120, 1150, 1500, 2050]}], "remarks": ["Høyden på side 1 kan være 3,5 m eller 8,5 m."]}
+{"title": "Kinetisk energi", "chapter": "k3", "section": "3.2", "new_chapter": null, "date": "2026-10-13", "figures": [{"id": "fig1", "page": 2, "box": [120, 1150, 1500, 2050]}], "remarks": ["Høyden på side 1 kan være 3,5 m eller 8,5 m."]}
 </metadata>
 
 In "box", x counts from the left edge of the page image and y from the top edge: [x0, y0, x1, y1] is the top-left and bottom-right corner of the drawing in pixels, including its labels and a small margin.`;
@@ -402,10 +418,11 @@ const CHECKLIST = (subject: SubjectProfile) => String.raw`## 7.10 Check before y
 - Every line of the note is included, in order; crossed-out text is left out.
 - Every central formula is in a formel box with a specific Norwegian title.
 - There is no merknad unless a line is certainly wrong.
-- Words you could read from the context are written without \uleselig; it is used only where two readings are still possible.
+- Words you could read from the context are written without \uleselig; it is used only where two readings are still possible, and "remarks" names both readings.
 - Every calculation with several steps is one align*, inside a samlet block.
 ${DRAWING_CHECK[subject]}
 - Percent signs in text are written \%, and numbers keep the decimal comma.
+- "chapter" and "section" match what the note is about (its situation and formulas), not a single word in its title.
 - The JSON strings are plain text without LaTeX.`;
 
 const DRAWINGS: Record<SubjectProfile, string> = {
@@ -417,7 +434,7 @@ const DRAWINGS: Record<SubjectProfile, string> = {
 
 /** De presise reglene for et fag. Hvert fag har sine maler for tegninger; resten er likt. */
 export function preciseRules(subject: SubjectProfile): string {
-  return [INTRO, BOXES, REMARKS, HANDWRITING, TEXT, TOGETHER, DRAWINGS[subject], METADATA, EXAMPLE, CHECKLIST(subject)].join('\n\n');
+  return [INTRO, BOXES, REMARKS, HANDWRITING, TEXT, TOGETHER, DRAWINGS[subject], METADATA(subject), EXAMPLE, CHECKLIST(subject)].join('\n\n');
 }
 
 /** Siste linje i brukermeldingen til Sonnet og Opus, rett etter sidebildene (rekkefølgen som i seksjon 7.1). */
@@ -427,4 +444,4 @@ export const CLOSING = 'Konverter notatet. Svar med <latex> og <metadata> som be
  * Siste linje i brukermeldingen til Haiku, rett etter sidebildene: det modellen leser sist før den skriver, veier mest,
  * så Haiku får de viktigste reglene gjentatt. Sonnet og Opus får `CLOSING`.
  */
-export const HAIKU_CLOSING = String.raw`Konverter notatet. Skriv <latex> først og <metadata> etterpå (seksjon 7). Husk: hver linje med, i riktig rekkefølge; navngitte formel-bokser for de sentrale formlene; merknad bare ved sikre feil; les utydelige ord ut fra sammenhengen, og bruk \uleselig bare når to lesninger fortsatt er mulige; hver utregning i én align* inne i samlet; desimalkomma og \% i tekst; ren tekst i JSON.`;
+export const HAIKU_CLOSING = String.raw`Konverter notatet. Skriv <latex> først og <metadata> etterpå (seksjon 7). Husk: hver linje med, i riktig rekkefølge; navngitte formel-bokser for de sentrale formlene; merknad bare ved sikre feil; les utydelige ord ut fra sammenhengen og oppgaven, og bruk \uleselig bare når to lesninger fortsatt er mulige (skriv begge i remarks); velg kapittel og delkapittel etter hva notatet handler om, ikke etter ett ord i tittelen; hver utregning i én align* inne i samlet; desimalkomma og \% i tekst; ren tekst i JSON.`;
