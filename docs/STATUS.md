@@ -79,6 +79,7 @@ Alt ble bygget 4.–14. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#27](https://github.com/52c854mb96-ship-it/SmartNotes/pull/27) | Kontoer i appen: innlogging med brukernavn, registrering med invitasjon, nytt passord, kontobytte på en enhet og eierens sider i Innstillinger |
 | [#28](https://github.com/52c854mb96-ship-it/SmartNotes/pull/28) | Kvoter for gratiskontoer: sider, kortstokker og innholdsfortegnelser per norsk døgn, tak på køen, dagsbudsjett, rettferdig kø og utklipp som JPEG |
 | [#29](https://github.com/52c854mb96-ship-it/SmartNotes/pull/29) | Personvern og vilkår: egne sider, godkjenning ved registrering, «AI-generert» i PDF-ene og i appen, «Meld fra» og «Slett kontoen» |
+| [#30](https://github.com/52c854mb96-ship-it/SmartNotes/pull/30) | Morgenrapporten for natt til 14. oktober (nederst i [NATTPLAN.md](NATTPLAN.md)) |
 
 **Tester:** omtrent 2 530 enhetstester (306 på serveren og 2 224 i web-appen, de fleste for modellene bak visualiseringene; kvotene testes med falsk klokke), 39 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, hele flyten for «Prøv med Haiku», lisenssiden, «Legg til fag» med Geofag 1, forsiden, invitasjon og registrering, nytt passord, kontobytte, personvernsidene og «Slett kontoen») og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
@@ -169,7 +170,7 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 
 Dette er bare forslag. Eleven bestemmer rekkefølgen. Detaljene står i bolkene i [planen](https://claude.ai/artifact/RyN9UDgBgDiHQdXaFRpvck).
 
-**Natt til 14. oktober:** fasene i [NATTPLAN.md](NATTPLAN.md): kvalitet og opphavsrett, Geofag 1, forside, kontoer, kvoter og personvern. Det som står under, er det som kommer etterpå, og punktene som overlapper med nattplanen, gjelder ikke lenger.
+**Natt til 14. oktober (ferdig):** alle fem fasene i [NATTPLAN.md](NATTPLAN.md) er flettet (#22–#29): kvalitet og opphavsrett, Geofag 1, forside, kontoer, kvoter og personvern. Morgenrapporten nederst i NATTPLAN.md har det eleven må gjøre før en annen elev registrerer seg. Det som står under, er det som kommer etterpå, og punktene som overlapper med nattplanen, gjelder ikke lenger.
 
 1. **Elevens beslutninger:** eleven leser planen og svarer på beslutningene i del 7, særlig motoren i betaen (Haiku eller lokal AI), repoet (lisens eller privat) og hvem som eier API-kontoen.
 2. **Etter navneoppryddingen (#15):** sjekk at eleven ikke har fått doble fag, og at visualiseringene fortsatt vises på notatene.
