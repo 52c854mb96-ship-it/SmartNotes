@@ -878,6 +878,8 @@ export class Repo {
   // ---------- Forbrukslogg ----------
 
   logUsage(e: UsageEntry): void {
+    // Et kall som var i gang da kontoen ble slettet, skriver ikke inn en ny rad for den slettede brukeren.
+    if (e.userId != null && !this.getUser(e.userId)) return;
     this.db
       .prepare(
         `INSERT INTO usage_log (at, kind, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
@@ -1352,6 +1354,7 @@ export class Repo {
   }
 
   addQuota(userId: number, kind: QuotaKind, amount: number, ref: string | null, at = Date.now()): void {
+    if (!this.getUser(userId)) return;
     this.db.prepare(`INSERT INTO quota_log (user_id, kind, amount, at, ref) VALUES (?, ?, ?, ?, ?)`).run(userId, kind, amount, at, ref);
   }
 
@@ -1693,6 +1696,7 @@ export class Repo {
     presets: Parameters<Repo['addPreset']>[1][];
     session: { tokenHash: string; expiresAt: Date; userAgent: string | null };
   }): { ok: true; user: UserRow } | { ok: false; reason: 'invite' | 'username' } {
+    // Brukeren har bekreftet alderen og godtatt vilkårene og personvernerklæringen (sjekket i ruten).
     return this.db.transaction(() => {
       const t = now();
       const invite = this.db
@@ -1704,9 +1708,10 @@ export class Repo {
         userId = Number(
           this.db
             .prepare(
-              `INSERT INTO users (username, password_hash, plan, age_confirmed_at, created_at, updated_at, last_login_at) VALUES (?, ?, 'free', ?, ?, ?, ?)`,
+              `INSERT INTO users (username, password_hash, plan, age_confirmed_at, terms_accepted_at, created_at, updated_at, last_login_at)
+               VALUES (?, ?, 'free', ?, ?, ?, ?, ?)`,
             )
-            .run(input.username, input.passwordHash, t, t, t, t).lastInsertRowid,
+            .run(input.username, input.passwordHash, t, t, t, t, t).lastInsertRowid,
         );
       } catch (err) {
         if (isUniqueViolation(err)) return { ok: false as const, reason: 'username' as const };
@@ -1719,6 +1724,29 @@ export class Repo {
       for (const preset of input.presets) this.addPreset(userId, preset);
       this.createSession(input.session.tokenHash, userId, input.session.expiresAt, input.session.userAgent);
       return { ok: true as const, user: this.getUser(userId)! };
+    })();
+  }
+
+  /**
+   * «Slett konto»: alt brukeren har på serveren (fag, kapitler, notater, kortstokker, sammenligninger, forbruk, kvoter,
+   * økter, enheter og lenker). Radene slettes helt, ikke som gravsteiner, fordi ingen andre synkroniserer dem. Gir
+   * id-ene som trengs for å slette filene (notatene) og samle-PDF-ene (kapitler og fag). Eieren kan ikke slettes.
+   */
+  deleteUser(userId: number): { noteIds: string[]; chapterIds: string[]; subjectIds: string[] } | null {
+    if (userId === OWNER_ID || !this.getUser(userId)) return null;
+    return this.db.transaction(() => {
+      const ids = (table: string) =>
+        (this.db.prepare(`SELECT id FROM ${table} WHERE user_id = ?`).all(userId) as { id: string }[]).map((r) => r.id);
+      const result = { noteIds: ids('notes'), chapterIds: ids('chapters'), subjectIds: ids('subjects') };
+      this.db.prepare(`DELETE FROM note_files WHERE note_id IN (SELECT id FROM notes WHERE user_id = ?)`).run(userId);
+      for (const table of ['cards', 'decks', 'notes', 'chapters', 'subjects', 'comparison_ratings', 'note_comparisons', 'usage_log', 'quota_log']) {
+        this.db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
+      }
+      for (const table of ['user_sessions', 'user_devices', 'password_resets']) this.db.prepare(`DELETE FROM ${table} WHERE user_id = ?`).run(userId);
+      // Invitasjonen eleven brukte, blir stående som brukt, men uten navnet.
+      this.db.prepare(`UPDATE invites SET used_by = NULL WHERE used_by = ?`).run(userId);
+      this.db.prepare(`DELETE FROM users WHERE id = ?`).run(userId);
+      return result;
     })();
   }
 

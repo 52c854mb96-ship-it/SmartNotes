@@ -19,6 +19,7 @@ import { Converter } from './pipeline/converter.js';
 import { latexAvailable } from './pipeline/latex.js';
 import { aiConfigured, createAi, createFreeConvertAi, describeAi } from './pipeline/providers.js';
 import { Worker } from './pipeline/worker.js';
+import { registerAccountRoutes } from './routes/account.js';
 import { registerAdminRoutes } from './routes/admin.js';
 import { registerBackupRoutes } from './routes/backup.js';
 import { registerCompareRoutes } from './routes/compare.js';
@@ -185,6 +186,7 @@ export async function buildApp(
   registerCompareRoutes(app, { repo, storage, comparer, config });
   registerBackupRoutes(app, { repo, storage, config });
   registerAdminRoutes(app, { repo, config, hub });
+  registerAccountRoutes(app, { repo, storage, config, hub });
   if (config.remote.token) registerWorkerRoutes(app, { hub, token: config.remote.token });
   const usesRemote = aiTasks.some((t) => t.provider === 'remote');
   app.get('/api/ai/status', async (): Promise<AiStatusResponse> => ({

@@ -8,6 +8,7 @@ import { ComparePage } from './pages/ComparePage';
 import { DeckPage } from './pages/DeckPage';
 import { FlashcardsPage } from './pages/FlashcardsPage';
 import { HomePage } from './pages/HomePage';
+import { AiUsePage, PrivacyPage, TermsPage } from './pages/LegalPages';
 import { LicensesPage } from './pages/LicensesPage';
 import { LoginPage } from './pages/LoginPage';
 import { NewDeckPage } from './pages/NewDeckPage';
@@ -58,6 +59,9 @@ const router = createBrowserRouter([
       { path: '/logg-inn', element: <LoginPage /> },
       { path: '/registrer', element: <RegisterPage /> },
       { path: '/nytt-passord', element: <ResetPasswordPage /> },
+      { path: '/personvern', element: <PrivacyPage /> },
+      { path: '/vilkar', element: <TermsPage /> },
+      { path: '/ai-bruk', element: <AiUsePage /> },
       {
         path: '/',
         element: <AppShell />,

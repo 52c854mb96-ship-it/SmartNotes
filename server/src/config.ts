@@ -109,6 +109,8 @@ export interface Config {
     /** Modellen gratisbrukerne konverterer med (FREE_CONVERT_MODEL, standard Haiku 5.5). */
     freeConvertModel: string;
   };
+  /** Personvernerklæringen: behandlingsansvarlig og kontakt (PRIVACY_CONTROLLER_NAME, PRIVACY_CONTACT). Mangler de, viser appen «[Fylles inn]». */
+  privacy: { controllerName: string | null; contact: string | null };
   /** Tak for gratiskontoene per norsk døgn (eieren har ingen tak). */
   quota: {
     /** Sider som konverteres (FREE_PAGES_PER_DAY, standard 15). */
@@ -262,6 +264,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       resetHours: Math.max(1, int(env.RESET_LINK_HOURS, 48)),
       trustProxyHops: Math.max(0, int(env.TRUST_PROXY_HOPS, 1)),
       freeConvertModel: env.FREE_CONVERT_MODEL?.trim() || 'claude-haiku-5-5',
+    },
+    privacy: {
+      controllerName: env.PRIVACY_CONTROLLER_NAME?.trim() || null,
+      contact: env.PRIVACY_CONTACT?.trim() || null,
     },
     quota: {
       pagesPerDay: Math.max(1, int(env.FREE_PAGES_PER_DAY, 15)),

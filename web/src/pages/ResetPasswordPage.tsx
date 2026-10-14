@@ -6,7 +6,7 @@ import { PasswordField } from '../components/PasswordField';
 import { Spinner } from '../components/Status';
 import { useOnline } from '../lib/connectivity';
 import { cancelSwitch, confirmBeforeSwitch, finishLogin } from '../lib/login';
-import { AuthIntro } from './LoginPage';
+import { AuthIntro, LegalLinks } from './LoginPage';
 
 /** Koden i lenken (`/nytt-passord#<kode>`). */
 function tokenFromLink(): string {
@@ -108,6 +108,7 @@ export function ResetPasswordPage() {
         <p className="login-switch">
           <Link to="/logg-inn">Til innloggingen</Link>
         </p>
+        <LegalLinks />
       </main>
     </div>
   );

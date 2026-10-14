@@ -9,7 +9,7 @@ import { useAccount } from '../lib/account';
 import { useAuth, useOnline } from '../lib/connectivity';
 import { cancelSwitch, confirmBeforeSwitch, finishLogin } from '../lib/login';
 import { SubjectIcon } from '../lib/subjects';
-import { AuthIntro } from './LoginPage';
+import { AuthIntro, LegalLinks } from './LoginPage';
 import { useStripHash } from './ResetPasswordPage';
 
 const CODE_KEY = 'smartnotes-invite-code';
@@ -50,6 +50,7 @@ export function RegisterPage() {
   const [password, setPassword] = useState('');
   const [chosen, setChosen] = useState<string[]>([]);
   const [age, setAge] = useState(false);
+  const [terms, setTerms] = useState(false);
   const [presets, setPresets] = useState<PublicPresetsResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +78,7 @@ export function RegisterPage() {
   }, [online, reload, presets]);
 
   const minAge = presets?.minAge ?? 15;
-  const ready = !!code.trim() && !!username.trim() && !!password && chosen.length > 0 && age;
+  const ready = !!code.trim() && !!username.trim() && !!password && chosen.length > 0 && age && terms;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -89,7 +90,14 @@ export function RegisterPage() {
     setBusy('register');
     let registered = false;
     try {
-      const res = await api.register({ code: code.trim(), username: username.trim(), password, presetIds: chosen, ageConfirmed: age });
+      const res = await api.register({
+        code: code.trim(),
+        username: username.trim(),
+        password,
+        presetIds: chosen,
+        ageConfirmed: age,
+        termsAccepted: terms,
+      });
       registered = true;
       forgetCode();
       setBusy('sync');
@@ -203,6 +211,20 @@ export function RegisterPage() {
             <input type="checkbox" className="checkbox" checked={age} onChange={(e) => setAge(e.target.checked)} disabled={!!busy} />
             <span>Jeg er minst {minAge} år</span>
           </label>
+          <label className="check-row">
+            <input type="checkbox" className="checkbox" checked={terms} onChange={(e) => setTerms(e.target.checked)} disabled={!!busy} />
+            <span>
+              Jeg har lest{' '}
+              <Link to="/vilkar" target="_blank">
+                vilkårene
+              </Link>{' '}
+              og{' '}
+              <Link to="/personvern" target="_blank">
+                personvernerklæringen
+              </Link>
+              , og godtar vilkårene
+            </span>
+          </label>
           {error && (
             <p className="form-error" role="alert">
               {error}
@@ -217,6 +239,7 @@ export function RegisterPage() {
         <p className="login-switch">
           Har du allerede en konto? <Link to="/logg-inn">Logg inn</Link>
         </p>
+        <LegalLinks />
       </main>
     </div>
   );

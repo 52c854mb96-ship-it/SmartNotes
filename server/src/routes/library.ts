@@ -139,9 +139,12 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
 
   app.delete<{ Params: { id: string } }>('/api/subjects/:id', async (req) => {
     const id = idParam(req.params.id);
-    const noteIds = mine(req).deleteSubject(id);
+    const r = mine(req);
+    const chapterIds = r.listChapters(id).map((c) => c.id);
+    const noteIds = r.deleteSubject(id);
     if (!noteIds) throw notFound('Fant ikke faget.');
     await Promise.all(noteIds.map((nid) => storage.removeNote(nid).catch(() => undefined)));
+    await storage.removeBundles([`subject-${id}`, ...chapterIds.map((cid) => `chapter-${cid}`)]);
     return { ok: true };
   });
 
@@ -257,6 +260,7 @@ export function registerLibraryRoutes(app: FastifyInstance, d: Deps): void {
     const affected = r.doneNoteIds({ chapterId: id });
     if (!r.deleteChapter(id)) throw notFound('Fant ikke kapittelet.');
     for (const nid of affected) converter.recompileInBackground(nid);
+    await storage.removeBundles([`chapter-${id}`]);
     return { ok: true };
   });
 

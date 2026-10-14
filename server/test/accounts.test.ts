@@ -133,6 +133,7 @@ async function register(username: string, opts: { presetIds?: string[]; password
     password: opts.password ?? 'passord-123',
     presetIds: opts.presetIds ?? ['fysikk-1-lk20'],
     ageConfirmed: true,
+    termsAccepted: true,
   });
   expect(res.status, JSON.stringify(res.body)).toBe(201);
   return { client, userId: res.body.user.id };
@@ -375,6 +376,7 @@ describe('registrering', () => {
       password: 'langt-passord',
       presetIds: ['kjemi-1-lk20', 'geofag-1-lk20'],
       ageConfirmed: true,
+      termsAccepted: true,
     });
     expect(res.status, JSON.stringify(res.body)).toBe(201);
     expect(res.body.user).toMatchObject({ username: 'ola.nordmann', plan: 'free' });
@@ -390,6 +392,7 @@ describe('registrering', () => {
       password: 'langt-passord',
       presetIds: ['fysikk-1-lk20'],
       ageConfirmed: true,
+      termsAccepted: true,
     });
     expect(again.status).toBe(400);
     expect(again.body.message).toMatch(/ugyldig, brukt eller utløpt/);
@@ -410,6 +413,7 @@ describe('registrering', () => {
         password: 'langt-passord',
         presetIds: ['fysikk-1-lk20'],
         ageConfirmed: true,
+        termsAccepted: true,
       });
       expect(res.status, code).toBe(400);
     }
@@ -421,7 +425,7 @@ describe('registrering', () => {
 
   it('sjekker brukernavn, passord, alder og fag, og bruker ikke opp koden ved feil', async () => {
     const { code } = await invite();
-    const good = { code, username: 'lise', password: 'langt-passord', presetIds: ['fysikk-1-lk20'], ageConfirmed: true };
+    const good = { code, username: 'lise', password: 'langt-passord', presetIds: ['fysikk-1-lk20'], ageConfirmed: true, termsAccepted: true };
     const cases: [Record<string, unknown>, number, RegExp][] = [
       [{ username: 'eier' }, 409, /tatt/],
       [{ username: 'kari' }, 409, /tatt/],
@@ -429,6 +433,7 @@ describe('registrering', () => {
       [{ username: 'med mellomrom' }, 400, /bare ha bokstaver/],
       [{ password: 'kort' }, 400, /minst 8 tegn/],
       [{ ageConfirmed: false }, 400, /minst 15 år/],
+      [{ termsAccepted: false }, 400, /godta vilkårene/],
       [{ presetIds: [] }, 400, /minst ett fag/],
       [{ presetIds: ['finnes-ikke'] }, 400, /Ukjent fag/],
       [{ presetIds: ['__proto__'] }, 400, /Ukjent fag/],
@@ -614,6 +619,8 @@ describe('hver rute holder brukerne fra hverandre', () => {
     'POST /api/auth/register': { skip: 'offentlig, testet over' },
     'POST /api/auth/reset': { skip: 'offentlig, testet over' },
     'GET /api/auth/presets': { skip: 'offentlig, ingen brukerdata' },
+    'GET /api/legal': { skip: 'offentlig, ingen brukerdata' },
+    'DELETE /api/auth/account': { skip: 'sletter bare egen konto (testet i personvern.test.ts)' },
 
     'GET /api/sync': { skip: 'egen test under' },
     'GET /api/presets': { skip: 'viser bare egne fag (egen test under)' },

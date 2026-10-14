@@ -1,53 +1,12 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import sharp from 'sharp';
+import { inviteLink, loginOwner, openSettings, register } from './helpers';
 
 /**
  * Kontoene i appen: eieren inviterer en elev i Innstillinger, eleven lager en konto med lenken og ser bare sine egne
  * fag, eieren lager en lenke for nytt passord, og en enhet som bytter konto spør først og sletter den forrige kontoens
  * data. Serveren deles mellom prosjektene, så brukernavnene har prosjektnavnet i seg.
  */
-
-const OWNER_PASSWORD = 'e2e-passord';
-
-async function loginOwner(page: Page): Promise<void> {
-  await page.goto('/');
-  await expect(page).toHaveURL(/logg-inn/);
-  // Eieren kan la brukernavnet stå tomt, som før kontoene.
-  await page.getByLabel('Passord', { exact: true }).fill(OWNER_PASSWORD);
-  await page.getByRole('button', { name: 'Logg inn' }).click();
-  await expect(page.getByRole('heading', { name: 'Fagene dine' })).toBeVisible();
-}
-
-async function openSettings(page: Page): Promise<void> {
-  await page.goto('/innstillinger');
-  await expect(page.getByRole('heading', { name: 'Innstillinger', level: 1 })).toBeVisible();
-}
-
-/** En invitasjonslenke laget i Innstillinger, slik eieren gjør det. */
-async function inviteLink(page: Page): Promise<string> {
-  await openSettings(page);
-  const card = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Inviter en elev' }) });
-  await card.getByRole('button', { name: 'Lag invitasjon' }).click();
-  const link = await card.getByLabel('Lenke til eleven').inputValue();
-  expect(link).toMatch(/\/registrer#kode=[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
-  return link;
-}
-
-async function register(browser: Browser, link: string, username: string, subject: string) {
-  const context = await browser.newContext();
-  const page = await context.newPage();
-  await page.goto(link);
-  // Koden står i skjemaet, men ikke lenger i adressefeltet.
-  await expect(page.getByLabel('Invitasjonskode')).toHaveValue(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
-  await expect(page).toHaveURL(/\/registrer$/);
-  await page.getByLabel('Brukernavn').fill(username);
-  await page.getByLabel('Passord', { exact: true }).fill('elevens-passord');
-  await page.getByRole('checkbox', { name: subject }).check();
-  await page.getByRole('checkbox', { name: /Jeg er minst 15 år/ }).check();
-  await page.getByRole('button', { name: 'Lag konto' }).click();
-  await expect(page.getByRole('heading', { name: 'Fagene dine' })).toBeVisible();
-  return { context, page };
-}
 
 function subjectCards(page: Page) {
   return page.locator('main').getByRole('list').filter({ has: page.locator('.subject-card') }).getByRole('link');
@@ -192,6 +151,7 @@ test('registrering mens eieren er logget inn: appen spør før kontoen byttes, o
   await page.getByLabel('Passord', { exact: true }).fill('elevens-passord');
   await page.getByRole('checkbox', { name: 'Kjemi 1' }).check();
   await page.getByRole('checkbox', { name: /Jeg er minst 15 år/ }).check();
+  await page.getByRole('checkbox', { name: /godtar vilkårene/ }).check();
   await page.getByRole('button', { name: 'Lag konto' }).click();
   const dialog = page.getByRole('dialog', { name: 'Bytte konto på denne enheten?' });
   await expect(dialog).toContainText('Du er logget inn som «eier»');

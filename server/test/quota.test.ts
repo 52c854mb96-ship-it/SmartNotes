@@ -127,7 +127,7 @@ async function student(username: string): Promise<{ client: Client; subjectId: s
   const { code } = (await owner.call<CreateInviteResponse>('POST', '/api/admin/invites')).body;
   const client = new Client();
   const res = await client.call<LoginResponse>('POST', '/api/auth/register', {
-    json: { code, username, password: 'passord-123', presetIds: ['fysikk-1-lk20'], ageConfirmed: true },
+    json: { code, username, password: 'passord-123', presetIds: ['fysikk-1-lk20'], ageConfirmed: true, termsAccepted: true },
   });
   expect(res.status).toBe(201);
   return { client, subjectId: (await client.sync()).subjects[0]!.id };

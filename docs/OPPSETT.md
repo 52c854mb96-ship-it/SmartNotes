@@ -182,7 +182,7 @@ Andre logger inn med egne kontoer. Du ser ikke notatene deres, og de ser ikke di
 
 1. Åpne **Innstillinger → Inviter en elev** og trykk **Lag invitasjon**.
 2. Kopier **lenken** (eller koden) og send den til eleven. Koden vises bare én gang, kan brukes én gang og gjelder i 14 dager. Under kortet ser du om den er brukt, og du kan trekke den tilbake.
-3. Eleven åpner lenken, velger brukernavn og passord, krysser av for fagene og for at hen er minst 15 år (`MIN_AGE`), og trykker **Lag konto**. Uten lenken går det også: **Lag en konto** på innloggingssiden, med koden.
+3. Eleven åpner lenken, velger brukernavn og passord, krysser av for fagene, for at hen er minst 15 år (`MIN_AGE`) og for at hen godtar vilkårene og personvernerklæringen, og trykker **Lag konto**. Uten lenken går det også: **Lag en konto** på innloggingssiden, med koden.
 4. Under **Innstillinger → Brukere** ser du alle kontoene, når de sist logget inn og AI-forbruket de siste 30 dagene.
 
 **Glemt passord:** trykk **Nytt passord** ved eleven under **Brukere**, og send lenken. Den virker én gang i 48 timer, og eleven blir logget ut på alle andre enheter. Det er ingen e-post i appen, så lenken går alltid gjennom deg.
@@ -190,6 +190,19 @@ Andre logger inn med egne kontoer. Du ser ikke notatene deres, og de ser ikke di
 **Stenge en konto:** **Steng kontoen** logger eleven ut overalt. Notatene blir liggende, og du kan åpne kontoen igjen.
 
 **Du selv på en ny enhet:** logg inn med `APP_PASSWORD`, med brukernavnet ditt eller uten brukernavn.
+
+**Slette en konto:** eleven sletter kontoen selv under **Innstillinger → Konto → Slett kontoen** (med passordet). Alt eleven har på serveren slettes: fag, notater, PDF-er, kortstokker og forbruksloggen. Det kan ikke angres. Du kan ikke slette din egen konto.
+
+## Personvern og vilkår
+
+Personvernerklæringen og vilkårene ligger i appen (lenker på innloggingssiden og i Innstillinger). Før en annen elev registrerer seg, fyller du inn hvem som er ansvarlig og hvor man tar kontakt:
+
+1. Åpne tjenesten i Railway og gå til **Variables**.
+2. Legg til `PRIVACY_CONTROLLER_NAME` med navnet til den som er ansvarlig (for eksempel deg eller en forelder).
+3. Legg til `PRIVACY_CONTACT` med en e-postadresse eller annen kontakt. Den brukes også av «Meld fra».
+4. Trykk **Deploy**. Mangler en av dem, står det «[Fylles inn]» i rødt på sidene.
+
+La gjerne en forelder lese sidene før andre bruker appen.
 
 ## Bytte passord eller API-nøkkel
 

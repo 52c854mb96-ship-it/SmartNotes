@@ -381,7 +381,7 @@ export interface NoteDocInput {
 }
 
 /** Ekstra makro som brukes når forbudte kommandoer er fjernet. */
-const EXTRA_PREAMBLE = String.raw`
+export const EXTRA_PREAMBLE = String.raw`
 \newcommand{\snfjernet}[1]{\textcolor{snorange}{\texttt{[fjernet: \textbackslash #1]}}}
 \makeatletter
 % Holder en sammenhengende utregning eller forklaring på samme side. Blokken settes én gang, slik den ville stått i
@@ -440,6 +440,8 @@ const EXTRA_PREAMBLE = String.raw`
 \ProvideDocumentEnvironment{definition}{O{}}{\begin{definisjon}[#1]}{\end{definisjon}}
 \ProvideDocumentEnvironment{example}{O{}}{\begin{eksempel}[#1]}{\end{eksempel}}
 \ProvideDocumentEnvironment{exercise}{O{}}{\begin{oppgave}[#1]}{\end{oppgave}}
+% Merket i bunnteksten på hver side av notatene og samle-PDF-ene: teksten er laget av en AI fra elevens notater.
+\fancyfoot[R]{\scriptsize\textcolor{sngray}{AI-generert med SmartNotes}}
 `;
 
 export interface AssembledDoc {

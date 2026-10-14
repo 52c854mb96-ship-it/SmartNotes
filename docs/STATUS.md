@@ -21,6 +21,7 @@ Alt dette ligger i `main`. Railway skal deploye automatisk fra `main` når CI er
 |---|---|---|
 | Kontoer | Eieren inviterer elever med en kode i Innstillinger. Eleven lager en konto med brukernavn, passord og fag, og ser bare sine egne fag og notater. Eieren ser brukerne med forbruk, lager lenker for nytt passord og kan stenge en konto. Gratiskontoer konverterer med Haiku 5.5. | `server/src/auth.ts`, `server/src/routes/admin.ts`, `web/src/lib/account.ts`, `web/src/pages/settings/AccountAdmin.tsx` |
 | Kvoter for gratiskontoer | Per norsk døgn: 15 sider, 2 kortstokker og 3 innholdsfortegnelser med AI, høyst 20 notater i kø, og et felles dagsbudsjett på 30 kroner for alle gratiskontoene. Over kvoten venter notatet til midnatt («Dagens kvote er brukt – konverteres i morgen»). Køen tar notatene fra brukerne etter tur. Eieren har ingen tak. Innstillinger → Konto viser dagens forbruk. | `server/src/quota.ts`, tabellen `quota_log` |
+| Personvern og vilkår | Personvernerklæring, vilkår og en side om trygg og ærlig bruk av AI, lenket fra innloggingen, registreringen og Innstillinger. Nye elever godtar vilkårene ved registrering. Ansvarlig og kontakt kommer fra variabler i Railway («[Fylles inn]» når de mangler). PDF-ene merkes «AI-generert med SmartNotes», og «Meld fra» går til kontakten. «Slett kontoen» sletter alt eleven har på serveren. | `web/src/pages/LegalPages.tsx`, `server/src/routes/account.ts` |
 | Forside | En kort presentasjon og fagene som kort i fagets farger, med antall notater, når noe sist ble endret og «Fortsett i …». Appen åpner ikke et fag av seg selv. | `web/src/pages/HomePage.tsx` |
 | Konvertering | Sider → Claude (bilde) → LaTeX → PDF. Notatet gjengis tro mot originalen, og mulige feil markeres med en merknad i stedet for å rettes. Enkle figurer tegnes på nytt i TikZ, og kompliserte klippes ut. Kompileringsfeil rettes automatisk i inntil to runder. | `server/src/pipeline/` |
 | Fag og temaer | Kompetansemål (ordrett fra Udir) og egne temaer for fire fag. Deltemaer finnes for Fysikk 1. Claude velger tema og eventuelt deltema, og eleven kan flytte notatet selv. «Legg til fag» lager et fag fra læreplanen eller et tomt fag. | `server/src/presets.ts`, `server/src/profiles/`, `web/src/components/NewSubjectDialog.tsx` |
@@ -77,8 +78,9 @@ Alt ble bygget 4.–14. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#26](https://github.com/52c854mb96-ship-it/SmartNotes/pull/26) | Kontoer på serveren: brukere, invitasjoner, innlogging med brukernavn, eierskap på hver rute, eierens ruter og Haiku for gratiskontoer |
 | [#27](https://github.com/52c854mb96-ship-it/SmartNotes/pull/27) | Kontoer i appen: innlogging med brukernavn, registrering med invitasjon, nytt passord, kontobytte på en enhet og eierens sider i Innstillinger |
 | [#28](https://github.com/52c854mb96-ship-it/SmartNotes/pull/28) | Kvoter for gratiskontoer: sider, kortstokker og innholdsfortegnelser per norsk døgn, tak på køen, dagsbudsjett, rettferdig kø og utklipp som JPEG |
+| [#29](https://github.com/52c854mb96-ship-it/SmartNotes/pull/29) | Personvern og vilkår: egne sider, godkjenning ved registrering, «AI-generert» i PDF-ene og i appen, «Meld fra» og «Slett kontoen» |
 
-**Tester:** omtrent 2 520 enhetstester (294 på serveren og 2 224 i web-appen, de fleste for modellene bak visualiseringene; kvotene testes med falsk klokke), 33 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, hele flyten for «Prøv med Haiku», lisenssiden, «Legg til fag» med Geofag 1, forsiden, invitasjon og registrering, nytt passord og kontobytte) og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
+**Tester:** omtrent 2 530 enhetstester (306 på serveren og 2 224 i web-appen, de fleste for modellene bak visualiseringene; kvotene testes med falsk klokke), 39 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, hele flyten for «Prøv med Haiku», lisenssiden, «Legg til fag» med Geofag 1, forsiden, invitasjon og registrering, nytt passord, kontobytte, personvernsidene og «Slett kontoen») og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
 ## Valg eleven har tatt
 
@@ -140,7 +142,8 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
    - Legg til variabelen `SEED_TEXTBOOKS` med verdien `fysikk-1-lk20`.
    - Er Kjemi 1 og Biologi 1 allerede lagt inn, slettes de i appen: tannhjulet på fagsiden → **Slett faget**. Et slettet fag kommer ikke tilbake.
 3. **Variabler:** `CLAUDE_MODEL`, `CLAUDE_MODEL_FLASHCARDS`, `CLAUDE_MODEL_TOC` og `CLAUDE_EFFORT` bør ikke være satt, ellers overstyrer de standardverdiene.
-4. **Lokal AI og hjemmemaskin** trenger ingen nye variabler før eleven vil prøve dem. Alt er av som standard, og forbruksloggen virker uten oppsett.
+4. **Personvern:** `PRIVACY_CONTROLLER_NAME` (ansvarlig) og `PRIVACY_CONTACT` (kontakt) bør være satt før en annen elev registrerer seg. Uten dem står det «[Fylles inn]» i personvernerklæringen og vilkårene.
+5. **Lokal AI og hjemmemaskin** trenger ingen nye variabler før eleven vil prøve dem. Alt er av som standard, og forbruksloggen virker uten oppsett.
 
 ## Kjente begrensninger og åpne spørsmål
 
@@ -153,6 +156,8 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 - **Rottegnet (√) i `FormulaLine`** står litt for lavt. Kapittel 4 retter det lokalt; det bør rettes i `viz/kit/` for alle.
 - **De nye visualiseringene er ikke prøvd på en ekte iPad eller iPhone,** bare i WebKit-testene i CI.
 - **Kvotene er gjettet, ikke målt:** 15 sider, 2 kortstokker og 3 innholdsfortegnelser per døgn og 30 kroner i dagsbudsjett er planens forslag. De kan endres med variablene `FREE_*` i Railway (se README). Det første notatet i et døgn får starte selv om det har flere sider enn taket.
+- **Personvernerklæringen er ikke juridisk kontrollert:** den er skrevet nøytralt etter det koden gjør. Den sier ikke hvor Railway kjører serveren (region), hvor lenge Railway beholder driftsloggen, eller hva Anthropic gjør med dataene (den viser til Anthropics egne vilkår). Det bør en voksen sjekke.
+- **«AI-generert» i PDF-ene:** PDF-er som lages fra 14. oktober, har merket. Et notat som var ferdig fra før, får det når det kompileres på nytt (samle-PDF-ene lages på nytt av seg selv). Notatsiden i appen viser merket for alle notater.
 - **Kontoer:** eieren (deg) og elever med invitasjon. Det er ingen e-post i appen, så en lenke for nytt passord går alltid gjennom eieren. Rull ikke tilbake i Railway til en versjon fra før kontoene etter at en elev har registrert seg.
 - **Udir:** `data.udir.no` og `www.udir.no` svarer i skyøkta fra 13. oktober (kveld). Kompetansemålene er kontrollert ord for ord mot Grep (se `server/test/fixtures/udir-kompetansemaal.json`).
 - **Repoet er offentlig med «alle rettigheter forbeholdt»** (`LICENSE`). Lisensene til pakkene i appen står under Innstillinger → «Om SmartNotes» → «Lisenser». Privat repo senere er fortsatt mulig; det ville trolig bruke opp de gratis CI-minuttene.

@@ -39,8 +39,10 @@ export const ROUTE_ACCESS: Record<string, Access> = {
   'POST /api/auth/register': 'public',
   'POST /api/auth/reset': 'public',
   'GET /api/auth/presets': 'public',
+  'GET /api/legal': 'public',
 
   'GET /api/sync': 'user',
+  'DELETE /api/auth/account': 'user',
   'GET /api/presets': 'user',
   'POST /api/subjects': 'user',
   'POST /api/subjects/from-preset': 'user',
@@ -333,6 +335,7 @@ export function registerAuth(app: FastifyInstance, repo: Repo, config: Config): 
     const passwordError = passwordProblem(password);
     if (passwordError) throw badRequest(passwordError);
     if (b.ageConfirmed !== true) throw badRequest(`Du må være minst ${config.accounts.minAge} år for å bruke SmartNotes.`);
+    if (b.termsAccepted !== true) throw badRequest('Du må godta vilkårene og personvernerklæringen for å lage en konto.');
     const ids = Array.isArray(b.presetIds) ? [...new Set(b.presetIds.filter((x): x is string => typeof x === 'string'))] : [];
     const presets = ids.map((id) => (Object.hasOwn(SUBJECT_PRESETS, id) ? SUBJECT_PRESETS[id]! : null));
     if (presets.some((p) => p === null) || presets.length > 10) throw badRequest('Ukjent fag i valget.');

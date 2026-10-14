@@ -1353,3 +1353,101 @@ select.inline-input {
   align-items: center;
   gap: 8px 12px;
 }
+
+/* ---------- Personvern, vilkår og bruk av AI ---------- */
+.legal-page {
+  min-height: 100dvh;
+  padding: calc(24px + var(--safe-top)) 16px calc(32px + var(--safe-bottom));
+  background: var(--bg);
+}
+
+.legal-card {
+  width: min(720px, 100%);
+  margin: 0 auto;
+  padding: 28px 32px 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.legal-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  margin-bottom: 18px;
+}
+
+.legal-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--text-2);
+  margin-bottom: 8px;
+}
+
+.legal-body {
+  margin-top: 16px;
+  line-height: 1.6;
+}
+
+.legal-body h2 {
+  font-size: 17px;
+  font-weight: 680;
+  margin: 24px 0 8px;
+}
+
+.legal-body p,
+.legal-body ul {
+  margin: 0 0 10px;
+}
+
+.legal-body ul {
+  padding-left: 22px;
+}
+
+.legal-body li + li {
+  margin-top: 6px;
+}
+
+.legal-missing {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.legal-nav,
+.login-legal {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 18px;
+  margin-top: 24px;
+  font-size: 13.5px;
+}
+
+.login-legal {
+  margin-top: 14px;
+}
+
+.note-ai-mark {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.inline-icon {
+  vertical-align: -2px;
+  margin-right: 4px;
+  color: var(--text-3);
+}
+
+@media (max-width: 480px) {
+  .legal-card {
+    padding: 20px 18px 24px;
+  }
+}
