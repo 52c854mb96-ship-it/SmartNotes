@@ -38,8 +38,8 @@ export function FlashcardsPage() {
           <p className="eyebrow">{subject.name}</p>
           <h1 className="page-title">Flashcards</h1>
           <p className="page-subtitle">
-            Velg notater, så lager Claude spørsmål og svar. Du vurderer selv hvor godt du kunne hvert kort, og kortene du
-            ikke kunne, kommer igjen.
+            Velg notater, så lager Claude spørsmål og svar. Øv grundig med mestring, der kortene du ikke kunne, kommer igjen,
+            eller raskere med en rask runde, klassisk gjennomgang eller luketekst.
           </p>
         </div>
         {decks.length > 0 && doneNotes > 0 && (

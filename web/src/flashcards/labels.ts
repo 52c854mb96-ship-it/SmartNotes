@@ -1,4 +1,5 @@
 import type { FlashcardDifficulty, FlashcardKind } from '@smartnotes/shared';
+import type { PracticeMode } from '../db';
 
 export const KIND_LABEL: Record<FlashcardKind, string> = {
   concept: 'Begrep',
@@ -39,3 +40,21 @@ export const DIFFICULTIES: FlashcardDifficulty[] = ['easy', 'medium', 'hard', 'm
 
 /** Valgene for antall kort. null = la Claude velge. */
 export const COUNT_CHOICES: (number | null)[] = [null, 10, 20, 30, 50];
+
+/** Øvingsformene, i rekkefølgen velgeren viser dem. */
+export const MODES: PracticeMode[] = ['mastery', 'quick', 'classic', 'cloze'];
+
+export const MODE_LABEL: Record<PracticeMode, string> = {
+  mastery: 'Mestring',
+  quick: 'Rask runde',
+  classic: 'Klassisk',
+  cloze: 'Luketekst',
+};
+
+/** Én forklarende linje under velgeren «Øvingsform». */
+export const MODE_HINT: Record<PracticeMode, string> = {
+  mastery: 'Grundig: kortene kommer igjen til du har svart riktig flere ganger. Tar lengst tid.',
+  quick: 'Ett riktig svar per kort. Kortene du ikke kunne, kommer igjen til slutt.',
+  classic: 'Snu og gå videre. Endrer ikke mestringen.',
+  cloze: 'Skriv begrepet som mangler i svaret. Riktige svar teller litt, men gjør aldri et kort mestret.',
+};

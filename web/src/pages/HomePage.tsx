@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { ArrowRight, Plus } from 'lucide-react';
+import { ArrowRight, FileText, GalleryVerticalEnd, Plus, Shapes, type LucideIcon } from 'lucide-react';
 import type { Subject } from '@smartnotes/shared';
 import { Logo } from '../components/Logo';
 import { PageSkeleton } from '../components/EmptyState';
@@ -13,7 +13,54 @@ import { lastSubjectId } from '../lib/lastSubject';
 import { SubjectIcon, profileOf } from '../lib/subjects';
 import { newSubjectStore } from '../lib/ui';
 import { useSyncState } from '../sync';
-import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { APP_TITLE, useDocumentTitle } from '../lib/useDocumentTitle';
+import { hasVisualizations } from '../viz/registry';
+
+interface Feature {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  text: string;
+  /** Én setning om hvorfor det hjelper. Hold den til det forskningen støtter. */
+  why: string;
+  /** Snarveien inn i faget som sist var åpent, når det har det kortet viser fram. */
+  link?: (subject: Subject) => { to: string; label: string } | null;
+}
+
+// Visualiseringskortet nevner ingen fag: ikke alle fagene har visualiseringer ennå.
+const FEATURES: Feature[] = [
+  {
+    id: 'notes',
+    icon: FileText,
+    title: 'Notatene dine, pene og samlet',
+    text:
+      'Ta bilde av de håndskrevne notatene. SmartNotes skriver dem om til pene PDF-er med formler og figurer og ' +
+      'sorterer dem etter tema. De ligger også på enheten, så du kan lese dem uten nett.',
+    why: 'Du bruker tiden i timen på å forstå, ikke på å skrive pent av.',
+  },
+  {
+    id: 'viz',
+    icon: Shapes,
+    title: 'Visualiseringer',
+    text:
+      'Interaktive forklaringer der du styrer tallene selv og ser hva som skjer, for eksempel med en kasse som sklir, ' +
+      'en titrering eller en vaksine som stopper smitte. Mange temaer har også eksempeloppgaver med løsning steg for ' +
+      'steg.',
+    why: 'Når du ser en sammenheng endre seg, blir den ofte lettere å forstå enn en formel på papir.',
+    link: (s) =>
+      hasVisualizations(s) ? { to: `/fag/${s.id}/visualiseringer`, label: `Visualiseringer i ${s.name}` } : null,
+  },
+  {
+    id: 'flashcards',
+    icon: GalleryVerticalEnd,
+    title: 'Flashcards',
+    text: 'Lag kortstokker fra dine egne notater. Svar i hodet, snu kortet og se om du kunne det, grundig med mestring eller raskt.',
+    why:
+      'Å hente fram svaret fra hukommelsen er en av de best dokumenterte måtene å lære på, og virker bedre enn å ' +
+      'lese notatene om igjen.',
+    link: (s) => ({ to: `/fag/${s.id}/flashcards`, label: `Flashcards i ${s.name}` }),
+  },
+];
 
 /** Antall notater og når noe sist ble endret, per fag (fra Dexie, så det virker uten nett). */
 function useSubjectStats(): Map<string, { notes: number; changedAt: string | null }> | undefined {
@@ -30,8 +77,9 @@ function useSubjectStats(): Map<string, { notes: number; changedAt: string | nul
 }
 
 /**
- * Forsiden: en kort presentasjon av SmartNotes og fagene til brukeren som kort i fagenes farger. Siden sender ikke
- * brukeren videre av seg selv; «Fortsett i …» er bare en snarvei til faget som sist var åpent.
+ * Forsiden: en kort presentasjon av SmartNotes (notater, visualiseringer og flashcards, med hvorfor hver del
+ * hjelper) og fagene til brukeren som kort i fagenes farger. Siden sender ikke brukeren videre av seg selv;
+ * «Fortsett i …» og lenkene i presentasjonen er bare snarveier til faget som sist var åpent.
  */
 export function HomePage() {
   useDocumentTitle(null);
@@ -64,13 +112,22 @@ export function HomePage() {
       <header className="home-hero">
         <Logo size={48} />
         <div className="home-hero-text">
-          <h1 className="page-title">SmartNotes</h1>
+          <h1 className="page-title">{APP_TITLE}</h1>
           <p className="home-intro">
-            Ta bilde av de håndskrevne notatene dine. SmartNotes skriver dem om til pene PDF-er med formler og figurer, og
-            sorterer dem etter fag og tema. Notatene ligger også på enheten, så du kan lese dem uten nett.
+            Notater, visualiseringer og flashcards i fysikk, kjemi, biologi og geofag, etter læreplanen for videregående
+            (LK20).
           </p>
         </div>
       </header>
+
+      <ul className="home-features" role="list" aria-label="Dette er SmartNotes">
+        {FEATURES.map((f) => (
+          <FeatureCard key={f.id} feature={f} last={last} />
+        ))}
+      </ul>
+      <p className="home-flow">
+        <strong>Slik henger det sammen:</strong> skriv i timen, forstå med visualiseringene, øv med flashcards.
+      </p>
 
       {last && (
         <p className="home-continue">
@@ -103,6 +160,30 @@ export function HomePage() {
         )}
       </section>
     </div>
+  );
+}
+
+function FeatureCard({ feature, last }: { feature: Feature; last: Subject | null }) {
+  const Icon = feature.icon;
+  const link = last && feature.link ? feature.link(last) : null;
+  return (
+    <li className="home-feature">
+      <div className="home-feature-head">
+        <span className="home-feature-icon">
+          <Icon size={20} aria-hidden />
+        </span>
+        <h2 className="home-feature-title">{feature.title}</h2>
+      </div>
+      <p className="home-feature-text">{feature.text}</p>
+      <p className="home-feature-why">
+        <span className="home-feature-why-label">Hvorfor:</span> {feature.why}
+      </p>
+      {link && last && (
+        <Link to={link.to} className="home-feature-link" data-profile={profileOf(last.profile)}>
+          {link.label} <ArrowRight size={16} aria-hidden />
+        </Link>
+      )}
+    </li>
   );
 }
 

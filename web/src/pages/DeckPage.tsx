@@ -7,12 +7,11 @@ import { PageSkeleton } from '../components/EmptyState';
 import { Menu } from '../components/Menu';
 import { Modal } from '../components/Modal';
 import { useSubject, useSubjectNotes } from '../data';
-import { deleteDeck, renameDeck, retryDeck, setCardLevels } from '../flashcards/actions';
+import { deleteDeck, renameDeck, resetPractice, retryDeck, setCardLevels } from '../flashcards/actions';
 import { CardList } from '../flashcards/CardList';
 import { useDeck, useDeckCards } from '../flashcards/data';
 import { DIFFICULTY_LABEL } from '../flashcards/labels';
 import { Practice } from '../flashcards/Practice';
-import { db } from '../db';
 import { useOnline } from '../lib/connectivity';
 import { plural } from '../lib/format';
 import { confirmDialog, toast } from '../lib/ui';
@@ -64,7 +63,7 @@ export function DeckPage() {
   const resetAll = async () => {
     const ok = await confirmDialog({
       title: 'Nullstille all fremgang?',
-      body: 'Alle kortene i kortstokken settes tilbake til nivå 0, også på de andre enhetene dine.',
+      body: 'Alle kortene i kortstokken settes tilbake til nivå 0, også på de andre enhetene dine. Øvingsformen beholdes.',
       confirmLabel: 'Nullstill',
       danger: true,
     });
@@ -75,7 +74,7 @@ export function DeckPage() {
         cards.map((c) => c.id),
         0,
       );
-      await db.practice.delete(deck.id);
+      await resetPractice(deck.id);
       toast('Fremgangen er nullstilt.', { kind: 'success' });
     } finally {
       setResetting(false);

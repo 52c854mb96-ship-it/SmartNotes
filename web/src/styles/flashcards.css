@@ -251,6 +251,31 @@
   border-radius: var(--radius);
 }
 
+/* Øvingsform: radiogruppe øverst, med én forklarende linje under */
+.fc-mode {
+  margin-bottom: 14px;
+}
+
+.fc-mode-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.fc-mode-switch .segment {
+  justify-content: center;
+  text-align: center;
+}
+
+.fc-mode-hint {
+  margin: 6px 2px 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-3);
+}
+
 .fc-controls {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -363,6 +388,14 @@
   margin: 6px 0 0;
 }
 
+.fc-bar-thin {
+  height: 3px;
+}
+
+.fc-bar-thin > * {
+  background: var(--accent);
+}
+
 /* Kortet */
 .fc-card {
   position: relative;
@@ -423,6 +456,23 @@
 
 .fc-tag-apply {
   color: var(--fc-kind-apply);
+}
+
+.fc-marked {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.fc-prompt {
+  margin: 10px 0 0;
+  font-size: 14px;
+  color: var(--text-3);
 }
 
 .fc-dots {
@@ -935,6 +985,190 @@
   margin: 0 8px;
 }
 
+/* Rask runde: «Kunne ikke» og «Kunne», store og side om side */
+.fc-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.fc-two button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 60px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  font-size: 1.08rem;
+  font-weight: 650;
+  transition: background 0.15s;
+}
+
+.fc-two button small {
+  font-size: 0.74rem;
+  font-weight: 400;
+}
+
+.fc-two .fc-no {
+  border: 1px solid color-mix(in srgb, var(--fc-bad) 55%, transparent);
+  background: color-mix(in srgb, var(--fc-bad) 12%, transparent);
+  color: var(--fc-bad-text);
+}
+
+.fc-two .fc-yes {
+  border: 1px solid color-mix(in srgb, var(--fc-good) 55%, transparent);
+  background: color-mix(in srgb, var(--fc-good) 13%, transparent);
+  color: var(--fc-good-text);
+}
+
+.fc-two .fc-no:not(:disabled):hover {
+  background: color-mix(in srgb, var(--fc-bad) 24%, transparent);
+}
+
+.fc-two .fc-yes:not(:disabled):hover {
+  background: color-mix(in srgb, var(--fc-good) 25%, transparent);
+}
+
+.fc-two button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Klassisk: «Forrige», «Merk» og «Neste» (bredest, der tommelen er) */
+.fc-nav {
+  display: grid;
+  grid-template-columns: 1fr auto 1.6fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.fc-nav button,
+.fc-cloze-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 52px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.fc-nav button:not(:disabled):hover,
+.fc-cloze-actions button:not(:disabled):hover {
+  background: var(--surface-2);
+}
+
+.fc-nav button:disabled,
+.fc-cloze-actions button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.fc-nav .fc-nav-next,
+.fc-cloze-actions .fc-cloze-main {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.fc-nav .fc-nav-next:not(:disabled):hover,
+.fc-cloze-actions .fc-cloze-main:not(:disabled):hover {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.fc-nav .fc-nav-mark[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.fc-nav .fc-nav-mark[aria-pressed='true'] svg {
+  fill: currentColor;
+}
+
+.fc-card.is-marked {
+  border-left-color: var(--accent-text);
+}
+
+/* Luketekst: kortet med luke kan ikke snus, og feltet må kunne markeres og skrives i (Safari) */
+.fc-card.is-cloze {
+  cursor: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.fc-gap {
+  display: inline-block;
+  max-width: 100%;
+  min-height: 38px;
+  margin: 0 2px;
+  padding: 3px 8px;
+  vertical-align: baseline;
+  font-family: var(--font);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.fc-gap.is-right {
+  border-color: var(--fc-good);
+  background: color-mix(in srgb, var(--fc-good) 12%, var(--surface));
+  color: var(--fc-good-text);
+}
+
+.fc-gap.is-wrong {
+  border-color: var(--fc-bad);
+  background: color-mix(in srgb, var(--fc-bad) 10%, var(--surface));
+  color: var(--fc-bad-text);
+  text-decoration: line-through;
+}
+
+.fc-gap[readonly]:focus {
+  box-shadow: none;
+}
+
+.fc-answer b.fc-gap-answer {
+  margin-left: 4px;
+}
+
+.fc-cloze-result {
+  min-height: 1.4em;
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 14.5px;
+  color: var(--text-3);
+}
+
+.fc-cloze-result.is-ok {
+  color: var(--fc-good-text);
+}
+
+.fc-cloze-result.is-bad {
+  color: var(--fc-bad-text);
+}
+
+.fc-cloze-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.fc-cloze-actions > :only-child {
+  grid-column: 1 / -1;
+}
+
 /* Ferdig med runden */
 .fc-done {
   padding: 22px;
@@ -1190,9 +1424,31 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  /* Med tre valg får «Notat» hele bredden, som i originalen. */
-  .fc-controls > :first-child:nth-last-child(3) {
+  /* «Notat» får hele bredden, som i originalen, og «Lengde» står alene på siste rad. */
+  .fc-controls > .fc-control-wide {
     grid-column: span 2;
+  }
+
+  /* Fire former side om side; flere bryter til en ny rad. */
+  .fc-mode-switch {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+    width: 100%;
+  }
+
+  .fc-mode-switch .segment {
+    padding: 0 6px;
+    font-size: 13.5px;
+  }
+
+  .fc-two button {
+    min-height: 64px;
+  }
+
+  .fc-nav button,
+  .fc-cloze-actions button {
+    min-height: 56px;
+    padding: 0 10px;
   }
 
   .fc-rate {

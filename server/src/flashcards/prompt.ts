@@ -75,7 +75,7 @@ Forside ("front")
 
 Bakside ("back")
 - Svaret som korte punkter, ett punkt per element i listen. Stikkord er bedre enn hele setninger når det holder.
-- Marker de viktigste begrepene med to stjerner: **akselerasjon**.
+- Marker 1–3 korte nøkkelbegreper per kort med to stjerner: **akselerasjon**. Et nøkkelbegrep er ett til tre ord (et fagord, en enhet eller et navn), aldri en hel setning eller en formel. Eleven kan øve med luketekst, der et markert begrep byttes ut med et tomt felt eleven skal fylle ut.
 - Et punkt som starter med «!» blir en overskriftslinje uten punkttegn, f.eks. «!Fremgangsmåte». Bruk det sparsomt.
 - Ikke gjenta spørsmålet.
 
