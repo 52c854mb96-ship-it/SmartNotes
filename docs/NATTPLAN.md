@@ -1,5 +1,7 @@
 # Nattplan 13.–14. oktober 2026
 
+> **Avsluttet 14. oktober:** alle fasene er flettet (#22–#30). Hva eleven har gjort etterpå, og hva som gjenstår, står i [STATUS.md](STATUS.md) under «Status hos eleven». Fila er historikk: planen, loggen, «Spørsmål til eleven» og morgenrapporten.
+>
 > Planen for nattarbeidet som starter i en ny økt 13. oktober ca. kl. 21–22 og fortsetter til alt er ferdig. Eleven bestemte innholdet i chatten 13. oktober (se «Beslutninger»). **Det eleven skriver i chatten, går foran denne fila.** Les også [STATUS.md](STATUS.md) og [CLAUDE.md](../CLAUDE.md).
 
 Nøkkelordet er **«no rush»**: alt bygges strukturert og profesjonelt, med tester og gjennomgang før hver fletting. Arbeidet fortsetter så lenge det er noe igjen, også etter at bruksgrensen er nullstilt.
@@ -377,6 +379,7 @@ Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er nest
   - typecheck, test (306 + 2224), build og e2e (39) er grønne lokalt.
   - Kl. 02.18: PR [#29](https://github.com/52c854mb96-ship-it/SmartNotes/pull/29) (personvern og vilkår) er laget, og flettet kl. 02.33 etter grønn CI. Grenen er nullstilt fra `main`.
 - Kl. 02.40: alle fem fasene er ferdige. Morgenrapporten under er skrevet (PR [#30](https://github.com/52c854mb96-ship-it/SmartNotes/pull/30)), og rutinen `trig_012T5E4abuLufG4xWyNs5BfB` er slettet.
+- 14. oktober, morgen: eleven har gjort steg 1 (siste deploy i Railway stemmer), 2 (sikkerhetskopi), 3 (`PRIVACY_CONTROLLER_NAME` og `PRIVACY_CONTACT`) og 5 (grense i Anthropic Console). Steg 4, 6 og 7 tar eleven stilling til senere, og «Spørsmål til eleven» er ikke besvart ennå. Statusen er lagret i STATUS.md under «Status hos eleven», med en oppstartsprompt for neste økt. Nattplanen er avsluttet; nytt arbeid følger STATUS.md.
 
 ## Morgenrapport
 
@@ -422,16 +425,16 @@ Gjør punktene under i rekkefølge, så er appen klar for en annen elev.
 
 ### Morgenlista i rekkefølge
 
-1. **Sjekk at den nye versjonen er lagt ut:** Railway → tjenesten → **Deployments**. Den øverste skal være grønn og ha meldingen «Morgenrapport for natt til 14. oktober (#30)» (eller #29). Logg inn i appen som før (passordet ditt, brukernavnet kan stå tomt). Brukernavnet ditt er `eier`, og du kan endre det i Innstillinger → Konto.
-2. **Ta en sikkerhetskopi:** Innstillinger → «Sikkerhetskopi» → last ned, før noen andre registrerer seg.
-3. **Variabler i Railway** (tjenesten → **Variables**, så **Deploy**):
+1. **Gjort 14. oktober.** **Sjekk at den nye versjonen er lagt ut:** Railway → tjenesten → **Deployments**. Den øverste skal være grønn og ha meldingen «Morgenrapport for natt til 14. oktober (#30)» (eller #29). Logg inn i appen som før (passordet ditt, brukernavnet kan stå tomt). Brukernavnet ditt er `eier`, og du kan endre det i Innstillinger → Konto.
+2. **Gjort 14. oktober.** **Ta en sikkerhetskopi:** Innstillinger → «Sikkerhetskopi» → last ned, før noen andre registrerer seg.
+3. **Gjort 14. oktober.** **Variabler i Railway** (tjenesten → **Variables**, så **Deploy**):
    - `PRIVACY_CONTROLLER_NAME`: navnet til den som er ansvarlig for personopplysningene (deg eller en forelder);
    - `PRIVACY_CONTACT`: en e-postadresse (eller annen kontakt) for personvern, sletting og «Meld fra».
    - Kvotene trenger ingen variabler. Vil du endre dem, står `FREE_PAGES_PER_DAY`, `FREE_DECKS_PER_DAY`, `FREE_TOC_PER_DAY`, `FREE_QUEUE_MAX` og `FREE_DAILY_BUDGET_NOK` i README. `TRUST_PROXY_HOPS` skal ikke settes (standarden 1 er riktig for Railway).
-4. **Prøv registreringen selv:** Innstillinger → **Inviter en elev** → **Lag invitasjon**, åpne lenken i et privat vindu eller på mobilen, og lag en testkonto. Last opp ett notat, og se at det konverteres. Slett så testkontoen med Innstillinger → Konto → **Slett kontoen**.
-5. **Anthropic Console** → Settings → **Limits**: sett en månedlig grense (planens forslag: 20 USD, varsel ved 10 USD).
-6. **La en voksen lese** personvernerklæringen og vilkårene i appen, og sjekke det erklæringen med vilje ikke påstår noe om: hvilken region Railway-tjenesten og volumet ligger i, hvor lenge Railway beholder driftsloggen, og hva Anthropics vilkår for API-et sier om lagring og trening. Planen anbefaler også at en voksen eier API-kontoen før andre bruker appen.
-7. **Send invitasjonen** til eleven.
+4. **Venter (eleven tar stilling senere).** **Prøv registreringen selv:** Innstillinger → **Inviter en elev** → **Lag invitasjon**, åpne lenken i et privat vindu eller på mobilen, og lag en testkonto. Last opp ett notat, og se at det konverteres. Slett så testkontoen med Innstillinger → Konto → **Slett kontoen**.
+5. **Gjort 14. oktober.** **Anthropic Console** → Settings → **Limits**: sett en månedlig grense (planens forslag: 20 USD, varsel ved 10 USD).
+6. **Venter (eleven tar stilling senere).** **La en voksen lese** personvernerklæringen og vilkårene i appen, og sjekke det erklæringen med vilje ikke påstår noe om: hvilken region Railway-tjenesten og volumet ligger i, hvor lenge Railway beholder driftsloggen, og hva Anthropics vilkår for API-et sier om lagring og trening. Planen anbefaler også at en voksen eier API-kontoen før andre bruker appen.
+7. **Venter (eleven tar stilling senere).** **Send invitasjonen** til eleven.
 
 Og hele tiden:
 - **Ikke rull tilbake** i Railway til en versjon fra før kontoene etter at en elev har registrert seg. Den gamle versjonen kjenner ikke kontoene og ville vist elevens fag og notater som dine.

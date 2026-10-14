@@ -1,6 +1,6 @@
 # Status for SmartNotes
 
-> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 13. oktober 2026, etter PR #20 (Haiku-instrukser versjon 2), med beslutningene for nattarbeidet. **Nattarbeidet 13.–14. oktober følger [NATTPLAN.md](NATTPLAN.md); les den og loggen der først.** Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etterpå.
+> **Det eleven skriver i chatten, går alltid foran det som står her.** Denne fila er et øyeblikksbilde som gjør det lett å starte en ny økt uten å miste sammenhengen. Den ble sist oppdatert 14. oktober 2026 (morgen), etter nattarbeidet 13.–14. oktober (#22–#30) og stegene eleven gjorde i Railway og Anthropic Console etterpå (se «Status hos eleven»). Nattarbeidet er ferdig; planen, loggen, morgenrapporten og valgene nattøkta tok på egen hånd, står i [NATTPLAN.md](NATTPLAN.md). Kjør `git fetch origin main && git log origin/main` for å se det som har skjedd etter dette.
 
 Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen dokumentasjon står i [README.md](../README.md) og [OPPSETT.md](OPPSETT.md).
 
@@ -9,7 +9,7 @@ Arkitektur og kodekonvensjoner står i [CLAUDE.md](../CLAUDE.md). Elevens egen d
 SmartNotes er en personlig app for en elev på VG2. Eleven tar bilder av håndskrevne notater eller laster opp PDF-er. Claude leser dem og skriver dem om til LaTeX, og serveren lager pene PDF-er. Notatene sorteres etter fag, kapittel og delkapittel i læreboka.
 
 - **Fag:** Fysikk 1, Kjemi 1 og Biologi 1, alle etter LK20, med SmartNotes' egne temaer (ingen lærebok innebygd; eleven kan importere sin egen innholdsfortegnelse). Geofag 1 (LK20, GFG01-03) legges ikke inn av seg selv, men kan legges til med «Legg til fag» → «Fra læreplanen».
-- **Hvem bruker den:** eleven har bare Fysikk 1. Kjemi 1 og Biologi 1 er laget for at andre skal kunne bruke appen senere.
+- **Hvem bruker den:** eleven (eieren, brukernavn `eier`) har bare Fysikk 1. Kjemi 1, Biologi 1 og Geofag 1 er for andre elever, som kan registrere seg med en invitasjon fra eieren. Per 14. oktober er ingen andre invitert ennå.
 - **Hvordan den kjører:** en PWA som fungerer uten nett, og én server (Docker) på Railway som synkroniserer alle enhetene (Mac, PC, iPad og mobil).
 - **Språk:** alt eleven ser, er på bokmål: appen, feilmeldingene og PDF-malene. Koden bruker engelske navn.
 
@@ -80,6 +80,7 @@ Alt ble bygget 4.–14. oktober 2026 og flettet inn i `main` gjennom disse pull 
 | [#28](https://github.com/52c854mb96-ship-it/SmartNotes/pull/28) | Kvoter for gratiskontoer: sider, kortstokker og innholdsfortegnelser per norsk døgn, tak på køen, dagsbudsjett, rettferdig kø og utklipp som JPEG |
 | [#29](https://github.com/52c854mb96-ship-it/SmartNotes/pull/29) | Personvern og vilkår: egne sider, godkjenning ved registrering, «AI-generert» i PDF-ene og i appen, «Meld fra» og «Slett kontoen» |
 | [#30](https://github.com/52c854mb96-ship-it/SmartNotes/pull/30) | Morgenrapporten for natt til 14. oktober (nederst i [NATTPLAN.md](NATTPLAN.md)) |
+| [#31](https://github.com/52c854mb96-ship-it/SmartNotes/pull/31) | Status etter natten: hva eleven har gjort i Railway og Anthropic Console, hva som venter, og oppstartsprompten for neste økt |
 
 **Tester:** omtrent 2 530 enhetstester (306 på serveren og 2 224 i web-appen, de fleste for modellene bak visualiseringene; kvotene testes med falsk klokke), 39 ende-til-ende-tester i Chromium (PC og mobil, inkludert at en ny versjon tas i bruk, at riktig PDF vises når man bytter notat, at sikkerhetskopien lastes ned, hele flyten for «Prøv med Haiku», lisenssiden, «Legg til fag» med Geofag 1, forsiden, invitasjon og registrering, nytt passord, kontobytte, personvernsidene og «Slett kontoen») og egne tester for Safari og iPad (WebKit). CI kjører tre jobber: `test`, `webkit` og `docker`.
 
@@ -98,7 +99,8 @@ Ikke endre disse uten å spørre først.
 - **Kostnad:** Sonnet 5.5 med middels grundighet for elevens egne notater ([PR #5](https://github.com/52c854mb96-ship-it/SmartNotes/pull/5)).
 - **Motor per bruker (13. oktober, kveld):** Sonnet lager elevens egne notater, med omtrent de samme konkrete instruksene som Haiku fikk i versjon 2. Andre brukere får Haiku 5.5 med Haiku-tillegget og høy grundighet. Sonnet blir en pro-funksjon når pro bygges. Før det satser vi fullt på gratistilbudet med tak (15 sider og 2 kortstokker per dag) for å bygge en kundebase, og godtar å tape litt penger.
 - **Resultatet av Haiku versjon 2 (13. oktober):** Haiku ble god nok på 3 av 3 notater (Virkningsgrad, Kinetisk energi, Potensiell energi), og på Luftmotstand og terminalfart. Eleven synes Haiku er bedre enn Sonnet på enkelte områder, som å vise formlene tydelig med farger. Det eneste som må rettes: Haiku setter `\uleselig` på ord den ikke klarer å tolke helt, og skal heller lese dem ut fra sammenhengen.
-- **Kontoer og personvern (13. oktober, kveld):** invitasjonskode som eieren lager i Innstillinger, brukernavn og passord uten e-post, og engangslenke ved glemt passord. Ansvarlig i personvernerklæringen og vilkårene står åpent foreløpig (plassholder).
+- **Kontoer og personvern (13. oktober, kveld):** invitasjonskode som eieren lager i Innstillinger, brukernavn og passord uten e-post, og engangslenke ved glemt passord. Ansvarlig og kontakt i personvernerklæringen og vilkårene kommer fra variabler i Railway; eleven fylte dem inn 14. oktober.
+- **Valgene nattøkta tok på egen hånd (14. oktober):** lisensteksten, Udirs skrivemåte for nye fag, lærebøker fra tidligere versjoner, Geofag 1 etter GFG01-03, brukernavnet `eier`, aldersgrensen 15 år, at kortstokker og innholdsfortegnelser for elever går til samme AI som eierens, kontosperren, kvotene, utklipp som JPEG, at `source/` beholdes, slettede notater som gravsteiner, «AI-generert» på PDF-er fra før og driftsloggen. De står med begrunnelse under «Spørsmål til eleven» i [NATTPLAN.md](NATTPLAN.md). Eleven har ikke svart på dem ennå; spør før noe av det endres.
 - **Fag og forside (13. oktober, kveld):** Geofag 1 legges til for andre brukere; eleven har bare Fysikk 1. Appen skal ha en forside med en kort presentasjon og fagene som kort, i stedet for å åpne fysikk av seg selv.
 - **Haiku 5.5 (12. oktober):** kortstokker og innholdsfortegnelser går til Haiku. Konverteringen per bruker er bestemt 13. oktober (se «Motor per bruker» over).
 - **Haiku-instruksene (13. oktober):** etter sammenligning av tre notater (Haiku god nok på 0 av 3) valgte eleven først et eget tillegg for Haiku, så Sonnets instrukser og notater ikke endres (endret samme kveld: Sonnet skal også få dem), høyere grundighet for Haiku, og at sammenligningene lages på nytt i appen og vurderes per instruksversjon. Kommentarene eleven ga: Haiku brukte for få fargede bokser for de sentrale formlene (Sonnet navngir formelen), merket en formel som ble bygd videre på som skrivefeil, delte en utregning over to sider, og klipte ut tegninger der eleven vil ha dem tegnet i TikZ. Eleven liker at Haiku har færre merknader.
@@ -129,22 +131,33 @@ Ikke endre disse uten å spørre først.
 - **Store oppgaver:**
   - Workflows og agenter er greit, så lenge oppgavene er strukturerte og ikke går i beina på hverandre.
   - Natt til 12. oktober fikk Claude lov til å flette alt som er grønt, etter grundig egenkontroll. Store valg som krever eleven (Railway, betaling, juss, navneoppryddingen), venter på eleven.
-  - Natt til 14. oktober gjelder det samme, også for PR-er som endrer databasen. Nattøkta spør ikke eleven; valg som ikke står i [NATTPLAN.md](NATTPLAN.md), tas etter det tryggeste alternativet og skrives under «Spørsmål til eleven» der.
+  - Natt til 14. oktober gjaldt det samme, også for PR-er som endrer databasen, og nattøkta spurte ikke eleven (valgene står under «Spørsmål til eleven» i [NATTPLAN.md](NATTPLAN.md)). Natta er over; nå gjelder de vanlige avtalene over, med oppklaringsspørsmål før en ny funksjon.
   - Hvis eleven ber deg jobbe lenge, for eksempel over natten, sørger du for at arbeidet fortsetter av seg selv når bruksgrensen er nullstilt.
   - Legg vekt på feilsøking og finpuss underveis.
 - **Denne fila:** oppdater `docs/STATUS.md` når en større oppgave er ferdig. Oppdater også `CLAUDE.md` når arkitekturen endres.
 
-## Kan være ugjort hos eleven
+## Status hos eleven (Railway og Anthropic Console)
 
-Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å anta.
+Eleven gjør selv det som skjer i Railway og Anthropic Console. Dette er det eleven har sagt i chatten; det som ikke står her, er ikke bekreftet, så spør heller enn å anta.
 
-1. **Settings → Source:** grenen skal være `main`, og «Wait for CI» skal være på.
-2. **Hvis eleven bare vil ha Fysikk 1:**
+**Gjort 14. oktober** (stegene i morgenrapporten nederst i [NATTPLAN.md](NATTPLAN.md)):
+1. **Steg 1:** siste deploy i Railway stemmer med `main` (#30). Railway legger altså ut `main`; at «Wait for CI» er på under Settings → Source, er ikke uttrykkelig bekreftet.
+2. **Steg 2:** sikkerhetskopi tatt etter at den nye versjonen var lagt ut (Innstillinger → «Sikkerhetskopi»).
+3. **Steg 3:** `PRIVACY_CONTROLLER_NAME` og `PRIVACY_CONTACT` er satt i Railway. Verdiene står bare der (de er ikke i repoet).
+4. **Steg 5:** månedlig grense i Anthropic Console → Settings → Limits er satt. Planen foreslo 20 USD med varsel ved 10 USD; de faktiske verdiene er elevens.
+
+**Venter på eleven** (eleven tar stilling til dem senere; ikke gjør dem, og ikke mas):
+1. **Steg 4, prøve registreringen på Railway:** Innstillinger → «Inviter en elev» → «Lag invitasjon», åpne lenken i et privat vindu eller på mobilen, lag en testkonto, last opp ett notat og se at det konverteres, og slett så testkontoen med Innstillinger → Konto → «Slett kontoen». Det er det eneste som ennå ikke er prøvd ende til ende på produksjon.
+2. **Steg 6, en voksen leser personvernerklæringen og vilkårene** i appen, og sjekker det erklæringen med vilje ikke påstår noe om: hvilken region Railway-tjenesten og volumet ligger i, hvor lenge Railway beholder driftsloggen, og hva Anthropics vilkår for API-et sier om lagring og trening. Planen anbefaler også at en voksen eier API-kontoen før andre bruker appen.
+3. **Steg 7, sende invitasjonen** til en annen elev.
+4. **Spørsmålene nattøkta har til eleven** (se «Valg eleven har tatt» over).
+
+**Ellers, ikke bekreftet:**
+1. **Hvis eleven bare vil ha Fysikk 1:**
    - Legg til variabelen `SEED_TEXTBOOKS` med verdien `fysikk-1-lk20`.
    - Er Kjemi 1 og Biologi 1 allerede lagt inn, slettes de i appen: tannhjulet på fagsiden → **Slett faget**. Et slettet fag kommer ikke tilbake.
-3. **Variabler:** `CLAUDE_MODEL`, `CLAUDE_MODEL_FLASHCARDS`, `CLAUDE_MODEL_TOC` og `CLAUDE_EFFORT` bør ikke være satt, ellers overstyrer de standardverdiene.
-4. **Personvern:** `PRIVACY_CONTROLLER_NAME` (ansvarlig) og `PRIVACY_CONTACT` (kontakt) bør være satt før en annen elev registrerer seg. Uten dem står det «[Fylles inn]» i personvernerklæringen og vilkårene.
-5. **Lokal AI og hjemmemaskin** trenger ingen nye variabler før eleven vil prøve dem. Alt er av som standard, og forbruksloggen virker uten oppsett.
+2. **Variabler:** `CLAUDE_MODEL`, `CLAUDE_MODEL_FLASHCARDS`, `CLAUDE_MODEL_TOC` og `CLAUDE_EFFORT` bør ikke være satt, ellers overstyrer de standardverdiene. `TRUST_PROXY_HOPS` skal heller ikke settes (standarden 1 er riktig for Railway). Kvotene (`FREE_*`) har standardverdier og trenger ingen variabler.
+3. **Lokal AI og hjemmemaskin** trenger ingen nye variabler før eleven vil prøve dem. Alt er av som standard, og forbruksloggen virker uten oppsett.
 
 ## Kjente begrensninger og åpne spørsmål
 
@@ -157,7 +170,8 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 - **Rottegnet (√) i `FormulaLine`** står litt for lavt. Kapittel 4 retter det lokalt; det bør rettes i `viz/kit/` for alle.
 - **De nye visualiseringene er ikke prøvd på en ekte iPad eller iPhone,** bare i WebKit-testene i CI.
 - **Kvotene er gjettet, ikke målt:** 15 sider, 2 kortstokker og 3 innholdsfortegnelser per døgn og 30 kroner i dagsbudsjett er planens forslag. De kan endres med variablene `FREE_*` i Railway (se README). Det første notatet i et døgn får starte selv om det har flere sider enn taket.
-- **Personvernerklæringen er ikke juridisk kontrollert:** den er skrevet nøytralt etter det koden gjør. Den sier ikke hvor Railway kjører serveren (region), hvor lenge Railway beholder driftsloggen, eller hva Anthropic gjør med dataene (den viser til Anthropics egne vilkår). Det bør en voksen sjekke.
+- **Personvernerklæringen er ikke juridisk kontrollert:** den er skrevet nøytralt etter det koden gjør, og ansvarlig og kontakt er fylt inn. Den sier ikke hvor Railway kjører serveren (region), hvor lenge Railway beholder driftsloggen, eller hva Anthropic gjør med dataene (den viser til Anthropics egne vilkår). Det skal en voksen sjekke (steg 6, venter på eleven).
+- **Registreringen er ikke prøvd på Railway:** invitasjon, registrering, kvoter og «Slett kontoen» er testet i testene (også ende til ende i nettleseren), men ikke på produksjonsserveren (steg 4, venter på eleven).
 - **«AI-generert» i PDF-ene:** PDF-er som lages fra 14. oktober, har merket. Et notat som var ferdig fra før, får det når det kompileres på nytt (samle-PDF-ene lages på nytt av seg selv). Notatsiden i appen viser merket for alle notater.
 - **Kontoer:** eieren (deg) og elever med invitasjon. Det er ingen e-post i appen, så en lenke for nytt passord går alltid gjennom eieren. Rull ikke tilbake i Railway til en versjon fra før kontoene etter at en elev har registrert seg.
 - **Udir:** `data.udir.no` og `www.udir.no` svarer i skyøkta fra 13. oktober (kveld). Kompetansemålene er kontrollert ord for ord mot Grep (se `server/test/fixtures/udir-kompetansemaal.json`).
@@ -170,19 +184,38 @@ Det er ikke bekreftet at eleven har gjort dette i Railway. Spør heller enn å a
 
 Dette er bare forslag. Eleven bestemmer rekkefølgen. Detaljene står i bolkene i [planen](https://claude.ai/artifact/RyN9UDgBgDiHQdXaFRpvck).
 
-**Natt til 14. oktober (ferdig):** alle fem fasene i [NATTPLAN.md](NATTPLAN.md) er flettet (#22–#29): kvalitet og opphavsrett, Geofag 1, forside, kontoer, kvoter og personvern. Morgenrapporten nederst i NATTPLAN.md har det eleven må gjøre før en annen elev registrerer seg. Det som står under, er det som kommer etterpå, og punktene som overlapper med nattplanen, gjelder ikke lenger.
+**Natt til 14. oktober (ferdig):** alle fem fasene i [NATTPLAN.md](NATTPLAN.md) er flettet (#22–#29): kvalitet og opphavsrett, Geofag 1, forside, kontoer, kvoter og personvern. Det som gjenstår før en annen elev registrerer seg, gjør eleven selv (se «Status hos eleven»). Forslagene under er det som kommer etterpå.
 
 1. **Elevens beslutninger:** eleven leser planen og svarer på beslutningene i del 7, særlig motoren i betaen (Haiku eller lokal AI), repoet (lisens eller privat) og hvem som eier API-kontoen.
 2. **Etter navneoppryddingen (#15):** sjekk at eleven ikke har fått doble fag, og at visualiseringene fortsatt vises på notatene.
 3. **Måling (bolk 1):** eleven kjører `npm run eval` med Sonnet, Haiku og 3–5 lokale modeller på 10–20 egne sider, setter karakterer og sender CSV-fila. Uten dette er alle tall om kvalitet gjetninger.
-4. **Haiku (bolk 2):** ferdig for denne runden: Haiku versjon 2 ble god nok på alle notatene eleven vurderte (#20). Rettelsen av `\uleselig` og instruksene for Sonnet ligger i nattplanen (fase 1a). Senere tiltak hvis kvaliteten faller: notatet i biter på 2–3 sider per kall, retting som endrer bare linjene med feil, alle kompileringsfeil i én runde, og utklipp i stedet for TikZ når en tegning ikke kompilerer.
-5. **Kontoer, kvoter og personvern (bolk 4–6):** i nattplanen (fase 4 og 5). Etterpå: pro-nivået med Sonnet (bolk 12), og en lukket beta for venner og klassen (bolk 7).
+4. **Haiku (bolk 2):** ferdig for denne runden: Haiku versjon 2 ble god nok på alle notatene eleven vurderte (#20). Rettelsen av `\uleselig` og de presise reglene for Sonnet er flettet (#22, instruksversjon 3; versjon 4 kom med Geofag 1 i #24). Senere tiltak hvis kvaliteten faller: notatet i biter på 2–3 sider per kall, retting som endrer bare linjene med feil, alle kompileringsfeil i én runde, og utklipp i stedet for TikZ når en tegning ikke kompilerer.
+5. **Kontoer, kvoter og personvern (bolk 4–6):** ferdig (#26–#29). Neste: en lukket beta for venner og klassen (bolk 7) når stegene i «Status hos eleven» er gjort, og pro-nivået med Sonnet (bolk 12).
 6. **Reserven for hjemmemaskinen (bolk 8):** ventetid per nivå og Haiku i stedet for Sonnet. Til da bør `REMOTE_FALLBACK` stå på `none`.
 7. **Visualiseringene:** fysikk kapittel 5–10, deretter kjemi, biologi og geofag. Skriptene og fremgangsmåten står i [docs/workflows/README.md](workflows/README.md), og fremdriften i [VISUALISERINGER-PLAN.md](VISUALISERINGER-PLAN.md).
-8. **Prøve med ekte Claude:** konverter noen vanskelige fysikknotater og lag et par kortstokker. Juster så instruksene etter resultatet: `server/src/profiles/physics.ts` og `server/src/flashcards/prompt.ts`.
+8. **Prøve med ekte Claude:** konverter noen vanskelige fysikknotater og lag et par kortstokker. Se særlig etter om de presise reglene (versjon 4) følges: navngitte formelbokser, få merknader, `\uleselig` bare når sammenhengen ikke avgjør, og tegnemalene. Prøv også en gratiskonto (Haiku med høy grundighet) og Geofag 1. Juster så instruksene etter resultatet: `server/src/profiles/` (`precise.ts` og fagprofilene) og `server/src/flashcards/prompt.ts`.
 9. **Delkapitler for Kjemi 1 og Biologi 1:** når noen har bøkene, importeres innholdsfortegnelsen. Etterpå kan visualiseringene kobles til delkapitlene.
 10. **Mer i flashcards:** «Lag flere kort» i en kortstokk som finnes fra før, og eksport, for eksempel til CSV eller Anki.
 11. **Mindre hovedbunt** og **gjenoppretting av sikkerhetskopi fra appen.**
+12. **Spørsmålene fra nattøkta:** for eksempel om alle ferdige notater skal kompileres på nytt, så PDF-ene fra før også får merket «AI-generert», og om navnet ditt skal stå i `LICENSE`.
+
+## Oppstart av en ny økt
+
+Eleven limer inn denne prompten i en ny økt. Den ber Claude lese seg opp og så vente på oppgaven i neste melding:
+
+```text
+Hei! Dette er en ny økt i SmartNotes. Før du gjør noe annet:
+
+1. Les `CLAUDE.md`, så `docs/STATUS.md` (særlig «Status hos eleven», «Kjente begrensninger og åpne spørsmål» og «Naturlige neste steg»), og deretter morgenrapporten og «Spørsmål til eleven» i `docs/NATTPLAN.md`. Kjør `git fetch origin main` og `git log --oneline -15 origin/main` for å se om noe er nyere enn STATUS.
+2. Ikke endre kode, ikke lag PR og ikke start workflows ennå. Skal du kjøre testene senere i økta, installerer du TeX Live først (kommandoen står i `CLAUDE.md`).
+
+Svar meg så kort, på bokmål:
+- status i 3–5 linjer: det som sist er flettet, og hva som kjører på Railway;
+- det som venter på meg (stegene i morgenrapporten som ikke er gjort, og spørsmålene nattøkta har til meg);
+- 3–5 forslag til hva vi kan gjøre nå, med det du anbefaler først og én setning om hvorfor.
+
+Avslutt med å spørre hva jeg vil gjøre. Oppgaven kommer i neste melding fra meg. Husk avtalene i `CLAUDE.md` og STATUS: bokmål, analogier når noe er nytt, oppklaringsspørsmål samlet før en ny funksjon, PR som du fletter selv når CI er grønn, og aldri be meg lime inn nøkler eller passord.
+```
 
 ## Nyttige kommandoer
 

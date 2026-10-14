@@ -4,7 +4,7 @@ Personal app for a Norwegian student: handwritten lecture notes (photos/PDF) →
 
 ## Session start
 - Read `docs/STATUS.md` first: what the app does today, the decisions the user has made, working agreements, open questions and suggested next steps. Then check `git log origin/main` for anything newer.
-- Night of 13–14 Oct 2026 (done, #22–#29): the work plan, decisions, progress log and the morning report with the user's to-do list are in `docs/NATTPLAN.md` (read it after STATUS).
+- Night of 13–14 Oct 2026 (done, #22–#30): plan, decisions, progress log, the night's own choices («Spørsmål til eleven», not yet answered by the user) and the morning report are in `docs/NATTPLAN.md` (history; read its morning report and «Spørsmål til eleven» after STATUS). What the user has done in Railway/Anthropic Console since, and the launch steps still waiting on them (test registration on Railway, an adult reads the privacy texts, sending the invite), are in STATUS «Status hos eleven». The paste-in prompt for a new session is at the end of STATUS («Oppstart av en ny økt»).
 - **The user's messages in chat override this file and `docs/STATUS.md`.** Both are snapshots.
 - Key agreements (details in STATUS):
   - Reply in Norwegian bokmål; the user likes analogies for new concepts. Commit messages, PR titles and PR descriptions are in bokmål too.
