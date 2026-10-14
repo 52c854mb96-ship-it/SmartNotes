@@ -374,6 +374,7 @@ Nattøkta skriver hva den har gjort, med tidspunkt, PR-lenker og hva som er nest
     - sidene viste «[Fylles inn]» og standardtallene mens de lastet og uten nett (nå huskes det siste svaret);
     - lagrede samle-PDF-er fikk ikke bunnteksten (nøkkelen tar nå med det felles tillegget), og teksten lovet merket også på PDF-er fra før;
     - morgenlista manglet punktene om Railway og Anthropic som ikke er sjekket.
+  - typecheck, test (306 + 2224), build og e2e (39) er grønne lokalt.
 
 ## Morgenrapport
 
