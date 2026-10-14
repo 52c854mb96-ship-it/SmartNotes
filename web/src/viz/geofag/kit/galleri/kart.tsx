@@ -1,8 +1,9 @@
 /**
  * Galleri for diagrammene og kartene i geofag-kit-et (?galleri=geo-kart): LogPlot (log–log, semilog, høyreakse,
- * tierpotenser og egne akseverdier), Klimadiagram (grått og farget), GeoTidslinje (vannrett, loddrett, zoom med
- * Zoomtrakt og logaritmisk), Kotekart (fjordlandskap, nedbørfelt med faresoner og et rent kotekart) og Profildiagram
- * (med og uten overhøyde). Tallene er tenkte eller omtrentlige.
+ * tierpotenser og egne akseverdier), Klimadiagram (grått og farget med markert måned), GeoTidslinje (vannrett med
+ * flagg, loddrett, zoom med Zoomtrakt og nummererte merker, logaritmisk og i tusen år), Kotekart (fjordlandskap,
+ * nedbørfelt, faresoner på dempet grunnkart og et rent kotekart), høydelagene og Profildiagram (med og uten overhøyde).
+ * Tallene er tenkte eller omtrentlige.
  */
 import { useMemo } from 'react';
 import { VIZ } from '../../../kit/colors';
@@ -52,7 +53,7 @@ function Hjulstrom({ f }: { f: number }) {
               <line key={kk.id} x1={sx(kk.min)} x2={sx(kk.min)} y1={y0} y2={y1} stroke={VIZ.muted} strokeWidth={1.2 * ss} strokeDasharray="4 4" />
             ))}
             {KORNKLASSER.slice(0, 5).map((kk) => (
-              <Txt key={kk.id} x={sx(Math.sqrt(Math.max(kk.min, 0.001) * (kk.max ?? 1000)))} y={y1 + 20 * f} size={0.7} muted>
+              <Txt key={kk.id} x={Math.max(x0 + 22 * f, sx(Math.sqrt(Math.max(kk.min, 0.001) * (kk.max ?? 1000))))} y={y1 + 20 * f} size={0.7} muted>
                 {kk.navn.charAt(0).toUpperCase() + kk.navn.slice(1)}
               </Txt>
             ))}
@@ -105,7 +106,7 @@ function Kornkurve({ f }: { f: number }) {
           <Txt x={sx(0.25) - 10} y={sy(50) - 10} anchor="end" size={0.78} color={VIZ.series[0]}>
             Godt sortert sand
           </Txt>
-          <Txt x={sx(1.2)} y={sy(72)} anchor="end" size={0.78} color={VIZ.series[3]}>
+          <Txt x={sx(4) + 8} y={sy(62)} anchor="start" size={0.78} color={VIZ.series[3]}>
             Dårlig sortert morene
           </Txt>
         </g>
@@ -132,7 +133,7 @@ function Viskositet({ f }: { f: number }) {
         <g>
           <path d={linePath(eta, sx, sy)} fill="none" stroke={VIZ.series[0]} strokeWidth={3 * ss} />
           <path d={linePath(temp, sx, sy2)} fill="none" stroke={GEO.fare[3]} strokeWidth={3 * ss} strokeDasharray="9 6" />
-          <Txt x={sx(51)} y={sy(10 ** 4.2)} anchor="start" size={0.8} color={VIZ.series[0]}>
+          <Txt x={sx(54) - 8} y={sy(10 ** 4.6)} anchor="end" size={0.8} color={VIZ.series[0]}>
             Basalt: tyntflytende
           </Txt>
           <Txt x={sx(69)} y={sy(10 ** 7.4) + 30 * f} anchor="start" size={0.8} color={VIZ.series[0]}>
@@ -248,11 +249,14 @@ function TidslinjeFull({ f }: { f: number }) {
 
 const FANEROZOISKE: TidsHendelse[] = GEO_HENDELSER.filter((h) => h.alder <= 540 && h.alder > 1).map((h) => ({ ...h, farge: h.norsk ? GEO.vannskille : undefined }));
 
+/** Den nummererte listen trenger mer plass på mobil. */
+const zoomHoyde = (f: number) => geoHoyde(f, 420) + (f > 1.3 ? 320 : 0);
+
 function TidslinjeZoom({ f }: { f: number }) {
   const topp = { x: 20, y: 8, width: 760, height: 46 * f + 52 * f, niva: ['eon'] as const, samlePrekambrium: true, akse: true, utsnitt: { fra: 538.8, til: 0 } };
   const gTopp = tidslinjeGeometri({ ...topp, niva: ['eon'] }, f);
   const y2 = topp.y + topp.height + 40 * f;
-  const bunn = { x: 20, y: y2, width: 760, height: geoHoyde(f, 420) - y2 - 6, fra: 538.8, til: 0, niva: ['era', 'periode'] as const, hendelser: FANEROZOISKE };
+  const bunn = { x: 20, y: y2, width: 760, height: zoomHoyde(f) - y2 - 6, fra: 538.8, til: 0, niva: ['era', 'periode'] as const, hendelser: FANEROZOISKE };
   const gBunn = tidslinjeGeometri({ ...bunn, niva: ['era', 'periode'] }, f);
   const a = gTopp.s(538.8);
   const b = gTopp.s(0);
@@ -305,6 +309,24 @@ function TidslinjeLog({ f }: { f: number }) {
       hendelser={hendelser}
       markor={0.0117}
       markorTekst=""
+    />
+  );
+}
+
+function TidslinjeTusen({ f }: { f: number }) {
+  const hendelser: TidsHendelse[] = GEO_HENDELSER.filter((h) => h.alder <= 0.03).map((h) => ({ ...h, tekst: h.omtrent ? `${h.tekst} (omtrent)` : h.tekst }));
+  return (
+    <GeoTidslinje
+      x={20}
+      y={8}
+      width={760}
+      height={geoHoyde(f, 220) - 16}
+      fra={0.03}
+      til={0}
+      niva={['periode', 'epoke']}
+      hendelser={hendelser}
+      markor={0.0108}
+      markorTekst="Isen har smeltet bort fra kysten (tenkt sted)"
     />
   );
 }
@@ -456,7 +478,7 @@ function Fjordkart() {
       width={800}
       hav={0}
       innsjoer={[{ punkt: [2050, 1330], niva: 400, navn: 'Storvatnet' }]}
-      elver={[{ fra: [2390, 640], navn: 'Dalelva' }, { fra: [1720, 120] }, { fra: [2050, 1330] }]}
+      elver={[{ fra: [2300, 660], navn: 'Dalelva' }, { fra: [1180, 330] }, { fra: [2050, 1330] }]}
       merker={[
         { p: [1900, 260], symbol: 'topp', navn: 'Høgfjellet' },
         { p: [650, 280], symbol: 'topp' },
@@ -472,7 +494,14 @@ function Fjordkart() {
 
 function Nedborfeltkart() {
   const felt = useNedborfelt();
-  return <Kotekart felt={felt} width={800} elver={[{ fra: [930, 30] }, { fra: [1800, 140] }]} vannskiller={[{ utlop: [1050, 1390], navn: 'Nedbørfelt' }]} />;
+  return (
+    <Kotekart
+      felt={felt}
+      width={800}
+      elver={[{ fra: [930, 30], navn: 'Storelva' }, { fra: [1800, 140], navn: 'Sidebekken' }]}
+      vannskiller={[{ utlop: [1250, 720], navn: 'Nedbørfelt' }]}
+    />
+  );
 }
 
 function Farekart() {
@@ -482,9 +511,10 @@ function Farekart() {
       felt={felt}
       width={800}
       ekvidistanse={10}
+      dempet
       elver={[{ fra: [10, 1150], navn: 'Elva' }]}
       soner={[
-        { verdi: (x, _y, z) => 18.5 - 0.004 * x - z, farge: GEO.nedbor, navn: 'Flomsone', fyll: 0.34, kant: 'stiplet', etikett: [1000, 1270] },
+        { verdi: (x, _y, z) => 18.5 - 0.004 * x - z, farge: GEO.nedbor, navn: 'Flomsone', fyll: 0.22, kant: 'stiplet', etikett: [1000, 1270] },
         {
           verdi: (x, y) => (helning(felt, x, y)?.grader ?? 0) - 25,
           farge: GEO.fare[3]!,
@@ -514,6 +544,7 @@ function Enkeltkart() {
       hoydelag={false}
       relieff={false}
       maalestokk={10000}
+      kotetallRetning="terreng"
       innsjoer={[{ punkt: [900, 1000], niva: 140 }]}
       merker={[
         { p: [520, 520], symbol: 'topp', navn: 'Varden' },
@@ -531,19 +562,29 @@ function FjordProfil({ f, overhoyde }: { f: number; overhoyde: number | null }) 
   return <Profildiagram felt={felt} A={FJORD_PROFIL.A} B={FJORD_PROFIL.B} hav={0} height={geoHoyde(f, 260)} overhoyde={overhoyde} />;
 }
 
-function HoydelagTekst() {
+/** Tre ruter per rad på mobil, ellers fem på én rad. */
+const lagKolonner = (f: number) => (f > 1.3 ? 3 : 5);
+const lagRadH = (f: number) => 40 + 30 * f;
+
+function HoydelagTekst({ f }: { f: number }) {
   const felt = useFjord();
   const lag = hoydelagFor(felt, ekvidistanseFor(felt), 0);
+  const kol = lagKolonner(f);
+  const cw = 760 / kol;
   return (
     <g>
-      {lag.map((l, i) => (
-        <g key={i}>
-          <rect x={20 + i * 125} y={14} width={110} height={26} rx={4} fill={l.farge} stroke={VIZ.muted} strokeWidth={1} />
-          <Txt x={75 + i * 125} y={60} size={0.72} muted>
-            {`${fmt(l.fra, 0)}–${fmt(l.til, 0)} m`}
-          </Txt>
-        </g>
-      ))}
+      {lag.map((l, i) => {
+        const x = 20 + (i % kol) * cw;
+        const y = 12 + Math.floor(i / kol) * lagRadH(f);
+        return (
+          <g key={i}>
+            <rect x={x} y={y} width={cw - 16} height={26} rx={4} fill={l.farge} stroke={VIZ.muted} strokeWidth={1} />
+            <Txt x={x + (cw - 16) / 2} y={y + 30 + 17 * 0.72 * f} size={0.72} muted>
+              {i === lag.length - 1 ? `over ${fmt(l.fra, 0)} m` : `${fmt(l.fra, 0)}–${fmt(l.til, 0)} m`}
+            </Txt>
+          </g>
+        );
+      })}
     </g>
   );
 }
@@ -616,8 +657,8 @@ export default function Galleri() {
       <GalleryItem
         wide
         title="GeoTidslinje: zoom med utsnitt og Zoomtrakt"
-        note="Øverst samlePrekambrium og utsnitt fanerozoikum; under fra={538.8} med eraer, perioder og hendelser (norske i lilla). tidslinjeGeometri gir punktene til trakten."
-        viewBox={(f) => `0 0 800 ${geoHoyde(f, 420)}`}
+        note="Øverst samlePrekambrium og utsnitt fanerozoikum; under fra={538.8} med eraer, perioder og elleve hendelser (norske i lilla). For trangt til flagg, så merkene nummereres med en liste over. tidslinjeGeometri gir punktene til trakten."
+        viewBox={(f) => `0 0 800 ${zoomHoyde(f)}`}
       >
         {(f) => <TidslinjeZoom f={f} />}
       </GalleryItem>
@@ -637,8 +678,16 @@ export default function Galleri() {
       </GalleryItem>
       <GalleryItem
         wide
+        title="GeoTidslinje: de siste 30 000 årene (tusen år)"
+        note="fra={0.03}: enheten blir tusen år siden av seg selv; perioder og epoker, hendelser og en markør med egen tekst."
+        viewBox={(f) => `0 0 800 ${geoHoyde(f, 220)}`}
+      >
+        {(f) => <TidslinjeTusen f={f} />}
+      </GalleryItem>
+      <GalleryItem
+        wide
         title="Kotekart: fjordlandskap"
-        note="hav={0}, innsjø, elver med flytvei, topper med høyde, hus og profillinje A–B. Høydelag, relieff fra nordvest, tellekoter med tall mot høyere terreng, nordpil, målestokk og ekvidistanse."
+        note="hav={0}, innsjø, elver med flytvei (navnet der elva ikke deler løp med en annen), topper med høyde, hus og profillinje A–B. Høydelag, relieff fra nordvest, tellekoter med lesbare tall som holder seg unna navn og merker, nordpil, målestokk og ekvidistanse."
         viewBox="0 0 800 533.34"
       >
         <Fjordkart />
@@ -646,9 +695,10 @@ export default function Galleri() {
       <GalleryItem
         wide
         title="Høydelagene (hoydelagFor, til en tegnforklaring)"
-        viewBox="0 0 800 72"
+        note="I en visualisering passer Legend (HTML under figuren) best; her som SVG-ruter."
+        viewBox={(f) => `0 0 800 ${12 + Math.ceil(5 / lagKolonner(f)) * lagRadH(f)}`}
       >
-        <HoydelagTekst />
+        {(f) => <HoydelagTekst f={f} />}
       </GalleryItem>
       <GalleryItem
         title="Profildiagram langs A–B (overhøyde 1)"
@@ -664,19 +714,19 @@ export default function Galleri() {
       >
         {(f) => <FjordProfil f={f} overhoyde={null} />}
       </GalleryItem>
-      <GalleryItem title="Kotekart: nedbørfelt" note="vannskiller med utløp og navn; to elver fra flytvei." viewBox="0 0 800 560">
+      <GalleryItem title="Kotekart: nedbørfelt" note="vannskiller med utløp og navn: nedbørfeltet til Sidebekken ved utløpsmerket; to elver fra flytvei med navn." viewBox="0 0 800 560">
         <Nedborfeltkart />
       </GalleryItem>
       <GalleryItem
         title="Kotekart: faresoner"
-        note="soner med verdi(x, y, z): flomsone under en skrå flomlinje (stiplet) og bratte skråninger over 25° fra helning() (skravur)."
+        note="dempet grunnkart; soner med verdi(x, y, z): flomsone under en skrå flomlinje (stiplet) og bratte skråninger over 25° fra helning() (skravur)."
         viewBox="0 0 800 560"
       >
         <Farekart />
       </GalleryItem>
       <GalleryItem
         title="Kotekart: rent kotekart som på en prøve"
-        note="hoydelag={false}, relieff={false}, ekvidistanse={10}, maalestokk={10000}; merker: topp, brønn og kryss."
+        note="hoydelag={false}, relieff={false}, ekvidistanse={10}, maalestokk={10000}, kotetallRetning='terreng' (toppen av tallene peker oppover i terrenget, som på norske kart); merker: topp, brønn og kryss."
         viewBox="0 0 800 600"
       >
         <Enkeltkart />

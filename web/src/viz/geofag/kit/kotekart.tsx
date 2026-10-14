@@ -2,7 +2,7 @@
  * Kart for geofag: `Kotekart` tegner et høydefelt fra kart.ts som et topografisk kart (høydelag, relieffskygge, koter med
  * kotetall, hav, innsjøer, elver, vannskille, soner, merker, profillinje, nordpil og målestokk), og `Profildiagram`
  * tegner terrengprofilet langs en linje med valgfri overhøyde. Hjelpere: `kartSkala` (meter → figur), `ekvidistanseFor`,
- * `hoydelagFor` (til en tegnforklaring) og `glattSti` (glatt kurve gjennom punkter).
+ * `hoydelagFor` (til en tegnforklaring), `glattSti` (glatt kurve gjennom punkter) og `jevnLinje` (fjerner trappetrinn).
  *
  * Kartkoordinatene er meter i terrenget med origo i nordvest, x mot øst og y mot sør (som i kart.ts og SVG), så nord er
  * opp på kartet.
@@ -59,6 +59,26 @@ export function glattSti(punkter: readonly (readonly [number, number])[], lukket
     d += `C${r(c1x)} ${r(c1y)} ${r(c2x)} ${r(c2y)} ${r(p2[0])} ${r(p2[1])}`;
   }
   return lukket ? `${d}Z` : d;
+}
+
+/**
+ * Jevner ut en linje med glidende middel (vektene 1, 2, 1), `runder` ganger, så trappetrinnene fra et rutenett (elver
+ * fra `flytvei`, vannskiller) blir myke kurver. Endepunktene i en åpen linje ligger fast; en lukket linje jevnes rundt.
+ * Ugyldige punkter fjernes.
+ */
+export function jevnLinje(punkter: readonly (readonly [number, number])[], lukket = false, runder = 3): [number, number][] {
+  let p: [number, number][] = punkter.filter((q) => Number.isFinite(q[0]) && Number.isFinite(q[1])).map((q) => [q[0], q[1]]);
+  const n = p.length;
+  if (n < 3) return p;
+  for (let r = 0; r < Math.max(0, Math.round(runder)); r++) {
+    p = p.map((q, i) => {
+      if (!lukket && (i === 0 || i === n - 1)) return q;
+      const a = p[(i - 1 + n) % n]!;
+      const b = p[(i + 1) % n]!;
+      return [(a[0] + 2 * q[0] + b[0]) / 4, (a[1] + 2 * q[1] + b[1]) / 4];
+    });
+  }
+  return p;
 }
 
 /** Fra meter i terrenget til figurens koordinater: resultatet av `kartSkala`, og det barna i `Kotekart` får. */
@@ -328,6 +348,7 @@ export interface KartProfil {
   farge?: string;
 }
 
+/** Props til `Kotekart`: høydefeltet, plassen i figuren og det som skal tegnes på kartet. */
 export interface KotekartProps {
   felt: Hoydefelt;
   /** Øvre venstre hjørne av kartet i figuren (standard 0, 0). */
@@ -386,8 +407,9 @@ interface Kotetall {
  * Topografisk kart fra et høydefelt (`hoydefelt` i kart.ts): høydelag i farger, myk relieffskygge med lys fra nordvest,
  * koter med hver femte tykk og med tall (lesbare, eller med toppen mot høyere terreng som på norske kart), hav med
  * kystlinje, innsjøer, elver som følger terrenget (`flytvei`), vannskille og nedbørfelt (`vannskille`), soner (faresoner,
- * arealbruk), merker (topper med høyde, hus, brønner), profillinje A–B, nordpil og målestokk med ekvidistanse. Tekst og
- * symboler vokser på mobil. Høyden er `width · lengde / bredde`:
+ * arealbruk), merker (topper med høyde, hus, brønner), profillinje A–B, nordpil og målestokk med ekvidistanse. Øvre
+ * venstre hjørne er (x, y), og høyden er `width · lengde / bredde`. Tekst og symboler vokser på mobil; kotetallene holder
+ * seg unna navn, merker, nordpila og målestokken, og elvenavnene står der elva ikke deler løp med en annen elv:
  *   const felt = useMemo(() => hoydefelt(7, former, { bredde: 2000, lengde: 1400, gulv: 0 })!, []);
  *   <Figure viewBox={`0 0 800 ${800 * felt.lengde / felt.bredde}`} label="Kotekart">
  *     <Kotekart felt={felt} width={800} hav={0} elver={[{ fra: [1500, 200] }]} profil={{ A: [200, 700], B: [1800, 700] }} />
@@ -514,75 +536,23 @@ export function Kotekart(props: KotekartProps) {
     return innsjoer.some((sj) => sj?.maske[j * felt.nx + i] === true);
   };
 
-  // Kotetall på tellekotene: rette strekninger, ikke i vann, ikke ved kanten og ikke oppå hverandre
-  const kotetall = useMemo(() => {
-    if (!visKotetall) return [] as Kotetall[];
-    const ut: Kotetall[] = [];
-    const kant = 10 * f;
-    const tykke = grunn.alle.filter((kt) => kt.tykk);
-    for (const kt of tykke) {
-      const tekst = fmt(kt.hoyde, Number.isInteger(kt.hoyde) ? 0 : 1).replace(/\s/g, '');
-      const w = tekstBredde(tekst, tallPx) + 6;
-      const h = tallPx * 1.1;
-      for (const linje of kt.linjer) {
-        const pts = linje.punkter.map(S.punkt);
-        const cum: number[] = [0];
-        for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
-        const L = cum[cum.length - 1] ?? 0;
-        if (L < w * 3) continue;
-        const antall = Math.max(1, Math.min(3, Math.floor(L / (460 * Math.max(1, f * 0.8)))));
-        const punktVed = (s: number): P => {
-          let i = cum.findIndex((c) => c >= s);
-          if (i <= 0) i = 1;
-          const a = pts[i - 1]!;
-          const b = pts[i]!;
-          const seg = cum[i]! - cum[i - 1]! || 1;
-          const t = (s - cum[i - 1]!) / seg;
-          return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-        };
-        for (let n = 0; n < antall; n++) {
-          for (const forskyv of [0, 0.12, -0.12, 0.24, -0.24]) {
-            const s = L * ((n + 0.5) / antall + forskyv / antall);
-            if (s - w < 0 || s + w > L) continue;
-            const a = punktVed(s - w / 2);
-            const b = punktVed(s + w / 2);
-            const c = punktVed(s);
-            // Rett nok: midtpunktet ligger nær korden
-            const kx = (a[0] + b[0]) / 2;
-            const ky = (a[1] + b[1]) / 2;
-            if (Math.hypot(c[0] - kx, c[1] - ky) > tallPx * 0.3) continue;
-            if (c[0] < S.x0 + kant + w / 2 || c[0] > S.x0 + S.w - kant - w / 2 || c[1] < S.y0 + kant + h || c[1] > S.y0 + S.h - kant - h) continue;
-            if (iVann(S.mx(c[0]), S.my(c[1]))) continue;
-            if (ut.some((o) => Math.hypot(o.x - c[0], o.y - c[1]) < (o.w + w) / 2 + 14 * f)) continue;
-            let vinkel = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
-            if (vinkel > 90) vinkel -= 180;
-            if (vinkel <= -90) vinkel += 180;
-            // Toppen av tallet skal peke oppover i terrenget
-            const r = (vinkel * Math.PI) / 180;
-            const ux = Math.sin(r);
-            const uy = -Math.cos(r);
-            const d = (tallPx * 1.2) / S.k;
-            const zOpp = hoydeVed(felt, S.mx(c[0]) + ux * d, S.my(c[1]) + uy * d);
-            const zNed = hoydeVed(felt, S.mx(c[0]) - ux * d, S.my(c[1]) - uy * d);
-            if (terrengRetning && zOpp !== null && zNed !== null && zOpp < zNed) vinkel += 180;
-            ut.push({ x: c[0], y: c[1], vinkel, tekst, w, h });
-            break;
-          }
-        }
-      }
-    }
-    return ut;
-  }, [grunn, visKotetall, tallPx, innsjoer, terrengRetning]);
-
-  // Elver
+  // Elver: fra kilden og nedover (flytvei, jevnet ut og stoppet ved havet eller kartkanten) eller langs egne punkter
   const elver = (props.elver ?? []).map((elv, i) => {
-    let pts: Kartpunkt[] = elv.punkter ? [...elv.punkter] : elv.fra ? flytvei(felt, elv.fra) : [];
-    if (!elv.punkter && hav !== null) {
+    let pts: [number, number][] = elv.punkter ? elv.punkter.map((p) => [p[0], p[1]]) : elv.fra ? flytvei(felt, elv.fra) : [];
+    if (!elv.punkter && pts.length > 1) {
+      // Stopp der elva når havet, eller kartkanten etter å ha vært inne på kartet (ikke la den renne langs kanten)
+      let inne = false;
       const stopp = pts.findIndex((p) => {
+        const ii = Math.round(p[0] / felt.celle);
+        const jj = Math.round(p[1] / felt.celle);
+        const kant = ii <= 0 || jj <= 0 || ii >= felt.nx - 1 || jj >= felt.ny - 1;
+        if (kant && inne) return true;
+        if (!kant) inne = true;
         const zz = hoydeVed(felt, p[0], p[1]);
-        return zz !== null && zz <= hav + 0.05;
+        return inne && hav !== null && zz !== null && zz <= hav + 0.05;
       });
       if (stopp > 0) pts = pts.slice(0, stopp + 1);
+      pts = jevnLinje(pts, false, 3);
     }
     const px = pts.map(S.punkt);
     const [w0, w1] = elv.bredde ?? [1.3, 3.6];
@@ -594,18 +564,18 @@ export function Kotekart(props: KotekartProps) {
       const t = deler === 1 ? 0.5 : d / (deler - 1);
       biter.push({ d: glattSti(px.slice(a, b + 1)), w: (w0 + (w1 - w0) * t) * ss });
     }
-    return { biter, navn: elv.navn, midt: px[Math.floor(px.length * 0.55)] ?? null, retning: px, key: i };
+    return { biter, navn: elv.navn, px, key: i };
   });
 
-  // Vannskiller
+  // Vannskiller (grensen jevnet ut, så trappetrinnene fra rutenettet blir borte)
   const vannskiller = useMemo(
     () =>
       (props.vannskiller ?? []).map((vs) => {
         const nf = vannskille(felt, vs.utlop);
         if (!nf) return null;
         return {
-          grense: nf.grense.map((l) => glattSti(l.punkter.map(S.punkt), l.lukket)).join(''),
-          omriss: nf.omriss.map((l) => glattSti(l.punkter.map(S.punkt), true)).join(''),
+          grense: nf.grense.map((l) => glattSti(jevnLinje(l.punkter, l.lukket, 2).map(S.punkt), l.lukket)).join(''),
+          omriss: nf.omriss.map((l) => glattSti(jevnLinje(l.punkter, true, 2).map(S.punkt), true)).join(''),
           utlop: S.punkt(nf.utlop),
           midt: midtpunkt(nf.omriss.map((l) => l.punkter)),
           vs,
@@ -640,8 +610,65 @@ export function Kotekart(props: KotekartProps) {
   const havFyll = mix(SCENE.waterLight, VIZ.surface, 0.42);
   const vannLinje = mix(SCENE.water, VIZ.ink, 0.22);
   const papir = mix(VIZ.surface, GEO.hoydelag[2]!, 0.28);
-  const etikettEl: ReactNode[] = [];
   const dempet = props.dempet === true;
+
+  // Navn på innsjøer, elver, soner og vannskiller (plassert før kotetallene, så tallene holder seg unna)
+  const navn: Navnelapp[] = [];
+  innsjoer.forEach((sj, i) => {
+    if (sj?.navn && sj.midt) {
+      const [x, y] = S.punkt(sj.midt);
+      navn.push({ key: `sj${i}`, x, y: y + 5 * f, tekst: sj.navn, size: 0.7, weight: 650, farge: vannLinje, anchor: 'middle' });
+    }
+  });
+  // Elvenavn: ved siden av elva der den ikke deler løp med en annen elv, innenfor kartet og ikke oppå et annet navn
+  elver.forEach((e) => {
+    if (!e.navn || e.px.length < 2) return;
+    const px = 17 * 0.68 * f;
+    const w = tekstBredde(e.navn, px);
+    const andre = elver.filter((o) => o.key !== e.key).flatMap((o) => o.px);
+    const boksFor = (x: number, y: number, hoyre: boolean): Boks => (hoyre ? [x, y - px * 0.85, x + w, y + px * 0.3] : [x - w, y - px * 0.85, x, y + px * 0.3]);
+    const ledig = (b: Boks) =>
+      b[0] >= S.x0 + 4 &&
+      b[2] <= S.x0 + S.w - 4 &&
+      b[1] >= S.y0 + 4 &&
+      b[3] <= S.y0 + S.h - 4 &&
+      !navn.some((n) => {
+        const o = navnBoks(f)(n);
+        return b[0] < o[2] && o[0] < b[2] && b[1] < o[3] && o[1] < b[3];
+      });
+    let valgt: Navnelapp | null = null;
+    for (const t of [0.45, 0.35, 0.55, 0.25, 0.65, 0.15, 0.75]) {
+      const p = e.px[Math.floor((e.px.length - 1) * t)]!;
+      if (andre.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 30 * f)) continue;
+      for (const hoyre of [true, false]) {
+        const x = hoyre ? p[0] + 10 : p[0] - 10;
+        const y = p[1] - 6;
+        if (ledig(boksFor(x, y, hoyre))) {
+          valgt = { key: `elv${e.key}`, x, y, tekst: e.navn, size: 0.68, weight: 650, farge: vannLinje, anchor: hoyre ? 'start' : 'end' };
+          break;
+        }
+      }
+      if (valgt) break;
+    }
+    if (!valgt) {
+      const p = e.px[Math.floor((e.px.length - 1) * 0.5)]!;
+      const hoyre = p[0] + 10 + w <= S.x0 + S.w - 6;
+      valgt = { key: `elv${e.key}`, x: hoyre ? p[0] + 10 : p[0] - 10, y: p[1] - 6, tekst: e.navn, size: 0.68, weight: 650, farge: vannLinje, anchor: hoyre ? 'start' : 'end' };
+    }
+    navn.push(valgt);
+  });
+  soner.forEach(({ sone, midt }, i) => {
+    if (sone.navn && midt) {
+      const [x, y] = S.punkt(midt);
+      navn.push({ key: `sone${i}`, x, y: y + 5 * f, tekst: sone.navn, size: 0.74, weight: 700, farge: mix(sone.farge, VIZ.ink, 0.35), anchor: 'middle' });
+    }
+  });
+  vannskiller.forEach((v, i) => {
+    if (v?.vs.navn && v.midt) {
+      const [x, y] = S.punkt(v.midt);
+      navn.push({ key: `vs${i}`, x, y: y + 5 * f, tekst: v.vs.navn, size: 0.76, weight: 700, farge: v.vs.farge ?? GEO.vannskille, anchor: 'middle' });
+    }
+  });
 
   // Målestokk og nordpil
   const skala = skalastokk(1 / S.k, Math.min(W * 0.3, 210 * f));
@@ -654,6 +681,85 @@ export function Kotekart(props: KotekartProps) {
   const msPx = 17 * 0.68 * f;
   const msB = visMs ? Math.max(skala!.enheter + tekstBredde(skala!.tekst, msPx) / 2 + 8, ...linjer.map((l) => tekstBredde(l, msPx))) + 20 : 0;
   const msH = visMs ? 14 * k + msPx * 1.3 + linjer.length * msPx * 1.25 + 14 : 0;
+  const nordX = S.x0 + W - 26 * k;
+  const nordY = S.y0 + 14 * f;
+
+  // Alt kotetallene skal holde seg unna: navn, merker, profilendene, nordpila og målestokken
+  const opptatt: Boks[] = navn.map(navnBoks(f));
+  for (const m of props.merker ?? []) {
+    const o = merkeOppsett(m, S, felt, f, k);
+    if (o) opptatt.push(o.boks);
+  }
+  if (props.profil) {
+    for (const p of [props.profil.A, props.profil.B]) {
+      const [x, y] = S.punkt(p);
+      opptatt.push([x - 24 * f, y - 24 * f, x + 24 * f, y + 24 * f]);
+    }
+  }
+  if (props.nordpil !== false) opptatt.push(nordpilBoks(nordX, nordY, f, k));
+  if (visMs) opptatt.push([S.x0 + 8, S.y0 + Hh - 8 - msH, S.x0 + 8 + msB, S.y0 + Hh - 8]);
+  const opptattNokkel = opptatt.map((b) => b.map((v) => Math.round(v)).join(',')).join(';');
+
+  // Kotetall på tellekotene: rette strekninger, ikke i vann, ikke ved kanten og ikke oppå hverandre eller annen tekst
+  const kotetall = useMemo(() => {
+    if (!visKotetall) return [] as Kotetall[];
+    const ut: Kotetall[] = [];
+    const kant = 10 * f;
+    const tykke = grunn.alle.filter((kt) => kt.tykk);
+    for (const kt of tykke) {
+      const tekst = fmt(kt.hoyde, Number.isInteger(kt.hoyde) ? 0 : 1).replace(/\s/g, '');
+      const w = tekstBredde(tekst, tallPx) + 6;
+      const h = tallPx * 1.1;
+      for (const linje of kt.linjer) {
+        const pts = linje.punkter.map(S.punkt);
+        const cum: number[] = [0];
+        for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]![0] - pts[i - 1]![0], pts[i]![1] - pts[i - 1]![1]));
+        const L = cum[cum.length - 1] ?? 0;
+        if (L < w * 3) continue;
+        const antall = Math.max(1, Math.min(3, Math.floor(L / (460 * Math.max(1, f * 0.8)))));
+        const punktVed = (s: number): P => {
+          let i = cum.findIndex((c) => c >= s);
+          if (i <= 0) i = 1;
+          const a = pts[i - 1]!;
+          const b = pts[i]!;
+          const seg = cum[i]! - cum[i - 1]! || 1;
+          const t = (s - cum[i - 1]!) / seg;
+          return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+        };
+        for (let n = 0; n < antall; n++) {
+          for (const forskyv of [0, 0.12, -0.12, 0.24, -0.24, 0.36, -0.36]) {
+            const s = L * ((n + 0.5) / antall + forskyv / antall);
+            if (s - w < 0 || s + w > L) continue;
+            const a = punktVed(s - w / 2);
+            const b = punktVed(s + w / 2);
+            const c = punktVed(s);
+            // Rett nok: midtpunktet ligger nær korden
+            const kx = (a[0] + b[0]) / 2;
+            const ky = (a[1] + b[1]) / 2;
+            if (Math.hypot(c[0] - kx, c[1] - ky) > tallPx * 0.3) continue;
+            if (c[0] < S.x0 + kant + w / 2 || c[0] > S.x0 + S.w - kant - w / 2 || c[1] < S.y0 + kant + h || c[1] > S.y0 + S.h - kant - h) continue;
+            if (iVann(S.mx(c[0]), S.my(c[1]))) continue;
+            if (ut.some((o) => Math.hypot(o.x - c[0], o.y - c[1]) < (o.w + w) / 2 + 14 * f)) continue;
+            if (opptatt.some(([x0, y0, x1, y1]) => c[0] > x0 - w / 2 - 3 && c[0] < x1 + w / 2 + 3 && c[1] > y0 - h / 2 - 3 && c[1] < y1 + h / 2 + 3)) continue;
+            let vinkel = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
+            if (vinkel > 90) vinkel -= 180;
+            if (vinkel <= -90) vinkel += 180;
+            // Toppen av tallet skal peke oppover i terrenget
+            const r = (vinkel * Math.PI) / 180;
+            const ux = Math.sin(r);
+            const uy = -Math.cos(r);
+            const d = (tallPx * 1.2) / S.k;
+            const zOpp = hoydeVed(felt, S.mx(c[0]) + ux * d, S.my(c[1]) + uy * d);
+            const zNed = hoydeVed(felt, S.mx(c[0]) - ux * d, S.my(c[1]) - uy * d);
+            if (terrengRetning && zOpp !== null && zNed !== null && zOpp < zNed) vinkel += 180;
+            ut.push({ x: c[0], y: c[1], vinkel, tekst, w, h });
+            break;
+          }
+        }
+      }
+    }
+    return ut;
+  }, [grunn, visKotetall, tallPx, innsjoer, terrengRetning, opptattNokkel]);
 
   return (
     <g>
@@ -709,23 +815,11 @@ export function Kotekart(props: KotekartProps) {
             </g>
           ))}
         </g>
-        {/* Vann */}
-        {elver.map((e) => (
-          <g key={e.key}>
-            {e.biter.map((b, j) => (
-              <path key={j} d={b.d} fill="none" stroke={vannLinje} strokeWidth={b.w} strokeLinecap="round" strokeLinejoin="round" />
-            ))}
-          </g>
-        ))}
-        {innsjoer.map((sj, i) =>
-          sj ? <path key={i} d={sj.d} fill={havFyll} fillRule="evenodd" stroke={vannLinje} strokeWidth={1.4 * ss} strokeLinejoin="round" /> : null,
-        )}
-        {grunn.land && <path d={grunn.land} fill="none" stroke={vannLinje} strokeWidth={1.4 * ss} strokeLinejoin="round" />}
-        {/* Soner og vannskiller */}
+        {/* Soner og nedbørfelt under vannet, så elvene ligger øverst */}
         {soner.map(({ sone, d }, i) =>
           d ? (
             <g key={i}>
-              <path d={d} fill={sone.farge} fillOpacity={sone.fyll ?? 0.32} fillRule="evenodd" />
+              <path d={d} fill={sone.farge} fillOpacity={sone.fyll ?? 0.28} fillRule="evenodd" />
               {sone.skravur && <path d={d} fill={`url(#${id}-skr${i})`} fillRule="evenodd" opacity={0.75} />}
               {sone.kant !== 'ingen' && (
                 <path
@@ -741,9 +835,24 @@ export function Kotekart(props: KotekartProps) {
           ) : null,
         )}
         {vannskiller.map((v, i) =>
+          v && v.vs.fyll !== false ? <path key={i} d={v.omriss} fill={v.vs.farge ?? GEO.vannskille} fillOpacity={0.1} fillRule="evenodd" /> : null,
+        )}
+        {/* Vann */}
+        {elver.map((e) => (
+          <g key={e.key}>
+            {e.biter.map((b, j) => (
+              <path key={j} d={b.d} fill="none" stroke={vannLinje} strokeWidth={b.w} strokeLinecap="round" strokeLinejoin="round" />
+            ))}
+          </g>
+        ))}
+        {innsjoer.map((sj, i) =>
+          sj ? <path key={i} d={sj.d} fill={havFyll} fillRule="evenodd" stroke={vannLinje} strokeWidth={1.4 * ss} strokeLinejoin="round" /> : null,
+        )}
+        {grunn.land && <path d={grunn.land} fill="none" stroke={vannLinje} strokeWidth={1.4 * ss} strokeLinejoin="round" />}
+        {/* Vannskillene øverst */}
+        {vannskiller.map((v, i) =>
           v ? (
             <g key={i}>
-              {v.vs.fyll !== false && <path d={v.omriss} fill={v.vs.farge ?? GEO.vannskille} fillOpacity={0.12} fillRule="evenodd" />}
               <path d={v.grense} fill="none" stroke={VIZ.surface} strokeWidth={5 * ss} strokeLinecap="round" strokeLinejoin="round" opacity={0.7} />
               <path
                 d={v.grense}
@@ -770,54 +879,15 @@ export function Kotekart(props: KotekartProps) {
       ))}
 
       {/* Navn på innsjøer, elver, soner og vannskiller */}
-      {(() => {
-        innsjoer.forEach((sj, i) => {
-          if (sj?.navn && sj.midt) {
-            const [x, y] = S.punkt(sj.midt);
-            etikettEl.push(
-              <Txt key={`sj${i}`} x={x} y={y + 5 * f} size={0.7} color={vannLinje} weight={650}>
-                {sj.navn}
-              </Txt>,
-            );
-          }
-        });
-        elver.forEach((e) => {
-          if (e.navn && e.midt) {
-            const w = tekstBredde(e.navn, 17 * 0.68 * f);
-            const hoyre = e.midt[0] + 10 + w <= S.x0 + S.w - 6;
-            etikettEl.push(
-              <Txt key={`elv${e.key}`} x={hoyre ? e.midt[0] + 10 : e.midt[0] - 10} y={e.midt[1] - 6} anchor={hoyre ? 'start' : 'end'} size={0.68} color={vannLinje} weight={650}>
-                {e.navn}
-              </Txt>,
-            );
-          }
-        });
-        soner.forEach(({ sone, midt }, i) => {
-          if (sone.navn && midt) {
-            const [x, y] = S.punkt(midt);
-            etikettEl.push(
-              <Txt key={`sone${i}`} x={x} y={y + 5 * f} size={0.74} weight={700} color={shade(sone.farge, 0.25)}>
-                {sone.navn}
-              </Txt>,
-            );
-          }
-        });
-        vannskiller.forEach((v, i) => {
-          if (v?.vs.navn && v.midt) {
-            const [x, y] = S.punkt(v.midt);
-            etikettEl.push(
-              <Txt key={`vs${i}`} x={x} y={y + 5 * f} size={0.76} weight={700} color={v.vs.farge ?? GEO.vannskille}>
-                {v.vs.navn}
-              </Txt>,
-            );
-          }
-        });
-        return etikettEl;
-      })()}
+      {navn.map((n) => (
+        <Txt key={n.key} x={n.x} y={n.y} anchor={n.anchor} size={n.size} weight={n.weight} color={n.farge}>
+          {n.tekst}
+        </Txt>
+      ))}
 
       {/* Ramme, nordpil og målestokk */}
       <rect x={S.x0} y={S.y0} width={W} height={Hh} fill="none" stroke={VIZ.ink} strokeWidth={1.4 * ss} opacity={0.8} />
-      {props.nordpil !== false && <Nordpil x={S.x0 + W - 26 * k} y={S.y0 + 14 * f} />}
+      {props.nordpil !== false && <Nordpil x={nordX} y={nordY} />}
       {visMs && skala && (
         <g>
           <rect x={S.x0 + 8} y={S.y0 + Hh - 8 - msH} width={msB} height={msH} rx={6} fill={alpha(VIZ.surface, 0.85)} stroke={alpha(VIZ.ink, 0.25)} strokeWidth={1} />
@@ -831,6 +901,36 @@ export function Kotekart(props: KotekartProps) {
       )}
     </g>
   );
+}
+
+/** Et rektangel [x0, y0, x1, y1] i figuren som kotetallene holder seg unna. */
+type Boks = [number, number, number, number];
+
+/** Et navn på kartet (innsjø, elv, sone eller vannskille). */
+interface Navnelapp {
+  key: string;
+  x: number;
+  y: number;
+  tekst: string;
+  size: number;
+  weight: number;
+  farge: string;
+  anchor: 'start' | 'middle' | 'end';
+}
+
+const navnBoks =
+  (f: number) =>
+  (n: Navnelapp): Boks => {
+    const px = 17 * n.size * f;
+    const w = tekstBredde(n.tekst, px);
+    const x0 = n.anchor === 'start' ? n.x : n.anchor === 'end' ? n.x - w : n.x - w / 2;
+    return [x0 - 4, n.y - px * 0.85, x0 + w + 4, n.y + px * 0.3];
+  };
+
+/** Plassen nordpila tar (samme mål som `Nordpil`). */
+function nordpilBoks(x: number, y: number, f: number, k: number): Boks {
+  const top = y + 17 * 0.8 * f * 0.35 + 6;
+  return [x - 16 * k, y - 17 * 0.8 * f * 0.85, x + 16 * k, top + 30 * k + 6];
 }
 
 /** Målestokklinje i to felt (svart og hvitt) med «0» og lengden, f.eks. «500 m». (x, y) er venstre ende av linja. */
@@ -901,21 +1001,32 @@ function Profillinje({ profil, S }: { profil: KartProfil; S: KartSkala }) {
   );
 }
 
+/** Plassen til et merke og teksten ved det (felles for `Merke` og kotetallene, som holder seg unna). */
+function merkeOppsett(merke: KartMerke, S: KartSkala, felt: Hoydefelt, f: number, k: number) {
+  const [x, y] = S.punkt(merke.p);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const sym = merke.symbol ?? 'punkt';
+  const z = hoydeVed(felt, merke.p[0], merke.p[1]);
+  const visHoyde = merke.hoyde ?? sym === 'topp';
+  const tekst = [merke.navn, visHoyde && z !== null ? fmt(z, 0).replace(/\s/g, '') : undefined].filter(Boolean).join(' ');
+  const tPx = 17 * 0.72 * f;
+  const tw = tekst ? tekstBredde(tekst, tPx) : 0;
+  const venstre = x + 10 * k + tw > S.x0 + S.w - 4;
+  const r = 5 * k;
+  const tx0 = tekst ? (venstre ? x - 9 * k - tw : x + 9 * k) : x;
+  const tx1 = tekst ? (venstre ? x - 9 * k : x + 9 * k + tw) : x;
+  const boks: Boks = [Math.min(x - r, tx0) - 2, y - Math.max(r * 1.2, tPx * 0.7), Math.max(x + r, tx1) + 2, y + Math.max(r, tPx * 0.45)];
+  return { x, y, r, sym, tekst, tPx, venstre, boks };
+}
+
 function Merke({ merke, S, felt }: { merke: KartMerke; S: KartSkala; felt: Hoydefelt }) {
   const k = useGeoScale();
   const ss = useGeoStroke();
   const f = useTextScale();
-  const [x, y] = S.punkt(merke.p);
-  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  const sym = merke.symbol ?? 'punkt';
+  const o = merkeOppsett(merke, S, felt, f, k);
+  if (!o) return null;
+  const { x, y, r, sym, tekst, tPx, venstre } = o;
   const farge = merke.farge ?? (sym === 'bronn' ? mix(SCENE.water, VIZ.ink, 0.22) : VIZ.ink);
-  const z = hoydeVed(felt, merke.p[0], merke.p[1]);
-  const visHoyde = merke.hoyde ?? sym === 'topp';
-  const deler = [merke.navn, visHoyde && z !== null ? fmt(z, 0).replace(/\s/g, '') : undefined].filter(Boolean) as string[];
-  const tekst = deler.join(' ');
-  const tPx = 17 * 0.72 * f;
-  const venstre = x + 10 * k + tekstBredde(tekst, tPx) > S.x0 + S.w - 4;
-  const r = 5 * k;
   let symbol: ReactNode;
   switch (sym) {
     case 'topp':
@@ -957,6 +1068,7 @@ function Merke({ merke, S, felt }: { merke: KartMerke; S: KartSkala; felt: Hoyde
 
 /* ================================================================================================ Profildiagram */
 
+/** Props til `Profildiagram`: høydefeltet, linja A–B, størrelsen og overhøyden. */
 export interface ProfildiagramProps {
   felt: Hoydefelt;
   /** Start- og sluttpunktet på kartet (meter), som `profil` i `Kotekart`. */
@@ -972,7 +1084,7 @@ export interface ProfildiagramProps {
   navn?: readonly [string, string];
   /** Havnivå (m o.h.): havet under profilet tegnes som vann. */
   hav?: number | null;
-  /** Skriv overhøyden øverst til høyre (standard på). */
+  /** Skriv overhøyden («Overhøyde 5 ganger», «Ingen overhøyde») øverst midt i diagrammet (standard på). */
   visOverhoyde?: boolean;
   /** Ekstra tegning med skalaene (avstand i meter: `sx`, høyde i m o.h.: `sy`). */
   children?: (s: LogPlotSkalaer) => ReactNode;
@@ -981,8 +1093,9 @@ export interface ProfildiagramProps {
 /**
  * Terrengprofilet langs linja A–B i et høydefelt (`terrengprofil` i kart.ts): avstand langs bakken (m eller km) mot høyde
  * (m o.h.), med terrenget fylt og havet som vann. Med `overhoyde` blir høydeaksen strukket nøyaktig så mange ganger i
- * forhold til avstandsaksen (1 = riktige forhold), og overhøyden skrives i hjørnet, så eleven ser hvor mye profilet
- * overdriver. Bygd på `LogPlot` med lineære akser; barna får skalaene (`sx` i meter langs profilet).
+ * forhold til avstandsaksen (1 = riktige forhold), og overhøyden skrives øverst, så eleven ser hvor mye profilet
+ * overdriver. Øvre venstre hjørne er `at` (standard [0, 0]). Bygd på `LogPlot` med lineære akser; barna får skalaene
+ * (`sx` i meter langs profilet, `sy` i m o.h.).
  */
 export function Profildiagram({ felt, A, B, width = 800, height, at, overhoyde = null, navn = ['A', 'B'], hav = null, visOverhoyde = true, children }: ProfildiagramProps) {
   const f = useTextScale();
@@ -1019,7 +1132,15 @@ export function Profildiagram({ felt, A, B, width = 800, height, at, overhoyde =
     yHi = zMax + pad;
   }
   const faktisk = L > 0 && yHi > yLo ? plotH / (yHi - yLo) / (plotB / L) : NaN;
-  const ohTekst = oh !== null ? `Overhøyde ${fmt(oh, oh < 10 && !Number.isInteger(oh) ? 1 : 0)} ×` : `Overhøyde ca. ${fmt(faktisk, faktisk < 10 ? 1 : 0)} ×`;
+  const ganger = (v: number) => fmt(v, v < 10 && Math.abs(v - Math.round(v)) > 0.05 ? 1 : 0);
+  const ohTekst =
+    oh !== null
+      ? Math.abs(oh - 1) < 1e-9
+        ? 'Ingen overhøyde'
+        : `Overhøyde ${ganger(oh)} ganger`
+      : Math.abs(faktisk - 1) < 0.05
+        ? 'Nesten ingen overhøyde'
+        : `Overhøyde ca. ${ganger(faktisk)} ganger`;
   const pts: [number, number][] = prof.map((p) => [p.s, p.z]);
   return (
     <LogPlot

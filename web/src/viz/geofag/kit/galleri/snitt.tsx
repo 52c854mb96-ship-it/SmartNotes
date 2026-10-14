@@ -326,10 +326,11 @@ function Felle({ f }: { f: number }) {
       over={
         <g>
           <line x1={r2(0.48 * w)} x2={r2(0.48 * w)} y1={r2(0.16 * h)} y2={r2(0.42 * h)} stroke={VIZ.ink} strokeWidth={2} strokeDasharray="5 4" />
-          <Txt x={r2(0.48 * w + 8)} y={r2(0.47 * h)} anchor="start" size={0.7} weight={600}>
+          {/* Midt i gass- og oljesonen ved toppen av kuppelen (reservoartoppen ligger der i 0,30 · h) */}
+          <Txt x={r2(0.48 * w + 8)} y={r2(0.335 * h + 17 * 0.7 * f * 0.35)} anchor="start" size={0.7} weight={650}>
             Gass
           </Txt>
-          <Txt x={r2(0.48 * w + 8)} y={r2(0.47 * h + 17 * 0.7 * f + 4)} anchor="start" size={0.7} weight={600}>
+          <Txt x={r2(0.48 * w + 8)} y={r2(0.41 * h + 17 * 0.7 * f * 0.35)} anchor="start" size={0.7} weight={650}>
             Olje
           </Txt>
         </g>
@@ -352,10 +353,10 @@ function Ytterpunkter({ f }: { f: number }) {
     { type: 'kalkstein', topp: () => Number.NaN },
     { type: 'leire', punkter: [[0, 0], [Number.NaN, 4]] },
   ];
-  const plass = (i: number) => (mobil ? { x: 30, y: 30 + i * 200 } : { x: 20 + i * 262, y: 60 });
-  const a = plass(0);
-  const b = plass(1);
-  const c = plass(2);
+  // På mobil står blokkene under hverandre: den bratte blokka trenger plass til bakkanten (dy ≈ 140) over seg
+  const a = mobil ? { x: 30, y: 0 } : { x: 20, y: 60 };
+  const b = mobil ? { x: 30, y: 270 } : { x: 282, y: 60 };
+  const c = mobil ? { x: 30, y: 475 } : { x: 544, y: 60 };
   return (
     <>
       <Snittblokk x={a.x} y={a.y} w={mobil ? 700 : 220} h={150} dybde={0} lag={flate} forkastninger={[{ x: 110, sprang: 60, fall: 89 }]} />
@@ -465,14 +466,16 @@ const kjerneBerg: LagpakkeLag[] = [
 
 function Borekjerner({ f }: { f: number }) {
   const mobil = f > 1.3;
-  const H = mobil ? 220 : 280;
-  const rad2 = mobil ? H + 120 : 0;
+  // På mobil: to og to kjerner, bredere (figuren krymper til ca. 330 px) og med plass til etikettene
+  const H = mobil ? 270 : 280;
+  const rad2 = mobil ? H + 110 : 0;
+  const b = mobil ? 1.45 : 1;
   return (
     <>
       <Borekjerne
-        x={mobil ? 110 : 90}
-        y={34}
-        bredde={56}
+        x={mobil ? 140 : 90}
+        y={mobil ? 44 : 34}
+        bredde={56 * b}
         hoyde={H}
         lag={kjerneSediment}
         dybdeakse
@@ -481,12 +484,12 @@ function Borekjerner({ f }: { f: number }) {
           { dybde: 2.9, navn: 'Prøve B', tekst: 'C-14: 11 600 år' },
         ]}
       />
-      <Borekjerne x={mobil ? 500 : 310} y={34} bredde={46} hoyde={H} lag={kjerneBerg} etiketter brudd={4} dybdeakse />
-      <Borekjerne x={mobil ? 110 : 530} y={34 + rad2} bredde={18} hoyde={H} lag={sedimenter} brudd={2} />
+      <Borekjerne x={mobil ? 560 : 310} y={mobil ? 44 : 34} bredde={46 * b} hoyde={H} lag={kjerneBerg} etiketter brudd={4} dybdeakse />
+      <Borekjerne x={mobil ? 140 : 530} y={34 + rad2} bredde={18 * b} hoyde={H} lag={sedimenter} brudd={2} />
       <Borekjerne
-        x={mobil ? 500 : 630}
+        x={mobil ? 420 : 630}
         y={34 + rad2}
-        bredde={70}
+        bredde={70 * b}
         hoyde={H}
         lag={[{ type: 'leire', tykkelse: 1, varv: 60 }]}
         prover={[{ dybde: 0.5, navn: 'Varvtelling' }, { dybde: 7 }]}
@@ -523,7 +526,7 @@ export default function Galleri() {
       <GalleryItem
         wide
         title="Relativ alder: skrå lag, forkastning, diskordans, gang og magmakammer"
-        note="Forkastningen skjærer bare de fire eldste lagene (lag: 4), konglomeratet ligger på en erosjonsflate, og gangen (SnittGang) fra magmakammeret skjærer alt. Bokstavene er tegnet med over."
+        note="Forkastningen skjærer bare de fire eldste lagene (lag: 4), konglomeratet ligger på en erosjonsflate, og gangen (SnittGang) fra magmakammeret skjærer alt opp til sandsteinen F. Bokstavene er tegnet med over."
         viewBox={(f) => `0 0 800 ${geoHoyde(f, 330)}`}
       >
         {(f) => <RelativAlder f={f} />}
@@ -553,8 +556,8 @@ export default function Galleri() {
       <GalleryItem
         wide
         title="Ytterpunkter: uten perspektiv, bratt perspektiv og ugyldige lag"
-        note="dybde 0 med loddrett forkastning (fall 89), dybde 110 og vinkel 60 på en smal blokk, og lag med ugyldige tall (tegnes ikke)."
-        viewBox={(f) => (f > 1.3 ? '0 0 800 620' : '0 0 800 250')}
+        note="dybde 0 med nesten loddrett forkastning (fall 89, halvpilene flyttes ned under skrenten), dybde 110 og vinkel 60 på en smal blokk, og lag med ugyldige tall: en topp som ikke er et tall og et polygon med ugyldige punkter tegnes ikke, mens en funksjon som gir et ugyldig tall, regnes som 0 (her kalksteinen)."
+        viewBox={(f) => (f > 1.3 ? '0 0 800 645' : '0 0 800 250')}
       >
         {(f) => <Ytterpunkter f={f} />}
       </GalleryItem>
@@ -569,7 +572,8 @@ export default function Galleri() {
       </GalleryItem>
       <GalleryItem
         wide
-        title={`Lagpakke i full bredde (etiketter="auto": til høyre på PC, under på mobil)`}
+        title={`Lagpakke i full bredde (etiketter="auto": til høyre når de får plass)`}
+        note="Høyden følger geoHoyde, så kolonnen blir høyere på mobil."
         viewBox={bredBoks}
       >
         {(f) => <LagpakkeBred f={f} />}
@@ -577,7 +581,7 @@ export default function Galleri() {
       <GalleryItem
         wide
         title="Borekjerner: varv og C-14-prøver, fjellkjerne med brudd og etiketter, smal kjerne og 60 varv"
-        viewBox={(f) => (f > 1.3 ? '0 0 800 660' : '0 0 800 360')}
+        viewBox={(f) => (f > 1.3 ? '0 0 800 760' : '0 0 800 360')}
       >
         {(f) => <Borekjerner f={f} />}
       </GalleryItem>

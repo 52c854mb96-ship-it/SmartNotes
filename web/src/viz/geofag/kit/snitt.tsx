@@ -29,7 +29,10 @@ import type { MonsterId } from './typer';
 /** Et punkt [x, y] i snittets koordinater (y nedover, som i SVG). */
 export type SnittPunkt = readonly [number, number];
 
-/** En flate i snittet: et tall (vannrett flate i den høyden) eller y som funksjon av x. */
+/**
+ * En flate i snittet: et tall (vannrett flate i den høyden) eller y som funksjon av x. Et tall som ikke er endelig, gjør
+ * flaten ugyldig (laget tegnes ikke); NaN eller Infinity fra en funksjon regnes som 0 (toppen av snittet).
+ */
 export type SnittKurve = number | ((x: number) => number);
 
 type Fn = (x: number) => number;
@@ -708,7 +711,7 @@ export function Snittblokk({
   const bergSti = sti([...xsBakke.map((sx, i): SnittPunkt => [sx, bakkeY[i]!]), [w, h], [0, h]], true);
   const frontSti = sti([...toppLinje, [w, h], [0, h]], true);
   const defs: ReactNode[] = [];
-  const innhold = byggGeologi(geo, lag, fk, { uid, monstre: monstre.id, w, h, M, s, k, defs });
+  const innhold = byggGeologi(geo, lag, fk, { uid, monstre: monstre.id, w, h, M, s, k, bakke, defs });
 
   const lysId = `${uid}-lys`;
   const sideLysId = `${uid}-sidelys`;
@@ -962,7 +965,8 @@ function toppStart(geo: SnittGeologi, w: number, h: number): number {
  * det ikke er bergart i bunnen.
  */
 function bergTopp(geo: SnittGeologi, x: number, y0: number, y1: number): number {
-  const steg = 3;
+  // Grovt søk med høyst ca. 70 steg (halveringen gir grensen nøyaktig); lag tynnere enn steget kan bli hoppet over
+  const steg = clamp((y1 - y0) / 70, 3, 8);
   const bunn = y1 - 0.01;
   if (geo.lagVed(x, bunn) < 0) return y1;
   let forrige = bunn;
@@ -1074,12 +1078,14 @@ interface ByggValg {
   M: number;
   s: number;
   k: number;
+  /** Bakken (toppen av berggrunnen), så halvpilene ved forkastningene havner i bergarten og ikke i lufta. */
+  bakke: Fn;
   defs: ReactNode[];
 }
 
 /** Lagene, erosjonsflatene og forkastningene som SVG i tidsrekkefølge (klippestiene legges i `defs`). */
 function byggGeologi(geo: SnittGeologi, lag: readonly SnittLag[], fk: readonly Forkastning[], v: ByggValg): ReactNode {
-  const { uid, monstre, w, h, M, s, k, defs } = v;
+  const { uid, monstre, w, h, M, s, k, bakke, defs } = v;
   const xs = linspace(-M, w + M, Math.min(220, Math.ceil((w + 2 * M) / 5)));
   const kontur = Math.round(1.3 * s * 100) / 100;
   let innhold: ReactNode[] = [];
@@ -1148,7 +1154,7 @@ function byggGeologi(geo: SnittGeologi, lag: readonly SnittLag[], fk: readonly F
             <g transform={`translate(${r2(f.vx)} ${r2(f.vy)})`}>{innhold}</g>
           </g>
           <line x1={r2(xPlan(-h))} y1={-h} x2={r2(xPlan(2 * h))} y2={2 * h} stroke={VIZ.ink} strokeWidth={2.4 * s} strokeLinecap="round" />
-          {f.piler && f.sprang !== 0 && <Halvpiler f={f} h={h} s={s} k={k} />}
+          {f.piler && f.sprang !== 0 && <Halvpiler f={f} h={h} s={s} k={k} bakke={bakke} />}
         </g>,
       ];
     }
@@ -1156,15 +1162,21 @@ function byggGeologi(geo: SnittGeologi, lag: readonly SnittLag[], fk: readonly F
   return innhold;
 }
 
-/** Halvpiler på hver side av forkastningsplanet som viser hvordan blokkene har beveget seg. */
-function Halvpiler({ f, h, s, k }: { f: Forkastning; h: number; s: number; k: number }) {
+/**
+ * Halvpiler på hver side av forkastningsplanet som viser hvordan blokkene har beveget seg. De står 62 % ned fra
+ * punktet på planet, men flyttes ned i bergarten når bakken på en av sidene ligger lavere (skrent, bratt fall).
+ */
+function Halvpiler({ f, h, s, k, bakke }: { f: Forkastning; h: number; s: number; k: number; bakke: Fn }) {
   const rad = (f.fall * Math.PI) / 180;
   const ux = f.dir * Math.cos(rad);
   const uy = Math.sin(rad);
   const nx = f.dir * Math.sin(rad);
   const ny = -Math.cos(rad);
-  const ym = f.y0 + 0.62 * (h - f.y0);
-  const px = f.x0 + f.dir * (ym - f.y0) * f.cot;
+  const xPaa = (yy: number) => f.x0 + f.dir * (yy - f.y0) * f.cot;
+  let ym = f.y0 + 0.62 * (h - f.y0);
+  const topp = Math.max(bakke(xPaa(ym) - 16 * k), bakke(xPaa(ym) + 16 * k));
+  if (Number.isFinite(topp) && topp < h && ym < topp + 0.35 * (h - topp)) ym = topp + 0.55 * (h - topp);
+  const px = xPaa(ym);
   const L = 22 * k;
   const off = 8 * k;
   const pil = (side: 1 | -1) => {
@@ -1608,7 +1620,8 @@ export function lagpakkeOppsett(v: LagpakkeOppsettValg, fInn = 1): LagpakkeOppse
     16,
     plassering === 'under' ? fin(v.kolonne ?? clamp(0.42 * bredde, 56, 220), 100) : plassering === 'ingen' ? fin(v.kolonne ?? clamp(0.5 * bredde, 56, 200), 100) : kolHoyre,
   );
-  const toppMarg = akse ? 17 * AKSE * f + 12 : 10;
+  // Aksetittelen står over tallet 0 (som er midtstilt på toppen av kolonnen), med plass til descenderne i «Dyp»
+  const toppMarg = akse ? 1.35 * 17 * AKSE * f + 6 : 10;
   const bunnMarg = v.profil === 'korn' ? 17 * 0.66 * f + 14 : akse ? 17 * AKSE * f * 0.45 + 4 : 6;
   const kolonneX = venstre;
   const kolonneY = toppMarg;
@@ -1790,7 +1803,7 @@ export function Lagpakke({
               </Txt>
             </g>
           ))}
-          <Txt x={opp.aksX + 2} y={r2(toppY - 9)} anchor={opp.pilX !== null ? 'middle' : 'end'} size={0.72} weight={560} muted>
+          <Txt x={opp.aksX + 2} y={r2(toppY - 0.6 * 17 * 0.72 * f - 3)} anchor={opp.pilX !== null ? 'middle' : 'end'} size={0.72} weight={560} muted>
             {tittel}
           </Txt>
         </g>
@@ -2067,14 +2080,13 @@ export function Borekjerne({
         const n = l.varv !== undefined && Number.isFinite(l.varv) ? Math.max(0, Math.min(400, Math.round(l.varv))) : 0;
         return (
           <g key={iv.indeks} opacity={l.dim ? 0.35 : undefined}>
-            <path d={baand(y0, y1)} fill={n > 0 ? tint(GEO.bergart[l.type].fill, 0.25) : fyll.fill} />
+            <path d={baand(y0, y1)} fill={n > 0 ? varvSommer(l.type) : fyll.fill} />
             {n > 0 && (
               <path
                 d={varvGrenser(n, y0, y1, seed + iv.indeks)
                   .map(([a, b]) => baand(a, b))
                   .join('')}
-                fill={shade(GEO.bergart[l.type].line, 0.1)}
-                opacity={0.7}
+                fill={varvVinter(l.type)}
               />
             )}
           </g>
@@ -2123,7 +2135,7 @@ export function Borekjerne({
         })}
       {/* Omriss og toppflaten */}
       <path d={`M${r2(xl)} ${r2(y)}L${r2(xl)} ${r2(y + H)}A${r2(r)} ${r2(ry)} 0 0 0 ${r2(xr)} ${r2(y + H)}L${r2(xr)} ${r2(y)}`} fill="none" stroke={SCENE.outline} strokeWidth={1.3 * s} />
-      <ellipse cx={x} cy={y} rx={r} ry={ry} fill={toppLag.varv ? tint(GEO.bergart[toppLag.type].fill, 0.25) : lagFyll(toppLag.type, monstre.id).fill} />
+      <ellipse cx={x} cy={y} rx={r} ry={ry} fill={toppLag.varv ? varvSommer(toppLag.type) : lagFyll(toppLag.type, monstre.id).fill} />
       <ellipse cx={x} cy={y} rx={r} ry={ry} fill={`url(#${toppId})`} stroke={SCENE.outline} strokeWidth={1.3 * s} />
       {dybdeakse && (
         <g>
@@ -2145,6 +2157,10 @@ export function Borekjerne({
     </g>
   );
 }
+
+/** Det lyse sommerlaget (silt) og det mørke vinterlaget (leire) i et varv, lyst og mørkt i begge temaer. */
+const varvSommer = (type: MonsterId) => tint(GEO.bergart[type].fill, 0.3);
+const varvVinter = (type: MonsterId) => shade(GEO.bergart[type].fill, 0.42);
 
 /**
  * Vinterlagene i n varv mellom y0 og y1: tykkelsen på hvert varv varierer litt (kalde og varme somre), og vinterlaget er

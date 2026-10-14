@@ -1,7 +1,7 @@
 /**
  * Diagrammer for geofag: `LogPlot` (logaritmiske og lineære akser med valgfri høyreakse), `Klimadiagram` (nedbør som
- * søyler og temperatur som kurve, som malen i PDF-ene) og `GeoTidslinje` (geologisk tid med periodebånd, zoom og
- * hendelser), pluss små hjelpere for tekstbredde og linjebryting. Samme stil som `Plot` i det felles kit-et (rutenett,
+ * søyler og temperatur som kurve, som malen i PDF-ene), `GeoTidslinje` (geologisk tid med periodebånd, zoom og
+ * hendelser) og `Zoomtrakt`, pluss små hjelpere for tekstbredde, linjebryting og flagg over en akse (`flaggEtiketter`). Samme stil som `Plot` i det felles kit-et (rutenett,
  * akseverdier og aksetitler med klassene i viz.css), så diagrammene ser like ut i alle fagene.
  */
 import type { ReactNode } from 'react';
@@ -10,8 +10,7 @@ import { VIZ } from '../../kit/colors';
 import { Txt } from '../../kit/txt';
 import { fmt } from '../../kit/format';
 import { linePath, niceTicks, scaleLinear } from '../../kit/svg';
-import { alpha, useSvgId } from '../../kit/scene/core';
-import { ValueTag } from '../../kit/scene/overlay';
+import { alpha, shade, useSvgId } from '../../kit/scene/core';
 import { GEO, tidFarge } from './colors';
 import { geoHoyde, useGeoScale, useGeoStroke } from './felles';
 import { logEtikett, logTicks, scaleLog, scaleLogInvert, type LogEtikettValg } from './akser';
@@ -61,6 +60,133 @@ export function brytTekst(tekst: string, maksBredde: number, px: number, maksLin
   }
   if (linje) linjer.push(linje);
   return linjer;
+}
+
+/**
+ * Deler en liste i høyst `kolonner` kolonner i samme rekkefølge (nedover, så bortover), så den høyeste kolonnen blir så
+ * lav som mulig. Gir indeksene i hver kolonne.
+ */
+function fordelIKolonner(hoyder: readonly number[], kolonner: number): number[][] {
+  const n = hoyder.length;
+  const pakk = (maks: number) => {
+    const ut: number[][] = [[]];
+    let h = 0;
+    for (let i = 0; i < n; i++) {
+      const hi = hoyder[i]!;
+      if (h + hi > maks + 1e-9 && ut[ut.length - 1]!.length > 0) {
+        ut.push([]);
+        h = 0;
+      }
+      ut[ut.length - 1]!.push(i);
+      h += hi;
+    }
+    return ut;
+  };
+  let lo = Math.max(0, ...hoyder);
+  let hi = hoyder.reduce((s, v) => s + v, 0);
+  for (let r = 0; r < 40 && hi - lo > 0.5; r++) {
+    const mid = (lo + hi) / 2;
+    if (pakk(mid).length <= kolonner) hi = mid;
+    else lo = mid;
+  }
+  return pakk(hi);
+}
+
+/** En tekst som skal stå som flagg over en vannrett akse: strekens plass og tekstens bredde (figurens enheter). */
+export interface FlaggInn {
+  pos: number;
+  bredde: number;
+}
+
+/**
+ * Plassen til ett flagg: `x` er venstre kant av teksten (tegn den med `textAnchor="start"`), `start` sier om teksten står
+ * til høyre for streken, `rad` er raden (0 = nærmest aksen) og [a, b] spennet som tekst og strek tar langs aksen. En
+ * tekst som ikke får plass på noen av sidene, står over streken, flyttet inn mellom p0 og p1.
+ */
+export interface FlaggUt {
+  x: number;
+  start: boolean;
+  rad: number;
+  a: number;
+  b: number;
+}
+
+/**
+ * Plasserer tekster som flagg over en vannrett akse (hendelser på en tidslinje, ankomster i et seismogram): hver tekst
+ * står i en rad over aksen med en loddrett strek ned til sin plass, og ingen strek går gjennom en tekst eller to tekster
+ * oppå hverandre. Tekstene står til høyre for streken når de får plass innenfor [p0, p1], ellers til venstre. Gir antall
+ * rader som trengs, eller null når tekstene sperrer hverandre (bruk da nummererte merker, som `GeoTidslinje` gjør).
+ */
+export function flaggEtiketter(inn: readonly FlaggInn[], p0: number, p1: number, gap = 8): { flagg: FlaggUt[]; rader: number } | null {
+  const n = inn.length;
+  if (n === 0) return { flagg: [], rader: 0 };
+  if (!inn.every((e) => Number.isFinite(e.pos) && Number.isFinite(e.bredde))) return null;
+  const kanStart = inn.map((e) => e.pos + 5 + e.bredde <= p1 + 6);
+  const kanSlutt = inn.map((e) => e.pos - 5 - e.bredde >= p0 - 6);
+  const start = inn.map((e, i) => kanStart[i]! || (!kanSlutt[i]! && e.pos - p0 <= p1 - e.pos));
+  // Venstre kant av teksten: til høyre eller venstre for streken, eller over den og flyttet inn når ingen side passer
+  const tekstX = (i: number) => {
+    const e = inn[i]!;
+    if (kanStart[i] || kanSlutt[i]) return start[i] ? e.pos + 5 : e.pos - 5 - e.bredde;
+    return Math.max(p0, Math.min(e.pos - e.bredde / 2, p1 - e.bredde));
+  };
+  const spenn = (i: number): [number, number] => {
+    const e = inn[i]!;
+    const x = tekstX(i);
+    return [Math.min(x, e.pos) - 3, Math.max(x + e.bredde, e.pos) + 3];
+  };
+  // j sperrer i: streken til i går gjennom teksten til j, så i må stå lavere enn j
+  const sperrer = (j: number, i: number) => {
+    if (i === j) return false;
+    const [a, b] = spenn(j);
+    return inn[i]!.pos >= a - 3 && inn[i]!.pos <= b + 3;
+  };
+  // To tekster som sperrer hverandre: snu den ene hvis den får plass på den andre siden
+  for (let runde = 0; runde < n; runde++) {
+    let endret = false;
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        if (!sperrer(i, j) || !sperrer(j, i)) continue;
+        const [v, h] = inn[i]!.pos <= inn[j]!.pos ? [i, j] : [j, i];
+        if (start[v] && kanSlutt[v]) start[v] = false;
+        else if (!start[h] && kanStart[h]) start[h] = true;
+        else continue;
+        endret = true;
+      }
+    }
+    if (!endret) break;
+  }
+  const rad = new Array<number>(n).fill(0);
+  for (let runde = 0; runde < 4 * n + 8; runde++) {
+    let endret = false;
+    for (let j = 0; j < n; j++) {
+      for (let i = 0; i < n; i++) {
+        if (sperrer(j, i) && rad[j]! <= rad[i]!) {
+          rad[j] = rad[i]! + 1;
+          endret = true;
+        }
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        if (rad[i] !== rad[j]) continue;
+        const [a1, b1] = spenn(i);
+        const [a2, b2] = spenn(j);
+        if (a1 < b2 + gap && a2 < b1 + gap) {
+          // Begge tekstene til høyre for streken: løft den venstre (trapp opp mot venstre), ellers den høyre
+          const [v, h] = inn[i]!.pos <= inn[j]!.pos ? [i, j] : [j, i];
+          rad[start[v] && start[h] ? v : h]! += 1;
+          endret = true;
+        }
+      }
+    }
+    if (Math.max(...rad) > n) return null;
+    if (!endret) break;
+  }
+  return {
+    flagg: inn.map((e, i) => ({ x: tekstX(i), start: tekstX(i) >= e.pos, rad: rad[i]!, a: spenn(i)[0], b: spenn(i)[1] })),
+    rader: Math.max(...rad) + 1,
+  };
 }
 
 /* ================================================================================================ LogPlot */
@@ -116,6 +242,7 @@ export interface LogPlotSkalaer {
   clip: string;
 }
 
+/** Props til `LogPlot`: aksene, størrelsen, hjørnet `at` og barna (en funksjon av skalaene). */
 export interface LogPlotProps {
   x: LogAkse;
   y: LogAkse;
@@ -260,8 +387,9 @@ function synligeEtiketter(pos: readonly number[], bredder: readonly number[], ga
 }
 
 /**
- * Plott med logaritmisk x-akse, y-akse eller begge, og en valgfri ekstra høyreakse (`y2`). Samme stil som `Plot` i det
- * felles kit-et: rutenett, akseverdier og aksetitler som vokser på mobil. Tierpotenser skrives på norsk («0,01», «1000»,
+ * Plott med logaritmisk x-akse, y-akse eller begge, og en valgfri ekstra høyreakse (`y2`). Øvre venstre hjørne er `at`
+ * (standard [0, 0]), og plotteområdet ligger innenfor margene. Samme stil som `Plot` i det felles kit-et: rutenett,
+ * akseverdier og aksetitler som vokser på mobil. Tierpotenser skrives på norsk («0,01», «1000»,
  * «10 000», «10⁻⁵»), og log-aksene får svake hjelpelinjer ved 2, 3 … 9. Etikettene tynnes ut så de ikke overlapper, og
  * margene tilpasses de bredeste tallene. Barna får skalaene:
  *   <LogPlot x={{ min: 0.001, max: 1000, log: true, label: 'Kornstørrelse (mm)' }}
@@ -474,6 +602,7 @@ export function klimaAkser(
   return { tMin: lo!, tMaks: hi!, tSteg: steg, nMaks: nSteg * intervaller, nSteg, intervaller };
 }
 
+/** Props til `Klimadiagram`: tolv måneder med temperatur og nedbør, størrelse og valg. */
 export interface KlimadiagramProps {
   /** Månedsmiddeltemperatur i °C, januar til desember (12 verdier; ugyldige tall hoppes over). */
   temperatur: readonly number[];
@@ -493,7 +622,10 @@ export interface KlimadiagramProps {
   nullLinje?: boolean;
   /** Blå søyler og rød kurve i stedet for grå søyler og mørk kurve (som PDF-malen gjør når eleven har farget). */
   farget?: boolean;
-  /** Uthev én måned (0 = januar) med verdiene skrevet ut. */
+  /**
+   * Uthev én måned (0 = januar): kolonnen tones, og et skilt over diagrammet viser temperaturen og nedbøren. Med `null`
+   * holdes plassen til skiltet av uten at noe er markert, så diagrammet ikke hopper når eleven velger og fjerner en måned.
+   */
   markert?: number | null;
   /** Månedsnavnene på x-aksen (standard J, F, M …). */
   maaneder?: readonly string[];
@@ -507,7 +639,7 @@ export interface KlimadiagramProps {
 
 /**
  * Klimadiagram som i PDF-malen «Atlas»: nedbøren som grå søyler mot høyre akse og temperaturen som mørk kurve med
- * punkter mot venstre akse, én verdi per måned. Aksene deler rutenett (like mange intervaller, `klimaAkser`), og
+ * punkter mot venstre akse, én verdi per måned. Øvre venstre hjørne er `at` (standard [0, 0]). Aksene deler rutenett (like mange intervaller, `klimaAkser`), og
  * temperaturen går fra minst −10 til 20 °C. Valgfritt: 0 °C-linje, farget utgave, uthevet måned og stasjonsnavn med
  * årsmiddel og årsnedbør. Bygd på `LogPlot` med lineære akser. Høyden bør være `geoHoyde(f, 320)` (høyere på mobil):
  *   const [ref, f] = useContainerTextScale<HTMLDivElement>();
@@ -525,7 +657,7 @@ export function Klimadiagram({
   nedborMaks,
   nullLinje = false,
   farget = false,
-  markert = null,
+  markert,
   maaneder = KLIMA_MAANEDER,
   sted,
   visSnitt = false,
@@ -548,9 +680,15 @@ export function Klimadiagram({
   const sum = P.filter((p) => Number.isFinite(p) && p >= 0).reduce((s, v) => s + v, 0);
   const snittTekst = `Årsmiddel ${fmt(middel, 1)} °C · årsnedbør ${fmtTall(sum, 0)} mm`;
   const toLinjer = sted !== undefined && visSnitt && f > 1.25;
-  const topp = 20 * f + (sted !== undefined || visSnitt ? (toLinjer ? 46 * f : 26 * f) : 0);
-  const harMarkert = markert !== null && Number.isFinite(markert) && markert >= -0.5 && markert < 11.5;
+  const harMarkert = markert !== null && markert !== undefined && Number.isFinite(markert) && markert >= -0.5 && markert < 11.5;
   const sm = harMarkert ? Math.round(markert) : 0;
+  // Raden for skiltet over den markerte måneden holdes av når propen er gitt (også null), så diagrammet ikke hopper
+  const skiltPx = 17 * 0.8 * f;
+  const skiltH = skiltPx * 1.55;
+  const skiltRad = markert !== undefined ? skiltH + 12 : 0;
+  const stedRad = sted !== undefined || visSnitt ? (toLinjer ? 46 * f : 26 * f) : 0;
+  const topp = 20 * f + stedRad + skiltRad - (skiltRad > 0 && stedRad > 0 ? 4 * f : 0);
+  const nedborTekst = farget ? shade(GEO.nedbor, 0.08) : VIZ.muted;
   return (
     <LogPlot
       at={at}
@@ -568,37 +706,44 @@ export function Klimadiagram({
         const punkter: [number, number][] = T.map((t, i) => [i + 1, t]);
         const mT = harMarkert ? T[sm] : undefined;
         const mP = harMarkert ? P[sm] : undefined;
-        const ptY = mT !== undefined && Number.isFinite(mT) ? sy(mT) : null;
-        const barY = mP !== undefined && Number.isFinite(mP) && mP >= 0 ? sy2(mP) : null;
-        // Temperaturskiltet over eller under punktet og nedbørtallet over søylen eller inne i den, uten overlapp
+        // Skiltet over den markerte kolonnen: temperaturen i kurvefargen og nedbøren i søylefargen
         const mx = sx(sm + 1);
-        const tagTekst = mT !== undefined ? `${fmt(mT, 1)} °C` : '';
-        const tagW = tekstBredde(tagTekst, 17 * 0.8 * f) + 18;
-        const tagH = 17 * 0.8 * f * 1.5;
-        const lh = 17 * 0.74 * f;
-        const tagX = Math.min(x1 - tagW / 2 - 2, Math.max(x0 + tagW / 2 + 2, mx));
-        type Spenn = [number, number];
-        const tagValg: Spenn[] = ptY === null ? [] : [[ptY - 7 * k - 4 - tagH, ptY - 7 * k - 4], [ptY + 7 * k + 4, ptY + 7 * k + 4 + tagH]];
-        const nedValg: number[] = barY === null ? [] : [barY - 8, ...(y0 - barY > lh + 12 ? [barY + lh + 3] : [])];
-        const overlapp = (a: Spenn, b: Spenn) => a[0] < b[1] + 2 && b[0] < a[1] + 2;
-        let tagSpenn: Spenn | null = tagValg[0] ?? null;
-        let nedY: number | null = nedValg[0] ?? null;
-        finn: for (const t of tagValg.length ? tagValg : [null]) {
-          for (const n of nedValg.length ? nedValg : [null]) {
-            const nSpenn: Spenn | null = n === null ? null : [n - lh * 0.78, n + lh * 0.22];
-            const innenfor = (!t || (t[0] >= y1 - 4 && t[1] <= y0 + 4)) && (!nSpenn || nSpenn[0] >= y1);
-            const fri = !t || !nSpenn || !overlapp(t, nSpenn);
-            const dekkerPunkt = nSpenn !== null && ptY !== null && overlapp(nSpenn, [ptY - 6 * k, ptY + 6 * k]);
-            if (innenfor && fri && !dekkerPunkt) {
-              tagSpenn = t;
-              nedY = n;
-              break finn;
-            }
-          }
-        }
+        const tDel = mT !== undefined && Number.isFinite(mT) ? `${fmt(mT, 1)} °C` : '– °C';
+        const pDel = mP !== undefined && Number.isFinite(mP) && mP >= 0 ? `${fmtTall(mP, 0)} mm` : '– mm';
+        const skiltW = tekstBredde(`${tDel} · ${pDel}`, skiltPx) + 22 * f;
+        const skiltX = Math.min(x1 - skiltW / 2, Math.max(x0 + skiltW / 2, mx));
+        const skiltY = y1 - 8 - skiltH / 2;
+        const sstedY = y1 - skiltRad + (skiltRad > 0 && stedRad > 0 ? 4 * f : 0);
         return (
           <g>
-            {harMarkert && <rect x={sx(sm + 1) - dx / 2} y={y1} width={dx} height={y0 - y1} fill={alpha(VIZ.ink, 0.07)} />}
+            {harMarkert && (
+              <g>
+                <rect x={mx - dx / 2} y={y1} width={dx} height={y0 - y1} fill={alpha(VIZ.ink, 0.08)} />
+                <polygon
+                  points={`${mx - 6 * ss},${skiltY + skiltH / 2 - 1} ${mx + 6 * ss},${skiltY + skiltH / 2 - 1} ${mx},${y1 + 1}`}
+                  fill={VIZ.surface}
+                  stroke={alpha(VIZ.ink, 0.35)}
+                  strokeWidth={1 * ss}
+                  strokeLinejoin="round"
+                />
+                <rect
+                  x={skiltX - skiltW / 2}
+                  y={skiltY - skiltH / 2}
+                  width={skiltW}
+                  height={skiltH}
+                  rx={skiltH * 0.32}
+                  fill={VIZ.surface}
+                  stroke={alpha(VIZ.ink, 0.35)}
+                  strokeWidth={1 * ss}
+                />
+                <rect x={mx - 6 * ss + 1.2 * ss} y={skiltY + skiltH / 2 - 2.2 * ss} width={12 * ss - 2.4 * ss} height={2.6 * ss} fill={VIZ.surface} />
+                <Txt x={skiltX} y={skiltY + skiltPx * 0.34} size={0.8} weight={700} halo={false}>
+                  <tspan style={{ fill: kurveFarge }}>{tDel}</tspan>
+                  <tspan style={{ fill: VIZ.muted }}>{' · '}</tspan>
+                  <tspan style={{ fill: nedborTekst }}>{pDel}</tspan>
+                </Txt>
+              </g>
+            )}
             {P.map((p, i) =>
               Number.isFinite(p) && p > 0 ? (
                 <rect
@@ -607,10 +752,9 @@ export function Klimadiagram({
                   y={Math.min(sy2(p), y0)}
                   width={bw}
                   height={Math.max(0, y0 - sy2(p))}
-                  fill={soyleFyll}
+                  fill={harMarkert && i === sm ? alpha(soyleKant, farget ? 0.7 : 0.55) : soyleFyll}
                   stroke={soyleKant}
-                  strokeWidth={1.2 * ss}
-                  opacity={harMarkert && i !== sm ? 0.7 : 1}
+                  strokeWidth={(harMarkert && i === sm ? 1.8 : 1.2) * ss}
                 />
               ) : null,
             )}
@@ -630,26 +774,20 @@ export function Klimadiagram({
                   key={`t${i}`}
                   cx={sx(i + 1)}
                   cy={sy(t)}
-                  r={(harMarkert && i === sm ? 5.6 : 4.2) * k}
+                  r={(harMarkert && i === sm ? 6 : 4.2) * k}
                   fill={kurveFarge}
                   stroke={VIZ.surface}
-                  strokeWidth={1.5 * ss}
+                  strokeWidth={(harMarkert && i === sm ? 2 : 1.5) * ss}
                 />
               ) : null,
             )}
-            {tagSpenn && <ValueTag x={tagX} y={(tagSpenn[0] + tagSpenn[1]) / 2} text={tagTekst} color={kurveFarge} size={0.8} />}
-            {nedY !== null && mP !== undefined && (
-              <Txt x={mx} y={nedY} size={0.74} weight={700} color={farget ? GEO.nedbor : VIZ.muted}>
-                {`${fmtTall(mP, 0)} mm`}
-              </Txt>
-            )}
             {sted !== undefined && (
-              <Txt x={x0} y={y1 - (toLinjer ? 34 * f : 12 * f)} anchor="start" size={0.95} weight={700}>
+              <Txt x={x0} y={sstedY - (toLinjer ? 34 * f : 12 * f)} anchor="start" size={0.95} weight={700}>
                 {sted}
               </Txt>
             )}
             {visSnitt && (
-              <Txt x={toLinjer || sted === undefined ? x0 : x1} y={y1 - 12 * f} anchor={toLinjer || sted === undefined ? 'start' : 'end'} size={0.78} muted>
+              <Txt x={toLinjer || sted === undefined ? x0 : x1} y={sstedY - 12 * f} anchor={toLinjer || sted === undefined ? 'start' : 'end'} size={0.78} muted>
                 {snittTekst}
               </Txt>
             )}
@@ -675,8 +813,10 @@ export interface TidsHendelse {
   farge?: string;
 }
 
+/** Enheten på tidsaksen i `GeoTidslinje`: millioner år, tusen år, år eller valgt etter zoomen (`'auto'`). */
 export type Tidsenhet = 'auto' | 'millioner' | 'tusen' | 'år';
 
+/** Props til `GeoTidslinje` (og `tidslinjeGeometri`): boksen, retningen, zoomen, nivåene og hendelsene. */
 export interface GeoTidslinjeProps {
   /** Øvre venstre hjørne av boksen tidslinja tegnes i. */
   x?: number;
@@ -704,7 +844,10 @@ export interface GeoTidslinjeProps {
   akse?: boolean;
   /** Egen aksetittel (standard «millioner år siden» osv.); tom streng fjerner den. */
   aksetittel?: string;
-  /** Hendelser med merke og tekst (f.eks. `GEO_HENDELSER`). Vannrett står tekstene over båndene, loddrett til høyre. */
+  /**
+   * Hendelser med merke og tekst (f.eks. `GEO_HENDELSER`). Vannrett står tekstene som flagg over båndene; er det for
+   * trangt, blir merkene nummerert (eldst først) med en nummerert liste over. Loddrett står tekstene til høyre.
+   */
   hendelser?: readonly TidsHendelse[];
   /** En markør (f.eks. fra en glidebryter) ved denne alderen, med alderen som skilt. */
   markor?: number | null;
@@ -846,8 +989,10 @@ function radIntervaller(niva: TidsNiva, samle: boolean): TidsIntervall[] {
  * Tidslinje for geologisk tid: periodebånd i ICS-fargene fra `GEOLOGISK_TID` (eoner, eraer, perioder og epoker),
  * tidsakse i millioner år, tusen år eller år, lineær eller logaritmisk, og hendelsesmerker med tekst. Vannrett (eldst
  * til venstre) eller loddrett (eldst nederst, som ICS-kartet). `fra` og `til` zoomer inn, og navnene i båndene velges
- * etter plassen (fullt navn, kort navn eller ingenting). Boksen er (x, y, width, height); tidsaksen går over hele
- * bredden (vannrett) eller høyden (loddrett), så la det være litt luft rundt for tallene i endene.
+ * etter plassen (fullt navn, kort navn eller ingenting). Hendelsene står som flagg over båndene uten at streker og
+ * tekster krysser hverandre (`flaggEtiketter`); når det blir for trangt, blir de nummererte merker med en liste over.
+ * Boksen er (x, y, width, height); tidsaksen går over hele bredden (vannrett) eller høyden (loddrett), så la det være
+ * litt luft rundt for tallene i endene. Mange hendelser på smal skjerm: bruk `retning="loddrett"` eller mer høyde.
  *   <GeoTidslinje x={20} y={10} width={760} height={260} hendelser={GEO_HENDELSER} markor={alder} markert={periodeVed(alder)?.id} />
  *   <GeoTidslinje … retning="loddrett" fra={66} niva={['periode', 'epoke']} />
  * `tidslinjeGeometri` gir den samme plasseringen utenfor komponenten.
@@ -944,54 +1089,141 @@ export function GeoTidslinje(props: GeoTidslinjeProps) {
   const pxFor = (e: Etikett) => (e.markor ? 17 * 0.8 * f : hendelsePx);
   if (etiketter.length > 0 && vannrett) {
     const radH = hendelsePx * 1.32 + 3;
-    const maksRader = Math.max(1, Math.floor((g.hendelser.q1 - g.hendelser.q0 + 4) / radH));
-    interface Plassert {
-      a: number;
-      b: number;
-      rad: number;
-      x: number;
-    }
-    const plassert: Plassert[] = [];
-    const ok = (a: number, b: number, x: number, r: number) =>
-      plassert.every(
-        (o) =>
-          !(o.rad === r && o.b + 8 > a && o.a - 8 < b) && // overlapper en tekst i samme rad
-          !(o.x >= a - 3 && o.x <= b + 3 && o.rad >= r) && // en annen strek går gjennom teksten
-          !(o.rad < r && x >= o.a - 3 && x <= o.b + 3), // streken går gjennom en lavere tekst
-      );
-    // Markøren først (rad 0), så hendelsene fra høyre mot venstre
-    const rekke = [...etiketter].sort((e1, e2) => (e1.markor === e2.markor ? e2.pos - e1.pos : e1.markor ? -1 : 1));
-    for (const e of rekke) {
-      const w = tekstBredde(e.tekst, pxFor(e)) + 4;
-      const valg: { a: number; b: number; start: boolean }[] = [];
-      if (e.pos + w + 5 <= g.p1 + 4) valg.push({ a: e.pos - 3, b: e.pos + w + 5, start: true });
-      if (e.pos - w - 5 >= g.p0 - 4) valg.push({ a: e.pos - w - 5, b: e.pos + 3, start: false });
-      if (valg.length === 0) valg.push(e.pos - g.p0 > g.p1 - e.pos ? { a: e.pos - w - 5, b: e.pos + 3, start: false } : { a: e.pos - 3, b: e.pos + w + 5, start: true });
-      let valgt: { a: number; b: number; start: boolean; rad: number } | null = null;
-      for (let r = 0; r < maksRader && !valgt; r++) {
-        for (const v of valg) {
-          if (ok(v.a, v.b, e.pos, r)) {
-            valgt = { ...v, rad: r };
-            break;
+    // Radene står fra like over båndene og oppover; den øverste teksten skal holde seg inne i boksen
+    const maksRader = Math.max(1, Math.floor((q0 - 8 - hendelsePx * 0.8 - g.hendelser.q0) / radH) + 1);
+    const plan = flaggEtiketter(
+      etiketter.map((e) => ({ pos: e.pos, bredde: tekstBredde(e.tekst, pxFor(e)) + 4 })),
+      g.p0,
+      g.p1,
+    );
+    if (plan && plan.rader <= maksRader) {
+      etiketter.forEach((e, i) => {
+        const fl = plan.flagg[i]!;
+        const px = pxFor(e);
+        const ty = q0 - 8 - fl.rad * radH;
+        // Står teksten over streken, slutter streken like under teksten; ellers går den opp langs siden av teksten
+        const over = e.pos > fl.x - 2 && e.pos < fl.x + tekstBredde(e.tekst, px) + 6;
+        hendelseEl.push(
+          <g key={`h${i}`}>
+            <line x1={e.pos} x2={e.pos} y1={e.markor ? q0 - 6 : q1} y2={over ? ty + px * 0.3 : ty - px * 0.3} stroke={e.farge} strokeWidth={(e.markor ? 1.4 : 1.2) * ss} opacity={e.markor ? 1 : 0.75} />
+            {e.ende !== null && <line x1={e.pos} x2={e.ende} y1={q0 - 3 * ss} y2={q0 - 3 * ss} stroke={e.farge} strokeWidth={4.5 * ss} strokeLinecap="round" />}
+            {!e.markor && <circle cx={e.pos} cy={q0} r={3.4 * k} fill={e.farge} stroke={VIZ.surface} strokeWidth={1.3 * ss} />}
+            <Txt x={fl.x} y={ty} anchor="start" size={e.markor ? 0.8 : 0.74} weight={e.markor ? 750 : 560}>
+              {e.tekst}
+            </Txt>
+          </g>,
+        );
+      });
+    } else {
+      // For trangt til flagg: nummererte merker på båndene og en nummerert liste øverst (eldst først)
+      const hend = etiketter.filter((e) => !e.markor).sort((e1, e2) => e1.pos - e2.pos);
+      const markorE = etiketter.find((e) => e.markor);
+      const rb = 8.2 * f;
+      const sisteX: number[] = [];
+      const nivaa = hend.map((e) => {
+        let l = 0;
+        while (sisteX[l] !== undefined && e.pos - sisteX[l]! < 2 * rb + 2) l++;
+        sisteX[l] = e.pos;
+        return l;
+      });
+      const merkeY = (l: number) => q0 - rb - 4 - l * (2 * rb + 3);
+      const toppMerker = q0 - 4 - (Math.max(-1, ...nivaa) + 1) * (2 * rb + 3);
+      let listeBunn = toppMerker - 6;
+      if (markorE) {
+        const px = pxFor(markorE);
+        const w = tekstBredde(markorE.tekst, px) + 4;
+        const fl = flaggEtiketter([{ pos: markorE.pos, bredde: w }], g.p0, g.p1)?.flagg[0];
+        const tx = fl?.x ?? markorE.pos + 5;
+        const over = markorE.pos > tx - 2 && markorE.pos < tx + w + 2;
+        const ty = toppMerker - 6;
+        hendelseEl.push(
+          <g key="markor">
+            <line x1={markorE.pos} x2={markorE.pos} y1={q0 - 6} y2={over ? ty + px * 0.3 : ty - px * 0.3} stroke={VIZ.ink} strokeWidth={1.4 * ss} />
+            <Txt x={tx} y={ty} anchor="start" size={0.8} weight={750}>
+              {markorE.tekst}
+            </Txt>
+          </g>,
+        );
+        listeBunn = ty - px - 6;
+      }
+      hend.forEach((e, i) => {
+        const cy = merkeY(nivaa[i]!);
+        hendelseEl.push(
+          <g key={`m${i}`}>
+            <line x1={e.pos} x2={e.pos} y1={q1} y2={cy} stroke={e.farge} strokeWidth={1.2 * ss} opacity={0.75} />
+            {e.ende !== null && <line x1={e.pos} x2={e.ende} y1={q0 - 3 * ss} y2={q0 - 3 * ss} stroke={e.farge} strokeWidth={4.5 * ss} strokeLinecap="round" />}
+            <circle cx={e.pos} cy={cy} r={rb} fill={e.farge} stroke={VIZ.surface} strokeWidth={1.4 * ss} />
+            <text x={e.pos} y={cy + rb * 0.4} textAnchor="middle" style={{ fontSize: rb * 1.15, fontWeight: 750, fill: VIZ.surface }}>
+              {i + 1}
+            </text>
+          </g>,
+        );
+      });
+      // Listen: så få kolonner som mulig uten at noen tekst går inn i neste kolonne (lange tekster brytes), og mindre
+      // skrift før listen går utenfor boksen
+      const topp = g.hendelser.q0 + 6;
+      const hoyde = Math.max(0, listeBunn - topp);
+      const bredde = g.p1 - g.p0;
+      interface Liste {
+        kol: number;
+        skala: number;
+        linjer: string[][];
+        kolonner: number[][];
+        h: number;
+      }
+      let valgt: Liste | null = null;
+      let lavest: Liste | null = null;
+      finn: for (const skala of [1, 0.9, 0.8]) {
+        const px = hendelsePx * skala;
+        for (let kol = 1; kol <= 4; kol++) {
+          const maksB = bredde / kol - 2 * rb - 16;
+          if (maksB < 50) break;
+          const linjer = hend.map((e) => brytTekst(e.tekst, maksB, px, 4));
+          if (linjer.some((ln) => ln.some((l) => tekstBredde(l, px) > maksB + 1))) continue;
+          const hoyder = linjer.map((ln) => ln.length * px * 1.2 + 4);
+          const kolonner = fordelIKolonner(hoyder, kol);
+          const h = Math.max(...kolonner.map((ix) => ix.reduce((sum, i) => sum + hoyder[i]!, 0)));
+          const liste: Liste = { kol, skala, linjer, kolonner, h };
+          if (!lavest || h < lavest.h) lavest = liste;
+          if (h <= hoyde) {
+            valgt = liste;
+            break finn;
           }
         }
       }
-      if (!valgt) valgt = { ...valg[0]!, rad: maksRader - 1 };
-      plassert.push({ a: valgt.a, b: valgt.b, rad: valgt.rad, x: e.pos });
-      const ty = q0 - 8 - valgt.rad * radH;
-      const px = pxFor(e);
-      const tx = valgt.start ? e.pos + 5 : e.pos - 5;
-      hendelseEl.push(
-        <g key={`h${hendelseEl.length}`}>
-          {!e.markor && <line x1={e.pos} x2={e.pos} y1={q1} y2={ty - px * 0.3} stroke={e.farge} strokeWidth={1.2 * ss} opacity={0.75} />}
-          {e.markor && <line x1={e.pos} x2={e.pos} y1={q0 - 6} y2={ty - px * 0.3} stroke={VIZ.ink} strokeWidth={1.4 * ss} />}
-          {e.ende !== null && <line x1={e.pos} x2={e.ende} y1={q0 - 3 * ss} y2={q0 - 3 * ss} stroke={e.farge} strokeWidth={4.5 * ss} strokeLinecap="round" />}
-          {!e.markor && <circle cx={e.pos} cy={q0} r={3.4 * k} fill={e.farge} stroke={VIZ.surface} strokeWidth={1.3 * ss} />}
-          <Txt x={tx} y={ty} anchor={valgt.start ? 'start' : 'end'} size={e.markor ? 0.8 : 0.74} weight={e.markor ? 750 : 560}>
-            {e.tekst}
-          </Txt>
-        </g>,
-      );
+      // Listen står like over merkene, så den hører sammen med tidslinja; får den ikke plass, går den ut over boksen
+      // oppover (gi tidslinja mer høyde)
+      const liste = valgt ?? lavest;
+      if (liste) {
+        const px = hendelsePx * liste.skala;
+        const lh = px * 1.2;
+        const kb = bredde / liste.kol;
+        const start = listeBunn - liste.h;
+        liste.kolonner.forEach((ix, c) => {
+          let y = start + px * 0.95;
+          for (const i of ix) {
+            const e = hend[i]!;
+            const lx = g.p0 + c * kb;
+            const ln = liste.linjer[i]!;
+            hendelseEl.push(
+              <g key={`l${i}`}>
+                <circle cx={lx + rb} cy={y - px * 0.36} r={rb * 0.92} fill={e.farge} />
+                <text x={lx + rb} y={y - px * 0.36 + rb * 0.38} textAnchor="middle" style={{ fontSize: rb * 1.05, fontWeight: 750, fill: VIZ.surface }}>
+                  {i + 1}
+                </text>
+                <Txt x={lx + 2 * rb + 7} y={y} anchor="start" size={0.74 * liste.skala} weight={560}>
+                  {ln.map((l, j) => (
+                    <tspan key={j} x={lx + 2 * rb + 7} dy={j === 0 ? 0 : lh}>
+                      {l}
+                    </tspan>
+                  ))}
+                </Txt>
+              </g>,
+            );
+            y += ln.length * lh + 4;
+          }
+        });
+      }
     }
   } else if (etiketter.length > 0) {
     const lx = g.hendelser.q0;
@@ -1127,8 +1359,8 @@ export function GeoTidslinje(props: GeoTidslinjeProps) {
       </g>
     ) : (
       <g>
-        <line x1={q0 - 6} x2={q1 + 6} y1={markorPos} y2={markorPos} stroke={VIZ.surface} strokeWidth={5 * ss} strokeLinecap="round" />
-        <line x1={q0 - 6} x2={q1 + 6} y1={markorPos} y2={markorPos} stroke={VIZ.ink} strokeWidth={2.4 * ss} strokeLinecap="round" />
+        <line x1={q0 + 1} x2={q1 + 6} y1={markorPos} y2={markorPos} stroke={VIZ.surface} strokeWidth={5 * ss} strokeLinecap="round" />
+        <line x1={q0 + 1} x2={q1 + 6} y1={markorPos} y2={markorPos} stroke={VIZ.ink} strokeWidth={2.4 * ss} strokeLinecap="round" />
         <circle cx={q1 + 6} cy={markorPos} r={3.6 * k} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.4 * ss} />
       </g>
     );
