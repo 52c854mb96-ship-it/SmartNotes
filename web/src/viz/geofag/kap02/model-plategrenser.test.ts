@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PlategrenseType } from '../kit';
+import { TETTHETER, havbunnsalder, magnetiskeStriper, type PlategrenseType } from '../kit';
 import {
   AVSPILLING,
   GRENSE_TYPER,
@@ -12,7 +12,6 @@ import {
   avstandVedDyp,
   fjellkjede,
   geoterm,
-  havbunnsalder,
   havdybde,
   havdybdeVed,
   isostasi,
@@ -51,12 +50,17 @@ describe('platebevegelse og havbunnens alder', () => {
     expect(plateavstand(2, Number.POSITIVE_INFINITY)).toBeNull();
   });
 
-  it('alderen er avstanden delt på halvfarten, likt på begge sider', () => {
-    expect(havbunnsalder(200, 2)).toBeCloseTo(10, 9);
-    expect(havbunnsalder(-200, 2)).toBeCloseTo(10, 9);
-    expect(havbunnsalder(0, 2)).toBe(0);
-    expect(havbunnsalder(100, 0)).toBeNull();
-    expect(havbunnsalder(100, -1)).toBeNull();
+  it('bruker full spredningsfart som kit-et: 4 cm/år gir 2 cm/år per side og 10 millioner år 200 km ut', () => {
+    // Kit-ets havbunnsalder tar spredningsfarten (begge platene); hver side flytter seg med halvparten.
+    expect(havbunnsalder(200, 4)).toBeCloseTo(10, 9);
+    expect(havbunnsalder(-200, 4)).toBeCloseTo(10, 9);
+    expect(havdybdeVed(200, 4)).toBeCloseTo(havdybde(10)!, 9);
+    expect(havdybdeVed(-200, 4)).toBeCloseTo(havdybde(10)!, 9);
+    // Stripene her og i kit-et ligger likt: Brunhes er 0,781 · 20 km bred ved 4 cm/år
+    const her = striper(4).filter((p) => p.fra >= 0);
+    const kit = magnetiskeStriper(4, 5);
+    expect(her[0]!.til).toBeCloseTo(kit[0]!.til, 6);
+    expect(her[her.length - 1]!.til).toBeCloseTo(kit[kit.length - 1]!.til, 6);
   });
 });
 
@@ -84,8 +88,10 @@ describe('havdypet', () => {
   it('gir null for negative og ugyldige aldre, og havdybdeVed følger farten', () => {
     expect(havdybde(-1)).toBeNull();
     expect(havdybde(Number.NaN)).toBeNull();
-    expect(havdybdeVed(1000, 2)).toBeCloseTo(havdybde(50)!, 9);
+    expect(havdybdeVed(1000, 4)).toBeCloseTo(havdybde(50)!, 9);
     expect(havdybdeVed(1000, 0)).toBeNull();
+    expect(havdybdeVed(1000, -2)).toBeNull();
+    expect(havdybdeVed(Number.NaN, 4)).toBeNull();
   });
 });
 
@@ -101,9 +107,9 @@ describe('magnetiske striper', () => {
     expect(polaritet(6)).toBeNull();
   });
 
-  it('er symmetriske om ryggen med bredde halvfart · varighet', () => {
+  it('er symmetriske om ryggen med bredde spredningsfart/2 · varighet', () => {
     const h = 2;
-    const s = striper(h);
+    const s = striper(2 * h);
     const hoyre = s.filter((p) => p.fra >= 0);
     const venstre = s.filter((p) => p.til <= 0);
     expect(hoyre.length).toBe(venstre.length);
@@ -120,14 +126,14 @@ describe('magnetiske striper', () => {
   });
 
   it('er tomme for havbunn eldre enn 5 millioner år', () => {
-    const h = 3;
-    const ytterst = h * 10 * STRIPER_MAKS;
-    expect(stripeVed(ytterst + 1, h)).toBeNull();
-    expect(stripeVed(-ytterst - 1, h)).toBeNull();
-    expect(stripeVed(ytterst - 1, h)).not.toBeNull();
+    const v = 6;
+    const ytterst = (v / 2) * 10 * STRIPER_MAKS;
+    expect(stripeVed(ytterst + 1, v)).toBeNull();
+    expect(stripeVed(-ytterst - 1, v)).toBeNull();
+    expect(stripeVed(ytterst - 1, v)).not.toBeNull();
     // tMax over 5 gir det samme som 5
-    expect(striper(h, 20)).toEqual(striper(h, 5));
-    expect(striper(h, 2).every((p) => p.alderTil <= 2 + 1e-9)).toBe(true);
+    expect(striper(v, 20)).toEqual(striper(v, 5));
+    expect(striper(v, 2).every((p) => p.alderTil <= 2 + 1e-9)).toBe(true);
     expect(striper(0)).toEqual([]);
     expect(striper(Number.NaN)).toEqual([]);
     expect(striper(2, 0)).toEqual([]);
@@ -223,6 +229,9 @@ describe('hvor smelter mantelen?', () => {
 
   it('tørr solidus er ca. 1120 °C ved overflaten og stiger med dypet', () => {
     expect(solidus(0)).toBeCloseTo(1120.661, 3);
+    // Ca. 1500 °C ved 100 km (p ≈ 3,24 GPa), som JSDoc-en sier
+    expect(solidus(100)!).toBeGreaterThan(1480);
+    expect(solidus(100)!).toBeLessThan(1510);
     for (let z = 5; z <= 300; z += 5) expect(solidus(z)!).toBeGreaterThan(solidus(z - 5)!);
     expect(solidus(-1)).toBeNull();
     expect(solidus(Number.NaN, true)).toBeNull();
@@ -271,6 +280,7 @@ describe('kollisjon og isostasi', () => {
     const iso = isostasi(30)!;
     expect(iso.hoyde + iso.rot).toBeCloseTo(30, 9);
     expect(iso.rot / iso.hoyde).toBeCloseTo(2.8 / 0.5, 6);
+    expect(TETTHETER.skorpeKontinentSnitt).toBe(2.8);
     expect(isostasi(-1)).toBeNull();
     expect(isostasi(10, 3.4)).toBeNull();
   });

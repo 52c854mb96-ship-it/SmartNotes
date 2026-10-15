@@ -9,7 +9,7 @@
  *   gjenvaerende(4.468e9, 'u-pb')          // 0,5
  *   datterForhold(1e9, 'k-ar')             // ⁴⁰Ar* / ⁴⁰K etter 1 milliard år
  *   alderFraForhold(0.1, 'k-ar')           // år
- *   nullstilles('k-ar', 400, 1e6)          // biotitt nullstilles, hornblende delvis
+ *   nullstilles('k-ar', 400, 1e6)          // biotitt og kalifeltspat nullstilles, muskovitt delvis, hornblende urørt
  */
 
 /** Isotopsystemene i Geofag 1. Rb–Sr er utelatt med vilje. */

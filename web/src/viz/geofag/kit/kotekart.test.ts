@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { GEO } from './colors';
 import { hoydefelt, type Hoydefelt } from './kart';
-import { Kotekart, Profildiagram, ekvidistanseFor, glattSti, hoydelagFor, jevnLinje, kartSkala } from './kotekart';
+import { Kotekart, Profildiagram, ekvidistanseFor, glattSti, hoydelagFor, innsjoMaske, jevnLinje, kartSkala, profildiagramMarger } from './kotekart';
 
 const svg = (child: ReturnType<typeof createElement>) => renderToStaticMarkup(createElement('svg', null, child));
 const utenNaN = (html: string) => expect(html).not.toMatch(/NaN|Infinity/);
@@ -106,5 +106,93 @@ describe('komponentene', () => {
   it('Profildiagram tåler overhøyde 0 og et profil med lengde 0', () => {
     utenNaN(svg(createElement(Profildiagram, { felt, A: [100, 500], B: [1500, 600], overhoyde: 1, hav: 20 })));
     utenNaN(svg(createElement(Profildiagram, { felt, A: [100, 500], B: [100, 500], overhoyde: 0 })));
+  });
+});
+
+describe('Kotekart: navn og profilender holder seg inne og unna hverandre', () => {
+  /** x og y for teksten (ett element) i den rendrede SVG-en. */
+  const tekstPos = (html: string, tekst: string): [number, number][] =>
+    [...html.matchAll(/<text x="([-\d.]+)" y="([-\d.]+)"[^>]*>([^<]*)<\/text>/g)].filter((m) => m[3] === tekst).map((m) => [Number(m[1]), Number(m[2])]);
+
+  it('setter A og B inne i kartet når profilen går fra kant til kant', () => {
+    const W = 800;
+    const S = kartSkala(felt, W);
+    for (const y of [0, 600, 1200]) {
+      const html = svg(createElement(Kotekart, { felt, width: W, profil: { A: [0, y], B: [1600, y] } }));
+      utenNaN(html);
+      for (const navn of ['A', 'B']) {
+        const pos = tekstPos(html, navn);
+        expect(pos, `${navn} ved y = ${y}`).toHaveLength(1);
+        const [x, yy] = pos[0]!;
+        expect(x).toBeGreaterThan(S.x0);
+        expect(x).toBeLessThan(S.x0 + S.w);
+        expect(yy).toBeGreaterThan(S.y0);
+        expect(yy).toBeLessThan(S.y0 + S.h);
+      }
+    }
+  });
+
+  it('flytter målestokken bort fra en profilende nede til venstre', () => {
+    const html = svg(createElement(Kotekart, { felt, width: 800, profil: { A: [60, 1150], B: [1500, 300] } }));
+    const S = kartSkala(felt, 800);
+    // Målestokkboksen (rect med rx=6) står ikke nede til venstre der A er
+    const bokser = [...html.matchAll(/<rect x="([-\d.]+)" y="([-\d.]+)" width="([-\d.]+)" height="([-\d.]+)" rx="6"/g)].map((m) => m.slice(1).map(Number));
+    expect(bokser).toHaveLength(1);
+    const [bx, by, bw, bh] = bokser[0]!;
+    const [ax, ay] = S.punkt([60, 1150]);
+    const inne = ax >= bx! && ax <= bx! + bw! && ay >= by! && ay <= by! + bh!;
+    expect(inne).toBe(false);
+  });
+
+  it('lar navnet ved et merke stå på siden som er valgt, og gir kotene til barna', () => {
+    let fikk: number | null = null;
+    const html = svg(
+      createElement(Kotekart, {
+        felt,
+        width: 800,
+        merker: [{ p: [700, 500], symbol: 'topp', navn: 'Toppen', navnSide: 'venstre' }],
+        children: (_S, kart) => {
+          fikk = kart.koter.length;
+          return null;
+        },
+      }),
+    );
+    const S = kartSkala(felt, 800);
+    const [mx] = S.punkt([700, 500]);
+    const m = html.match(/<text x="([-\d.]+)" y="[-\d.]+" text-anchor="end"[^>]*>Toppen \d+<\/text>/);
+    expect(m).not.toBeNull();
+    expect(Number(m![1])).toBeLessThan(mx);
+    expect(fikk).toBeGreaterThan(0);
+  });
+});
+
+describe('Profildiagram og innsjoMaske', () => {
+  it('innsjoMaske finner forsenkningen og gir null over vannstanden', () => {
+    const grop = hoydefelt(
+      3,
+      [
+        { type: 'plan', z0: 200, helningX: 0, helningY: 0 },
+        { type: 'topp', x: 800, y: 600, hoyde: -80, radius: 300 },
+      ],
+      { bredde: 1600, lengde: 1200, celle: 40, ujevnhet: 0 },
+    )!;
+    const sjo = innsjoMaske(grop, [800, 600], 180);
+    expect(sjo).not.toBeNull();
+    expect(sjo!.maske.filter(Boolean).length).toBeGreaterThan(5);
+    expect(innsjoMaske(grop, [100, 100], 150)).toBeNull();
+    expect(innsjoMaske(grop, [Number.NaN, 100], 150)).toBeNull();
+    const html = svg(createElement(Profildiagram, { felt: grop, A: [100, 600], B: [1500, 600], innsjoer: [{ punkt: [800, 600], niva: 180 }] }));
+    utenNaN(html);
+  });
+
+  it('smalner plottet med tilpass i stedet for å klippe ved fast overhøyde', () => {
+    const vanlig = svg(createElement(Profildiagram, { felt, A: [0, 600], B: [1600, 600], overhoyde: 1, height: 300 }));
+    const smal = svg(createElement(Profildiagram, { felt, A: [0, 600], B: [1600, 600], overhoyde: 1, height: 300, tilpass: true }));
+    utenNaN(smal);
+    expect(smal).toContain('Ingen overhøyde');
+    const m = profildiagramMarger(1, 40, 640);
+    expect(m.left).toBeGreaterThan(20);
+    expect(Object.values(profildiagramMarger(Number.NaN, Number.NaN, 5)).every(Number.isFinite)).toBe(true);
+    expect(vanlig).not.toEqual(smal);
   });
 });

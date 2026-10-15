@@ -177,17 +177,21 @@ export function lagVed(dybde: number, inndeling: 'kjemisk' | 'mekanisk' = 'kjemi
 /*
  * Kilde: avrundede lærebokverdier i g/cm³: ferskvann 1,000 (ved 4 °C), sjøvann omtrent 1,025, is 0,917 (ren is ved
  * 0 °C), kontinentalskorpe omtrent 2,7, havbunnsskorpe omtrent 2,9 og den øverste mantelen omtrent 3,3 (PREM: 3,38
- * like under Moho). Til isostasi (landheving) og oppdrift.
+ * like under Moho). Til isostasi (landheving) og oppdrift. Snittet for hele kontinentalskorpa (øvre og nedre) er
+ * omtrent 2,8 (Christensen og Mooney 1995: ca. 2,83), fordi den nedre skorpa er tyngre enn de øverste lagene.
  */
 /**
- * Tettheter i g/cm³ (omtrentlige lærebokverdier): ferskvann, sjøvann, is, kontinentalskorpe, havbunnsskorpe og den
- * øverste mantelen. Til isostasi (landheving, `isostatiskNedsynking`) og oppdrift (isfjell, havis).
+ * Tettheter i g/cm³ (omtrentlige lærebokverdier): ferskvann, sjøvann, is, kontinentalskorpe (de øverste lagene),
+ * snittet for hele kontinentalskorpa, havbunnsskorpe og den øverste mantelen. Til isostasi (landheving,
+ * `isostatiskNedsynking`, fjellrøtter: bruk `skorpeKontinentSnitt`, så 70 km skorpe gir ca. 5 km høyde som Tibet) og
+ * oppdrift (isfjell, havis).
  */
 export const TETTHETER = {
   vann: 1.0,
   sjovann: 1.025,
   is: 0.917,
   skorpeKontinent: 2.7,
+  skorpeKontinentSnitt: 2.8,
   skorpeHav: 2.9,
   mantel: 3.3,
 } as const;

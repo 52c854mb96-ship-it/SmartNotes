@@ -83,4 +83,14 @@ describe('registeret for visualiseringer', () => {
     expect(vizForSection('chemistry', '2.3')).toEqual([]);
     expect(vizForSection('physics', null)).toEqual([]);
   });
+
+  it('geofag har de tre referansene, og et deltema finner bare geofags visualiseringer', () => {
+    expect(hasVisualizations({ profile: 'geoscience' })).toBe(true);
+    expect(getViz('geoscience', 'k2-plategrenser')?.title).toBe('Platene beveger seg: rygg, grop og fjellkjede');
+    expect(getViz('geoscience', 'k6-grunnvann')).toBeDefined();
+    expect(getViz('geoscience', 'k9-kotekart')).toBeDefined();
+    expect(getViz('physics', 'k2-plategrenser')).toBeUndefined();
+    expect(vizForSection('geoscience', '2.2').map((e) => e.key)).toContain('k2-plategrenser');
+    expect(vizForSection('physics', '2.2').map((e) => e.key)).not.toContain('k2-plategrenser');
+  });
 });

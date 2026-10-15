@@ -122,10 +122,11 @@ function Senkningstrakt({ f }: { f: number }) {
       speil={speil}
       lag={lag}
       etiketter="inne"
+      unnga={[...bronner.map((b) => b.x), ox]}
       over={
         <>
           <path d={`M0 ${r2(grunn)}H${w}`} fill="none" stroke={GEO.grunnvann.line} strokeWidth={1.6} strokeDasharray="6 5" opacity={0.85} />
-          <Txt x={w - 8} y={r2(grunn - 7)} anchor="end" size={0.7} color={GEO.grunnvann.line}>
+          <Txt x={r2(0.43 * w)} y={r2(grunn - 7)} anchor="middle" size={0.7} color={GEO.grunnvann.line}>
             Speilet før pumping
           </Txt>
           {bronner.map((b, i) => (
@@ -243,7 +244,7 @@ function AlleBronner({ f }: { f: number }) {
 /* ---------------------------------------------------------------- Nedbør og skydekke */
 
 const NEDBOR_SCENER: readonly { tittel: string; type: 'regn' | 'sno' | 'sludd'; intensitet: number; vind: number; sky?: number; sno?: boolean }[] = [
-  { tittel: 'Lett regn (intensitet 0,2)', type: 'regn', intensitet: 0.2, vind: 0.1 },
+  { tittel: 'Lett regn fra tynne skyer (intensitet 0,2)', type: 'regn', intensitet: 0.2, vind: 0.1, sky: 0.15 },
   { tittel: 'Styrtregn med vind og skydekke', type: 'regn', intensitet: 1, vind: 0.5, sky: 0.95 },
   { tittel: 'Snø med skydekke', type: 'sno', intensitet: 0.6, vind: 0.3, sky: 0.45, sno: true },
   { tittel: 'Sludd mot venstre', type: 'sludd', intensitet: 0.65, vind: -0.45, sky: 0.7 },
@@ -366,6 +367,7 @@ function Kretslop({ f }: { f: number }) {
   const maks = Math.max(...GLOBALE_STROMMER.map((s) => s.mengde));
   const m = (id: string) => GLOBALE_STROMMER.find((s) => s.id === id)?.mengde ?? 0;
   const b = (id: string) => stromBredde(m(id), maks, 26, 3);
+  const ramme = { x0: 6, y0: 6, x1: 794, y1: H - 6 };
   const tall = (id: string) => `${fmt(m(id) / 1000, 0)}`;
   const land: [number, number][] = [
     [0, bakke - 70],
@@ -380,6 +382,7 @@ function Kretslop({ f }: { f: number }) {
       <Terreng points={land} bottom={H} type="gress" glatt />
       <rect x={hav} y={bakke} width={800 - hav} height={H - bakke} fill="var(--sc-water)" />
       <Stromlinjer
+        ramme={ramme}
         farge={GEO.fordamping}
         labelSize={0.74}
         linjer={[
@@ -388,6 +391,7 @@ function Kretslop({ f }: { f: number }) {
         ]}
       />
       <Stromlinjer
+        ramme={ramme}
         farge={GEO.nedbor}
         labelSize={0.74}
         linjer={[
@@ -395,8 +399,8 @@ function Kretslop({ f }: { f: number }) {
           { punkter: [[300, 80], [270, 160], [250, bakke - 50]], bredde: b('nedbor-land'), label: `Nedbør ${tall('nedbor-land')}`, labelSide: 'hoyre' },
         ]}
       />
-      <Stromlinjer farge={GEO.avrenning} labelSize={0.74} linjer={[{ punkter: [[300, bakke - 28], [380, bakke - 12], [470, bakke + 18]], bredde: b('avrenning'), label: `Avrenning ${tall('avrenning')}`, labelSide: 'hoyre' }]} />
-      <Stromlinjer farge={GEO.fordamping} stil="stiplet" bredde={2.4} labelSize={0.7} linjer={[{ punkter: [[520, 52], [330, 52]], label: `Vanndamp mot land ${tall('avrenning')}`, labelSide: 'venstre' }]} />
+      <Stromlinjer ramme={ramme} farge={GEO.avrenning} labelSize={0.74} linjer={[{ punkter: [[300, bakke - 28], [380, bakke - 12], [470, bakke + 18]], bredde: b('avrenning'), label: `Avrenning ${tall('avrenning')}`, labelSide: 'hoyre' }]} />
+      <Stromlinjer ramme={ramme} farge={GEO.fordamping} stil="stiplet" bredde={2.4} labelSize={0.7} linjer={[{ punkter: [[520, 52], [330, 52]], label: `Vanndamp mot land ${tall('avrenning')}`, labelSide: 'venstre' }]} />
       <Txt x={14} y={H - 14} anchor="start" size={0.7} muted>
         1000 km³ per år (Trenberth mfl. 2007)
       </Txt>
@@ -671,9 +675,6 @@ function Co2Injeksjon({ f }: { f: number }) {
         <>
           <Plattform {...plattform} />
           <Stromlinjer stil="prikker" farge={GEO.co2.line} punkter={[[pkt.dekk.x + 10, pkt.dekk.y + 30], [pkt.havbunn.x, pkt.havbunn.y], ...bane.slice(1)]} glatt={false} t={0.6} label="CO₂ ned" labelPos={0.2} labelSide="hoyre" />
-          <Txt x={r2(0.62 * w + 12)} y={r2(0.8 * h - 8)} anchor="start" size={0.7} color={GEO.co2.line} weight={650}>
-            plattformPunkter → Stromlinjer
-          </Txt>
         </>
       }
     />
@@ -696,7 +697,7 @@ export default function GalleriVann() {
       <GalleryItem
         wide
         title="Grunnvannssnitt: senkningstrakt rundt to brønner som pumper"
-        note={'speil={senkningstrakt(grunn, brønn1, brønn2)}, dybde={0} (flatt snitt), etiketter="inne", løsmassebrønner med filter og pumpe, observasjonsbrønn med peilebånd. Den stiplede linja tegner kapittelet selv.'}
+        note={'speil={senkningstrakt(grunn, brønn1, brønn2)}, dybde={0} (flatt snitt), etiketter="inne" med unnga={brønnenes x} (så «Grunnvannsspeil» står der speilet er ledig), løsmassebrønner med filter og pumpe, observasjonsbrønn med peilebånd. Den stiplede linja tegner kapittelet selv.'}
         viewBox={(f) => `0 0 800 ${geoHoyde(f, 330)}`}
       >
         {(f) => <Senkningstrakt f={f} />}

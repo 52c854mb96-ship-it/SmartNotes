@@ -124,6 +124,10 @@ describe('oppvarming og lukketemperatur', () => {
     const kar = nullstilles('k-ar', 400, 1e6)!;
     expect(kar.find((m) => m.mineral === 'biotitt')!.status).toBe('nullstilt');
     expect(kar.find((m) => m.mineral === 'hornblende')!.andelTapt).toBeLessThan(0.5);
+    // Som eksempelet i filkommentaren: kalifeltspat nullstilles, muskovitt delvis, hornblende urørt
+    expect(kar.find((m) => m.mineral === 'kalifeltspat')!.status).toBe('nullstilt');
+    expect(kar.find((m) => m.mineral === 'muskovitt')!.status).toBe('delvis');
+    expect(kar.find((m) => m.mineral === 'hornblende')!.status).toBe('urort');
     const upb = nullstilles('u-pb', 400, 1e6)!;
     expect(upb.find((m) => m.mineral === 'zirkon')!.status).toBe('urort');
   });

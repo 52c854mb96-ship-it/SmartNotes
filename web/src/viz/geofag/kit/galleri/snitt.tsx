@@ -17,11 +17,15 @@ import {
   Snittblokk,
   lagflate,
   lagpakkeOppsett,
+  paaToppen,
   snittblokkPerspektiv,
   useSnittblokk,
   type LagpakkeLag,
   type SnittLag,
 } from '../snitt';
+import { Bygning } from '../bygg';
+import { Flagg } from '../diagram';
+import { SkjelvStjerne } from '../tektonikk';
 import { GalleryGrid, GalleryItem } from './felles';
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -51,13 +55,55 @@ function Flattliggende({ f }: { f: number }) {
   );
 }
 
+/** Hus og en brønn satt på toppflaten med paaToppen, flagg med navn over og et skjelv i berggrunnen. */
+function TingPaaToppen({ f }: { f: number }) {
+  const H = geoHoyde(f, 300);
+  const dybde = 90;
+  const { dx, dy } = snittblokkPerspektiv(dybde);
+  const flaggPlass = 2 * (17 * 0.8 * f + 7 * f) + 10;
+  const w = 800 - 40 - dx;
+  const h = H - dy - flaggPlass - 16;
+  const x0 = 20;
+  const y0 = dy + flaggPlass + 6;
+  const overflate = (x: number) => 0.22 * h + 0.04 * h * Math.sin(x / 90);
+  const lag: SnittLag[] = [
+    { type: 'gneis', topp: 0.62 * h },
+    { type: 'morene', topp: 0.4 * h },
+    { type: 'sand', topp: overflate },
+  ];
+  const blokk = { overflate, dx, dy, x: x0, y: y0 };
+  const hus = paaToppen(blokk, 0.22 * w, 0.55);
+  const skole = paaToppen(blokk, 0.62 * w, 0.35);
+  const bronn = paaToppen(blokk, 0.42 * w, 0.1);
+  return (
+    <g>
+      <Snittblokk x={x0} y={y0} w={w} h={h} dybde={dybde} lag={lag} overflate={overflate} />
+      {hus && <Bygning x={hus.x} y={hus.y} type="bolig" pxPerM={3} />}
+      {skole && <Bygning x={skole.x} y={skole.y} type="skole" pxPerM={3} />}
+      <SkjelvStjerne x={x0 + 0.78 * w} y={y0 + 0.82 * h} r={8} farge={GEO.fare[3]} />
+      <Flagg
+        basis={y0 - dy - 8}
+        x0={x0}
+        x1={x0 + w + dx}
+        flagg={[
+          ...(hus ? [{ x: hus.x, y: hus.y - 30, tekst: 'Bolig' }] : []),
+          ...(bronn ? [{ x: bronn.x, y: bronn.y, tekst: 'Brønn', farge: GEO.grunnvann.line }] : []),
+          ...(skole ? [{ x: skole.x, y: skole.y - 40, tekst: 'Skole' }] : []),
+          { x: x0 + 0.78 * w, y: y0 + 0.82 * h, tekst: 'Skjelv (hyposenter)', farge: GEO.fare[3] },
+        ]}
+      />
+    </g>
+  );
+}
+
 function Folder({ f }: { f: number }) {
   const H = geoHoyde(f, 360);
   const dybde = 150;
   const vinkel = 30;
   const { dx, dy } = snittblokkPerspektiv(dybde, vinkel);
   const w = 800 - 20 - dx - etikettPlass(18, f);
-  const h = H - dy - 30;
+  // Plass under blokka til «antiklinal» og «synklinal» (med nedhengene i teksten)
+  const h = H - dy - 26 - 17 * 0.72 * f;
   const fold = { amplitude: 0.17 * h, bolgelengde: 0.95 * w, midt: 0.3 * w };
   const lag: SnittLag[] = [
     { type: 'kalkstein', topp: lagflate(0.86 * h, fold) },
@@ -70,10 +116,10 @@ function Folder({ f }: { f: number }) {
   return (
     <>
       <Snittblokk x={20} y={dy + 8} w={w} h={h} dybde={dybde} vinkel={vinkel} lag={lag} overflate={0.3 * h} mark="kart" etiketter />
-      <Txt x={20 + 0.3 * w} y={r2(dy + 8 + h + 22)} size={0.72} muted>
+      <Txt x={20 + 0.3 * w} y={r2(dy + 8 + h + 6 + 17 * 0.72 * f)} size={0.72} muted>
         antiklinal
       </Txt>
-      <Txt x={20 + 0.775 * w} y={r2(dy + 8 + h + 22)} size={0.72} muted>
+      <Txt x={20 + 0.775 * w} y={r2(dy + 8 + h + 6 + 17 * 0.72 * f)} size={0.72} muted>
         synklinal
       </Txt>
     </>
@@ -508,6 +554,14 @@ export default function Galleri() {
         viewBox={(f) => `0 0 800 ${geoHoyde(f, 340)}`}
       >
         {(f) => <Flattliggende f={f} />}
+      </GalleryItem>
+      <GalleryItem
+        wide
+        title="paaToppen, Flagg og SkjelvStjerne"
+        note="paaToppen({ overflate, dx, dy, x, y }, x, t) setter hus og brønn på toppflaten (t = 0 forkanten, 1 bakkanten); Flagg setter navnene i rader over blokka uten at streker og tekster krysser; SkjelvStjerne er symbolet fra Plategrense."
+        viewBox={(f) => `0 0 800 ${geoHoyde(f, 300)}`}
+      >
+        {(f) => <TingPaaToppen f={f} />}
       </GalleryItem>
       <GalleryItem
         wide

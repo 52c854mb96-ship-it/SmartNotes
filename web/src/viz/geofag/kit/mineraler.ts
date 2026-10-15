@@ -250,7 +250,7 @@ export const MINERAL_TONER: readonly MineralTone[] = [
 ];
 
 /** Krystallformene `Krystall` kan tegne. */
-export type Krystallform = 'prisme' | 'rombeeder' | 'terning' | 'oktaeder' | 'tavle' | 'dodekaeder';
+export type Krystallform = 'prisme' | 'romboeder' | 'terning' | 'oktaeder' | 'tavle' | 'dodekaeder';
 
 /** Id-ene til mineralene i `MINERALER` (ASCII: `solv` er sølv). */
 export type MineralId =
@@ -316,7 +316,7 @@ export interface Mineral {
   strekTekst: string;
   /** Antall spalteretninger (0 = ingen god spalting, bare brudd). */
   spalting: 0 | 1 | 2 | 3 | 4 | 6;
-  /** Spaltingen med ord: «tre retninger, ikke vinkelrett (rombeeder)». */
+  /** Spaltingen med ord: «tre retninger, ikke vinkelrett (romboeder)». */
   spaltingTekst: string;
   /** Fargen med ord: «fargeløs, hvit, røykgrå». */
   fargeTekst: string;
@@ -663,10 +663,10 @@ const DATA: Record<MineralId, M> = {
     strek: ['hvit'],
     strekTekst: 'hvit',
     spalting: 3,
-    spaltingTekst: 'tre retninger, ikke vinkelrett (rombeeder)',
+    spaltingTekst: 'tre retninger, ikke vinkelrett (romboeder)',
     fargeTekst: 'hvit, fargeløs eller lys grå',
     tone: 'hvit',
-    krystallform: 'rombeeder',
+    krystallform: 'romboeder',
     bruser: 'ja',
     magnetisk: 'nei',
     kjennetegn: 'Bruser i saltsyre. Klare krystaller viser dobbeltbilder.',
@@ -682,10 +682,10 @@ const DATA: Record<MineralId, M> = {
     strek: ['hvit'],
     strekTekst: 'hvit',
     spalting: 3,
-    spaltingTekst: 'tre retninger, ikke vinkelrett (rombeeder)',
+    spaltingTekst: 'tre retninger, ikke vinkelrett (romboeder)',
     fargeTekst: 'hvit, grå eller lys rosa',
     tone: 'hvit',
-    krystallform: 'rombeeder',
+    krystallform: 'romboeder',
     bruser: 'pulver',
     magnetisk: 'nei',
     kjennetegn: 'Bruser bare svakt, og først når det er skrapt til pulver.',

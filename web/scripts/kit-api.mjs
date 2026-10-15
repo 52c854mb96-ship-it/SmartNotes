@@ -24,6 +24,7 @@
  *   --tittel <tekst>        overskriften (standard «Scene-kit» for kit/scene, «Geofag-kit» for geofag/kit)
  *   --import <sti>          importstien fra en kapittelmappe (standard ../kit for <fag>/kit, ellers ../../<sti>)
  *   --galleri-prefiks <p>   prefikset i ?galleri= (standard «geo-» for geofag/kit, ellers ingenting)
+ * Står det en KONVENSJONER.md i kit-mappa, kommer den som et eget avsnitt rett etter overskriften.
  * Navn uten JSDoc skrives til stderr, så de kan få en kommentar i kildefila.
  */
 import fs from 'node:fs';
@@ -739,6 +740,15 @@ const bilder = familier.length
 hode.push(`Importer fra \`${importSti}\`.${bilder}`);
 hode.push(`Lag fila på nytt fra web/ med \`node scripts/kit-api.mjs ${relWeb}${valg.kort ? ' --kort' : ''} > ${relWeb}/API.md\`.`);
 
-process.stdout.write(`${[hode.join('\n'), ...avsnitt].join('\n\n')}\n`);
+// Konvensjoner: står det en KONVENSJONER.md i kit-mappa, kommer den rett etter overskriften (uten sin egen tittel)
+const konvensjonerFil = path.join(kitDir, 'KONVENSJONER.md');
+const konvensjoner = fs.existsSync(konvensjonerFil)
+  ? `## Konvensjoner\n${fs
+      .readFileSync(konvensjonerFil, 'utf8')
+      .replace(/^# [^\n]*\n+/, '')
+      .trim()}`
+  : null;
+
+process.stdout.write(`${[hode.join('\n'), ...(konvensjoner ? [konvensjoner] : []), ...avsnitt].join('\n\n')}\n`);
 
 if (manglerDok.length) process.stderr.write(`kit-api: ${manglerDok.length} navn uten JSDoc:\n  ${manglerDok.join('\n  ')}\n`);

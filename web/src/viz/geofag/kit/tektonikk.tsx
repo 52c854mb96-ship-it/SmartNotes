@@ -6,8 +6,11 @@
  *     ovenfra.
  *   - `Vulkan`: skjoldvulkan eller stratovulkan (også erodert), utvendig eller i snitt med magmakammer, og utbrudd med
  *     lavastrøm, lavafontene og askesky.
- * Rene hjelpere: `MAGNETISK_POLARITET`, `polaritetVed`, `magnetiskeStriper`, `jordasIndreRadius`, `jordasIndreRadier`,
- * `jordasIndreGeometri`, `plategrenseGeometri` og `vulkanGeometri`. Ugyldige tall gir null, aldri NaN eller Infinity.
+ *   - `SkjelvStjerne`: jordskjelvsymbolet (stjerne) som Plategrense bruker, til egne skjelv og episentre.
+ * Rene hjelpere: `MAGNETISK_POLARITET`, `polaritetVed`, `magnetiskeStriper`, `havbunnsalder`, `jordasIndreRadius`,
+ * `jordasIndreRadier`, `jordasIndreGeometri`, `plategrenseGeometri` (med `kraftankre` til kraftpiler) og
+ * `vulkanGeometri`. Ugyldige tall gir null, aldri NaN eller Infinity. Farten er overalt den fulle spredningsfarten
+ * (hver side flytter seg med halvparten).
  *
  * Fargene er GEO-fargene (jordas indre, magma, lava, aske, polaritet). Farter og strømning tegnes med `VIZ.velocity`;
  * krefter (platetrekk, ryggskyv) tegner kapitlet selv med VIZ-fargene ved ankerpunktene fra geometrifunksjonene.
@@ -906,6 +909,8 @@ interface BlokkProps {
   toppFarge: (x: number, y: number) => string;
   /** Lys og skygge per firkant på toppflaten etter helningen (standard på). Av for flate bånd, som magnetiske striper. */
   toppSkygge?: boolean;
+  /** Toppflaten bakover (standard `profil`): en glattere kurve gir en nesten flat havbunn med bølgene bare i snittet foran. */
+  toppProfil?: (x: number) => number;
   /** Båndene på sideflaten (ved x = w), ovenfra og ned. */
   side: readonly SideBand[];
   kjegler: readonly Kjegle[];
@@ -925,7 +930,7 @@ interface BlokkProps {
  * vannflaten (halvgjennomsiktig over havbunnen), kjeglene ved frontkanten, sideflaten til høyre i skygge og snittet
  * foran med lys ovenfra. Samme stil som Snittblokk. Lokale koordinater: (0, 0) er øverste venstre hjørne av snittet.
  */
-function Blokk({ w, h, dx, dy, dybde, profil, frontTopp, hav, toppFarge, toppSkygge = true, side, kjegler, front, overflate, frontFri, skygge = true, vannAlfa = 0.6 }: BlokkProps) {
+function Blokk({ w, h, dx, dy, dybde, profil, toppProfil, frontTopp, hav, toppFarge, toppSkygge = true, side, kjegler, front, overflate, frontFri, skygge = true, vannAlfa = 0.6 }: BlokkProps) {
   const s = useGeoStroke();
   const uid = useSvgId('blokk');
   const persp = dx > 0.5 && dy > 0.5 && dybde > 0;
@@ -933,7 +938,7 @@ function Blokk({ w, h, dx, dy, dybde, profil, frontTopp, hav, toppFarge, toppSky
   const oy = persp ? dy / dybde : 0;
   const nx = Math.max(40, Math.min(360, Math.ceil(w / 4)));
   const xs = linspace(0, w, nx);
-  const bakke: P[] = xs.map((x): P => [x, profil(x)]);
+  const bakke: P[] = xs.map((x): P => [x, (toppProfil ?? profil)(x)]);
   const ftXs = [...xs, ...kjegler.flatMap((k) => linspace(k.x - k.r, k.x + k.r, 48).filter((x) => x > 0 && x < w))].sort((a, b) => a - b);
   const ft: P[] = ftXs.map((x): P => [x, frontTopp(x)]);
   const rockSti = sti([...ft, [w, h], [0, h]], true);
@@ -1281,6 +1286,8 @@ interface PlateKjegle extends Kjegle {
 interface PlateModell {
   hav: number | null;
   profil: (x: number) => number;
+  /** Toppflaten bakover når den skal være glattere enn snittet foran (spredning med striper). */
+  toppProfil?: (x: number) => number;
   kjegler: PlateKjegle[];
   flater: { p: P[]; fyll: Fyll }[];
   plume: P[] | null;
@@ -1406,10 +1413,12 @@ function modellSpredning(m: ModellInn): PlateModell {
   const forsk = (pxPerMa / 2) * t;
   const langsom = fart < 5;
   const lam = Math.max(12, 0.045 * w);
-  const halv = 0.5 * w;
+  // Havbunnen synker med alderen (omtrent som √alder): u = alder / 10 millioner år (alderen ved kanten med
+  // standardverdiene, 200 km ved 4 cm/år). En rask rygg blir bred og slak, en langsom smal og bratt.
+  const alderU = (a: number) => Math.min(1, (a * kmPerPx) / (5 * Math.max(0.5, fart)) / 10);
   const glattBunn = (x: number) => {
     const a = Math.abs(x - xr);
-    const u = Math.min(1, a / halv);
+    const u = alderU(a);
     let y = ys + h * (0.05 + 0.075 * Math.sqrt(u));
     if (langsom) y += h * 0.03 * klokke(a, 0, 0.018 * w) - h * 0.014 * klokke(a, 0.045 * w, 0.022 * w);
     else y -= h * 0.01 * klokke(a, 0, 0.05 * w);
@@ -1420,10 +1429,12 @@ function modellSpredning(m: ModellInn): PlateModell {
     return glattBunn(x) + h * 0.008 * trinn(0.03 * w, 0.1 * w, a) * bolger(a, forsk, lam);
   };
   const skorpeBunn = (x: number) => glattBunn(x) + tc;
-  const litoBunn = (x: number) => glattBunn(x) + tc + h * (0.012 + 0.28 * Math.sqrt(Math.min(1, Math.abs(x - xr) / halv)));
+  const litoBunn = (x: number) => glattBunn(x) + tc + h * (0.012 + 0.28 * Math.sqrt(alderU(Math.abs(x - xr))));
   const ysol = 0.54 * h;
   mod.hav = ys;
   mod.profil = bunn;
+  // Med striper ligger havbunnen nesten flat bakover, så stripene ser ut som bånd på bunnen (bølgene bare foran)
+  if (m.striper) mod.toppProfil = glattBunn;
 
   // Grunne skjelv (under ca. 10 km) i den tynne, sprø skorpa langs ryggaksen, der platene revner og sprekker opp
   {
@@ -2507,8 +2518,9 @@ function Skjelv({ p }: { p: readonly P[] }) {
  *
  * Ankerpunkt: (x, y) er øverste venstre hjørne av snittet foran (kartet for transform). Bakkanten er forskjøvet
  * (dx, −dy) fra `snittblokkPerspektiv(dybde, vinkel)`, og havnivået ligger ca. 0,2 · h ned (0,26 · h ved varmt punkt).
- * Bruk `plategrenseGeometri(props)` for ankerpunktene til kraftpiler (platetrekk, ryggskyv) og etiketter, og `ramme`
- * til viewBox-en. Krefter tegner kapitlet selv med VIZ-fargene. På mobil trenger lagnavnene og fartspilene mer plass:
+ * Bruk `plategrenseGeometri(props, f)` for ankerpunktene: `kraftankre` til kraftpiler (platetrekk, ryggskyv, platene
+ * som skyver), valgt fri for kit-ets egne lagnavn og fartspiler (`opptatt`), `ankere` til etiketter, og `ramme` til
+ * viewBox-en. Krefter tegner kapitlet selv med VIZ-fargene. På mobil trenger lagnavnene og fartspilene mer plass:
  * gjør h høyere når teksten vokser, f.eks. h = 0,42 · w · (1 + 0,22 · (f − 1)) med f fra `useContainerTextScale`.
  *   <Plategrense type="spredning" x={20} y={70} w={700} h={300} striper t={t} fart={4} />
  *   <Plategrense type="subduksjon" variant="hav-hav" x={20} y={70} w={700} h={300} etiketter>
@@ -2776,6 +2788,7 @@ function PlateBlokk(props: PlategrenseProps) {
           dy={dy}
           dybde={dybde}
           profil={mod.profil}
+          toppProfil={mod.toppProfil}
           frontTopp={ft}
           hav={mod.hav}
           toppFarge={mod.topp}

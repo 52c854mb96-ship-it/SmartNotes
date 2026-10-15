@@ -18,6 +18,7 @@ import { GEO } from './colors';
 import { geoHoyde, useGeoScale, useGeoStroke } from './felles';
 import { flytvei, hoydeVed, koter, maalestokkTekst, skalastokk, terrengprofil, vannskille, type Hoydefelt, type Kartpunkt, type Kote } from './kart';
 import { LogPlot, tekstBredde, type LogPlotSkalaer } from './diagram';
+import { fmtTall } from './akser';
 
 type P = [number, number];
 
@@ -229,11 +230,14 @@ function midtpunkt(ringer: readonly P[][]): P | null {
 }
 
 /**
- * Innsjøen rundt et punkt: gitterpunktene under vannstanden som henger sammen med punktet (4-naboer). Renner vannet ut
- * av kartet eller i havet ved den vannstanden, senkes den til like under terskelen (der vannet ville rent over), så
- * innsjøen aldri flyter ut over landskapet. Null når punktet ligger over vannstanden.
+ * Innsjøen rundt et punkt (samme som `Kotekart` og `Profildiagram` tegner): gitterpunktene i høydefeltet under
+ * vannstanden som henger sammen med punktet (4-naboer), som en maske i samme rekkefølge som `felt.z` (indeks j · nx + i),
+ * og den faktiske vannstanden. Renner vannet ut av kartet eller i havet ved den vannstanden, senkes den til like under
+ * terskelen (der vannet ville rent over), så innsjøen aldri flyter ut over landskapet. Null når punktet ligger over
+ * vannstanden eller tallene er ugyldige.
+ *   const sjo = innsjoMaske(felt, [900, 600], 210, null);   // sjo.maske[j * felt.nx + i], sjo.niva
  */
-function innsjo(felt: Hoydefelt, punkt: Kartpunkt, niva: number, hav: number | null): { maske: boolean[]; niva: number } | null {
+export function innsjoMaske(felt: Hoydefelt, punkt: Kartpunkt, niva: number, hav: number | null = null): { maske: boolean[]; niva: number } | null {
   const { nx, ny, celle, z } = felt;
   if (!Number.isFinite(punkt[0]) || !Number.isFinite(punkt[1]) || !Number.isFinite(niva)) return null;
   const i0 = Math.min(nx - 1, Math.max(0, Math.round(punkt[0] / celle)));
@@ -338,6 +342,11 @@ export interface KartMerke {
   /** Skriv høyden (m o.h.) ved merket (standard på for topper). */
   hoyde?: boolean;
   farge?: string;
+  /**
+   * Hvor navnet står ved merket. Standard: den første siden av høyre, venstre, over og under der det ikke dekker andre
+   * navn, profilendene, profillinja, nordpila eller målestokken.
+   */
+  navnSide?: 'hoyre' | 'venstre' | 'over' | 'under';
 }
 
 /** Profillinja A–B på kartet (samme punkter som `Profildiagram`). */
@@ -390,8 +399,18 @@ export interface KotekartProps {
   visEkvidistanse?: boolean;
   /** Dempet grunnkart, når sonene eller tegningen oppå er poenget. */
   dempet?: boolean;
-  /** Ekstra tegning oppå kartet (klippet til kartet), med skalaen fra meter til figuren. */
-  children?: (s: KartSkala) => ReactNode;
+  /**
+   * Ekstra tegning oppå kartet (klippet til kartet), med skalaen fra meter til figuren og det kartet har regnet ut:
+   * kotene (`koter` fra kart.ts med ekvidistansen), og flatene navn, merker, profilender, nordpil og målestokk tar.
+   */
+  children?: (s: KartSkala, kart: KotekartInfo) => ReactNode;
+}
+
+/** Det `Kotekart` gir til barna: kotene, ekvidistansen og hvor tekst og symboler står (figurens koordinater). */
+export interface KotekartInfo {
+  koter: readonly Kote[];
+  ekvidistanse: number;
+  opptatt: readonly { x0: number; y0: number; x1: number; y1: number }[];
 }
 
 interface Kotetall {
@@ -432,33 +451,16 @@ export function Kotekart(props: KotekartProps) {
   const terrengRetning = props.kotetallRetning === 'terreng';
   const tallPx = 17 * 0.64 * f;
 
-  // Grunnkartet: høydelag, relieff, koter og kotetall (regnes bare ut når feltet eller valgene endres)
-  const grunn = useMemo(() => {
+  // Relieffskyggen regnes bare ut når feltet, havet eller plassen endres (ikke når ekvidistansen byttes)
+  const skygge = useMemo(() => {
     const { nx, ny, celle, z } = felt;
     const N = nx * ny;
-    const tilSti = (ringer: readonly P[][], minRute = 0) =>
-      ringer
-        .filter((r) => {
-          if (minRute <= 0) return true;
-          const xs = r.map((p) => p[0]);
-          const ys = r.map((p) => p[1]);
-          return Math.max(...xs) - Math.min(...xs) > minRute * celle || Math.max(...ys) - Math.min(...ys) > minRute * celle;
-        })
-        .map((r) => glattSti(r.map(S.punkt), true))
-        .join('');
+    const tilSti = ringSti(S, celle);
     const landGrense = hav !== null ? hav + 0.05 : -Infinity;
-    // Land (over havet)
-    const landRinger = hav !== null ? omrader(felt, Array.from(z, (v) => v - landGrense)) : null;
-    const land = landRinger ? tilSti(landRinger) : null;
-    // Høydelag
-    const lag = lagValg === false ? [] : hoydelagFor(felt, ekv, hav, Array.isArray(lagValg) ? lagValg : undefined);
-    const lagStier = lag.map((l, i) => {
-      if (i === 0) return { farge: l.farge, d: land ?? `M${S.x0} ${S.y0}h${S.w}v${S.h}h${-S.w}Z` };
-      return { farge: l.farge, d: tilSti(omrader(felt, Array.from(z, (v) => v - l.fra))) };
-    });
-    // Relieffskygge: hvor mye hver flate vender mot lyset fra nordvest
     const skygge: { d: string; mork: boolean; styrke: number }[] = [];
-    if (relieff && felt.max > felt.min) {
+    if (!relieff || !(felt.max > felt.min)) return skygge;
+    {
+      // Relieffskygge: hvor mye hver flate vender mot lyset fra nordvest
       const gx = new Float64Array(N);
       const gy = new Float64Array(N);
       const mag: number[] = [];
@@ -499,6 +501,23 @@ export function Kotekart(props: KotekartProps) {
         if (d) skygge.push({ d, mork, styrke });
       }
     }
+    return skygge;
+  }, [felt, hav, relieff, S.x0, S.y0, S.w]);
+
+  // Grunnkartet: land, høydelag og koter (regnes bare ut når feltet eller valgene endres)
+  const grunn = useMemo(() => {
+    const { z } = felt;
+    const tilSti = ringSti(S, felt.celle);
+    const landGrense = hav !== null ? hav + 0.05 : -Infinity;
+    // Land (over havet)
+    const landRinger = hav !== null ? omrader(felt, Array.from(z, (v) => v - landGrense)) : null;
+    const land = landRinger ? tilSti(landRinger) : null;
+    // Høydelag
+    const lag = lagValg === false ? [] : hoydelagFor(felt, ekv, hav, Array.isArray(lagValg) ? lagValg : undefined);
+    const lagStier = lag.map((l, i) => {
+      if (i === 0) return { farge: l.farge, d: land ?? `M${S.x0} ${S.y0}h${S.w}v${S.h}h${-S.w}Z` };
+      return { farge: l.farge, d: tilSti(omrader(felt, Array.from(z, (v) => v - l.fra))) };
+    });
     // Koter (ikke i havet)
     const alle: Kote[] = koter(felt, ekv, { hovedkoteHver: hoved }).filter((kt) => hav === null || kt.hoyde > landGrense);
     const tynne = alle
@@ -510,13 +529,13 @@ export function Kotekart(props: KotekartProps) {
       .flatMap((kt) => kt.linjer.map((l) => glattSti(l.punkter.map(S.punkt), l.lukket)))
       .join('');
     return { land, landRinger, lagStier, lag, skygge, alle, tynne, tykke };
-  }, [felt, ekv, hoved, hav, lagNokkel, relieff, S.x0, S.y0, S.w]);
+  }, [felt, ekv, hoved, hav, lagNokkel, skygge, S.x0, S.y0, S.w]);
 
   // Innsjøer
   const innsjoer = useMemo(
     () =>
       (props.innsjoer ?? []).map((sj) => {
-        const sjo = innsjo(felt, sj.punkt, sj.niva, hav);
+        const sjo = innsjoMaske(felt, sj.punkt, sj.niva, hav);
         if (!sjo) return null;
         const { maske, niva } = sjo;
         const v = felt.z.map((zz, q) => (maske[q] ? niva - zz : zz >= niva ? Math.min(niva - zz, -1e-6) : -1));
@@ -612,64 +631,6 @@ export function Kotekart(props: KotekartProps) {
   const papir = mix(VIZ.surface, GEO.hoydelag[2]!, 0.28);
   const dempet = props.dempet === true;
 
-  // Navn på innsjøer, elver, soner og vannskiller (plassert før kotetallene, så tallene holder seg unna)
-  const navn: Navnelapp[] = [];
-  innsjoer.forEach((sj, i) => {
-    if (sj?.navn && sj.midt) {
-      const [x, y] = S.punkt(sj.midt);
-      navn.push({ key: `sj${i}`, x, y: y + 5 * f, tekst: sj.navn, size: 0.7, weight: 650, farge: vannLinje, anchor: 'middle' });
-    }
-  });
-  // Elvenavn: ved siden av elva der den ikke deler løp med en annen elv, innenfor kartet og ikke oppå et annet navn
-  elver.forEach((e) => {
-    if (!e.navn || e.px.length < 2) return;
-    const px = 17 * 0.68 * f;
-    const w = tekstBredde(e.navn, px);
-    const andre = elver.filter((o) => o.key !== e.key).flatMap((o) => o.px);
-    const boksFor = (x: number, y: number, hoyre: boolean): Boks => (hoyre ? [x, y - px * 0.85, x + w, y + px * 0.3] : [x - w, y - px * 0.85, x, y + px * 0.3]);
-    const ledig = (b: Boks) =>
-      b[0] >= S.x0 + 4 &&
-      b[2] <= S.x0 + S.w - 4 &&
-      b[1] >= S.y0 + 4 &&
-      b[3] <= S.y0 + S.h - 4 &&
-      !navn.some((n) => {
-        const o = navnBoks(f)(n);
-        return b[0] < o[2] && o[0] < b[2] && b[1] < o[3] && o[1] < b[3];
-      });
-    let valgt: Navnelapp | null = null;
-    for (const t of [0.45, 0.35, 0.55, 0.25, 0.65, 0.15, 0.75]) {
-      const p = e.px[Math.floor((e.px.length - 1) * t)]!;
-      if (andre.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 30 * f)) continue;
-      for (const hoyre of [true, false]) {
-        const x = hoyre ? p[0] + 10 : p[0] - 10;
-        const y = p[1] - 6;
-        if (ledig(boksFor(x, y, hoyre))) {
-          valgt = { key: `elv${e.key}`, x, y, tekst: e.navn, size: 0.68, weight: 650, farge: vannLinje, anchor: hoyre ? 'start' : 'end' };
-          break;
-        }
-      }
-      if (valgt) break;
-    }
-    if (!valgt) {
-      const p = e.px[Math.floor((e.px.length - 1) * 0.5)]!;
-      const hoyre = p[0] + 10 + w <= S.x0 + S.w - 6;
-      valgt = { key: `elv${e.key}`, x: hoyre ? p[0] + 10 : p[0] - 10, y: p[1] - 6, tekst: e.navn, size: 0.68, weight: 650, farge: vannLinje, anchor: hoyre ? 'start' : 'end' };
-    }
-    navn.push(valgt);
-  });
-  soner.forEach(({ sone, midt }, i) => {
-    if (sone.navn && midt) {
-      const [x, y] = S.punkt(midt);
-      navn.push({ key: `sone${i}`, x, y: y + 5 * f, tekst: sone.navn, size: 0.74, weight: 700, farge: mix(sone.farge, VIZ.ink, 0.35), anchor: 'middle' });
-    }
-  });
-  vannskiller.forEach((v, i) => {
-    if (v?.vs.navn && v.midt) {
-      const [x, y] = S.punkt(v.midt);
-      navn.push({ key: `vs${i}`, x, y: y + 5 * f, tekst: v.vs.navn, size: 0.76, weight: 700, farge: v.vs.farge ?? GEO.vannskille, anchor: 'middle' });
-    }
-  });
-
   // Målestokk og nordpil
   const skala = skalastokk(1 / S.k, Math.min(W * 0.3, 210 * f));
   const msTall = typeof props.maalestokk === 'number' ? props.maalestokk : null;
@@ -683,21 +644,142 @@ export function Kotekart(props: KotekartProps) {
   const msH = visMs ? 14 * k + msPx * 1.3 + linjer.length * msPx * 1.25 + 14 : 0;
   const nordX = S.x0 + W - 26 * k;
   const nordY = S.y0 + 14 * f;
+  const nordBoks: Boks | null = props.nordpil !== false ? nordpilBoks(nordX, nordY, f, k) : null;
+
+  // Profillinja: et hinder for alle navn
+  const profilSeg = props.profil ? ([S.punkt(props.profil.A), S.punkt(props.profil.B)] as const) : null;
+  const paaProfil = (b: Boks) => (profilSeg ? boksKrysserStrek(b, profilSeg[0], profilSeg[1], 3 * ss) : false);
+  const merkeSymboler: Boks[] = (props.merker ?? []).flatMap((m) => {
+    const [mx, my] = S.punkt(m.p);
+    const r = 5 * k;
+    return Number.isFinite(mx) && Number.isFinite(my) ? [[mx - r - 2, my - r * 1.2 - 2, mx + r + 2, my + r + 2] as Boks] : [];
+  });
+
+  // Målestokken i det første ledige hjørnet: nede til venstre, nede til høyre eller oppe til venstre (nordpila står
+  // oppe til høyre), så profilendene og merkene ikke havner under den
+  const profilEnder: Boks[] = profilSeg ? profilSeg.map(([px, py]) => [px - 26 * f, py - 26 * f, px + 26 * f, py + 26 * f] as Boks) : [];
+  const msKandidater: Boks[] = [
+    [S.x0 + 8, S.y0 + Hh - 8 - msH, S.x0 + 8 + msB, S.y0 + Hh - 8],
+    [S.x0 + W - 8 - msB, S.y0 + Hh - 8 - msH, S.x0 + W - 8, S.y0 + Hh - 8],
+    [S.x0 + 8, S.y0 + 8, S.x0 + 8 + msB, S.y0 + 8 + msH],
+  ];
+  const msBoks: Boks | null = visMs
+    ? (msKandidater.find((b) => !paaProfil(b) && ![...profilEnder, ...merkeSymboler].some((o) => overlapp(b, o))) ?? msKandidater[0]!)
+    : null;
+
+  // Navn og etiketter plasseres i rekkefølge; alt som er plassert, er hinder for det neste
+  const hindre: Boks[] = [...merkeSymboler];
+  if (nordBoks) hindre.push(nordBoks);
+  if (msBoks) hindre.push(msBoks);
+  const innenfor = (b: Boks) => b[0] >= S.x0 + 4 && b[2] <= S.x0 + W - 4 && b[1] >= S.y0 + 4 && b[3] <= S.y0 + Hh - 4;
+  const ledig = (b: Boks, medProfil = true) => innenfor(b) && !hindre.some((o) => overlapp(b, o)) && !(medProfil && paaProfil(b));
+
+  // 1) A og B: på forlengelsen av linja, ellers vinkelrett på den eller innover, alltid inne i kartet
+  const profilTekst = props.profil ? profilEtiketter(props.profil, S, f, k, (b) => ledig(b, false), innenfor) : null;
+  if (profilTekst) for (const e of profilTekst) hindre.push(e.boks);
+
+  // 2) Navnene ved merkene: valgt side, ellers den første ledige
+  const merkePlasser = (props.merker ?? []).map((m) => {
+    const o = merkePlass(m, S, felt, f, k, ledig);
+    if (o?.tekstBoks) hindre.push(o.tekstBoks);
+    return o;
+  });
+
+  // 3) Navn på innsjøer, elver, soner og vannskiller (før kotetallene, så tallene holder seg unna)
+  const navn: Navnelapp[] = [];
+  const nb = navnBoks(f);
+  const legg = (kandidater: Navnelapp[], maa: boolean) => {
+    const fri = kandidater.find((n) => ledig(nb(n)));
+    const valgt = fri ?? (maa ? (kandidater.find((n) => innenfor(nb(n)) && !hindre.some((o) => overlapp(nb(n), o))) ?? kandidater[0]) : undefined);
+    if (valgt) {
+      navn.push(valgt);
+      hindre.push(nb(valgt));
+    }
+  };
+  const rundt = (x: number, y: number, px: number, w: number) =>
+    [
+      [0, 0],
+      [0, -1.4 * px],
+      [0, 1.4 * px],
+      [-0.65 * w, 0],
+      [0.65 * w, 0],
+      [0, -2.8 * px],
+      [0, 2.8 * px],
+      [-0.65 * w, -1.4 * px],
+      [0.65 * w, 1.4 * px],
+    ].map(([dx, dy]) => [x + dx!, y + dy!] as const);
+  innsjoer.forEach((sj, i) => {
+    if (!sj?.navn || !sj.midt) return;
+    const [x, y] = S.punkt(sj.midt);
+    const px = 17 * 0.7 * f;
+    const w = tekstBredde(sj.navn, px);
+    legg(
+      rundt(x, y + 5 * f, px, w).map(([cx, cy]) => ({ key: `sj${i}`, x: cx, y: cy, tekst: sj.navn!, size: 0.7, weight: 650, farge: vannLinje, anchor: 'middle' as const })),
+      true,
+    );
+  });
+  // Elvenavn: ved siden av elva der den ikke deler løp med en annen elv, innenfor kartet og ikke oppå et annet navn
+  elver.forEach((e) => {
+    if (!e.navn || e.px.length < 2) return;
+    const andre = elver.filter((o) => o.key !== e.key).flatMap((o) => o.px);
+    const kandidater: Navnelapp[] = [];
+    for (const t of [0.45, 0.35, 0.55, 0.25, 0.65, 0.15, 0.75]) {
+      const p = e.px[Math.floor((e.px.length - 1) * t)]!;
+      if (andre.some((q) => Math.hypot(q[0] - p[0], q[1] - p[1]) < 30 * f)) continue;
+      for (const [hoyre, dy] of [
+        [true, -6],
+        [false, -6],
+        [true, 14 * f],
+        [false, 14 * f],
+      ] as const)
+        kandidater.push({ key: `elv${e.key}`, x: hoyre ? p[0] + 10 : p[0] - 10, y: p[1] + dy, tekst: e.navn, size: 0.68, weight: 650, farge: vannLinje, anchor: hoyre ? 'start' : 'end' });
+    }
+    if (kandidater.length === 0) {
+      const p = e.px[Math.floor((e.px.length - 1) * 0.5)]!;
+      kandidater.push({ key: `elv${e.key}`, x: p[0] + 10, y: p[1] - 6, tekst: e.navn, size: 0.68, weight: 650, farge: vannLinje, anchor: 'start' });
+    }
+    legg(kandidater, true);
+  });
+  soner.forEach(({ sone, midt }, i) => {
+    if (!sone.navn || !midt) return;
+    const [x, y] = S.punkt(midt);
+    const px = 17 * 0.74 * f;
+    legg(
+      rundt(x, y + 5 * f, px, tekstBredde(sone.navn, px)).map(([cx, cy]) => ({
+        key: `sone${i}`,
+        x: cx,
+        y: cy,
+        tekst: sone.navn!,
+        size: 0.74,
+        weight: 700,
+        farge: mix(sone.farge, VIZ.ink, 0.35),
+        anchor: 'middle' as const,
+      })),
+      true,
+    );
+  });
+  // Navnet på et nedbørfelt sløyfes hvis det ikke får en ledig plass (feltet synes på fyllet og grensen)
+  vannskiller.forEach((v, i) => {
+    if (!v?.vs.navn || !v.midt) return;
+    const [x, y] = S.punkt(v.midt);
+    const px = 17 * 0.76 * f;
+    legg(
+      rundt(x, y + 5 * f, px, tekstBredde(v.vs.navn, px)).map(([cx, cy]) => ({
+        key: `vs${i}`,
+        x: cx,
+        y: cy,
+        tekst: v.vs.navn!,
+        size: 0.76,
+        weight: 700,
+        farge: v.vs.farge ?? GEO.vannskille,
+        anchor: 'middle' as const,
+      })),
+      false,
+    );
+  });
 
   // Alt kotetallene skal holde seg unna: navn, merker, profilendene, nordpila og målestokken
-  const opptatt: Boks[] = navn.map(navnBoks(f));
-  for (const m of props.merker ?? []) {
-    const o = merkeOppsett(m, S, felt, f, k);
-    if (o) opptatt.push(o.boks);
-  }
-  if (props.profil) {
-    for (const p of [props.profil.A, props.profil.B]) {
-      const [x, y] = S.punkt(p);
-      opptatt.push([x - 24 * f, y - 24 * f, x + 24 * f, y + 24 * f]);
-    }
-  }
-  if (props.nordpil !== false) opptatt.push(nordpilBoks(nordX, nordY, f, k));
-  if (visMs) opptatt.push([S.x0 + 8, S.y0 + Hh - 8 - msH, S.x0 + 8 + msB, S.y0 + Hh - 8]);
+  const opptatt: Boks[] = [...hindre, ...profilEnder];
   const opptattNokkel = opptatt.map((b) => b.map((v) => Math.round(v)).join(',')).join(';');
 
   // Kotetall på tellekotene: rette strekninger, ikke i vann, ikke ved kanten og ikke oppå hverandre eller annen tekst
@@ -869,14 +951,27 @@ export function Kotekart(props: KotekartProps) {
             </g>
           ) : null,
         )}
-        {props.children?.(S)}
+        {props.children?.(S, { koter: grunn.alle, ekvidistanse: ekv, opptatt: opptatt.map(([x0, y0, x1, y1]) => ({ x0, y0, x1, y1 })) })}
       </g>
 
+      {/* Ramme, nordpil og målestokk, så profilendene, merkene og navnene står oppå */}
+      <rect x={S.x0} y={S.y0} width={W} height={Hh} fill="none" stroke={VIZ.ink} strokeWidth={1.4 * ss} opacity={0.8} />
+      {props.nordpil !== false && <Nordpil x={nordX} y={nordY} />}
+      {visMs && skala && msBoks && (
+        <g>
+          <rect x={msBoks[0]} y={msBoks[1]} width={msB} height={msH} rx={6} fill={alpha(VIZ.surface, 0.85)} stroke={alpha(VIZ.ink, 0.25)} strokeWidth={1} />
+          <Skalastokk x={msBoks[0] + 10} y={msBoks[1] + 10 + msPx * 1.3} lengde={skala.enheter} tekst={skala.tekst} h={7 * k} />
+          {linjer.map((l, i) => (
+            <Txt key={l} x={msBoks[0] + 10} y={msBoks[1] + 10 + msPx * 1.3 + 7 * k + 8 + msPx * 1.05 + i * msPx * 1.25} anchor="start" size={0.68} muted>
+              {l}
+            </Txt>
+          ))}
+        </g>
+      )}
+
       {/* Profillinje og merker (over alt, ikke klippet) */}
-      {props.profil && <Profillinje profil={props.profil} S={S} />}
-      {(props.merker ?? []).map((m, i) => (
-        <Merke key={i} merke={m} S={S} felt={felt} />
-      ))}
+      {props.profil && <Profillinje profil={props.profil} S={S} etiketter={profilTekst} />}
+      {merkePlasser.map((o, i) => (o ? <Merke key={i} merke={(props.merker ?? [])[i]!} plass={o} /> : null))}
 
       {/* Navn på innsjøer, elver, soner og vannskiller */}
       {navn.map((n) => (
@@ -884,27 +979,26 @@ export function Kotekart(props: KotekartProps) {
           {n.tekst}
         </Txt>
       ))}
-
-      {/* Ramme, nordpil og målestokk */}
-      <rect x={S.x0} y={S.y0} width={W} height={Hh} fill="none" stroke={VIZ.ink} strokeWidth={1.4 * ss} opacity={0.8} />
-      {props.nordpil !== false && <Nordpil x={nordX} y={nordY} />}
-      {visMs && skala && (
-        <g>
-          <rect x={S.x0 + 8} y={S.y0 + Hh - 8 - msH} width={msB} height={msH} rx={6} fill={alpha(VIZ.surface, 0.85)} stroke={alpha(VIZ.ink, 0.25)} strokeWidth={1} />
-          <Skalastokk x={S.x0 + 18} y={S.y0 + Hh - 8 - msH + 10 + msPx * 1.3} lengde={skala.enheter} tekst={skala.tekst} h={7 * k} />
-          {linjer.map((l, i) => (
-            <Txt key={l} x={S.x0 + 18} y={S.y0 + Hh - 8 - msH + 10 + msPx * 1.3 + 7 * k + 8 + msPx * 1.05 + i * msPx * 1.25} anchor="start" size={0.68} muted>
-              {l}
-            </Txt>
-          ))}
-        </g>
-      )}
     </g>
   );
 }
 
 /** Et rektangel [x0, y0, x1, y1] i figuren som kotetallene holder seg unna. */
 type Boks = [number, number, number, number];
+
+/** Gjør ringer i meter om til én glatt sti i figuren; `minRute` > 0 hopper over ringer mindre enn så mange ruter. */
+function ringSti(S: KartSkala, celle: number) {
+  return (ringer: readonly P[][], minRute = 0) =>
+    ringer
+      .filter((r) => {
+        if (minRute <= 0) return true;
+        const xs = r.map((p) => p[0]);
+        const ys = r.map((p) => p[1]);
+        return Math.max(...xs) - Math.min(...xs) > minRute * celle || Math.max(...ys) - Math.min(...ys) > minRute * celle;
+      })
+      .map((r) => glattSti(r.map(S.punkt), true))
+      .join('');
+}
 
 /** Et navn på kartet (innsjø, elv, sone eller vannskille). */
 interface Navnelapp {
@@ -972,60 +1066,146 @@ function Nordpil({ x, y }: { x: number; y: number }) {
   );
 }
 
-function Profillinje({ profil, S }: { profil: KartProfil; S: KartSkala }) {
-  const ss = useGeoStroke();
-  const k = useGeoScale();
-  const f = useTextScale();
+/** Overlapper to bokser? */
+function overlapp(a: Boks, b: Boks): boolean {
+  return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+}
+
+/** Krysser streken p–q boksen (utvidet med `m`)? Sjekket med punkter langs streken. */
+function boksKrysserStrek(b: Boks, p: readonly [number, number], q: readonly [number, number], m = 0): boolean {
+  const L = Math.hypot(q[0] - p[0], q[1] - p[1]);
+  const n = Math.max(2, Math.ceil(L / 3));
+  for (let i = 0; i <= n; i++) {
+    const x = p[0] + ((q[0] - p[0]) * i) / n;
+    const y = p[1] + ((q[1] - p[1]) * i) / n;
+    if (x > b[0] - m && x < b[2] + m && y > b[1] - m && y < b[3] + m) return true;
+  }
+  return false;
+}
+
+/** Plassen til A og B på profillinja: (x, y) er grunnlinjen midt i bokstaven, `boks` flaten den tar. */
+interface ProfilEtikett {
+  x: number;
+  y: number;
+  tekst: string;
+  boks: Boks;
+}
+
+/**
+ * A og B ved endene av profillinja: på forlengelsen av linja når det er plass, ellers vinkelrett på linja eller innover
+ * langs den, alltid inne i kartet (en profil fra kant til kant får bokstavene inne i rammen).
+ */
+function profilEtiketter(profil: KartProfil, S: KartSkala, f: number, k: number, ledig: (b: Boks) => boolean, innenfor: (b: Boks) => boolean): ProfilEtikett[] | null {
   const [ax, ay] = S.punkt(profil.A);
   const [bx, by] = S.punkt(profil.B);
   const L = Math.hypot(bx - ax, by - ay);
   if (!Number.isFinite(L) || L < 1) return null;
   const ux = (bx - ax) / L;
   const uy = (by - ay) / L;
-  const farge = profil.farge ?? VIZ.ink;
   const [na, nb] = profil.navn ?? ['A', 'B'];
-  const off = 15 * f;
+  const px = 17 * 0.92 * f;
+  const off = 15 * f + 2 * k;
+  const ut: ProfilEtikett[] = [];
+  for (const [x, y, tekst, ret] of [
+    [ax, ay, na, -1],
+    [bx, by, nb, 1],
+  ] as const) {
+    const tw = tekstBredde(tekst, px);
+    const boksVed = (cx: number, cy: number): Boks => [cx - tw / 2 - 2, cy - px * 0.5, cx + tw / 2 + 2, cy + px * 0.5];
+    // Retninger: ut langs linja, vinkelrett på begge sider, skrått og til slutt innover langs linja
+    const dir: [number, number][] = [
+      [ret * ux, ret * uy],
+      [-uy, ux],
+      [uy, -ux],
+      [ret * ux - uy, ret * uy + ux],
+      [ret * ux + uy, ret * uy - ux],
+      [-ret * ux - uy, -ret * uy + ux],
+      [-ret * ux + uy, -ret * uy - ux],
+    ];
+    const kandidater = dir.map(([dx, dy]) => {
+      const l = Math.hypot(dx, dy) || 1;
+      const cx = x + (dx / l) * off;
+      const cy = y + (dy / l) * off;
+      return { cx, cy, boks: boksVed(cx, cy) };
+    });
+    let valgt = kandidater.find((c) => ledig(c.boks)) ?? kandidater.find((c) => innenfor(c.boks)) ?? kandidater[0]!;
+    if (!innenfor(valgt.boks)) {
+      // Klem inn i kartet
+      const dx = Math.max(0, S.x0 + 4 - valgt.boks[0]) - Math.max(0, valgt.boks[2] - (S.x0 + S.w - 4));
+      const dy = Math.max(0, S.y0 + 4 - valgt.boks[1]) - Math.max(0, valgt.boks[3] - (S.y0 + S.h - 4));
+      valgt = { cx: valgt.cx + dx, cy: valgt.cy + dy, boks: boksVed(valgt.cx + dx, valgt.cy + dy) };
+    }
+    ut.push({ x: valgt.cx, y: valgt.cy + px * 0.36, tekst, boks: valgt.boks });
+  }
+  return ut;
+}
+
+function Profillinje({ profil, S, etiketter }: { profil: KartProfil; S: KartSkala; etiketter: readonly ProfilEtikett[] | null }) {
+  const ss = useGeoStroke();
+  const k = useGeoScale();
+  const [ax, ay] = S.punkt(profil.A);
+  const [bx, by] = S.punkt(profil.B);
+  const L = Math.hypot(bx - ax, by - ay);
+  if (!Number.isFinite(L) || L < 1) return null;
+  const farge = profil.farge ?? VIZ.ink;
   return (
     <g>
       <line x1={ax} y1={ay} x2={bx} y2={by} stroke={VIZ.surface} strokeWidth={5.5 * ss} strokeLinecap="round" opacity={0.85} />
       <line x1={ax} y1={ay} x2={bx} y2={by} stroke={farge} strokeWidth={2.4 * ss} strokeLinecap="round" />
       <circle cx={ax} cy={ay} r={4.5 * k} fill={farge} stroke={VIZ.surface} strokeWidth={1.5 * ss} />
       <circle cx={bx} cy={by} r={4.5 * k} fill={farge} stroke={VIZ.surface} strokeWidth={1.5 * ss} />
-      <Txt x={ax - ux * off} y={ay - uy * off + 6 * f} size={0.92} weight={750} color={farge}>
-        {na}
-      </Txt>
-      <Txt x={bx + ux * off} y={by + uy * off + 6 * f} size={0.92} weight={750} color={farge}>
-        {nb}
-      </Txt>
+      {(etiketter ?? []).map((e) => (
+        <Txt key={e.tekst} x={e.x} y={e.y} size={0.92} weight={750} color={farge}>
+          {e.tekst}
+        </Txt>
+      ))}
     </g>
   );
 }
 
-/** Plassen til et merke og teksten ved det (felles for `Merke` og kotetallene, som holder seg unna). */
-function merkeOppsett(merke: KartMerke, S: KartSkala, felt: Hoydefelt, f: number, k: number) {
+/** Plassen til et merke og navnet ved det (`Merke` tegner det, kotetallene og andre navn holder seg unna). */
+interface MerkePlass {
+  x: number;
+  y: number;
+  r: number;
+  sym: NonNullable<KartMerke['symbol']>;
+  tekst: string;
+  tx: number;
+  ty: number;
+  anchor: 'start' | 'middle' | 'end';
+  /** Flaten teksten tar, eller null uten tekst. */
+  tekstBoks: Boks | null;
+}
+
+/** Plasserer navnet ved et merke på den valgte siden, eller den første ledige av høyre, venstre, over og under. */
+function merkePlass(merke: KartMerke, S: KartSkala, felt: Hoydefelt, f: number, k: number, ledig: (b: Boks) => boolean): MerkePlass | null {
   const [x, y] = S.punkt(merke.p);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   const sym = merke.symbol ?? 'punkt';
   const z = hoydeVed(felt, merke.p[0], merke.p[1]);
   const visHoyde = merke.hoyde ?? sym === 'topp';
-  const tekst = [merke.navn, visHoyde && z !== null ? fmt(z, 0).replace(/\s/g, '') : undefined].filter(Boolean).join(' ');
+  const tekst = [merke.navn, visHoyde && z !== null ? fmtTall(z, 0) : undefined].filter(Boolean).join(' ');
   const tPx = 17 * 0.72 * f;
   const tw = tekst ? tekstBredde(tekst, tPx) : 0;
-  const venstre = x + 10 * k + tw > S.x0 + S.w - 4;
   const r = 5 * k;
-  const tx0 = tekst ? (venstre ? x - 9 * k - tw : x + 9 * k) : x;
-  const tx1 = tekst ? (venstre ? x - 9 * k : x + 9 * k + tw) : x;
-  const boks: Boks = [Math.min(x - r, tx0) - 2, y - Math.max(r * 1.2, tPx * 0.7), Math.max(x + r, tx1) + 2, y + Math.max(r, tPx * 0.45)];
-  return { x, y, r, sym, tekst, tPx, venstre, boks };
+  if (!tekst) return { x, y, r, sym, tekst, tx: x, ty: y, anchor: 'start', tekstBoks: null };
+  const sider: Record<NonNullable<KartMerke['navnSide']>, { tx: number; ty: number; anchor: 'start' | 'middle' | 'end'; boks: Boks }> = {
+    hoyre: { tx: x + 9 * k, ty: y + tPx * 0.36, anchor: 'start', boks: [x + 9 * k - 2, y - tPx * 0.6, x + 9 * k + tw + 2, y + tPx * 0.5] },
+    venstre: { tx: x - 9 * k, ty: y + tPx * 0.36, anchor: 'end', boks: [x - 9 * k - tw - 2, y - tPx * 0.6, x - 9 * k + 2, y + tPx * 0.5] },
+    over: { tx: x, ty: y - r * 1.3 - 4, anchor: 'middle', boks: [x - tw / 2 - 2, y - r * 1.3 - 4 - tPx * 0.85, x + tw / 2 + 2, y - r * 1.3 - 4 + tPx * 0.25] },
+    under: { tx: x, ty: y + r + 4 + tPx * 0.8, anchor: 'middle', boks: [x - tw / 2 - 2, y + r + 4 - tPx * 0.05, x + tw / 2 + 2, y + r + 4 + tPx * 1.05] },
+  };
+  const rekkefolge: NonNullable<KartMerke['navnSide']>[] = merke.navnSide ? [merke.navnSide] : ['hoyre', 'venstre', 'over', 'under'];
+  const valgt = rekkefolge.map((sd) => sider[sd]).find((o) => ledig(o.boks)) ?? (merke.navnSide ? sider[merke.navnSide] : null);
+  // Uten ledig side: høyre, eller venstre når høyre går ut av kartet
+  const reserve = sider.hoyre.boks[2] > S.x0 + S.w - 4 ? sider.venstre : sider.hoyre;
+  const o = valgt ?? reserve;
+  return { x, y, r, sym, tekst, tx: o.tx, ty: o.ty, anchor: o.anchor, tekstBoks: o.boks };
 }
 
-function Merke({ merke, S, felt }: { merke: KartMerke; S: KartSkala; felt: Hoydefelt }) {
-  const k = useGeoScale();
+function Merke({ merke, plass }: { merke: KartMerke; plass: MerkePlass }) {
   const ss = useGeoStroke();
-  const f = useTextScale();
-  const o = merkeOppsett(merke, S, felt, f, k);
-  if (!o) return null;
-  const { x, y, r, sym, tekst, tPx, venstre } = o;
+  const { x, y, r, sym, tekst, tx, ty, anchor } = plass;
   const farge = merke.farge ?? (sym === 'bronn' ? mix(SCENE.water, VIZ.ink, 0.22) : VIZ.ink);
   let symbol: ReactNode;
   switch (sym) {
@@ -1058,7 +1238,7 @@ function Merke({ merke, S, felt }: { merke: KartMerke; S: KartSkala; felt: Hoyde
     <g>
       {symbol}
       {tekst && (
-        <Txt x={venstre ? x - 9 * k : x + 9 * k} y={y + tPx * 0.36} anchor={venstre ? 'end' : 'start'} size={0.72} weight={650} color={merke.farge}>
+        <Txt x={tx} y={ty} anchor={anchor} size={0.72} weight={650} color={merke.farge}>
           {tekst}
         </Txt>
       )}
@@ -1084,6 +1264,13 @@ export interface ProfildiagramProps {
   navn?: readonly [string, string];
   /** Havnivå (m o.h.): havet under profilet tegnes som vann. */
   hav?: number | null;
+  /** Innsjøer (samme som på `Kotekart`): der profilet krysser en innsjø, tegnes vannet opp til vannstanden. */
+  innsjoer?: readonly KartInnsjo[];
+  /**
+   * Med `overhoyde`: blir profilet høyere enn plottet, blir plottet smalere (samme overhøyde, midt i bredden) i stedet
+   * for at toppen og bunnen klippes. Standard av.
+   */
+  tilpass?: boolean;
   /** Skriv overhøyden («Overhøyde 5 ganger», «Ingen overhøyde») øverst midt i diagrammet (standard på). */
   visOverhoyde?: boolean;
   /** Ekstra tegning med skalaene (avstand i meter: `sx`, høyde i m o.h.: `sy`). */
@@ -1097,7 +1284,21 @@ export interface ProfildiagramProps {
  * overdriver. Øvre venstre hjørne er `at` (standard [0, 0]). Bygd på `LogPlot` med lineære akser; barna får skalaene
  * (`sx` i meter langs profilet, `sy` i m o.h.).
  */
-export function Profildiagram({ felt, A, B, width = 800, height, at, overhoyde = null, navn = ['A', 'B'], hav = null, visOverhoyde = true, children }: ProfildiagramProps) {
+export function Profildiagram({
+  felt,
+  A,
+  B,
+  width = 800,
+  height,
+  at,
+  overhoyde = null,
+  navn = ['A', 'B'],
+  hav = null,
+  innsjoer,
+  tilpass = false,
+  visOverhoyde = true,
+  children,
+}: ProfildiagramProps) {
   const f = useTextScale();
   const ss = useGeoStroke();
   const gid = useSvgId('profil');
@@ -1108,18 +1309,22 @@ export function Profildiagram({ felt, A, B, width = 800, height, at, overhoyde =
   const zs = prof.map((p) => p.z);
   const zMin = zs.length ? Math.min(...zs, hav ?? Infinity) : 0;
   const zMax = zs.length ? Math.max(...zs) : 1;
-  const tickPx = 15 * f;
-  const titlePx = 15.6 * f;
   // Faste marger, så overhøyden blir nøyaktig
-  const topp = 20 * f + titlePx * 1.2;
-  const bunn = 22 * f + 10 + titlePx * 1.1;
-  const venstre = titlePx * 1.25 + 14 + tekstBredde(fmt(Math.max(Math.abs(zMax), Math.abs(zMin)) * 1.3, 0).replace(/\s/g, '') + '0', tickPx) + 10;
-  const hoyre = 30 * f;
-  const plotB = Math.max(10, width - venstre - hoyre);
+  const marg = profildiagramMarger(f, zMin, zMax);
+  const { top: topp, bottom: bunn, left: venstre, right: hoyre } = marg;
+  let plotB = Math.max(10, width - venstre - hoyre);
   const plotH = Math.max(10, H - topp - bunn);
   let yLo: number;
   let yHi: number;
   const oh = overhoyde !== null && Number.isFinite(overhoyde) && overhoyde > 0 ? overhoyde : null;
+  // Smalere plott med samme overhøyde når profilet ellers ville blitt klippet
+  if (oh !== null && tilpass && L > 0) {
+    const relieff = Math.max(zMax - Math.min(zMin, hav ?? zMin), 1);
+    plotB = Math.max(10, Math.min(plotB, (plotH * L) / (relieff * 1.2 * oh)));
+  }
+  const bredde = venstre + plotB + hoyre;
+  const at0: readonly [number, number] = at ?? [0, 0];
+  const atBrukt: readonly [number, number] = bredde < width - 0.5 ? [at0[0] + (width - bredde) / 2, at0[1]] : at0;
   if (oh !== null && L > 0) {
     const span = plotH / ((plotB / L) * oh);
     const midt = (zMin + zMax) / 2;
@@ -1130,6 +1335,28 @@ export function Profildiagram({ felt, A, B, width = 800, height, at, overhoyde =
     const pad = (zMax - zMin) * 0.12 || 10;
     yLo = zMin >= 0 && zMin - pad * 2 < 0 ? 0 : zMin - pad;
     yHi = zMax + pad;
+  }
+  // Innsjøene langs profilet: strekningene der profilet ligger i en innsjø, med vannstanden
+  const sjoer = (innsjoer ?? []).map((sj) => innsjoMaske(felt, sj.punkt, sj.niva, hav)).filter((v): v is { maske: boolean[]; niva: number } => v !== null);
+  const vannLop: { fra: number; til: number; niva: number }[] = [];
+  if (sjoer.length > 0) {
+    let lop: { fra: number; til: number; niva: number } | null = null;
+    for (const p of prof) {
+      const i = Math.min(felt.nx - 1, Math.max(0, Math.round(p.x / felt.celle)));
+      const j = Math.min(felt.ny - 1, Math.max(0, Math.round(p.y / felt.celle)));
+      const sj = sjoer.find((v) => v.maske[j * felt.nx + i]);
+      if (sj && p.z < sj.niva) {
+        if (lop && lop.niva === sj.niva) lop.til = p.s;
+        else {
+          if (lop) vannLop.push(lop);
+          lop = { fra: p.s, til: p.s, niva: sj.niva };
+        }
+      } else if (lop) {
+        vannLop.push(lop);
+        lop = null;
+      }
+    }
+    if (lop) vannLop.push(lop);
   }
   const faktisk = L > 0 && yHi > yLo ? plotH / (yHi - yLo) / (plotB / L) : NaN;
   const ganger = (v: number) => fmt(v, v < 10 && Math.abs(v - Math.round(v)) > 0.05 ? 1 : 0);
@@ -1144,8 +1371,8 @@ export function Profildiagram({ felt, A, B, width = 800, height, at, overhoyde =
   const pts: [number, number][] = prof.map((p) => [p.s, p.z]);
   return (
     <LogPlot
-      at={at}
-      width={width}
+      at={atBrukt}
+      width={bredde}
       height={H}
       margin={{ top: topp, bottom: bunn, left: venstre, right: hoyre }}
       x={{ min: 0, max: Math.max(L, 1), label: km ? 'Avstand (km)' : 'Avstand (m)', format: km ? kmTekst : undefined }}
@@ -1169,6 +1396,17 @@ export function Profildiagram({ felt, A, B, width = 800, height, at, overhoyde =
             <g clipPath={clip}>
               {havY !== null && havY < y0 && <rect x={x0} y={Math.max(y1, havY)} width={x1 - x0} height={y0 - Math.max(y1, havY)} fill={mix(SCENE.waterLight, VIZ.surface, 0.35)} />}
               {flate && <path d={flate} fill={`url(#${gid})`} />}
+              {vannLop.map((v, i) => {
+                const del = pts.filter(([a]) => a >= v.fra - 1e-6 && a <= v.til + 1e-6);
+                if (del.length < 2) return null;
+                const bunnSti = del.map(([a, b]) => `${sx(a).toFixed(2)},${sy(Math.min(b, v.niva)).toFixed(2)}`);
+                return (
+                  <g key={`sj${i}`}>
+                    <path d={`M${sx(del[0]![0])},${sy(v.niva)}L${bunnSti.join('L')}L${sx(del[del.length - 1]![0])},${sy(v.niva)}Z`} fill={mix(SCENE.waterLight, VIZ.surface, 0.35)} />
+                    <line x1={sx(del[0]![0])} x2={sx(del[del.length - 1]![0])} y1={sy(v.niva)} y2={sy(v.niva)} stroke={mix(SCENE.water, VIZ.ink, 0.22)} strokeWidth={1.4 * ss} />
+                  </g>
+                );
+              })}
               {havY !== null && havY < y0 && havY > y1 && <line x1={x0} x2={x1} y1={havY} y2={havY} stroke={mix(SCENE.water, VIZ.ink, 0.22)} strokeWidth={1.4 * ss} />}
               {pts.length > 1 && <path d={`M${linje.join('L')}`} fill="none" stroke={VIZ.ink} strokeWidth={2.4 * ss} strokeLinejoin="round" />}
             </g>
@@ -1193,6 +1431,24 @@ export function Profildiagram({ felt, A, B, width = 800, height, at, overhoyde =
       }}
     </LogPlot>
   );
+}
+
+/**
+ * Margene `Profildiagram` bruker (aksetitler, akseverdier og navnene A og B over plottet), så et eget plott eller en
+ * beregning av bredden ved fast overhøyde kan bruke de samme: `{ top, bottom, left, right }` i figurens enheter for
+ * tekstskaleringen `f` og høydene zMin–zMax (m o.h.).
+ */
+export function profildiagramMarger(f: number, zMin: number, zMax: number): { top: number; bottom: number; left: number; right: number } {
+  const ff = Number.isFinite(f) ? Math.max(1, f) : 1;
+  const tickPx = 15 * ff;
+  const titlePx = 15.6 * ff;
+  const storst = Math.max(Math.abs(Number.isFinite(zMax) ? zMax : 0), Math.abs(Number.isFinite(zMin) ? zMin : 0));
+  return {
+    top: 20 * ff + titlePx * 1.2,
+    bottom: 22 * ff + 10 + titlePx * 1.1,
+    left: titlePx * 1.25 + 14 + tekstBredde(fmt(storst * 1.3, 0).replace(/\s/g, '') + '0', tickPx) + 10,
+    right: 30 * ff,
+  };
 }
 
 /** Meter som km med så få desimaler som trengs: 1500 → «1,5», 2000 → «2». */

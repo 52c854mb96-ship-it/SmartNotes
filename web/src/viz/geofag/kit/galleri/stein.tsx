@@ -156,7 +156,7 @@ function SandsteinUnderLupa({ f }: { f: number }) {
   const smal = f > 1.3;
   const prove = { x: smal ? 400 : 190, y: smal ? 250 : 270, size: smal ? 330 : 280 };
   const g = steinproveGeometri({ ...prove, bergart: 'sandstein', seed: 4 });
-  const lupe = smal ? { x: 400, y: 470, r: 150 } : { x: 600, y: 165, r: 145 };
+  const lupe = smal ? { x: 400, y: 470, r: 150 } : { x: 600, y: 172, r: 138 };
   return (
     <g>
       <Underlag x1={0} x2={800} y={prove.y} depth={smal ? 30 : 60} type="labbenk" />
@@ -322,12 +322,12 @@ function isotopHoyde(f: number) {
   return (smal ? 2 : 1) * rad + 6;
 }
 
-const VINKLER: { form: 'terning' | 'oktaeder' | 'prisme' | 'tavle' | 'rombeeder' | 'dodekaeder'; tekst: string; dreiing?: number; helning?: number; vipp?: number; tone?: 'gra' | 'gronn' | 'brun' | 'gull' | 'fiolett' | 'rosa' }[] = [
-  { form: 'terning', tekst: 'dreiing 0, helning 0', dreiing: 0, helning: 0, tone: 'gra' },
+const VINKLER: { form: 'terning' | 'oktaeder' | 'prisme' | 'tavle' | 'romboeder' | 'dodekaeder'; tekst: string; dreiing?: number; helning?: number; vipp?: number; tone?: 'gra' | 'gronn' | 'brun' | 'gull' | 'fiolett' | 'rosa' }[] = [
+  { form: 'terning', tekst: 'rett forfra, litt ovenfra (dreiing 0, helning 14)', dreiing: 0, helning: 14, tone: 'gra' },
   { form: 'terning', tekst: 'dreiing 45, helning 35', dreiing: 45, helning: 35, tone: 'gull' },
   { form: 'prisme', tekst: 'vipp −25 (lener seg)', vipp: -25, tone: 'fiolett' },
   { form: 'oktaeder', tekst: 'tone «gronn»', tone: 'gronn' },
-  { form: 'rombeeder', tekst: 'tone «brun»', tone: 'brun' },
+  { form: 'romboeder', tekst: 'tone «brun»', tone: 'brun' },
   { form: 'tavle', tekst: 'tavle, helning 70', helning: 70, tone: 'rosa' },
 ];
 

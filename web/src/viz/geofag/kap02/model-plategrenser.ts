@@ -6,7 +6,7 @@
  * Ren logikk uten React. Ugyldige tall gir null (eller en tom liste), aldri NaN eller Infinity. Kurvene for
  * smeltepunkt og temperatur er forenklede og omtrentlige; kilden står ved hver tabell.
  */
-import { MAGNETISK_POLARITET, TETTHETER, seededRandom, type PlategrenseType, type PolaritetsIntervall, type SubduksjonVariant } from '../kit';
+import { MAGNETISK_POLARITET, TETTHETER, havbunnsalder, seededRandom, type PlategrenseType, type PolaritetsIntervall, type SubduksjonVariant } from '../kit';
 
 const ok = (...v: number[]): boolean => v.every(Number.isFinite);
 const klemme = (v: number, a: number, b: number): number => Math.min(b, Math.max(a, v));
@@ -27,15 +27,11 @@ export function plateavstand(v: number, t: number): number | null {
   return v * t * KM_PER_MA;
 }
 
-/**
- * Alderen (millioner år) til havbunnen `x` km fra ryggen når hver plate flytter seg med `halvfart` cm per år bort fra
- * ryggen (halvparten av spredningsfarten). Avstanden kan ha fortegn (venstre side negativ). Null når halvfarten er 0
- * eller negativ (da dannes det ingen ny havbunn) og for ugyldige tall.
+/*
+ * Havbunnens alder: bruk kit-ets `havbunnsalder(avstand, spredningsfart)`. Alle funksjonene her tar den fulle
+ * spredningsfarten (cm per år mellom platene, som `Plategrense.fart` og `magnetiskeStriper`); hver plate flytter seg
+ * med halvparten.
  */
-export function havbunnsalder(x: number, halvfart: number): number | null {
-  if (!ok(x, halvfart) || halvfart <= 0) return null;
-  return Math.abs(x) / (halvfart * KM_PER_MA);
-}
 
 /** Havdypet over ryggen (m) i dybdemodellen. */
 export const RYGG_DYP = 2500;
@@ -65,9 +61,12 @@ export function havdybde(alder: number): number | null {
   return DYP_MAKS - (DYP_MAKS - d70) * Math.exp(-(alder - DYP_KNEKK) / tau);
 }
 
-/** Havdypet (m) `x` km fra ryggen når hver plate flytter seg med `halvfart` cm per år. Null som `havbunnsalder`. */
-export function havdybdeVed(x: number, halvfart: number): number | null {
-  const a = havbunnsalder(x, halvfart);
+/**
+ * Havdypet (m) `x` km fra ryggen når platene sprer seg med `spredningsfart` cm per år (full fart, hver plate flytter
+ * seg med halvparten). Null som kit-ets `havbunnsalder`.
+ */
+export function havdybdeVed(x: number, spredningsfart: number): number | null {
+  const a = havbunnsalder(x, spredningsfart);
   return a === null ? null : havdybde(a);
 }
 
@@ -112,14 +111,15 @@ export interface Stripe {
 
 /**
  * De magnetiske stripene på begge sider av ryggen slik havbunnen ser ut i dag, for havbunn som er inntil `tMax`
- * millioner år gammel (høyst 5): hver stripe er halvfart · varighet bred (km), og stripene på venstre side speiler
- * dem på høyre. Eldre havbunn får ingen striper her (tom utenfor 5 millioner år). Tom liste når halvfarten eller
- * `tMax` er 0, negativ eller ugyldig.
+ * millioner år gammel (høyst 5). `spredningsfart` er den fulle farten mellom platene (cm per år, som
+ * `magnetiskeStriper` i kit-et): hver side flytter seg med halvparten, så hver stripe er spredningsfart/2 · varighet
+ * · 10 km bred, og stripene på venstre side speiler dem på høyre. Eldre havbunn får ingen striper her (tom utenfor 5
+ * millioner år). Tom liste når farten eller `tMax` er 0, negativ eller ugyldig.
  */
-export function striper(halvfart: number, tMax: number = STRIPER_MAKS): Stripe[] {
-  if (!ok(halvfart, tMax) || halvfart <= 0 || tMax <= 0) return [];
+export function striper(spredningsfart: number, tMax: number = STRIPER_MAKS): Stripe[] {
+  if (!ok(spredningsfart, tMax) || spredningsfart <= 0 || tMax <= 0) return [];
   const T = Math.min(tMax, STRIPER_MAKS);
-  const kmPerMa = halvfart * KM_PER_MA;
+  const kmPerMa = (spredningsfart / 2) * KM_PER_MA;
   const ut: Stripe[] = [];
   for (const p of POLARITET) {
     if (p.fra >= T) break;
@@ -132,10 +132,13 @@ export function striper(halvfart: number, tMax: number = STRIPER_MAKS): Stripe[]
   return ut;
 }
 
-/** Stripa havbunnen `x` km fra ryggen ligger i (dagens mønster), eller null når havbunnen er eldre enn 5 millioner år. */
-export function stripeVed(x: number, halvfart: number): Stripe | null {
-  if (!ok(x, halvfart)) return null;
-  return striper(halvfart).find((s) => x >= s.fra && x < s.til) ?? null;
+/**
+ * Stripa havbunnen `x` km fra ryggen ligger i (dagens mønster, full `spredningsfart` som i `striper`), eller null når
+ * havbunnen er eldre enn 5 millioner år.
+ */
+export function stripeVed(x: number, spredningsfart: number): Stripe | null {
+  if (!ok(x, spredningsfart)) return null;
+  return striper(spredningsfart).find((s) => x >= s.fra && x < s.til) ?? null;
 }
 
 /* =====================================================================================================================
@@ -238,8 +241,8 @@ function interp(tabell: readonly (readonly [number, number])[], x: number): numb
 
 /**
  * Smeltepunktet (solidus, °C) til mantelstein (peridotitt) ved et dyp `z` (km): temperaturen der den første smelten
- * dannes. Uten vann (`vann` = false) stiger det med trykket, fra ca. 1120 °C ved overflaten til ca. 1470 °C ved
- * 100 km. Med vann (`vann` = true) ligger det flere hundre grader lavere (se `VAAT_SOLIDUS`). Null for negative og
+ * dannes. Uten vann (`vann` = false) stiger det med trykket, fra ca. 1120 °C ved overflaten til ca. 1500 °C ved
+ * 100 km (p ≈ 3,2 GPa). Med vann (`vann` = true) ligger det flere hundre grader lavere (se `VAAT_SOLIDUS`). Null for negative og
  * ugyldige dyp.
  *
  * Kilde (tørr): Hirschmann (2000), «Mantle solidus: Experimental constraints and the effects of peridotite
@@ -507,12 +510,6 @@ export const FORTYKNING_MAKS = 35;
 /** Sammenskyving (km) som gir ca. 63 % av den største fortykningen. Forenklet. */
 export const FORTYKNING_SKALA = 500;
 /**
- * Gjennomsnittlig tetthet i hele kontinentalskorpa (g/cm³). Litt høyere enn de øverste lagene (2,7 i `TETTHETER`)
- * fordi den nedre skorpa er tyngre; med 2,8 gir 70 km skorpe ca. 5 km høyde, som Tibet.
- */
-export const SKORPE_TETTHET_SNITT = 2.8;
-
-/**
  * Hvor mye tykkere (km) skorpa blir når kontinentene skyves `sammenskyving` km sammen: øker raskt i starten og flater
  * ut mot ca. 35 km (omtrent dobbel tykkelse). Etter det sprer fjellkjeden seg heller utover. Forenklet modell. Null
  * for negative og ugyldige tall.
@@ -524,12 +521,14 @@ export function skorpefortykning(sammenskyving: number): number | null {
 
 /**
  * Isostasi (Airy): når skorpa blir `fortykning` km tykkere, flyter den høyere i mantelen, som et tykkere isfjell.
+ * Skorpa regnes med gjennomsnittstettheten i hele kontinentalskorpa (`TETTHETER.skorpeKontinentSnitt`, 2,8 g/cm³,
+ * litt over de øverste lagene fordi den nedre skorpa er tyngre; 70 km skorpe gir da ca. 5 km høyde, som Tibet).
  * Bare ca. 15 % blir fjell over bakken (høyde = Δ · (ρ_mantel − ρ_skorpe) / ρ_mantel); resten blir en rot som
  * stikker ned i mantelen (rot = Δ · ρ_skorpe / ρ_mantel). Høyde + rot = fortykningen. Null for ugyldige tall.
  */
 export function isostasi(
   fortykning: number,
-  skorpe: number = SKORPE_TETTHET_SNITT,
+  skorpe: number = TETTHETER.skorpeKontinentSnitt,
   mantel: number = TETTHETER.mantel,
 ): { hoyde: number; rot: number } | null {
   if (!ok(fortykning, skorpe, mantel) || fortykning < 0 || mantel <= 0 || skorpe <= 0 || skorpe >= mantel) return null;

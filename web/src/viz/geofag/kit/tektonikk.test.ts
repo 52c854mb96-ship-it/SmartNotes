@@ -410,6 +410,12 @@ describe('Plategrense: ankre, vekst og vulkaner', () => {
     expect(plategrenseGeometri({ type: 'kollisjon', w: 700, h: 300 })!.t).toBe(50);
   });
 
+  it('gir en rask rygg slakere havbunn enn en langsom (dypet følger alderen)', () => {
+    const kant = (fart: number) => plategrenseGeometri({ type: 'spredning', w: 700, h: 300, fart, striper: false })!.profil(60);
+    // Større y er dypere: ved samme avstand er havbunnen ved en langsom rygg eldre og dypere
+    expect(kant(2)).toBeGreaterThan(kant(12) + 5);
+  });
+
   it('har alltid minst én aktiv vulkan over det varme punktet', () => {
     for (const fart of [0, 2, 8, 15])
       for (let t = 0; t <= 20; t += 0.25) {

@@ -198,11 +198,6 @@ export function bronnPlass(o: Oppsett, valg: MaterialValg): BronnPlass {
   return { x, bakke, bunn, filter, fjell: null, inntak: (filter[0] + filter[1]) / 2 };
 }
 
-/** Et punkt på toppflaten av blokka: x i snittet og andelen `t` (0–1) innover i blokka. */
-export function paaToppen(o: Oppsett, x: number, t: number): { x: number; y: number } {
-  return { x: x + t * o.dx, y: sy(o, bakkeZ(sxTilX(o, x))) - t * o.dy };
-}
-
 /** Plassene til tingene på bakken (snittets koordinater, før perspektivet). */
 export interface Plasser {
   /** Der kloakkledningen lekker (x) og dybden (y). */

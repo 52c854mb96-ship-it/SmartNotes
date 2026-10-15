@@ -9,7 +9,7 @@
  */
 import { memo, useMemo } from 'react';
 import { GEO, LagMonstre, Txt, VIZ, lagFyll, seededRandom, placeParticles, snittFordelEtiketter, tekstBredde, useGeoScale, useGeoStroke, useLagMonstre, useTextScale, type KornpakningGeometri } from '../kit';
-import { LinearGradient, SCENE, alpha, mix, shade, tint, useSvgId } from '../../kit/scene';
+import { LinearGradient, SCENE, alpha, shade, tint, useSvgId } from '../../kit/scene';
 
 type Fn = (x: number) => number;
 type P = readonly [number, number];
@@ -82,7 +82,7 @@ export function Kloakkledning({ x1, x2, y, bakke }: { x1: number; x2: number; y:
     <g>
       <LinearGradient id={id} stops={[[0, tint(ror, 0.25)], [0.45, ror], [1, shade(ror, 0.3)]]} />
       {/* Våt flekk rundt lekkasjen */}
-      <ellipse cx={r2(x2)} cy={r2(y + 2 * k)} rx={r2(9 * k)} ry={r2(6 * k)} fill={alpha(GEO.fare[3], 0.22)} />
+      <ellipse cx={r2(x2)} cy={r2(y + 2 * k)} rx={r2(9 * k)} ry={r2(6 * k)} fill={alpha(GEO.smitte.line, 0.22)} />
       {/* Fallrøret fra huset */}
       <rect x={r2(x1 - d / 2)} y={r2(bakke - 1)} width={r2(d)} height={r2(Math.max(0, y - bakke + 1))} fill={`url(#${id})`} stroke={SCENE.outline} strokeWidth={0.8 * s} />
       {/* Ledningen */}
@@ -232,7 +232,7 @@ export function SprekkeUtsnitt({ r, fyll, t = 0, fart = 10 }: { r: number; fyll:
       <rect x={-r} y={-r} width={2 * r} height={2 * r} fill={lagFyll('gneis', monstre.id).fill} />
       {sprekker.map((sp, i) => (
         <g key={i}>
-          <path d={sp.form} fill={fyll === 'vann' ? GEO.grunnvann.fill : mix(VIZ.surface, SCENE.skyBottom, 0.3)} stroke={shade(GEO.bergart.gneis.line, 0.2)} strokeWidth={1.4 * s} strokeLinejoin="round" />
+          <path d={sp.form} fill={fyll === 'vann' ? GEO.grunnvann.fill : GEO.luft.fill} stroke={shade(GEO.bergart.gneis.line, 0.2)} strokeWidth={1.4 * s} strokeLinejoin="round" />
           {fyll === 'luft' && <path d={sp.form} fill="none" stroke={GEO.grunnvann.fill} strokeWidth={r2(2 * film)} strokeLinejoin="round" opacity={0.9} />}
           {fyll === 'vann' &&
             [0, 1, 2, 3].map((j) => {
@@ -267,7 +267,7 @@ export const LeirUtsnitt = memo(function LeirUtsnitt({ r, fyll }: { r: number; f
   const leire = GEO.bergart.leire;
   return (
     <g>
-      <rect x={-r} y={-r} width={2 * r} height={2 * r} fill={fyll === 'vann' ? vann.fill : mix(VIZ.surface, SCENE.skyBottom, 0.3)} />
+      <rect x={-r} y={-r} width={2 * r} height={2 * r} fill={fyll === 'vann' ? vann.fill : GEO.luft.fill} />
       {flak.map((p, i) => {
         const L = 2.1 * p.r;
         const T = 0.5 * p.r;

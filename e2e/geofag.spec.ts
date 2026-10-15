@@ -62,8 +62,17 @@ test('geofag: legges til fra læreplanen, med fargetema og egne temaer', async (
   const main = page.locator('main');
   await expect(main.getByText('Jorda som system').first()).toBeVisible();
   await expect(main.getByText(/gjøre rede for bevegelser i jordas indre/).first()).toBeVisible();
-  // Geofag har ingen visualiseringer ennå.
-  await expect(main.getByRole('link', { name: 'Visualiseringer' })).toHaveCount(0);
+  // Geofag har visualiseringer: lenken åpner oversikten, og en referanse tegner figuren sin.
+  const subjectId = (await subjects(page)).find((s) => s.profile === 'geoscience')!.id;
+  await main.getByRole('link', { name: 'Visualiseringer' }).first().click();
+  await expect(page).toHaveURL(new RegExp(`/fag/${subjectId}/visualiseringer$`));
+  await expect(page.getByRole('heading', { name: 'Visualiseringer', level: 1 })).toBeVisible();
+  await expect(main.getByRole('link', { name: /^Platene beveger seg: rygg, grop og fjellkjede/ })).toBeVisible();
+  await page.goto(`/fag/${subjectId}/visualiseringer/k2-plategrenser`);
+  await expect(
+    page.getByRole('heading', { name: /^Platene beveger seg: rygg, grop og fjellkjede$/, level: 1 }),
+  ).toBeVisible();
+  await expect(page.locator('.viz-figure svg').first()).toBeVisible();
   expect((await subjects(page)).filter((s) => s.profile === 'geoscience')).toHaveLength(1);
   expect(errors).toEqual([]);
 });

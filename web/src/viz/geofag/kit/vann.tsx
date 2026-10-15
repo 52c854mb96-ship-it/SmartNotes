@@ -16,6 +16,7 @@ import { Txt } from '../../kit/txt';
 import { ContactShadow, LinearGradient, RadialGradient, alpha, mix, sceneRandom, shade, tint, useSvgId } from '../../kit/scene/core';
 import { PAINTS, SCENE } from '../../kit/scene/palette';
 import { GEO } from './colors';
+import { tekstBredde } from './diagram';
 import { useGeoScale, useGeoStroke } from './felles';
 import { LagFlate, LagMonstre, useLagMonstre } from './monstre';
 import { SnittEtiketter, snittblokkPerspektiv, type SnittEtikett, type SnittKurve, type SnittPunkt } from './snitt';
@@ -314,7 +315,7 @@ export function Grunnvannssnitt({
   // Geometrien huskes etter verdiene til bakken og speilet (65 punkter), ikke etter hvilken funksjon de er, så nye
   // pilfunksjoner i hver ramme (en senkningstrakt som følger pumperaten) ikke regner alt på nytt
   const kurver = `${kurveNokkel(overflate, w)}|${kurveNokkel(speil, w)}`;
-  const g = useMemo(() => grunnvannGeometri({ w, h, overflate, speil, kapillar }), [w, h, kapillar, kurver]); // eslint-disable-line react-hooks/exhaustive-deps
+  const g = useMemo(() => grunnvannGeometri({ w, h, overflate, speil, kapillar }), [w, h, kapillar, kurver]);
   const lagListe = lag.length > 0 ? lag : STANDARD_LAG;
   const typerNokkel = lagListe.map((l) => l.type).join(',');
   const typer = useMemo(() => [...new Set(lagListe.map((l) => l.type))], [typerNokkel]);
@@ -1317,9 +1318,9 @@ export const Skydekke = memo(function Skydekke({ x = 0, y = 0, w, h, tetthet = 0
   const puter = useMemo(() => planPuffs(w, h, seed, toppkant, avrundet, k), [w, h, seed, toppkant, avrundet, k]);
   if (!(w > 0) || !(h > 0) || !Number.isFinite(x) || !Number.isFinite(y)) return null;
   const t = clamp(fin(tetthet, 0.5), 0, 1);
-  // Lyse, tynne skyer ved 0; tunge, blygrå regnskyer ved 1
-  const lys = mix(mix(SCENE.cloud, SCENE.cloudShade, 0.2 + 0.55 * t), SCENE.stoneDark, 0.28 * t * t);
-  const mork = mix(SCENE.cloudShade, SCENE.stoneDark, 0.2 + 0.55 * t);
+  // Lyse, tynne skyer ved 0; tunge, blygrå regnskyer ved 1 (GEO.skydekke har stort spenn også i mørkt tema)
+  const lys = mix(GEO.skydekke.lett, GEO.skydekke.tung, 0.12 + 0.5 * t);
+  const mork = mix(GEO.skydekke.lett, GEO.skydekke.tung, 0.42 + 0.58 * t);
   const H = fin(himmel, 0);
   const inn = avrundet ? puter.r0 * 0.75 : 0;
   const pute = (p: Puff, fyll: string, i: number, lysFyll?: string) => (
@@ -1362,9 +1363,9 @@ export const Skydekke = memo(function Skydekke({ x = 0, y = 0, w, h, tetthet = 0
         fx={0.36}
         fy={0.28}
         stops={[
-          [0, SCENE.cloud, 0.55 - 0.3 * t],
-          [0.6, SCENE.cloud, 0.08],
-          [1, SCENE.cloud, 0],
+          [0, GEO.skydekke.lett, 0.55 - 0.3 * t],
+          [0.6, GEO.skydekke.lett, 0.08],
+          [1, GEO.skydekke.lett, 0],
         ]}
       />
       {H > 0 && (
@@ -1427,7 +1428,8 @@ export interface NedborProps {
   bakke?: SnittKurve;
   /**
    * Skylag øverst i området (`Skydekke`): true, eller { tetthet, hoyde, utenSkyer, avrundet }. Nedbøren starter under skybasen,
-   * og ved kraftig regn faller et regnslør fra skyene. For en grå himmel bak landskapet: tegn Skydekke med `himmel`
+   * og ved kraftig regn faller et regnslør fra skyene. Standard: et skylag med tetthet etter intensiteten (nedbør faller
+   * ikke fra en skyfri himmel); `false` gir ingen skyer. For en grå himmel bak landskapet: tegn Skydekke med `himmel`
    * (og samme høyde) rett etter Himmel, og gi Nedbor `utenSkyer: true`, så skyene ikke tegnes to ganger.
    */
   skydekke?: boolean | { tetthet?: number; hoyde?: number; utenSkyer?: boolean; avrundet?: boolean };
@@ -1467,7 +1469,8 @@ export const Nedbor = memo(function Nedbor({
   const I = clamp(fin(intensitet, 0.5), 0, 1);
   const V = clamp(fin(vind, 0), -1, 1);
   const tt = t !== undefined && Number.isFinite(t) ? t : 0;
-  const sky = skydekke ? (typeof skydekke === 'object' ? skydekke : {}) : null;
+  const skyInn = skydekke ?? { tetthet: 0.15 + 0.65 * I };
+  const sky = skyInn ? (typeof skyInn === 'object' ? skyInn : {}) : null;
   const skyH = sky ? clamp(fin(sky.hoyde, 0.3 * h), 12, h * 0.8) : 0;
   const skyT = sky ? clamp(fin(sky.tetthet, 0.35 + 0.6 * I), 0, 1) : 0;
   const y0 = y + skyH * 0.7;
@@ -1627,6 +1630,11 @@ export interface StromlinjerProps {
   avstand?: number;
   /** Relativ tekststørrelse på etikettene (standard 0,8). */
   labelSize?: number;
+  /**
+   * Området etikettene må holde seg innenfor (figurens koordinater), f.eks. viewBox-en: `{ x0: 0, y0: 0, x1: 800, y1: H }`.
+   * En etikett som ellers ville gått utenfor, bytter side av stien og flyttes inn. Standard: bare x0 = 0 og y0 = 0.
+   */
+  ramme?: { x0?: number; y0?: number; x1?: number; y1?: number };
   dim?: boolean;
 }
 
@@ -1775,6 +1783,7 @@ export function Stromlinjer({
   fart = 40,
   avstand,
   labelSize = 0.8,
+  ramme,
   dim,
 }: StromlinjerProps) {
   const s = useGeoStroke();
@@ -1797,7 +1806,20 @@ export function Stromlinjer({
         return (
           <g key={i} opacity={l.dim ? 0.4 : undefined}>
             <StromTegning st={st} c={c} b={b} stil={stil} pil={medPil && !lukket} gap={gap} fase={fase} t={tt} v={v} s={s} k={k} />
-            {l.label && <StromEtikett st={st} c={c} b={stil === 'front' ? b * 0.5 : b} tekst={l.label} pos={l.labelPos ?? labelPos ?? 0.5} side={l.labelSide ?? labelSide ?? 'venstre'} f={f} size={labelSize} />}
+            {l.label && (
+              <StromEtikett
+                st={st}
+                c={c}
+                b={stil === 'front' ? b * 0.5 : b}
+                tekst={l.label}
+                pos={l.labelPos ?? labelPos ?? 0.5}
+                side={l.labelSide ?? labelSide ?? 'venstre'}
+                f={f}
+                size={labelSize}
+                pilLengde={medPil && !lukket ? (stil === 'baand' ? Math.max(11 * s, 1.5 * b) : 12 * s) : 0}
+                ramme={ramme}
+              />
+            )}
           </g>
         );
       })}
@@ -1945,20 +1967,83 @@ function StromTegning({
   );
 }
 
-function StromEtikett({ st, c, b, tekst, pos, side, f, size }: { st: Sti; c: string; b: number; tekst: string; pos: number; side: 'venstre' | 'hoyre'; f: number; size: number }) {
-  const q = stiVed(st, clamp(fin(pos, 0.5), 0, 1) * st.len);
-  // Venstre for retningen (u) er (uy, −ux) i SVG (y nedover)
-  const sgn = side === 'venstre' ? 1 : -1;
-  const nx = q.uy * sgn;
-  const ny = -q.ux * sgn;
-  const avst = b / 2 + 7 * f;
+function StromEtikett({
+  st,
+  c,
+  b,
+  tekst,
+  pos,
+  side,
+  f,
+  size,
+  pilLengde,
+  ramme,
+}: {
+  st: Sti;
+  c: string;
+  b: number;
+  tekst: string;
+  pos: number;
+  side: 'venstre' | 'hoyre';
+  f: number;
+  size: number;
+  pilLengde: number;
+  ramme?: { x0?: number; y0?: number; x1?: number; y1?: number };
+}) {
   const fs = 17 * size * f;
-  const lx = q.x + nx * avst;
-  const ly = q.y + ny * avst;
-  const anchor = Math.abs(nx) < 0.35 ? 'middle' : nx > 0 ? 'start' : 'end';
-  const baseline = ny > 0.35 ? ly + fs * 0.8 : ny < -0.35 ? ly - fs * 0.15 : ly + fs * 0.33;
+  const tb = tekstBredde(tekst, fs);
+  // Hold etiketten unna pilspissen i enden (de siste ca. 10 % av stien)
+  const maks = pilLengde > 0 && !st.lukket ? clamp(1 - (pilLengde + 0.6 * fs) / st.len, 0.5, 0.9) : 1;
+  const onsket = Math.min(clamp(fin(pos, 0.5), 0, 1), maks);
+  const X0 = fin(ramme?.x0, 0);
+  const Y0 = fin(ramme?.y0, 0);
+  const X1 = fin(ramme?.x1, Infinity);
+  const Y1 = fin(ramme?.y1, Infinity);
+  const ende = stiVed(st, st.len);
+  const spissR = pilLengde > 0 && !st.lukket ? pilLengde + b / 2 + 3 : 0;
+  const plasser = (andel: number, sd: 'venstre' | 'hoyre') => {
+    const q = stiVed(st, andel * st.len);
+    // Venstre for retningen (u) er (uy, −ux) i SVG (y nedover)
+    const sgn = sd === 'venstre' ? 1 : -1;
+    const nx = q.uy * sgn;
+    const ny = -q.ux * sgn;
+    const avst = b / 2 + 7 * f;
+    const lx = q.x + nx * avst;
+    const ly = q.y + ny * avst;
+    const anchor: 'start' | 'middle' | 'end' = Math.abs(nx) < 0.35 ? 'middle' : nx > 0 ? 'start' : 'end';
+    const baseline = ny > 0.35 ? ly + fs * 0.8 : ny < -0.35 ? ly - fs * 0.15 : ly + fs * 0.33;
+    const x0 = anchor === 'start' ? lx : anchor === 'end' ? lx - tb : lx - tb / 2;
+    const y0 = baseline - fs * 0.85;
+    const y1 = baseline + fs * 0.25;
+    const ut = Math.max(0, X0 - x0) + Math.max(0, x0 + tb - X1) + Math.max(0, Y0 - y0) + Math.max(0, y1 - Y1);
+    // Overlapp med pilspissen (en boks rundt spissen)
+    const paaSpiss =
+      spissR > 0 && x0 < ende.x + spissR && ende.x - spissR < x0 + tb && y0 < ende.y + spissR && ende.y - spissR < y1 ? 1 : 0;
+    return { lx, baseline, anchor, x0, ut, paaSpiss };
+  };
+  const andre = side === 'venstre' ? 'hoyre' : 'venstre';
+  let valgt: ReturnType<typeof plasser> | null = null;
+  let reserve: ReturnType<typeof plasser> | null = null;
+  // Prøv den ønskede plassen, så litt bakover langs stien; først den valgte siden, så den andre
+  for (let i = 0; i <= 8 && !valgt; i++) {
+    const andel = onsket - 0.07 * i;
+    if (andel < 0.05 && i > 0) break;
+    for (const sd of [side, andre] as const) {
+      const p = plasser(Math.max(0, andel), sd);
+      if (p.ut <= 0.5 && !p.paaSpiss) {
+        valgt = p;
+        break;
+      }
+      if (!reserve || p.ut + 1000 * p.paaSpiss < reserve.ut + 1000 * reserve.paaSpiss) reserve = p;
+    }
+  }
+  valgt = valgt ?? reserve ?? plasser(onsket, side);
+  // Flytt inn det som fortsatt stikker ut
+  const dx = Math.max(0, X0 - valgt.x0) - Math.max(0, valgt.x0 + tb - X1);
+  const topp = valgt.baseline - fs * 0.85;
+  const dy = Math.max(0, Y0 - topp) - Math.max(0, valgt.baseline + fs * 0.25 - Y1);
   return (
-    <Txt x={r2(lx)} y={r2(baseline)} anchor={anchor} size={size} color={c} weight={700}>
+    <Txt x={r2(valgt.lx + dx)} y={r2(valgt.baseline + dy)} anchor={valgt.anchor} size={size} color={c} weight={700}>
       {tekst}
     </Txt>
   );

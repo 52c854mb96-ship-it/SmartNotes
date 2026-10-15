@@ -297,7 +297,8 @@ const DATA: Record<BergartId, B> = {
     teksturTekst: 'porfyrisk: rombeformede feltspatkrystaller i en finkornet, mørk grunnmasse',
     tetthet: [2.6, 2.8],
     tetthetTypisk: 2.7,
-    monster: 'diabas',
+    // Lava (dagbergart): samme mønster som de andre dagbergartene, ikke gangmønsteret
+    monster: 'basalt',
     mineraler: ['kalifeltspat', 'plagioklas'],
     norske: ['Krokskogen og Vestfold (Oslofeltet)'],
   },
@@ -312,7 +313,8 @@ const DATA: Record<BergartId, B> = {
     teksturTekst: 'grovkornet og lys grå, nesten bare feltspat',
     tetthet: [2.65, 2.8],
     tetthetTypisk: 2.7,
-    monster: 'granitt',
+    // Gabbrofamilien (basisk dypbergart): ikke de små kryssene, som betyr sur dypbergart på geologiske kart
+    monster: 'gabbro',
     mineraler: ['plagioklas'],
     norske: ['Egersund og Sokndal i Rogaland'],
   },

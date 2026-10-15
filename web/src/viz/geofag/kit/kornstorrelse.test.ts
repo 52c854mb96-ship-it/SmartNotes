@@ -96,6 +96,36 @@ describe('Hjulströms diagram (avleste kurver, med toleranser)', () => {
     innen(avsetningsfart(10), 0.8);
   });
 
+  it('treffer også mellom radene i tabellen (avlest, omtrentlig) og har minimum på erosjonskurven ved 0,2–0,5 mm', () => {
+    // Uavhengig avlest fra Hjulström-diagrammet (Hjulström 1935, slik det gjengis i lærebøkene, f.eks. Earle 2019,
+    // figur 13.7): erosjon ca. 0,28 m/s ved 0,05 mm, 0,18 ved 0,3 mm og 0,45 ved 3 mm; avsetning ca. 0,005 m/s ved
+    // 0,05 mm, 0,03 ved 0,3 mm og 0,3 ved 3 mm. Avlesningen er grov, så toleransen er 35 %.
+    const innen = (verdi: number | null, fasit: number) => {
+      expect(verdi).not.toBeNull();
+      expect(verdi!).toBeGreaterThan(fasit * 0.65);
+      expect(verdi!).toBeLessThan(fasit * 1.35);
+    };
+    innen(erosjonsfart(0.05), 0.28);
+    innen(erosjonsfart(0.3), 0.18);
+    innen(erosjonsfart(3), 0.45);
+    innen(avsetningsfart(0.05), 0.005);
+    innen(avsetningsfart(0.3), 0.03);
+    innen(avsetningsfart(3), 0.3);
+    // Minimum på erosjonskurven: fin og middels sand er lettest å erodere
+    let dMin = 0;
+    let vMin = Infinity;
+    for (let e = -3; e <= 3; e += 0.01) {
+      const d = 10 ** e;
+      const v = erosjonsfart(d)!;
+      if (v < vMin) {
+        vMin = v;
+        dMin = d;
+      }
+    }
+    expect(dMin).toBeGreaterThanOrEqual(0.2);
+    expect(dMin).toBeLessThanOrEqual(0.5);
+  });
+
   it('krever større fart for å erodere leire enn fin sand', () => {
     expect(erosjonsfart(0.001)!).toBeGreaterThan(erosjonsfart(0.3)!);
     expect(erosjonsfart(0.001)!).toBeGreaterThan(3 * erosjonsfart(0.3)!);

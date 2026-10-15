@@ -3,6 +3,7 @@ import {
   Controls,
   Explain,
   Figure,
+  FlateForklaring,
   Formula,
   FormulaLine,
   GEO,
@@ -14,6 +15,7 @@ import {
   Segmented,
   Slider,
   Sub,
+  TETTHETER,
   Toggle,
   Toolbar,
   Txt,
@@ -22,18 +24,23 @@ import {
   fmt,
   fmtAlder,
   fmtTall,
+  havbunnsalder,
   magnetiskeStriper,
   plategrenseGeometri,
+  tekstBredde,
   useContainerTextScale,
   useSimClock,
   useSvgId,
   useTextScale,
+  type FlateForklaringPunkt,
+  type PlateAnker,
+  type PlateBoks,
   type PlategrenseGeometri,
   type PlategrenseProps,
   type PlategrenseType,
   type SubduksjonVariant,
 } from '../kit';
-import { Callout, ForceArrow, Himmel, LinearGradient, ValueTag, sceneRandom } from '../../kit/scene';
+import { Callout, ForceArrow, Himmel, LinearGradient, ValueTag } from '../../kit/scene';
 import {
   AVSPILLING,
   DYP_KOEFFISIENT,
@@ -43,9 +50,7 @@ import {
   PLUME_TEMPERATUR,
   POTENSIELL_TEMPERATUR,
   RYGG_DYP,
-  SKORPE_TETTHET_SNITT,
   fjellkjede,
-  havbunnsalder,
   havdybde,
   lengdeTilDyp,
   plateavstand,
@@ -56,11 +61,9 @@ import {
   vulkanAlder,
 } from './model-plategrenser';
 import {
-  Fargeforklaring,
   HavProfil,
   KJEDE_AVSTAND,
   KollisjonSnitt,
-  SkjelvStjerne,
   SmelteDiagram,
   SubduksjonSnitt,
   VulkankjedeDiagram,
@@ -71,7 +74,6 @@ import {
   smelteHoyde,
   subduksjonHoyde,
   subduksjonOverdrivelse,
-  type ForklaringPunkt,
 } from './plategrenser-deler';
 
 const TYPER: { value: PlategrenseType; label: string }[] = [
@@ -89,7 +91,7 @@ const VARIANTER: { value: SubduksjonVariant; label: string }[] = [
 
 const B = 800;
 const MARG = 14;
-const TETTHET_MANTEL = 3.3;
+const TETTHET_MANTEL = TETTHETER.mantel;
 
 /** Halve bredden på spredningsblokka (km): ryggen står midt i. */
 const KANT_KM = PLATE_BREDDE_KM.spredning / 2;
@@ -180,7 +182,7 @@ export default function Plategrenser() {
       <div ref={ref}>
         <Scene type={type} variant={variant} fart={fart} t={t} krefter={krefter} smelting={smelting} f={f} />
       </div>
-      <Fargeforklaring items={sceneForklaring(type, krefter)} />
+      <FlateForklaring items={sceneForklaring(type, krefter)} />
 
       {smelting ? (
         <>
@@ -191,7 +193,7 @@ export default function Plategrenser() {
           >
             <SmelteDiagram type={type} height={smelteHoyde(f)} />
           </Figure>
-          <Fargeforklaring items={smelteForklaring(type)} />
+          <FlateForklaring items={smelteForklaring(type)} />
         </>
       ) : (
         <Diagram type={type} variant={variant} fart={fart} t={t} tMax={tMax} f={f} />
@@ -211,13 +213,13 @@ export default function Plategrenser() {
 type BlokkGrunnlag = Omit<PlategrenseProps, 'x' | 'y' | 'w' | 'h' | 'children'>;
 
 /** Plasserer blokka så den fyller bredden, med `topp` enheter fri plass øverst, og gir viewBox-høyden. */
-function oppsett(base: BlokkGrunnlag, f: number, topp: number, venstre = 0) {
+function oppsett(base: BlokkGrunnlag, f: number, topp: number) {
   const hAndel = (base.type === 'transform' ? 0.46 : 0.42) * (1 + 0.24 * Math.max(0, f - 1));
-  const x = MARG + venstre;
-  let w = B - 2 * MARG - venstre;
+  const x = MARG;
+  let w = B - 2 * MARG;
   let g = plategrenseGeometri({ ...base, x, y: 0, w, h: w * hAndel }, f);
   if (g && g.dx > 0) {
-    w = B - 2 * MARG - venstre - g.dx;
+    w = B - 2 * MARG - g.dx;
     g = plategrenseGeometri({ ...base, x, y: 0, w, h: w * hAndel }, f);
   }
   const h = w * hAndel;
@@ -225,9 +227,6 @@ function oppsett(base: BlokkGrunnlag, f: number, topp: number, venstre = 0) {
   const H = Math.round((g ? g.ramme.y1 - g.ramme.y0 : h) + topp + 10);
   return { props: { ...base, x, y, w, h } as PlategrenseProps, H };
 }
-
-/** Plass til venstre for blokka til kraftpila som skyver kontinentet ved en kollisjon. */
-const SKYV_PLASS = 72;
 
 interface SceneProps {
   type: PlategrenseType;
@@ -251,7 +250,7 @@ function toppPlass(type: PlategrenseType, f: number): number {
 function Scene({ type, variant, fart, t, krefter, smelting, f }: SceneProps) {
   const base: BlokkGrunnlag = { type, variant, fart, t, striper: type === 'spredning' || type === 'transform', etiketter: true };
   const topp = toppPlass(type, f);
-  const { props, H } = oppsett(base, f, topp, krefter && type === 'kollisjon' ? SKYV_PLASS : 0);
+  const { props, H } = oppsett(base, f, topp);
   const g0 = plategrenseGeometri(props, f);
   const horisont = g0 && type !== 'transform' ? (g0.havniva ?? g0.profil(g0.x + 1)) - g0.dy + 1 : null;
   const info = GRENSE_TYPER[type];
@@ -289,38 +288,38 @@ function Himmelstripe({ y, h }: { y: number; h: number }) {
   );
 }
 
-/** Grunne jordskjelv i skorpa på begge sider av riftdalen (kit-ets spredningsblokk tegner ingen skjelv). */
-function RyggSkjelv({ g }: { g: PlategrenseGeometri }) {
-  const f = useTextScale();
-  const k = Math.max(1, 0.85 * f);
-  const xr = g.x + g.w / 2;
-  const rnd = sceneRandom(61);
-  const punkter: [number, number][] = [];
-  for (let i = 0; i < 9; i++) {
-    const side = i % 2 === 0 ? 1 : -1;
-    const x = xr + side * (0.02 + 0.07 * rnd()) * g.w;
-    const y = g.profil(x) + (0.008 + 0.03 * rnd()) * g.h;
-    if (punkter.some(([px, py]) => Math.hypot(px - x, py - y) < 9 * k)) continue;
-    punkter.push([x, y]);
-  }
-  return (
-    <g>
-      {punkter.map(([x, y], i) => (
-        <SkjelvStjerne key={i} x={r2(x)} y={r2(y)} r={4.6 * k} />
-      ))}
-    </g>
-  );
+type Boks = Pick<PlateBoks, 'x0' | 'y0' | 'x1' | 'y1'>;
+
+/** Boksen en tekst tar med grunnlinje `y` (samme mål som Txt: 17 · size · f). */
+function tekstBoks(x: number, y: number, tekst: string, size: number, f: number, anchor: 'start' | 'middle' | 'end'): Boks {
+  const fs = 17 * size * f;
+  const b = tekstBredde(tekst, fs);
+  const x0 = anchor === 'end' ? x - b : anchor === 'middle' ? x - b / 2 : x;
+  return { x0: x0 - 3, y0: y - fs * 0.9, x1: x0 + b + 3, y1: y + fs * 0.3 };
+}
+
+const overlapper = (a: Boks, b: Boks): boolean => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+/** En kraftpil fra et ankerpunkt i retningen ankeret gir, med etikett ved pila. */
+interface Kraftpil {
+  key: string;
+  anker: PlateAnker;
+  lengde: number;
+  farge: string;
+  etikett: string;
+  stiplet?: boolean;
 }
 
 /** Det visualiseringen tegner oppå blokka: kraftpiler, merknader om smelting og stripene. */
 function Overlegg({ g, type, fart, t, krefter, smelting, topp }: { g: PlategrenseGeometri; type: PlategrenseType; fart: number; t: number; krefter: boolean; smelting: boolean; topp: number }) {
   const f = useTextScale();
   const smal = f > 1.35;
-  const L = 0.075 * g.w;
+  // Kit-et velger kraftankrene så en pil på inntil 0,11 · w med etikett ved spissen er fri for lagnavn og fartspiler.
+  const L = 0.055 * g.w;
+  const LS = 0.72;
   const a = g.ankere;
+  const ka = g.kraftankre;
   const deler: ReactNode[] = [];
-
-  if (type === 'spredning') deler.push(<RyggSkjelv key="skjelv" g={g} />);
 
   // Merknad: stripene vises bare for de siste 5 millioner årene
   if (type === 'spredning') {
@@ -337,102 +336,145 @@ function Overlegg({ g, type, fart, t, krefter, smelting, topp }: { g: Plategrens
     }
   }
 
+  // Kraftpilene fra kit-ets kraftankre (fri for kit-ets lagnavn og fartspiler)
+  const piler: Kraftpil[] = [];
   if (krefter) {
-    const pil = (key: string, x: number, y: number, dx: number, dy: number, color: string, label: string, opts: { dashed?: boolean; anchor?: 'start' | 'middle' | 'end'; lx?: number; ly?: number } = {}) => (
-      <ForceArrow
-        key={key}
-        x1={r2(x)}
-        y1={r2(y)}
-        x2={r2(x + dx)}
-        y2={r2(y + dy)}
-        color={color}
-        width={6.5}
-        dashed={opts.dashed}
-        origin={!opts.dashed}
-        label={smal ? undefined : label}
-        labelX={opts.lx}
-        labelY={opts.ly}
-        labelAnchor={opts.anchor}
-        labelSize={0.72}
-      />
-    );
     if (type === 'spredning') {
       for (const n of ['ryggskyvVenstre', 'ryggskyvHoyre'] as const) {
-        const p = a[n];
-        if (p?.retning) {
-          const Lr = L * KRAFT_FORHOLD.ryggskyv;
-          deler.push(pil(n, p.x, p.y, Lr * p.retning[0], Lr * p.retning[1], VIZ.applied, 'Ryggskyv', { anchor: 'middle', lx: r2(p.x + 0.5 * Lr * p.retning[0]), ly: r2(p.y + Lr * p.retning[1] + 24 * f) }));
-        }
+        const p = ka[n];
+        if (p?.retning) piler.push({ key: n, anker: p, lengde: L * KRAFT_FORHOLD.ryggskyv, farge: VIZ.applied, etikett: 'Ryggskyv' });
       }
     }
-    if (type === 'subduksjon' && a.platetrekk?.retning) {
-      const p = a.platetrekk;
-      const r = p.retning!;
-      const Lp = L * KRAFT_FORHOLD.platetrekk;
-      deler.push(pil('trekk', p.x, p.y, Lp * r[0], Lp * r[1], VIZ.gravity, 'Platetrekk', { anchor: 'start', lx: r2(p.x + Lp * r[0] + 8), ly: r2(p.y + Lp * r[1] + 6) }));
+    if (type === 'subduksjon' && ka.platetrekk?.retning) {
+      piler.push({ key: 'trekk', anker: ka.platetrekk, lengde: L * KRAFT_FORHOLD.platetrekk, farge: VIZ.gravity, etikett: 'Platetrekk' });
     }
-    if (type === 'kollisjon' && a.plateVenstre) {
-      // Utenfor blokka: pila skyver kontinentet inn fra venstre
-      const y = a.plateVenstre.y;
-      const x = MARG;
-      deler.push(pil('skyv', x, y, g.x - 2 - x, 0, VIZ.applied, 'Skyv', { anchor: 'start', lx: r2(x), ly: r2(y - 14 * f) }));
+    if (type === 'kollisjon') {
+      for (const n of ['kollisjonVenstre', 'kollisjonHoyre'] as const) {
+        const p = ka[n];
+        if (p?.retning) piler.push({ key: n, anker: p, lengde: L * 1.4, farge: VIZ.applied, etikett: 'Skyv' });
+      }
     }
-    if (type === 'varmt-punkt' && a.plateVenstre) {
-      // Til høyre for det varme punktet, der plata er fri for vulkaner og etiketter
-      const y = a.plateVenstre.y;
+    if (type === 'varmt-punkt' && ka.plateVenstre) {
+      // Trekket virker på hele plata langt unna: pila står helt til høyre, midt i litosfæren (fri for vulkaner, plumen
+      // og etiketter), og peker samme vei som plata flytter seg.
       const x = g.x + 0.985 * g.w;
-      deler.push(pil('trekk', x, y, -L * 1.4, 0, VIZ.gravity, 'Platetrekk', { dashed: true, anchor: 'end', lx: r2(x), ly: r2(y - 12 * f) }));
+      const anker: PlateAnker = { x, y: 0.62 * (a.plateVenstre ?? ka.plateVenstre).y + 0.38 * g.profil(x), retning: [-1, 0] };
+      piler.push({ key: 'trekk', anker, lengde: L * 1.9, farge: VIZ.gravity, etikett: 'Platetrekk', stiplet: true });
     }
   }
+
+  // Flatene som allerede er tatt (kit-ets lagnavn og fartspiler, kraftpilene og etikettene), så merknadene holder seg unna
+  const hindre: Boks[] = [...g.opptatt];
+  const inne = (b: Boks) => b.x0 >= g.x + 2 && b.x1 <= g.x + g.w - 2 && b.y0 >= g.y + 4 && b.y1 <= g.y + g.h - 2;
+  for (const p of piler) {
+    const [ux, uy] = p.anker.retning ?? [1, 0];
+    const x2 = p.anker.x + p.lengde * ux;
+    const y2 = p.anker.y + p.lengde * uy;
+    // Etiketten over en vannrett pil (der kit-et har holdt plass fri) og ved spissen av en skrå
+    const vannrett = Math.abs(uy) < 0.35;
+    const anchor: 'start' | 'middle' | 'end' = vannrett ? 'middle' : ux >= 0 ? 'start' : 'end';
+    const lx = vannrett ? (p.anker.x + x2) / 2 : x2 + (ux >= 0 ? 8 : -8);
+    const ly = vannrett ? Math.min(p.anker.y, y2) - 8 : y2 + 6;
+    hindre.push({ x0: Math.min(p.anker.x, x2) - 8, y0: Math.min(p.anker.y, y2) - 8, x1: Math.max(p.anker.x, x2) + 8, y1: Math.max(p.anker.y, y2) + 8 });
+    // På smal skjerm vises etiketten bare når den får plass inne i blokka uten å dekke noe; fargeforklaringen har navnet
+    const boks = tekstBoks(lx, ly, p.etikett, LS, f, anchor);
+    const visEtikett = !smal || (inne(boks) && !hindre.some((h) => overlapper(boks, h)));
+    if (visEtikett) hindre.push(boks);
+    deler.push(
+      <ForceArrow
+        key={p.key}
+        x1={r2(p.anker.x)}
+        y1={r2(p.anker.y)}
+        x2={r2(x2)}
+        y2={r2(y2)}
+        color={p.farge}
+        width={6.5}
+        dashed={p.stiplet}
+        origin={!p.stiplet}
+        label={visEtikett ? p.etikett : undefined}
+        labelX={r2(lx)}
+        labelY={r2(ly)}
+        labelAnchor={anchor}
+        labelSize={LS}
+      />,
+    );
+  }
+
+  /**
+   * En merknad med strek til `punkt`: prøver kandidatene (grunnlinje og anker) i rekkefølge og velger den første der
+   * teksten holder seg inne i blokka og fri for lagnavn, fartspiler, kraftpiler og etiketter.
+   */
+  const merknad = (key: string, punkt: { x: number; y: number }, tekst: string, kandidater: { lx: number; ly: number; anchor: 'start' | 'middle' | 'end' }[]) => {
+    const valgt =
+      kandidater.find((k) => {
+        const b = tekstBoks(k.lx, k.ly, tekst, 0.74, f, k.anchor);
+        return inne(b) && !hindre.some((h) => overlapper(b, h));
+      }) ?? kandidater[0]!;
+    hindre.push(tekstBoks(valgt.lx, valgt.ly, tekst, 0.74, f, valgt.anchor));
+    deler.push(
+      <Callout key={key} x={r2(punkt.x)} y={r2(punkt.y)} lx={r2(valgt.lx)} ly={r2(valgt.ly)} anchor={valgt.anchor} size={0.74}>
+        {tekst}
+      </Callout>,
+    );
+  };
 
   if (smelting) {
     if (type === 'spredning' && a.smeltesone) {
       const p = a.smeltesone;
-      deler.push(
-        <Callout key="smelt" x={r2(p.x + 0.04 * g.w)} y={r2(p.y)} lx={r2(p.x + 0.16 * g.w)} ly={r2(g.y + 0.84 * g.h)} anchor="start" size={0.74}>
-          {smal ? 'Smelter delvis' : 'Mantelen stiger og smelter delvis'}
-        </Callout>,
-      );
+      merknad('smelt', { x: p.x + 0.04 * g.w, y: p.y }, smal ? 'Smelter delvis' : 'Mantelen stiger og smelter delvis', [
+        { lx: p.x + 0.16 * g.w, ly: g.y + 0.84 * g.h, anchor: 'start' },
+        { lx: p.x + 0.12 * g.w, ly: g.y + 0.94 * g.h, anchor: 'start' },
+        { lx: p.x - 0.16 * g.w, ly: g.y + 0.84 * g.h, anchor: 'end' },
+      ]);
     }
     if (type === 'subduksjon' && a.smeltesone) {
+      // Til høyre over mantelkilen, unna platetrekket, vulkanen og lagnavnene
       const p = a.smeltesone;
-      deler.push(
-        <Callout key="smelt" x={r2(p.x)} y={r2(p.y)} lx={r2(p.x + 0.09 * g.w)} ly={r2(g.y + 0.88 * g.h)} anchor={smal ? 'middle' : 'start'} size={0.74}>
-          {smal ? 'Vann gir smelting' : 'Vann fra plata gir smelting'}
-        </Callout>,
-      );
+      const kile = a.mantelkile ?? p;
+      const hoyre = g.x + g.w - 6;
+      const y0 = Math.min(kile.y, p.y);
+      merknad('smelt', p, smal ? 'Vann gir smelting' : 'Vann fra plata gir smelting', [
+        { lx: hoyre, ly: y0 - 8 * f, anchor: 'end' },
+        { lx: hoyre, ly: y0 + 14 * f, anchor: 'end' },
+        { lx: hoyre, ly: y0 - 30 * f, anchor: 'end' },
+        { lx: hoyre, ly: kile.y + 30 * f, anchor: 'end' },
+        { lx: p.x + 0.09 * g.w, ly: g.y + 0.88 * g.h, anchor: 'start' },
+        { lx: p.x - 0.06 * g.w, ly: g.y + 0.96 * g.h, anchor: 'end' },
+      ]);
     }
     if (type === 'varmt-punkt' && a.varmtPunkt) {
       const p = a.varmtPunkt;
-      deler.push(
-        <Callout key="smelt" x={r2(p.x - 0.06 * g.w)} y={r2(p.y)} lx={r2(p.x - 0.2 * g.w)} ly={r2(g.y + (smal ? 0.74 : 0.86) * g.h)} anchor="end" size={0.74}>
-          Plumen smelter delvis
-        </Callout>,
-      );
+      merknad('smelt', { x: p.x - 0.06 * g.w, y: p.y }, 'Plumen smelter delvis', [
+        { lx: p.x - 0.2 * g.w, ly: g.y + (smal ? 0.74 : 0.86) * g.h, anchor: 'end' },
+        { lx: p.x - 0.2 * g.w, ly: g.y + 0.95 * g.h, anchor: 'end' },
+        { lx: p.x - 0.12 * g.w, ly: g.y + 0.66 * g.h, anchor: 'end' },
+      ]);
     }
     if (type === 'kollisjon' && a.fjellrot) {
       deler.push(<ValueTag key="smelt" x={r2(a.fjellrot.x + 0.08 * g.w)} y={r2(g.y + 0.88 * g.h)} text="Lite smelting her" size={0.74} />);
     }
-    if (type === 'transform' && a.forkastning) {
-      deler.push(<ValueTag key="smelt" x={r2(a.forkastning.x)} y={r2(g.y + 0.1 * g.h)} text="Ingen smelting" size={0.74} />);
+    if (type === 'transform') {
+      // Nederst på kartet: øverst står kit-ets «Spredningsrygg» og fartspilene
+      deler.push(<ValueTag key="smelt" x={r2(g.x + 0.36 * g.w)} y={r2(g.y + g.h - (17 * f * 0.74 * 1.55) / 2 - 8)} text="Ingen smelting" size={0.74} />);
     }
   }
   return <g>{deler}</g>;
 }
 
 /** Forklaringen av fargene under blokka. */
-function sceneForklaring(type: PlategrenseType, krefter: boolean): ForklaringPunkt[] {
-  const items: ForklaringPunkt[] = [{ color: VIZ.velocity, label: type === 'transform' ? 'Platebevegelse' : 'Platebevegelse og strømning i mantelen' }];
-  items.push({ color: GEO.fare[1], label: 'Jordskjelv', form: 'stjerne' });
-  if (type !== 'transform') items.push({ color: GEO.magma.fill, label: 'Magma og delvis smeltet mantel', form: 'flate' });
-  if (type === 'subduksjon') items.push({ color: GEO.grunnvann.line, label: 'Vann fra plata', dashed: true });
+function sceneForklaring(type: PlategrenseType, krefter: boolean): FlateForklaringPunkt[] {
+  const items: FlateForklaringPunkt[] = [{ farge: VIZ.velocity, label: type === 'transform' ? 'Platebevegelse' : 'Platebevegelse og strømning i mantelen', form: 'linje' }];
+  items.push({ farge: GEO.fare[1], label: 'Jordskjelv', form: 'stjerne' });
+  if (type !== 'transform') items.push({ farge: GEO.magma, label: 'Magma og delvis smeltet mantel' });
+  if (type === 'subduksjon') items.push({ farge: GEO.grunnvann.line, label: 'Vann fra plata', form: 'linje', stiplet: true });
   if (type === 'spredning' || type === 'transform') {
-    items.push({ color: GEO.polaritet.normal, label: 'Normal polaritet (som i dag)', form: 'flate' });
-    items.push({ color: GEO.polaritet.omvendt, label: 'Omvendt polaritet', form: 'flate' });
+    items.push({ farge: GEO.polaritet.normal, label: 'Normal polaritet (som i dag)' });
+    items.push({ farge: GEO.polaritet.omvendt, label: 'Omvendt polaritet' });
   }
   if (krefter) {
-    if (type === 'spredning' || type === 'kollisjon') items.push({ color: VIZ.applied, label: type === 'spredning' ? 'Ryggskyv' : 'Skyv bakfra' });
-    if (type === 'subduksjon' || type === 'varmt-punkt') items.push({ color: VIZ.gravity, label: type === 'subduksjon' ? 'Platetrekk' : 'Platetrekk langt unna', dashed: type === 'varmt-punkt' });
+    if (type === 'spredning' || type === 'kollisjon') items.push({ farge: VIZ.applied, label: type === 'spredning' ? 'Ryggskyv' : 'Skyv bakfra', form: 'linje' });
+    if (type === 'subduksjon' || type === 'varmt-punkt')
+      items.push({ farge: VIZ.gravity, label: type === 'subduksjon' ? 'Platetrekk' : 'Platetrekk langt unna', form: 'linje', stiplet: type === 'varmt-punkt' });
   }
   return items;
 }
@@ -443,6 +485,11 @@ function sceneForklaring(type: PlategrenseType, krefter: boolean): ForklaringPun
 
 function Diagram({ type, variant, fart, t, tMax, f }: { type: PlategrenseType; variant: SubduksjonVariant; fart: number; t: number; tMax: number; f: number }) {
   const kjede = useMemo(() => fjellkjede(fart, t), [fart, t]);
+  // Vulkanene over det varme punktet, de samme som i blokka (alderen og hvilke som er aktive avhenger ikke av størrelsen)
+  const vulkaner = useMemo(
+    () => (type === 'varmt-punkt' ? (plategrenseGeometri({ type, fart, t, w: 1000, h: 420 })?.vulkaner ?? []) : []),
+    [type, fart, t],
+  );
   if (type === 'spredning') {
     const H = havProfilHoyde(f);
     return (
@@ -474,11 +521,11 @@ function Diagram({ type, variant, fart, t, tMax, f }: { type: PlategrenseType; v
         >
           <SubduksjonSnitt variant={variant} s={s} andel={tMax > 0 ? t / tMax : 1} height={H} />
         </Figure>
-        <Fargeforklaring
+        <FlateForklaring
           items={[
-            { color: GEO.fare[1], label: 'Jordskjelv', form: 'stjerne' },
-            { color: GEO.fare[3], label: 'De nyeste skjelvene (under avspilling)', form: 'stjerne' },
-            { color: VIZ.velocity, label: 'Havbunn som var i havgropa ved start' },
+            { farge: GEO.fare[1], label: 'Jordskjelv', form: 'stjerne' },
+            { farge: GEO.fare[3], label: 'De nyeste skjelvene (under avspilling)', form: 'stjerne' },
+            { farge: VIZ.velocity, label: 'Havbunn som var i havgropa ved start', form: 'prikk' },
           ]}
         />
       </>
@@ -504,7 +551,7 @@ function Diagram({ type, variant, fart, t, tMax, f }: { type: PlategrenseType; v
         label="Alderen på vulkanene mot avstanden fra det varme punktet."
         caption="Vulkanene i blokka: jo lenger fra det varme punktet, jo eldre. Helningen gir platefarten."
       >
-        <VulkankjedeDiagram fart={fart} t={t} height={H} />
+        <VulkankjedeDiagram fart={fart} vulkaner={vulkaner} height={H} />
       </Figure>
     );
   }
@@ -520,7 +567,7 @@ function maalinger(type: PlategrenseType, variant: SubduksjonVariant, fart: numb
   const skjelv = skjelvdybder(type);
   const skjelvTekst = skjelv.maks >= 700 ? '0–700' : `0–${skjelv.maks}`;
   if (type === 'spredning') {
-    const alder = havbunnsalder(KANT_KM, halv);
+    const alder = havbunnsalder(KANT_KM, fart);
     return (
       <>
         <Readout label="Hver plate flytter seg" value={halvTekst(halv)} unit="cm/år" tone={VIZ.velocity} />
@@ -583,7 +630,7 @@ function utregning(type: PlategrenseType, variant: SubduksjonVariant, fart: numb
   if (type === 'spredning') {
     const halv = fart / 2;
     const vh = fmt(halv * KM_PER_MA, Math.abs(halv * KM_PER_MA - Math.round(halv * KM_PER_MA)) < 0.01 ? 0 : 1);
-    const alder = havbunnsalder(KANT_KM, halv);
+    const alder = havbunnsalder(KANT_KM, fart);
     const d = alder === null ? null : havdybde(alder);
     return (
       <>
@@ -627,11 +674,11 @@ function utregning(type: PlategrenseType, variant: SubduksjonVariant, fart: numb
           Δ = skorpa blir {tall(dT)} km tykkere (forenklet: høyst ca. 35 km)
         </FormulaLine>
         <FormulaLine>
-          høyde = Δ · (ρ<Sub>m</Sub> − ρ<Sub>s</Sub>) / ρ<Sub>m</Sub> = {tall(dT)} km · ({fmt(TETTHET_MANTEL, 1)} − {fmt(SKORPE_TETTHET_SNITT, 1)}) / {fmt(TETTHET_MANTEL, 1)} ={' '}
+          høyde = Δ · (ρ<Sub>m</Sub> − ρ<Sub>s</Sub>) / ρ<Sub>m</Sub> = {tall(dT)} km · ({fmt(TETTHET_MANTEL, 1)} − {fmt(TETTHETER.skorpeKontinentSnitt, 1)}) / {fmt(TETTHET_MANTEL, 1)} ={' '}
           {tall(k ? k.hoyde / 1000 : null, 1)} km
         </FormulaLine>
         <FormulaLine>
-          rot = Δ · ρ<Sub>s</Sub> / ρ<Sub>m</Sub> = {tall(dT)} km · {fmt(SKORPE_TETTHET_SNITT, 1)} / {fmt(TETTHET_MANTEL, 1)} = {tall(k?.rot)} km
+          rot = Δ · ρ<Sub>s</Sub> / ρ<Sub>m</Sub> = {tall(dT)} km · {fmt(TETTHETER.skorpeKontinentSnitt, 1)} / {fmt(TETTHET_MANTEL, 1)} = {tall(k?.rot)} km
         </FormulaLine>
       </>
     );
@@ -675,7 +722,7 @@ function forklaring({ type, variant, fart, t, tMax, krefter, smelting, kjedeHoyd
   const avsnitt: ReactNode[] = [];
   const spiller = t < tMax - 1e-6;
   if (type === 'spredning') {
-    const alder = havbunnsalder(KANT_KM, halv);
+    const alder = havbunnsalder(KANT_KM, fart);
     avsnitt.push(
       <>
         Ved en <strong>spredningsrygg</strong> (konstruktiv eller divergerende plategrense) beveger platene seg fra hverandre, her med {halvTekst(halv)} cm/år hver.
@@ -706,8 +753,9 @@ function forklaring({ type, variant, fart, t, tMax, krefter, smelting, kjedeHoyd
         {t > 0.05
           ? `${fmtAlder(t, { enhet: 'millioner', desimaler: 0 })} etter at kontinentene møttes, er skorpa ca. ${tall(tykkelse)} km tykk og fjellkjeden ca. ${tallT(kjedeHoyde === null ? null : Math.round(kjedeHoyde / 100) * 100)} m høy i snitt.`
           : 'Spill av for å se fjellkjeden løftes.'}{' '}
-        Himalaya er en slik fjellkjede i dag: India har presset mot Eurasia i ca. 50 millioner år. Den kaledonske fjellkjeden, som fjellene i Norge er rester av, ble dannet på samme
-        måte for ca. 430–400 millioner år siden og er siden tæret ned av erosjon.
+        Himalaya er en slik fjellkjede i dag: India har presset mot Eurasia i ca. 50 millioner år. Berggrunnen i store deler av Norge er rester av den kaledonske
+        fjellkjeden, som ble dannet på samme måte for ca. 430–400 millioner år siden og siden er tæret ned av erosjon. Høyden fjellene i Norge har i dag, kommer av
+        senere hevning og isens erosjon, ikke av den gamle kollisjonen.
       </>,
     );
   } else if (type === 'transform') {
@@ -736,7 +784,7 @@ function forklaring({ type, variant, fart, t, tMax, krefter, smelting, kjedeHoyd
       subduksjon:
         'Platetrekk (oransje pil) er tyngden av den kalde, tunge plata som synker og trekker resten av plata etter seg. Det er trolig den største drivkraften. I tillegg skyver ryggskyvet bakfra, fra ryggen der plata ble dannet.',
       kollisjon:
-        'Kontinentene skyves og trekkes av krefter andre steder (grønn pil): ryggskyv bak og trekk fra havbunnsplata som gikk ned før kontinentene møttes. Når fjellkjeden blir høy og tung, motsetter den seg mer sammenskyving.',
+        'Kontinentene skyves og trekkes av krefter andre steder (grønne piler): ryggskyv bak og trekk fra havbunnsplata som gikk ned før kontinentene møttes. Når fjellkjeden blir høy og tung, motsetter den seg mer sammenskyving.',
       transform:
         'Ved transformforkastningen virker ingen drivkraft. Platene drives av ryggskyv ved ryggene og platetrekk i subduksjonssoner andre steder.',
       'varmt-punkt':

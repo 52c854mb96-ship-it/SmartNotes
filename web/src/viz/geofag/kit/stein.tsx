@@ -71,7 +71,7 @@ export function mineralFarge(mineralEllerTone: MineralId | MineralTone): Mineral
 /** Navnene på krystallformene til knapper og forklaringer. */
 export const KRYSTALLFORM_NAVN: Record<Krystallform, string> = {
   prisme: 'Prisme',
-  rombeeder: 'Romboeder',
+  romboeder: 'Romboeder',
   terning: 'Terning',
   oktaeder: 'Oktaeder',
   tavle: 'Tavle',
@@ -79,7 +79,7 @@ export const KRYSTALLFORM_NAVN: Record<Krystallform, string> = {
 };
 
 /** Alle krystallformene i fast rekkefølge. */
-export const KRYSTALLFORMER: readonly Krystallform[] = ['prisme', 'rombeeder', 'terning', 'oktaeder', 'tavle', 'dodekaeder'];
+export const KRYSTALLFORMER: readonly Krystallform[] = ['prisme', 'romboeder', 'terning', 'oktaeder', 'tavle', 'dodekaeder'];
 
 /** Én flate i en tegnet krystall (koordinater med midten i (0, 0) og største mål 1). */
 export interface KrystallFlate {
@@ -112,7 +112,7 @@ export interface KrystallGeometri {
 export interface KrystallFormValg {
   /** Dreiing om den loddrette aksen i grader (standard etter formen). */
   dreiing?: number;
-  /** Hvor mye vi ser ovenfra i grader (standard etter formen). */
+  /** Hvor mye vi ser ovenfra i grader (standard etter formen). 0 = rett forfra: en terning blir da en flat rute. */
   helning?: number;
   /** Vipping i bildeplanet i grader (med klokka). */
   vipp?: number;
@@ -193,7 +193,7 @@ function rombedodekaeder(): Polyeder {
   return { v, f };
 }
 
-function rombeeder(): Polyeder {
+function romboeder(): Polyeder {
   // En terning presset sammen langs romdiagonalen (1, 1, 1): den stumpe romboederen kalkspat spaltes i. Litt overdrevet
   // (flatevinkler ca. 69° og 111° mot 78° og 102° i kalkspat), så den ikke ser ut som en terning på skjermen. Så dreid
   // så den ligger på en flate, som et spaltestykke på et bord: toppflaten er en rombe, og sideflatene heller.
@@ -259,7 +259,7 @@ const STANDARD_VINKEL: Record<Krystallform, [number, number]> = {
   terning: [28, 24],
   oktaeder: [22, 16],
   dodekaeder: [18, 20],
-  rombeeder: [0, 30],
+  romboeder: [0, 30],
   prisme: [14, 14],
   tavle: [18, 40],
 };
@@ -302,8 +302,8 @@ export function krystallGeometri(form: Krystallform, valg: KrystallFormValg = {}
     case 'dodekaeder':
       p = rombedodekaeder();
       break;
-    case 'rombeeder':
-      p = rombeeder();
+    case 'romboeder':
+      p = romboeder();
       break;
     case 'tavle':
       p = prisme(sider, clamp(fin(valg.forlengelse, 0.3), 0.05, 2) * 2, 0, false, true, sider === 4 ? 1.5 : 1);
@@ -1711,8 +1711,19 @@ export interface LupeProps {
   handtak?: number | null;
   /** Fargen bak innholdet (standard `VIZ.surface`). */
   bakgrunn?: string;
-  /** Kort tekst over lupen, f.eks. «Forstørret 20 ganger». */
+  /** Kort tekst ved lupen, f.eks. «Forstørret 20 ganger». */
   tekst?: string;
+  /**
+   * Hvor `tekst` står: 'over' (standard når det er plass over lupa i figuren, dvs. y > 0), ellers 'under', eller
+   * 'venstre' / 'hoyre' for linsa. Teksten holdes inne ved venstre kant (x ≥ 0).
+   */
+  tekstSide?: 'over' | 'under' | 'venstre' | 'hoyre';
+  /**
+   * Med `forstorr`: 'fast' (standard) gir strekene i innholdet samme bredde på skjermen som utenfor lupa i stedet for
+   * å bli `faktor` ganger tykkere (CSS `vector-effect: non-scaling-stroke` på alle strekene i innholdet, klassen
+   * `geo-fast-strek`). 'forstorret' lar strekene vokse med resten. Teksten og mønstrene forstørres uansett.
+   */
+  strek?: 'fast' | 'forstorret';
   /** Målestokk nederst i linsa i linsas koordinater: `{ lengde, tekst }`. */
   malestokk?: { lengde: number; tekst: string };
   /**
@@ -1740,7 +1751,7 @@ export interface LupeProps {
  *   <Lupe x={300} y={150} r={70} handtak={130} forstorr={{ faktor: 2.5 }}>{stein}</Lupe>   // rett over steinen
  * Ankerpunkt: (x, y) er midten av linsa.
  */
-export function Lupe({ x, y, r, fra, stil, handtak = 45, bakgrunn, tekst, malestokk, forstorr, children, dim }: LupeProps) {
+export function Lupe({ x, y, r, fra, stil, handtak = 45, bakgrunn, tekst, tekstSide, strek = 'fast', malestokk, forstorr, children, dim }: LupeProps) {
   const k = useGeoScale();
   const ss = useGeoStroke();
   const f = useTextScale();
@@ -1838,7 +1849,9 @@ export function Lupe({ x, y, r, fra, stil, handtak = 45, bakgrunn, tekst, malest
       )}
       <circle cx={r2(x)} cy={r2(y)} r={r2(r)} fill={bakgrunn ?? VIZ.surface} />
       <g clipPath={`url(#${clipId})`}>
-        <g transform={innholdTransform}>{innhold}</g>
+        <g transform={innholdTransform} className={faktor && strek === 'fast' ? 'geo-fast-strek' : undefined}>
+          {innhold}
+        </g>
         <circle cx={r2(x)} cy={r2(y)} r={r2(r)} fill={`url(#${glassId})`} />
         {/* Glassrefleks øverst til venstre */}
         <path
@@ -1859,11 +1872,29 @@ export function Lupe({ x, y, r, fra, stil, handtak = 45, bakgrunn, tekst, malest
           <circle cx={r2(x)} cy={r2(y)} r={r2(r)} fill="none" stroke={VIZ.ink} strokeWidth={r2(2 * ss)} />
         </g>
       )}
-      {tekst && (
-        <Txt x={x} y={y - r - rw - 10} size={0.85} weight={600}>
-          {tekst}
-        </Txt>
-      )}
+      {tekst && <LupeTekst x={x} y={y} r={r + rw} tekst={tekst} side={tekstSide} f={f} />}
     </g>
+  );
+}
+
+/** Teksten ved en lupe: over, under eller ved siden av linsa, og aldri ut over toppen eller venstre kant av figuren. */
+function LupeTekst({ x, y, r, tekst, side, f }: { x: number; y: number; r: number; tekst: string; side?: 'over' | 'under' | 'venstre' | 'hoyre'; f: number }) {
+  const fs = 17 * 0.85 * f;
+  const tw = tekst.length * 0.58 * fs;
+  const overY = y - r - 10;
+  const valgt = side ?? (overY - fs * 0.85 >= 2 ? 'over' : 'under');
+  if (valgt === 'venstre' || valgt === 'hoyre') {
+    const tx = valgt === 'hoyre' ? x + r + 10 : Math.max(tw + 2, x - r - 10);
+    return (
+      <Txt x={tx} y={y + fs * 0.33} anchor={valgt === 'hoyre' ? 'start' : 'end'} size={0.85} weight={600}>
+        {tekst}
+      </Txt>
+    );
+  }
+  const ty = valgt === 'over' ? Math.max(fs * 0.85 + 2, overY) : y + r + 8 + fs * 0.8;
+  return (
+    <Txt x={Math.max(tw / 2 + 2, x)} y={ty} size={0.85} weight={600}>
+      {tekst}
+    </Txt>
   );
 }

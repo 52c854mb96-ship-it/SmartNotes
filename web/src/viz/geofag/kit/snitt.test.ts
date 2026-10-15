@@ -11,6 +11,7 @@ import {
   lagflate,
   lagpakkeDybder,
   lagpakkeOppsett,
+  paaToppen,
   snittFordelEtiketter,
   snittGeologi,
   snittblokkPerspektiv,
@@ -410,5 +411,38 @@ describe('rendring', () => {
     );
     expect(html).not.toMatch(UGYLDIG);
     expect(html).not.toContain('Borte');
+  });
+});
+
+describe('paaToppen og SnittEtiketter', () => {
+  it('paaToppen gir et punkt på toppflaten, og null for ugyldige tall', () => {
+    const { dx, dy } = snittblokkPerspektiv(70);
+    expect(paaToppen({ overflate: (x) => 100 + 0.1 * x, dx, dy }, 200, 0)).toEqual({ x: 200, y: 120 });
+    const p = paaToppen({ overflate: 100, dx, dy, x: 20, y: 40 }, 200, 0.5)!;
+    expect(p.x).toBeCloseTo(220 + 0.5 * dx, 9);
+    expect(p.y).toBeCloseTo(140 - 0.5 * dy, 9);
+    // t utenfor 0–1 holdes inne i blokka
+    expect(paaToppen({ overflate: 100, dx, dy }, 0, 3)).toEqual(paaToppen({ overflate: 100, dx, dy }, 0, 1));
+    expect(paaToppen({ overflate: 100, dx, dy }, Number.NaN, 0.5)).toBeNull();
+    expect(paaToppen({ overflate: () => Number.NaN, dx, dy }, 10, 0.5)).toBeNull();
+  });
+
+  it('SnittEtiketter lar strekene ikke krysse når punktene ligger skrått', () => {
+    // Punktene stiger mot høyre; sortert bare etter y ville strekene krysset
+    const etiketter = [
+      { x: 100, y: 200, tekst: 'A' },
+      { x: 300, y: 180, tekst: 'B' },
+      { x: 500, y: 160, tekst: 'C' },
+    ];
+    const html = svg(createElement(SnittEtiketter, { x: 620, topp: 150, bunn: 220, etiketter }));
+    const linjer = [...html.matchAll(/<polyline points="([^"]+)"/g)].map((m) => m[1]!.split(' ').map((p) => p.split(',').map(Number) as [number, number]));
+    expect(linjer).toHaveLength(3);
+    const kryss = (a: [number, number][], b: [number, number][]) => {
+      const o = (p: number[], q: number[], r: number[]) => (q[0]! - p[0]!) * (r[1]! - p[1]!) - (q[1]! - p[1]!) * (r[0]! - p[0]!);
+      const [a0, a1] = [a[0]!, a[1]!];
+      const [b0, b1] = [b[0]!, b[1]!];
+      return o(b0, b1, a0) * o(b0, b1, a1) < 0 && o(a0, a1, b0) * o(a0, a1, b1) < 0;
+    };
+    for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) expect(kryss(linjer[i]!, linjer[j]!)).toBe(false);
   });
 });

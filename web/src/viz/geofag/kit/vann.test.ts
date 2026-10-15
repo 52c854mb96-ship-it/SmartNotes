@@ -260,3 +260,45 @@ describe('komponentene', () => {
     expect(tom).not.toMatch(UGYLDIG);
   });
 });
+
+describe('etikettene i vannfigurene holder seg unna', () => {
+  const tekster = (html: string, t: string) =>
+    [...html.matchAll(/<text x="([-\d.]+)" y="([-\d.]+)" text-anchor="(\w+)"[^>]*>([^<]*)<\/text>/g)].filter((m) => m[4] === t).map((m) => ({ x: Number(m[1]), y: Number(m[2]), anchor: m[3] }));
+
+  it('Stromlinjer holder etiketten inne i rammen og unna pilspissen', () => {
+    // En strøm helt ved venstre kant med etiketten til venstre: den må bytte side eller flyttes inn
+    const html = svg(createElement(Stromlinjer, { farge: '#000', punkter: [[20, 300], [30, 150], [60, 40]], label: 'Fordamping 73', labelSide: 'venstre', ramme: { x0: 0, y0: 0, x1: 400, y1: 320 } }));
+    const [t] = tekster(html, 'Fordamping 73');
+    expect(t).toBeDefined();
+    const b = 'Fordamping 73'.length * 0.58 * 17 * 0.8;
+    const x0 = t!.anchor === 'start' ? t!.x : t!.anchor === 'end' ? t!.x - b : t!.x - b / 2;
+    expect(x0).toBeGreaterThanOrEqual(-1);
+    // Etiketten står ikke ved enden av en kort pil (der spissen er)
+    const kort = svg(createElement(Stromlinjer, { farge: '#000', punkter: [[100, 100], [260, 100]], bredde: 20, label: 'Avrenning 40', labelPos: 1 }));
+    const [k] = tekster(kort, 'Avrenning 40');
+    expect(k!.x).toBeLessThan(240);
+    expect(html).not.toMatch(/NaN|Infinity/);
+  });
+
+  it('Grunnvannssnitt setter «Grunnvannsspeil» over speilet, borte fra brønnene i unnga', () => {
+    const w = 760;
+    const h = 300;
+    const speil = senkningstrakt(0.42 * h, { x: 0.34 * w, senkning: 46, radius: 240, rBronn: 8 }, { x: 0.7 * w, senkning: 30, radius: 200, rBronn: 8 });
+    const unnga = [0.34 * w, 0.7 * w, 0.52 * w];
+    const html = svg(createElement(Grunnvannssnitt, { w, h, dybde: 0, overflate: 0.14 * h, speil, etiketter: 'inne', unnga }));
+    const [t] = tekster(html, 'Grunnvannsspeil');
+    expect(t).toBeDefined();
+    const b = 'Grunnvannsspeil'.length * 0.58 * 17 * 0.74;
+    for (const ux of unnga) expect(ux < t!.x - 4 || ux > t!.x + b + 4, `brønn ved ${ux}`).toBe(true);
+    // Over speilet: grunnlinja ligger ikke under speilet noe sted under teksten
+    for (let i = 0; i <= 10; i++) expect(t!.y).toBeLessThanOrEqual(speil(t!.x + (i / 10) * b) + 0.5);
+    expect(html).not.toMatch(/NaN|Infinity/);
+  });
+
+  it('Nedbor tegner skyer som standard, og ingen med skydekke={false}', () => {
+    const med = svg(createElement(Nedbor, { w: 400, h: 200, intensitet: 0.2 }));
+    const uten = svg(createElement(Nedbor, { w: 400, h: 200, intensitet: 0.2, skydekke: false }));
+    expect((med.match(/<ellipse/g) ?? []).length).toBeGreaterThan(5);
+    expect((uten.match(/<ellipse/g) ?? []).length).toBe(0);
+  });
+});

@@ -139,6 +139,11 @@ export interface LagFlateProps {
   lys?: boolean;
   /** Ingen kontur (f.eks. når lagene deler grense og en egen linje tegnes over). */
   utenKontur?: boolean;
+  /**
+   * Demp mønsteret (0–1): et lag i bunnfargen legges over mønsteret, så en stor flate med sterkt mønster (gneis som
+   * berggrunn bak en bre eller en elv) ikke tar oppmerksomheten. 0,4–0,5 passer for bakgrunn. Standard 0.
+   */
+  demp?: number;
   /** Ton ned laget. */
   dim?: boolean;
   children?: ReactNode;
@@ -150,7 +155,7 @@ export interface LagFlateProps {
  * plassering; formen (`points` eller stien `d`) er i figurens koordinater.
  *   <LagFlate points={[[0, 200], [800, 180], [800, 260], [0, 260]]} type="sandstein" monstre={lag.id} />
  */
-export function LagFlate({ d, points, type, monstre = LAG_MONSTRE_ID, lys = true, utenKontur, dim, children }: LagFlateProps) {
+export function LagFlate({ d, points, type, monstre = LAG_MONSTRE_ID, lys = true, utenKontur, dim, demp, children }: LagFlateProps) {
   const lysId = useSvgId('laglys');
   const stroke = useGeoStroke();
   const path = d ?? (points && points.length > 2 ? polyPath(points) : '');
@@ -159,6 +164,7 @@ export function LagFlate({ d, points, type, monstre = LAG_MONSTRE_ID, lys = true
   return (
     <g opacity={dim ? 0.38 : undefined}>
       <path d={path} fill={f.fill} />
+      {demp !== undefined && Number.isFinite(demp) && demp > 0 && <path d={path} fill={GEO.bergart[type].fill} opacity={Math.min(1, demp)} />}
       {lys && (
         <>
           <LinearGradient

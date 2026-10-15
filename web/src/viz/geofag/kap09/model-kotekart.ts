@@ -8,6 +8,7 @@
  * gir null eller tomme lister, aldri NaN eller Infinity.
  */
 import { flytvei, helning, hoydefelt, hoydeVed, kartavstand, terrengprofil, vannskille, type Hoydefelt, type Kartpunkt, type Landform, type ProfilPunkt } from '../kit/kart';
+import { innsjoMaske } from '../kit/kotekart';
 import { fmt } from '../../kit/format';
 
 type P = [number, number];
@@ -129,63 +130,14 @@ export interface Innsjo {
 }
 
 /**
- * Innsjøen rundt `punkt` med vannstanden `niva`: gitterpunktene under vannstanden som henger sammen med punktet
- * (4-naboer), samme regel som `Kotekart` bruker. Renner vannet ut av kartet ved den vannstanden, senkes den til like
- * under terskelen. Null når punktet ligger over vannstanden.
- *
- * Kopiert fra den interne `innsjo` i kotekart.tsx (ikke eksportert), så profilet viser det samme vannet som kartet.
+ * Innsjøen rundt `punkt` med vannstanden `niva`: kit-ets `innsjoMaske` (samme vann som `Kotekart` og `Profildiagram`
+ * tegner, med vannstanden senket til terskelen når vannet ellers ville rent ut av kartet), pluss hvor mange
+ * gitterpunkter som er vann. Null når punktet ligger over vannstanden.
  */
 export function innsjo(felt: Hoydefelt, punkt: Kartpunkt, niva: number): Innsjo | null {
-  const { nx, ny, celle, z } = felt;
-  if (!Number.isFinite(punkt[0]) || !Number.isFinite(punkt[1]) || !Number.isFinite(niva)) return null;
-  const i0 = Math.min(nx - 1, Math.max(0, Math.round(punkt[0] / celle)));
-  const j0 = Math.min(ny - 1, Math.max(0, Math.round(punkt[1] / celle)));
-  const start = j0 * nx + i0;
-  const bunn = z[start]!;
-  const komponent = (L: number) => {
-    const maske = new Array<boolean>(nx * ny).fill(false);
-    let lekker = false;
-    let antall = 0;
-    const ko = [start];
-    maske[start] = true;
-    while (ko.length) {
-      const k = ko.pop()!;
-      antall++;
-      const i = k % nx;
-      const j = (k - i) / nx;
-      if (i === 0 || j === 0 || i === nx - 1 || j === ny - 1) lekker = true;
-      for (const [di, dj] of [
-        [1, 0],
-        [-1, 0],
-        [0, 1],
-        [0, -1],
-      ] as const) {
-        const a = i + di;
-        const b = j + dj;
-        if (a < 0 || b < 0 || a >= nx || b >= ny) continue;
-        const q = b * nx + a;
-        if (!maske[q] && z[q]! < L) {
-          maske[q] = true;
-          ko.push(q);
-        }
-      }
-    }
-    return { maske, lekker, antall };
-  };
-  if (!(bunn < niva)) return null;
-  const forst = komponent(niva);
-  if (!forst.lekker) return { maske: forst.maske, niva, antall: forst.antall };
-  let lo = bunn;
-  let hi = niva;
-  for (let n = 0; n < 24; n++) {
-    const mid = (lo + hi) / 2;
-    if (komponent(mid).lekker) hi = mid;
-    else lo = mid;
-  }
-  const L = lo - 0.05;
-  if (L <= bunn + 0.05) return null;
-  const k = komponent(L);
-  return { maske: k.maske, niva: L, antall: k.antall };
+  const sjo = innsjoMaske(felt, punkt, niva);
+  if (!sjo) return null;
+  return { maske: sjo.maske, niva: sjo.niva, antall: sjo.maske.reduce((n, v) => n + (v ? 1 : 0), 0) };
 }
 
 /** Ligger punktet (meter) i innsjøen? Nærmeste gitterpunkt avgjør. */
@@ -570,29 +522,6 @@ export function hoyestePunkt(felt: Hoydefelt, rundt: Kartpunkt, radius = 200): P
 export function nedborfeltAreal(felt: Hoydefelt): number | null {
   const nf = vannskille(felt, STEDER.utlop.p);
   return nf ? nf.areal / 1e6 : null;
-}
-
-/* ================================================================================================ Profilfiguren */
-
-/**
- * Hvor bredt plottet i profildiagrammet kan være (figurenheter) når høydene skal tegnes med nøyaktig overhøyde og hele
- * terrenget skal få plass i høyden `plotH`: med høyst `plotBmaks` i bredden, og smalere når overhøyden er så stor at
- * profilet ellers ville gått ut av plottet. Da blir profilet tegnet i en mindre målestokk, men med riktig overhøyde.
- * `luft` er hvor mye høyere plottet skal være enn høydeforskjellen langs linja (standard 1,25). Null for ugyldige tall.
- *
- * @param L Lengden av profilet i meter.
- * @param zMin Laveste høyde langs profilet.
- * @param zMax Høyeste høyde langs profilet.
- * @param overhoyde Overhøyden (1 = riktige forhold).
- * @param plotBmaks Største bredde på plottet.
- * @param plotH Høyden på plottet.
- */
-export function profilBredde(L: number, zMin: number, zMax: number, overhoyde: number, plotBmaks: number, plotH: number, luft = 1.25): number | null {
-  if (![L, zMin, zMax, overhoyde, plotBmaks, plotH, luft].every(Number.isFinite)) return null;
-  if (L <= 0 || overhoyde <= 0 || plotBmaks <= 0 || plotH <= 0 || zMax < zMin) return null;
-  const relieff = Math.max(zMax - zMin, 1);
-  const kxMaks = plotH / (relieff * luft * overhoyde);
-  return Math.min(plotBmaks, kxMaks * L);
 }
 
 /* ================================================================================================ Tekst */

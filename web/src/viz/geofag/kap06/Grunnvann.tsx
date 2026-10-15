@@ -1,16 +1,17 @@
-import { memo, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Bronn,
   Bygning,
   Controls,
   Explain,
   Figure,
+  Flagg,
+  FlateForklaring,
   Formula,
   FormulaLine,
   GEO,
   Grunnvannssnitt,
   Kornpakning,
-  Legend,
   Lupe,
   PlayBar,
   Readout,
@@ -25,10 +26,10 @@ import {
   Txt,
   VIZ,
   VizLayout,
-  flaggEtiketter,
   fmt,
   fmtSci,
-  kornpakningGeometri,
+  paaToppen,
+  reisetidDarcy,
   seededRandom,
   tekstBredde,
   useContainerTextScale,
@@ -38,7 +39,7 @@ import {
   useTextScale,
   type GrunnLag,
 } from '../kit';
-import { Dimension, Gran, Himmel, Landskap, alpha } from '../../kit/scene';
+import { Dimension, Gran, Himmel, Landskap } from '../../kit/scene';
 import {
   AKER_AVSTAND_M,
   AVSTAND_MAKS_M,
@@ -65,7 +66,6 @@ import {
   materiale,
   nitratVedBronn,
   reiseTabell,
-  reisetid,
   reisetidMotBronn,
   smitteIgjen,
   smittebarriere,
@@ -88,7 +88,6 @@ import {
   oppsett,
   overflatePx,
   overhoyde,
-  paaToppen,
   plasser,
   speilPx,
   sprekker,
@@ -102,9 +101,9 @@ import { AkerFlate, Fartsstige, Kloakkledning, LeirUtsnitt, Matjord, MerkeVei, M
 
 /** Hvor lenge avspillingen varer (s). Modelltida på klokka strekkes så merkene rekker fram til brønnen. */
 const SPILLETID = 12;
-/** Fargen på smittestoffet fra kloakken og på nitratet fra åkeren. */
-const SMITTE = GEO.fare[3];
-const NITRAT = GEO.gehalt[3];
+/** Fargen på smittestoffet fra kloakken og på nitratet fra åkeren (merker, fane, tekst og streker). */
+const SMITTE = GEO.smitte.line;
+const NITRAT = GEO.nitrat.line;
 /** Hvor mange merker som er på vei samtidig når avspillingen har gått en stund. */
 const MERKER_SMITTE = 18;
 const MERKER_NITRAT = 22;
@@ -161,7 +160,7 @@ export function beregn(valg: MaterialValg, qLs: number, L: number, nitrat: boole
     v: st?.v ?? null,
     q: st?.q ?? null,
     tSmitte,
-    tSmitteUten: reisetid(L, GRADIENT, m.K, m.effektivPorositet),
+    tSmitteUten: reisetidDarcy(L, GRADIENT, m.K, m.effektivPorositet),
     tNitrat,
     tForbi,
     x60: avstandForReisetid(KRAV_OPPHOLDSTID_DOGN, sm),
@@ -273,12 +272,14 @@ export function GrunnvannFigur({ o, b, tau, t }: FigurProps) {
   const stille = (b.v ?? 0) < 1e-8;
 
   const aker = { fra: p.akerFra, til: p.akerTil };
-  const husBakke = paaToppen(o, p.hus, 0.35);
-  const vannverk = paaToppen(o, p.vannverk, 0.42);
-  const fjos = paaToppen(o, sx(o, FJOS_X), 0.8);
-  const granA = paaToppen(o, sx(o, 104), 0.25);
-  const granB = paaToppen(o, sx(o, 193), 0.55);
-  const granC = paaToppen(o, sx(o, 118), 0.85);
+  // Punkter på toppflaten av blokka (kit-ets paaToppen, i snittets koordinater som i `over`)
+  const topp = (x: number, t: number) => paaToppen({ overflate: ov, dx: o.dx, dy: o.dy }, x, t) ?? { x, y: ov(x) };
+  const husBakke = topp(p.hus, 0.35);
+  const vannverk = topp(p.vannverk, 0.42);
+  const fjos = topp(sx(o, FJOS_X), 0.8);
+  const granA = topp(sx(o, 104), 0.25);
+  const granB = topp(sx(o, 193), 0.55);
+  const granC = topp(sx(o, 118), 0.85);
   const ledningLengde = Math.max(6, p.ledningTil - plass.x - o.bronnHalv);
 
   // Horisonten ligger litt under den laveste bakkanten (ved elva), så landskapet ikke får glipe
@@ -299,8 +300,9 @@ export function GrunnvannFigur({ o, b, tau, t }: FigurProps) {
         speil={sp}
         kapillar={smal ? 16 : 12}
         lag={lag}
-        etiketter={smal ? false : 'inne'}
+        etiketter="inne"
         etikettX={p.etikettX}
+        unnga={[plass.x, p.lekk.x, ...(b.nitrat ? [p.aker] : []), ...(grenseInne && x60px !== null ? [x60px] : [])]}
         speilMerke={smal ? undefined : p.etikettX + 4}
         over={
           <>
@@ -346,7 +348,8 @@ export function GrunnvannFigur({ o, b, tau, t }: FigurProps) {
         <Avstandsmal fra={p.lekk.x} til={plass.x} y={Math.min(ov(p.lekk.x), ov(plass.x)) - o.dy - 9 * k} L={L} />
       </g>
       <Flagg
-        o={o}
+        x0={8}
+        x1={o.W - 8}
         flagg={[
           { tekst: 'Gjødslet åker', x: o.x0 + p.aker + 0.45 * o.dx, y: o.y0 + ov(p.aker) - 0.45 * o.dy, farge: b.nitrat ? NITRAT : VIZ.ink },
           { tekst: 'Lekk kloakkledning', x: o.x0 + p.lekk.x, y: o.y0 + p.lekk.y - 4 * k, farge: SMITTE },
@@ -507,7 +510,7 @@ function LagNavn({ o, valg, bunn }: { o: Oppsett; valg: MaterialValg; bunn: (x: 
       <Txt x={x} y={r2(y - 9 * f)} anchor="start" size={0.78} weight={650}>
         {MATERIAL_NAVN[valg]}
       </Txt>
-      <Txt x={x} y={r2(Math.min(o.h - 6 * f, y + 19 * f))} anchor="start" size={0.74} weight={600} color={VIZ.muted}>
+      <Txt x={x} y={r2(Math.min(o.h - 6 * f, y + 19 * f))} anchor="start" size={0.74} weight={650}>
         Tett fjell
       </Txt>
     </g>
@@ -557,40 +560,6 @@ function Avstandsmal({ fra, til, y, L }: { fra: number; til: number; y: number; 
   // Teksten står mellom strekene fra flaggene; får den ikke plass, står bare pilene
   const plass = til - fra > tekstBredde(tekst, 17 * 0.78 * f) + 14 * f;
   return <Dimension x1={fra} y1={y} x2={til} y2={y} label={plass ? tekst : undefined} labelSize={0.78} offset={0} color={VIZ.ink} />;
-}
-
-/** Flaggene over landskapet: tekst med en strek ned til det den peker på, uten at tekstene overlapper. */
-function Flagg({ o, flagg, basis }: { o: Oppsett; flagg: readonly { tekst: string; x: number; y: number; farge: string }[]; basis: number }) {
-  const s = useGeoStroke();
-  const f = useTextScale();
-  const fs = 17 * 0.8 * f;
-  const plass = flaggEtiketter(
-    flagg.map((fl) => ({ pos: fl.x, bredde: tekstBredde(fl.tekst, fs) + 4 })),
-    8,
-    o.W - 8,
-    10 * f,
-  );
-  if (!plass) return null;
-  const radH = fs + 7 * f;
-  return (
-    <g>
-      {flagg.map((fl, i) => {
-        const pl = plass.flagg[i];
-        if (!pl) return null;
-        const ty = basis - pl.rad * radH;
-        return (
-          <g key={fl.tekst}>
-            <line x1={r2(fl.x)} x2={r2(fl.x)} y1={r2(ty - fs * 0.35)} y2={r2(fl.y)} stroke={VIZ.surface} strokeWidth={3.2 * s} opacity={0.7} strokeLinecap="round" />
-            <line x1={r2(fl.x)} x2={r2(fl.x)} y1={r2(ty - fs * 0.35)} y2={r2(fl.y)} stroke={alpha(fl.farge, 0.8)} strokeWidth={1.3 * s} strokeLinecap="round" />
-            <circle cx={r2(fl.x)} cy={r2(fl.y)} r={r2(2.6 * s)} fill={fl.farge} stroke={VIZ.surface} strokeWidth={1.1 * s} />
-            <Txt x={r2(pl.x + 2)} y={r2(ty)} anchor="start" size={0.8} weight={650} color={fl.farge}>
-              {fl.tekst}
-            </Txt>
-          </g>
-        );
-      })}
-    </g>
-  );
 }
 
 /* =====================================================================================================================
@@ -668,32 +637,23 @@ function malestokk(valg: MaterialValg, r: number, k: number): { lengde: number; 
   return { lengde: Math.min(0.8 * r, (l.skala / l.d50) * kornPx), tekst: l.tekst };
 }
 
-/** Frøet til kornpakningen per materiale (valgt så ingen korn får samme nøkkel, se kitIssues). */
+/** Fast frø til kornpakningen per materiale, så lupa ser lik ut hver gang. */
 export const KORN_FRO: Readonly<Record<'grus' | 'sand' | 'silt', number>> = { grus: 4, sand: 2, silt: 3 };
 
-/** Innholdet i én lupe: korn og porer, leirflak eller sprekker i fjell. Vannet i porene beveger seg med `t`. */
+/**
+ * Innholdet i én lupe: korn og porer, leirflak eller sprekker i fjell. Vannet i porene beveger seg med `t`. Kornpakning
+ * husker kornene selv, så bare strømmen i porene (barnet) tegnes på nytt for hver ramme i avspillingen.
+ */
 function Utsnitt({ valg, r, fyll, t, fart }: { valg: MaterialValg; r: number; fyll: 'vann' | 'luft'; t: number; fart: number }) {
-  const k = useGeoScale();
-  const g = useMemo(() => {
-    if (fyll !== 'vann' || valg === 'leire' || valg === 'oppsprukket-fjell') return null;
-    const l = LUPE[valg];
-    return kornpakningGeometri({ x: 0, y: 0, r, korn: l.korn * r, sortering: l.sortering, rundhet: l.rundhet, seed: KORN_FRO[valg] }, k);
-  }, [valg, r, fyll, k]);
   if (valg === 'oppsprukket-fjell') return <SprekkeUtsnitt r={r} fyll={fyll} t={t} fart={fart} />;
   if (valg === 'leire') return <LeirUtsnitt r={r} fyll={fyll} />;
+  const l = LUPE[valg];
   return (
-    <>
-      <KornUtsnitt valg={valg} r={r} fyll={fyll} />
-      {g && <PoreStrom g={g} t={t} fart={fart} />}
-    </>
+    <Kornpakning x={0} y={0} r={r} ramme={false} fyll={fyll} korn={l.korn * r} sortering={l.sortering} rundhet={l.rundhet} type={MATERIAL_MONSTER[valg]} seed={KORN_FRO[valg]}>
+      {fyll === 'vann' ? (g) => <PoreStrom g={g} t={t} fart={fart} /> : null}
+    </Kornpakning>
   );
 }
-
-/** Kornene og porene (memoisert, så de ikke tegnes på nytt for hver ramme i avspillingen). */
-const KornUtsnitt = memo(function KornUtsnitt({ valg, r, fyll }: { valg: 'grus' | 'sand' | 'silt'; r: number; fyll: 'vann' | 'luft' }) {
-  const l = LUPE[valg];
-  return <Kornpakning x={0} y={0} r={r} ramme={false} fyll={fyll} korn={l.korn * r} sortering={l.sortering} rundhet={l.rundhet} type={MATERIAL_MONSTER[valg]} seed={KORN_FRO[valg]} />;
-});
 
 /* =====================================================================================================================
  * Visualiseringen
@@ -716,7 +676,7 @@ export default function Grunnvann() {
   const o = useMemo(() => oppsett(f), [f]);
   const tau = (clock.t / SPILLETID) * b.spenn;
   const bronn = b.bronn;
-  const barriere = smittebarriere(b.tSmitte);
+  const barriere = smittebarriere(b.tSmitte, valg);
   const m = materiale(valg);
 
   return (
@@ -752,13 +712,13 @@ export default function Grunnvann() {
           <GrunnvannFigur o={o} b={b} tau={tau} t={clock.t} />
         </Figure>
       </div>
-      <Legend
+      <FlateForklaring
         items={[
-          { color: GEO.grunnvann.line, label: 'Grunnvannsspeil: over er umettet sone, under er mettet sone' },
-          { color: VIZ.velocity, label: 'Grunnvannet strømmer' },
-          { color: SMITTE, label: 'Smittestoff fra kloakken' },
-          { color: SMITTE, label: '60 døgn fra brønnen', dashed: true },
-          ...(nitrat ? [{ color: NITRAT, label: 'Nitrat fra åkeren' }] : []),
+          { farge: GEO.grunnvann.line, label: 'Grunnvannsspeil: over er umettet sone, under er mettet sone', form: 'linje' },
+          { farge: VIZ.velocity, label: 'Grunnvannet strømmer', form: 'linje' },
+          { farge: SMITTE, label: 'Smittestoff fra kloakken', form: 'prikk' },
+          { farge: SMITTE, label: valg === 'oppsprukket-fjell' ? '60 døgn med snittfarten (ikke nok i fjell)' : '60 døgn fra brønnen', form: 'linje', stiplet: true },
+          ...(nitrat ? [{ farge: NITRAT, label: 'Nitrat fra åkeren', form: 'prikk' as const }] : []),
         ]}
       />
 
@@ -855,23 +815,31 @@ export function forklaring(b: Beregning): ReactNode {
     );
   }
 
-  // Smittestoffer og 60-døgnskravet
+  // Smittestoffer og 60-døgnskravet (gjelder løsmasser, ikke fjell)
   const ts = b.tSmitte;
-  const bar = smittebarriere(ts);
-  const fjell = b.valg === 'oppsprukket-fjell' ? ' I fjell er tallet usikkert: vannet kan gå mye fortere i noen få åpne sprekker.' : '';
+  const bar = smittebarriere(ts, b.valg);
   const grense = b.x60 === null ? 'svært langt' : fmtAvstand(b.x60);
-  if (bar && bar.oppfylt) {
+  if (bar?.status === 'fjell') {
     avsnitt.push(
       <p key="s">
-        Fra den lekke kloakkledningen bruker vannet ca. {fmtVarighet(ts)} til brønnen. Det er mer enn kravet om minst {KRAV_OPPHOLDSTID_DOGN} døgns oppholdstid i grunnen (veiledningen til drikkevannsforskriften), så grunnen regnes som en hygienisk barriere: de
-        fleste bakterier og virus dør eller fester seg til kornene underveis.{fjell}
+        Med snittfarten bruker vannet ca. {fmtVarighet(ts)} fra den lekke kloakkledningen til brønnen ({bar.langNok ? 'mer' : 'mindre'} enn {KRAV_OPPHOLDSTID_DOGN} døgn). Men kravet om minst{' '}
+        {KRAV_OPPHOLDSTID_DOGN} døgns oppholdstid i grunnen gjelder grunnvann i løsmasser. I fjell går vannet i noen få åpne sprekker og kan komme mye fortere fram enn snittet, så
+        fjellet regnes ikke som en hygienisk barriere, uansett hva reisetiden ser ut til å være. En fjellbrønn trenger en annen barriere, for eksempel UV-behandling eller
+        desinfeksjon med klor, og bør ligge godt unna kilder til smitte.
+      </p>,
+    );
+  } else if (bar && bar.oppfylt) {
+    avsnitt.push(
+      <p key="s">
+        Fra den lekke kloakkledningen bruker vannet ca. {fmtVarighet(ts)} til brønnen. Det er mer enn kravet om minst {KRAV_OPPHOLDSTID_DOGN} døgns oppholdstid i grunnen (veiledningen til drikkevannsforskriften), så løsmassene regnes som en hygienisk barriere: de
+        fleste bakterier og virus dør eller fester seg til kornene underveis.
       </p>,
     );
   } else {
     avsnitt.push(
       <p key="s">
         Fra den lekke kloakkledningen bruker vannet bare ca. {fmtVarighet(ts)} til brønnen, mindre enn kravet om minst {KRAV_OPPHOLDSTID_DOGN} døgn i grunnen. Smittestoffer kan nå drikkevannet. Med denne pumperaten må kilder til smitte ligge minst ca. {grense} fra
-        brønnen (den stiplede linja), eller brønnen må pumpe mindre.{fjell}
+        brønnen (den stiplede linja), eller brønnen må pumpe mindre.
       </p>,
     );
   }

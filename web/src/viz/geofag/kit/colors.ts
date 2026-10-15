@@ -173,6 +173,11 @@ export const GEO = {
   havis: paint('havis'),
   /** Luft i porene (umettet sone, tørre korn): lys og nøytral i begge temaer, så den aldri ligner vann. */
   luft: paint('luft'),
+  /**
+   * Skydekke (`Skydekke`, `Nedbor`): `lett` er lyse, tynne skyer (og de belyste toppene), `tung` den blygrå basen i
+   * regnskyer. Skyene blandes mellom dem etter tettheten, med et stort spenn også i mørkt tema.
+   */
+  skydekke: { lett: v('sky-lett'), tung: v('sky-tung') },
 
   /* ---------- Kart ---------- */
   /** Koter (brune, som på norske topografiske kart). Hver femte kote tykkere. */

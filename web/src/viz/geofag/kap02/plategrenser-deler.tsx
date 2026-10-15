@@ -7,9 +7,10 @@
  * - `SmelteDiagram`: temperatur og smeltepunkt mot dypet («Hvor smelter det?»).
  * Bare til denne visualiseringen (lokale deler, ikke i kit-et).
  */
-import { useMemo, type CSSProperties, type ReactNode } from 'react';
+import { useMemo } from 'react';
 import {
   GEO,
+  SkjelvStjerne,
   LagFlate,
   LagMonstre,
   LogPlot,
@@ -27,6 +28,7 @@ import {
   useLagMonstre,
   useSvgId,
   useTextScale,
+  type FlateForklaringPunkt,
   type MonsterId,
   type PlategrenseType,
   type SubduksjonVariant,
@@ -59,67 +61,6 @@ function sti(p: readonly P[], lukket = false): string {
   return p.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${r2(x)},${r2(y)}`).join('') + (lukket ? 'Z' : '');
 }
 
-/** Femtakket stjerne (jordskjelv), som i kit-ets blokkdiagram. */
-function stjerneSti(x: number, y: number, r: number): string {
-  const p: P[] = [];
-  for (let i = 0; i < 10; i++) {
-    const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    const rr = i % 2 === 0 ? r : r * 0.45;
-    p.push([x + rr * Math.cos(a), y + rr * Math.sin(a)]);
-  }
-  return sti(p, true);
-}
-
-/** Jordskjelv som små stjerner (samme stil som i blokka). */
-export function SkjelvStjerne({ x, y, r, nytt }: { x: number; y: number; r: number; nytt?: boolean }) {
-  const s = useGeoStroke();
-  return (
-    <path
-      d={stjerneSti(x, y, r)}
-      fill={nytt ? GEO.fare[3] : GEO.fare[1]}
-      stroke={VIZ.ink}
-      strokeWidth={0.8 * s}
-      strokeLinejoin="round"
-    />
-  );
-}
-
-/** Ett punkt i `Fargeforklaring`: en strek (standard), en flate med kant (som stripene) eller en stjerne (jordskjelv). */
-export interface ForklaringPunkt {
-  color: string;
-  label: ReactNode;
-  form?: 'linje' | 'flate' | 'stjerne';
-  dashed?: boolean;
-}
-
-/**
- * Fargeforklaring under en figur, som kit-ets `Legend`, men med flater med kant (så en mørk stripe synes i mørkt tema)
- * og stjerner for jordskjelv.
- */
-export function Fargeforklaring({ items }: { items: readonly ForklaringPunkt[] }) {
-  return (
-    <ul className="viz-legend" role="list">
-      {items.map((it, i) => (
-        <li key={i}>
-          {it.form === 'flate' ? (
-            <span
-              aria-hidden
-              style={{ display: 'inline-block', width: 18, height: 12, borderRadius: 3, background: it.color, border: `1px solid ${VIZ.muted}` }}
-            />
-          ) : it.form === 'stjerne' ? (
-            <svg aria-hidden width={18} height={18} viewBox="-9 -9 18 18" style={{ overflow: 'visible' }}>
-              <path d={stjerneSti(0, 0.6, 7.5)} fill={it.color} stroke={VIZ.ink} strokeWidth={0.9} strokeLinejoin="round" />
-            </svg>
-          ) : (
-            <span className={`viz-legend-swatch${it.dashed ? ' is-dashed' : ''}`} style={{ '--c': it.color } as CSSProperties} aria-hidden />
-          )}
-          {it.label}
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 /** Margene til et plott med tittel på begge akser (samme regler som LogPlot), så snittene kan tegnes i målestokk. */
 function plottMarg(f: number, yTall: string, topp = 20) {
   const tickPx = 15 * f;
@@ -145,7 +86,7 @@ const ALDRE_MERKER = [10, 50, 100, 20, 150, 5, 30, 75, 2] as const;
 const HAVPROFIL_MONSTRE: readonly MonsterId[] = ['basalt'];
 
 /**
- * Havdypet mot avstanden fra ryggen for en spredningsfart (cm/år, begge platene til sammen): vannet over, havbunnen
+ * Havdypet mot avstanden fra ryggen for en spredningsfart (full fart, cm/år mellom platene): vannet over, havbunnen
  * av basalt under, alderen på havbunnen som merker, de magnetiske stripene ved tiden `t` (som i blokka) og utsnittet
  * blokka viser. Rask spredning gir et bredt, slakt profil; langsom et smalt og bratt, fordi dypet bare avhenger av
  * alderen.
@@ -155,9 +96,8 @@ export function HavProfil({ fart, t, height }: { fart: number; t: number; height
   const k = useGeoScale();
   const s = useGeoStroke();
   const monstre = useLagMonstre('havprofil');
-  const halv = fart / 2;
   const striper = useMemo(() => magnetiskeStriper(fart, t), [fart, t]);
-  const dyp = (x: number): number => havdybdeVed(x, halv) ?? PROFIL_DYP;
+  const dyp = (x: number): number => havdybdeVed(x, fart) ?? PROFIL_DYP;
   return (
     <LogPlot
       x={{ min: -PROFIL_KM, max: PROFIL_KM, label: 'Avstand fra ryggen (km)', ticks: [-1000, -500, 0, 500, 1000], format: (v) => fmtTall(Math.abs(v)) }}
@@ -176,7 +116,7 @@ export function HavProfil({ fart, t, height }: { fart: number; t: number; height
         const fs = 17 * 0.72 * f;
         const valgt: { x: number; y: number; tekst: string; a: number; v: number; h: number }[] = [];
         for (const a of ALDRE_MERKER) {
-          const km = a * halv * 10;
+          const km = a * (fart / 2) * 10;
           if (km > PROFIL_KM * 0.96) continue;
           const px = sx(km);
           const tekst = fmtAlder(a, { kort: true });
@@ -205,15 +145,8 @@ export function HavProfil({ fart, t, height }: { fart: number; t: number; height
                 const n = Math.max(2, Math.ceil(((hi - lo) / PROFIL_KM) * 60));
                 const topp: P[] = sample(dyp, lo, hi, n).map(([x, d]) => [sx(x), sy(d)]);
                 const pol: P[] = [...topp, ...topp.slice().reverse().map(([x, y]): P => [x, y + bandH])];
-                return (
-                  <path
-                    key={`${i}-${side}`}
-                    d={sti(pol, true)}
-                    fill={st.normal ? GEO.polaritet.normal : GEO.polaritet.omvendt}
-                    stroke={GEO.skorpeHav.line}
-                    strokeWidth={0.5 * s}
-                  />
-                );
+                const farge = st.normal ? GEO.polaritet.normal : GEO.polaritet.omvendt;
+                return <path key={`${i}-${side}`} d={sti(pol, true)} fill={farge.fill} stroke={farge.line} strokeWidth={0.5 * s} />;
               }),
             )}
             <path d={sti(bunnPx)} fill="none" stroke={GEO.skorpeHav.line} strokeWidth={1.8 * s} />
@@ -358,7 +291,7 @@ export function SubduksjonSnitt({ variant, s, andel, height }: { variant: Subduk
                 <line key={z} x1={x0} x2={x1} y1={sy(z)} y2={sy(z)} stroke={VIZ.ink} strokeWidth={1.1 * st} strokeDasharray={`${r2(6 * st)} ${r2(5 * st)}`} opacity={0.55} />
               ))}
               {synlige.map((q, i) => (
-                <SkjelvStjerne key={i} x={sx(q.x)} y={sy(q.z)} r={(3.2 + 2.2 * q.styrke) * k * (q.tid > nyeste ? 1.35 : 1)} nytt={q.tid > nyeste} />
+                <SkjelvStjerne key={i} x={sx(q.x)} y={sy(q.z)} r={(3.2 + 2.2 * q.styrke) * (q.tid > nyeste ? 1.35 : 1)} farge={q.tid > nyeste ? GEO.fare[3] : GEO.fare[1]} />
               ))}
             </g>
             {/* Vulkanen på overflaten */}
@@ -595,21 +528,24 @@ export const KJEDE_AVSTAND = 252;
 /** Viewbox-høyden til `VulkankjedeDiagram`, høyere på mobil. */
 export const kjedeHoyde = (f: number): number => Math.round(280 + 230 * (f - 1));
 
+/** En vulkan i kjeden: alderen (millioner år) og om den er aktiv (fra `plategrenseGeometri(…).vulkaner`). */
+export interface KjedeVulkan {
+  alder: number;
+  aktiv: boolean;
+}
+
 /**
  * Alderen på vulkanene mot avstanden fra det varme punktet: alle ligger på en rett linje, alder = avstand / fart.
- * Punktene er vulkanene i blokka over ved tiden `t`.
+ * Punktene er vulkanene i blokka over (`plategrenseGeometri(…).vulkaner`, så de aktive er de samme som i blokka; det
+ * er alltid minst én). `fart` er farten plata glir over det varme punktet (cm per år).
  */
-export function VulkankjedeDiagram({ fart, t, height }: { fart: number; t: number; height: number }) {
+export function VulkankjedeDiagram({ fart, vulkaner, height }: { fart: number; vulkaner: readonly KjedeVulkan[]; height: number }) {
   const f = useTextScale();
   const smal = f > 1.35;
   const k = useGeoScale();
   const st = useGeoStroke();
   const kmPerMa = fart * 10;
-  const punkter: { x: number; alder: number }[] = [];
-  if (kmPerMa > 0) {
-    const forst = (t * kmPerMa) % KJEDE_AVSTAND;
-    for (let x = forst; x <= KJEDE_KM; x += KJEDE_AVSTAND) punkter.push({ x, alder: x / kmPerMa });
-  }
+  const punkter = kmPerMa > 0 ? vulkaner.filter((v) => Number.isFinite(v.alder) && v.alder >= 0).map((v) => ({ ...v, x: v.alder * kmPerMa })) : [];
   return (
     <LogPlot
       x={{ min: 0, max: KJEDE_KM, label: 'Avstand fra det varme punktet (km)', format: (v) => fmtTall(v) }}
@@ -618,28 +554,42 @@ export function VulkankjedeDiagram({ fart, t, height }: { fart: number; t: numbe
       height={height}
       clip
     >
-      {({ sx, sy }) => {
+      {({ sx, sy, x1 }) => {
         const linje = kmPerMa > 0 ? sample((x) => x / kmPerMa, 0, KJEDE_KM, 2) : [];
+        const fs = 17 * 0.7 * f;
         return (
           <g>
             {linje.length > 0 && <path d={linePath(linje, sx, sy)} fill="none" stroke={VIZ.series[0]} strokeWidth={3 * st} />}
             {punkter
-              .filter((p) => p.alder <= KJEDE_ALDER)
-              .map((p, i) => (
-                <g key={i}>
-                  <path
-                    d={`M${r2(sx(p.x) - 9 * k)},${r2(sy(p.alder) + 5 * k)}L${r2(sx(p.x))},${r2(sy(p.alder) - 9 * k)}L${r2(sx(p.x) + 9 * k)},${r2(sy(p.alder) + 5 * k)}Z`}
-                    fill={i === 0 ? GEO.magma.fill : mix(GEO.bergart.basalt.fill, SCENE.grass, 0.3)}
-                    stroke={VIZ.ink}
-                    strokeWidth={1 * st}
-                  />
-                  {(!smal || i === 0) && (
-                    <Txt x={sx(p.x) + (i === 0 ? 14 : 10) * k} y={i === 0 ? sy(p.alder) - 10 * k : sy(p.alder) + 20 * f} anchor="start" size={0.7} weight={600} muted={i > 0}>
-                      {i === 0 ? 'aktiv' : fmtAlder(p.alder, { kort: true, desimaler: p.alder < 10 ? 1 : 0, enhet: 'millioner' })}
-                    </Txt>
-                  )}
-                </g>
-              ))}
+              .filter((p) => p.alder <= KJEDE_ALDER && p.x <= KJEDE_KM)
+              .map((p, i) => {
+                const tekst = p.aktiv ? 'aktiv' : fmtAlder(p.alder, { kort: true, desimaler: p.alder < 10 ? 1 : 0, enhet: 'millioner' });
+                const dx = (p.aktiv ? 14 : 10) * k;
+                // Til venstre for vulkanen når teksten ellers går ut av plottet
+                const venstre = sx(p.x) + dx + tekstBredde(tekst, fs) > x1 - 2;
+                return (
+                  <g key={i}>
+                    <path
+                      d={`M${r2(sx(p.x) - 9 * k)},${r2(sy(p.alder) + 5 * k)}L${r2(sx(p.x))},${r2(sy(p.alder) - 9 * k)}L${r2(sx(p.x) + 9 * k)},${r2(sy(p.alder) + 5 * k)}Z`}
+                      fill={p.aktiv ? GEO.magma.fill : mix(GEO.bergart.basalt.fill, SCENE.grass, 0.3)}
+                      stroke={VIZ.ink}
+                      strokeWidth={1 * st}
+                    />
+                    {(!smal || p.aktiv) && (
+                      <Txt
+                        x={venstre ? sx(p.x) - dx : sx(p.x) + dx}
+                        y={p.aktiv ? sy(p.alder) - 10 * k : sy(p.alder) + 20 * f}
+                        anchor={venstre ? 'end' : 'start'}
+                        size={0.7}
+                        weight={600}
+                        muted={!p.aktiv}
+                      >
+                        {tekst}
+                      </Txt>
+                    )}
+                  </g>
+                );
+              })}
           </g>
         );
       }}
@@ -794,8 +744,8 @@ export function SmelteDiagram({ type, height }: { type: PlategrenseType; height:
   );
 }
 
-/** Kort forklaring av fargene i smeltediagrammet (til `<Legend>`). */
-export function smelteForklaring(type: PlategrenseType): ForklaringPunkt[] {
+/** Kort forklaring av fargene i smeltediagrammet (til `FlateForklaring`). */
+export function smelteForklaring(type: PlategrenseType): FlateForklaringPunkt[] {
   const o = SMELTING[type];
   const temp =
     type === 'spredning'
@@ -806,9 +756,9 @@ export function smelteForklaring(type: PlategrenseType): ForklaringPunkt[] {
           ? 'Temperaturen i mantelkilen'
           : 'Temperaturen under plata';
   return [
-    { color: SMELTE_FARGER.temperatur, label: temp },
-    { color: SMELTE_FARGER.torr, label: 'Smeltepunkt uten vann' },
-    { color: SMELTE_FARGER.vaat, label: 'Smeltepunkt med vann', dashed: true },
-    ...(smeltesone(o, SMELTE_Z) ? [{ color: alpha(SMELTE_FARGER.smelte, 0.45), label: 'Delvis smeltet mantel', form: 'flate' as const }] : []),
+    { farge: SMELTE_FARGER.temperatur, label: temp, form: 'linje' },
+    { farge: SMELTE_FARGER.torr, label: 'Smeltepunkt uten vann', form: 'linje' },
+    { farge: SMELTE_FARGER.vaat, label: 'Smeltepunkt med vann', form: 'linje', stiplet: true },
+    ...(smeltesone(o, SMELTE_Z) ? [{ farge: { fill: alpha(SMELTE_FARGER.smelte, 0.45), line: GEO.magma.line }, label: 'Delvis smeltet mantel' }] : []),
   ];
 }

@@ -2237,7 +2237,7 @@ function DalbreTegning({ p, o, x, y }: { p: IsbreProps; o: DalbreOppsett; x: num
       <Sideflate x={w} felt={sideFelt} dx={dx} dy={dy} bunn={h} id={`${uid}-side`} />
 
       {/* ---------- Snittet foran ---------- */}
-      <LagFlate points={[...bergTopp, [w, h], [0, h]]} type={berggrunn} monstre={monstre.id} lys={false} />
+      <LagFlate points={[...bergTopp, [w, h], [0, h]]} type={berggrunn} monstre={monstre.id} lys={false} demp={BERGGRUNN_DEMP} />
       {tillBiter.map((q, i) => (
         <LagFlate key={`t${i}`} points={q} type="morene" monstre={monstre.id} lys={false} />
       ))}
@@ -2309,6 +2309,9 @@ function DalbreTegning({ p, o, x, y }: { p: IsbreProps; o: DalbreOppsett; x: num
     </g>
   );
 }
+
+/** Hvor mye berggrunnsmønsteret dempes bak isen og elva (de er det figuren handler om). */
+const BERGGRUNN_DEMP = 0.45;
 
 /** Mønstrene en dalbre trenger (berggrunnen, morene og breelvavsetning), som faste lister. */
 const DALBRE_MONSTRE = new Map<MonsterId, readonly MonsterId[]>(
@@ -2450,7 +2453,7 @@ function InnlandsisTegning({ p, o, x, y }: { p: IsbreProps; o: InnlandsisOppsett
           <path d={sti(mohoLinje)} fill="none" stroke={GEO.mantel.line} strokeWidth={1.4 * s} />
         </g>
       ) : (
-        <LagFlate points={[...bunnLinje, [w, h], [0, h]]} type={berggrunn} monstre={monstre.id} lys={false} />
+        <LagFlate points={[...bunnLinje, [w, h], [0, h]]} type={berggrunn} monstre={monstre.id} lys={false} demp={BERGGRUNN_DEMP} />
       )}
       {havPoly.length > 2 && (
         <g>
@@ -4079,7 +4082,7 @@ function LengdeTegning({ p, o, x, y }: { p: ElveleieProps; o: LengdeOppsett; x: 
       <Sideflate x={w} felt={sideFelt} dx={dx} dy={dy} bunn={h} id={`${uid}-side`} />
 
       {/* ---------- Snittet foran ---------- */}
-      <LagFlate points={[...us.map((u): SnittPunkt => [xU(u), o.berg(u)]), [w, h], [0, h]]} type={berggrunn} monstre={monstre.id} lys={false} />
+      <LagFlate points={[...us.map((u): SnittPunkt => [xU(u), o.berg(u)]), [w, h], [0, h]]} type={berggrunn} monstre={monstre.id} lys={false} demp={BERGGRUNN_DEMP} />
       <LagFlate points={grusBit} type="grus" monstre={monstre.id} lys={false} />
       <LagFlate points={sandBit} type="sand" monstre={monstre.id} lys={false} />
       <defs>

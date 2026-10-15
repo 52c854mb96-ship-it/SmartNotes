@@ -322,6 +322,13 @@ export function reisetidFraFart(avstand: number, fart: number): number | null {
 }
 
 /**
+ * Utgått navn på `reisetidFraFart` (avstand og fart, samme tidsenhet som farten). Står bare til k6-grunnvann er tilpasset;
+ * bruk `reisetidFraFart`, eller `reisetidDarcy` for K, gradient og porøsitet.
+ * @deprecated Bruk `reisetidFraFart` eller `reisetidDarcy`.
+ */
+export const reisetid = reisetidFraFart;
+
+/**
  * Reisetiden i døgn for grunnvann over avstanden L (m) fra Darcys lov: t = L/v, der v = K · i/nₑ er porefarten (uten
  * pumping). Til 60-døgnskravet for hygienisk barriere i løsmasser. L = 0 gir 0; gradient 0 (vannet står stille),
  * negativ gradient, K = 0, nₑ ≤ 0 eller ugyldige tall gir null, aldri Infinity.

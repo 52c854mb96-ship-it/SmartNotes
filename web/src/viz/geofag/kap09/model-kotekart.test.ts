@@ -24,7 +24,6 @@ import {
   linjeGjennom,
   nedborfeltAreal,
   papirLengde,
-  profilBredde,
   profilFor,
   profillinje,
   projiserPaaLinje,
@@ -316,40 +315,6 @@ describe('langs profilet', () => {
     const lb = profillinje(bekk.retning, bekk.forskyvning)!;
     expect(elvekryssinger(lb, elveLopene).map((e) => e.navn)).toEqual([STEDER.bekk.navn]);
     expect(vannIProfil(felt, sjo, profilFor(felt, lb))).toEqual([]);
-  });
-});
-
-describe('profilfiguren', () => {
-  it('profilet får alltid plass i høyden med nøyaktig overhøyde, og plottet blir bare smalere når det må', () => {
-    const felt = landskap();
-    const plotH = 230;
-    const plotBmaks = 680;
-    for (let r = 0; r <= RETNING_MAKS; r += 15) {
-      for (let f = -FORSKYVNING_MAKS; f <= FORSKYVNING_MAKS; f += 250) {
-        const l = profillinje(r, f)!;
-        const zs = profilFor(felt, l, 160).map((p) => p.z);
-        const zMin = Math.min(...zs);
-        const zMax = Math.max(...zs);
-        for (let oh = 1; oh <= 10; oh++) {
-          const B = profilBredde(l.lengde, zMin, zMax, oh, plotBmaks, plotH)!;
-          expect(B).toBeGreaterThan(50);
-          expect(B).toBeLessThanOrEqual(plotBmaks);
-          // Høydespennet plottet viser med denne overhøyden
-          const span = plotH / ((B / l.lengde) * oh);
-          expect(span).toBeGreaterThanOrEqual((zMax - zMin) * 1.25 - 1e-6);
-          if (B < plotBmaks) expect(span).toBeCloseTo(Math.max(zMax - zMin, 1) * 1.25, 6);
-        }
-      }
-    }
-  });
-
-  it('gir null for ugyldige tall i stedet for NaN eller Infinity', () => {
-    expect(profilBredde(0, 100, 200, 2, 600, 200)).toBeNull();
-    expect(profilBredde(1000, 100, 200, 0, 600, 200)).toBeNull();
-    expect(profilBredde(1000, 200, 100, 2, 600, 200)).toBeNull();
-    expect(profilBredde(NaN, 100, 200, 2, 600, 200)).toBeNull();
-    // Flatt profil: full bredde
-    expect(profilBredde(1000, 100, 100, 10, 600, 200)).toBe(600);
   });
 });
 

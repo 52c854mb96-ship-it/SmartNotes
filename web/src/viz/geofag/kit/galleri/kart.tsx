@@ -106,7 +106,8 @@ function Kornkurve({ f }: { f: number }) {
           <Txt x={sx(0.25) - 10} y={sy(50) - 10} anchor="end" size={0.78} color={VIZ.series[0]}>
             Godt sortert sand
           </Txt>
-          <Txt x={sx(4) + 8} y={sy(62)} anchor="start" size={0.78} color={VIZ.series[3]}>
+          {/* Til venstre for kurven, så teksten holder seg inne også på smal skjerm */}
+          <Txt x={sx(4) - 10} y={sy(70)} anchor="end" size={0.78} color={VIZ.series[3]}>
             Dårlig sortert morene
           </Txt>
         </g>

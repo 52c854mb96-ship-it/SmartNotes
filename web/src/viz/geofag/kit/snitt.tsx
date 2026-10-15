@@ -552,6 +552,39 @@ export function snittblokkPerspektiv(dybde?: number, vinkel?: number): { dx: num
   return { dx: r2(D * Math.cos(a)), dy: r2(D * Math.sin(a)) };
 }
 
+/** Det `paaToppen` trenger om en blokk: bakken i snittet og perspektivet, og eventuelt hvor snittet står i figuren. */
+export interface ToppflateBlokk {
+  /** Bakken (y) ved x i snittets koordinater: `useSnittblokk().overflate`, `grunnvannGeometri(…).overflate` eller et tall. */
+  overflate: SnittKurve;
+  /** Forskyvningen av bakkanten (`snittblokkPerspektiv(dybde, vinkel)`, eller dx og dy fra `useSnittblokk()`). */
+  dx: number;
+  dy: number;
+  /** Øverste venstre hjørne av snittet i figuren (standard 0, 0, som inne i en Snittblokk). */
+  x?: number;
+  y?: number;
+}
+
+/**
+ * Et punkt på toppflaten av en Snittblokk eller et Grunnvannssnitt, til hus, trær, brønner og folk som skal stå på
+ * bakken bak forkanten: x i snittet og andelen `t` (0 = forkanten, 1 = bakkanten) innover i blokka. Gir
+ * (X + x + t · dx, Y + overflate(x) − t · dy), eller null for ugyldige tall. Inne i en Snittblokk (`over`) er X = Y = 0;
+ * utenfor gir du snittets plass i figuren.
+ *   const { dx, dy } = snittblokkPerspektiv(dybde);
+ *   const p = paaToppen({ overflate: g.overflate, dx, dy, x: 20, y: 40 }, 300, 0.4);
+ *   p && <Bygning x={p.x} y={p.y} type="hus" />
+ *   // Inne i en Snittblokk: const b = useSnittblokk(); const p = b && paaToppen(b, 300, 0.4);
+ */
+export function paaToppen(blokk: ToppflateBlokk, x: number, t: number): { x: number; y: number } | null {
+  if (!blokk || !Number.isFinite(x) || !Number.isFinite(t)) return null;
+  const tt = clamp(t, 0, 1);
+  const bakke = typeof blokk.overflate === 'function' ? blokk.overflate(x) : blokk.overflate;
+  const X = fin(blokk.x ?? 0);
+  const Y = fin(blokk.y ?? 0);
+  const px = X + x + tt * fin(blokk.dx);
+  const py = Y + bakke - tt * fin(blokk.dy);
+  return Number.isFinite(px) && Number.isFinite(py) ? { x: px, y: py } : null;
+}
+
 /* =====================================================================================================================
  * Snittblokk: komponenten
  * ================================================================================================================== */

@@ -1,9 +1,8 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GrunnvannFigur, KORN_FRO, LUPE, PoreFigur, beregn, forklaring } from './Grunnvann';
+import { GrunnvannFigur, PoreFigur, beregn, forklaring } from './Grunnvann';
 import { oppsett } from './grunnvann-scene';
-import { kornpakningGeometri } from '../kit/korn';
 import { AVSTAND_MAKS_M, AVSTAND_MIN_M, MATERIAL_VALG } from './model-grunnvann';
 
 /** Ingen NaN, Infinity eller undefined i det som tegnes eller skrives (viz-shot leter etter dem uten ordgrense). */
@@ -58,6 +57,26 @@ describe('Snittet', () => {
   });
 });
 
+describe('Forklaringen', () => {
+  it('kaller aldri oppsprukket fjell en hygienisk barriere, selv når reisetiden er over 60 døgn', () => {
+    const tekst = (q: number, L: number) => renderToStaticMarkup(createElement('div', null, forklaring(beregn('oppsprukket-fjell', q, L, false))));
+    for (const q of [0, 0.2, 1, 5, 20]) {
+      for (const L of [AVSTAND_MIN_M, 60, AVSTAND_MAKS_M]) {
+        const t = tekst(q, L);
+        expect(t).toContain('regnes ikke som en hygienisk barriere');
+        expect(t).toContain('UV-behandling');
+        expect(t).not.toContain('regnes som en hygienisk barriere:');
+      }
+    }
+    // Med lite pumping og lang avstand er reisetiden med snittfarten godt over 60 døgn (testet over), men ingen barriere
+    const b = beregn('oppsprukket-fjell', 0.2, AVSTAND_MAKS_M, false);
+    expect(b.tSmitte!).toBeGreaterThan(60);
+    // I løsmasser med lang nok reisetid er grunnen en barriere
+    const sand = renderToStaticMarkup(createElement('div', null, forklaring(beregn('sand', 0, AVSTAND_MAKS_M, false))));
+    expect(sand).toContain('løsmassene regnes som en hygienisk barriere');
+  });
+});
+
 describe('Lupene og fartsstigen', () => {
   it('tegnes uten feiltall og uten advarsler for alle materialer', () => {
     for (const f of [1, 1.85]) {
@@ -68,14 +87,4 @@ describe('Lupene og fartsstigen', () => {
     }
     expect(feil.map((a) => String(a[0]).slice(0, 80))).toEqual([]);
   }, 60_000);
-
-  it('ingen korn i lupene får samme nøkkel (Kornpakning bruker frøet til kornet som nøkkel)', () => {
-    for (const id of ['grus', 'sand', 'silt'] as const) {
-      const m = LUPE[id];
-      for (const { r, k } of [{ r: 92, k: 1 }, { r: 150, k: 1.5 }, { r: 150, k: 1.57 }, { r: 150, k: 1.65 }]) {
-        const seeds = kornpakningGeometri({ x: 0, y: 0, r, korn: m.korn * r, sortering: m.sortering, rundhet: m.rundhet, seed: KORN_FRO[id] }, k)!.korn.map((q) => q.seed);
-        expect(new Set(seeds).size).toBe(seeds.length);
-      }
-    }
-  });
 });

@@ -4,7 +4,7 @@
  * oppstrøms: en lekk kloakkledning (smittestoffer) og en gjødslet åker (nitrat). Ren logikk uten React.
  *
  * Bygger på hydrologi.ts i geofag-kit-et: MATERIALER (K og effektiv porøsitet), darcy (q = K · i), porefart (v = q/nₑ),
- * senkning (Thiem) og paavirkningsradius (Cooper og Jacob). Forenklinger: ett homogent lag med fast mettet tykkelse,
+ * reisetidDarcy (t = L/v uten pumping), senkning (Thiem) og paavirkningsradius (Cooper og Jacob). Forenklinger: ett homogent lag med fast mettet tykkelse,
  * en brønn som går gjennom hele laget, og tida i den umettede sonen er ikke med (den gir bare ekstra margin).
  * Ugyldige tall gir null, aldri NaN eller Infinity.
  */
@@ -16,7 +16,6 @@ import {
   darcy,
   paavirkningsradius,
   porefart,
-  reisetid as reisetidFraFart,
   senkning,
   transmissivitet,
   type Grunnmateriale,
@@ -44,14 +43,11 @@ export const MATERIAL_KNAPP: Readonly<Record<MaterialValg, string>> = {
   'oppsprukket-fjell': 'Oppsprukket fjell',
 };
 
-/**
- * Mønsteret laget tegnes med. Silt har ikke et eget løsmassemønster i kit-et, så det får mønsteret for siltstein
- * (korte streker og prikker), og oppsprukket fjell tegnes som gneis.
- */
+/** Mønsteret laget tegnes med: løsmassemønstrene i kit-et, og oppsprukket fjell som gneis. */
 export const MATERIAL_MONSTER: Readonly<Record<MaterialValg, MonsterId>> = {
   grus: 'grus',
   sand: 'sand',
-  silt: 'siltstein',
+  silt: 'silt',
   leire: 'leire',
   'oppsprukket-fjell': 'gneis',
 };
@@ -82,7 +78,10 @@ export const PUMPETID_DOGN = 30;
  * Kilde for kravet: Mattilsynets veiledning til drikkevannsforskriften (om hygieniske barrierer for grunnvann) og NGUs
  * veiledning om grunnvannsforsyning og sikringssoner: grunnvann fra løsmasser med minst 60 døgns oppholdstid i grunnen
  * kan regnes som en hygienisk barriere, fordi bakterier og virus dør eller holdes tilbake underveis. Grensen for 60 døgn
- * brukes også til å avgrense det nære tilsigsområdet (sikringssone 1) rundt et grunnvannsverk.
+ * brukes også til å avgrense det nære tilsigsområdet (sikringssone 1) rundt et grunnvannsverk. Kravet gjelder ikke
+ * grunnvann i fjell: der går vannet i noen få åpne sprekker og kan komme mye fortere fram enn snittfarten tilsier, så
+ * en fjellbrønn regnes ikke som en hygienisk barriere ut fra oppholdstiden og må ha en annen barriere (for eksempel
+ * UV-behandling eller desinfeksjon med klor).
  */
 /** Kravet til oppholdstid i grunnen før vannet når brønnen (døgn). */
 export const KRAV_OPPHOLDSTID_DOGN = 60;
@@ -134,27 +133,19 @@ export function strom(id: MaterialValg, i = GRADIENT): Strom | null {
 }
 
 /**
- * Reisetiden (døgn) for vannet over avstanden L (m) uten pumping: t = L/v, der v = K · i/n er porefarten. L = 0 gir 0;
- * gradient 0 (vannet står stille), negativ gradient, n ≤ 0 eller ugyldige tall gir null, aldri Infinity.
- *
- * @param avstand L i m.
- * @param i Hydraulisk gradient.
- * @param K Hydraulisk ledningsevne i m/s.
- * @param n Effektiv porøsitet (0–1).
+ * Hva oppholdstiden betyr for smittestoffene: 'barriere' (løsmasser med minst 60 døgn: grunnen er en hygienisk
+ * barriere), 'for-kort' (løsmasser med under 60 døgn) eller 'fjell' (60-døgnskravet gjelder ikke grunnvann i fjell, så
+ * brønnen trenger en annen barriere uansett hvor lang den beregnede reisetiden er).
  */
-export function reisetid(avstand: number, i: number, K: number, n: number): number | null {
-  const q = darcy(K, i);
-  if (q === null) return null;
-  const v = porefart(q, n);
-  if (v === null) return null;
-  const t = reisetidFraFart(avstand, v);
-  return t === null ? null : endelig(t / SEK_PER_DOGN);
-}
+export type BarriereStatus = 'barriere' | 'for-kort' | 'fjell';
 
 /** Om oppholdstiden holder som hygienisk barriere. */
 export interface Smittebarriere {
-  /** Minst 60 døgn i grunnen. */
+  /** Grunnen regnes som en hygienisk barriere: løsmasser og minst 60 døgn i grunnen. Aldri i fjell. */
   oppfylt: boolean;
+  status: BarriereStatus;
+  /** Den beregnede reisetiden er minst 60 døgn (også i fjell, der det ikke er nok). */
+  langNok: boolean;
   /** Kravet i døgn (60). */
   krav: number;
   /** Reisetiden minus kravet (døgn): positiv = margin, negativ = for kort. */
@@ -162,12 +153,16 @@ export interface Smittebarriere {
 }
 
 /**
- * Om reisetiden (døgn) oppfyller kravet om minst 60 døgns oppholdstid i grunnen (se kilden ved
- * `KRAV_OPPHOLDSTID_DOGN`). Null når reisetiden mangler (null, negativ eller ugyldig).
+ * Om reisetiden (døgn) i materialet `valg` oppfyller kravet om minst 60 døgns oppholdstid i grunnen (se kilden ved
+ * `KRAV_OPPHOLDSTID_DOGN`). Kravet gjelder løsmasser: i oppsprukket fjell er grunnen aldri en hygienisk barriere ut fra
+ * oppholdstiden alene (status 'fjell'), fordi vannet kan gå raskt i noen få åpne sprekker. Null når reisetiden mangler
+ * (null, negativ eller ugyldig).
  */
-export function smittebarriere(reisetidDogn: number | null): Smittebarriere | null {
+export function smittebarriere(reisetidDogn: number | null, valg: MaterialValg): Smittebarriere | null {
   if (reisetidDogn === null || !Number.isFinite(reisetidDogn) || reisetidDogn < 0) return null;
-  return { oppfylt: reisetidDogn >= KRAV_OPPHOLDSTID_DOGN, krav: KRAV_OPPHOLDSTID_DOGN, margin: reisetidDogn - KRAV_OPPHOLDSTID_DOGN };
+  const langNok = reisetidDogn >= KRAV_OPPHOLDSTID_DOGN;
+  const status: BarriereStatus = valg === 'oppsprukket-fjell' ? 'fjell' : langNok ? 'barriere' : 'for-kort';
+  return { oppfylt: status === 'barriere', status, langNok, krav: KRAV_OPPHOLDSTID_DOGN, margin: reisetidDogn - KRAV_OPPHOLDSTID_DOGN };
 }
 
 /**

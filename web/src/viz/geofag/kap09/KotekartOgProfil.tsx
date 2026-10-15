@@ -4,17 +4,17 @@
  * overhøyde som kan endres, og flytter punktet P langs linja for å lese av høyde og helning (grader og prosent) og
  * avstanden mellom kotene. Kotekrysningene merkes langs linja og i profilet, slik et profil tegnes for hånd.
  */
-import { memo, useCallback, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import {
   Controls,
   Explain,
   Figure,
+  FlateForklaring,
   Formula,
   FormulaLine,
   Forvalg,
   GEO,
   Kotekart,
-  Legend,
   Lupe,
   Profildiagram,
   Readout,
@@ -45,6 +45,7 @@ import {
   type KartSkala,
   type KartMerke,
   type KartVannskille,
+  type KotekartInfo,
   type LogPlotSkalaer,
   type ProfilPunkt,
 } from '../kit';
@@ -73,7 +74,6 @@ import {
   landskap,
   nedborfeltAreal,
   papirLengde,
-  profilBredde,
   profilFor,
   profillinje,
   projiserPaaLinje,
@@ -95,7 +95,7 @@ type P = [number, number];
 const KART_B = 800;
 const KART_H = (KART_B * KART.lengde) / KART.bredde;
 
-/** Vannfargene, som i `Kotekart` (vannflate og strandlinje/elv). */
+/** Vannfargene, som i `Kotekart` og `Profildiagram` (vannflate og strandlinje/elv). */
 const VANN_FYLL = mix(SCENE.waterLight, VIZ.surface, 0.35);
 const VANN_LINJE = mix(SCENE.water, VIZ.ink, 0.22);
 /** Papirfargen i et kotekart uten høydelag, som i `Kotekart`. */
@@ -111,12 +111,15 @@ interface Faste {
   sjo: Innsjo | null;
   elver: { punkter: P[]; navn: string }[];
   kartElver: KartElv[];
-  /** Elvene på smal skjerm: uten navnet på Fossbekken, som ellers kolliderer med navnet på toppen. */
+  /**
+   * Elvene på smal skjerm: uten navnet på Fossbekken. Kartet er så lite der at navnet havner like ved profillinja over
+   * dalen, der P og lupa ofte står (Kotekart holder navnene unna linja, men vet ikke hvor P er).
+   */
   kartElverSmal: KartElv[];
   innsjoer: KartInnsjo[];
   vannskiller: KartVannskille[];
   merker: KartMerke[];
-  /** Merkene på smal skjerm: åsene bare med høyden, så navnene ikke havner oppå A, B eller elvenavnene. */
+  /** Merkene på smal skjerm: åsene bare med høyden, så det lille kartet ikke blir fullt av tekst rundt P og lupa. */
   merkerSmal: KartMerke[];
   areal: number | null;
   topp: { p: P; z: number };
@@ -143,7 +146,7 @@ function lagFaste(felt: Hoydefelt): Faste {
     kartElver,
     kartElverSmal: kartElver.map((e) => (e.navn === STEDER.bekk.navn ? { ...e, navn: undefined } : e)),
     innsjoer: [{ punkt: STEDER.vann.punkt, niva: STEDER.vann.niva, navn: STEDER.vann.navn }],
-    // Uten navn: navnet ville havnet midt i feltet, oppå navnet på vannet (forklaringen og tegnforklaringen sier hva det er)
+    // Uten navn: det ville stått midt i feltet ved Langvatnet og sagt lite; forklaringen og tegnforklaringen sier hva det er
     vannskiller: [{ utlop: STEDER.utlop.p }],
     merker: [
       { p: topp, symbol: 'topp', navn: STEDER.topp.navn },
@@ -240,7 +243,8 @@ export default function KotekartOgProfil() {
     setPPst(Math.round(v.t * 100));
   };
   const lagListe = useMemo(() => (lag ? hoydelagFor(felt, ekv) : []), [felt, ekv, lag]);
-  // Kotene som linjer i meter, til lupa (Kotekart regner dem ut selv, men gir dem ikke ut)
+  // Kotene som linjer i meter, til lupa: de samme kotene som Kotekart gir barna sine (`koter` med ekvidistansen), regnet
+  // her fordi lupa tegnes utenfor det memoiserte kartet, så kartet ikke tegnes på nytt når P flyttes
   const koteLinjer = useMemo(() => koter(felt, ekv).map((kt) => ({ tykk: kt.tykk, linjer: kt.linjer.map((l) => l.punkter) })), [felt, ekv]);
   const lupeFarge = lag ? (lagListe.find((l) => b.zP !== null && b.zP >= l.fra && b.zP <= l.til)?.farge ?? VIZ.surface) : PAPIR;
   const velgT = useCallback((t: number) => setPPst(Math.round(t * 100)), []);
@@ -286,18 +290,24 @@ export default function KotekartOgProfil() {
       <Figure viewBox={`0 0 ${KART_B} ${fmt(KART_H, 0)}`} label={kartTekst(b, faste)} maxHeight={640} caption="Trykk på kartet eller i profilet (eller dra med musa) for å flytte P langs linja.">
         <Kartfigur felt={felt} faste={faste} b={b} lag={lag} visFelt={visFelt} lupe={lupe && !b.iVann ? { koteLinjer, farge: lupeFarge } : null} onVelgT={velgT} />
       </Figure>
-      <Legend
+      <FlateForklaring
         items={[
-          ...lagListe.map((l) => ({ color: l.farge, label: `${fmt(l.fra, 0)}–${fmt(l.til, 0)} m o.h.` })),
-          { color: GEO.kote, label: `Koter hver ${fmt(ekv, 0)}. m (tellekote hver ${fmt(5 * ekv, 0)}. m)` },
-          { color: VANN_LINJE, label: 'Elv og vann' },
-          ...(visFelt ? [{ color: GEO.vannskille, label: 'Vannskille', dashed: true }] : []),
-          { color: VIZ.ink, label: 'Profillinje A–B med kotekrysninger' },
+          ...lagListe.map((l) => ({ farge: l.farge, label: `${fmt(l.fra, 0)}–${fmt(l.til, 0)} m o.h.` })),
+          { farge: GEO.kote, label: `Koter hver ${fmt(ekv, 0)}. m (tellekote hver ${fmt(5 * ekv, 0)}. m)`, form: 'linje' },
+          { farge: { fill: VANN_FYLL, line: VANN_LINJE }, label: 'Vann' },
+          { farge: VANN_LINJE, label: 'Elv', form: 'linje' },
+          ...(visFelt ? [{ farge: GEO.vannskille, label: 'Vannskille', form: 'linje' as const, stiplet: true }] : []),
+          { farge: VIZ.ink, label: 'Profillinje A–B med kotekrysninger', form: 'linje' },
         ]}
       />
 
       <div ref={refProfil}>
-        <Figure viewBox={`0 0 800 ${H}`} label={profilTekst(b)} maxHeight={fProfil > 1.3 ? 760 : 420}>
+        <Figure
+          viewBox={`0 0 800 ${H}`}
+          label={profilTekst(b)}
+          maxHeight={fProfil > 1.3 ? 760 : 420}
+          caption={b.overhoyde === 1 ? 'Ingen overhøyde: høydene og lengdene er tegnet i samme målestokk.' : `Overhøyde ${fmt(b.overhoyde, 0)} ganger: høydene er strukket ${fmt(b.overhoyde, 0)} ganger i forhold til lengdene.`}
+        >
           <Profilfigur felt={felt} faste={faste} b={b} H={H} onVelgT={velgT} />
         </Figure>
       </div>
@@ -369,12 +379,13 @@ const Kartfigur = memo(function Kartfigur({
   const [px, py] = S.punkt(b.P);
   const smal = f > 1.3;
   const merker = smal ? faste.merkerSmal : faste.merker;
-  // P-etiketten: på den siden av linja der den ikke havner oppå navnet på en topp eller utenfor kartet
-  const merkeBokser: Boks[] = merker.filter((m) => m.symbol === 'topp').map((m) => merkeBoks(m, S.punkt(m.p), felt, f, k));
-  const plass = lupe ? lupePlass(S, b, nx, ny, k, f, merkeBokser) : null;
-  const hindre: Boks[] = [...merkeBokser];
+  // Flatene kartet selv har satt tekst og symboler på (navn, merker, A og B, nordpila og målestokken), fra Kotekart sine
+  // barn. Kartet er memoisert, så de meldes inn i en tilstand når linja eller valgene endres (før skjermen tegnes).
+  const [opptatt, setOpptatt] = useState<readonly Boks[]>([]);
+  // Lupa og P-etiketten holder seg unna dem, og P-etiketten også unna lupa
+  const plass = lupe ? lupePlass(S, b, nx, ny, k, opptatt) : null;
+  const hindre: Boks[] = [...opptatt];
   if (plass) hindre.push([plass.x - plass.r, plass.y - plass.r, plass.x + plass.r, plass.y + plass.r]);
-  hindre.push(...kartHindre(f, k));
   // Lupas ring rundt P (utsnittet) skal ikke gå gjennom bokstaven
   const ring = plass ? plass.r / plass.faktor : 0;
   const etikett = pEtikett(px, py, nx, ny, hindre, f, k, [S.x0, S.y0, S.x0 + S.w, S.y0 + S.h], ring);
@@ -395,7 +406,9 @@ const Kartfigur = memo(function Kartfigur({
         vannskiller={visFelt ? faste.vannskiller : undefined}
         merker={merker}
         profil={{ A: [ax, ay], B: [bx, by] }}
-      />
+      >
+        {(_S, info) => <MeldOpptatt info={info} onEndret={setOpptatt} />}
+      </Kotekart>
     ),
     [felt, b.ekv, lag, faste, elver, visFelt, merker, ax, ay, bx, by],
   );
@@ -410,8 +423,6 @@ const Kartfigur = memo(function Kartfigur({
           return <line key={i} x1={x - nx * l} y1={y - ny * l} x2={x + nx * l} y2={y + ny * l} stroke={VIZ.ink} strokeWidth={(kr.tykk ? 2.2 : 1.5) * ss} strokeLinecap="round" />;
         })}
       </g>
-      {/* Endene av linja en gang til, over målestokkboksen (som ellers kan skjule A eller B nederst til venstre) */}
-      <Endepunkter A={S.punkt(linje.A)} B={S.punkt(linje.B)} />
       <PekeFlate
         x={0}
         y={0}
@@ -426,12 +437,19 @@ const Kartfigur = memo(function Kartfigur({
   );
 });
 
-/** Omtrent der `Kotekart` tegner målestokkboksen (nederst til venstre) og nordpila (øverst til høyre). */
-function kartHindre(f: number, k: number): Boks[] {
-  return [
-    [0, KART_H - 72 * f, 320, KART_H],
-    [KART_B - 52 * k, 0, KART_B, 76 * f],
-  ];
+/**
+ * Melder flatene `Kotekart` har satt tekst og symboler på (`KotekartInfo.opptatt`) til Kartfigur, bare når de endres
+ * (før skjermen tegnes, så lupa og P-etiketten aldri står ett bilde på feil sted).
+ */
+function MeldOpptatt({ info, onEndret }: { info: KotekartInfo; onEndret: (b: readonly Boks[]) => void }) {
+  const bokser = info.opptatt.map((o): Boks => [o.x0, o.y0, o.x1, o.y1]);
+  const nokkel = bokser.map((bk) => bk.map((v) => Math.round(v)).join(',')).join(';');
+  const siste = useRef(bokser);
+  siste.current = bokser;
+  useLayoutEffect(() => {
+    onEndret(siste.current);
+  }, [nokkel, onEndret]);
+  return null;
 }
 
 /** Hvor lupa står (midten), radiusen og forstørrelsen. */
@@ -444,16 +462,16 @@ interface LupePlass {
 
 /**
  * Plassen til lupa ved P: vinkelrett ut fra linja (først den ene siden, så den andre, så skrått), innenfor kartet og
- * unna nordpila og målestokken. Forstørrelsen velges så mållinja mellom kotene får plass (høyst 8 ganger).
+ * unna `hindre` (navnene, merkene, A og B, nordpila og målestokken på kartet). Forstørrelsen velges så mållinja mellom
+ * kotene får plass (høyst 8 ganger).
  */
-function lupePlass(S: KartSkala, b: Beregning, nx: number, ny: number, k: number, f: number, ekstra: readonly Boks[] = []): LupePlass {
+function lupePlass(S: KartSkala, b: Beregning, nx: number, ny: number, k: number, hindre: readonly Boks[]): LupePlass {
   const [px, py] = S.punkt(b.P);
   // Litt mindre på mobil, der kartet er lite fra før
   const r = (k > 1.2 ? 51 : 60) * k;
   const dPx = b.ka ? b.ka.d * S.k : null;
   const faktor = dPx ? Math.max(2, Math.min(8, (1.45 * r) / dPx)) : 6;
   const avstand = r + 24 * k;
-  const hindre = [...kartHindre(f, k), ...ekstra];
   const retninger: P[] = [
     [nx, ny],
     [-nx, -ny],
@@ -462,19 +480,35 @@ function lupePlass(S: KartSkala, b: Beregning, nx: number, ny: number, k: number
     [-nx + ny, -ny - nx],
     [-nx - ny, -ny + nx],
   ];
-  // Først like ved linja, så lenger ut (når P ligger ved kanten eller målestokken), og til slutt langs linja
-  const kandidater = [
+  // Først like ved linja, så lenger ut (når P ligger ved kanten eller målestokken), så rundt P i alle retninger
+  const kandidater: P[] = [
     ...[1, 1.7].flatMap((m) =>
       retninger.map(([a, c]): P => {
         const l = Math.hypot(a, c) || 1;
         return [px + (a / l) * avstand * m, py + (c / l) * avstand * m];
       }),
     ),
-    ...([1, -1] as const).map((sd): P => [px + sd * ny * avstand * 1.7, py - sd * nx * avstand * 1.7]),
+    ...[1, 1.4, 1.9, 2.5].flatMap((m) => Array.from({ length: 16 }, (_, i): P => [px + Math.cos((i * Math.PI) / 8) * avstand * m, py + Math.sin((i * Math.PI) / 8) * avstand * m])),
   ];
-  const passer = ([cx, cy]: P) =>
-    cx - r > 4 && cx + r < KART_B - 4 && cy - r > 4 && cy + r < KART_H - 4 && !hindre.some((o) => cx + r > o[0] && cx - r < o[2] && cy + r > o[1] && cy - r < o[3]);
-  const [x, y] = kandidater.find(passer) ?? [Math.min(KART_B - r - 6, Math.max(r + 6, kandidater[0]![0])), Math.min(KART_H - r - 6, Math.max(r + 6, kandidater[0]![1]))];
+  // Profillinja i figuren: lupa skal ikke ligge over den
+  const [ax, ay] = S.punkt(b.linje.A);
+  const [bx, by] = S.punkt(b.linje.B);
+  const tilLinja = (cx: number, cy: number) => {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const L2 = dx * dx + dy * dy || 1;
+    const u = Math.min(1, Math.max(0, ((cx - ax) * dx + (cy - ay) * dy) / L2));
+    return Math.hypot(cx - ax - u * dx, cy - ay - u * dy);
+  };
+  const inne = ([cx, cy]: P) => cx - r > 4 && cx + r < KART_B - 4 && cy - r > 4 && cy + r < KART_H - 4;
+  // Hvor mye lupa dekker (flaten av hindringene under kvadratet rundt lupa, og et tillegg når den ligger over linja)
+  const dekker = ([cx, cy]: P) =>
+    hindre.reduce((sum, o) => sum + Math.max(0, Math.min(cx + r, o[2]) - Math.max(cx - r, o[0])) * Math.max(0, Math.min(cy + r, o[3]) - Math.max(cy - r, o[1])), 0) +
+    (tilLinja(cx, cy) < r + 4 * k ? 4 * r * r : 0);
+  const fri = kandidater.find((c) => inne(c) && dekker(c) === 0);
+  // Ingen ledig plass: den plassen inne i kartet som dekker minst
+  const best = fri ?? kandidater.filter(inne).reduce<P | null>((a, c) => (a === null || dekker(c) < dekker(a) ? c : a), null);
+  const [x, y] = best ?? [Math.min(KART_B - r - 6, Math.max(r + 6, kandidater[0]![0])), Math.min(KART_H - r - 6, Math.max(r + 6, kandidater[0]![1]))];
   return { x, y, r, faktor };
 }
 
@@ -516,24 +550,36 @@ function LupeVedP({ S, b, plass, koteLinjer, farge }: { S: KartSkala; b: Beregni
   const ux = a && c && L > 0 ? (c[0] - a[0]) / L : 0;
   const uy = a && c && L > 0 ? (c[1] - a[1]) / L : 0;
   const tPx = 17 * 0.66 * f;
+  // Høyden på kotene ved endene av mållinja, holdt inne i kartet
+  const kotetall = (q: P, retning: 1 | -1, z: number) => {
+    const tekst = fmt(z, 0);
+    const halv = tekstBredde(tekst, tPx) / 2 + 2;
+    const x = Math.min(KART_B - 4 - halv, Math.max(4 + halv, q[0] + retning * ux * (8 * k + tPx)));
+    const y = Math.min(KART_H - 4, Math.max(4 + tPx, q[1] + retning * uy * (8 * k + tPx) + tPx * 0.35));
+    return { x, y, tekst };
+  };
+  const tallUnder = a && ka ? kotetall(a, -1, ka.under) : null;
+  const tallOver = c && ka ? kotetall(c, 1, ka.over) : null;
   return (
     <g pointerEvents="none">
       <Lupe x={lx} y={ly} r={r} fra={{ x: px, y: py }} forstorr={{ faktor, x: px, y: py }} bakgrunn={farge}>
         <g fill="none" stroke={GEO.kote} strokeLinejoin="round">
           {biter.map((bt, i) => (
-            <path key={i} d={bt.d} strokeWidth={bt.tykk ? 2.6 : 1.3} vectorEffect="non-scaling-stroke" />
+            <path key={i} d={bt.d} strokeWidth={bt.tykk ? 2.6 : 1.3} />
           ))}
         </g>
       </Lupe>
       {a && c && ka && L > 4 && (
         <g>
           <Dimension x1={a[0]} y1={a[1]} x2={c[0]} y2={c[1]} label={`${fmt(ka.d, 0)} m`} labelSize={0.72} />
-          <Txt x={a[0] - ux * (8 * k + tPx)} y={a[1] - uy * (8 * k + tPx) + tPx * 0.35} size={0.66} weight={650} color={GEO.kote}>
-            {fmt(ka.under, 0)}
-          </Txt>
-          <Txt x={c[0] + ux * (8 * k + tPx)} y={c[1] + uy * (8 * k + tPx) + tPx * 0.35} size={0.66} weight={650} color={GEO.kote}>
-            {fmt(ka.over, 0)}
-          </Txt>
+          {[tallUnder, tallOver].map(
+            (t, i) =>
+              t && (
+                <Txt key={i} x={t.x} y={t.y} size={0.66} weight={650} color={GEO.kote}>
+                  {t.tekst}
+                </Txt>
+              ),
+          )}
         </g>
       )}
       <circle cx={lx} cy={ly} r={3.2 * k} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.2} />
@@ -541,44 +587,8 @@ function LupeVedP({ S, b, plass, koteLinjer, farge }: { S: KartSkala; b: Beregni
   );
 }
 
-/** A og B med bokstav, tegnet som i `Kotekart` (profillinja), men øverst. */
-function Endepunkter({ A, B }: { A: P; B: P }) {
-  const k = useGeoScale();
-  const ss = useGeoStroke();
-  const f = useTextScale();
-  const L = Math.hypot(B[0] - A[0], B[1] - A[1]);
-  if (!(L >= 1)) return null;
-  const ux = (B[0] - A[0]) / L;
-  const uy = (B[1] - A[1]) / L;
-  const off = 15 * f;
-  return (
-    <g pointerEvents="none">
-      {[A, B].map(([x, y], i) => (
-        <g key={i}>
-          <circle cx={x} cy={y} r={4.5 * k} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.5 * ss} />
-          <Txt x={x + (i === 0 ? -ux : ux) * off} y={y + (i === 0 ? -uy : uy) * off + 6 * f} size={0.92} weight={750}>
-            {i === 0 ? 'A' : 'B'}
-          </Txt>
-        </g>
-      ))}
-    </g>
-  );
-}
-
 /** Et rektangel [x0, y0, x1, y1] i figuren. */
 type Boks = [number, number, number, number];
-
-/** Omtrent der `Kotekart` skriver navnet og høyden ved et merke (til høyre for symbolet, som i kit-et). */
-function merkeBoks(m: KartMerke, [x, y]: P, felt: Hoydefelt, f: number, k: number): Boks {
-  const z = hoydeVed(felt, m.p[0], m.p[1]);
-  const tekst = [m.navn, (m.hoyde ?? m.symbol === 'topp') && z !== null ? fmt(z, 0) : undefined].filter(Boolean).join(' ');
-  const tPx = 17 * 0.72 * f;
-  const tw = tekstBredde(tekst, tPx);
-  const r = 5 * k;
-  const venstre = x + 10 * k + tw > KART_B - 4;
-  const tx0 = venstre ? x - 9 * k - tw : x + 9 * k;
-  return [Math.min(x - r, tx0) - 2, y - Math.max(r * 1.2, tPx * 0.7), Math.max(x + r, tx0 + tw) + 2, y + Math.max(r, tPx * 0.45)];
-}
 
 /**
  * Midten av P-etiketten: vinkelrett ut fra linja (først på den ene siden, så den andre, så skrått), der den ikke
@@ -605,7 +615,13 @@ function pEtikett(px: number, py: number, nx: number, ny: number, hindre: readon
     if (bx[0] < ramme[0] + 2 || bx[1] < ramme[1] + 2 || bx[2] > ramme[2] - 2 || bx[3] > ramme[3] - 2) return false;
     return !hindre.some((o) => bx[0] < o[2] && o[0] < bx[2] && bx[1] < o[3] && o[1] < bx[3]);
   };
-  return kandidater.find(ledig) ?? kandidater[0]!;
+  const fri = kandidater.find(ledig);
+  if (fri) return fri;
+  // Ingen ledig plass: den som dekker minst (og helst er inne i kartet)
+  const dekker = ([cx, cy]: P) =>
+    hindre.reduce((sum, o) => sum + Math.max(0, Math.min(cx + w / 2, o[2]) - Math.max(cx - w / 2, o[0])) * Math.max(0, Math.min(cy + h / 2, o[3]) - Math.max(cy - h / 2, o[1])), 0) +
+    (cx - w / 2 < ramme[0] + 2 || cx + w / 2 > ramme[2] - 2 || cy - h / 2 < ramme[1] + 2 || cy + h / 2 > ramme[3] - 2 ? 1e6 : 0);
+  return kandidater.reduce((a, c) => (dekker(c) < dekker(a) ? c : a), kandidater[0]!);
 }
 
 /** Punktet P: ring med prikk og bokstaven P (samme merke på kartet og i profilet). */
@@ -675,48 +691,27 @@ function PekeFlate({ x, y, w, h, label, onPek }: { x: number; y: number; w: numb
 
 /* ================================================================================================ Profilet */
 
-/** Margene i `Profildiagram` (samme regler som komponenten i kit-et), så plottet kan smalnes nøyaktig. */
-function profilMarger(f: number, zMin: number, zMax: number) {
-  const tickPx = 15 * f;
-  const titlePx = 15.6 * f;
-  return {
-    topp: 20 * f + titlePx * 1.2,
-    bunn: 22 * f + 10 + titlePx * 1.1,
-    venstre: titlePx * 1.25 + 14 + tekstBredde(fmt(Math.max(Math.abs(zMax), Math.abs(zMin)) * 1.3, 0).replace(/\s/g, '') + '0', tickPx) + 10,
-    hoyre: 30 * f,
-  };
-}
-
 /**
- * Terrengprofilet langs A–B med nøyaktig overhøyde: plottet fyller bredden når profilet får plass i høyden, og blir
- * smalere (mindre målestokk, samme overhøyde) når overhøyden er så stor at profilet ellers ville gått ut av plottet.
+ * Terrengprofilet langs A–B med nøyaktig overhøyde (kit-ets `Profildiagram` med `tilpass`): plottet fyller bredden når
+ * profilet får plass i høyden, og blir smalere (mindre målestokk, samme overhøyde) når overhøyden er så stor at profilet
+ * ellers ville gått ut av plottet. Langvatnet tegnes av Profildiagram (`innsjoer`), med samme vann som på kartet.
+ * Overhøyden står i bildeteksten, ikke i plottet, der den ville kollidert med A og B når plottet blir smalt.
  */
 const Profilfigur = memo(function Profilfigur({ felt, faste, b, H, onVelgT }: { felt: Hoydefelt; faste: Faste; b: Beregning; H: number; onVelgT: (t: number) => void }) {
-  const f = useTextScale();
-  const m = profilMarger(f, b.zMin, b.zMax);
-  const plotBmaks = 800 - m.venstre - m.hoyre;
-  const plotH = H - m.topp - m.bunn;
-  const plotB = profilBredde(b.linje.lengde, b.zMin, b.zMax, b.overhoyde, plotBmaks, plotH) ?? plotBmaks;
-  const bredde = plotB + m.venstre + m.hoyre;
-  const x0 = Math.max(0, (800 - bredde) / 2);
   return (
-    <Profildiagram felt={felt} A={b.linje.A} B={b.linje.B} width={bredde} height={H} at={[x0, 0]} overhoyde={b.overhoyde}>
-      {(s) => <Profiltillegg s={s} faste={faste} b={b} onVelgT={onVelgT} />}
+    <Profildiagram felt={felt} A={b.linje.A} B={b.linje.B} width={800} height={H} overhoyde={b.overhoyde} tilpass visOverhoyde={false} innsjoer={faste.innsjoer}>
+      {(s) => <Profiltillegg s={s} b={b} onVelgT={onVelgT} />}
     </Profildiagram>
   );
 });
 
-/** Det som tegnes oppå profilet: vannet, kotekrysningene, elvene, P og flata eleven peker på. */
-function Profiltillegg({ s, faste, b, onVelgT }: { s: LogPlotSkalaer; faste: Faste; b: Beregning; onVelgT: (t: number) => void }) {
+/** Det som tegnes oppå profilet: kotekrysningene, elvene, P og flata eleven peker på. */
+function Profiltillegg({ s, b, onVelgT }: { s: LogPlotSkalaer; b: Beregning; onVelgT: (t: number) => void }) {
   const k = useGeoScale();
   const ss = useGeoStroke();
   const f = useTextScale();
   const { sx, sy, x0, x1, y0, y1, clip } = s;
   const L = b.linje.lengde;
-  const niva = faste.sjo?.niva ?? null;
-
-  // Vannet: fra bunnen (terrenget) opp til vannflaten, der profilet går gjennom Langvatnet
-  const vann = niva === null ? [] : b.vann.map(([a, c]) => vannFlate(b.prof, a, c, niva)).filter((v): v is P[] => v !== null);
 
   const pX = sx(b.sP);
   const pY = b.zP === null ? NaN : sy(b.zP);
@@ -724,17 +719,6 @@ function Profiltillegg({ s, faste, b, onVelgT }: { s: LogPlotSkalaer; faste: Fas
   return (
     <g>
       <g clipPath={clip}>
-        {vann.map((pts, i) => {
-          const d = `M${pts.map(([a, z]) => `${sx(a).toFixed(1)},${sy(z).toFixed(1)}`).join('L')}Z`;
-          const bunn = pts.slice(1, -1);
-          return (
-            <g key={i}>
-              <path d={d} fill={VANN_FYLL} />
-              <line x1={sx(pts[0]![0])} x2={sx(pts[pts.length - 1]![0])} y1={sy(niva!)} y2={sy(niva!)} stroke={VANN_LINJE} strokeWidth={1.6 * ss} />
-              {bunn.length > 1 && <path d={`M${bunn.map(([a, z]) => `${sx(a).toFixed(1)},${sy(z).toFixed(1)}`).join('L')}`} fill="none" stroke={VIZ.ink} strokeWidth={2.4 * ss} strokeLinejoin="round" />}
-            </g>
-          );
-        })}
         {/* Kotekrysningene: et merke på profilet for hver kote linja krysser, som når profilet tegnes for hånd */}
         {b.kryss.map((kr, i) => (
           <circle key={i} cx={sx(kr.s)} cy={sy(kr.hoyde)} r={(kr.tykk ? 3.4 : 2.4) * k} fill={kr.tykk ? VIZ.ink : VIZ.surface} stroke={VIZ.ink} strokeWidth={1.3 * ss} />
@@ -812,32 +796,6 @@ function hoydeVedProfil(prof: readonly ProfilPunkt[], s: number): number | null 
   const c = prof[i]!;
   const t = c.s > a.s ? (s - a.s) / (c.s - a.s) : 0;
   return a.z + (c.z - a.z) * t;
-}
-
-/** Vannflata i profilet: (avstand, høyde) rundt fra strandkanten langs bunnen til den andre strandkanten. */
-function vannFlate(prof: readonly ProfilPunkt[], a: number, c: number, niva: number): P[] | null {
-  const inne = prof.filter((p) => p.s >= a && p.s <= c);
-  if (inne.length === 0) return null;
-  // Strandkantene: der terrenget krysser vannstanden like utenfor strekningen
-  const kant = (fra: number, retning: -1 | 1): number => {
-    let i = prof.findIndex((p) => p.s >= fra);
-    if (i < 0) i = prof.length - 1;
-    for (let n = 0; n < 12; n++) {
-      const j = i + retning;
-      const p = prof[i];
-      const q = prof[j];
-      if (!p || !q) return p?.s ?? fra;
-      if ((p.z - niva) * (q.z - niva) <= 0) {
-        const t = q.z === p.z ? 0 : (niva - p.z) / (q.z - p.z);
-        return p.s + (q.s - p.s) * t;
-      }
-      i = j;
-    }
-    return fra;
-  };
-  const s0 = kant(a, -1);
-  const s1 = kant(c, 1);
-  return [[s0, niva], ...inne.map((p): P => [p.s, Math.min(p.z, niva)]), [s1, niva]];
 }
 
 /* ================================================================================================ Tekst */

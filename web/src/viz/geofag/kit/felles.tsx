@@ -25,7 +25,9 @@ export function useGeoStroke(): number {
 /**
  * Høyden på viewBox-en for en figur med grunnhøyde `H` når teksten vokser med faktoren `f` (fra
  * `useContainerTextScale`): H + 260 · (f − 1). Grafer, kart og snitt blir da høyere på mobil, så aksetitler og etiketter
- * får plass. Ugyldig eller for liten `f` behandles som 1.
+ * får plass. Ugyldig eller for liten `f` behandles som 1. Passer ikke for figurer med låst forhold mellom bredde og høyde
+ * (fast overhøyde, kart i målestokk): der blir figuren bare høyere og smalere; bruk en mindre økning (f.eks.
+ * 320 + 150 · (f − 1)) eller `Profildiagram` med `tilpass`.
  *   const [ref, f] = useContainerTextScale<HTMLDivElement>();
  *   <div ref={ref}><Figure viewBox={`0 0 800 ${geoHoyde(f, 320)}`} …>…</Figure></div>
  */

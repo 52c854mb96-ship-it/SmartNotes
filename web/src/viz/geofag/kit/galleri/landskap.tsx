@@ -69,7 +69,8 @@ function isbreRute(p: Uten<IsbreProps>, W: number, H: (f: number) => number, kol
       const { x, y, w, h, hoyde } = sted(f);
       return (
         <g>
-          <Himmel w={W} h={hoyde} sol={{ x: W * 0.9, y: 26, r: 13 }} skyer={p.type === 'havis' ? 2 : 1} />
+          {/* Ingen sol når klammene over figuren (soner) trenger plassen; havisen får bare én sky, utenfor etikettene */}
+          <Himmel w={W} h={hoyde} sol={(p as IsbreProps).soner ? undefined : { x: W * 0.9, y: 26, r: 13 }} skyer={1} />
           <Isbre {...(p as IsbreProps)} x={x} y={y} w={w} h={h} />
         </g>
       );
@@ -92,7 +93,7 @@ function elvRute(p: Uten<ElveleieProps>, W: number, H: (f: number) => number, ko
       const { x, y, w, h, hoyde } = sted(f);
       return (
         <g>
-          {himmel && <Himmel w={W} h={hoyde} sol={{ x: W * 0.9, y: 26, r: 13 }} skyer={1} />}
+          {himmel && <Himmel w={W} h={hoyde} sol={(p as ElveleieProps).soner ? undefined : { x: W * 0.9, y: 26, r: 13 }} skyer={1} />}
           <Elveleie {...(p as ElveleieProps)} x={x} y={y} w={w} h={h} />
         </g>
       );

@@ -206,3 +206,14 @@ describe('bergartenes kretsløp', () => {
     expect(gruppeForStadium('magma')).toBeNull();
   });
 });
+
+describe('mønstrene til de magmatiske bergartene', () => {
+  it('viser ikke en basisk bergart med kryssene for sur dypbergart, og lava med dagbergartmønster', () => {
+    for (const [id, b] of Object.entries(BERGARTER)) {
+      if (b.gruppe !== 'magmatisk') continue;
+      if (b.kjemi === 'basisk' || b.kjemi === 'ultrabasisk') expect(b.monster, id).not.toBe('granitt');
+    }
+    expect(BERGARTER.anortositt.monster).toBe('gabbro');
+    expect(BERGARTER.rombeporfyr.monster).toBe('basalt');
+  });
+});

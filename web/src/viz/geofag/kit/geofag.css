@@ -99,6 +99,8 @@
   --geo-havis-line: #86a8bd;
   --geo-luft: #f3f5f7;
   --geo-luft-line: #8a96a3;
+  --geo-sky-lett: #ffffff;
+  --geo-sky-tung: #858d96;
 
   /* Kart */
   --geo-kote: #a0683a;
@@ -292,6 +294,8 @@
     --geo-havis-line: #bcd2df;
     --geo-luft: #8d969f;
     --geo-luft-line: #c8d0d8;
+    --geo-sky-lett: #a3adb9;
+    --geo-sky-tung: #23282e;
 
     /* Kart */
     --geo-kote: #d6b089;
@@ -485,6 +489,8 @@
   --geo-havis-line: #bcd2df;
   --geo-luft: #8d969f;
   --geo-luft-line: #c8d0d8;
+  --geo-sky-lett: #a3adb9;
+  --geo-sky-tung: #23282e;
 
   /* Kart */
   --geo-kote: #d6b089;
@@ -583,4 +589,10 @@
   --geo-tid-pliocen: #4f4f2a;
   --geo-tid-pleistocen: #514d34;
   --geo-tid-holocen: #504c45;
+}
+
+/* Lupe med forstorr: strekene i innholdet beholder bredden på skjermen (vector-effect arves ikke, så den settes på hvert
+   element under klassen) */
+.geo-fast-strek :is(path, line, polyline, polygon, circle, ellipse, rect) {
+  vector-effect: non-scaling-stroke;
 }

@@ -1,8 +1,10 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { BERGART_IDS } from './bergarter';
 import { punktIPolygon } from './korn';
 import { MINERAL_IDS, MINERAL_TONER } from './mineraler';
-import { KRYSTALLFORMER, KRYSTALLFORM_NAVN, konveksInnhylling, krystallGeometri, lupeKjegle, mineralFarge, prikkerIPolygon, steinproveGeometri } from './stein';
+import { KRYSTALLFORMER, KRYSTALLFORM_NAVN, Lupe, konveksInnhylling, krystallGeometri, lupeKjegle, mineralFarge, prikkerIPolygon, steinproveGeometri } from './stein';
 
 describe('mineralFarge', () => {
   it('har farge for hver tone og hvert mineral', () => {
@@ -80,7 +82,7 @@ describe('krystallGeometri', () => {
   });
 
   it('romboederen ligger på en flate og ser ikke ut som en terning: flatene er skjeve romber', () => {
-    const g = krystallGeometri('rombeeder')!;
+    const g = krystallGeometri('romboeder')!;
     const synlige = g.flater.filter((f) => f.synlig);
     expect(synlige).toHaveLength(3);
     expect(synlige.find((f) => f.del === 'ende')!.lys).toBe(Math.max(...synlige.map((f) => f.lys)));
@@ -195,5 +197,25 @@ describe('steinproveGeometri', () => {
     expect(steinproveGeometri({ x: 0, y: 0, seed: 4 })).toEqual(steinproveGeometri({ x: 0, y: 0, seed: 4 }));
     expect(steinproveGeometri({ x: Number.NaN, y: 0 })).toBeNull();
     expect(steinproveGeometri({ x: 0, y: 0, size: 0 })).toBeNull();
+  });
+});
+
+describe('Lupe', () => {
+  const tekstY = (html: string, t: string) => Number(html.match(new RegExp(`<text x="[-\\d.]+" y="([-\\d.]+)"[^>]*>${t}</text>`))?.[1]);
+  it('setter teksten under linsa når det ikke er plass over, og over ellers', () => {
+    const under = renderToStaticMarkup(createElement('svg', null, createElement(Lupe, { x: 200, y: 120, r: 110, tekst: 'Under lupa' })));
+    expect(tekstY(under, 'Under lupa')).toBeGreaterThan(120 + 110);
+    const over = renderToStaticMarkup(createElement('svg', null, createElement(Lupe, { x: 200, y: 200, r: 110, tekst: 'Under lupa' })));
+    expect(tekstY(over, 'Under lupa')).toBeLessThan(200 - 110);
+    const side = renderToStaticMarkup(createElement('svg', null, createElement(Lupe, { x: 200, y: 200, r: 110, tekst: 'Til siden', tekstSide: 'hoyre' })));
+    expect(side).toContain('text-anchor="start"');
+  });
+
+  it('gir innholdet faste streker med forstorr (klassen geo-fast-strek), med mindre strek er forstorret', () => {
+    const barn = createElement('path', { d: 'M0 0L10 10', stroke: '#000' });
+    const fast = renderToStaticMarkup(createElement('svg', null, createElement(Lupe, { x: 200, y: 200, r: 80, forstorr: { faktor: 3 } }, barn)));
+    expect(fast).toContain('geo-fast-strek');
+    const vokser = renderToStaticMarkup(createElement('svg', null, createElement(Lupe, { x: 200, y: 200, r: 80, forstorr: { faktor: 3 }, strek: 'forstorret' }, barn)));
+    expect(vokser).not.toContain('geo-fast-strek');
   });
 });

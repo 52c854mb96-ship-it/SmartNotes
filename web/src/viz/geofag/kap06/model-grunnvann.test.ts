@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SEK_PER_DOGN } from '../kit/hydrologi';
+import { SEK_PER_DOGN, reisetidDarcy } from '../kit/hydrologi';
 import {
   AKER_AVSTAND_M,
   AVSTAND_MAKS_M,
@@ -25,7 +25,6 @@ import {
   nitratVedBronn,
   porefartVed,
   reiseTabell,
-  reisetid,
   reisetidMotBronn,
   senkningVed,
   smitteIgjen,
@@ -69,28 +68,28 @@ describe('Darcys lov og porefart', () => {
   });
 });
 
-describe('Reisetid uten pumping', () => {
-  it('reisetid = L/v', () => {
+describe('Reisetid uten pumping (kit-ets reisetidDarcy)', () => {
+  it('reisetidDarcy = L/v', () => {
     const m = materiale('sand');
     const v = (m.K * GRADIENT) / m.effektivPorositet;
-    expect(reisetid(60, GRADIENT, m.K, m.effektivPorositet)!).toBeCloseTo(60 / v / SEK_PER_DOGN, 6);
-    expect(reisetid(120, GRADIENT, m.K, m.effektivPorositet)!).toBeCloseTo(2 * reisetid(60, GRADIENT, m.K, m.effektivPorositet)!, 6);
+    expect(reisetidDarcy(60, GRADIENT, m.K, m.effektivPorositet)!).toBeCloseTo(60 / v / SEK_PER_DOGN, 6);
+    expect(reisetidDarcy(120, GRADIENT, m.K, m.effektivPorositet)!).toBeCloseTo(2 * reisetidDarcy(60, GRADIENT, m.K, m.effektivPorositet)!, 6);
   });
 
   it('L = 0 gir 0, og gradient 0 gir null, aldri Infinity i teksten', () => {
     const m = materiale('sand');
-    expect(reisetid(0, GRADIENT, m.K, m.effektivPorositet)).toBe(0);
-    expect(reisetid(0, 0, m.K, m.effektivPorositet)).toBe(0);
-    expect(reisetid(60, 0, m.K, m.effektivPorositet)).toBeNull();
-    expect(reisetid(60, -0.01, m.K, m.effektivPorositet)).toBeNull();
-    expect(reisetid(60, GRADIENT, m.K, 0)).toBeNull();
-    expect(reisetid(Number.NaN, GRADIENT, m.K, m.effektivPorositet)).toBeNull();
-    for (const t of [reisetid(60, 0, m.K, m.effektivPorositet), reisetid(0, GRADIENT, m.K, m.effektivPorositet), null]) ingenFeiltall(fmtVarighet(t));
+    expect(reisetidDarcy(0, GRADIENT, m.K, m.effektivPorositet)).toBe(0);
+    expect(reisetidDarcy(0, 0, m.K, m.effektivPorositet)).toBe(0);
+    expect(reisetidDarcy(60, 0, m.K, m.effektivPorositet)).toBeNull();
+    expect(reisetidDarcy(60, -0.01, m.K, m.effektivPorositet)).toBeNull();
+    expect(reisetidDarcy(60, GRADIENT, m.K, 0)).toBeNull();
+    expect(reisetidDarcy(Number.NaN, GRADIENT, m.K, m.effektivPorositet)).toBeNull();
+    for (const t of [reisetidDarcy(60, 0, m.K, m.effektivPorositet), reisetidDarcy(0, GRADIENT, m.K, m.effektivPorositet), null]) ingenFeiltall(fmtVarighet(t));
     expect(fmtVarighet(null)).toBe('–');
   });
 
   it('leire gir mye lengre reisetid enn grus', () => {
-    const t = (id: (typeof MATERIAL_VALG)[number]) => reisetid(60, GRADIENT, materiale(id).K, materiale(id).effektivPorositet)!;
+    const t = (id: (typeof MATERIAL_VALG)[number]) => reisetidDarcy(60, GRADIENT, materiale(id).K, materiale(id).effektivPorositet)!;
     expect(t('leire') / t('grus')).toBeGreaterThan(1e5);
     expect(t('grus')).toBeLessThan(KRAV_OPPHOLDSTID_DOGN);
     expect(t('leire')).toBeGreaterThan(1000 * 365);
@@ -103,12 +102,29 @@ describe('Reisetid uten pumping', () => {
 
 describe('Smittebarriere og nitrat', () => {
   it('minst 60 døgn i grunnen', () => {
-    expect(smittebarriere(60)!.oppfylt).toBe(true);
-    expect(smittebarriere(59.9)!.oppfylt).toBe(false);
-    expect(smittebarriere(88)!.margin).toBeCloseTo(28, 10);
-    expect(smittebarriere(null)).toBeNull();
-    expect(smittebarriere(Number.POSITIVE_INFINITY)).toBeNull();
-    expect(smittebarriere(-1)).toBeNull();
+    expect(smittebarriere(60, 'sand')!.oppfylt).toBe(true);
+    expect(smittebarriere(60, 'sand')!.status).toBe('barriere');
+    expect(smittebarriere(59.9, 'grus')!.oppfylt).toBe(false);
+    expect(smittebarriere(59.9, 'grus')!.status).toBe('for-kort');
+    expect(smittebarriere(88, 'silt')!.margin).toBeCloseTo(28, 10);
+    expect(smittebarriere(null, 'sand')).toBeNull();
+    expect(smittebarriere(Number.POSITIVE_INFINITY, 'sand')).toBeNull();
+    expect(smittebarriere(-1, 'sand')).toBeNull();
+  });
+
+  it('oppsprukket fjell er aldri en hygienisk barriere ut fra oppholdstiden, selv med over 60 døgn', () => {
+    // 60-døgnskravet gjelder løsmasser; i fjell kan vannet gå raskt i noen få åpne sprekker
+    for (const t of [10, 63, 400, 10_000]) {
+      const b = smittebarriere(t, 'oppsprukket-fjell')!;
+      expect(b.oppfylt).toBe(false);
+      expect(b.status).toBe('fjell');
+      expect(b.langNok).toBe(t >= KRAV_OPPHOLDSTID_DOGN);
+    }
+    // Også i scenen: en tørr fjellbrønn med lang reisetid er ikke en barriere
+    const bronn = bronnstatus('oppsprukket-fjell', 20)!;
+    const t = reisetidMotBronn(AVSTAND_MAKS_M, strommodell('oppsprukket-fjell', bronn))!;
+    expect(t).toBeGreaterThan(KRAV_OPPHOLDSTID_DOGN);
+    expect(smittebarriere(t, 'oppsprukket-fjell')!.oppfylt).toBe(false);
   });
 
   it('nitratet når fram med c₀/fortynning uansett reisetid', () => {

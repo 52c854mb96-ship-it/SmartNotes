@@ -2,6 +2,8 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import {
+  Flagg,
+  FlateForklaring,
   GeoTidslinje,
   Klimadiagram,
   LogPlot,
@@ -14,6 +16,7 @@ import {
 } from './diagram';
 import { GEO_HENDELSER, JORDAS_ALDER } from './geotid';
 import { fmtTall } from './akser';
+import { GEO } from './colors';
 import { seededRandom } from '../../kjemi/kit/random';
 
 const svg = (child: ReturnType<typeof createElement>) => renderToStaticMarkup(createElement('svg', null, child));
@@ -198,5 +201,54 @@ describe('komponentene', () => {
     utenNaN(svg(createElement(GeoTidslinje, { width: 760, height: 300, hendelser: GEO_HENDELSER, markor: 150 })));
     utenNaN(svg(createElement(GeoTidslinje, { width: 300, height: 160, hendelser: GEO_HENDELSER, markor: NaN })));
     utenNaN(svg(createElement(GeoTidslinje, { width: 400, height: 600, retning: 'loddrett', hendelser: GEO_HENDELSER, skala: 'log', til: 0 })));
+  });
+});
+
+describe('tidslinjeGeometri, Flagg og FlateForklaring', () => {
+  it('tidslinjeGeometri tåler ugyldig tekstskalering', () => {
+    for (const f of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 0, -2]) {
+      const g = tidslinjeGeometri({ width: 760, height: 260, hendelser: GEO_HENDELSER }, f);
+      const tall = [g.p0, g.p1, g.q0, g.q1, g.akseLinje, g.hendelser.q0, g.hendelser.q1, ...g.rader.flatMap((r) => [r.q0, r.q1]), g.s(66), g.inv(300)];
+      expect(tall.every(Number.isFinite), `f = ${f}`).toBe(true);
+    }
+  });
+
+  it('Flagg tegner tekster med strek ned til punktene, og bare prikkene for ugyldige', () => {
+    const html = svg(
+      createElement(Flagg, {
+        basis: 40,
+        x0: 0,
+        x1: 400,
+        flagg: [
+          { x: 100, y: 120, tekst: 'Bolig' },
+          { x: 120, y: 130, tekst: 'Brønn' },
+          { x: Number.NaN, y: 10, tekst: 'Feil' },
+        ],
+      }),
+    );
+    utenNaN(html);
+    expect(html).toContain('Bolig');
+    expect(html).toContain('Brønn');
+    expect(html).not.toContain('Feil');
+    expect((html.match(/<line/g) ?? []).length).toBe(4);
+  });
+
+  it('FlateForklaring tegner ruter med kant, mønster, stjerner og streker', () => {
+    const html = renderToStaticMarkup(
+      createElement(FlateForklaring, {
+        items: [
+          { label: 'Omvendt polaritet', farge: GEO.polaritet.omvendt },
+          { label: '0–200 m', farge: GEO.hoydelag[0]! },
+          { label: 'Sand', farge: GEO.bergart.sand, form: 'monster', monster: 'sand' },
+          { label: 'Jordskjelv', farge: GEO.fare[1]!, form: 'stjerne' },
+          { label: 'Vannskille', farge: GEO.vannskille, form: 'linje', stiplet: true },
+        ],
+      }),
+    );
+    expect(html).toContain('viz-legend');
+    expect(html).toContain('var(--geo-pol-omvendt-line)');
+    expect(html).toContain('var(--viz-muted)');
+    expect(html).toContain('<pattern');
+    expect((html.match(/<li/g) ?? []).length).toBe(5);
   });
 });
