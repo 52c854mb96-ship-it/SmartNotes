@@ -151,10 +151,115 @@ function hellingTrinn(a: SnittPunkt, b: SnittPunkt): number {
 /** Omtrentlig bredde på en tekst i figurens enheter (Txt: 17 · size · f). */
 const tekstBredde = (s: string, size: number, f: number) => s.length * 0.58 * 17 * size * f;
 
+/** Krysser strekene a0–a1 og b0–b1 hverandre (ikke bare i et endepunkt)? */
+function strekerKrysser(a0: SnittPunkt, a1: SnittPunkt, b0: SnittPunkt, b1: SnittPunkt): boolean {
+  const o = (p: SnittPunkt, q: SnittPunkt, r: SnittPunkt) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const d1 = o(b0, b1, a0);
+  const d2 = o(b0, b1, a1);
+  const d3 = o(a0, a1, b0);
+  const d4 = o(a0, a1, b1);
+  return d1 * d2 < -1e-9 && d3 * d4 < -1e-9;
+}
+
+/** Avstanden fra punktet p til streken a–b. */
+function avstandTilStrek(p: SnittPunkt, a: SnittPunkt, b: SnittPunkt): number {
+  const vx = b[0] - a[0];
+  const vy = b[1] - a[1];
+  const l2 = vx * vx + vy * vy;
+  const t = l2 > 0 ? clamp01(((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / l2) : 0;
+  return Math.hypot(p[0] - a[0] - t * vx, p[1] - a[1] - t * vy);
+}
+
+/** Ett punkt som en etikett i en kolonne peker på: hvor punktet er, høyden etiketten trenger og hvor streken treffer den. */
+export interface KolonnePunkt {
+  x: number;
+  y: number;
+  /** Høyden etiketten trenger (tekst og eventuell undertekst, med luft). */
+  hoyde: number;
+  /** Hvor streken treffer etiketten, målt fra midten av den (negativ = over midten). Standard 0. */
+  strek?: number;
+}
+
 /**
- * Etiketter i en kolonne ved siden av en blokk, som SnittEtiketter, men rekkefølgen kan følge x (langs en bre eller en
- * elv fra venstre mot høyre) i stedet for y. Når punktene ligger langs en flate som faller mot høyre, krysser strekene
- * da ikke hverandre. Etikettene flyttes så de ikke overlapper, også når teksten vokser på mobil.
+ * Plasserer etiketter i en kolonne til høyre for punktene de peker på (strekene går fra punktet til `kolonneX`). Prøver
+ * flere rekkefølger (etter y, etter x og etter skrå linjer gjennom punktene; rekkefølgen avgjør hvem som viker når det er
+ * trangt, ellers står etiketten i høyde med punktet) og velger den som gir minst rot: hvert kryss
+ * mellom to streker og hver strek tett forbi et annet punkt teller som mye skråning, så noen få litt skrå streker vinner
+ * over et kryss, men ikke over en hel vifte av lange skrå streker. Etikettene flyttes så de ikke
+ * overlapper og holder seg mellom `topp` og `bunn` (snittFordelEtiketter). Gir midten (y) til hver etikett i samme
+ * rekkefølge som `punkter`; ugyldige punkter får NaN-fri plass øverst. `foretrukket` ('x' eller 'y') vinner ved likhet.
+ *   const midt = kolonneEtiketter(punkter, x + w + 18, topp, bunn);
+ */
+export function kolonneEtiketter(
+  punkter: readonly KolonnePunkt[],
+  kolonneX: number,
+  topp: number,
+  bunn: number,
+  foretrukket: 'x' | 'y' = 'y',
+): number[] {
+  const n = punkter.length;
+  if (n === 0) return [];
+  const lo = fin(topp);
+  const hi = Math.max(lo, fin(bunn, lo));
+  const X = fin(kolonneX);
+  const P = punkter.map((p): SnittPunkt => [fin(p.x, X), fin(p.y, lo)]);
+  const hoyder = punkter.map((p) => Math.max(0, fin(p.hoyde)));
+  const strek = punkter.map((p) => fin(p.strek));
+  const idx = Array.from({ length: n }, (_, i) => i);
+  const etter = (key: (i: number) => number) => [...idx].sort((a, b) => key(a) - key(b) || a - b);
+  // Rekkefølger å prøve; etiketten ønsker seg alltid til høyden av punktet sitt (vannrett strek), og rekkefølgen
+  // avgjør bare hvem som viker når det er trangt
+  const kandidater: number[][] = [];
+  const prov = (orden: number[]) => kandidater.push(orden);
+  const xOrden = etter((i) => P[i]![0]);
+  const yOrden = etter((i) => P[i]![1]);
+  if (foretrukket === 'x') prov(xOrden);
+  prov(yOrden);
+  if (foretrukket !== 'x') prov(xOrden);
+  for (const m of [-1, -0.75, -0.5, -0.35, -0.2, -0.1, 0.1, 0.2, 0.35, 0.5, 0.75, 1]) {
+    prov(etter((i) => P[i]![1] + m * (X - P[i]![0])));
+  }
+  // Et kryss koster like mye som om strekene til sammen var ca. åtte etiketthøyder skråere, en strek tett forbi et
+  // annet punkt ca. tre: noen få litt skrå streker er bedre enn kryss, men en hel vifte av lange skrå streker er verre.
+  const hMiddel = hoyder.reduce((a, b) => a + b, 0) / n || 1;
+  let best: number[] | null = null;
+  let bestKost = Infinity;
+  const sett = new Set<string>();
+  for (const orden of kandidater) {
+    const navn = orden.join(',');
+    if (sett.has(navn)) continue;
+    sett.add(navn);
+    // Ønsket plass i rekkefølgen, aldri over etiketten før (så rekkefølgen holder)
+    const onsket = new Array<number>(n).fill(lo);
+    let forrige = -Infinity;
+    for (const i of orden) {
+      const v = Math.max(P[i]![1], forrige + 0.01);
+      onsket[i] = v;
+      forrige = v;
+    }
+    const c = snittFordelEtiketter(onsket, hoyder, lo, hi);
+    const ende = idx.map((i): SnittPunkt => [X - 12, c[i]! + strek[i]!]);
+    let kryss = 0;
+    let gjennom = 0;
+    let skraa = 0;
+    for (let i = 0; i < n; i++) {
+      skraa += Math.abs(ende[i]![1] - P[i]![1]);
+      for (let j = i + 1; j < n; j++) if (strekerKrysser(P[i]!, ende[i]!, P[j]!, ende[j]!)) kryss++;
+      for (let j = 0; j < n; j++) if (j !== i && avstandTilStrek(P[j]!, P[i]!, ende[i]!) < 4) gjennom++;
+    }
+    const kost = kryss * 8 * hMiddel + gjennom * 3 * hMiddel + skraa;
+    if (kost < bestKost - 1e-6) {
+      bestKost = kost;
+      best = c;
+    }
+  }
+  return best ?? new Array<number>(n).fill(lo);
+}
+
+/**
+ * Etiketter i en kolonne ved siden av en blokk, som SnittEtiketter, men rekkefølgen velges så strekene krysser
+ * hverandre minst mulig (kolonneEtiketter): langs en bre eller en elv er det ofte rekkefølgen etter x, ellers etter y.
+ * Etikettene flyttes så de ikke overlapper, også når teksten vokser på mobil.
  */
 function Etikettkolonne({
   x,
@@ -174,22 +279,25 @@ function Etikettkolonne({
   const k = useGeoScale();
   const size = 0.8;
   const fs = 17 * size * f;
-  const synlige = etiketter
-    .filter((e) => Number.isFinite(e.x) && Number.isFinite(e.y) && e.tekst)
-    .sort((a, b) => (orden === 'x' ? a.x - b.x : a.y - b.y));
+  const synlige = etiketter.filter((e) => Number.isFinite(e.x) && Number.isFinite(e.y) && e.tekst);
   if (synlige.length === 0) return null;
   const hoyder = synlige.map((e) => fs * 1.12 + (e.undertekst ? fs * 0.86 : 0) + 4);
-  // Ønsket plass: punktets y, men aldri over etiketten før (så rekkefølgen holder)
-  const onsket: number[] = [];
-  synlige.forEach((e, i) => onsket.push(i === 0 ? e.y : Math.max(e.y, onsket[i - 1]! + 0.01)));
-  const c = snittFordelEtiketter(onsket, hoyder, topp, bunn);
+  // Streken treffer første linje: midten av den, målt fra midten av etiketten
+  const strek = synlige.map((e, i) => (e.undertekst ? -(hoyder[i]! - 4) / 2 + fs * 0.8 - fs * 0.33 : 0));
+  const c = kolonneEtiketter(
+    synlige.map((e, i) => ({ x: e.x, y: e.y, hoyde: hoyder[i]!, strek: strek[i]! })),
+    x,
+    topp,
+    bunn,
+    orden,
+  );
   return (
     <g>
       {synlige.map((e, i) => {
         const midt = c[i]!;
         const hh = hoyder[i]! - 4;
         const linje1 = midt - hh / 2 + fs * 0.8;
-        const strekY = e.undertekst ? linje1 - fs * 0.33 : midt;
+        const strekY = midt + strek[i]!;
         return (
           <g key={`${e.tekst}-${i}`} opacity={e.dim ? 0.45 : undefined}>
             <polyline
@@ -1434,7 +1542,7 @@ function flakRad(seed: number, dekning: number, tykkelse: number, q0: number, q1
   if (!(dekning > 0.005)) return [];
   const rnd = sceneRandom(seed);
   const hel = dekning >= 0.985;
-  const n = hel ? 1 : Math.max(1, Math.round(3 + 4 * dekning));
+  const n = hel ? 1 : Math.max(1, Math.round(2 + 4 * dekning));
   const wf = Array.from({ length: n }, () => 0.6 + 0.8 * rnd());
   const wg = Array.from({ length: n + 1 }, () => 0.3 + 1.4 * rnd());
   const sf = wf.reduce((a, b) => a + b, 0);
@@ -1570,7 +1678,8 @@ function isbreOppsett(p: IsbreProps, f: number): IsbreOppsett | null {
     return { type, w, h, dx, dy, k, f: ff, m, yZ, xU, moho, rammeTopp: topp - dy - 2 };
   }
   const m = havisModell(p);
-  const mPx = 0.07 * h;
+  // Piksler per meter: etter høyden, men aldri så mye at flakene blir høye klosser i en smal figur (mobil)
+  const mPx = Math.min(0.07 * h, 0.02 * w);
   const fjell = m.isfjell ? { x: m.isfjell.u * w, bredde: m.isfjell.bredde * w, hoyde: 0.24 * h, kjol: Math.min(0.82 * h, 0.24 * h * 3.3) } : null;
   let topp = -m.tykkelse * mPx * (FRIBORD + 0.06) - dy;
   for (const rad of m.rader) for (const fl of rad) if (fl.rygg) topp = Math.min(topp, -fl.t * mPx * (FRIBORD + 0.4) - fl.q1 * dy);
@@ -1622,13 +1731,24 @@ function byggIsbreGeometri(p: IsbreProps, o: IsbreOppsett): IsbreGeometri {
       }
       if (uE !== null && uE < m.uf - 0.03) ankere.ablasjon = pt(xU((uE + m.uf) / 2) + 0.5 * dx, yR(m.flate((uE + m.uf) / 2)) - 0.5 * dy);
       if (ekteE && uE !== null) ankere.likevektslinje = pt(xU(uE) + 0.5 * dx, yR(m.flate(uE)) - 0.5 * dy);
-      const uc = m.sprekker[0];
-      if (uc !== undefined) ankere.sprekker = pt(xU(uc), yR(m.flate(uc)) + 2);
       if (p.sprekker !== false) ankere.randkloft = pt(xU(m.u0 + 0.014), yR(m.flate(m.u0 + 0.014)) + 3);
       if (p.sidemorene !== false) {
         const us = lerp(uE ?? m.u0 + 0.2, m.uf, 0.7);
         ankere.sidemorene = pt(xU(us) + 0.9 * dx, yR(m.flate(us)) - 0.9 * dy - 2);
       }
+      // Sprekken som står lengst fra de andre ankerne, så to prikker ikke havner oppå hverandre (firn og isfall)
+      const andre = [ankere.firn, ankere.likevektslinje, ankere.breis, ankere.front, ankere.sidemorene].filter((q) => q !== undefined);
+      let uc: number | undefined;
+      let lengst = -1;
+      for (const u of m.sprekker) {
+        const q = pt(xU(u), yR(m.flate(u)) + 2);
+        const d = andre.length ? Math.min(...andre.map((a) => Math.hypot(a.x - q.x, a.y - q.y))) : 0;
+        if (d > lengst + 1e-6) {
+          lengst = d;
+          uc = u;
+        }
+      }
+      if (uc !== undefined) ankere.sprekker = pt(xU(uc), yR(m.flate(uc)) + 2);
     }
     const uB = m.harIs ? lerp(0.36, m.uf, 0.55) : 0.5;
     if (m.till(uB) > 0) ankere.bunnmorene = pt(xU(uB), yR(m.berg(uB) + m.till(uB) / 2));
@@ -1803,8 +1923,10 @@ function Klammer({ x0, x1, y, tekst, anker, min }: { x0: number; x1: number; y: 
   if (!(x1 - x0 > 6)) return null;
   const b = tekstBredde(tekst, 0.8, f);
   const passer = b <= x1 - x0 - 6;
-  // Teksten ut fra enden som vender bort fra naboen, men ikke ut av figuren til venstre
-  let tx = passer ? (x0 + x1) / 2 : anker === 'end' ? x1 - 4 : x0 + 4;
+  // Teksten ut fra enden som vender bort fra naboen, men ikke ut av figuren til venstre. Luften mot grensen vokser med
+  // teksten, så to klammer som møtes ikke får tekstene kant i kant på mobil.
+  const luft = 0.45 * 17 * 0.8 * f;
+  let tx = passer ? (x0 + x1) / 2 : anker === 'end' ? x1 - luft : x0 + luft;
   let a: 'start' | 'middle' | 'end' = passer ? 'middle' : anker;
   if (!passer && anker === 'end' && tx - b < min) {
     tx = Math.max(min, x0);
@@ -2149,7 +2271,7 @@ function DalbreTegning({ p, o, x, y }: { p: IsbreProps; o: DalbreOppsett; x: num
   const xf = xU(m.uf) + 0.5 * dx;
   // Når akkumulasjonsteksten må stå til venstre for klammeren men ikke får plass, står ablasjonsklammeren en rad høyere
   const akkTekst = soneTekst('Akkumulasjonsområde', 'Akkumulasjon', xe - xa, f);
-  const akkTekstForBred = tekstBredde(akkTekst, 0.8, f) > xe - xa - 6 && xe - 4 - tekstBredde(akkTekst, 0.8, f) < -x + 4;
+  const akkTekstForBred = tekstBredde(akkTekst, 0.8, f) > xe - xa - 6 && xe - 0.45 * 17 * 0.8 * f - tekstBredde(akkTekst, 0.8, f) < -x + 4;
 
   return (
     <g transform={`translate(${r2(x)} ${r2(y)})`}>
@@ -2573,6 +2695,7 @@ function HavisTegning({ p, o, x, y }: { p: IsbreProps; o: HavisOppsett; x: numbe
     const kropp = `M${r2(xa)} ${r2(top + rr)}Q${r2(xa)} ${r2(top)} ${r2(xa + rr)} ${r2(top)}H${r2(xb - rr)}Q${r2(xb)} ${r2(top)} ${r2(xb)} ${r2(top + rr)}V${r2(bunn - rr)}Q${r2(xb)} ${r2(bunn)} ${r2(xb - rr * 1.5)} ${r2(bunn)}H${r2(xa + rr * 1.5)}Q${r2(xa)} ${r2(bunn)} ${r2(xa)} ${r2(bunn - rr)}Z`;
     let seil = '';
     let kjol = '';
+    let blokker = '';
     if (fl.rygg) {
       const xr = xU(fl.rygg.u);
       const bs = (fl.rygg.bredde * w) / 2;
@@ -2594,8 +2717,27 @@ function HavisTegning({ p, o, x, y }: { p: IsbreProps; o: HavisOppsett; x: numbe
         [xr + bk, bunn - 0.5],
       ];
       kjol = sti(kp, true);
+      // Isblokker i kjølen (skrugarden er brukne flak som er skjøvet ned): små skrå firkanter, klippet til kjølen
+      const rb = sceneRandom(i * 13 + fin(p.seed, 1) * 7 + 3);
+      const nb = Math.max(4, Math.min(12, Math.round(bk / 8)));
+      for (let j = 0; j < nb; j++) {
+        const bx = xr + (rb() - 0.5) * 1.5 * bk;
+        const by = bunn + (0.06 + 0.7 * rb()) * hk;
+        const bl = (0.2 + 0.18 * rb()) * hk;
+        const bh = bl * (0.4 + 0.3 * rb());
+        const v = (rb() - 0.5) * 1.4;
+        const c = Math.cos(v);
+        const sn = Math.sin(v);
+        const hj = [
+          [-bl / 2, -bh / 2],
+          [bl / 2, -bh / 2],
+          [bl / 2, bh / 2],
+          [-bl / 2, bh / 2],
+        ].map(([a, b]): SnittPunkt => [bx + a! * c - b! * sn, by + a! * sn + b! * c]);
+        blokker += sti(hj, true);
+      }
     }
-    return { i, xa, xb, top, bunn, kropp, seil, kjol, sno: snoT(fl) };
+    return { i, xa, xb, top, bunn, kropp, seil, kjol, blokker, sno: snoT(fl) };
   });
   // Lysstriper ned i vannet under råkene
   const raaker: [number, number][] = [];
@@ -2692,9 +2834,18 @@ function HavisTegning({ p, o, x, y }: { p: IsbreProps; o: HavisOppsett; x: numbe
       <LinearGradient
         id={`${uid}-flak`}
         stops={[
+          // Fribordet (ca. 10 %) er lyst; under vannlinja ser vi isen gjennom vannet
           [0, tint(isFarge, 0.2)],
-          [0.15, isFarge],
-          [1, mix(isFarge, SCENE.water, 0.35)],
+          [FRIBORD, isFarge],
+          [FRIBORD + 0.03, mix(isFarge, SCENE.water, 0.26)],
+          [1, mix(isFarge, SCENE.water, 0.48)],
+        ]}
+      />
+      <LinearGradient
+        id={`${uid}-kjol`}
+        stops={[
+          [0, mix(isFarge, SCENE.water, 0.3)],
+          [1, mix(isFarge, SCENE.waterDeep, 0.55)],
         ]}
       />
       <rect x={0} y={0} width={r2(w)} height={r2(h)} fill={`url(#${uid}-vann)`} />
@@ -2718,7 +2869,18 @@ function HavisTegning({ p, o, x, y }: { p: IsbreProps; o: HavisOppsett; x: numbe
       )}
       {flakSnitt.map((fl) => (
         <g key={fl.i} strokeLinejoin="round">
-          {fl.kjol && <path d={fl.kjol} fill={shade(isFarge, 0.06)} stroke={GEO.havis.line} strokeWidth={0.8 * s} />}
+          {fl.kjol && (
+            <g>
+              <defs>
+                <clipPath id={`${uid}-kjol-${fl.i}`}>
+                  <path d={fl.kjol} />
+                </clipPath>
+              </defs>
+              <path d={fl.kjol} fill={`url(#${uid}-kjol)`} />
+              <path d={fl.blokker} clipPath={`url(#${uid}-kjol-${fl.i})`} fill={mix(isFarge, SCENE.water, 0.18)} stroke={GEO.havis.line} strokeWidth={0.5 * s} opacity={0.55} />
+              <path d={fl.kjol} fill="none" stroke={GEO.havis.line} strokeWidth={0.8 * s} />
+            </g>
+          )}
           <path d={fl.kropp} fill={`url(#${uid}-flak)`} stroke={GEO.havis.line} strokeWidth={1 * s} />
           {fl.bunn - fl.top > 12 && (
             <path
@@ -2791,8 +2953,10 @@ function isbreEtiketter(p: IsbreProps, g: IsbreGeometri): SnittEtikett[] {
  *     ablasjonsområdet. `soner` gir klammer for de to områdene.
  *   - 'innlandsis': isdekke (tykkelse som prop) over et land med fjell og kyst. Med `isostasi` vises jordskorpa og
  *     mantelen (ikke i målestokk), og skorpa er trykt ned, også etter at isen er borte (`nedsynking`).
- *   - 'havis': flak på havet med omtrent 90 % under vann, snø, skrugarder, råker og valgfrie smeltedammer, og et isfjell
- *     (breis) til sammenligning. Isfjellet er ikke i samme målestokk som flakene.
+ *   - 'havis': flak på havet med omtrent 90 % under vann, snø, skrugarder (med kjøl av brukne flak), råker og valgfrie
+ *     smeltedammer, og et isfjell (breis) til sammenligning. Isfjellet er ikke i samme målestokk som flakene. h er hvor
+ *     dypt havet i snittet går; flakene står øverst og blir ikke tykkere enn 0,02 · w per meter, så på mobil trengs bare
+ *     litt mer høyde til etikettene (f.eks. 170 + 110 · (f − 1)), ikke geoHoyde.
  * Etikettene står i en kolonne fra x + w + dx + 18. Barna får geometrien (ankerpunkter til piler og etiketter).
  *   <Isbre x={20} y={110} w={600} h={250} likevektslinje={ela} front={likevektsFront(ela) ?? 0} soner etiketter />
  *   <Isbre type="innlandsis" x={20} y={60} w={600} h={300} tykkelse={tykk} isostasi nedsynking={ned} />

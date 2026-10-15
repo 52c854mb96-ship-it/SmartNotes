@@ -653,7 +653,12 @@ export interface KjemiKlasse {
   beskrivelse: string;
 }
 
-/** Kilde: IUGS (Le Maitre mfl. 2002), grensene 45, 52 og 63 % SiO₂. */
+/**
+ * Kjemien i magmatiske bergarter etter SiO₂-innholdet (vektprosent): ultrabasisk under 45 %, basisk 45–52 %,
+ * intermediær 52–63 % og sur over 63 %, med en kort beskrivelse av farge og hvor seigt magmaet er. Se `kjemiFraSiO2`.
+ *
+ * Kilde: IUGS (Le Maitre mfl. 2002), grensene 45, 52 og 63 % SiO₂.
+ */
 export const KJEMI_KLASSER: readonly KjemiKlasse[] = [
   { kjemi: 'ultrabasisk', navn: 'ultrabasisk', sio2: [35, 45], beskrivelse: 'Grønn til svart, mest olivin. Mantelen.' },
   { kjemi: 'basisk', navn: 'basisk', sio2: [45, 52], beskrivelse: 'Mørk; lettflytende magma, rolige utbrudd.' },

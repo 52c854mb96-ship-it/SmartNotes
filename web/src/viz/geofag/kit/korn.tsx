@@ -6,8 +6,8 @@
  * Samme stil som scene-kit-et: toninger fra core.tsx, kontur, lys fra øvre venstre og ingen filtre. Kornene har
  * bergartsfargen fra `GEO.bergart` (samme som mønstrene), porevæskene fargene fra GEO (vann blått, olje grønn og gass
  * rød som hos Sokkeldirektoratet). Kornene vokser på mobil med `useGeoScale`. De rene hjelperne (`kornOmriss`, `kornSti`,
- * `pakkKorn`, `porositetIUtsnitt`, `porositetEtterSortering`, `voronoiCeller`, `punktIPolygon`, `polygonAreal`) kan
- * brukes i model.ts og testes uten React.
+ * `kornRamme`, `pakkKorn`, `porositetIUtsnitt`, `porositetEtterSortering`, `voronoiCeller`, `voronoiMosaikk`,
+ * `punktIPolygon`, `polygonAreal`) kan brukes i model.ts og testes uten React.
  */
 import { useMemo, type ReactNode } from 'react';
 import { useTextScale } from '../../kit/controls';
@@ -175,6 +175,22 @@ export function kornSti(x: number, y: number, r: number, omriss: KornOmriss | Ko
   return `${d}Z`;
 }
 
+/**
+ * Hvor langt et korn med radius 1 rekker ut fra midten til hver side, etter dreiingen: `{ venstre, hoyre, topp, bunn }`
+ * (venstre og topp er negative, y nedover). Gang med radiusen (d/2, og `useGeoScale` når kornet vokser på mobil) for å
+ * sette en etikett rett over et korn som ligger på bunnen (`anker="bunn"`): toppen er y − (bunn − topp) · r. Ren funksjon.
+ */
+export function kornRamme(valg: KornOmrissValg & { rotate?: number } = {}): { venstre: number; hoyre: number; topp: number; bunn: number } {
+  const o = kornOmriss(valg);
+  const pts = o.kontur.map((p) => plasser(p, 0, 0, 1, fin(valg.rotate, 0)));
+  return {
+    venstre: Math.min(...pts.map((p) => p[0])),
+    hoyre: Math.max(...pts.map((p) => p[0])),
+    topp: Math.min(...pts.map((p) => p[1])),
+    bunn: Math.max(...pts.map((p) => p[1])),
+  };
+}
+
 /** Om punktet (x, y) ligger inne i polygonet (jevn–odde-regelen). */
 export function punktIPolygon(x: number, y: number, poly: readonly P[]): boolean {
   let inne = false;
@@ -195,46 +211,78 @@ export function polygonAreal(poly: readonly P[]): number {
 
 /* ================================================================================================ Mosaikk (Voronoi) */
 
-/** Klipper et konvekst polygon med halvplanet der (p − m) · n ≤ 0 (Sutherland–Hodgman). */
-function klipp(polygon: P[], m: P, n: P): P[] {
+/**
+ * Klipper et konvekst polygon med halvplanet der (p − m) · n ≤ 0 (Sutherland–Hodgman). `merker[i]` hører til kanten fra
+ * hjørne i til i + 1, og den nye kanten langs klippelinjen får merket `nytt` (naboen i en Voronoi-mosaikk).
+ */
+function klipp(polygon: P[], merker: number[], m: P, n: P, nytt: number): { p: P[]; merker: number[] } {
   const ut: P[] = [];
+  const utMerker: number[] = [];
   const side = (q: P) => (q[0] - m[0]) * n[0] + (q[1] - m[1]) * n[1];
   for (let i = 0; i < polygon.length; i++) {
     const a = polygon[i]!;
     const b = polygon[(i + 1) % polygon.length]!;
     const sa = side(a);
     const sb = side(b);
-    if (sa <= 0) ut.push(a);
+    const merke = merker[i] ?? -1;
+    if (sa <= 0) {
+      ut.push(a);
+      utMerker.push(merke);
+    }
     if (sa <= 0 !== sb <= 0) {
       const t = sa / (sa - sb);
       ut.push([a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])]);
+      // Går kanten ut av halvplanet, følger neste kant klippelinjen; går den inn, fortsetter den langs den gamle kanten
+      utMerker.push(sa <= 0 ? nytt : merke);
     }
   }
-  return ut;
+  return { p: ut, merker: utMerker };
+}
+
+/** Resultatet av `voronoiMosaikk`: cellene og hvilken nabo som ligger bak hver kant. */
+export interface VoronoiMosaikk {
+  /** Cellene som konvekse polygoner, i samme rekkefølge som punktene (tom liste når cellen ble klippet bort). */
+  celler: P[][];
+  /** `naboer[i][e]` er punktet på den andre siden av kanten fra hjørne e til e + 1 i celle i, eller −1 ved boksen. */
+  naboer: number[][];
 }
 
 /**
- * Voronoi-cellene til punktene innenfor boksen: hver celle er området som ligger nærmere sitt punkt enn noe annet. Gir
- * en mosaikk av korn som griper inn i hverandre, som krystallene i granitt eller marmor (`Steinprove`). `naboAvstand`
- * begrenser hvilke punkter som sjekkes (standard alle). Ren funksjon.
+ * Voronoi-mosaikken til punktene innenfor boksen, med naboene: hver celle er området som ligger nærmere sitt punkt enn
+ * noe annet, og for hver kant vet vi hvilken celle som ligger bak. Da kan nabokorn av samme mineral slås sammen til
+ * større, uregelmessige korn, og bare korngrensene tegnes (`Steinprove`). `naboAvstand` begrenser hvilke punkter som
+ * sjekkes (standard alle). Ren funksjon.
  */
-export function voronoiCeller(punkter: readonly P[], boks: { x0: number; y0: number; x1: number; y1: number }, naboAvstand = Infinity): P[][] {
+export function voronoiMosaikk(punkter: readonly P[], boks: { x0: number; y0: number; x1: number; y1: number }, naboAvstand = Infinity): VoronoiMosaikk {
   const ramme: P[] = [
     [boks.x0, boks.y0],
     [boks.x1, boks.y0],
     [boks.x1, boks.y1],
     [boks.x0, boks.y1],
   ];
-  return punkter.map((s, i) => {
-    let celle = ramme;
-    for (let j = 0; j < punkter.length && celle.length > 0; j++) {
+  const celler: P[][] = [];
+  const naboer: number[][] = [];
+  punkter.forEach((s, i) => {
+    let celle = { p: ramme, merker: [-1, -1, -1, -1] };
+    for (let j = 0; j < punkter.length && celle.p.length > 0; j++) {
       if (j === i) continue;
       const t = punkter[j]!;
       if (Math.abs(t[0] - s[0]) > naboAvstand || Math.abs(t[1] - s[1]) > naboAvstand) continue;
-      celle = klipp(celle, [(s[0] + t[0]) / 2, (s[1] + t[1]) / 2], [t[0] - s[0], t[1] - s[1]]);
+      celle = klipp(celle.p, celle.merker, [(s[0] + t[0]) / 2, (s[1] + t[1]) / 2], [t[0] - s[0], t[1] - s[1]], j);
     }
-    return celle;
+    celler.push(celle.p);
+    naboer.push(celle.merker);
   });
+  return { celler, naboer };
+}
+
+/**
+ * Voronoi-cellene til punktene innenfor boksen: hver celle er området som ligger nærmere sitt punkt enn noe annet. Gir
+ * en mosaikk av korn som griper inn i hverandre, som krystallene i granitt eller marmor (`Steinprove`). `naboAvstand`
+ * begrenser hvilke punkter som sjekkes (standard alle). Ren funksjon; `voronoiMosaikk` gir også naboene.
+ */
+export function voronoiCeller(punkter: readonly P[], boks: { x0: number; y0: number; x1: number; y1: number }, naboAvstand = Infinity): P[][] {
+  return voronoiMosaikk(punkter, boks, naboAvstand).celler;
 }
 
 /* ================================================================================================ Pakking */

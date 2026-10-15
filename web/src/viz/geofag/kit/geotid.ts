@@ -208,6 +208,10 @@ export interface GeoHendelse {
  * vulkanisme i karbon og perm), kildebergarten i Nordsjøen (sen jura) og Nord-Atlanteren som åpner seg omtrent 55.
  * Moderne mennesker omtrent 300 000 år, siste istids maksimum omtrent 20 000 år siden, holocen 11 700 år.
  */
+/**
+ * Viktige hendelser i jordas historie (alder i millioner år, eldst først), til hendelsesmerkene på en `GeoTidslinje`:
+ * `<GeoTidslinje … hendelser={GEO_HENDELSER} />`. `omtrent` sier at alderen er omtrentlig, og `norsk` merker norsk geologi.
+ */
 export const GEO_HENDELSER: readonly GeoHendelse[] = [
   { alder: 4567, tekst: 'Jorda og solsystemet dannes', omtrent: false },
   { alder: 4400, tekst: 'Eldste kjente mineralkorn (zirkon)', omtrent: true },

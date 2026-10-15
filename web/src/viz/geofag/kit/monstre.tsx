@@ -39,6 +39,7 @@ export const MONSTER_NAVN: Record<MonsterId, string> = {
   breelv: 'Breelvavsetning',
   leire: 'Leire',
   kvikkleire: 'Kvikkleire',
+  silt: 'Silt',
   sand: 'Sand',
   grus: 'Grus',
   torv: 'Torv',
@@ -145,7 +146,8 @@ export interface LagFlateProps {
 
 /**
  * Ett lag i et snitt: formen fylt med mønsteret, kontur i mønsterets strekfarge og (standard) svak toning med lys
- * ovenfra, som i en lærebokillustrasjon. Krever `<LagMonstre id={monstre} />` i samme figur.
+ * ovenfra, som i en lærebokillustrasjon. Krever `<LagMonstre id={monstre} />` i samme figur. Ankerpunkt: ingen egen
+ * plassering; formen (`points` eller stien `d`) er i figurens koordinater.
  *   <LagFlate points={[[0, 200], [800, 180], [800, 260], [0, 260]]} type="sandstein" monstre={lag.id} />
  */
 export function LagFlate({ d, points, type, monstre = LAG_MONSTRE_ID, lys = true, utenKontur, dim, children }: LagFlateProps) {
@@ -463,6 +465,21 @@ const MONSTRE: Record<MonsterId, TileSpec> = {
     w: 12,
     h: 6,
     draw: ({ line, u }) => <path d="M1 1.5H5M7 4.5H11" stroke={line} strokeWidth={1.15 * u} strokeLinecap="round" />,
+  },
+  // Løs silt: fine prikker og korte, tynne streker hulter til bulter (siltstein har dem i faste rader)
+  silt: {
+    w: 22,
+    h: 14,
+    draw: ({ line, u }) => (
+      <>
+        <path d="M1.5 3.2H5.5M12 7.4H15.5M5 11.4H8.5" stroke={line} strokeWidth={0.85 * u} strokeLinecap="round" />
+        <circle cx={9} cy={2.6} r={0.62} fill={line} />
+        <circle cx={18.5} cy={4} r={0.62} fill={line} />
+        <circle cx={3.2} cy={8} r={0.62} fill={line} />
+        <circle cx={20} cy={11} r={0.62} fill={line} />
+        <circle cx={13.5} cy={12.2} r={0.62} fill={line} />
+      </>
+    ),
   },
   sand: {
     w: 26,

@@ -64,6 +64,38 @@ describe('krystallGeometri', () => {
     expect(topp.lys).toBeGreaterThan(Math.min(...synlige.map((f) => f.lys)));
   });
 
+  it('lyset kommer fra øvre venstre også når krystallen vippes', () => {
+    for (const vipp of [-40, 0, 40]) {
+      const g = krystallGeometri('terning', { dreiing: 30, helning: 25, vipp })!;
+      const synlige = g.flater.filter((f) => f.synlig);
+      // Flaten som vender mest mot øvre venstre i bildet er den lyseste
+      const retning = (f: (typeof synlige)[number]) => {
+        const cx = f.punkter.reduce((s, q) => s + q[0], 0) / f.punkter.length;
+        const cy = f.punkter.reduce((s, q) => s + q[1], 0) / f.punkter.length;
+        return -cx - cy;
+      };
+      const mest = synlige.reduce((b, f) => (retning(f) > retning(b) ? f : b), synlige[0]!);
+      expect(mest.lys).toBe(Math.max(...synlige.map((f) => f.lys)));
+    }
+  });
+
+  it('romboederen ligger på en flate og ser ikke ut som en terning: flatene er skjeve romber', () => {
+    const g = krystallGeometri('rombeeder')!;
+    const synlige = g.flater.filter((f) => f.synlig);
+    expect(synlige).toHaveLength(3);
+    expect(synlige.find((f) => f.del === 'ende')!.lys).toBe(Math.max(...synlige.map((f) => f.lys)));
+    const vinkler = synlige.flatMap((f) =>
+      f.punkter.map((p, i) => {
+        const a = f.punkter[(i + f.punkter.length - 1) % f.punkter.length]!;
+        const c = f.punkter[(i + 1) % f.punkter.length]!;
+        const v1 = [a[0] - p[0], a[1] - p[1]];
+        const v2 = [c[0] - p[0], c[1] - p[1]];
+        return (Math.acos((v1[0]! * v2[0]! + v1[1]! * v2[1]!) / Math.hypot(v1[0]!, v1[1]!) / Math.hypot(v2[0]!, v2[1]!)) * 180) / Math.PI;
+      }),
+    );
+    expect(Math.min(...vinkler.map((v) => Math.abs(v - 90)))).toBeGreaterThan(15);
+  });
+
   it('kvarts har vannrette striper på prismeflatene, zirkon spiss i begge ender', () => {
     const kvarts = krystallGeometri('prisme', { sider: 6 })!;
     expect(kvarts.flater.filter((f) => f.del === 'side' && f.striper.length > 0).length).toBeGreaterThan(0);
@@ -112,6 +144,30 @@ describe('lupeKjegle', () => {
   });
 });
 
+describe('steinproveGeometri: bruddflatene', () => {
+  it('flatene dekker silhuetten uten å overlappe, med lyse og mørke flater', () => {
+    const areal = (p: readonly (readonly [number, number])[]) => Math.abs(p.reduce((s, q, i) => s + q[0] * p[(i + 1) % p.length]![1] - p[(i + 1) % p.length]![0] * q[1], 0)) / 2;
+    for (let seed = 1; seed <= 12; seed++) {
+      const g = steinproveGeometri({ x: 0, y: 0, size: 200, seed })!;
+      const sum = g.flater.reduce((s, f) => s + areal(f.punkter), 0);
+      expect(sum / areal(g.omriss)).toBeGreaterThan(0.97);
+      expect(sum / areal(g.omriss)).toBeLessThan(1.03);
+      // Lys mot lyset og skygge bort fra det
+      expect(Math.max(...g.flater.map((f) => f.lys))).toBeGreaterThan(0.6);
+      expect(Math.min(...g.flater.map((f) => f.lys))).toBeLessThan(0.45);
+    }
+  });
+  it('steinen ligger på en flat underside, ikke på et hjørne', () => {
+    for (let seed = 1; seed <= 12; seed++) {
+      const g = steinproveGeometri({ x: 0, y: 0, size: 200, seed })!;
+      // Minst to hjørner i silhuetten ligger nær bunnen (y = 0), langt fra hverandre
+      const bunn = g.omriss.filter(([, py]) => py > -0.12 * g.hoyde);
+      const xs = bunn.map(([px]) => px);
+      expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(0.25 * g.bredde);
+    }
+  });
+});
+
 describe('steinproveGeometri', () => {
   it('ligger på underlaget med riktig bredde for alle bergartene', () => {
     for (const bergart of BERGART_IDS) {
@@ -123,8 +179,15 @@ describe('steinproveGeometri', () => {
         expect(g.hoyde).toBeGreaterThan(30);
         expect(g.hoyde).toBeLessThan(150);
         expect(punktIPolygon(g.midt[0], g.midt[1], g.omriss)).toBe(true);
-        if (form === 'kantet') expect(g.flater.length).toBeGreaterThan(3);
-        else expect(g.flater).toHaveLength(0);
+        if (form === 'kantet') {
+          // Noen få, brede bruddflater (ikke mange små fasetter), og ryggene mellom dem
+          expect(g.flater.length).toBeGreaterThanOrEqual(3);
+          expect(g.flater.length).toBeLessThanOrEqual(12);
+          expect(g.kanter.length).toBeGreaterThanOrEqual(2);
+        } else {
+          expect(g.flater).toHaveLength(0);
+          expect(g.kanter).toHaveLength(0);
+        }
       }
     }
   });

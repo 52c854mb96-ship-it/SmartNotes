@@ -54,6 +54,10 @@ export interface JordLag {
  * under gammel havbunn, 100–200 km under gamle kontinenter). I den mekaniske inndelingen regnes hele den øvre
  * mantelen under litosfæren med til astenosfæren; den mest seigtflytende delen ligger omtrent 100–250 km ned.
  */
+/**
+ * Jordas lag med dyp (km), tilstand og beskrivelse i to inndelinger: `kjemisk` (skorpe, øvre og nedre mantel, ytre og
+ * indre kjerne) og `mekanisk` (litosfære, astenosfære, nedre mantel, ytre og indre kjerne). Se også `lagVed`.
+ */
 export const JORDAS_LAG: { readonly kjemisk: readonly JordLag[]; readonly mekanisk: readonly JordLag[] } = {
   kjemisk: [
     {
@@ -174,6 +178,10 @@ export function lagVed(dybde: number, inndeling: 'kjemisk' | 'mekanisk' = 'kjemi
  * Kilde: avrundede lærebokverdier i g/cm³: ferskvann 1,000 (ved 4 °C), sjøvann omtrent 1,025, is 0,917 (ren is ved
  * 0 °C), kontinentalskorpe omtrent 2,7, havbunnsskorpe omtrent 2,9 og den øverste mantelen omtrent 3,3 (PREM: 3,38
  * like under Moho). Til isostasi (landheving) og oppdrift.
+ */
+/**
+ * Tettheter i g/cm³ (omtrentlige lærebokverdier): ferskvann, sjøvann, is, kontinentalskorpe, havbunnsskorpe og den
+ * øverste mantelen. Til isostasi (landheving, `isostatiskNedsynking`) og oppdrift (isfjell, havis).
  */
 export const TETTHETER = {
   vann: 1.0,

@@ -3,6 +3,7 @@ import {
   RUNDHETSKLASSER,
   fmtMm,
   kornOmriss,
+  kornRamme,
   kornSti,
   kornpakningGeometri,
   pakkKorn,
@@ -13,6 +14,7 @@ import {
   rundhetVerdi,
   rundhetsklasse,
   voronoiCeller,
+  voronoiMosaikk,
 } from './korn';
 
 describe('rundhet', () => {
@@ -77,6 +79,47 @@ describe('polygoner', () => {
     const sum = celler.reduce((s, c) => s + polygonAreal(c), 0);
     expect(sum).toBeCloseTo(10000, 3);
     celler.forEach((c, i) => expect(punktIPolygon(pts[i]![0], pts[i]![1], c)).toBe(true));
+  });
+
+  it('voronoiMosaikk vet hvilken celle som ligger bak hver kant, og naboene er gjensidige', () => {
+    const pts: [number, number][] = [];
+    for (let i = 0; i < 30; i++) pts.push([((i * 37) % 100) + 0.5, ((i * 61) % 100) + 0.25]);
+    const { celler, naboer } = voronoiMosaikk(pts, { x0: 0, y0: 0, x1: 100, y1: 100 });
+    expect(celler).toEqual(voronoiCeller(pts, { x0: 0, y0: 0, x1: 100, y1: 100 }));
+    celler.forEach((c, i) => {
+      expect(naboer[i]).toHaveLength(c.length);
+      c.forEach((p0, e) => {
+        const j = naboer[i]![e]!;
+        const p1 = c[(e + 1) % c.length]!;
+        if (Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) < 1e-6) return;
+        if (j < 0) {
+          // Kanten ligger på boksen
+          const paaKant = (p: readonly [number, number]) => Math.min(Math.abs(p[0]), Math.abs(p[0] - 100), Math.abs(p[1]), Math.abs(p[1] - 100)) < 1e-6;
+          expect(paaKant(p0) && paaKant(p1)).toBe(true);
+          return;
+        }
+        // Midten av kanten er like langt fra begge punktene, og naboen har cellen som nabo
+        const m = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2];
+        expect(Math.hypot(m[0]! - pts[i]![0], m[1]! - pts[i]![1])).toBeCloseTo(Math.hypot(m[0]! - pts[j]![0], m[1]! - pts[j]![1]), 6);
+        expect(naboer[j]).toContain(i);
+      });
+    });
+  });
+});
+
+describe('kornRamme', () => {
+  it('ligger innenfor enhetssirkelen og følger dreiingen', () => {
+    const r = kornRamme({ rundhet: 0.4, seed: 3, avlang: 0.5 });
+    expect(r.venstre).toBeLessThan(0);
+    expect(r.topp).toBeLessThan(0);
+    expect(r.hoyre).toBeGreaterThan(0);
+    expect(r.bunn).toBeGreaterThan(0);
+    for (const v of [r.venstre, r.hoyre, r.topp, r.bunn]) expect(Math.abs(v)).toBeLessThanOrEqual(1 + 1e-9);
+    // Et avlangt korn er bredere enn høyt, og dreid 90° blir det høyere enn bredt
+    const d = kornRamme({ rundhet: 0.4, seed: 3, avlang: 0.5, rotate: 90 });
+    expect(r.hoyre - r.venstre).toBeGreaterThan(r.bunn - r.topp);
+    expect(d.bunn - d.topp).toBeCloseTo(r.hoyre - r.venstre, 6);
+    expect(kornRamme({ rotate: Number.NaN })).toEqual(kornRamme({}));
   });
 });
 

@@ -188,7 +188,8 @@ export default function GalleriLandskap() {
   const a5 = isbreRute(inn, W, (f) => geoHoyde(f, 250), kol(12));
   const a6 = isbreRute(iso, W, (f) => geoHoyde(f, 290), kol(12));
   const a7 = isbreRute(etter, W, (f) => geoHoyde(f, 250), kol(12));
-  const a8 = isbreRute(havis, W, (f) => geoHoyde(f, 170), kol(22));
+  // Havis har innholdet øverst: på mobil trengs bare plass til etikettene, ikke et dypere hav
+  const a8 = isbreRute(havis, W, (f) => 170 + 110 * (f - 1), kol(22));
   const a9 = isbreRute(isfjell, 400, (f) => geoHoyde(f, 170));
   const a10 = isbreRute(ytter, 400, (f) => geoHoyde(f, 160));
   const b1 = elvRute(lengde, W, (f) => geoHoyde(f, 250), kol(15));

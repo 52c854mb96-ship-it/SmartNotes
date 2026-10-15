@@ -78,6 +78,10 @@ export interface Isotopsystem {
  *   (Pb i zirkon omtrent 550 kJ/mol, Ar i biotitt omtrent 200 kJ/mol osv.).
  * - Måleområder: lærebokverdier, omtrentlige.
  */
+/**
+ * Isotopsystemene uran–bly, kalium–argon og C-14 etter id: mor- og datterisotop, halveringstid (år), forgrening,
+ * mineralene med lukketemperatur, hva som kan dateres og måleområdet (år). Brukes av alle funksjonene i fila.
+ */
 export const ISOTOPER: Readonly<Record<IsotopId, Isotopsystem>> = {
   'u-pb': {
     id: 'u-pb',

@@ -1,6 +1,56 @@
 import type { VizMeta } from '../../types';
 
 /** Geofag 1, tema 2 (Jordas indre og platetektonikk). Deltemaene står i `sections` (som i fysikk). */
-const viz: VizMeta[] = [];
+const viz: VizMeta[] = [
+  {
+    id: 'plategrenser',
+    chapter: '2',
+    sections: ['2.2', '2.3'],
+    title: 'Platene beveger seg: rygg, grop og fjellkjede',
+    summary:
+      'Velg spredningsrygg, subduksjon eller kollisjon, sett platefarten og spill av millioner av år: ny havbunn med magnetiske striper, en plate som dykker ned med jordskjelv og vulkaner, og en fjellkjede som løftes. Se drivkreftene og hvor mantelen smelter.',
+    keywords: [
+      'plategrenser',
+      'platetektonikk',
+      'spredningsrygg',
+      'midthavsrygg',
+      'konstruktiv plategrense',
+      'divergerende plategrense',
+      'subduksjon',
+      'subduksjonssone',
+      'destruktiv plategrense',
+      'konvergerende plategrense',
+      'havgrop',
+      'øybue',
+      'kollisjon',
+      'fjellkjede',
+      'fjellrot',
+      'isostasi',
+      'transformforkastning',
+      'konservativ plategrense',
+      'varmt punkt',
+      'mantelplume',
+      'magnetiske striper',
+      'havbunnsspredning',
+      'platetrekk',
+      'ryggskyv',
+      'mantelkonveksjon',
+      'litosfære',
+      'astenosfære',
+      'dekompresjonssmelting',
+      'solidus',
+      'Wadati–Benioff-sonen',
+      'jordskjelv',
+      'vulkaner',
+      'Den midtatlantiske ryggen',
+      'Island',
+      'Himalaya',
+      'den kaledonske fjellkjeden',
+      'KM2',
+      'KM10',
+    ],
+    load: () => import('./Plategrenser'),
+  },
+];
 
 export default viz;

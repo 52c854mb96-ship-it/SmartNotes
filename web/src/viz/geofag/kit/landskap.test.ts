@@ -13,6 +13,7 @@ import {
   demningMaal,
   elveleieGeometri,
   isbreGeometri,
+  kolonneEtiketter,
   likevektsFront,
   tverrsnittAreal,
   tverrsnittBredde,
@@ -404,5 +405,63 @@ describe('Fjellside, Bekk og Demning', () => {
     expect(svg(createElement(Bekk, { leie: [[0, 0]] }))).toBe('<svg></svg>');
     expect(svg(createElement(Fjellside, { terreng: [[0, 0]], bunn: 100 }))).toBe('<svg></svg>');
     expect(svg(createElement(Demning, { x: 0, y: 0, hoyde: Number.NaN }))).toBe('<svg></svg>');
+  });
+});
+
+describe('kolonneEtiketter', () => {
+  /** Strekene fra punktene til kolonnen (x = X − 12) krysser ikke hverandre. */
+  const krysser = (p: { x: number; y: number }[], c: number[], X: number) => {
+    const o = (a: number[], b: number[], q: number[]) => (b[0]! - a[0]!) * (q[1]! - a[1]!) - (b[1]! - a[1]!) * (q[0]! - a[0]!);
+    let n = 0;
+    for (let i = 0; i < p.length; i++)
+      for (let j = i + 1; j < p.length; j++) {
+        const a0 = [p[i]!.x, p[i]!.y];
+        const a1 = [X - 12, c[i]!];
+        const b0 = [p[j]!.x, p[j]!.y];
+        const b1 = [X - 12, c[j]!];
+        if (o(b0, b1, a0) * o(b0, b1, a1) < 0 && o(a0, a1, b0) * o(a0, a1, b1) < 0) n++;
+      }
+    return n;
+  };
+
+  it('velger en rekkefølge uten kryssende streker og uten overlapp', () => {
+    // Punkter langs en bre som faller mot høyre, pluss et punkt høyt oppe langt til høyre (sidemorene)
+    const p = [
+      { x: 200, y: 350, hoyde: 20 },
+      { x: 210, y: 356, hoyde: 20 },
+      { x: 320, y: 390, hoyde: 20 },
+      { x: 365, y: 440, hoyde: 20 },
+      { x: 385, y: 458, hoyde: 20 },
+      { x: 460, y: 408, hoyde: 20 },
+      { x: 470, y: 465, hoyde: 20 },
+      { x: 590, y: 488, hoyde: 20 },
+    ];
+    const X = 760;
+    const c = kolonneEtiketter(p, X, 300, 560, 'x');
+    expect(c).toHaveLength(p.length);
+    expect(krysser(p, c, X)).toBe(0);
+    const sortert = [...c].sort((a, b) => a - b);
+    for (let i = 1; i < sortert.length; i++) expect(sortert[i]! - sortert[i - 1]!).toBeGreaterThanOrEqual(20 - 1e-6);
+    for (const v of c) {
+      expect(v).toBeGreaterThanOrEqual(310 - 1e-6);
+      expect(v).toBeLessThanOrEqual(550 + 1e-6);
+    }
+  });
+
+  it('holder etikettene ved punktene når det er plass, og tåler ugyldige tall', () => {
+    const c = kolonneEtiketter(
+      [
+        { x: 100, y: 100, hoyde: 18 },
+        { x: 150, y: 200, hoyde: 18 },
+      ],
+      400,
+      0,
+      400,
+    );
+    expect(c[0]).toBeCloseTo(100, 6);
+    expect(c[1]).toBeCloseTo(200, 6);
+    expect(kolonneEtiketter([], 400, 0, 100)).toEqual([]);
+    const u = kolonneEtiketter([{ x: Number.NaN, y: Number.NaN, hoyde: Number.NaN }], Number.NaN, Number.NaN, Number.NaN);
+    expect(u.every(Number.isFinite)).toBe(true);
   });
 });

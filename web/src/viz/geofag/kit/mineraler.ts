@@ -26,6 +26,10 @@ export interface MineralGruppe {
  * Kilde: vanlig inndeling i mineralogien etter aniongruppe (Klein og Dutrow, «Manual of Mineral Science», og
  * Store norske leksikon «mineral»). Rekkefølgen følger hvor viktige gruppene er i jordskorpa.
  */
+/**
+ * Mineralgruppene etter aniongruppe (silikater, karbonater, oksider, sulfider, sulfater, halogenider, fosfater og
+ * grunnstoffer) etter id, med navn, aniongruppe og en kort beskrivelse til elevene.
+ */
 export const MINERALGRUPPER: Readonly<Record<MineralGruppeId, MineralGruppe>> = {
   silikat: {
     id: 'silikat',
@@ -103,6 +107,10 @@ export interface SilikatStruktur {
  * Kilde: silikatklassifikasjonen etter polymeriseringsgrad (Klein og Dutrow, «Manual of Mineral Science»): neso-,
  * soro-, syklo-, ino- (enkle og doble kjeder), fyllo- og tektosilikater. Norske navn som i lærebøkene i geofag.
  * Sortert fra minst til mest sammenkoblet.
+ */
+/**
+ * Silikatstrukturene fra øysilikater til rammesilikater: hvordan SiO₄-tetraedrene er koblet, hvor mange O-atomer hvert
+ * tetraeder deler, forholdet Si : O, eksempler og kjennetegn. Sortert fra minst til mest sammenkoblet.
  */
 export const SILIKATSTRUKTURER: readonly SilikatStruktur[] = [
   {
@@ -1075,6 +1083,10 @@ export interface Rissetest {
  * Kilde: vanlige lærebokverdier (f.eks. Tarbuck og Lutgens, «Earth»): fingernegl 2,5, kobbermynt 3,5, glass 5,5,
  * kniv 5,5, stålfil 6,5 og strekplate (uglasert porselen) omtrent 6,5–7. Alle er omtrentlige; redskapene varierer.
  */
+/**
+ * Redskapene i rissetesten (fingernegl, kobbermynt, kniv, glass, stålfil og strekplate) med omtrentlig hardhet på
+ * Mohs' skala, til `hardhetFraRissetester` og `muligeMineraler`.
+ */
 export const RISSETESTER: readonly Rissetest[] = [
   { id: 'negl', navn: 'fingernegl', hardhet: 2.5 },
   { id: 'kobbermynt', navn: 'kobbermynt', hardhet: 3.5 },
@@ -1096,6 +1108,10 @@ export interface MohsTrinn {
  * Kilde: Mohs' skala med absolutt hardhet målt med sklerometer, slik den gjengis i oppslagsverk (f.eks. engelsk
  * Wikipedia, «Mohs scale»): talk 1, gips 2, kalkspat 14, flusspat 21, apatitt 48, kalifeltspat (ortoklas) 72,
  * kvarts 100, topas 200, korund 400, diamant 1500. Omtrentlige tall; poenget er at trinnene ikke er like store.
+ */
+/**
+ * Mohs' hardhetsskala fra talk (1) til diamant (10) med absolutt hardhet målt med sklerometer (omtrentlig), så en
+ * figur kan vise at trinnene ikke er like store.
  */
 export const MOHS_ABSOLUTT: readonly MohsTrinn[] = [
   { mohs: 1, mineral: 'talk', absolutt: 1 },
@@ -1214,6 +1230,10 @@ export interface SkorpeAndel {
 /*
  * Kilde: Ronov og Yaroshevsky 1969, volumprosent av jordskorpa, slik tallene gjengis i lærebøker (f.eks. Klein og
  * Dutrow). Omtrentlige; summen er 100.
+ */
+/**
+ * De vanligste mineralene i jordskorpa i volumprosent (omtrentlig, summen er 100), med om de er silikater og hvilke
+ * id-er i `MINERALER` som hører til. Til et kake- eller søylediagram over hva jordskorpa er bygd av.
  */
 export const SKORPAS_MINERALER: readonly SkorpeAndel[] = [
   { navn: 'plagioklas', prosent: 39, silikat: true, mineraler: ['plagioklas'] },

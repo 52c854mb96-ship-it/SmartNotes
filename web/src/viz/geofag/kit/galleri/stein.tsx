@@ -12,7 +12,7 @@ import { BERGARTER, METAMORFE, SEDIMENTARE, type BergartId } from '../bergarter'
 import { geoHoyde, useGeoScale } from '../felles';
 import { kumulativKurve, lognormalKurve } from '../kornstorrelse';
 import { MINERALER, type MineralId } from '../mineraler';
-import { Korn, Kornkurve, Kornpakning, RUNDHETSKLASSER, kornpakningGeometri, type KornpakningProps } from '../korn';
+import { Korn, Kornkurve, Kornpakning, RUNDHETSKLASSER, kornRamme, kornpakningGeometri, type KornpakningProps } from '../korn';
 import { KRYSTALLFORM_NAVN, Krystall, Lupe, Steinprove, steinproveGeometri } from '../stein';
 import type { MonsterId } from '../typer';
 import { GalleryGrid, GalleryItem } from './felles';
@@ -78,29 +78,40 @@ function KornTyper({ f }: { f: number }) {
   );
 }
 
+/** Høyden på ruten med korn på et underlag: lav på PC, og plass til steinen og etiketten på mobil. */
+const kornBakkeHoyde = (f: number) => (f > 1.3 ? 290 : 215);
+
 /** Korn på et underlag i fast målestokk (1 enhet = 1 mm): stein, grus og sand, med skygge. */
 function KornPaaBakken({ f }: { f: number }) {
-  const H = geoHoyde(f, 250);
-  const y = H - 64;
-  const korn = [
-    { x: 130, d: 150, navn: 'Stein, 15 cm', rundhet: 0.7, type: 'gneis' as MonsterId },
-    { x: 330, d: 60, navn: 'Grus, 6 cm', rundhet: 0.55, type: 'granitt' as MonsterId },
-    { x: 460, d: 30, navn: 'Grus, 3 cm', rundhet: 0.3, type: 'kvartsitt' as MonsterId },
-    { x: 565, d: 10, navn: 'Grus, 1 cm', rundhet: 0.6, type: 'basalt' as MonsterId },
-    { x: 660, d: 4, navn: '4 mm', rundhet: 0.5, type: 'granitt' as MonsterId },
-    { x: 740, d: 1.5, navn: 'Sand', rundhet: 0.8, type: 'sand' as MonsterId },
+  const smal = f > 1.3;
+  const H = kornBakkeHoyde(f);
+  const y = H - 60;
+  const alle = [
+    { x: 130, xs: 120, d: 150, navn: 'Stein, 15 cm', rundhet: 0.7, type: 'gneis' as MonsterId, seed: 40 },
+    { x: 330, xs: 330, d: 60, navn: 'Grus, 6 cm', rundhet: 0.55, type: 'granitt' as MonsterId, seed: 41 },
+    { x: 460, xs: 470, d: 30, navn: 'Grus, 3 cm', rundhet: 0.3, type: 'kvartsitt' as MonsterId, seed: 42 },
+    { x: 565, xs: 600, d: 10, navn: 'Grus, 1 cm', rundhet: 0.6, type: 'basalt' as MonsterId, seed: 43 },
+    { x: 660, xs: null, d: 4, navn: 'Grus, 4 mm', rundhet: 0.5, type: 'granitt' as MonsterId, seed: 44 },
+    { x: 750, xs: 730, d: 1.5, navn: 'Sand', rundhet: 0.8, type: 'sand' as MonsterId, seed: 45 },
   ];
+  // På mobil er etikettene så brede at grusen på 4 mm må ut, og resten spres litt mer
+  const korn = alle.flatMap((k) => (smal ? (k.xs === null ? [] : [{ ...k, x: k.xs }]) : [k]));
   return (
     <g>
       <Underlag x1={0} x2={800} y={y} depth={50} type="labbenk" />
-      {korn.map((k, i) => (
-        <g key={i}>
-          <Korn x={k.x} y={y} anker="bunn" d={k.d} rundhet={k.rundhet} type={k.type} seed={i + 40} skygge fastStorrelse avlang={0.25} />
-          <Txt x={k.x} y={y - Math.max(k.d, 8) - 12} size={0.75} muted>
-            {k.navn}
-          </Txt>
-        </g>
-      ))}
+      {korn.map((k) => {
+        // kornRamme gir høyden på kornet, så etiketten står rett over det
+        const ramme = kornRamme({ rundhet: k.rundhet, avlang: 0.25, seed: k.seed });
+        const hoyde = (ramme.bunn - ramme.topp) * (k.d / 2);
+        return (
+          <g key={k.navn}>
+            <Korn x={k.x} y={y} anker="bunn" d={k.d} rundhet={k.rundhet} type={k.type} seed={k.seed} skygge fastStorrelse avlang={0.25} />
+            <Txt x={k.x} y={y - Math.max(hoyde, 6) - 12} size={0.75} muted>
+              {k.navn}
+            </Txt>
+          </g>
+        );
+      })}
     </g>
   );
 }
@@ -123,9 +134,9 @@ function PakningRute({ props }: { props: Omit<KornpakningProps, 'x' | 'y'> }) {
   const aapen = !props.sement && props.fyll !== 'sement' && props.fyll !== 'leire';
   return (
     <g>
-      <Kornpakning x={200} y={145} r={130} {...props} />
+      <Kornpakning x={200} y={140} r={125} {...props} />
       {aapen && (
-        <Txt x={200} y={286} size={0.8} weight={600}>
+        <Txt x={200} y={296} size={0.8} weight={600}>
           {/* porøsiteten i utsnittet regnes av kornpakningGeometri */}
           <PorositetTekst props={props} />
         </Txt>
@@ -136,7 +147,7 @@ function PakningRute({ props }: { props: Omit<KornpakningProps, 'x' | 'y'> }) {
 
 function PorositetTekst({ props }: { props: Omit<KornpakningProps, 'x' | 'y'> }) {
   const k = useGeoScale();
-  const g = kornpakningGeometri({ x: 200, y: 145, r: 130, sortering: props.sortering, rundhet: props.rundhet, seed: props.seed, korn: props.korn }, k);
+  const g = kornpakningGeometri({ x: 200, y: 140, r: 125, sortering: props.sortering, rundhet: props.rundhet, seed: props.seed, korn: props.korn }, k);
   return <>{`Porøsitet ca. ${fmt(100 * (g?.porositet ?? 0), 0)} %`}</>;
 }
 
@@ -159,15 +170,55 @@ function SandsteinUnderLupa({ f }: { f: number }) {
   );
 }
 
-/** Lupe med håndtak over en granittprøve: krystallene sees grovere i linsa. */
-function GranittUnderLupa({ f }: { f: number }) {
+/** Lupe ved siden av en gneisprøve: fra viser stedet, og forstorr viser det samme stedet tre ganger større. */
+function GneisMedFra({ f }: { f: number }) {
   const smal = f > 1.3;
+  const prove = { x: smal ? 400 : 230, y: smal ? 265 : 250, size: smal ? 330 : 300 };
+  const g = steinproveGeometri({ ...prove, bergart: 'gneis', seed: 6 });
+  const stein = <Steinprove {...prove} bergart="gneis" seed={6} />;
+  const lupe = smal ? { x: 400, y: 455, r: 125 } : { x: 600, y: 140, r: 115 };
+  // Et sted midt på forsiden av steinen, der båndene synes godt
+  const fra = g ? { x: g.venstre + 0.42 * g.bredde, y: g.topp + 0.55 * g.hoyde } : undefined;
   return (
     <g>
-      <Underlag x1={0} x2={800} y={smal ? 300 : 280} depth={smal ? 40 : 50} type="tregulv" />
-      <Steinprove x={smal ? 250 : 260} y={smal ? 300 : 280} size={smal ? 380 : 340} bergart="granitt" seed={2} />
-      <Lupe x={smal ? 560 : 560} y={smal ? 130 : 140} r={smal ? 115 : 105} handtak={130}>
-        {({ r }) => <Steinprove x={0} y={2.2 * r} size={5 * r} bergart="granitt" seed={2} skygge={false} />}
+      <Underlag x1={0} x2={800} y={prove.y} depth={smal ? 30 : 50} type="labbenk" />
+      {stein}
+      {fra && (
+        <Lupe x={lupe.x} y={lupe.y} r={lupe.r} fra={fra} forstorr={{ faktor: 3 }} tekst={smal ? undefined : 'Bånd av lyse og mørke mineraler'}>
+          {stein}
+        </Lupe>
+      )}
+    </g>
+  );
+}
+
+/** Plassen til granittprøven under lupa: bredden, og bunnen så toppen av steinen står 24 enheter ned. */
+function granittOppsett(f: number) {
+  const smal = f > 1.3;
+  const size = smal ? 470 : 380;
+  const g0 = steinproveGeometri({ x: 0, y: 0, size, bergart: 'granitt', seed: 2 });
+  const bunn = 24 + (g0?.hoyde ?? 200);
+  return { stein: { x: smal ? 330 : 290, y: bunn, size }, bunn, H: bunn + (smal ? 50 : 60) };
+}
+
+/** Lupe med håndtak rett over en granittprøve: forstorr viser den samme steinen forstørret i linsa. */
+function GranittUnderLupa({ f }: { f: number }) {
+  const smal = f > 1.3;
+  const { stein, bunn } = granittOppsett(f);
+  const g = steinproveGeometri({ ...stein, bergart: 'granitt', seed: 2 });
+  const scene = (
+    <g>
+      <Underlag x1={0} x2={800} y={bunn} depth={smal ? 40 : 50} type="tregulv" />
+      <Steinprove {...stein} bergart="granitt" seed={2} />
+    </g>
+  );
+  const lx = g ? g.venstre + 0.68 * g.bredde : 450;
+  const ly = g ? g.topp + 0.4 * g.hoyde : 160;
+  return (
+    <g>
+      {scene}
+      <Lupe x={lx} y={ly} r={smal ? 100 : 88} handtak={35} forstorr={{ faktor: 2.4 }}>
+        {scene}
       </Lupe>
     </g>
   );
@@ -254,7 +305,7 @@ function Isotoper({ f }: { f: number }) {
               {n === 0 ? 'Nydannet' : `${n} halveringstid${n > 1 ? 'er' : ''}`}
             </Txt>
             <Txt x={p.x} y={p.y + ned + 20 * f} size={0.7} muted>
-              {`${fmt(100 * datter, 1)} % datter`}
+              {`${fmt(100 * datter, Number.isInteger(100 * datter) ? 0 : 1)} % datterisotop`}
             </Txt>
           </g>
         );
@@ -319,11 +370,11 @@ const MAGMATISKE_ALLE: BergartId[] = ['granitt', 'kvartsporfyr', 'ryolitt', 'dio
 function Prover({ ider, f }: { ider: readonly BergartId[]; f: number }) {
   const smal = f > 1.3;
   const kol = smal ? 2 : 5;
-  const rad = smal ? 280 : 160;
+  const rad = smal ? 280 : 172;
   return (
     <g>
       {ider.map((id, i) => {
-        const p = rute(i, kol, 800, rad, smal ? 215 : 118);
+        const p = rute(i, kol, 800, rad, smal ? 225 : 134);
         return (
           <g key={id}>
             <Steinprove x={p.x} y={p.y} bergart={id} size={smal ? 250 : 138} seed={i + 1} />
@@ -340,8 +391,8 @@ function Prover({ ider, f }: { ider: readonly BergartId[]; f: number }) {
 function proveHoyde(n: number, f: number) {
   const smal = f > 1.3;
   const kol = smal ? 2 : 5;
-  const rad = smal ? 280 : 160;
-  return Math.ceil(n / kol) * rad + (smal ? 30 : 20);
+  const rad = smal ? 280 : 172;
+  return Math.ceil(n / kol) * rad + (smal ? 40 : 30);
 }
 
 function Varianter({ f }: { f: number }) {
@@ -416,11 +467,11 @@ export default function GalleriStein() {
       <GalleryItem wide title="Korn: bergartsfarger, avlange korn og flekker" note="type gir GEO.bergart-fargen, avlang={0.5–0.6}, flekker={4–6} (mørke mineraler i granitt og gneis)." viewBox={(f) => `0 0 800 ${f > 1.3 ? 360 : 160}`}>
         {(f) => <KornTyper f={f} />}
       </GalleryItem>
-      <GalleryItem wide title="Korn på et underlag i fast målestokk" note="1 enhet = 1 mm. anker='bunn' (kornet ligger på y), fastStorrelse (vokser ikke på mobil) og skygge. Sand er under 2 mm og nesten usynlig i denne målestokken." viewBox={(f) => `0 0 800 ${geoHoyde(f, 250)}`}>
+      <GalleryItem wide title="Korn på et underlag i fast målestokk" note="1 enhet = 1 mm. anker='bunn' (kornet ligger på y), fastStorrelse (vokser ikke på mobil) og skygge. Sand er under 2 mm og nesten usynlig i denne målestokken." viewBox={(f) => `0 0 800 ${kornBakkeHoyde(f)}`}>
         {(f) => <KornPaaBakken f={f} />}
       </GalleryItem>
       {PAKNINGER.map((p) => (
-        <GalleryItem key={p.title} viewBox="0 0 400 300" title={`Kornpakning: ${/^[A-ZÆØÅ][a-zæøå]/.test(p.title) ? p.title.charAt(0).toLowerCase() + p.title.slice(1) : p.title}`} note={p.note}>
+        <GalleryItem key={p.title} viewBox="0 0 400 308" title={`Kornpakning: ${/^[A-ZÆØÅ][a-zæøå]/.test(p.title) ? p.title.charAt(0).toLowerCase() + p.title.slice(1) : p.title}`} note={p.note}>
           <PakningRute props={p.props} />
         </GalleryItem>
       ))}
@@ -432,7 +483,15 @@ export default function GalleriStein() {
       >
         {(f) => <SandsteinUnderLupa f={f} />}
       </GalleryItem>
-      <GalleryItem wide title="Lupe med håndtak over granitt" note="stil='lupe' (standard uten fra), handtak={130} grader. Innholdet er den samme steinprøven forstørret." viewBox={(f) => `0 0 800 ${f > 1.3 ? 360 : 330}`}>
+      <GalleryItem
+        wide
+        title="Lupe med fra og forstorr: gneis forstørret tre ganger"
+        note="forstorr={{ faktor: 3 }} med fra: punktet er midten av fra, og ringen får radiusen r / 3 og viser nøyaktig utsnittet. children er den samme steinprøven."
+        viewBox={(f) => `0 0 800 ${f > 1.3 ? 600 : 300}`}
+      >
+        {(f) => <GneisMedFra f={f} />}
+      </GalleryItem>
+      <GalleryItem wide title="Lupe med håndtak over granitt" note="stil='lupe' (standard uten fra), handtak={35} grader og forstorr={{ faktor: 2.4 }}: children er den samme scenen i figurens koordinater, forstørret rundt midten av lupa." viewBox={(f) => `0 0 800 ${granittOppsett(f).H}`}>
         {(f) => <GranittUnderLupa f={f} />}
       </GalleryItem>
       <GalleryItem wide title="Kornkurve: sikteanalyse med d₁₀, d₃₀ og d₆₀" note="kumulativKurve(sikter, masser, bunn), persentiler={[10, 30, 60]} og sikter (stiplede streker). Båndene har fargene til mønstrene." viewBox={(f) => `0 0 800 ${geoHoyde(f, 340)}`}>

@@ -6,7 +6,7 @@
  * Samme stil som scene-kit-et: toninger fra core.tsx, kontur, lys fra øvre venstre og myk skygge, ingen filtre og ingen
  * bilder. Mineralfargene kommer fra tonen i `MINERALER` (`mineralFarge`) og bygger på SCENE- og PAINTS-fargene, så de
  * følger lyst og mørkt tema. Krystaller og detaljene i steinprøvene vokser på mobil med `useGeoScale`. De rene
- * hjelperne (`krystallGeometri`, `steinproveGeometri`, `voronoiCeller`, `prikkerIPolygon`, `lupeKjegle`) kan testes og
+ * hjelperne (`krystallGeometri`, `steinproveGeometri`, `prikkerIPolygon`, `lupeKjegle`) kan testes og
  * brukes uten React.
  */
 import { useMemo, type ReactNode } from 'react';
@@ -20,7 +20,7 @@ import { GEO, type GeoPaint } from './colors';
 import { useGeoScale, useGeoStroke } from './felles';
 import { BERGARTER, type BergartId } from './bergarter';
 import { MINERALER, type Glans, type Krystallform, type MineralId, type MineralTone } from './mineraler';
-import { Malestokk, kornSti, punktIPolygon, voronoiCeller } from './korn';
+import { Malestokk, kornSti, polygonAreal, punktIPolygon, voronoiMosaikk } from './korn';
 
 type P = readonly [number, number];
 type V3 = readonly [number, number, number];
@@ -194,15 +194,32 @@ function rombedodekaeder(): Polyeder {
 }
 
 function rombeeder(): Polyeder {
-  // En terning presset sammen langs romdiagonalen (1, 1, 1): den stumpe romboederen kalkspat spaltes i
+  // En terning presset sammen langs romdiagonalen (1, 1, 1): den stumpe romboederen kalkspat spaltes i. Litt overdrevet
+  // (flatevinkler ca. 69° og 111° mot 78° og 102° i kalkspat), så den ikke ser ut som en terning på skjermen. Så dreid
+  // så den ligger på en flate, som et spaltestykke på et bord: toppflaten er en rombe, og sideflatene heller.
   const t = terning();
   const n: V3 = norm3([1, 1, 1]);
-  const s = -0.4;
-  const v = t.v.map((p): V3 => {
+  const s = -0.55;
+  const v0 = t.v.map((p): V3 => {
     const d = dot3(p, n) * s;
     return [p[0] + d * n[0], p[1] + d * n[1], p[2] + d * n[2]];
   });
-  return { v, f: t.f.map((x) => ({ ...x, del: 'flate' })) };
+  // Normalen til flaten der y = +1 i terningen, dreid opp til (0, 1, 0) (Rodrigues)
+  const topp = t.f.find((f) => f.idx.every((i) => t.v[i]![1] === 1))!;
+  const tv = topp.idx.map((i) => v0[i]!);
+  let nf = norm3(cross3(sub3(tv[1]!, tv[0]!), sub3(tv[2]!, tv[0]!)));
+  if (nf[1] < 0) nf = [-nf[0], -nf[1], -nf[2]];
+  const opp: V3 = [0, 1, 0];
+  const akse = cross3(nf, opp);
+  const sinA = Math.hypot(akse[0], akse[1], akse[2]);
+  const cosA = dot3(nf, opp);
+  const k = sinA > 1e-9 ? norm3(akse) : ([1, 0, 0] as V3);
+  const drei = (p: V3): V3 => {
+    const kxp = cross3(k, p);
+    const kp = dot3(k, p);
+    return [p[0] * cosA + kxp[0] * sinA + k[0] * kp * (1 - cosA), p[1] * cosA + kxp[1] * sinA + k[1] * kp * (1 - cosA), p[2] * cosA + kxp[2] * sinA + k[2] * kp * (1 - cosA)];
+  };
+  return { v: v0.map(drei), f: t.f.map((x) => ({ ...x, del: x === topp ? 'ende' : 'flate' })) };
 }
 
 function prisme(sider: number, lengde: number, spiss: number, dobbel: boolean, flate: boolean, sx = 1): Polyeder {
@@ -242,7 +259,7 @@ const STANDARD_VINKEL: Record<Krystallform, [number, number]> = {
   terning: [28, 24],
   oktaeder: [22, 16],
   dodekaeder: [18, 20],
-  rombeeder: [24, 22],
+  rombeeder: [0, 30],
   prisme: [14, 14],
   tavle: [18, 40],
 };
@@ -325,7 +342,9 @@ export function krystallGeometri(form: Krystallform, valg: KrystallFormValg = {}
     const u = norm3(sub3(vs[0]!, c));
     const w = cross3(n, u);
     const ordnet = [...vs].sort((a, b) => Math.atan2(dot3(sub3(a, c), w), dot3(sub3(a, c), u)) - Math.atan2(dot3(sub3(b, c), w), dot3(sub3(b, c), u)));
-    const nv = rot(n);
+    // Normalen i bildet: dreid som krystallen og vippet i bildeplanet, så lyset alltid kommer fra øvre venstre
+    const nr = rot(n);
+    const nv: V3 = [nr[0] * Math.cos(vipp) + nr[1] * Math.sin(vipp), -nr[0] * Math.sin(vipp) + nr[1] * Math.cos(vipp), nr[2]];
     // Striper i modellrommet
     const striper: [V3, V3][] = [];
     if ((form === 'prisme' || form === 'tavle') && fl.del === 'side' && ordnet.length === 4) {
@@ -637,8 +656,10 @@ export interface SteinproveFlate {
 export interface SteinproveGeometri {
   /** Omrisset (silhuetten) som polygon. */
   omriss: P[];
-  /** De synlige bruddflatene (kantet). Tom for rundslipt. */
+  /** De synlige bruddflatene (kantet), fra den bakerste. Tom for rundslipt. */
   flater: SteinproveFlate[];
+  /** Ryggene mellom to synlige bruddflater (der lyset treffer kanten). Tom for rundslipt. */
+  kanter: [P, P][];
   /** Midten av flaten som vender mest opp (til en lupe, et prøvemerke eller en etikett). */
   midt: P;
   /** Øverste punkt, og venstre og høyre kant. Bunnen er y. */
@@ -677,9 +698,114 @@ function konveks3d(pts: readonly V3[]): number[][] {
 }
 
 /**
+ * Slår sammen nabotrekanter i en konveks innhylling som vender nesten samme vei (under `grense` grader) til større
+ * flater, slik en stein som er slått løs har noen få, brede bruddflater og ikke mange små fasetter. Gir hver flate som
+ * en lukket løkke av hjørneindekser (mot klokka sett utenfra) med utovervendt normal, og kantene mellom flatene. En
+ * trekant vi ser, slås aldri sammen med en vi ikke ser, så de synlige flatene dekker hele silhuetten.
+ */
+function slaaSammenFlater(pts: readonly V3[], tri: readonly number[][], grense: number, synlig: (n: V3) => boolean): { flater: { lokke: number[]; normal: V3 }[]; kanter: { a: number; b: number; na: V3; nb: V3 }[] } {
+  const midt = midt3(pts);
+  const T = tri.map((t) => {
+    const [a, b, c] = t.map((i) => pts[i]!) as [V3, V3, V3];
+    const kr = cross3(sub3(b, a), sub3(c, a));
+    const areal = Math.hypot(kr[0], kr[1], kr[2]) / 2;
+    let n = norm3(kr);
+    let idx = [...t];
+    if (dot3(n, sub3(midt3([a, b, c]), midt)) < 0) {
+      n = [-n[0], -n[1], -n[2]];
+      idx = [t[0]!, t[2]!, t[1]!];
+    }
+    return { idx, n, areal };
+  });
+  const forelder = T.map((_, i) => i);
+  const sum: V3[] = T.map((t) => [t.n[0] * t.areal, t.n[1] * t.areal, t.n[2] * t.areal]);
+  const rot = (i: number): number => (forelder[i] === i ? i : (forelder[i] = rot(forelder[i]!)));
+  const kantKey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+  const kantTil = new Map<string, number[]>();
+  T.forEach((t, ti) => {
+    for (let e = 0; e < 3; e++) {
+      const key = kantKey(t.idx[e]!, t.idx[(e + 1) % 3]!);
+      const l = kantTil.get(key);
+      if (l) l.push(ti);
+      else kantTil.set(key, [ti]);
+    }
+  });
+  const par: [number, number, number][] = [];
+  for (const l of kantTil.values()) for (let i = 0; i < l.length; i++) for (let j = i + 1; j < l.length; j++) par.push([l[i]!, l[j]!, Math.acos(clamp(dot3(T[l[i]!]!.n, T[l[j]!]!.n), -1, 1))]);
+  par.sort((a, b) => a[2] - b[2]);
+  const cos = Math.cos(grense * RAD);
+  for (const [a, b] of par) {
+    if (synlig(T[a]!.n) !== synlig(T[b]!.n)) continue;
+    const ra = rot(a);
+    const rb = rot(b);
+    if (ra === rb) continue;
+    if (dot3(norm3(sum[ra]!), norm3(sum[rb]!)) < cos) continue;
+    forelder[rb] = ra;
+    sum[ra] = [sum[ra]![0] + sum[rb]![0], sum[ra]![1] + sum[rb]![1], sum[ra]![2] + sum[rb]![2]];
+  }
+  // Løkken rundt hver flate: kantene som bare én trekant i flaten har, kjedet etter retningen
+  const grupper = new Map<number, number[]>();
+  T.forEach((_, i) => {
+    const r = rot(i);
+    const g = grupper.get(r);
+    if (g) g.push(i);
+    else grupper.set(r, [i]);
+  });
+  const flater: { lokke: number[]; normal: V3 }[] = [];
+  for (const [r, ts] of grupper) {
+    const teller = new Map<string, number>();
+    for (const ti of ts) for (let e = 0; e < 3; e++) {
+      const key = kantKey(T[ti]!.idx[e]!, T[ti]!.idx[(e + 1) % 3]!);
+      teller.set(key, (teller.get(key) ?? 0) + 1);
+    }
+    const neste = new Map<number, number>();
+    let ok = true;
+    for (const ti of ts)
+      for (let e = 0; e < 3; e++) {
+        const a = T[ti]!.idx[e]!;
+        const b = T[ti]!.idx[(e + 1) % 3]!;
+        if (teller.get(kantKey(a, b)) !== 1) continue;
+        if (neste.has(a)) ok = false;
+        neste.set(a, b);
+      }
+    const start = neste.keys().next().value;
+    const lokke: number[] = [];
+    if (ok && start !== undefined) {
+      let v = start;
+      for (let s = 0; s <= neste.size; s++) {
+        lokke.push(v);
+        const nv = neste.get(v);
+        if (nv === undefined) {
+          ok = false;
+          break;
+        }
+        v = nv;
+        if (v === start) break;
+      }
+      if (v !== start || lokke.length !== neste.size) ok = false;
+    }
+    if (ok && lokke.length >= 3) flater.push({ lokke, normal: norm3(sum[r]!) });
+    // Ikke en enkel løkke (sjeldent, f.eks. overlappende trekanter i samme plan): hver trekant for seg
+    else for (const ti of ts) flater.push({ lokke: T[ti]!.idx, normal: norm3(sum[r]!) });
+  }
+  // Kantene mellom to flater, med normalene på begge sider
+  const kanter: { a: number; b: number; na: V3; nb: V3 }[] = [];
+  for (const [key, l] of kantTil) {
+    if (l.length !== 2) continue;
+    const ra = rot(l[0]!);
+    const rb = rot(l[1]!);
+    if (ra === rb) continue;
+    const [a, b] = key.split('-').map(Number) as [number, number];
+    kanter.push({ a, b, na: norm3(sum[ra]!), nb: norm3(sum[rb]!) });
+  }
+  return { flater, kanter };
+}
+
+/**
  * Formen på en steinprøve med bunnen midt på (x, y) og bredden `size`, sett skrått ovenfra med lys fra øvre venstre:
- * kantet er en uregelmessig klump med bruddflater (konveks innhylling av tilfeldige punkter på en flattrykt ellipsoide,
- * med flat underside), rundslipt er en rullestein med jevnt omriss. Ren funksjon; samme frø gir samme stein.
+ * kantet er en uregelmessig klump med noen få, brede bruddflater (konveks innhylling av tilfeldige punkter på en
+ * flattrykt, kantete kule med flat underside, der nesten like flater er slått sammen), rundslipt er en rullestein med
+ * jevnt omriss. Ren funksjon; samme frø gir samme stein.
  */
 export function steinproveGeometri(v: { x: number; y: number; size?: number; form?: SteinForm; bergart?: BergartId; seed?: number }): SteinproveGeometri | null {
   const W = fin(v.size, 150);
@@ -688,13 +814,14 @@ export function steinproveGeometri(v: { x: number; y: number; size?: number; for
   const rnd = seededRandom(Math.floor(fin(v.seed, 1)) * 2654435 + 97);
   const flat = (v.bergart && FLAT[v.bergart]) ?? (form === 'kantet' ? 0.5 + 0.15 * rnd() : 0.45 + 0.1 * rnd());
   const dyp = 0.6 + 0.25 * rnd();
-  const n = form === 'kantet' ? 13 + Math.floor(rnd() * 4) : 30;
+  const n = form === 'kantet' ? 11 + Math.floor(rnd() * 3) : 30;
   // Punkter på en «kantete kule» (superellipsoide |x|^p + |y|^p + |z|^p = 1): p = 3 gir en klump med hjørner, p = 2,2
   // en rullestein. Så flattrykt, litt tilfeldig, og med flat underside som steinen ligger stødig på.
   const pe = form === 'kantet' ? 3 : 2.2;
   const pts: V3[] = [];
   const gyllen = Math.PI * (3 - Math.sqrt(5));
   const fase = rnd() * 6;
+  const psi = (form === 'kantet' ? 18 + 40 * rnd() : 10 + 30 * rnd()) * RAD;
   for (let i = 0; i < n; i++) {
     const yy = 1 - (2 * (i + 0.5)) / n;
     const rr = Math.sqrt(Math.max(0, 1 - yy * yy));
@@ -706,7 +833,15 @@ export function steinproveGeometri(v: { x: number; y: number; size?: number; for
     if (py < -0.6 * flat) py = -0.6 * flat;
     pts.push([d[0] * f, py, d[2] * f * dyp]);
   }
-  const psi = (form === 'kantet' ? 18 + 40 * rnd() : 10 + 30 * rnd()) * RAD;
+  if (form === 'kantet') {
+    // Flat underside som steinen hviler stødig på, med en forkant som ligger omtrent vannrett i bildet (vinklene er
+    // regnet i bildet, 90° rett mot oss, og dreid tilbake med psi). Ellers kan steinen se ut som den balanserer på et hjørne.
+    for (const [i, v] of [50, 130, 225, 315].entries()) {
+      const a = (v + (rnd() - 0.5) * (i < 2 ? 10 : 30)) * RAD + psi;
+      const rr = 0.74 + 0.08 * rnd();
+      pts.push([rr * Math.cos(a), -0.6 * flat, rr * Math.sin(a) * dyp]);
+    }
+  }
   const phi = 22 * RAD;
   const rot = (a: V3): V3 => {
     const x1 = a[0] * Math.cos(psi) + a[2] * Math.sin(psi);
@@ -728,19 +863,21 @@ export function steinproveGeometri(v: { x: number; y: number; size?: number; for
   const hull = konveksInnhylling(proj).map(tilFig);
   let omriss: P[] = hull;
   const flater: SteinproveFlate[] = [];
+  const kanter: [P, P][] = [];
   const L = norm3([-0.5, 0.7, 0.5]);
   if (form === 'kantet') {
-    const midtpunkt = midt3(pts);
-    for (const f of konveks3d(pts)) {
-      const a = pts[f[0]!]!;
-      const b = pts[f[1]!]!;
-      const c = pts[f[2]!]!;
-      let nrm = norm3(cross3(sub3(b, a), sub3(c, a)));
-      if (dot3(nrm, sub3(midt3([a, b, c]), midtpunkt)) < 0) nrm = [-nrm[0], -nrm[1], -nrm[2]];
-      const nv = rot(nrm);
-      if (nv[2] <= 0.01) continue;
-      flater.push({ punkter: f.map((i) => tilFig(proj[i]!)), lys: dot3(nv, L), opp: Math.max(0, nv[1]) });
-    }
+    // Bruddflatene: nabotrekanter som vender nesten samme vei, blir én flate. Bakerst først, så de fremste dekker.
+    const synlig = (nrm: V3) => rot(nrm)[2] > 0.01;
+    const s = slaaSammenFlater(pts, konveks3d(pts), 26, synlig);
+    const synlige = s.flater
+      .map((f) => {
+        const nv = rot(f.normal);
+        return { f, nv, z: midt3(f.lokke.map((i) => rot(pts[i]!)))[2] };
+      })
+      .filter(({ nv }) => nv[2] > 0.01)
+      .sort((a, b) => a.z - b.z);
+    for (const { f, nv } of synlige) flater.push({ punkter: f.lokke.map((i) => tilFig(proj[i]!)), lys: dot3(nv, L), opp: Math.max(0, nv[1]) });
+    for (const k of s.kanter) if (synlig(k.na) && synlig(k.nb)) kanter.push([tilFig(proj[k.a]!), tilFig(proj[k.b]!)]);
   } else {
     // Rullestein: avrund hjørnene i silhuetten helt
     const m = hull.length;
@@ -765,7 +902,7 @@ export function steinproveGeometri(v: { x: number; y: number; size?: number; for
   const midt: P = toppflate
     ? [toppflate.punkter.reduce((s, q) => s + q[0], 0) / toppflate.punkter.length, toppflate.punkter.reduce((s, q) => s + q[1], 0) / toppflate.punkter.length]
     : [(venstre + hoyre) / 2 - 0.05 * (hoyre - venstre), topp + 0.35 * (v.y - topp)];
-  return { omriss, flater, midt, topp, venstre, hoyre, bredde: hoyre - venstre, hoyde: v.y - topp };
+  return { omriss, flater, kanter, midt, topp, venstre, hoyre, bredde: hoyre - venstre, hoyde: v.y - topp };
 }
 
 /* ================================================================================================ Steinprove: tekstur */
@@ -777,8 +914,11 @@ type Mineralkorn = [farge: string, vekt: number, liten?: boolean];
 
 interface Oppskrift {
   grunn: string;
-  /** Mosaikk av korn: størrelse (andel av bredden) og mineralfarger med vekt. `strekk` > 1 gir avlange korn (foliasjon). */
-  mosaikk?: { str: number; farger: Mineralkorn[]; strekk?: number; skimmer?: string; kant?: number };
+  /**
+   * Mosaikk av korn: størrelse (andel av bredden) og mineralfarger med vekt. `strekk` > 1 gir avlange korn (foliasjon),
+   * `flett` hvor ofte nabo-celler av samme mineral blir ett korn (0 = like store korn som i marmor, 0,6 = grove korn).
+   */
+  mosaikk?: { str: number; farger: Mineralkorn[]; strekk?: number; skimmer?: string; kant?: number; flett?: number };
   /** Fine korn i grunnmassen. */
   prikker?: { farger: string[]; tetthet: number; str: number };
   porfyr?: { form: 'lister' | 'romber' | 'oyne'; farger: string[]; n: number; str: number }[];
@@ -788,7 +928,8 @@ interface Oppskrift {
   lag?: { n: number; kontrast: number; tynne?: boolean; boelge?: number; helning?: number };
   fossiler?: Fossil[];
   foliasjon?: { n: number; farger: [string, string]; boelge: number; glans?: boolean };
-  band?: { farge: string; n: number };
+  /** Mørke bånd (gneis). Med `farger` får cellene i mosaikken mørke mineraler inne i båndene; ellers tegnes båndene oppå. */
+  band?: { farge: string; n: number; farger?: Mineralkorn[] };
   arer?: { farge: string; n: number };
   granater?: number;
   kull?: boolean;
@@ -798,7 +939,8 @@ interface Oppskrift {
 const T = (t: MineralTone) => TONER[t].fill;
 
 function oppskrift(id: BergartId): Oppskrift {
-  const kvarts = mix(T('fargelos'), T('gra'), 0.45);
+  // Kvarts er gjennomskinnelig og ser røykgrå ut i en bergart; plagioklas er hvit, kalifeltspat rosa
+  const kvarts = mix(T('gra'), T('fargelos'), 0.32);
   const feltspat = T('rosa');
   const plag = T('hvit');
   const mork = T('svart');
@@ -806,7 +948,7 @@ function oppskrift(id: BergartId): Oppskrift {
   const sandFarge = mix(GEO.bergart.sandstein.fill, T('gul'), 0.15);
   switch (id) {
     case 'granitt':
-      return { grunn: feltspat, mosaikk: { str: 0.07, farger: [[feltspat, 3.5], [kvarts, 3], [plag, 2], [mork, 2.6, true], [T('solv'), 0.5, true]] } };
+      return { grunn: feltspat, mosaikk: { str: 0.045, farger: [[feltspat, 3.5], [kvarts, 3], [plag, 2], [mork, 2.6, true], [T('solv'), 0.5, true]], flett: 0.5 } };
     case 'kvartsporfyr':
       return {
         grunn: mix(T('rosa'), T('brun'), 0.45),
@@ -824,7 +966,7 @@ function oppskrift(id: BergartId): Oppskrift {
         lag: { n: 6, kontrast: 0.06, tynne: true, boelge: 0.03 },
       };
     case 'dioritt':
-      return { grunn: plag, mosaikk: { str: 0.045, farger: [[plag, 5], [mix(T('svart'), T('gronn'), 0.15), 3.6], [mix(T('hvit'), T('gra'), 0.35), 1.5]], kant: 0.35 } };
+      return { grunn: plag, mosaikk: { str: 0.035, farger: [[plag, 5], [mix(T('svart'), T('gronn'), 0.15), 3.6], [mix(T('hvit'), T('gra'), 0.35), 1.5]], kant: 0.35, flett: 0.35 } };
     case 'porfyritt':
       return {
         grunn: mix(T('gra'), T('gronn'), 0.3),
@@ -838,11 +980,11 @@ function oppskrift(id: BergartId): Oppskrift {
         porfyr: [{ form: 'lister', farger: [plag], n: 9, str: 0.045 }],
       };
     case 'gabbro':
-      return { grunn: gronnMork, mosaikk: { str: 0.075, farger: [[mix(T('gra'), T('svart'), 0.35), 4], [gronnMork, 4.5], [mix(T('gra'), T('hvit'), 0.25), 2], [mix(T('gronn'), T('svart'), 0.35), 0.8, true]], kant: 0.4 } };
+      return { grunn: gronnMork, mosaikk: { str: 0.05, farger: [[mix(T('gra'), T('svart'), 0.35), 4], [gronnMork, 4.5], [mix(T('gra'), T('hvit'), 0.25), 2], [mix(T('gronn'), T('svart'), 0.35), 0.8, true]], kant: 0.4, flett: 0.45 } };
     case 'diabas':
       return {
         grunn: mix(T('svart'), T('gra'), 0.3),
-        mosaikk: { str: 0.04, farger: [[mix(T('svart'), T('gra'), 0.2), 4], [gronnMork, 2.5], [mix(T('gra'), T('svart'), 0.1), 2.5]], kant: 0.35 },
+        mosaikk: { str: 0.03, farger: [[mix(T('svart'), T('gra'), 0.2), 4], [gronnMork, 2.5], [mix(T('gra'), T('svart'), 0.1), 2.5]], kant: 0.35, flett: 0.3 },
         porfyr: [{ form: 'lister', farger: [mix(T('hvit'), T('gra'), 0.3)], n: 26, str: 0.035 }],
       };
     case 'basalt':
@@ -850,7 +992,7 @@ function oppskrift(id: BergartId): Oppskrift {
     case 'larvikitt':
       return {
         grunn: mix(T('gra'), T('svart'), 0.35),
-        mosaikk: { str: 0.12, farger: [[mix(mix(T('gra'), T('svart'), 0.3), PAINTS.blaa, 0.12), 5], [mix(T('gra'), T('svart'), 0.15), 2], [mork, 1, true]], skimmer: mix(PAINTS.blaa, SCENE.skyBottom, 0.3), kant: 0.4 },
+        mosaikk: { str: 0.07, farger: [[mix(mix(T('gra'), T('svart'), 0.3), PAINTS.blaa, 0.12), 5], [mix(T('gra'), T('svart'), 0.15), 2], [mork, 1, true]], skimmer: mix(PAINTS.blaa, SCENE.skyBottom, 0.3), kant: 0.4, flett: 0.55 },
       };
     case 'rombeporfyr':
       return {
@@ -859,9 +1001,9 @@ function oppskrift(id: BergartId): Oppskrift {
         porfyr: [{ form: 'romber', farger: [mix(T('hvit'), T('rosa'), 0.25), mix(T('hvit'), T('gra'), 0.25)], n: 11, str: 0.13 }],
       };
     case 'anortositt':
-      return { grunn: plag, mosaikk: { str: 0.11, farger: [[mix(T('hvit'), T('gra'), 0.2), 6], [mix(T('hvit'), T('gra'), 0.45), 3], [mork, 0.4, true]], kant: 0.4 } };
+      return { grunn: plag, mosaikk: { str: 0.07, farger: [[mix(T('hvit'), T('gra'), 0.2), 6], [mix(T('hvit'), T('gra'), 0.45), 3], [mork, 0.4, true]], kant: 0.4, flett: 0.5 } };
     case 'peridotitt':
-      return { grunn: mix(T('gronn'), T('gra'), 0.5), mosaikk: { str: 0.06, farger: [[mix(T('gronn'), T('gra'), 0.45), 6], [mix(mix(T('gronn'), T('gul'), 0.2), T('gra'), 0.3), 2], [gronnMork, 1.4, true], [mork, 0.3, true]], kant: 0.45 } };
+      return { grunn: mix(T('gronn'), T('gra'), 0.5), mosaikk: { str: 0.045, farger: [[mix(T('gronn'), T('gra'), 0.45), 6], [mix(mix(T('gronn'), T('gul'), 0.2), T('gra'), 0.3), 2], [gronnMork, 1.4, true], [mork, 0.3, true]], kant: 0.45, flett: 0.35 } };
     case 'obsidian':
       return { grunn: mix(T('svart'), PAINTS.svart, 0.5), glass: true };
     case 'tuff':
@@ -894,7 +1036,7 @@ function oppskrift(id: BergartId): Oppskrift {
     case 'leirskifer':
       return { grunn: mix(T('svart'), T('gra'), 0.3), lag: { n: 16, kontrast: 0.05, tynne: true, boelge: 0.004 }, fossiler: ['graptolitt', 'graptolitt'] };
     case 'salt':
-      return { grunn: mix(T('hvit'), T('rosa'), 0.25), mosaikk: { str: 0.1, farger: [[mix(T('hvit'), T('rosa'), 0.3), 4], [mix(T('fargelos'), T('hvit'), 0.4), 3], [T('hvit'), 2]], kant: 0.35 } };
+      return { grunn: mix(T('hvit'), T('rosa'), 0.25), mosaikk: { str: 0.07, farger: [[mix(T('hvit'), T('rosa'), 0.3), 4], [mix(T('fargelos'), T('hvit'), 0.4), 3], [T('hvit'), 2]], kant: 0.35, flett: 0.4 } };
     case 'kalkstein':
       return {
         grunn: mix(GEO.bergart.kalkstein.fill, T('gra'), 0.45),
@@ -916,15 +1058,19 @@ function oppskrift(id: BergartId): Oppskrift {
         glitter: 30,
       };
     case 'gneis':
-      return { grunn: mix(T('rosa'), T('hvit'), 0.4), mosaikk: { str: 0.045, farger: [[feltspat, 3], [plag, 3], [kvarts, 2.4]], kant: 0.35 }, band: { farge: mix(T('svart'), T('gra'), 0.15), n: 4 } };
+      return {
+        grunn: mix(T('rosa'), T('hvit'), 0.4),
+        mosaikk: { str: 0.016, farger: [[feltspat, 3], [plag, 3], [kvarts, 2.4]], kant: 0.3, strekk: 3.2, flett: 0.3 },
+        band: { farge: mix(T('svart'), T('gra'), 0.15), n: 4, farger: [[mix(T('svart'), T('gra'), 0.12), 4], [gronnMork, 2.2], [plag, 0.15]] },
+      };
     case 'kvartsitt':
-      return { grunn: mix(T('hvit'), T('rosa'), 0.15), mosaikk: { str: 0.035, farger: [[mix(T('hvit'), T('rosa'), 0.2), 4], [T('hvit'), 3], [mix(kvarts, T('hvit'), 0.5), 2]], kant: 0.22 }, glitter: 12 };
+      return { grunn: mix(T('hvit'), T('rosa'), 0.15), mosaikk: { str: 0.035, farger: [[mix(T('hvit'), T('rosa'), 0.2), 4], [T('hvit'), 3], [mix(kvarts, T('hvit'), 0.5), 2]], kant: 0.22, flett: 0.15 }, glitter: 12 };
     case 'marmor':
-      return { grunn: T('hvit'), mosaikk: { str: 0.045, farger: [[T('hvit'), 5], [mix(T('hvit'), T('gra'), 0.18), 2.5], [tint(T('hvit'), 0.4), 2]], kant: 0.2 }, arer: { farge: mix(T('gra'), T('svart'), 0.3), n: 3 } };
+      return { grunn: T('hvit'), mosaikk: { str: 0.045, farger: [[T('hvit'), 5], [mix(T('hvit'), T('gra'), 0.18), 2.5], [tint(T('hvit'), 0.4), 2]], kant: 0.2, flett: 0.15 }, arer: { farge: mix(T('gra'), T('svart'), 0.3), n: 3 } };
     case 'amfibolitt':
-      return { grunn: gronnMork, mosaikk: { str: 0.04, farger: [[gronnMork, 5], [mork, 2.5], [mix(T('hvit'), T('gra'), 0.3), 1.4, true]], strekk: 2.6, kant: 0.4 } };
+      return { grunn: gronnMork, mosaikk: { str: 0.035, farger: [[gronnMork, 5], [mork, 2.5], [mix(T('hvit'), T('gra'), 0.3), 1.4, true]], strekk: 2.6, kant: 0.4, flett: 0.3 } };
     case 'eklogitt':
-      return { grunn: mix(T('gronn'), T('gra'), 0.25), mosaikk: { str: 0.045, farger: [[mix(T('gronn'), T('gra'), 0.2), 5], [mix(T('gronn'), T('svart'), 0.2), 2]], kant: 0.3 }, granater: 26 };
+      return { grunn: mix(T('gronn'), T('gra'), 0.25), mosaikk: { str: 0.045, farger: [[mix(T('gronn'), T('gra'), 0.2), 5], [mix(T('gronn'), T('svart'), 0.2), 2]], kant: 0.3, flett: 0.3 }, granater: 26 };
     default:
       return { grunn: T('gra'), prikker: { farger: [shade(T('gra'), 0.3)], tetthet: 0.6, str: 0.01 } };
   }
@@ -942,6 +1088,30 @@ interface Strok {
 /** Bølget linje over boksen: y(x) = y0 + helning · x + amplitude · sin(...). */
 function bolgeY(x: number, y0: number, A: number, lam: number, fase: number, helning: number) {
   return y0 + helning * x + A * Math.sin((2 * Math.PI * x) / lam + fase) + 0.4 * A * Math.sin((2 * Math.PI * x) / (0.47 * lam) + 1.7 * fase);
+}
+
+/**
+ * De mørke båndene i en gneis som en funksjon (x, y) → om punktet ligger i et mørkt bånd: `n` bølgede bånd med ulik
+ * tykkelse som heller litt, så cellene i mosaikken kan farges etter dem (lyse bånd av feltspat og kvarts, mørke av
+ * biotitt og hornblende).
+ */
+function gneisBand(band: { n: number }, b: { x0: number; y0: number; x1: number; y1: number }, W: number, seed: number): (x: number, y: number) => boolean {
+  const rnd = seededRandom(seed * 911 + 17);
+  const bh = b.y1 - b.y0;
+  const n = Math.max(1, Math.round(band.n));
+  const baand = Array.from({ length: n }, (_, i) => ({
+    yc: b.y0 + ((i + 0.25 + 0.5 * rnd()) / n) * bh,
+    t: (0.36 + 0.2 * rnd()) * (bh / n),
+    fase: rnd() * 6,
+    fase2: rnd() * 6,
+  }));
+  const A = 0.035 * W;
+  return (x, y) =>
+    baand.some((bd) => {
+      const midt = bolgeY(x - b.x0, bd.yc, A, 0.9 * W, bd.fase, -0.12);
+      const halv = 0.5 * bd.t * (0.8 + 0.2 * Math.sin((x - b.x0) / (0.2 * W) + bd.fase2));
+      return Math.abs(y - midt) < halv;
+    });
 }
 
 /** Lager tegnestrøkene for teksturen til en bergart innenfor boksen (figurens koordinater). */
@@ -975,13 +1145,15 @@ function lagTekstur(o: Oppskrift, b: { x0: number; y0: number; x1: number; y1: n
       ut.push({ d: `${d}Z`, fill: lys ? tint(o.grunn, o.lag.kontrast * 2.2) : shade(o.grunn, o.lag.kontrast * 2), op: 0.9 });
     }
   }
-  // Mosaikk av korn: tilfeldige punkter med en minsteavstand gir korn av ulik størrelse som griper inn i hverandre
+  // Mosaikk av korn: tilfeldige punkter med en minsteavstand gir celler (Voronoi). Nabo-celler av samme mineral slås
+  // sammen til større, uregelmessige korn, og bare korngrensene tegnes, så det ser ut som sammenvokste krystaller og
+  // ikke som glassmosaikk. Små, mørke mineraler (biotitt) blir aldri slått sammen.
   if (o.mosaikk) {
     const m = o.mosaikk;
     const c = Math.max(3.2 * k, m.str * W * kf * Math.sqrt(k));
     const strekk = m.strekk ?? 1;
     const sw = bw / strekk;
-    const maal = Math.min(700, Math.round(((sw * bh) / (c * c)) * 1.05));
+    const maal = Math.min(900, Math.round(((sw * bh) / (c * c)) * 1.05));
     const pts: P[] = [];
     const minD = 0.55 * c;
     for (let t = 0; t < maal * 14 && pts.length < maal; t++) {
@@ -991,40 +1163,98 @@ function lagTekstur(o: Oppskrift, b: { x0: number; y0: number; x1: number; y1: n
       pts.push([px, py]);
     }
     const sum = m.farger.reduce((acc, f) => acc + f[1], 0);
-    const velg = (u: number): Mineralkorn => {
+    const velg = (u: number, farger: readonly Mineralkorn[], total: number): Mineralkorn => {
       let acc = 0;
-      for (const f of m.farger) {
-        acc += f[1] / sum;
+      for (const f of farger) {
+        acc += f[1] / total;
         if (u <= acc) return f;
       }
-      return m.farger[m.farger.length - 1]!;
+      return farger[farger.length - 1]!;
     };
-    const celler = voronoiCeller(pts, { x0: b.x0, y0: b.y0, x1: b.x0 + sw, y1: b.y1 }, 3 * c)
-      .map((cell) => cell.map((q): P => [b.x0 + (q[0] - b.x0) * strekk, q[1]]))
-      .filter((cell) => cell.length >= 3);
-    const arealer = celler.map((cell) => {
-      let a2 = 0;
-      for (let i = 0, j = cell.length - 1; i < cell.length; j = i++) a2 += cell[j]![0] * cell[i]![1] - cell[i]![0] * cell[j]![1];
-      return Math.abs(a2) / 2;
-    });
+    const mos = voronoiMosaikk(pts, { x0: b.x0, y0: b.y0, x1: b.x0 + sw, y1: b.y1 }, 3 * c);
+    const celler = mos.celler.map((cell) => cell.map((q): P => [b.x0 + (q[0] - b.x0) * strekk, q[1]]));
+    const arealer = celler.map((cell) => polygonAreal(cell));
     const medianAreal = [...arealer].sort((x, y) => x - y)[Math.floor(arealer.length / 2)] ?? 0;
     const store = m.farger.filter((f) => !f[2]);
+    const midter = celler.map((cell): P => (cell.length ? [cell.reduce((acc, q) => acc + q[0], 0) / cell.length, cell.reduce((acc, q) => acc + q[1], 0) / cell.length] : [0, 0]));
+    // Mineral per celle. I gneis bestemmer båndene om cellen er lys (feltspat og kvarts) eller mørk (biotitt, hornblende).
+    const iMorktBand = o.band ? gneisBand(o.band, b, W, seed) : null;
+    const valgt: Mineralkorn[] = celler.map((cell, ci) => {
+      if (cell.length < 3) return m.farger[0]!;
+      const mork = iMorktBand?.(midter[ci]![0], midter[ci]![1]) ?? false;
+      const farger = mork && o.band?.farger ? o.band.farger : m.farger;
+      const total = mork && o.band?.farger ? o.band.farger.reduce((acc, f) => acc + f[1], 0) : sum;
+      let v = velg(rnd(), farger, total);
+      if (v[2] && arealer[ci]! > 0.75 * medianAreal && !mork && store.length) v = store[Math.floor(rnd() * store.length)]!;
+      return v;
+    });
+    // Små, mørke mineraler (biotitt) tegnes som flak inne i cellen, oppå et av de vanlige mineralene
+    const grunnFarge = valgt.map((v) => (v[2] && store.length ? store[Math.floor(rnd() * store.length)]![0] : v[0]));
+    // Korn: celler av samme mineral slås sammen med sannsynligheten `flett`
+    const forelder = celler.map((_, i) => i);
+    const rotAv = (i: number): number => (forelder[i] === i ? i : (forelder[i] = rotAv(forelder[i]!)));
+    const flett = m.flett ?? 0.45;
+    mos.naboer.forEach((nb, i) => {
+      nb.forEach((j) => {
+        if (j <= i || valgt[i] !== valgt[j] || valgt[i]![2]) return;
+        if (rnd() < flett) {
+          const ri = rotAv(i);
+          const rj = rotAv(j);
+          if (ri !== rj) forelder[rj] = ri;
+        }
+      });
+    });
+    // Fyll: alle cellene i et korn i én sti (ingen sømmer mellom cellene), med en litt ulik tone per korn
+    const korn = new Map<number, { farge: string; celler: number[] }>();
     celler.forEach((cell, ci) => {
-      // Små, spredte mineraler (biotitt, hornblende) bare i de små kornene; ellers et av de store
-      let valgt = velg(rnd());
-      if (valgt[2] && arealer[ci]! > 0.75 * medianAreal && store.length) valgt = store[Math.floor(rnd() * store.length)]!;
-      const [farge] = valgt;
-      const j = (rnd() - 0.5) * 0.16;
-      const fj = j > 0 ? tint(farge, j) : shade(farge, -j);
-      ut.push({ d: poly(cell), fill: fj, stroke: alpha(shade(farge, 0.45), m.kant ?? 0.5), sw: 0.6 * ss });
-      const midt: P = [cell.reduce((acc, q) => acc + q[0], 0) / cell.length, cell.reduce((acc, q) => acc + q[1], 0) / cell.length];
+      if (cell.length < 3) return;
+      const r = rotAv(ci);
+      const kk = korn.get(r);
+      if (kk) kk.celler.push(ci);
+      else {
+        const j = (rnd() - 0.5) * 0.16;
+        const farge = grunnFarge[r]!;
+        korn.set(r, { farge: j > 0 ? tint(farge, j) : shade(farge, -j), celler: [ci] });
+      }
+    });
+    for (const kk of korn.values()) ut.push({ d: kk.celler.map((ci) => poly(celler[ci]!)).join(''), fill: kk.farge });
+    // Korngrensene: kanter mellom celler i ulike korn, samlet per mineral
+    const grenser = new Map<string, string>();
+    celler.forEach((cell, ci) => {
+      const nb = mos.naboer[ci] ?? [];
+      for (let e = 0; e < cell.length; e++) {
+        const j = nb[e] ?? -1;
+        if (j < 0 || (j < ci && (celler[j]?.length ?? 0) >= 3) || rotAv(j) === rotAv(ci)) continue;
+        const p0 = cell[e]!;
+        const p1 = cell[(e + 1) % cell.length]!;
+        const farge = grunnFarge[ci]!;
+        grenser.set(farge, `${grenser.get(farge) ?? ''}M${r2(p0[0])} ${r2(p0[1])}L${r2(p1[0])} ${r2(p1[1])}`);
+      }
+    });
+    for (const [farge, d] of grenser) ut.push({ d, stroke: alpha(shade(farge, 0.4), m.kant ?? 0.5), sw: 0.7 * ss });
+    // Flakene av de små mineralene, litt mindre enn cellen og med en lys kant mot lyset
+    celler.forEach((cell, ci) => {
+      const v = valgt[ci]!;
+      if (!v[2] || cell.length < 3) return;
+      const midt = midter[ci]!;
+      const flak = cell.map((q) => lerp(midt, q, 0.5 + 0.25 * rnd()));
+      ut.push({ d: poly(flak), fill: v[0], stroke: shade(v[0], 0.3), sw: 0.5 * ss });
+      const topp = flak.reduce((best, q) => (q[0] + q[1] < best[0] + best[1] ? q : best), flak[0]!);
+      const a2 = lerp(midt, topp, 0.75);
+      ut.push({ d: `M${r2(a2[0])} ${r2(a2[1])}L${r2(lerp(a2, midt, 0.5)[0])} ${r2(lerp(a2, midt, 0.5)[1])}`, stroke: alpha(SCENE.highlight, 0.5), sw: 0.9 * ss, cap: 'round' });
+    });
+    // Lys på kornene: glimt langs kanten som vender mot lyset (øvre venstre), og blått skimmer (labradorisering) i larvikitt
+    for (const [r, kk] of korn) {
+      const v = valgt[r]!;
       const u = rnd();
-      if (m.skimmer && !valgt[2] && u < 0.3) {
-        // Blått skimmer (labradorisering) på noen feltspatkorn, som i larvikitt
-        ut.push({ d: poly(cell.map((q) => lerp(midt, q, 0.82))), fill: m.skimmer, op: 0.3 });
+      // Den største cellen i kornet bærer glimtet
+      const ci = kk.celler.reduce((best, x) => (arealer[x]! > arealer[best]! ? x : best), kk.celler[0]!);
+      const cell = celler[ci]!;
+      const midt = midter[ci]!;
+      if (m.skimmer && !v[2] && u < 0.3) {
+        ut.push({ d: kk.celler.map((x) => poly(celler[x]!.map((q) => lerp(midter[x]!, q, 0.86)))).join(''), fill: m.skimmer, op: 0.32 });
         ut.push({ d: poly(cell.map((q) => lerp(lerp(midt, cell[0]!, 0.2), q, 0.5))), fill: m.skimmer, op: 0.55 });
-      } else if (u < 0.35) {
-        // Glimt langs kanten som vender mot lyset (øvre venstre)
+      } else if (u < 0.4) {
         let best = -Infinity;
         let kant: [P, P] | null = null;
         for (let i = 0; i < cell.length; i++) {
@@ -1039,12 +1269,12 @@ function lagTekstur(o: Oppskrift, b: { x0: number; y0: number; x1: number; y1: n
           }
         }
         if (kant) {
-          const a2 = lerp(lerp(kant[0], kant[1], 0.15), midt, 0.16);
-          const b2 = lerp(lerp(kant[0], kant[1], 0.85), midt, 0.16);
-          ut.push({ d: `M${r2(a2[0])} ${r2(a2[1])}L${r2(b2[0])} ${r2(b2[1])}`, stroke: alpha(SCENE.highlight, valgt[2] ? 0.5 : 0.85), sw: 1.1 * ss, cap: 'round' });
+          const a2 = lerp(lerp(kant[0], kant[1], 0.18), midt, 0.18);
+          const b2 = lerp(lerp(kant[0], kant[1], 0.82), midt, 0.18);
+          ut.push({ d: `M${r2(a2[0])} ${r2(a2[1])}L${r2(b2[0])} ${r2(b2[1])}`, stroke: alpha(SCENE.highlight, v[2] ? 0.45 : 0.75), sw: 1.1 * ss, cap: 'round' });
         }
       }
-    });
+    }
   }
   // Fine korn i grunnmassen
   if (o.prikker) {
@@ -1121,8 +1351,8 @@ function lagTekstur(o: Oppskrift, b: { x0: number; y0: number; x1: number; y1: n
       ut.push({ d, stroke: o.foliasjon.farger[i % 2]!, sw: (0.25 + 0.35 * rnd()) * dh, op: 0.7 });
     }
   }
-  // Bånd i gneis: mørke, bølgede bånd med lyse korn
-  if (o.band) {
+  // Bånd tegnet oppå (når båndet ikke er bygd av mørke korn i mosaikken)
+  if (o.band && !(o.band.farger && o.mosaikk)) {
     const n = o.band.n;
     for (let i = 0; i < n; i++) {
       const yc = b.y0 + ((i + 0.3 + 0.4 * rnd()) / n) * bh;
@@ -1140,12 +1370,6 @@ function lagTekstur(o: Oppskrift, b: { x0: number; y0: number; x1: number; y1: n
         d += `L${r2(x)} ${r2(bolgeY(x - b.x0, yc - t1 / 2, A, 0.9 * W, fase, -0.1) + tykk)}`;
       }
       ut.push({ d: `${d}Z`, fill: o.band.farge, stroke: shade(o.band.farge, 0.3), sw: 0.6 * ss });
-    }
-    const r = Math.max(0.8 * k, 0.01 * W);
-    for (let i = 0; i < 70; i++) {
-      const x = b.x0 + rnd() * bw;
-      const y = b.y0 + rnd() * bh;
-      ut.push({ d: `M${r2(x - r)} ${r2(y)}l${r2(2 * r)} ${r2(-0.5 * r)}`, stroke: alpha(T('hvit'), 0.5), sw: 0.9 * r, cap: 'round' });
     }
   }
   // Årer i marmor
@@ -1328,6 +1552,7 @@ export function Steinprove({ x, y, bergart, size = 150, form = 'kantet', kornsto
   const ss = useGeoStroke();
   const clipId = useSvgId('steinprove');
   const lysId = useSvgId('steinlys');
+  const kantlysId = useSvgId('steinkantlys');
   const forId = useSvgId('steinforside');
   const g = useMemo(() => steinproveGeometri({ x: 0, y: 0, size, form, bergart, seed }), [size, form, bergart, seed]);
   const o = useMemo(() => {
@@ -1349,6 +1574,8 @@ export function Steinprove({ x, y, bergart, size = 150, form = 'kantet', kornsto
   const navn = BERGARTER[bergart]?.navn ?? bergart;
   const rund = form === 'rundslipt';
   const kant = shade(o.grunn, 0.55);
+  // Skyggen på steinen er en mørk utgave av steinfargen (SCENE.shadow er for svak i lyst tema til å gi form)
+  const formSkygge = shade(o.grunn, 0.7);
   return (
     <g opacity={dim ? 0.38 : undefined} transform={`translate(${r2(x)} ${r2(y)})${flip ? ' scale(-1 1)' : ''}`}>
       <title>{title ?? `Håndstykke av ${navn}`}</title>
@@ -1362,22 +1589,44 @@ export function Steinprove({ x, y, bergart, size = 150, form = 'kantet', kornsto
         id={lysId}
         cx={0.42}
         cy={0.38}
-        r={0.72}
+        r={rund ? 0.62 : 0.72}
         fx={0.3}
         fy={0.22}
-        stops={[
-          [0, SCENE.highlight, rund ? 0.75 : 0.25],
-          [0.45, SCENE.highlight, 0],
-          [0.7, shade(o.grunn, 0.3), 0],
-          [1, shade(o.grunn, 0.45), rund ? 0.75 : 0.25],
-        ]}
+        stops={
+          rund
+            ? [
+                [0, SCENE.highlight, 0.6],
+                [0.35, SCENE.highlight, 0],
+                [0.58, formSkygge, 0],
+                [0.82, formSkygge, 0.28],
+                [1, formSkygge, 0.55],
+              ]
+            : [
+                [0, SCENE.highlight, 0.25],
+                [0.45, SCENE.highlight, 0],
+                [0.75, formSkygge, 0],
+                [1, formSkygge, 0.18],
+              ]
+        }
       />
       <LinearGradient
         id={forId}
         stops={[
-          [0, SCENE.shadow, 0],
-          [0.7, SCENE.shadow, 0],
-          [1, SCENE.shadow, 0.35],
+          [0, formSkygge, 0],
+          [0.7, formSkygge, 0],
+          [1, formSkygge, rund ? 0.25 : 0.3],
+        ]}
+      />
+      <LinearGradient
+        id={kantlysId}
+        x1={0}
+        y1={0}
+        x2={1}
+        y2={1}
+        stops={[
+          [0, SCENE.highlight, 0.9],
+          [0.45, SCENE.highlight, 0.25],
+          [0.6, SCENE.highlight, 0],
         ]}
       />
       <g clipPath={`url(#${clipId})`}>
@@ -1386,12 +1635,22 @@ export function Steinprove({ x, y, bergart, size = 150, form = 'kantet', kornsto
           <path key={i} d={s.d} fill={s.fill ?? 'none'} stroke={s.stroke} strokeWidth={s.sw !== undefined ? r2(s.sw) : undefined} opacity={s.op} strokeLinecap={s.cap} strokeLinejoin="round" />
         ))}
         {o.foliasjon?.glans && <path d={poly(g.omriss)} fill={alpha(SCENE.highlight, 0.12)} />}
-        {/* Bruddflatene: lyse mot lyset, mørke bort fra det */}
+        {/* Bruddflatene: lyse mot lyset (toppen), nøytrale mot oss og mørke bort fra lyset */}
         {g.flater.map((fl, i) => {
-          const t = fl.lys - 0.3;
-          const fyll = t >= 0 ? alpha(SCENE.highlight, Math.min(0.6, 0.75 * t)) : alpha(SCENE.shadow, Math.min(0.65, 0.7 * -t));
-          return <path key={i} d={poly(fl.punkter)} fill={fyll} stroke={alpha(t >= 0 ? SCENE.highlight : SCENE.shadow, 0.35)} strokeWidth={r2(0.9 * ss)} strokeLinejoin="round" />;
+          const t = fl.lys - 0.5;
+          const fyll = t >= 0 ? alpha(SCENE.highlight, Math.min(0.62, 1.4 * t)) : alpha(formSkygge, Math.min(0.5, 0.62 * -t));
+          return <path key={i} d={poly(fl.punkter)} fill={fyll} />;
         })}
+        {/* Ryggene mellom flatene fanger lyset */}
+        {g.kanter.length > 0 && (
+          <path
+            d={g.kanter.map(([a, b2]) => `M${r2(a[0])} ${r2(a[1])}L${r2(b2[0])} ${r2(b2[1])}`).join('')}
+            fill="none"
+            stroke={alpha(SCENE.highlight, 0.38)}
+            strokeWidth={r2(1.1 * ss)}
+            strokeLinecap="round"
+          />
+        )}
         <path d={poly(g.omriss)} fill={`url(#${lysId})`} />
         <path d={poly(g.omriss)} fill={`url(#${forId})`} />
         {rund && (
@@ -1401,9 +1660,11 @@ export function Steinprove({ x, y, bergart, size = 150, form = 'kantet', kornsto
             rx={r2(0.13 * g.bredde)}
             ry={r2(0.06 * g.hoyde + 2)}
             transform={`rotate(-12 ${r2(g.venstre + 0.3 * g.bredde)} ${r2(g.topp + 0.2 * g.hoyde)})`}
-            fill={alpha(SCENE.highlight, 0.7)}
+            fill={alpha(SCENE.highlight, 0.6)}
           />
         )}
+        {/* Kantlys øverst til venstre, så også mørke steiner (obsidian, kull) har en kant mot en mørk bakgrunn */}
+        <path d={poly(g.omriss)} fill="none" stroke={`url(#${kantlysId})`} strokeWidth={r2(2.6 * ss)} strokeLinejoin="round" />
       </g>
       <path d={poly(g.omriss)} fill="none" stroke={kant} strokeWidth={r2(1.4 * ss)} strokeLinejoin="round" />
     </g>
@@ -1436,7 +1697,10 @@ export interface LupeProps {
   x: number;
   y: number;
   r: number;
-  /** Stedet som forstørres: en liten ring med streker ut til lupen. `r` er radiusen til ringen (standard 12). */
+  /**
+   * Stedet som forstørres: en liten ring med streker ut til lupen. `r` er radiusen til ringen (standard 12, og med
+   * `forstorr` lupas radius delt på faktoren, så ringen viser nøyaktig det som er i lupa).
+   */
   fra?: { x: number; y: number; r?: number };
   /**
    * 'lupe': forstørrelsesglass med ramme og håndtak. 'boble': tynn ring, som et utsnitt i en lærebok. Standard 'boble'
@@ -1452,8 +1716,16 @@ export interface LupeProps {
   /** Målestokk nederst i linsa i linsas koordinater: `{ lengde, tekst }`. */
   malestokk?: { lengde: number; tekst: string };
   /**
+   * Forstørrer figuren under lupa i stedet for å vise noe annet: children tegnes da i figurens koordinater, og punktet
+   * (x, y) havner midt i linsa, `faktor` ganger større. Standardpunktet er midten av `fra`, ellers midten av lupa (lupa
+   * holdes rett over tingen). Gi samme elementer som utenfor lupa:
+   *   <Lupe x={520} y={150} r={80} forstorr={{ faktor: 2.5 }}>{stein}</Lupe>
+   */
+  forstorr?: { faktor: number; x?: number; y?: number };
+  /**
    * Innholdet i linsa, tegnet med (0, 0) midt i linsa og klippet til en sirkel med radius r. En funksjon får
-   * `{ r, k }` (k = useGeoScale), f.eks. `{({ r }) => <Kornpakning x={0} y={0} r={r} ramme={false} />}`.
+   * `{ r, k }` (k = useGeoScale), f.eks. `{({ r }) => <Kornpakning x={0} y={0} r={r} ramme={false} />}`. Med `forstorr`
+   * tegnes innholdet i figurens koordinater, og `r` er radiusen til området som vises (r / faktor).
    */
   children?: ReactNode | ((l: { r: number; k: number }) => ReactNode);
   dim?: boolean;
@@ -1462,12 +1734,13 @@ export interface LupeProps {
 /**
  * Lupe som forstørrer et utsnitt: innholdet (children) tegnes i linsa, klippet til sirkelen, med glassrefleks og en
  * mørkere kant. Med `fra` viser en ring og to streker hvor utsnittet er hentet fra (som i lærebøker). Stilen 'lupe'
- * har ramme og håndtak, 'boble' bare en tynn ring. Brukes til korn i en steinprøve, porer i et reservoar, krystaller i
- * granitt og leirpartikler i kvikkleire.
+ * har ramme og håndtak, 'boble' bare en tynn ring. Innholdet er enten noe nytt i linsas koordinater (korn og porer i en
+ * steinprøve, leirpartikler i kvikkleire) eller, med `forstorr`, den samme figuren forstørret (krystallene i granitt).
  *   <Lupe x={560} y={130} r={100} fra={{ x: 240, y: 200, r: 14 }}>{({ r }) => <Kornpakning x={0} y={0} r={r} ramme={false} />}</Lupe>
+ *   <Lupe x={300} y={150} r={70} handtak={130} forstorr={{ faktor: 2.5 }}>{stein}</Lupe>   // rett over steinen
  * Ankerpunkt: (x, y) er midten av linsa.
  */
-export function Lupe({ x, y, r, fra, stil, handtak = 45, bakgrunn, tekst, malestokk, children, dim }: LupeProps) {
+export function Lupe({ x, y, r, fra, stil, handtak = 45, bakgrunn, tekst, malestokk, forstorr, children, dim }: LupeProps) {
   const k = useGeoScale();
   const ss = useGeoStroke();
   const f = useTextScale();
@@ -1477,11 +1750,15 @@ export function Lupe({ x, y, r, fra, stil, handtak = 45, bakgrunn, tekst, malest
   const skaftId = useSvgId('lupeskaft');
   if (![x, y, r].every(Number.isFinite) || !(r > 4)) return null;
   const type = stil ?? (fra ? 'boble' : 'lupe');
-  const fr = fra ? Math.max(3, fin(fra.r, 12)) : 0;
+  const faktor = forstorr && Number.isFinite(forstorr.faktor) && forstorr.faktor > 0 ? forstorr.faktor : null;
+  const fr = fra ? Math.max(3, fin(fra.r, faktor ? r / faktor : 12)) : 0;
   const kjegle = fra && Number.isFinite(fra.x) && Number.isFinite(fra.y) ? lupeKjegle({ x: fra.x, y: fra.y, r: fr }, { x, y, r }) : null;
   const linjefarge = alpha(VIZ.ink, 0.5);
   const rw = type === 'lupe' ? Math.max(6, 0.09 * r) : 0;
-  const innhold = typeof children === 'function' ? children({ r, k }) : children;
+  const fx = fin(forstorr?.x, fin(fra?.x, x));
+  const fy = fin(forstorr?.y, fin(fra?.y, y));
+  const innhold = typeof children === 'function' ? children({ r: faktor ? r / faktor : r, k }) : children;
+  const innholdTransform = faktor ? `translate(${r2(x)} ${r2(y)}) scale(${r2(faktor)}) translate(${r2(-fx)} ${r2(-fy)})` : `translate(${r2(x)} ${r2(y)})`;
   const hv = handtak === null ? null : fin(handtak, 45) * RAD;
   // Håndtaket: hylse og skaft langs retningen hv, fra utsiden av rammen
   const handtakSti = (() => {
@@ -1561,7 +1838,7 @@ export function Lupe({ x, y, r, fra, stil, handtak = 45, bakgrunn, tekst, malest
       )}
       <circle cx={r2(x)} cy={r2(y)} r={r2(r)} fill={bakgrunn ?? VIZ.surface} />
       <g clipPath={`url(#${clipId})`}>
-        <g transform={`translate(${r2(x)} ${r2(y)})`}>{innhold}</g>
+        <g transform={innholdTransform}>{innhold}</g>
         <circle cx={r2(x)} cy={r2(y)} r={r2(r)} fill={`url(#${glassId})`} />
         {/* Glassrefleks øverst til venstre */}
         <path
