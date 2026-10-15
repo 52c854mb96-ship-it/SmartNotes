@@ -26,7 +26,7 @@ import { useGeoScale, useGeoStroke } from './felles';
 import { TETTHETER } from './jorda';
 import { glattSti } from './kotekart';
 import { LagFlate, LagMonstre, useLagMonstre } from './monstre';
-import { snittFordelEtiketter, snittblokkPerspektiv, type SnittEtikett, type SnittPunkt } from './snitt';
+import { kolonneEtiketter, snittblokkPerspektiv, type SnittEtikett, type SnittPunkt } from './snitt';
 import { MONSTER_IDS, type MonsterId } from './typer';
 import { Stromlinjer, type StromLinje } from './vann';
 
@@ -150,111 +150,6 @@ function hellingTrinn(a: SnittPunkt, b: SnittPunkt): number {
 
 /** Omtrentlig bredde på en tekst i figurens enheter (Txt: 17 · size · f). */
 const tekstBredde = (s: string, size: number, f: number) => s.length * 0.58 * 17 * size * f;
-
-/** Krysser strekene a0–a1 og b0–b1 hverandre (ikke bare i et endepunkt)? */
-function strekerKrysser(a0: SnittPunkt, a1: SnittPunkt, b0: SnittPunkt, b1: SnittPunkt): boolean {
-  const o = (p: SnittPunkt, q: SnittPunkt, r: SnittPunkt) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
-  const d1 = o(b0, b1, a0);
-  const d2 = o(b0, b1, a1);
-  const d3 = o(a0, a1, b0);
-  const d4 = o(a0, a1, b1);
-  return d1 * d2 < -1e-9 && d3 * d4 < -1e-9;
-}
-
-/** Avstanden fra punktet p til streken a–b. */
-function avstandTilStrek(p: SnittPunkt, a: SnittPunkt, b: SnittPunkt): number {
-  const vx = b[0] - a[0];
-  const vy = b[1] - a[1];
-  const l2 = vx * vx + vy * vy;
-  const t = l2 > 0 ? clamp01(((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / l2) : 0;
-  return Math.hypot(p[0] - a[0] - t * vx, p[1] - a[1] - t * vy);
-}
-
-/** Ett punkt som en etikett i en kolonne peker på: hvor punktet er, høyden etiketten trenger og hvor streken treffer den. */
-export interface KolonnePunkt {
-  x: number;
-  y: number;
-  /** Høyden etiketten trenger (tekst og eventuell undertekst, med luft). */
-  hoyde: number;
-  /** Hvor streken treffer etiketten, målt fra midten av den (negativ = over midten). Standard 0. */
-  strek?: number;
-}
-
-/**
- * Plasserer etiketter i en kolonne til høyre for punktene de peker på (strekene går fra punktet til `kolonneX`). Prøver
- * flere rekkefølger (etter y, etter x og etter skrå linjer gjennom punktene; rekkefølgen avgjør hvem som viker når det er
- * trangt, ellers står etiketten i høyde med punktet) og velger den som gir minst rot: hvert kryss
- * mellom to streker og hver strek tett forbi et annet punkt teller som mye skråning, så noen få litt skrå streker vinner
- * over et kryss, men ikke over en hel vifte av lange skrå streker. Etikettene flyttes så de ikke
- * overlapper og holder seg mellom `topp` og `bunn` (snittFordelEtiketter). Gir midten (y) til hver etikett i samme
- * rekkefølge som `punkter`; ugyldige punkter får NaN-fri plass øverst. `foretrukket` ('x' eller 'y') vinner ved likhet.
- *   const midt = kolonneEtiketter(punkter, x + w + 18, topp, bunn);
- */
-export function kolonneEtiketter(
-  punkter: readonly KolonnePunkt[],
-  kolonneX: number,
-  topp: number,
-  bunn: number,
-  foretrukket: 'x' | 'y' = 'y',
-): number[] {
-  const n = punkter.length;
-  if (n === 0) return [];
-  const lo = fin(topp);
-  const hi = Math.max(lo, fin(bunn, lo));
-  const X = fin(kolonneX);
-  const P = punkter.map((p): SnittPunkt => [fin(p.x, X), fin(p.y, lo)]);
-  const hoyder = punkter.map((p) => Math.max(0, fin(p.hoyde)));
-  const strek = punkter.map((p) => fin(p.strek));
-  const idx = Array.from({ length: n }, (_, i) => i);
-  const etter = (key: (i: number) => number) => [...idx].sort((a, b) => key(a) - key(b) || a - b);
-  // Rekkefølger å prøve; etiketten ønsker seg alltid til høyden av punktet sitt (vannrett strek), og rekkefølgen
-  // avgjør bare hvem som viker når det er trangt
-  const kandidater: number[][] = [];
-  const prov = (orden: number[]) => kandidater.push(orden);
-  const xOrden = etter((i) => P[i]![0]);
-  const yOrden = etter((i) => P[i]![1]);
-  if (foretrukket === 'x') prov(xOrden);
-  prov(yOrden);
-  if (foretrukket !== 'x') prov(xOrden);
-  for (const m of [-1, -0.75, -0.5, -0.35, -0.2, -0.1, 0.1, 0.2, 0.35, 0.5, 0.75, 1]) {
-    prov(etter((i) => P[i]![1] + m * (X - P[i]![0])));
-  }
-  // Et kryss koster like mye som om strekene til sammen var ca. åtte etiketthøyder skråere, en strek tett forbi et
-  // annet punkt ca. tre: noen få litt skrå streker er bedre enn kryss, men en hel vifte av lange skrå streker er verre.
-  const hMiddel = hoyder.reduce((a, b) => a + b, 0) / n || 1;
-  let best: number[] | null = null;
-  let bestKost = Infinity;
-  const sett = new Set<string>();
-  for (const orden of kandidater) {
-    const navn = orden.join(',');
-    if (sett.has(navn)) continue;
-    sett.add(navn);
-    // Ønsket plass i rekkefølgen, aldri over etiketten før (så rekkefølgen holder)
-    const onsket = new Array<number>(n).fill(lo);
-    let forrige = -Infinity;
-    for (const i of orden) {
-      const v = Math.max(P[i]![1], forrige + 0.01);
-      onsket[i] = v;
-      forrige = v;
-    }
-    const c = snittFordelEtiketter(onsket, hoyder, lo, hi);
-    const ende = idx.map((i): SnittPunkt => [X - 12, c[i]! + strek[i]!]);
-    let kryss = 0;
-    let gjennom = 0;
-    let skraa = 0;
-    for (let i = 0; i < n; i++) {
-      skraa += Math.abs(ende[i]![1] - P[i]![1]);
-      for (let j = i + 1; j < n; j++) if (strekerKrysser(P[i]!, ende[i]!, P[j]!, ende[j]!)) kryss++;
-      for (let j = 0; j < n; j++) if (j !== i && avstandTilStrek(P[j]!, P[i]!, ende[i]!) < 4) gjennom++;
-    }
-    const kost = kryss * 8 * hMiddel + gjennom * 3 * hMiddel + skraa;
-    if (kost < bestKost - 1e-6) {
-      bestKost = kost;
-      best = c;
-    }
-  }
-  return best ?? new Array<number>(n).fill(lo);
-}
 
 /**
  * Etiketter i en kolonne ved siden av en blokk, som SnittEtiketter, men rekkefølgen velges så strekene krysser

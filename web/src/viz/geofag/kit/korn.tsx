@@ -816,7 +816,7 @@ export function poreFarge(fyll: PoreFyll): GeoPaint {
     case 'co2':
       return GEO.co2;
     case 'luft':
-      return { fill: mix(VIZ.surface, SCENE.skyBottom, 0.3), line: VIZ.muted };
+      return GEO.luft;
     case 'sement':
       return { fill: mix(GEO.bergart.marmor.fill, GEO.bergart.kalkstein.fill, 0.3), line: GEO.bergart.marmor.line };
     default:
@@ -913,7 +913,11 @@ export interface KornpakningProps extends KornpakningGeometriValg {
   ramme?: boolean;
   /** Målestokk nederst i utsnittet: `{ lengde, tekst }`, f.eks. `{ lengde: 60, tekst: '1 mm' }`. */
   malestokk?: { lengde: number; tekst: string };
-  /** Tegnes oppå kornene, klippet til utsnittet, i figurens koordinater (f.eks. strømlinjer gjennom porene). */
+  /**
+   * Tegnes oppå kornene, klippet til utsnittet, i figurens koordinater (f.eks. strømlinjer gjennom porene). Kornene er
+   * memoisert på geometrien, så children kan endres hver ramme (med `t` fra `useSimClock`) uten at kornene tegnes på
+   * nytt; hold bare propsene til selve Kornpakning (x, y, r, korn, sortering, fyll …) faste under animasjonen.
+   */
   children?: ReactNode | ((g: KornpakningGeometri) => ReactNode);
   dim?: boolean;
 }
@@ -939,8 +943,8 @@ export function Kornpakning(props: KornpakningProps) {
   const ru = rundhetVerdi(props.rundhet);
   const { x, y, r, w, h, korn: kornR, sortering, seed } = props;
   const g = useMemo(() => kornpakningGeometri({ x, y, r, w, h, korn: kornR, sortering, rundhet: ru, seed }, k), [x, y, r, w, h, kornR, sortering, ru, seed, k]);
-  const omriss = useMemo(() => new Map((g?.korn ?? []).map((q) => [q.seed, kornOmriss({ rundhet: ru, seed: q.seed })])), [g, ru]);
-  const film = props.vannfilm ?? (fyll === 'olje' || fyll === 'gass' || fyll === 'co2' || fyll === 'luft');
+  // Omrisset til hvert korn etter indeksen (frøene kan være like for to korn, så de brukes ikke som nøkkel)
+  const omriss = useMemo(() => (g?.korn ?? []).map((q) => kornOmriss({ rundhet: ru, seed: q.seed })), [g, ru]);
   const sement = clamp(fin(props.sement, fyll === 'sement' ? 1 : 0), 0, 1);
   const leire = clamp(fin(props.leire, fyll === 'leire' ? 0.7 : 0), 0, 1);
   const leirFlak = useMemo(() => {
@@ -952,9 +956,9 @@ export function Kornpakning(props: KornpakningProps) {
     const ledig = (x: number, y: number, egen: PakketKorn | null) =>
       iUtsnitt(u, x, y) && !g.korn.some((q) => q !== egen && Math.hypot(x - q.x, y - q.y) < 0.9 * q.r * KORN_TEGNESKALA + 0.3 * fr);
     // Leirhinner: flak som ligger langs overflaten av kornene
-    for (const q of g.korn) {
+    for (const [qi, q] of g.korn.entries()) {
       if (q.r < 2.2 * fr) continue;
-      const o = omriss.get(q.seed) ?? kornOmriss({ rundhet: ru, seed: q.seed });
+      const o = omriss[qi] ?? kornOmriss({ rundhet: ru, seed: q.seed });
       const omkrets = 2 * Math.PI * q.r;
       const m = Math.round((leire * 0.9 * omkrets) / (2.6 * fr));
       for (let i = 0; i < m; i++) {
@@ -991,46 +995,30 @@ export function Kornpakning(props: KornpakningProps) {
     for (let i = 0; i < Math.min(1600, ((2 * bx) / c) * ((2 * by) / c)); i++) pts.push([u0.x - bx + rnd() * 2 * bx, u0.y - by + rnd() * 2 * by]);
     return voronoiCeller(pts, { x0: u0.x - bx, y0: u0.y - by, x1: u0.x + bx, y1: u0.y + by }, 3 * c).map((cell, i) => ({ d: cell.length > 2 ? `M${cell.map(([px, py]) => `${r2(px)} ${r2(py)}`).join('L')}Z` : '', lys: (i * 37) % 5 }));
   }, [g, sement, seed, k]);
-  if (!g) return null;
-  const u = g.utsnitt;
-  const pore = poreFarge(fyll === 'sement' || fyll === 'leire' ? 'vann' : fyll);
-  const bunnfarge = pore;
-  const vann = GEO.grunnvann;
-  const sem = poreFarge('sement');
-  const rk = g.kornRadius;
-  const strek = Math.max(0.8, 1.1 * ss * Math.min(1, rk / 9));
-  const hovedfarge = kornFarge(type);
-  const farger: GeoPaint[] = blandet ? [hovedfarge, GEO.bergart.granitt, { fill: mix(GEO.bergart.basalt.fill, GEO.bergart.kull.fill, 0.3), line: GEO.bergart.basalt.line }] : [hovedfarge];
-  const fargeFor = (q: PakketKorn) => (blandet ? (q.u < 0.74 ? 0 : q.u < 0.93 ? 1 : 2) : 0);
-  const ramm = 'r' in u ? { x: u.x - u.r, y: u.y - u.r, w: 2 * u.r, h: 2 * u.r } : { x: u.x - u.w / 2, y: u.y - u.h / 2, w: u.w, h: u.h };
-  const formSti =
-    'r' in u
-      ? `M${r2(u.x - u.r)} ${r2(u.y)}a${r2(u.r)} ${r2(u.r)} 0 1 0 ${r2(2 * u.r)} 0a${r2(u.r)} ${r2(u.r)} 0 1 0 ${r2(-2 * u.r)} 0Z`
-      : `M${r2(ramm.x)} ${r2(ramm.y)}h${r2(ramm.w)}v${r2(ramm.h)}h${r2(-ramm.w)}Z`;
-  const filmBredde = fyll === 'luft' ? Math.max(1.4 * ss, 0.1 * rk) : Math.max(1.8 * ss, 0.16 * rk);
-  const semBredde = sement >= 0.999 ? 0 : sement * 0.9 * rk;
-  const kornStier = g.korn.map((q) => ({ q, d: kornSti(q.x, q.y, q.r * KORN_TEGNESKALA, omriss.get(q.seed) ?? { rundhet: ru, seed: q.seed }, q.rotate) }));
-  const innhold = typeof children === 'function' ? children(g) : children;
-  return (
-    <g opacity={dim ? 0.38 : undefined}>
-      <defs>
-        <clipPath id={clipId}>
-          <path d={formSti} />
-        </clipPath>
-      </defs>
-      <LinearGradient id={bakId} stops={[[0, tint(bunnfarge.fill, 0.18)], [1, shade(bunnfarge.fill, 0.06)]]} />
-      {farger.map((c, i) => (
-        <KornToning key={i} id={`${tonId}-${i}`} farge={c.fill} rundhet={ru} />
-      ))}
-      <RadialGradient
-        id={kantId}
-        stops={[
-          [0, SCENE.shadow, 0],
-          [0.82, SCENE.shadow, 0],
-          [1, SCENE.shadow, 0.55],
-        ]}
-      />
-      <g clipPath={`url(#${clipId})`}>
+  const film = props.vannfilm ?? (fyll === 'olje' || fyll === 'gass' || fyll === 'co2' || fyll === 'luft');
+  // Kornene, porene, sementen og leira tegnes én gang per geometri (memo), så `children` kan endres hver ramme i en
+  // animasjon (strømlinjer gjennom porene) uten at hundrevis av korn tegnes på nytt
+  const kornEl = useMemo(() => {
+    if (!g) return null;
+    const u = g.utsnitt;
+    const pore = poreFarge(fyll === 'sement' || fyll === 'leire' ? 'vann' : fyll);
+    const vann = GEO.grunnvann;
+    const sem = poreFarge('sement');
+    const rk = g.kornRadius;
+    const strek = Math.max(0.8, 1.1 * ss * Math.min(1, rk / 9));
+    const hovedfarge = kornFarge(type);
+    const farger: GeoPaint[] = blandet ? [hovedfarge, GEO.bergart.granitt, { fill: mix(GEO.bergart.basalt.fill, GEO.bergart.kull.fill, 0.3), line: GEO.bergart.basalt.line }] : [hovedfarge];
+    const fargeFor = (q: PakketKorn) => (blandet ? (q.u < 0.74 ? 0 : q.u < 0.93 ? 1 : 2) : 0);
+    const ramm = rammeFor(u);
+    const filmBredde = fyll === 'luft' ? Math.max(1.4 * ss, 0.1 * rk) : Math.max(1.8 * ss, 0.16 * rk);
+    const semBredde = sement >= 0.999 ? 0 : sement * 0.9 * rk;
+    const kornStier = g.korn.map((q, i) => ({ q, i, d: kornSti(q.x, q.y, q.r * KORN_TEGNESKALA, omriss[i] ?? { rundhet: ru, seed: q.seed }, q.rotate) }));
+    return (
+      <g>
+        <LinearGradient id={bakId} stops={[[0, tint(pore.fill, 0.18)], [1, shade(pore.fill, 0.06)]]} />
+        {farger.map((c, i) => (
+          <KornToning key={i} id={`${tonId}-${i}`} farge={c.fill} rundhet={ru} />
+        ))}
         <rect x={r2(ramm.x)} y={r2(ramm.y)} width={r2(ramm.w)} height={r2(ramm.h)} fill={`url(#${bakId})`} />
         {/* Sement (kalkspat eller kvarts) som vokser ut fra kornene og tetter porene, med krystallgrenser */}
         {sement > 0.05 && (
@@ -1041,8 +1029,8 @@ export function Kornpakning(props: KornpakningProps) {
                   <rect x={r2(ramm.x)} y={r2(ramm.y)} width={r2(ramm.w)} height={r2(ramm.h)} fill="white" />
                 ) : (
                   <g>
-                    {kornStier.map(({ q, d }) => (
-                      <path key={q.seed} d={d} fill="white" stroke="white" strokeWidth={r2(2 * semBredde)} strokeLinejoin="round" />
+                    {kornStier.map(({ i, d }) => (
+                      <path key={i} d={d} fill="white" stroke="white" strokeWidth={r2(2 * semBredde)} strokeLinejoin="round" />
                     ))}
                     {g.kontakter.map((c, i) => (
                       <circle key={i} cx={r2(c.x)} cy={r2(c.y)} r={r2(c.r * (0.8 + 2 * sement))} fill="white" />
@@ -1063,8 +1051,8 @@ export function Kornpakning(props: KornpakningProps) {
             {g.kontakter.map((c, i) => (
               <circle key={i} cx={r2(c.x)} cy={r2(c.y)} r={r2(c.r * (fyll === 'luft' ? 1 : 1.35))} fill={vann.fill} />
             ))}
-            {kornStier.map(({ q, d }) => (
-              <path key={q.seed} d={d} fill={vann.fill} stroke={vann.fill} strokeWidth={r2(2 * filmBredde)} strokeLinejoin="round" />
+            {kornStier.map(({ i, d }) => (
+              <path key={i} d={d} fill={vann.fill} stroke={vann.fill} strokeWidth={r2(2 * filmBredde)} strokeLinejoin="round" />
             ))}
           </g>
         )}
@@ -1083,16 +1071,16 @@ export function Kornpakning(props: KornpakningProps) {
             strokeWidth={r2(0.6 * ss)}
           />
         ))}
-        {kornStier.map(({ q }) => {
+        {kornStier.map(({ q, i }) => {
           const ci = fargeFor(q);
           const c = farger[ci]!;
           return (
             <KornTegning
-              key={q.seed}
+              key={i}
               x={q.x}
               y={q.y}
               r={q.r * KORN_TEGNESKALA}
-              omriss={omriss.get(q.seed) ?? kornOmriss({ rundhet: ru, seed: q.seed })}
+              omriss={omriss[i] ?? kornOmriss({ rundhet: ru, seed: q.seed })}
               rotate={q.rotate}
               rundhet={ru}
               toning={`${tonId}-${ci}`}
@@ -1101,6 +1089,34 @@ export function Kornpakning(props: KornpakningProps) {
             />
           );
         })}
+      </g>
+    );
+  }, [g, omriss, fyll, type, blandet, film, sement, leirFlak, mosaikk, ru, ss, bakId, tonId, maskId]);
+  if (!g) return null;
+  const u = g.utsnitt;
+  const ramm = rammeFor(u);
+  const formSti =
+    'r' in u
+      ? `M${r2(u.x - u.r)} ${r2(u.y)}a${r2(u.r)} ${r2(u.r)} 0 1 0 ${r2(2 * u.r)} 0a${r2(u.r)} ${r2(u.r)} 0 1 0 ${r2(-2 * u.r)} 0Z`
+      : `M${r2(ramm.x)} ${r2(ramm.y)}h${r2(ramm.w)}v${r2(ramm.h)}h${r2(-ramm.w)}Z`;
+  const innhold = typeof children === 'function' ? children(g) : children;
+  return (
+    <g opacity={dim ? 0.38 : undefined}>
+      <defs>
+        <clipPath id={clipId}>
+          <path d={formSti} />
+        </clipPath>
+      </defs>
+      <RadialGradient
+        id={kantId}
+        stops={[
+          [0, SCENE.shadow, 0],
+          [0.82, SCENE.shadow, 0],
+          [1, SCENE.shadow, 0.55],
+        ]}
+      />
+      <g clipPath={`url(#${clipId})`}>
+        {kornEl}
         {innhold}
         {ramme && <path d={formSti} fill={`url(#${kantId})`} />}
       </g>
@@ -1108,6 +1124,11 @@ export function Kornpakning(props: KornpakningProps) {
       {ramme && <path d={formSti} fill="none" stroke={SCENE.outline} strokeWidth={r2(1.6 * ss)} />}
     </g>
   );
+}
+
+/** Rammen rundt et utsnitt (sirkel eller rektangel) som rektangel. */
+function rammeFor(u: Utsnitt): { x: number; y: number; w: number; h: number } {
+  return 'r' in u ? { x: u.x - u.r, y: u.y - u.r, w: 2 * u.r, h: 2 * u.r } : { x: u.x - u.w / 2, y: u.y - u.h / 2, w: u.w, h: u.h };
 }
 
 /**
@@ -1181,7 +1202,7 @@ export interface KornkurveProps {
 }
 
 /** Fargen til båndet for en kornklasse: samme som mønsteret for klassen (leire, silt, sand, grus, ur). */
-const BAAND_MONSTER: Record<KornklasseId, MonsterId> = { leire: 'leire', silt: 'siltstein', sand: 'sand', grus: 'grus', stein: 'ur', blokk: 'ur' };
+const BAAND_MONSTER: Record<KornklasseId, MonsterId> = { leire: 'leire', silt: 'silt', sand: 'sand', grus: 'grus', stein: 'ur', blokk: 'ur' };
 
 /** Diameter i mm med passe mange desimaler: 25, 2,5, 0,15, 0,012. */
 export function fmtMm(d: number): string {

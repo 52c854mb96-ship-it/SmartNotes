@@ -256,7 +256,7 @@ export interface Grunnmateriale {
 export const MATERIALER: readonly Grunnmateriale[] = [
   { id: 'grus', navn: 'grus', K: 1e-2, kMin: 1e-4, kMax: 1, porositet: 0.3, effektivPorositet: 0.25, monster: 'grus' },
   { id: 'sand', navn: 'sand', K: 1e-4, kMin: 1e-6, kMax: 1e-2, porositet: 0.35, effektivPorositet: 0.25, monster: 'sand' },
-  { id: 'silt', navn: 'silt', K: 1e-6, kMin: 1e-9, kMax: 1e-5, porositet: 0.45, effektivPorositet: 0.08, monster: null },
+  { id: 'silt', navn: 'silt', K: 1e-6, kMin: 1e-9, kMax: 1e-5, porositet: 0.45, effektivPorositet: 0.08, monster: 'silt' },
   { id: 'leire', navn: 'leire', K: 1e-9, kMin: 1e-12, kMax: 1e-8, porositet: 0.5, effektivPorositet: 0.02, monster: 'leire' },
   { id: 'morene', navn: 'morene', K: 1e-7, kMin: 1e-10, kMax: 1e-5, porositet: 0.25, effektivPorositet: 0.05, monster: 'morene' },
   { id: 'oppsprukket-fjell', navn: 'oppsprukket fjell', K: 1e-6, kMin: 1e-7, kMax: 1e-5, porositet: 0.01, effektivPorositet: 0.005, monster: 'gneis' },
@@ -307,17 +307,39 @@ export function porefart(q: number, effektivPorositet: number): number | null {
 }
 
 /**
- * Reisetiden t = L/v for vann (eller en forurensning som følger vannet) over avstanden L med farten v, i samme tidsenhet
- * som farten (m/s gir sekunder; del på `SEK_PER_DOGN` for døgn). L = 0 gir 0; v ≤ 0 gir null (vannet kommer aldri fram).
+ * Reisetiden t = L/v for vann (eller en forurensning som følger vannet) over avstanden L med en kjent fart v, i samme
+ * tidsenhet som farten (m/s gir sekunder; del på `SEK_PER_DOGN` for døgn). L = 0 gir 0; v ≤ 0 gir null (vannet kommer
+ * aldri fram). Har du K, gradienten og porøsiteten i stedet for farten, bruk `reisetidDarcy`.
  *
  * @param avstand Avstand i m.
  * @param fart Porefart i m per tidsenhet.
  */
-export function reisetid(avstand: number, fart: number): number | null {
+export function reisetidFraFart(avstand: number, fart: number): number | null {
   if (!Number.isFinite(avstand) || avstand < 0 || !Number.isFinite(fart)) return null;
   if (avstand === 0) return 0;
   if (fart <= 0) return null;
   return endelig(avstand / fart);
+}
+
+/**
+ * Reisetiden i døgn for grunnvann over avstanden L (m) fra Darcys lov: t = L/v, der v = K · i/nₑ er porefarten (uten
+ * pumping). Til 60-døgnskravet for hygienisk barriere i løsmasser. L = 0 gir 0; gradient 0 (vannet står stille),
+ * negativ gradient, K = 0, nₑ ≤ 0 eller ugyldige tall gir null, aldri Infinity.
+ *   reisetidDarcy(60, 0.01, 1e-4, 0.25)   // ca. 174 døgn i sand
+ *
+ * @param avstand L i m.
+ * @param gradient Hydraulisk gradient i (fall i grunnvannsspeilet per meter).
+ * @param K Hydraulisk ledningsevne i m/s.
+ * @param effektivPorositet nₑ (0–1).
+ */
+export function reisetidDarcy(avstand: number, gradient: number, K: number, effektivPorositet: number): number | null {
+  if (!Number.isFinite(avstand) || avstand < 0) return null;
+  const q = darcy(K, gradient);
+  if (q === null) return null;
+  const v = porefart(q, effektivPorositet);
+  if (v === null) return null;
+  const t = reisetidFraFart(avstand, v);
+  return t === null ? null : endelig(t / SEK_PER_DOGN);
 }
 
 /** Fart i m/s omregnet til meter per døgn. Ugyldig tall gir null. */

@@ -17,7 +17,7 @@ import { niceTicks } from '../../kit/svg';
 import { Txt } from '../../kit/txt';
 import { ContactShadow, LinearGradient, RadialGradient, alpha, mix, sceneRandom, shade, tint, useSvgId } from '../../kit/scene/core';
 import { SCENE } from '../../kit/scene/palette';
-import { GEO } from './colors';
+import { GEO, MAGMA_GLOD, MAGMA_GLOD_STOPP } from './colors';
 import { useGeoScale, useGeoStroke } from './felles';
 import { LagMonstre, MONSTER_NAVN, lagFyll, useLagMonstre } from './monstre';
 import type { MonsterId } from './typer';
@@ -39,7 +39,8 @@ type Fn = (x: number) => number;
 
 const BIG = 1e4;
 const r2 = (v: number) => Math.round(v * 100) / 100;
-const fin = (v: number, alt = 0) => (Number.isFinite(v) ? v : alt);
+const fin = (v: number | undefined, alt = 0) => (v !== undefined && Number.isFinite(v) ? v : alt);
+const klemme01 = (v: number) => Math.min(1, Math.max(0, v));
 const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 /** Omtrentlig bredde på en tekst i figurens enheter (Txt: 17 · size · f). */
 const tekstBredde = (s: string, size: number, f: number) => s.length * 0.58 * 17 * size * f;
@@ -105,6 +106,114 @@ export function snittFordelEtiketter(onsket: readonly number[], hoyder: readonly
   return c;
 }
 
+/** Krysser strekene a0–a1 og b0–b1 hverandre (ikke bare i et endepunkt)? */
+function strekerKrysser(a0: SnittPunkt, a1: SnittPunkt, b0: SnittPunkt, b1: SnittPunkt): boolean {
+  const o = (p: SnittPunkt, q: SnittPunkt, r: SnittPunkt) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const d1 = o(b0, b1, a0);
+  const d2 = o(b0, b1, a1);
+  const d3 = o(a0, a1, b0);
+  const d4 = o(a0, a1, b1);
+  return d1 * d2 < -1e-9 && d3 * d4 < -1e-9;
+}
+
+/** Avstanden fra punktet p til streken a–b. */
+function avstandTilStrek(p: SnittPunkt, a: SnittPunkt, b: SnittPunkt): number {
+  const vx = b[0] - a[0];
+  const vy = b[1] - a[1];
+  const l2 = vx * vx + vy * vy;
+  const t = l2 > 0 ? klemme01(((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / l2) : 0;
+  return Math.hypot(p[0] - a[0] - t * vx, p[1] - a[1] - t * vy);
+}
+
+/** Ett punkt som en etikett i en kolonne peker på: hvor punktet er, høyden etiketten trenger og hvor streken treffer den. */
+export interface KolonnePunkt {
+  x: number;
+  y: number;
+  /** Høyden etiketten trenger (tekst og eventuell undertekst, med luft). */
+  hoyde: number;
+  /** Hvor streken treffer etiketten, målt fra midten av den (negativ = over midten). Standard 0. */
+  strek?: number;
+}
+
+/**
+ * Plasserer etiketter i en kolonne til høyre (eller med `side` 'venstre' til venstre) for punktene de peker på (strekene
+ * går fra punktet til `kolonneX`). Prøver
+ * flere rekkefølger (etter y, etter x og etter skrå linjer gjennom punktene; rekkefølgen avgjør hvem som viker når det er
+ * trangt, ellers står etiketten i høyde med punktet) og velger den som gir minst rot: hvert kryss
+ * mellom to streker og hver strek tett forbi et annet punkt teller som mye skråning, så noen få litt skrå streker vinner
+ * over et kryss, men ikke over en hel vifte av lange skrå streker. Etikettene flyttes så de ikke
+ * overlapper og holder seg mellom `topp` og `bunn` (snittFordelEtiketter). Gir midten (y) til hver etikett i samme
+ * rekkefølge som `punkter`; ugyldige punkter får NaN-fri plass øverst. `foretrukket` ('x' eller 'y') vinner ved likhet.
+ *   const midt = kolonneEtiketter(punkter, x + w + 18, topp, bunn);
+ */
+export function kolonneEtiketter(
+  punkter: readonly KolonnePunkt[],
+  kolonneX: number,
+  topp: number,
+  bunn: number,
+  foretrukket: 'x' | 'y' = 'y',
+  side: 'hoyre' | 'venstre' = 'hoyre',
+): number[] {
+  const n = punkter.length;
+  if (n === 0) return [];
+  const lo = fin(topp);
+  const hi = Math.max(lo, fin(bunn, lo));
+  const X = fin(kolonneX);
+  const P = punkter.map((p): SnittPunkt => [fin(p.x, X), fin(p.y, lo)]);
+  const hoyder = punkter.map((p) => Math.max(0, fin(p.hoyde)));
+  const strek = punkter.map((p) => fin(p.strek));
+  const idx = Array.from({ length: n }, (_, i) => i);
+  const etter = (key: (i: number) => number) => [...idx].sort((a, b) => key(a) - key(b) || a - b);
+  // Rekkefølger å prøve; etiketten ønsker seg alltid til høyden av punktet sitt (vannrett strek), og rekkefølgen
+  // avgjør bare hvem som viker når det er trangt
+  const kandidater: number[][] = [];
+  const prov = (orden: number[]) => kandidater.push(orden);
+  const xOrden = etter((i) => P[i]![0]);
+  const yOrden = etter((i) => P[i]![1]);
+  if (foretrukket === 'x') prov(xOrden);
+  prov(yOrden);
+  if (foretrukket !== 'x') prov(xOrden);
+  for (const m of [-1, -0.75, -0.5, -0.35, -0.2, -0.1, 0.1, 0.2, 0.35, 0.5, 0.75, 1]) {
+    prov(etter((i) => P[i]![1] + m * (X - P[i]![0])));
+  }
+  // Et kryss koster like mye som om strekene til sammen var ca. åtte etiketthøyder skråere, en strek tett forbi et
+  // annet punkt ca. tre: noen få litt skrå streker er bedre enn kryss, men en hel vifte av lange skrå streker er verre.
+  const hMiddel = hoyder.reduce((a, b) => a + b, 0) / n || 1;
+  let best: number[] | null = null;
+  let bestKost = Infinity;
+  const sett = new Set<string>();
+  for (const orden of kandidater) {
+    const navn = orden.join(',');
+    if (sett.has(navn)) continue;
+    sett.add(navn);
+    // Ønsket plass i rekkefølgen, aldri over etiketten før (så rekkefølgen holder)
+    const onsket = new Array<number>(n).fill(lo);
+    let forrige = -Infinity;
+    for (const i of orden) {
+      const v = Math.max(P[i]![1], forrige + 0.01);
+      onsket[i] = v;
+      forrige = v;
+    }
+    const c = snittFordelEtiketter(onsket, hoyder, lo, hi);
+    const ende = idx.map((i): SnittPunkt => [side === 'hoyre' ? X - 12 : X + 12, c[i]! + strek[i]!]);
+    let kryss = 0;
+    let gjennom = 0;
+    let skraa = 0;
+    for (let i = 0; i < n; i++) {
+      skraa += Math.abs(ende[i]![1] - P[i]![1]);
+      for (let j = i + 1; j < n; j++) if (strekerKrysser(P[i]!, ende[i]!, P[j]!, ende[j]!)) kryss++;
+      for (let j = 0; j < n; j++) if (j !== i && avstandTilStrek(P[j]!, P[i]!, ende[i]!) < 4) gjennom++;
+    }
+    const kost = kryss * 8 * hMiddel + gjennom * 3 * hMiddel + skraa;
+    if (kost < bestKost - 1e-6) {
+      bestKost = kost;
+      best = c;
+    }
+  }
+  return best ?? new Array<number>(n).fill(lo);
+}
+
+
 /* =====================================================================================================================
  * Etiketter i egen kolonne
  * ================================================================================================================== */
@@ -137,26 +246,35 @@ export interface SnittEtiketterProps {
   size?: number;
   /** Prikk i punktet etiketten peker på (standard på). */
   prikk?: boolean;
+  /**
+   * Hvilken rekkefølge som vinner når flere gir like få kryss mellom strekene ('y' standard, 'x' langs en bre eller elv).
+   * Rekkefølgen velges ellers så strekene krysser hverandre og andre punkter minst mulig (`kolonneEtiketter`).
+   */
+  orden?: 'x' | 'y';
 }
 
 /**
  * Etiketter i en egen kolonne ved siden av et snitt, med tynne streker til det de peker på, som i lærebøkene. Etikettene
- * flyttes så de ikke overlapper (også når teksten vokser på mobil). Ankerpunktet er (x, y) i hver etikett; kolonnen
- * står ved `x` i propsene.
+ * flyttes så de ikke overlapper (også når teksten vokser på mobil), og rekkefølgen velges så strekene krysser hverandre
+ * minst mulig (`kolonneEtiketter`). Ankerpunktet er (x, y) i hver etikett; kolonnen står ved `x` i propsene.
  *   <SnittEtiketter x={640} topp={20} bunn={300} etiketter={[{ x: 500, y: 120, tekst: 'Sandstein' }]} />
  */
-export function SnittEtiketter({ x, etiketter, topp, bunn, anchor = 'start', size = 0.8, prikk = true }: SnittEtiketterProps) {
+export function SnittEtiketter({ x, etiketter, topp, bunn, anchor = 'start', size = 0.8, prikk = true, orden = 'y' }: SnittEtiketterProps) {
   const f = useTextScale();
   const s = useGeoStroke();
   const k = useGeoScale();
   const fs = 17 * size * f;
   const synlige = etiketter.filter((e) => Number.isFinite(e.x) && Number.isFinite(e.y) && e.tekst);
   const hoyder = synlige.map((e) => fs * 1.12 + (e.undertekst ? fs * 0.86 : 0) + 4);
-  const c = snittFordelEtiketter(
-    synlige.map((e) => e.y),
-    hoyder,
+  // Streken treffer første linje: midten av den, målt fra midten av etiketten
+  const strek = synlige.map((e, i) => (e.undertekst ? -(hoyder[i]! - 4) / 2 + fs * 0.8 - fs * 0.33 : 0));
+  const c = kolonneEtiketter(
+    synlige.map((e, i) => ({ x: e.x, y: e.y, hoyde: hoyder[i]!, strek: strek[i]! })),
+    x,
     topp,
     bunn,
+    orden,
+    anchor === 'start' ? 'hoyre' : 'venstre',
   );
   const dir = anchor === 'start' ? 1 : -1;
   return (
@@ -165,7 +283,7 @@ export function SnittEtiketter({ x, etiketter, topp, bunn, anchor = 'start', siz
         const midt = c[i]!;
         const h = hoyder[i]! - 4;
         const linje1 = midt - h / 2 + fs * 0.8;
-        const strekY = e.undertekst ? linje1 - fs * 0.33 : midt;
+        const strekY = midt + strek[i]!;
         return (
           <g key={`${e.tekst}-${i}`} opacity={e.dim ? 0.45 : undefined}>
             <polyline
@@ -1350,7 +1468,7 @@ export function SnittGang({ fra, til, bredde = 12, type = 'diabas', smelte, seed
           y2={0.5 + ny / 2}
           stops={[
             [0, GEO.magma.fill],
-            [0.5, mix(GEO.magma.fill, GEO.lava.fill, 0.5)],
+            [0.5, MAGMA_GLOD.midt],
             [1, GEO.magma.fill],
           ]}
         />
@@ -1420,11 +1538,7 @@ export function SnittMagmakammer({ x, y, rx, ry, tilforsel = true, kanal, stivne
         id={gid}
         fx={0.45}
         fy={0.4}
-        stops={[
-          [0, mix(GEO.magma.fill, GEO.lava.fill, 0.75)],
-          [0.45, mix(GEO.magma.fill, GEO.lava.fill, 0.3)],
-          [1, GEO.magma.fill],
-        ]}
+        stops={MAGMA_GLOD_STOPP}
       />
       <LinearGradient
         id={kid}
@@ -1432,7 +1546,7 @@ export function SnittMagmakammer({ x, y, rx, ry, tilforsel = true, kanal, stivne
         y2={0}
         stops={[
           [0, GEO.magma.fill],
-          [0.5, mix(GEO.magma.fill, GEO.lava.fill, 0.35)],
+          [0.5, MAGMA_GLOD.kjerne],
           [1, GEO.magma.fill],
         ]}
       />
@@ -1446,7 +1560,7 @@ export function SnittMagmakammer({ x, y, rx, ry, tilforsel = true, kanal, stivne
         />
       )}
       <path d={d} fill={fyll ? fyll.fill : `url(#${gid})`} />
-      {!fyll && <path d={d} fill="none" stroke={alpha(GEO.lava.fill, 0.5)} strokeWidth={3 * s} transform={`translate(${r2(x * 0.06)} ${r2(y * 0.08)}) scale(0.94 0.92)`} />}
+      {!fyll && <path d={d} fill="none" stroke={alpha(MAGMA_GLOD.kjerne, 0.6)} strokeWidth={3 * s} transform={`translate(${r2(x * 0.06)} ${r2(y * 0.08)}) scale(0.94 0.92)`} />}
       <path d={d} fill="none" stroke={fyll ? shade(fyll.stroke, 0.2) : GEO.magma.line} strokeWidth={1.8 * s} strokeLinejoin="round" />
     </g>
   );
@@ -1554,7 +1668,7 @@ export interface LagpakkeOppsettValg {
   kolonne?: number;
   dybdeakse?: boolean;
   yngre?: boolean;
-  etiketter?: 'auto' | 'hoyre' | 'under' | 'ingen';
+  etiketter?: 'auto' | 'hoyre' | 'under' | 'ingen' | false;
   profil?: 'rett' | 'korn';
   enhet?: string;
   akseTittel?: string;
@@ -1612,7 +1726,7 @@ export function lagpakkeOppsett(v: LagpakkeOppsettValg, fInn = 1): LagpakkeOppse
     0,
     ...navn.map((l) => Math.max(tekstBredde(l.navn ?? MONSTER_NAVN[l.type], ETIKETT, f), l.tekst ? tekstBredde(l.tekst, ETIKETT * 0.82, f) : 0)),
   );
-  const onsket = v.etiketter ?? 'auto';
+  const onsket = v.etiketter === false ? 'ingen' : (v.etiketter ?? 'auto');
   const kolHoyre = fin(v.kolonne ?? clamp(0.3 * bredde, 56, 170), 100);
   const plassering: LagpakkeOppsett['plassering'] =
     onsket === 'auto' ? (venstre + kolHoyre + 30 + etikettB <= bredde ? 'hoyre' : 'under') : onsket;
@@ -1675,8 +1789,8 @@ export interface LagpakkeProps {
   dybdeakse?: boolean;
   /** Pila «yngre» lengst til venstre (standard på). */
   yngre?: boolean;
-  /** Etikettene: 'auto' (standard: til høyre når de får plass, ellers under), 'hoyre', 'under' eller 'ingen'. */
-  etiketter?: 'auto' | 'hoyre' | 'under' | 'ingen';
+  /** Etikettene: 'auto' (standard: til høyre når de får plass, ellers under), 'hoyre', 'under' eller 'ingen' (= false). */
+  etiketter?: 'auto' | 'hoyre' | 'under' | 'ingen' | false;
   /** 'korn' gir bredden etter kornstørrelsen (leire smalest, grus bredest), som i en sedimentologisk logg. Standard 'rett'. */
   profil?: 'rett' | 'korn';
   /** Gress på toppen av pakka. */

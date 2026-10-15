@@ -9,6 +9,7 @@
  * VIZ-fargene brukes aldri på bergarter eller landskap: farter og strømning (platebevegelse, grunnvann, isstrøm)
  * tegnes med `VIZ.velocity`, og krefter (tyngden i skråningen, platetrekk og ryggskyv) med VIZ som i fysikk.
  */
+import { mix, tint, type GradientStop } from '../../kit/scene/core';
 import { MONSTER_IDS, type MonsterId } from './typer';
 
 /** Fyll og kant for en flate: et lag i jorda, en bergart, vann, is, olje eller gass. */
@@ -170,6 +171,8 @@ export const GEO = {
   firn: paint('firn'),
   /** Havis (tynn, flytende). */
   havis: paint('havis'),
+  /** Luft i porene (umettet sone, tørre korn): lys og nøytral i begge temaer, så den aldri ligner vann. */
+  luft: paint('luft'),
 
   /* ---------- Kart ---------- */
   /** Koter (brune, som på norske topografiske kart). Hver femte kote tykkere. */
@@ -190,7 +193,7 @@ export const GEO = {
   /** Olje (grønn) og gass (rød), som på kartene til Sokkeldirektoratet. Også i porene i Kornpakning. */
   olje: paint('olje'),
   gass: paint('gass'),
-  /** CO₂ som lagres (sky i reservoaret, gass i porene). */
+  /** CO₂ som lagres (sky i reservoaret, gass i porene): grå med et fiolett skjær, så den ikke forveksles med vann. */
   co2: paint('co2'),
   /**
    * Gehalt (metallinnhold i malm) som sekvensiell skala: 0 = lavest, 4 = høyest. Sterkere farge betyr høyere gehalt i
@@ -198,13 +201,28 @@ export const GEO = {
    */
   gehalt: [v('gehalt-0'), v('gehalt-1'), v('gehalt-2'), v('gehalt-3'), v('gehalt-4')],
 
+  /* ---------- Forurensning (faner og skyer i grunnvann og jord) ---------- */
+  /**
+   * Smittestoffer (bakterier, virus, parasitter) fra avløp, gjødselkjeller eller beite: magenta. Tegn fanen gjerne
+   * halvgjennomsiktig: `alpha(GEO.smitte.fill, 0.7)` med `GEO.smitte.line` som kant og prikker.
+   */
+  smitte: paint('smitte'),
+  /** Kjemisk forurensning (sigevann fra deponi, olje- og drivstoffsøl på land): skitten oliven-brun. */
+  forurensning: paint('forurensning'),
+  /** Nitrat fra gjødsel og husdyrgjødsel: gulgrønn (ulik `GEO.olje`, som er mettet grønn). */
+  nitrat: paint('nitrat'),
+
   /* ---------- Datering ---------- */
   /** Morisotop (f.eks. ²³⁸U, ⁴⁰K, ¹⁴C) som prikker i et mineral. */
   morIsotop: v('iso-mor'),
   /** Datterisotop (f.eks. ²⁰⁶Pb, ⁴⁰Ar, ¹⁴N). */
   datterIsotop: v('iso-datter'),
-  /** Magnetiske striper på havbunnen: normal polaritet sterk farge, omvendt blek (som i lærebøkene). */
-  polaritet: { normal: v('pol-normal'), omvendt: v('pol-omvendt') },
+  /**
+   * Magnetiske striper på havbunnen (flater med fyll og kant): normal polaritet sterk farge, omvendt lys og nøytral, i
+   * begge temaer (som i lærebøkene). I mørkt tema er normal en mettet blå og omvendt en lys, varm grå, så begge synes
+   * mot den mørke flaten. Tegn ruter i en forklaring med `FlateForklaring`, ikke `Legend` (som bare tegner streker).
+   */
+  polaritet: { normal: paint('pol-normal'), omvendt: paint('pol-omvendt') },
 
   /* ---------- Risiko ---------- */
   /**
@@ -253,3 +271,25 @@ function trinn(list: readonly string[], andel: number): string {
   const t = Number.isFinite(andel) ? Math.min(1, Math.max(0, andel)) : 0;
   return list[Math.min(list.length - 1, Math.floor(t * list.length))]!;
 }
+
+/**
+ * Glødende magma uten oransje: den varmeste midten går mot lys karmin (`tint`), ikke mot lavaens rav, så magma aldri
+ * ligner G-pila (`VIZ.gravity`) eller rustaksenten i «Fjell» (fargeavstand ΔE over 20 i begge temaer, testet).
+ * - `kjerne`: midten i et magmakammer eller en diapir.
+ * - `midt`: mellomtonen (karmin med en snev av lava, fargetone under ca. 8°).
+ * - `kanal`: fyllet i kanaler og ganger (= `GEO.magma.fill`, med `GEO.magma.line` som kant).
+ * Bruk `MAGMA_GLOD_STOPP` i en `RadialGradient` for kamre og diapirer:
+ *   <RadialGradient id={id} fx={0.45} fy={0.4} stops={MAGMA_GLOD_STOPP} />
+ */
+export const MAGMA_GLOD = {
+  kjerne: tint(GEO.magma.fill, 0.4),
+  midt: mix(GEO.magma.fill, GEO.lava.fill, 0.15),
+  kanal: GEO.magma.fill,
+} as const;
+
+/** Toningen i et glødende magmakammer til `RadialGradient`: lys karmin i midten, karmin ytterst (se `MAGMA_GLOD`). */
+export const MAGMA_GLOD_STOPP: GradientStop[] = [
+  [0, MAGMA_GLOD.kjerne],
+  [0.45, MAGMA_GLOD.midt],
+  [1, GEO.magma.fill],
+];

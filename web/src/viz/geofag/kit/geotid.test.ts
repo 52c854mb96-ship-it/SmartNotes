@@ -20,6 +20,9 @@ const tekst = (s: string) => s.replace(NBSP, ' ');
 describe('tidsskalaen', () => {
   it('har grensene fra ICS-kartet 2023/09', () => {
     expect(tidsintervall('devon')?.start).toBe(419.62);
+    expect(tidsintervall('devon')?.slutt).toBe(358.86);
+    expect(tidsintervall('karbon')?.start).toBe(358.86);
+    expect(tidsintervall('karbon')?.usikkerhet).toBe(0.19);
     expect(tidsintervall('silur')?.slutt).toBe(419.62);
     expect(tidsintervall('kambrium')?.start).toBe(538.8);
     expect(tidsintervall('ordovicium')?.start).toBe(486.85);
@@ -185,7 +188,7 @@ describe('fmtAlder', () => {
     expect(fmtAlder(4567, { kort: true })).toBe('4,57 mrd. år');
     expect(fmtAlder(66, { siden: true })).toBe('66 millioner år siden');
     expect(fmtAlder(0, { siden: true })).toBe('i dag');
-    expect(tekst(fmtAlder(2500, { enhet: 'millioner' }))).toBe('2 500 millioner år');
+    expect(tekst(fmtAlder(2500, { enhet: 'millioner' }))).toBe('2500 millioner år');
   });
 
   it('ugyldige tall gir en strek', () => {
@@ -194,3 +197,19 @@ describe('fmtAlder', () => {
     expect(fmtAlder(Number.POSITIVE_INFINITY)).toBe('–');
   });
 });
+
+describe('fmtAlder: enheten etter avrundingen og tusenskille', () => {
+  const tekst = (t: string) => t.replace(/[\u00a0\u202f]/g, ' ');
+  it('bytter enhet når avrundingen når neste enhet', () => {
+    expect(fmtAlder(999.9)).toBe('1 milliard år');
+    expect(fmtAlder(999.4)).toBe('999 millioner år');
+    expect(fmtAlder(0.9999999)).toBe('1 million år');
+    expect(tekst(fmtAlder(0.9994))).toBe('999 000 år');
+    expect(fmtAlder(999.9, { enhet: 'millioner' })).toBe('1000 millioner år');
+  });
+  it('skriver tusenskille først fra fem sifre, som fmtTall', () => {
+    expect(fmtAlder(0.0035)).toBe('3500 år');
+    expect(tekst(fmtAlder(0.0108))).toBe('10 800 år');
+  });
+});
+

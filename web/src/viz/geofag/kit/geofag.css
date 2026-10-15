@@ -71,6 +71,8 @@
   --geo-rock-leire-line: #56636d;
   --geo-rock-kvikkleire: #d4cbe0;
   --geo-rock-kvikkleire-line: #5a4a82;
+  --geo-rock-silt: #ccd5c4;
+  --geo-rock-silt-line: #5b6650;
   --geo-rock-sand: #f3e4b4;
   --geo-rock-sand-line: #a3863f;
   --geo-rock-grus: #d8c9a5;
@@ -95,6 +97,8 @@
   --geo-firn-line: #9fb1c0;
   --geo-havis: #e8f1f6;
   --geo-havis-line: #86a8bd;
+  --geo-luft: #f3f5f7;
+  --geo-luft-line: #8a96a3;
 
   /* Kart */
   --geo-kote: #a0683a;
@@ -107,9 +111,9 @@
   --geo-vannskille: #8a3fa0;
 
   /* Prosesser (piler og strømmer i kretsløp) */
-  --geo-nedbor: #2a64ad;
+  --geo-nedbor: #3f7fcc;
   --geo-fordamping: #7d5fb5;
-  --geo-avrenning: #1d6f8f;
+  --geo-avrenning: #1f4785;
   --geo-erosjon: #b8394a;
   --geo-avsetning: #a47d1c;
 
@@ -118,19 +122,29 @@
   --geo-olje-line: #34561a;
   --geo-gass: #d65a4e;
   --geo-gass-line: #8a2a22;
-  --geo-co2: #8f9db3;
-  --geo-co2-line: #3f4d66;
+  --geo-co2: #a39fb0;
+  --geo-co2-line: #4f4866;
   --geo-gehalt-0: #efe7cf;
   --geo-gehalt-1: #e4cf8c;
   --geo-gehalt-2: #d3ab4a;
   --geo-gehalt-3: #b08417;
   --geo-gehalt-4: #77590b;
 
+  /* Forurensning i grunnvann og jord (faner og skyer langs strømmen) */
+  --geo-smitte: #ecc6df;
+  --geo-smitte-line: #9c3a7e;
+  --geo-forurensning: #d9cca6;
+  --geo-forurensning-line: #6b5a1e;
+  --geo-nitrat: #dfe4a0;
+  --geo-nitrat-line: #6d7a12;
+
   /* Datering */
   --geo-iso-mor: #3a62c2;
   --geo-iso-datter: #cf9a1c;
   --geo-pol-normal: #4a5873;
+  --geo-pol-normal-line: #2c3850;
   --geo-pol-omvendt: #ebe6dc;
+  --geo-pol-omvendt-line: #8f8778;
 
   /* Risiko (fra lav til svært høy fare) */
   --geo-fare-0: #f3e3a0;
@@ -222,38 +236,40 @@
     --geo-rock-gabbro-line: #a3b59f;
     --geo-rock-diabas: #354445;
     --geo-rock-diabas-line: #a8c0c0;
-    --geo-rock-sandstein: #5a5038;
+    --geo-rock-sandstein: #6b5a2e;
     --geo-rock-sandstein-line: #dcc589;
-    --geo-rock-siltstein: #4e4a38;
+    --geo-rock-siltstein: #4c4b42;
     --geo-rock-siltstein-line: #c6bb98;
-    --geo-rock-leirskifer: #3c4148;
+    --geo-rock-leirskifer: #33373f;
     --geo-rock-leirskifer-line: #aab2bd;
     --geo-rock-glimmerskifer: #42483c;
     --geo-rock-glimmerskifer-line: #b8c4a8;
-    --geo-rock-kalkstein: #384751;
+    --geo-rock-kalkstein: #3a5164;
     --geo-rock-kalkstein-line: #a5c2d2;
     --geo-rock-marmor: #52575c;
     --geo-rock-marmor-line: #c7ced4;
-    --geo-rock-kvartsitt: #544e3f;
+    --geo-rock-kvartsitt: #64615a;
     --geo-rock-kvartsitt-line: #d8ccb0;
-    --geo-rock-konglomerat: #544938;
+    --geo-rock-konglomerat: #5e4030;
     --geo-rock-konglomerat-line: #d2bb8c;
     --geo-rock-salt: #54464e;
     --geo-rock-salt-line: #d9b5c7;
     --geo-rock-kull: #151414;
     --geo-rock-kull-line: #6e675f;
-    --geo-rock-morene: #504943;
+    --geo-rock-morene: #3e433a;
     --geo-rock-morene-line: #c4b8a2;
-    --geo-rock-breelv: #554c3a;
+    --geo-rock-breelv: #5e4a2b;
     --geo-rock-breelv-line: #d6c194;
-    --geo-rock-leire: #3d454b;
+    --geo-rock-leire: #384650;
     --geo-rock-leire-line: #aab8c2;
-    --geo-rock-kvikkleire: #453e53;
+    --geo-rock-kvikkleire: #463e58;
     --geo-rock-kvikkleire-line: #bcaee0;
-    --geo-rock-sand: #5c5239;
-    --geo-rock-sand-line: #e0c98c;
-    --geo-rock-grus: #524936;
-    --geo-rock-grus-line: #cbb88e;
+    --geo-rock-silt: #4c5741;
+    --geo-rock-silt-line: #c8d2b2;
+    --geo-rock-sand: #7a6838;
+    --geo-rock-sand-line: #ecd59c;
+    --geo-rock-grus: #706250;
+    --geo-rock-grus-line: #dccaa2;
     --geo-rock-torv: #433325;
     --geo-rock-torv-line: #c19a72;
     --geo-rock-ur: #484642;
@@ -274,21 +290,23 @@
     --geo-firn-line: #cdd6de;
     --geo-havis: #6a8291;
     --geo-havis-line: #bcd2df;
+    --geo-luft: #8d969f;
+    --geo-luft-line: #c8d0d8;
 
     /* Kart */
-    --geo-kote: #b08a66;
-    --geo-hoyde-0: #2c3b2a;
-    --geo-hoyde-1: #3b4530;
-    --geo-hoyde-2: #4d4a34;
-    --geo-hoyde-3: #5c4f39;
-    --geo-hoyde-4: #685a46;
-    --geo-hoyde-5: #807e7b;
+    --geo-kote: #d6b089;
+    --geo-hoyde-0: #263626;
+    --geo-hoyde-1: #36452e;
+    --geo-hoyde-2: #4d5037;
+    --geo-hoyde-3: #635b45;
+    --geo-hoyde-4: #786a57;
+    --geo-hoyde-5: #8c877f;
     --geo-vannskille: #cf9be6;
 
     /* Prosesser (piler og strømmer i kretsløp) */
-    --geo-nedbor: #7bafe8;
+    --geo-nedbor: #8cc0f2;
     --geo-fordamping: #b9a0ea;
-    --geo-avrenning: #5fb6d3;
+    --geo-avrenning: #5a7fd0;
     --geo-erosjon: #ef8590;
     --geo-avsetning: #dcbc5c;
 
@@ -297,19 +315,29 @@
     --geo-olje-line: #a8d47f;
     --geo-gass: #9c3b34;
     --geo-gass-line: #f29a90;
-    --geo-co2: #46516a;
-    --geo-co2-line: #b3c1da;
-    --geo-gehalt-0: #3b3628;
+    --geo-co2: #5a5568;
+    --geo-co2-line: #c9c2dc;
+    --geo-gehalt-0: #4a4430;
     --geo-gehalt-1: #6a5a2c;
     --geo-gehalt-2: #9c7f30;
     --geo-gehalt-3: #cfa63c;
     --geo-gehalt-4: #f2cf5a;
 
+    /* Forurensning i grunnvann og jord (faner og skyer langs strømmen) */
+    --geo-smitte: #5a3550;
+    --geo-smitte-line: #e79ad0;
+    --geo-forurensning: #4d4528;
+    --geo-forurensning-line: #d0bd7c;
+    --geo-nitrat: #4b5527;
+    --geo-nitrat-line: #cbd97c;
+
     /* Datering */
     --geo-iso-mor: #86a6f2;
     --geo-iso-datter: #f0c75a;
-    --geo-pol-normal: #9cb0d2;
-    --geo-pol-omvendt: #2c3136;
+    --geo-pol-normal: #6d84b0;
+    --geo-pol-normal-line: #c3d1ea;
+    --geo-pol-omvendt: #c9c2b4;
+    --geo-pol-omvendt-line: #8a8375;
 
     /* Risiko (fra lav til svært høy fare) */
     --geo-fare-0: #d8c56c;
@@ -401,38 +429,40 @@
   --geo-rock-gabbro-line: #a3b59f;
   --geo-rock-diabas: #354445;
   --geo-rock-diabas-line: #a8c0c0;
-  --geo-rock-sandstein: #5a5038;
+  --geo-rock-sandstein: #6b5a2e;
   --geo-rock-sandstein-line: #dcc589;
-  --geo-rock-siltstein: #4e4a38;
+  --geo-rock-siltstein: #4c4b42;
   --geo-rock-siltstein-line: #c6bb98;
-  --geo-rock-leirskifer: #3c4148;
+  --geo-rock-leirskifer: #33373f;
   --geo-rock-leirskifer-line: #aab2bd;
   --geo-rock-glimmerskifer: #42483c;
   --geo-rock-glimmerskifer-line: #b8c4a8;
-  --geo-rock-kalkstein: #384751;
+  --geo-rock-kalkstein: #3a5164;
   --geo-rock-kalkstein-line: #a5c2d2;
   --geo-rock-marmor: #52575c;
   --geo-rock-marmor-line: #c7ced4;
-  --geo-rock-kvartsitt: #544e3f;
+  --geo-rock-kvartsitt: #64615a;
   --geo-rock-kvartsitt-line: #d8ccb0;
-  --geo-rock-konglomerat: #544938;
+  --geo-rock-konglomerat: #5e4030;
   --geo-rock-konglomerat-line: #d2bb8c;
   --geo-rock-salt: #54464e;
   --geo-rock-salt-line: #d9b5c7;
   --geo-rock-kull: #151414;
   --geo-rock-kull-line: #6e675f;
-  --geo-rock-morene: #504943;
+  --geo-rock-morene: #3e433a;
   --geo-rock-morene-line: #c4b8a2;
-  --geo-rock-breelv: #554c3a;
+  --geo-rock-breelv: #5e4a2b;
   --geo-rock-breelv-line: #d6c194;
-  --geo-rock-leire: #3d454b;
+  --geo-rock-leire: #384650;
   --geo-rock-leire-line: #aab8c2;
-  --geo-rock-kvikkleire: #453e53;
+  --geo-rock-kvikkleire: #463e58;
   --geo-rock-kvikkleire-line: #bcaee0;
-  --geo-rock-sand: #5c5239;
-  --geo-rock-sand-line: #e0c98c;
-  --geo-rock-grus: #524936;
-  --geo-rock-grus-line: #cbb88e;
+  --geo-rock-silt: #4c5741;
+  --geo-rock-silt-line: #c8d2b2;
+  --geo-rock-sand: #7a6838;
+  --geo-rock-sand-line: #ecd59c;
+  --geo-rock-grus: #706250;
+  --geo-rock-grus-line: #dccaa2;
   --geo-rock-torv: #433325;
   --geo-rock-torv-line: #c19a72;
   --geo-rock-ur: #484642;
@@ -453,21 +483,23 @@
   --geo-firn-line: #cdd6de;
   --geo-havis: #6a8291;
   --geo-havis-line: #bcd2df;
+  --geo-luft: #8d969f;
+  --geo-luft-line: #c8d0d8;
 
   /* Kart */
-  --geo-kote: #b08a66;
-  --geo-hoyde-0: #2c3b2a;
-  --geo-hoyde-1: #3b4530;
-  --geo-hoyde-2: #4d4a34;
-  --geo-hoyde-3: #5c4f39;
-  --geo-hoyde-4: #685a46;
-  --geo-hoyde-5: #807e7b;
+  --geo-kote: #d6b089;
+  --geo-hoyde-0: #263626;
+  --geo-hoyde-1: #36452e;
+  --geo-hoyde-2: #4d5037;
+  --geo-hoyde-3: #635b45;
+  --geo-hoyde-4: #786a57;
+  --geo-hoyde-5: #8c877f;
   --geo-vannskille: #cf9be6;
 
   /* Prosesser (piler og strømmer i kretsløp) */
-  --geo-nedbor: #7bafe8;
+  --geo-nedbor: #8cc0f2;
   --geo-fordamping: #b9a0ea;
-  --geo-avrenning: #5fb6d3;
+  --geo-avrenning: #5a7fd0;
   --geo-erosjon: #ef8590;
   --geo-avsetning: #dcbc5c;
 
@@ -476,19 +508,29 @@
   --geo-olje-line: #a8d47f;
   --geo-gass: #9c3b34;
   --geo-gass-line: #f29a90;
-  --geo-co2: #46516a;
-  --geo-co2-line: #b3c1da;
-  --geo-gehalt-0: #3b3628;
+  --geo-co2: #5a5568;
+  --geo-co2-line: #c9c2dc;
+  --geo-gehalt-0: #4a4430;
   --geo-gehalt-1: #6a5a2c;
   --geo-gehalt-2: #9c7f30;
   --geo-gehalt-3: #cfa63c;
   --geo-gehalt-4: #f2cf5a;
 
+  /* Forurensning i grunnvann og jord (faner og skyer langs strømmen) */
+  --geo-smitte: #5a3550;
+  --geo-smitte-line: #e79ad0;
+  --geo-forurensning: #4d4528;
+  --geo-forurensning-line: #d0bd7c;
+  --geo-nitrat: #4b5527;
+  --geo-nitrat-line: #cbd97c;
+
   /* Datering */
   --geo-iso-mor: #86a6f2;
   --geo-iso-datter: #f0c75a;
-  --geo-pol-normal: #9cb0d2;
-  --geo-pol-omvendt: #2c3136;
+  --geo-pol-normal: #6d84b0;
+  --geo-pol-normal-line: #c3d1ea;
+  --geo-pol-omvendt: #c9c2b4;
+  --geo-pol-omvendt-line: #8a8375;
 
   /* Risiko (fra lav til svært høy fare) */
   --geo-fare-0: #d8c56c;

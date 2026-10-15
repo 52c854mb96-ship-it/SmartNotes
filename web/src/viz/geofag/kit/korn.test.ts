@@ -1,5 +1,10 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { kontrast, type Tema } from './testfarger';
 import {
+  Kornpakning,
   RUNDHETSKLASSER,
   fmtMm,
   kornOmriss,
@@ -7,6 +12,7 @@ import {
   kornSti,
   kornpakningGeometri,
   pakkKorn,
+  poreFarge,
   polygonAreal,
   porositetEtterSortering,
   porositetIUtsnitt,
@@ -206,5 +212,36 @@ describe('fmtMm', () => {
     expect(fmtMm(0.0123)).toBe('0,012');
     expect(fmtMm(0)).toBe('–');
     expect(fmtMm(Number.NaN)).toBe('–');
+  });
+});
+
+describe('Kornpakning', () => {
+  it('gir hvert korn en unik nøkkel, også når frøene til to korn er like (silt, mange korn)', () => {
+    // Silt som i k6-grunnvann: r = 92 og kornradius r/15. Finn frø der to korn får samme frø (det ga like nøkler før).
+    const valg = (seed: number) => ({ x: 0, y: 0, r: 92, korn: 92 / 15, sortering: 0.6, rundhet: 0.4, seed });
+    const medLikeFro = Array.from({ length: 16 }, (_, i) => i + 1).filter((seed) => {
+      const g = kornpakningGeometri(valg(seed), 1)!;
+      return new Set(g.korn.map((q) => q.seed)).size < g.korn.length;
+    });
+    expect(medLikeFro.length).toBeGreaterThan(0);
+    // Serverrendring advarer ikke om like nøkler, så testen sjekker kilden: kornene nøkles etter indeksen, ikke frøet
+    const kilde = readFileSync(new URL('./korn.tsx', import.meta.url), 'utf8');
+    expect(kilde).not.toMatch(/key=\{q\.seed\}|new Map\([^)]*q\.seed/);
+    for (const seed of medLikeFro.slice(0, 1)) {
+      const html = renderToStaticMarkup(
+        createElement('svg', null, createElement(Kornpakning, { x: 0, y: 0, r: 92, korn: 92 / 15, sortering: 0.6, rundhet: 'kantrundet', type: 'silt', seed })),
+      );
+      expect(html).not.toMatch(/NaN|Infinity/);
+      // Like mange korn tegnes som geometrien har (ingen slås sammen)
+      const n = kornpakningGeometri(valg(seed), 1)!.korn.length;
+      expect((html.match(/<path/g) ?? []).length).toBeGreaterThanOrEqual(n);
+    }
+  }, 20_000);
+
+  it('har luft i porene som er lys og tydelig ulik vann i begge temaer', () => {
+    for (const tema of ['lys', 'mork'] as Tema[]) {
+      expect(kontrast(poreFarge('luft').fill, poreFarge('vann').fill, tema), tema).toBeGreaterThanOrEqual(1.5);
+      expect(kontrast(poreFarge('co2').fill, poreFarge('vann').fill, tema), tema).toBeGreaterThanOrEqual(1.4);
+    }
   });
 });

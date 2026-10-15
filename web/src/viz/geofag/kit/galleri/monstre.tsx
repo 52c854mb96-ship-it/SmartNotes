@@ -8,7 +8,7 @@ import { VIZ } from '../../../kit/colors';
 import { Txt } from '../../../kit/txt';
 import { fmt } from '../../../kit/format';
 import { ContactShadow, ForceArrow, Himmel, LinearGradient, RadialGradient, SCENE, Terreng, alpha, materialStops, mix, sceneRandom, shade, tint, useSvgId } from '../../../kit/scene';
-import { GEO, type GeoPaint } from '../colors';
+import { GEO, MAGMA_GLOD, MAGMA_GLOD_STOPP, type GeoPaint } from '../colors';
 import { geoHoyde, useGeoScale, useGeoStroke } from '../felles';
 import { LagFlate, LagMonstre, MONSTER_NAVN, useLagMonstre } from '../monstre';
 import { MONSTER_IDS, type MonsterId } from '../typer';
@@ -329,8 +329,9 @@ function MagmaOgLava() {
       <rect x={0} y={150} width={400} height={110} fill={`url(#${grunn})`} />
       <LinearGradient id={kjegle} x1={0} y1={0} x2={1} y2={0} stops={[[0, tint(GEO.bergart.basalt.fill, 0.15)], [0.55, GEO.bergart.basalt.fill], [1, shade(GEO.bergart.basalt.fill, 0.25)]]} />
       <path d="M50 151L168 56C176 50 182 58 190 58C198 58 204 50 212 56L340 151Z" fill={`url(#${kjegle})`} stroke={SCENE.outline} strokeWidth={1} />
-      <RadialGradient id={kammer} fx={0.45} fy={0.4} stops={[[0, tint(GEO.magma.fill, 0.35)], [0.6, GEO.magma.fill], [1, shade(GEO.magma.fill, 0.25)]]} />
-      <path d="M184 205L196 205L195 58L186 58Z" fill={GEO.magma.fill} stroke={GEO.magma.line} strokeWidth={1} />
+      {/* Samme kanal og glød som Plategrense, Vulkan og SnittMagmakammer bruker (MAGMA_GLOD) */}
+      <RadialGradient id={kammer} fx={0.45} fy={0.4} stops={MAGMA_GLOD_STOPP} />
+      <path d="M184 205L196 205L195 58L186 58Z" fill={MAGMA_GLOD.kanal} stroke={GEO.magma.line} strokeWidth={1} />
       <ellipse cx={190} cy={222} rx={74} ry={24} fill={`url(#${kammer})`} stroke={GEO.magma.line} strokeWidth={1.4} />
       <RadialGradient id={lava} cx={0.3} cy={0.2} r={0.9} stops={[[0, tint(GEO.lava.fill, 0.45)], [0.5, GEO.lava.fill], [1, mix(GEO.lava.fill, GEO.lava.line, 0.5)]]} />
       <path d="M200 58C215 72 238 94 260 112S300 138 322 150L304 151C288 142 262 128 244 114S208 80 192 62Z" fill={`url(#${lava})`} stroke={GEO.lava.line} strokeWidth={1.4} strokeLinejoin="round" />
@@ -346,6 +347,8 @@ function MagmaOgLava() {
         <circle key={`${x}-${y}`} cx={x} cy={y} r={r} fill={GEO.aske.fill} stroke={GEO.aske.line} strokeWidth={1} />
       ))}
       <ForceArrow x1={110} y1={92} x2={110} y2={142} color={VIZ.gravity} label="G" />
+      {/* G-pila rett ved en kanal og et kammer, som platetrekket ved kanalen i subduksjonsblokka */}
+      <ForceArrow x1={150} y1={196} x2={176} y2={226} color={VIZ.gravity} label="F" labelX={148} labelY={190} />
       <rect x={300} y={176} width={84} height={24} rx={5} fill="var(--accent)" />
       <Txt x={342} y={193} size={0.7} weight={650} color="var(--on-accent)" halo={false}>
         Aksent
@@ -595,18 +598,18 @@ function Datering() {
     <>
       <rect x={10} y={16} width={380} height={96} fill={GEO.skorpeHav.fill} />
       {stripes.map((s) => (
-        <rect key={`${s.x}-${s.w}`} x={s.x} y={16} width={s.w} height={96} fill={s.normal ? GEO.polaritet.normal : GEO.polaritet.omvendt} />
+        <rect key={`${s.x}-${s.w}`} x={s.x} y={16} width={s.w} height={96} fill={s.normal ? GEO.polaritet.normal.fill : GEO.polaritet.omvendt.fill} stroke={s.normal ? GEO.polaritet.normal.line : GEO.polaritet.omvendt.line} strokeWidth={0.6} />
       ))}
       <rect x={10} y={16} width={380} height={96} fill="none" stroke={VIZ.muted} />
       <path d="M200 10V118" stroke={GEO.magma.fill} strokeWidth={3} />
       <Txt x={200} y={134} size={0.7}>
         Spredningsrygg
       </Txt>
-      <rect x={28} y={124} width={14} height={12} fill={GEO.polaritet.normal} stroke={VIZ.muted} />
+      <rect x={28} y={124} width={14} height={12} fill={GEO.polaritet.normal.fill} stroke={GEO.polaritet.normal.line} />
       <Txt x={46} y={134} anchor="start" size={0.68}>
         Normal
       </Txt>
-      <rect x={306} y={124} width={14} height={12} fill={GEO.polaritet.omvendt} stroke={VIZ.muted} />
+      <rect x={306} y={124} width={14} height={12} fill={GEO.polaritet.omvendt.fill} stroke={GEO.polaritet.omvendt.line} />
       <Txt x={324} y={134} anchor="start" size={0.68}>
         Omvendt
       </Txt>
@@ -758,14 +761,17 @@ const RESSURSER: Fargeprove[] = [
   paint('GEO.olje', GEO.olje),
   paint('GEO.gass', GEO.gass),
   paint('GEO.co2', GEO.co2),
+  paint('GEO.smitte', GEO.smitte),
+  paint('GEO.forurensning', GEO.forurensning),
+  paint('GEO.nitrat', GEO.nitrat),
   ...GEO.gehalt.map((c, i) => ({ navn: `gehalt[${i}]`, fill: c })),
 ];
 
 const DATERING: Fargeprove[] = [
   { navn: 'GEO.morIsotop', fill: GEO.morIsotop },
   { navn: 'GEO.datterIsotop', fill: GEO.datterIsotop },
-  { navn: 'polaritet.normal', fill: GEO.polaritet.normal },
-  { navn: 'polaritet.omvendt', fill: GEO.polaritet.omvendt },
+  paint('polaritet.normal', GEO.polaritet.normal),
+  paint('polaritet.omvendt', GEO.polaritet.omvendt),
   ...GEO.fare.map((c, i) => ({ navn: `fare[${i}]`, fill: c })),
 ];
 

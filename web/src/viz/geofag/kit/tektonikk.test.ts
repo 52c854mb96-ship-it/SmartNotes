@@ -9,7 +9,9 @@ import {
   PLATE_FART,
   Plategrense,
   STRIPER_START,
+  SkjelvStjerne,
   Vulkan,
+  havbunnsalder,
   jordasIndreGeometri,
   jordasIndreRadier,
   jordasIndreRadius,
@@ -354,3 +356,80 @@ describe('komponentene', () => {
     expect(svg(createElement(Vulkan, { x: 0, y: 0, bredde: -4 }))).toBe('<svg></svg>');
   });
 });
+
+describe('havbunnsalder', () => {
+  it('gir alderen fra avstanden og den fulle spredningsfarten, som magnetiskeStriper', () => {
+    expect(havbunnsalder(100, 4)).toBeCloseTo(5);
+    expect(havbunnsalder(-100, 4)).toBeCloseTo(5);
+    // Ytterkanten av den eldste stripa ved t = 5 er 5 millioner år gammel
+    const st = magnetiskeStriper(4, 5);
+    expect(havbunnsalder(st[st.length - 1]!.til, 4)).toBeCloseTo(5);
+    expect(havbunnsalder(10, 0)).toBeNull();
+    expect(havbunnsalder(Number.NaN, 4)).toBeNull();
+    expect(havbunnsalder(10, Number.POSITIVE_INFINITY)).toBeNull();
+  });
+});
+
+describe('Plategrense: ankre, vekst og vulkaner', () => {
+  const boks = (a: { x: number; y: number; retning?: readonly [number, number] }, w: number, f: number) => {
+    const [ux, uy] = a.retning ?? [1, 0];
+    const L = 0.11 * w;
+    const fs = 17 * 0.8 * f;
+    return { x0: Math.min(a.x, a.x + ux * L) - 6, y0: Math.min(a.y, a.y + uy * L) - fs - 4, x1: Math.max(a.x, a.x + ux * L) + 6, y1: Math.max(a.y, a.y + uy * L) + 6 };
+  };
+  const over = (a: { x0: number; y0: number; x1: number; y1: number }, b: { x0: number; y0: number; x1: number; y1: number }) =>
+    a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+  it('gir kraftankre som ikke dekker kit-ets lagnavn og fartspiler', () => {
+    for (const type of TYPER)
+      for (const f of [1, 1.8]) {
+        const g = plategrenseGeometri({ type, x: 20, y: 60, w: 700, h: 300 * (1 + 0.24 * (f - 1)), etiketter: true }, f)!;
+        const navn = Object.keys(g.kraftankre);
+        expect(navn.length, type).toBeGreaterThan(0);
+        for (const [n, a] of Object.entries(g.kraftankre)) {
+          expect(Number.isFinite(a!.x) && Number.isFinite(a!.y), `${type} ${n}`).toBe(true);
+          const kollisjoner = g.opptatt.filter((b) => over(boks(a!, 700, f), b));
+          expect(kollisjoner, `${type} ${n} f=${f}`).toEqual([]);
+        }
+      }
+    const sp = plategrenseGeometri({ type: 'spredning', w: 700, h: 300 })!;
+    expect(Object.keys(sp.kraftankre).sort()).toEqual(['plateHoyre', 'plateVenstre', 'ryggskyvHoyre', 'ryggskyvVenstre']);
+    expect(plategrenseGeometri({ type: 'subduksjon', w: 700, h: 300 })!.kraftankre.platetrekk?.retning?.[1]).toBeGreaterThan(0);
+  });
+
+  it('løfter fjellkjeden ved kollisjon med tiden (standard t = 50)', () => {
+    const topp = (t: number | undefined) => {
+      const g = plategrenseGeometri({ type: 'kollisjon', w: 700, h: 300, t })!;
+      let min = Infinity;
+      for (let x = 0; x <= 700; x += 5) min = Math.min(min, g.profil(x));
+      return min;
+    };
+    expect(topp(0)).toBeGreaterThan(topp(10));
+    expect(topp(10)).toBeGreaterThan(topp(50));
+    expect(topp(undefined)).toBeCloseTo(topp(50));
+    expect(plategrenseGeometri({ type: 'kollisjon', w: 700, h: 300 })!.t).toBe(50);
+  });
+
+  it('har alltid minst én aktiv vulkan over det varme punktet', () => {
+    for (const fart of [0, 2, 8, 15])
+      for (let t = 0; t <= 20; t += 0.25) {
+        const g = plategrenseGeometri({ type: 'varmt-punkt', w: 760, h: 300, t, fart })!;
+        expect(g.vulkaner.some((v) => v.aktiv), `fart ${fart}, t ${t}`).toBe(true);
+      }
+  });
+
+  it('tegner grunne skjelv ved spredningsryggen', () => {
+    const ut = svg(createElement(Plategrense, { type: 'spredning', w: 700, h: 300 }));
+    const utenSkjelv = svg(createElement(Plategrense, { type: 'spredning', w: 700, h: 300, skjelv: false }));
+    expect(ut.length).toBeGreaterThan(utenSkjelv.length);
+  });
+});
+
+describe('SkjelvStjerne', () => {
+  it('tegner en stjerne, og ingenting for ugyldige tall', () => {
+    expect(svg(createElement(SkjelvStjerne, { x: 10, y: 20 }))).toContain('<path');
+    expect(svg(createElement(SkjelvStjerne, { x: Number.NaN, y: 20 }))).toBe('<svg></svg>');
+    expect(svg(createElement(SkjelvStjerne, { x: 10, y: 20, r: 0 }))).toBe('<svg></svg>');
+  });
+});
+

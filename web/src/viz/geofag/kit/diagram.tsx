@@ -4,16 +4,18 @@
  * hendelser) og `Zoomtrakt`, pluss små hjelpere for tekstbredde, linjebryting og flagg over en akse (`flaggEtiketter`). Samme stil som `Plot` i det felles kit-et (rutenett,
  * akseverdier og aksetitler med klassene i viz.css), så diagrammene ser like ut i alle fagene.
  */
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useTextScale } from '../../kit/controls';
 import { VIZ } from '../../kit/colors';
 import { Txt } from '../../kit/txt';
 import { fmt } from '../../kit/format';
 import { linePath, niceTicks, scaleLinear } from '../../kit/svg';
 import { alpha, shade, useSvgId } from '../../kit/scene/core';
-import { GEO, tidFarge } from './colors';
+import { GEO, tidFarge, type GeoPaint } from './colors';
+import { LagMonstre, lagFyll, useLagMonstre } from './monstre';
+import type { MonsterId } from './typer';
 import { geoHoyde, useGeoScale, useGeoStroke } from './felles';
-import { logEtikett, logTicks, scaleLog, scaleLogInvert, type LogEtikettValg } from './akser';
+import { fmtTall, logEtikett, logTicks, scaleLog, scaleLogInvert, type LogEtikettValg } from './akser';
 import { PREKAMBRIUM, fmtAlder, intervaller, JORDAS_ALDER, type TidsIntervall, type TidsNiva } from './geotid';
 
 /* ================================================================================================ Tekst */
@@ -189,6 +191,156 @@ export function flaggEtiketter(inn: readonly FlaggInn[], p0: number, p1: number,
   };
 }
 
+/** Ett flagg i `Flagg`: punktet streken går ned til, teksten og fargen. */
+export interface FlaggPunkt {
+  /** Punktet flagget peker på (figurens koordinater): et hus, en brønn, en kilde. */
+  x: number;
+  y: number;
+  tekst: string;
+  /** Farge på tekst, strek og prikk (standard `VIZ.ink`). */
+  farge?: string;
+}
+
+/** Props til `Flagg`. */
+export interface FlaggProps {
+  flagg: readonly FlaggPunkt[];
+  /** Grunnlinjen for den nederste raden med tekst (y); flere rader står over den. */
+  basis: number;
+  /** Området tekstene kan stå innenfor (x fra og til). */
+  x0: number;
+  x1: number;
+  /** Relativ tekststørrelse (standard 0,8). */
+  size?: number;
+}
+
+/**
+ * Tekster som flagg over et landskap eller en blokk: hver tekst står i en rad over `basis` med en tynn loddrett strek
+ * ned til punktet sitt (med glorie, så streken synes på alle flater), uten at streker går gjennom tekster eller tekster
+ * overlapper (`flaggEtiketter`). Hver rad er 17 · size · f + 7 · f høy, så sett av plass over `basis` til radene. Blir
+ * det for trangt, tegnes bare prikkene (gi da færre flagg eller mer bredde). Ankerpunkt: (x, y) i hvert flagg.
+ *   <Flagg basis={40} x0={10} x1={790} flagg={[{ x: hus.x, y: hus.y, tekst: 'Bolig' }, { x: b.x, y: b.y, tekst: 'Brønn', farge: GEO.grunnvann.line }]} />
+ */
+export function Flagg({ flagg, basis, x0, x1, size = 0.8 }: FlaggProps) {
+  const f = useTextScale();
+  const ss = useGeoStroke();
+  const k = useGeoScale();
+  const fs = 17 * size * f;
+  const synlige = flagg.filter((fl) => Number.isFinite(fl.x) && Number.isFinite(fl.y) && fl.tekst);
+  if (synlige.length === 0 || !Number.isFinite(basis)) return null;
+  const plass = flaggEtiketter(
+    synlige.map((fl) => ({ pos: fl.x, bredde: tekstBredde(fl.tekst, fs) + 4 })),
+    Number.isFinite(x0) ? x0 : 0,
+    Number.isFinite(x1) ? x1 : 800,
+    10 * f,
+  );
+  const radH = fs + 7 * f;
+  return (
+    <g>
+      {synlige.map((fl, i) => {
+        const farge = fl.farge ?? VIZ.ink;
+        const pl = plass?.flagg[i];
+        const ty = pl ? basis - pl.rad * radH : null;
+        return (
+          <g key={`${fl.tekst}-${i}`}>
+            {ty !== null && (
+              <>
+                <line x1={fl.x} x2={fl.x} y1={ty - fs * 0.35} y2={fl.y} stroke={VIZ.surface} strokeWidth={3.2 * ss} opacity={0.7} strokeLinecap="round" />
+                <line x1={fl.x} x2={fl.x} y1={ty - fs * 0.35} y2={fl.y} stroke={alpha(farge, 0.8)} strokeWidth={1.3 * ss} strokeLinecap="round" />
+              </>
+            )}
+            <circle cx={fl.x} cy={fl.y} r={2.6 * k} fill={farge} stroke={VIZ.surface} strokeWidth={1.1 * ss} />
+            {ty !== null && pl && (
+              <Txt x={pl.x + 2} y={ty} anchor="start" size={size} weight={650} color={farge}>
+                {fl.tekst}
+              </Txt>
+            )}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+/* ================================================================================================ Fargeforklaring */
+
+/** Én rute i `FlateForklaring`. */
+export interface FlateForklaringPunkt {
+  label: ReactNode;
+  /** En flate (`GeoPaint`, med kanten i `line`) eller en farge (streng). */
+  farge: GeoPaint | string;
+  /**
+   * 'flate' (standard): rute med fyll og kant. 'linje': strek (stiplet med `stiplet`). 'stjerne': jordskjelv. 'prikk':
+   * en fylt sirkel (korn, isotoper, brønner). 'monster': ruta fylt med mønsteret `monster` (bergart eller løsmasse).
+   */
+  form?: 'flate' | 'linje' | 'stjerne' | 'prikk' | 'monster';
+  /** Mønsteret når `form` er 'monster'. */
+  monster?: MonsterId;
+  stiplet?: boolean;
+}
+
+/** Femtakket stjerne (som jordskjelvsymbolet i Plategrense). */
+function stjerne(x: number, y: number, R: number): string {
+  const p: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const r = i % 2 === 0 ? R : R * 0.45;
+    p.push(`${i ? 'L' : 'M'}${(x + r * Math.cos(a)).toFixed(2)} ${(y + r * Math.sin(a)).toFixed(2)}`);
+  }
+  return `${p.join('')}Z`;
+}
+
+/** Ruta med mønster i en forklaring (egen liten SVG med egne mønster-id-er). */
+function MonsterRute({ type, line }: { type: MonsterId; line: string }) {
+  const m = useLagMonstre('forklaring');
+  return (
+    <svg aria-hidden width={22} height={14} viewBox="0 0 22 14" style={{ overflow: 'visible', flex: 'none' }}>
+      <LagMonstre id={m.id} bare={[type]} />
+      <rect x={0.5} y={0.5} width={21} height={13} rx={2.5} fill={lagFyll(type, m.id).fill} stroke={line} strokeWidth={1} />
+    </svg>
+  );
+}
+
+/**
+ * Fargeforklaring under en figur, som `Legend` i det felles kit-et (samme stil, HTML under figuren), men med ruter for
+ * flater: fyll og en tydelig kant (`GeoPaint.line`, eller `VIZ.muted` for en ren farge), så også mørke flater synes i
+ * mørkt tema (høydelag, omvendt polaritet, mettet sone). Kan også vise mønstre (bergarter og løsmasser), stjerner
+ * (jordskjelv), prikker og streker. Bruk den i `VizLayout`s forklaring under figuren, ikke inne i SVG-en.
+ *   <FlateForklaring items={[{ label: 'Normal polaritet', farge: GEO.polaritet.normal }, { label: 'Omvendt', farge: GEO.polaritet.omvendt }]} />
+ *   <FlateForklaring items={GEO.hoydelag.map((c, i) => ({ label: `${i * 200}–${(i + 1) * 200} m`, farge: c }))} />
+ *   <FlateForklaring items={[{ label: 'Sand', farge: GEO.bergart.sand, form: 'monster', monster: 'sand' }]} />
+ */
+export function FlateForklaring({ items }: { items: readonly FlateForklaringPunkt[] }) {
+  return (
+    <ul className="viz-legend" role="list">
+      {items.map((it, i) => {
+        const fill = typeof it.farge === 'string' ? it.farge : it.farge.fill;
+        const line = typeof it.farge === 'string' ? VIZ.muted : it.farge.line;
+        const form = it.form ?? 'flate';
+        return (
+          <li key={i}>
+            {form === 'flate' ? (
+              <span aria-hidden style={{ display: 'inline-block', flex: 'none', width: 20, height: 13, borderRadius: 3, background: fill, border: `1.5px solid ${line}` }} />
+            ) : form === 'monster' && it.monster ? (
+              <MonsterRute type={it.monster} line={line} />
+            ) : form === 'stjerne' ? (
+              <svg aria-hidden width={18} height={18} viewBox="-9 -9 18 18" style={{ overflow: 'visible', flex: 'none' }}>
+                <path d={stjerne(0, 0.6, 7.5)} fill={fill} stroke={VIZ.ink} strokeWidth={0.9} strokeLinejoin="round" />
+              </svg>
+            ) : form === 'prikk' ? (
+              <svg aria-hidden width={14} height={14} viewBox="-7 -7 14 14" style={{ flex: 'none' }}>
+                <circle r={5} fill={fill} stroke={typeof it.farge === 'string' ? VIZ.surface : line} strokeWidth={1.2} />
+              </svg>
+            ) : (
+              <span className={`viz-legend-swatch${it.stiplet ? ' is-dashed' : ''}`} style={{ '--c': fill } as CSSProperties} aria-hidden />
+            )}
+            {it.label}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /* ================================================================================================ LogPlot */
 
 /** Én akse i `LogPlot`. */
@@ -299,15 +451,6 @@ interface Merker {
   major: number[];
   minor: number[];
   tekst: string[];
-}
-
-/**
- * Et tall på norsk som på aksene i geofag: desimalkomma, ekte minus og mellomrom som tusenskille fra fem sifre
- * (1000 og 2500 uten mellomrom, 10 000 med), som i `logEtikett`. Ugyldige tall gir «–».
- */
-export function fmtTall(v: number, desimaler = 0): string {
-  const t = fmt(v, desimaler);
-  return Math.abs(v) >= 999.5 && Math.abs(v) < 9999.5 ? t.replace(/[\s\u00a0\u202f]/g, '') : t;
 }
 
 /** Om en log-akse fra lo til hi bør skrive alle tallene som tierpotenser (når noen av dem ville blitt det). */
@@ -902,7 +1045,9 @@ const ENHET_TITTEL: Record<Exclude<Tidsenhet, 'auto'>, string> = { millioner: 'm
  * kolonnene med bånd, plassen til hendelsene og akseverdiene. Bruk den når du tegner noe som skal treffe tidslinja fra
  * utsiden, f.eks. en `Zoomtrakt` mellom to tidslinjer. `f` er tekstskaleringen (`useTextScale()`).
  */
-export function tidslinjeGeometri(p: GeoTidslinjeProps, f = 1): TidslinjeGeometri {
+export function tidslinjeGeometri(p: GeoTidslinjeProps, fInn = 1): TidslinjeGeometri {
+  // Ugyldig eller for liten tekstskalering behandles som 1 (som i geoHoyde), så geometrien aldri får NaN
+  const f = Number.isFinite(fInn) ? Math.max(1, fInn) : 1;
   const retning = p.retning ?? 'vannrett';
   const x = Number.isFinite(p.x) ? p.x! : 0;
   const y = Number.isFinite(p.y) ? p.y! : 0;
@@ -1054,6 +1199,10 @@ export function GeoTidslinje(props: GeoTidslinjeProps) {
           x={r.x + r.width / 2}
           y={r.y + r.height / 2 + fs * 0.36}
           textAnchor="middle"
+          stroke={tidFarge(iv.id)}
+          strokeWidth={3.2 * ss}
+          strokeLinejoin="round"
+          paintOrder="stroke"
           style={{ fontSize: fs, fontWeight: props.markert === iv.id ? 750 : 600, fill: VIZ.ink, pointerEvents: 'none' }}
         >
           {tekst}
@@ -1086,6 +1235,8 @@ export function GeoTidslinje(props: GeoTidslinjeProps) {
     etiketter.push({ pos: s(h.alder), tekst: h.tekst, farge: h.farge ?? VIZ.ink, ende, markor: false });
   }
   const hendelseEl: ReactNode[] = [];
+  // Strekene som går over båndene tegnes under navnene i båndene (som har glorie), så navnene kan leses
+  const linjeEl: ReactNode[] = [];
   const pxFor = (e: Etikett) => (e.markor ? 17 * 0.8 * f : hendelsePx);
   if (etiketter.length > 0 && vannrett) {
     const radH = hendelsePx * 1.32 + 3;
@@ -1103,9 +1254,11 @@ export function GeoTidslinje(props: GeoTidslinjeProps) {
         const ty = q0 - 8 - fl.rad * radH;
         // Står teksten over streken, slutter streken like under teksten; ellers går den opp langs siden av teksten
         const over = e.pos > fl.x - 2 && e.pos < fl.x + tekstBredde(e.tekst, px) + 6;
+        linjeEl.push(
+          <line key={`hl${i}`} x1={e.pos} x2={e.pos} y1={e.markor ? q0 - 6 : q1} y2={over ? ty + px * 0.3 : ty - px * 0.3} stroke={e.farge} strokeWidth={(e.markor ? 1.4 : 1.2) * ss} opacity={e.markor ? 1 : 0.75} />,
+        );
         hendelseEl.push(
           <g key={`h${i}`}>
-            <line x1={e.pos} x2={e.pos} y1={e.markor ? q0 - 6 : q1} y2={over ? ty + px * 0.3 : ty - px * 0.3} stroke={e.farge} strokeWidth={(e.markor ? 1.4 : 1.2) * ss} opacity={e.markor ? 1 : 0.75} />
             {e.ende !== null && <line x1={e.pos} x2={e.ende} y1={q0 - 3 * ss} y2={q0 - 3 * ss} stroke={e.farge} strokeWidth={4.5 * ss} strokeLinecap="round" />}
             {!e.markor && <circle cx={e.pos} cy={q0} r={3.4 * k} fill={e.farge} stroke={VIZ.surface} strokeWidth={1.3 * ss} />}
             <Txt x={fl.x} y={ty} anchor="start" size={e.markor ? 0.8 : 0.74} weight={e.markor ? 750 : 560}>
@@ -1148,9 +1301,9 @@ export function GeoTidslinje(props: GeoTidslinjeProps) {
       }
       hend.forEach((e, i) => {
         const cy = merkeY(nivaa[i]!);
+        linjeEl.push(<line key={`ml${i}`} x1={e.pos} x2={e.pos} y1={q1} y2={cy} stroke={e.farge} strokeWidth={1.2 * ss} opacity={0.75} />);
         hendelseEl.push(
           <g key={`m${i}`}>
-            <line x1={e.pos} x2={e.pos} y1={q1} y2={cy} stroke={e.farge} strokeWidth={1.2 * ss} opacity={0.75} />
             {e.ende !== null && <line x1={e.pos} x2={e.ende} y1={q0 - 3 * ss} y2={q0 - 3 * ss} stroke={e.farge} strokeWidth={4.5 * ss} strokeLinecap="round" />}
             <circle cx={e.pos} cy={cy} r={rb} fill={e.farge} stroke={VIZ.surface} strokeWidth={1.4 * ss} />
             <text x={e.pos} y={cy + rb * 0.4} textAnchor="middle" style={{ fontSize: rb * 1.15, fontWeight: 750, fill: VIZ.surface }}>
@@ -1255,9 +1408,9 @@ export function GeoTidslinje(props: GeoTidslinjeProps) {
       const ly = ys[i]!;
       const e = it.e;
       const midtTekst = ly - hendelsePx * 0.35 + ((it.linjer.length - 1) * linjeH) / 2;
+      if (!e.markor) linjeEl.push(<line key={`hl${i}`} x1={q0} x2={q1} y1={e.pos} y2={e.pos} stroke={e.farge} strokeWidth={1.2 * ss} opacity={0.75} />);
       hendelseEl.push(
         <g key={`h${i}`}>
-          {!e.markor && <line x1={q0} x2={q1} y1={e.pos} y2={e.pos} stroke={e.farge} strokeWidth={1.2 * ss} opacity={0.75} />}
           {e.ende !== null && <line x1={q1 + 3 * ss} x2={q1 + 3 * ss} y1={e.pos} y2={e.ende} stroke={e.farge} strokeWidth={4.5 * ss} strokeLinecap="round" />}
           <polyline
             points={`${e.markor ? q1 + 6 : q1},${e.pos} ${lx - 14 * f},${midtTekst} ${lx - 5},${midtTekst}`}
@@ -1350,19 +1503,22 @@ export function GeoTidslinje(props: GeoTidslinjeProps) {
     const r = rekt(a, b, q0 - 4, q1 + 4);
     utsnittEl = <rect {...r} rx={4} fill={alpha(VIZ.ink, 0.06)} stroke={VIZ.ink} strokeWidth={2.2 * ss} />;
   }
-  const markorEl: ReactNode =
+  // Markøren: streken under navnene i båndene, hodet oppå alt
+  const markorLinje: ReactNode =
     markorPos === null ? null : vannrett ? (
       <g>
         <line x1={markorPos} x2={markorPos} y1={q0 - 6} y2={q1 + 6} stroke={VIZ.surface} strokeWidth={5 * ss} strokeLinecap="round" />
         <line x1={markorPos} x2={markorPos} y1={q0 - 6} y2={q1 + 6} stroke={VIZ.ink} strokeWidth={2.4 * ss} strokeLinecap="round" />
-        <circle cx={markorPos} cy={q0 - 6} r={3.6 * k} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.4 * ss} />
       </g>
     ) : (
       <g>
         <line x1={q0 + 1} x2={q1 + 6} y1={markorPos} y2={markorPos} stroke={VIZ.surface} strokeWidth={5 * ss} strokeLinecap="round" />
         <line x1={q0 + 1} x2={q1 + 6} y1={markorPos} y2={markorPos} stroke={VIZ.ink} strokeWidth={2.4 * ss} strokeLinecap="round" />
-        <circle cx={q1 + 6} cy={markorPos} r={3.6 * k} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.4 * ss} />
       </g>
+    );
+  const markorHode: ReactNode =
+    markorPos === null ? null : (
+      <circle cx={vannrett ? markorPos : q1 + 6} cy={vannrett ? q0 - 6 : markorPos} r={3.6 * k} fill={VIZ.ink} stroke={VIZ.surface} strokeWidth={1.4 * ss} />
     );
 
   const ramme = (rad: { q0: number; q1: number }, i: number) => {
@@ -1378,11 +1534,13 @@ export function GeoTidslinje(props: GeoTidslinjeProps) {
       {baandEl}
       {g.rader.map(ramme)}
       {markert.r && <rect {...markert.r} fill="none" stroke={VIZ.ink} strokeWidth={2.4 * ss} />}
+      {linjeEl}
+      {markorLinje}
       {navnEl}
       {utsnittEl}
       {akseEl}
       {hendelseEl}
-      {markorEl}
+      {markorHode}
       {props.children?.(g)}
     </g>
   );

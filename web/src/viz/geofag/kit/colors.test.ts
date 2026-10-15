@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GEO, bergartFarge, fareFarge, gehaltFarge, hoydelagFarge, tidFarge, type GeoPaint } from './colors';
+import { mix } from '../../kit/scene/core';
+import { GEO, MAGMA_GLOD, MAGMA_GLOD_STOPP, bergartFarge, fareFarge, gehaltFarge, hoydelagFarge, tidFarge, type GeoPaint } from './colors';
+import { deltaE, hex, kontrast, type Tema } from './testfarger';
 import { geoHoyde } from './felles';
 import { MONSTER_IDS } from './typer';
 
@@ -107,5 +109,65 @@ describe('geoHoyde', () => {
     expect(geoHoyde(0.5, 320)).toBe(320);
     expect(geoHoyde(Number.NaN, 320)).toBe(320);
     expect(geoHoyde(2, Number.POSITIVE_INFINITY)).toBe(260);
+  });
+});
+
+describe('fargene skiller seg der de brukes sammen', () => {
+  const g = (navn: string) => `var(--geo-${navn})`;
+  const skilles = (a: string, b: string, tema: Tema) => kontrast(a, b, tema) >= 1.25 || deltaE(a, b, tema) >= 12;
+
+  it('sedimentlag som ofte ligger oppå hverandre, skilles i mørkt tema', () => {
+    const grupper = [
+      ['sandstein', 'siltstein', 'leirskifer', 'kalkstein', 'konglomerat', 'kvartsitt'],
+      ['sand', 'grus', 'leire', 'morene', 'silt', 'breelv', 'kvikkleire'],
+    ];
+    for (const gr of grupper)
+      for (let i = 0; i < gr.length; i++)
+        for (let j = i + 1; j < gr.length; j++) {
+          const [a, b] = [g(`rock-${gr[i]}`), g(`rock-${gr[j]}`)];
+          expect(skilles(a, b, 'mork'), `${gr[i]} / ${gr[j]}: ${hex(a, 'mork')} ${hex(b, 'mork')}`).toBe(true);
+        }
+  });
+
+  it('har synlige polaritetsstriper i begge temaer (normal sterk, omvendt lys, ikke invertert)', () => {
+    const [n, o] = [GEO.polaritet.normal, GEO.polaritet.omvendt];
+    for (const tema of ['lys', 'mork'] as Tema[]) {
+      expect(kontrast(n.fill, o.fill, tema), tema).toBeGreaterThanOrEqual(1.8);
+      // Omvendt er den lyse i begge temaer
+      expect(kontrast(o.fill, '#000000', tema)).toBeGreaterThan(kontrast(n.fill, '#000000', tema));
+    }
+    expect(kontrast(n.fill, '#1f2225', 'mork')).toBeGreaterThanOrEqual(1.8);
+    expect(kontrast(o.fill, '#1f2225', 'mork')).toBeGreaterThanOrEqual(1.8);
+    // I lyst tema er omvendt nesten hvit; kanten må synes mot en hvit flate
+    expect(kontrast(o.line, '#ffffff', 'lys')).toBeGreaterThanOrEqual(3);
+  });
+
+  it('har høydelag der nabolagene skilles i mørkt tema', () => {
+    for (let i = 1; i < GEO.hoydelag.length; i++) {
+      expect(kontrast(GEO.hoydelag[i]!, GEO.hoydelag[i - 1]!, 'mork'), `høydelag ${i - 1}–${i}`).toBeGreaterThanOrEqual(1.2);
+      // Kotene synes på alle lagene
+      expect(kontrast(GEO.kote, GEO.hoydelag[i]!, 'mork')).toBeGreaterThanOrEqual(1.5);
+    }
+  });
+
+  it('holder magmaen slik den faktisk tegnes (kanaler, kamre, krater) unna G-pila og aksenten', () => {
+    const brukt = [GEO.magma.fill, MAGMA_GLOD.kjerne, MAGMA_GLOD.midt, MAGMA_GLOD.kanal, ...MAGMA_GLOD_STOPP.map((s) => s[1]), mix(GEO.lava.fill, GEO.magma.fill, 0.12), GEO.lava.fill];
+    for (const tema of ['lys', 'mork'] as Tema[])
+      for (const c of brukt) {
+        expect(deltaE(c, 'var(--viz-gravity)', tema), `${hex(c, tema)} mot G (${tema})`).toBeGreaterThan(20);
+        const aksent = tema === 'lys' ? '#8f4b2e' : '#e09a72';
+        expect(deltaE(c, aksent, tema), `${hex(c, tema)} mot aksenten (${tema})`).toBeGreaterThan(20);
+      }
+  });
+
+  it('skiller avrenning fra nedbør og fra VIZ.velocity, og CO₂ og luft fra grunnvann', () => {
+    for (const tema of ['lys', 'mork'] as Tema[]) {
+      expect(deltaE(GEO.avrenning, GEO.nedbor, tema), tema).toBeGreaterThan(20);
+      expect(deltaE(GEO.avrenning, 'var(--viz-velocity)', tema), tema).toBeGreaterThan(30);
+      expect(kontrast(GEO.co2.fill, GEO.grunnvann.fill, tema), tema).toBeGreaterThanOrEqual(1.4);
+      expect(kontrast(GEO.luft.fill, GEO.grunnvann.fill, tema), tema).toBeGreaterThanOrEqual(1.5);
+      expect(deltaE(GEO.nitrat.fill, GEO.olje.fill, tema), tema).toBeGreaterThan(12);
+    }
+    expect(kontrast(GEO.gehalt[0], '#1f2225', 'mork')).toBeGreaterThanOrEqual(1.5);
   });
 });

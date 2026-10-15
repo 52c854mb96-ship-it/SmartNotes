@@ -21,8 +21,8 @@ import { ContactShadow, LinearGradient, RadialGradient, alpha, mix, sceneRandom,
 import { Callout, ForceArrow } from '../../kit/scene/overlay';
 import { SCENE } from '../../kit/scene/palette';
 import { Planet } from '../../kit/scene/rom';
-import { GEO, type GeoPaint } from './colors';
-import { fmtTall } from './diagram';
+import { GEO, MAGMA_GLOD, MAGMA_GLOD_STOPP, type GeoPaint } from './colors';
+import { fmtTall } from './akser';
 import { useGeoScale, useGeoStroke } from './felles';
 import { fmtAlder } from './geotid';
 import { JORDAS_LAG, JORDRADIUS, type JordLag, type Tilstand } from './jorda';
@@ -229,15 +229,17 @@ export interface MagnetiskStripe {
 }
 
 /**
- * Stripene på den ene siden av en spredningsrygg (de er speilvendt på den andre siden). `fart` er spredningsfarten i
- * cm per år mellom platene (hver side flytter seg med halvparten), `t` hvor mange millioner år som har gått siden
- * figuren startet for `start` millioner år siden (standard 5). Skorpa som ble dannet ved tiden τ etter start, ligger
- * nå (t − τ) · v km fra ryggen og har polariteten fra (start − τ) millioner år før i dag. Ved t = start er mønsteret
- * som på havbunnen i dag; t over start regnes som start. Avstanden ut til den eldste stripa er 5 · fart · t km.
- * Gir [] når fart eller t er 0 eller ugyldig.
+ * Stripene på den ene siden av en spredningsrygg (de er speilvendt på den andre siden). `spredningsfart` er den
+ * relative farten mellom platene i cm per år (full spredningsfart, som `Plategrense.fart`): hver side flytter seg med
+ * spredningsfart/2. Har du halvfarten (farten til én plate), gang den med 2 først. `t` er hvor mange millioner år som
+ * har gått siden figuren startet for `start` millioner år siden (standard 5). Skorpa som ble dannet ved tiden τ etter
+ * start, ligger nå (t − τ) · v km fra ryggen, der v = 5 · spredningsfart km per million år, og har polariteten fra
+ * (start − τ) millioner år før i dag. Ved t = start er mønsteret som på havbunnen i dag; t over start regnes som start.
+ * Avstanden ut til den eldste stripa er 5 · spredningsfart · t km. Gir [] når farten eller t er 0 eller ugyldig.
  *   magnetiskeStriper(4, 5)[0]   // { fra: 0, til: 15,6, normal: true, navn: 'Brunhes', … }  (20 km per million år)
  */
-export function magnetiskeStriper(fart: number, t: number, start = STRIPER_START): MagnetiskStripe[] {
+export function magnetiskeStriper(spredningsfart: number, t: number, start = STRIPER_START): MagnetiskStripe[] {
+  const fart = spredningsfart;
   if (!Number.isFinite(fart) || !Number.isFinite(t) || !Number.isFinite(start) || fart <= 0 || t <= 0 || start <= 0) return [];
   const T = Math.min(t, start);
   const v = 5 * fart; // km per million år på hver side
@@ -258,6 +260,18 @@ export function magnetiskeStriper(fart: number, t: number, start = STRIPER_START
     ut.push({ fra, til, normal: p.normal, navn: p.navn, dannetFra: a0, dannetTil: a1 });
   }
   return ut;
+}
+
+/**
+ * Alderen (millioner år) til havbunnen `avstand` km fra ryggaksen når platene sprer seg med `spredningsfart` cm per år
+ * (full fart; hver side flytter seg med halvparten): alder = |avstand| / (5 · spredningsfart). 1 cm per år er 10 km per
+ * million år. Samme konvensjon som `magnetiskeStriper` og `Plategrense.fart`. Null når farten er 0, negativ eller
+ * ugyldig.
+ *   havbunnsalder(100, 4)   // 5 (millioner år): 20 km per million år på hver side
+ */
+export function havbunnsalder(avstand: number, spredningsfart: number): number | null {
+  if (!Number.isFinite(avstand) || !Number.isFinite(spredningsfart) || spredningsfart <= 0) return null;
+  return Math.abs(avstand) / (5 * spredningsfart);
 }
 
 /* =====================================================================================================================
@@ -890,6 +904,8 @@ interface BlokkProps {
   hav: number | null;
   /** Fargen på toppflaten ved x og høyden y (før lys og skygge). */
   toppFarge: (x: number, y: number) => string;
+  /** Lys og skygge per firkant på toppflaten etter helningen (standard på). Av for flate bånd, som magnetiske striper. */
+  toppSkygge?: boolean;
   /** Båndene på sideflaten (ved x = w), ovenfra og ned. */
   side: readonly SideBand[];
   kjegler: readonly Kjegle[];
@@ -909,7 +925,7 @@ interface BlokkProps {
  * vannflaten (halvgjennomsiktig over havbunnen), kjeglene ved frontkanten, sideflaten til høyre i skygge og snittet
  * foran med lys ovenfra. Samme stil som Snittblokk. Lokale koordinater: (0, 0) er øverste venstre hjørne av snittet.
  */
-function Blokk({ w, h, dx, dy, dybde, profil, frontTopp, hav, toppFarge, side, kjegler, front, overflate, frontFri, skygge = true, vannAlfa = 0.6 }: BlokkProps) {
+function Blokk({ w, h, dx, dy, dybde, profil, frontTopp, hav, toppFarge, toppSkygge = true, side, kjegler, front, overflate, frontFri, skygge = true, vannAlfa = 0.6 }: BlokkProps) {
   const s = useGeoStroke();
   const uid = useSvgId('blokk');
   const persp = dx > 0.5 && dy > 0.5 && dybde > 0;
@@ -931,7 +947,7 @@ function Blokk({ w, h, dx, dy, dybde, profil, frontTopp, hav, toppFarge, side, k
     const xm = (a[0] + b[0]) / 2;
     const ym = (a[1] + b[1]) / 2;
     const under = hav !== null && ym > hav;
-    const q = Math.round(klemme((-ddy / (ddx || 1)) * 1.6, -1, 1) * 10) / 10;
+    const q = toppSkygge ? Math.round(klemme((-ddy / (ddx || 1)) * 1.6, -1, 1) * 10) / 10 : 0;
     const base = toppFarge(xm, ym);
     const fill = q > 0 ? tint(base, 0.13 * q) : q < 0 ? shade(base, 0.15 * -q) : base;
     return {
@@ -1008,7 +1024,7 @@ function Blokk({ w, h, dx, dy, dybde, profil, frontTopp, hav, toppFarge, side, k
         {krater && (
           <g>
             <path d={sti(krater.kant, true)} fill={shade(k.farge, 0.38)} />
-            <path d={sti(krater.bunn, true)} fill={k.glo ? mix(GEO.lava.fill, GEO.magma.fill, 0.3) : shade(k.farge, 0.55)} opacity={k.glo ? 0.6 + 0.4 * k.glo : 1} />
+            <path d={sti(krater.bunn, true)} fill={k.glo ? mix(GEO.lava.fill, GEO.magma.fill, 0.12) : shade(k.farge, 0.55)} opacity={k.glo ? 0.6 + 0.4 * k.glo : 1} />
             <path d={sti(krater.kant)} fill="none" stroke={tint(k.farge, 0.15)} strokeWidth={0.9 * s} />
           </g>
         )}
@@ -1186,6 +1202,34 @@ export type PlateAnkerNavn =
   | 'mantelplume'
   | 'eldreVulkan';
 
+/**
+ * Navnene på kraftankrene i `plategrenseGeometri(…).kraftankre` (hvilke som finnes, avhenger av typen):
+ * - spredning: ryggskyvVenstre, ryggskyvHoyre, plateVenstre, plateHoyre
+ * - subduksjon: platetrekk, havplate
+ * - kollisjon: kollisjonVenstre, kollisjonHoyre
+ * - varmt-punkt: plateVenstre
+ * - transform: plateVenstre, plateHoyre
+ */
+export type KraftAnkerNavn =
+  | 'ryggskyvVenstre'
+  | 'ryggskyvHoyre'
+  | 'plateVenstre'
+  | 'plateHoyre'
+  | 'platetrekk'
+  | 'havplate'
+  | 'kollisjonVenstre'
+  | 'kollisjonHoyre';
+
+/** En rektangulær flate i figurens koordinater som noe allerede står i (tekst, pil). */
+export interface PlateBoks {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  /** Hva som står der: 'lagnavn' (Litosfære …) eller 'fart' (fartspil med tekst). */
+  hva: 'lagnavn' | 'fart';
+}
+
 /** Et ankerpunkt i figurens koordinater, med en retning (enhetsvektor) der en kraftpil naturlig peker. */
 export interface PlateAnker {
   x: number;
@@ -1254,6 +1298,8 @@ interface PlateModell {
   /** Fargen på toppflaten ved x og høyden y. */
   topp: (x: number, y: number) => string;
   ankere: Partial<Record<PlateAnkerNavn, PlateAnker>>;
+  /** Kandidater til kraftankrene, i prioritert rekkefølge (den første som er fri for tekst og fartspiler velges). */
+  kraft: Partial<Record<KraftAnkerNavn, PlateAnker[]>>;
   lagTekster: { x: number; y: number; tekst: string; anchor?: 'start' | 'middle' | 'end' }[];
   overTekster: { x: number; y: number; tekst: string }[];
   aldre: { x: number; y: number; alder: number; aktiv: boolean }[];
@@ -1324,6 +1370,7 @@ function tomModell(): PlateModell {
     side: [],
     topp: () => HAVBUNN,
     ankere: {},
+    kraft: {},
     lagTekster: [],
     overTekster: [],
     aldre: [],
@@ -1378,6 +1425,17 @@ function modellSpredning(m: ModellInn): PlateModell {
   mod.hav = ys;
   mod.profil = bunn;
 
+  // Grunne skjelv (under ca. 10 km) i den tynne, sprø skorpa langs ryggaksen, der platene revner og sprekker opp
+  {
+    const rnd = sceneRandom(17);
+    for (let i = 0; i < 9; i++) {
+      const x = xr + (rnd() - 0.5) * 0.11 * w;
+      const a = bunn(x) + 0.012 * h;
+      const b = skorpeBunn(x) + 0.018 * h;
+      if (b > a) mod.skjelv.push([x, a + rnd() * (b - a)]);
+    }
+  }
+
   // Skorpa, med magnetiske striper der den er dannet etter start
   const striper = m.striper ? magnetiskeStriper(fart, t) : [];
   const ytterst = striper.length > 0 ? striper[striper.length - 1]!.til / kmPerPx : 0;
@@ -1410,7 +1468,8 @@ function modellSpredning(m: ModellInn): PlateModell {
   }
   mod.topp = (x) => {
     const st = stripeVed(x);
-    return st === 'normal' ? GEO.polaritet.normal : st === 'omvendt' ? GEO.polaritet.omvendt : HAVBUNN;
+    // Stripene ligger flatt på havbunnen og skimtes gjennom vannet: litt dempet mot havbunnsfargen
+    return st === 'normal' ? mix(GEO.polaritet.normal.fill, HAVBUNN, 0.25) : st === 'omvendt' ? mix(GEO.polaritet.omvendt.fill, HAVBUNN, 0.25) : HAVBUNN;
   };
 
   // Smelting ved trykkavlastning: mellom litosfærens underside og dypet der mantelen begynner å smelte
@@ -1443,6 +1502,13 @@ function modellSpredning(m: ModellInn): PlateModell {
     ryggskyvVenstre: { x: xr - 0.14 * w, y: midtLito(xr - 0.14 * w), retning: nedover(litoBunn, xr - 0.14 * w, -1) },
     ryggskyvHoyre: { x: xr + 0.14 * w, y: midtLito(xr + 0.14 * w), retning: nedover(litoBunn, xr + 0.14 * w, 1) },
     astenosfare: { x: xr + 0.3 * w, y: 0.9 * h },
+  };
+  const iLito = (x: number, andel: number) => skorpeBunn(x) + andel * (litoBunn(x) - skorpeBunn(x));
+  mod.kraft = {
+    ryggskyvVenstre: [0.14, 0.12, 0.17, 0.1, 0.2].map((d) => ({ x: xr - d * w, y: midtLito(xr - d * w), retning: nedover(litoBunn, xr - d * w, -1) })),
+    ryggskyvHoyre: [0.14, 0.12, 0.17, 0.1, 0.2].map((d) => ({ x: xr + d * w, y: midtLito(xr + d * w), retning: nedover(litoBunn, xr + d * w, 1) })),
+    plateVenstre: [0.3, 0.36, 0.25, 0.42].flatMap((d) => [0.78, 0.9, 0.6].map((a) => ({ x: xr - d * w, y: iLito(xr - d * w, a), retning: [-1, 0] as const }))),
+    plateHoyre: [0.3, 0.36, 0.25, 0.42].flatMap((d) => [0.78, 0.9, 0.6].map((a) => ({ x: xr + d * w, y: iLito(xr + d * w, a), retning: [1, 0] as const }))),
   };
   mod.lagTekster = [
     { x: 0.025 * w, y: litoBunn(0.025 * w) - 0.045 * h, tekst: 'Litosfære', anchor: 'start' },
@@ -1688,6 +1754,15 @@ function modellSubduksjon(m: ModellInn): PlateModell {
     havplate: { x: xp, y: midtHav, retning: [1, 0] },
     astenosfare: { x: 0.14 * w, y: 0.9 * h },
   };
+  const trekkVed = (y: number): PlateAnker => {
+    const x = slabX(y);
+    const n = nI(x);
+    return { x: x + (n[0] * L) / 2, y: slab(x) + (n[1] * L) / 2, retning: [r2(n[1]), r2(-n[0])] };
+  };
+  mod.kraft = {
+    platetrekk: [0.7, 0.62, 0.78, 0.55].map((a) => trekkVed(a * h)),
+    havplate: [0.2, 0.12, 0.26, 0.08, 0.3].flatMap((d) => [0.8, 0.92, 0.62].map((a) => ({ x: d * w, y: havGlatt(d * w) + tc + a * (L - tc), retning: [1, 0] as const }))),
+  };
   mod.lagTekster.unshift(
     { x: 0.02 * w, y: havGlatt(0.02 * w) + L - 0.035 * h, tekst: 'Litosfære', anchor: 'start' },
     { x: 0.02 * w, y: 0.95 * h, tekst: 'Astenosfære', anchor: 'start' },
@@ -1696,23 +1771,36 @@ function modellSubduksjon(m: ModellInn): PlateModell {
   return mod;
 }
 
+/**
+ * Hvor langt fjellkjeden ved en kollisjon har vokst (0–1) etter at kontinentene er skjøvet `fart · t · 10` km sammen:
+ * 1 − e^(−S/500), som skorpefortykningen i en forenklet isostasimodell (63 % ved 500 km, nesten fullt etter ca. 1500
+ * km). Ugyldige tall gir 1 (ferdig fjellkjede).
+ */
+function kollisjonVekst(fart: number, t: number): number {
+  const S = 10 * fart * t;
+  return Number.isFinite(S) && S >= 0 ? 1 - Math.exp(-S / 500) : 1;
+}
+
 function modellKollisjon(m: ModellInn): PlateModell {
-  const { w, h, fart } = m;
+  const { w, h, fart, t } = m;
   const mod = tomModell();
   const ylav = 0.3 * h;
   const xs = 0.47 * w;
   const dip = Math.tan((27 * Math.PI) / 180);
+  // Fjellkjeden og rota vokser med sammenskyvingen (fortykningen); ved t = 0 har kontinentene akkurat møttes
+  const g = kollisjonVekst(fart, t);
   const e = (x: number) =>
-    0.16 * h * klokke(x, 0.5 * w, 0.1 * w) +
-    0.1 * h * klokke(x, 0.63 * w, 0.09 * w) +
-    0.07 * h * klokke(x, 0.38 * w, 0.065 * w) +
-    0.05 * h * klokke(x, 0.73 * w, 0.08 * w) +
-    0.012 * h * Math.sin(x / (0.011 * w)) * klokke(x, 0.53 * w, 0.2 * w);
+    g *
+    (0.16 * h * klokke(x, 0.5 * w, 0.1 * w) +
+      0.1 * h * klokke(x, 0.63 * w, 0.09 * w) +
+      0.07 * h * klokke(x, 0.38 * w, 0.065 * w) +
+      0.05 * h * klokke(x, 0.73 * w, 0.08 * w) +
+      0.012 * h * Math.sin(x / (0.011 * w)) * klokke(x, 0.53 * w, 0.2 * w));
   const topp = (x: number) => ylav - e(x);
   const ys0 = topp(xs);
   const yi = (x: number) => (x < xs ? -Infinity : ys0 + (x - xs) * dip);
-  const bL = (x: number) => Math.max(ylav + 0.15 * h + 0.16 * h * klokke(x, 0.46 * w, 0.12 * w), yi(x) + 0.13 * h);
-  const mL = (x: number) => Math.max(0.64 * h + 0.05 * h * klokke(x, 0.45 * w, 0.15 * w), yi(x) + 0.3 * h);
+  const bL = (x: number) => Math.max(ylav + 0.15 * h + g * 0.16 * h * klokke(x, 0.46 * w, 0.12 * w), yi(x) + 0.13 * h);
+  const mL = (x: number) => Math.max(0.64 * h + g * 0.05 * h * klokke(x, 0.45 * w, 0.15 * w), yi(x) + 0.3 * h);
   const bR = (x: number) => ylav + 0.15 * h + 0.14 * h * klokke(x, 0.6 * w, 0.12 * w);
   const mR = 0.62 * h;
   const lTopp = (x: number) => (x <= xs ? topp(x) : yi(x));
@@ -1782,6 +1870,14 @@ function modellKollisjon(m: ModellInn): PlateModell {
     plateHoyre: { x: 0.92 * w, y: (topp(0.92 * w) + bR(0.92 * w)) / 2 },
     astenosfare: { x: 0.12 * w, y: (mL(0.12 * w) + h) / 2 },
   };
+  mod.kraft = {
+    kollisjonVenstre: [0.2, 0.14, 0.26, 0.32, 0.08, 0.38].flatMap((d) => [0.78, 0.9, 0.6].map((a) => ({ x: d * w, y: bL(d * w) + a * (mL(d * w) - bL(d * w)), retning: [1, 0] as const }))),
+    kollisjonHoyre: [0.86, 0.8, 0.92].flatMap((d) => {
+      const x = d * w;
+      const bunn = Math.min(mR, yi(x));
+      return [0.7, 0.85, 0.45].map((a) => ({ x, y: bR(x) + a * (bunn - bR(x)), retning: [-1, 0] as const }));
+    }),
+  };
   mod.lagTekster = [
     { x: 0.02 * w, y: (topp(0.02 * w) + bL(0.02 * w)) / 2 + 6, tekst: 'Kontinentalskorpe', anchor: 'start' },
     { x: 0.02 * w, y: mL(0.02 * w) - 0.035 * h, tekst: 'Litosfære', anchor: 'start' },
@@ -1810,8 +1906,10 @@ function modellVarmtPunkt(m: ModellInn): PlateModell {
   for (const p of baand(0, w, (x) => bunn(x) + tc, () => yL, 3)) mod.flater.push({ p, fyll: 'litosfare' });
   for (const p of baand(0, w, bunn, (x) => bunn(x) + tc, 2)) mod.flater.push({ p, fyll: 'havskorpe' });
 
-  // Vulkankjeden: en ny vulkan for hver `avstand` plata har flyttet seg, eldre jo lenger til venstre. Den yngste er
-  // aktiv til den neste begynner (vokser det første halvannet million år), de eldre eroderes og synker (guyot).
+  // Vulkankjeden: en ny vulkan for hver `avstand` plata har flyttet seg, eldre jo lenger til venstre. Hver vulkan
+  // vokser det første halvannet million år og er aktiv til den neste har vokst seg over havbunnen (`vekst` etter at den
+  // begynte), så det alltid er minst én aktiv vulkan over plumen (som Kīlauea og Mauna Loa samtidig). Etterpå eroderes
+  // og synker den (guyot).
   const avstand = 0.21 * w;
   const vr = 0.12 * w;
   const Hmaks = sb - (ys - 0.12 * h);
@@ -1819,7 +1917,8 @@ function modellVarmtPunkt(m: ModellInn): PlateModell {
   const delta = ma ? avstand / pxPerMa : Infinity;
   const vekst = Math.min(1.5, delta);
   const aldre: number[] = [];
-  if (!ma) aldre.push(t);
+  // Står plata stille, vokser én vulkan over plumen (fullt utvokst om den har hatt tid)
+  if (!ma) aldre.push(Math.max(t, vekst));
   else {
     const kMaks = Math.floor(t / delta);
     const antall = Math.ceil((xh + vr) / avstand) + 1;
@@ -1831,8 +1930,8 @@ function modellVarmtPunkt(m: ModellInn): PlateModell {
     const x = xh - pxPerMa * a;
     if (x < -vr * 0.6 || !Number.isFinite(x)) return;
     const g = trinn(0, vekst, a) ** 0.8;
-    const erAktiv = a < delta;
-    const etter = erAktiv ? 0 : a - delta;
+    const erAktiv = a < delta + vekst;
+    const etter = erAktiv ? 0 : a - delta - vekst;
     const erosjon = 0.045 * h * (1 - Math.exp(-etter / 4));
     const senkning = 0.16 * h * (1 - Math.exp(-etter / 15));
     const toppY = sb - Hmaks * g + erosjon + senkning;
@@ -1908,6 +2007,9 @@ function modellVarmtPunkt(m: ModellInn): PlateModell {
     ...(e0 ? { eldreVulkan: { x: e0.x, y: e0.topp } } : {}),
     ...(mod.kamre[0] ? { magmakammer: { x: mod.kamre[0].x, y: mod.kamre[0].y } } : {}),
   };
+  mod.kraft = {
+    plateVenstre: [0.3, 0.2, 0.4, 0.48, 0.58, 0.64].flatMap((d) => [0.78, 0.9, 0.6].map((a) => ({ x: d * w, y: sb + tc + a * (yL - sb - tc), retning: [-1, 0] as const }))),
+  };
   mod.lagTekster = [
     { x: 0.02 * w, y: yL - 0.035 * h, tekst: 'Litosfære', anchor: 'start' },
     { x: 0.02 * w, y: 0.93 * h, tekst: 'Astenosfære', anchor: 'start' },
@@ -1917,6 +2019,9 @@ function modellVarmtPunkt(m: ModellInn): PlateModell {
 
   return mod;
 }
+
+/** Standard tid for kollisjon (millioner år): fjellkjeden er nesten ferdig (2000 km sammenskyving ved 4 cm per år). */
+const KOLLISJON_T = 50;
 
 /** Normaliserte props (gyldige tall og standardverdier). */
 interface PlateInn {
@@ -1948,7 +2053,7 @@ function normaliser(p: PlategrenseProps): PlateInn {
     y: tall(p.y, 0),
     w,
     h,
-    t: Math.max(0, tall(p.t, STRIPER_START)),
+    t: Math.max(0, tall(p.t, type === 'kollisjon' ? KOLLISJON_T : STRIPER_START)),
     fart: klemme(tall(p.fart, PLATE_FART[type]), 0, 30),
     breddeKm: Math.max(1, tall(p.breddeKm, PLATE_BREDDE_KM[type])),
     striper: p.striper ?? false,
@@ -1993,6 +2098,10 @@ function modellTransform(m: ModellInn): PlateModell {
     plateVenstre: { x: 0.13 * w, y: 0.25 * h, retning: [-1, 0] },
     plateHoyre: { x: 0.87 * w, y: 0.75 * h, retning: [1, 0] },
   };
+  mod.kraft = {
+    plateVenstre: [0.4, 0.6, 0.5].map((a) => ({ x: 0.13 * w, y: a * h, retning: [-1, 0] as const })),
+    plateHoyre: [0.6, 0.4, 0.5].map((a) => ({ x: 0.87 * w, y: a * h, retning: [1, 0] as const })),
+  };
   for (const [x, y, r] of [
     [0.13 * w, 0.25 * h, -1],
     [0.13 * w, 0.75 * h, -1],
@@ -2030,8 +2139,37 @@ export interface PlategrenseGeometri {
   fart: number;
   t: number;
   ankere: Partial<Record<PlateAnkerNavn, PlateAnker>>;
+  /**
+   * Ankerpunkter til kraftpiler (platetrekk, ryggskyv, platene som skyver mot hverandre) inne i litosfæren, valgt så en
+   * pil på inntil ca. 0,11 · w fra ankeret i `retning` med en etikett ved spissen ikke dekker kit-ets egne lagnavn
+   * eller fartspiler (`opptatt`). Bruk disse i stedet for `ankere` når du tegner krefter:
+   *   const a = g.kraftankre.ryggskyvHoyre;
+   *   a && <ForceArrow x1={a.x} y1={a.y} x2={a.x + 60 * a.retning![0]} y2={a.y + 60 * a.retning![1]} color={VIZ.applied} label="Ryggskyv" />
+   */
+  kraftankre: Partial<Record<KraftAnkerNavn, PlateAnker>>;
+  /** Flatene kit-et selv tegner tekst og piler i (lagnavn med `etiketter`, fartspiler med tekst med `piler`). */
+  opptatt: PlateBoks[];
+  /** Varmt punkt: vulkanene i kjeden (toppen, alderen i millioner år og om den er aktiv), yngst først. Tom ellers. */
+  vulkaner: { x: number; y: number; alder: number; aktiv: boolean }[];
   /** Hvor figuren tegner (blokka, skyggen og etikettene over), til viewBox-en. */
   ramme: { x0: number; y0: number; x1: number; y1: number };
+}
+
+/** Valgene som avgjør hva kit-et selv tegner (og dermed hvor det er opptatt). */
+interface GeoValg {
+  etiketter: boolean;
+  skygge: boolean;
+  piler: boolean;
+  pilSkala: number;
+}
+
+function valgFra(props: Omit<PlategrenseProps, 'children'>, w: number): GeoValg {
+  return {
+    etiketter: props.etiketter ?? false,
+    skygge: props.skygge ?? true,
+    piler: props.piler ?? true,
+    pilSkala: tall(props.pilSkala, 0.028 * w),
+  };
 }
 
 /** Høyden etikettene over blokka trenger (to rader når de ellers ville overlappe). */
@@ -2063,7 +2201,7 @@ export function plategrenseGeometri(props: Omit<PlategrenseProps, 'children'>, f
   if (!props || !Number.isFinite(props.w) || !Number.isFinite(props.h)) return null;
   const inn = normaliser(props as PlategrenseProps);
   const mod = byggModell(inn);
-  return geometriFra(inn, mod, props.etiketter ?? false, props.skygge ?? true, Number.isFinite(f) && f > 0 ? f : 1);
+  return geometriFra(inn, mod, valgFra(props, inn.w), Number.isFinite(f) && f > 0 ? f : 1);
 }
 
 function frontToppFor(mod: PlateModell): (x: number) => number {
@@ -2074,16 +2212,73 @@ function frontToppFor(mod: PlateModell): (x: number) => number {
   };
 }
 
-function geometriFra(inn: PlateInn, mod: PlateModell, etiketter: boolean, skygge: boolean, f: number): PlategrenseGeometri {
+/** Om to bokser overlapper (med margin). */
+function overlapper(a: { x0: number; y0: number; x1: number; y1: number }, b: { x0: number; y0: number; x1: number; y1: number }, m = 0): boolean {
+  return a.x0 < b.x1 + m && b.x0 < a.x1 + m && a.y0 < b.y1 + m && b.y0 < a.y1 + m;
+}
+
+/** Flatene kit-ets lagnavn og fartspiler tar (lokale koordinater). */
+function opptattIModell(type: PlategrenseType, mod: PlateModell, w: number, h: number, valg: GeoValg, f: number): PlateBoks[] {
+  const ut: PlateBoks[] = [];
+  if (valg.piler) {
+    const fs = 17 * 0.72 * f;
+    for (const fp of mod.farter) {
+      const L = Math.min(0.35 * w, valg.pilSkala * fp.fart);
+      if (!(L > 3)) continue;
+      const tekstB = fartTekst(fp.fart).length * 0.58 * fs;
+      const b = Math.max(L, tekstB) / 2 + 4;
+      ut.push({ x0: fp.x - b, y0: fp.y - 9 - 4 * f - fs, x1: fp.x + b, y1: fp.y + 7, hva: 'fart' });
+    }
+    if (type === 'transform') {
+      // De to motsatte pilene langs forkastningen
+      const { xa, xb, yf } = transformMaal(w, h);
+      ut.push({ x0: xa, y0: yf - 22, x1: xb, y1: yf + 22, hva: 'fart' });
+    }
+  }
+  if (valg.etiketter) {
+    const fs = 17 * 0.72 * f;
+    for (const l of mod.lagTekster) {
+      const b = l.tekst.length * 0.58 * fs;
+      const x0 = l.anchor === 'end' ? l.x - b : l.anchor === 'middle' ? l.x - b / 2 : l.x;
+      ut.push({ x0, y0: l.y - fs * 0.9, x1: x0 + b, y1: l.y + fs * 0.3, hva: 'lagnavn' });
+    }
+  }
+  return ut;
+}
+
+/** Velger den første kandidaten der en kraftpil (med etikett ved spissen) ikke dekker noe i `opptatt`. */
+function velgKraftankre(mod: PlateModell, opptatt: readonly PlateBoks[], w: number, h: number, f: number): Partial<Record<KraftAnkerNavn, PlateAnker>> {
+  const ut: Partial<Record<KraftAnkerNavn, PlateAnker>> = {};
+  const L = 0.11 * w;
+  const fs = 17 * 0.8 * f;
+  for (const [navn, liste] of Object.entries(mod.kraft) as [KraftAnkerNavn, PlateAnker[]][]) {
+    const gyldige = liste.filter((a) => Number.isFinite(a.x) && Number.isFinite(a.y) && a.x > 0 && a.x < w && a.y > 0 && a.y < h);
+    if (gyldige.length === 0) continue;
+    const fri = gyldige.find((a) => {
+      const [ux, uy] = a.retning ?? [1, 0];
+      const x2 = a.x + ux * L;
+      const y2 = a.y + uy * L;
+      const pil = { x0: Math.min(a.x, x2) - 6, y0: Math.min(a.y, y2) - fs - 4, x1: Math.max(a.x, x2) + 6, y1: Math.max(a.y, y2) + 6 };
+      return !opptatt.some((b) => overlapper(pil, b, 2));
+    });
+    ut[navn] = fri ?? gyldige[0]!;
+  }
+  return ut;
+}
+
+function geometriFra(inn: PlateInn, mod: PlateModell, valg: GeoValg, f: number): PlategrenseGeometri {
   const { x, y, w, h, dx, dy } = inn;
+  const { etiketter, skygge } = valg;
   const ft = frontToppFor(mod);
   const toppMin = inn.type === 'transform' ? 0 : Math.min(...linspace(0, w, 120).map(ft), mod.hav ?? Infinity);
   const over = inn.type !== 'transform' && etiketter ? overEtiketter(mod.overTekster, w + dx, f) : null;
   const y0 = y + Math.min(0, toppMin - dy - (over ? over.rader * over.linje + 18 : 0));
+  const flytt = (a: PlateAnker): PlateAnker => ({ x: r2(x + a.x), y: r2(y + a.y), ...(a.retning ? { retning: a.retning } : {}) });
   const ankere: Partial<Record<PlateAnkerNavn, PlateAnker>> = {};
-  for (const [navn, a] of Object.entries(mod.ankere) as [PlateAnkerNavn, PlateAnker][]) {
-    ankere[navn] = { x: r2(x + a.x), y: r2(y + a.y), ...(a.retning ? { retning: a.retning } : {}) };
-  }
+  for (const [navn, a] of Object.entries(mod.ankere) as [PlateAnkerNavn, PlateAnker][]) ankere[navn] = flytt(a);
+  const lokaltOpptatt = opptattIModell(inn.type, mod, w, h, valg, f);
+  const kraftankre: Partial<Record<KraftAnkerNavn, PlateAnker>> = {};
+  for (const [navn, a] of Object.entries(velgKraftankre(mod, lokaltOpptatt, w, h, f)) as [KraftAnkerNavn, PlateAnker][]) kraftankre[navn] = flytt(a);
   return {
     type: inn.type,
     x,
@@ -2099,6 +2294,9 @@ function geometriFra(inn: PlateInn, mod: PlateModell, etiketter: boolean, skygge
     fart: inn.fart,
     t: inn.t,
     ankere,
+    kraftankre,
+    opptatt: lokaltOpptatt.map((b) => ({ x0: r2(x + b.x0), y0: r2(y + b.y0), x1: r2(x + b.x1), y1: r2(y + b.y1), hva: b.hva })),
+    vulkaner: mod.aldre.map((a) => ({ x: r2(x + a.x), y: r2(y + a.y), alder: a.alder, aktiv: a.aktiv })),
     ramme: { x0: x, y0: r2(y0), x1: r2(x + w + dx + 2), y1: r2(y + h + (skygge && dy > 0 ? 10 : 2)) },
   };
 }
@@ -2119,12 +2317,20 @@ export interface PlategrenseProps {
   w: number;
   h: number;
   /**
-   * Tid i millioner år siden start (standard 5): platene har flyttet seg fart · t, og vulkankjeden over et varmt punkt
-   * har vokst. De magnetiske stripene viser havbunnen som er dannet siden start for 5 millioner år siden, så ved t = 5
-   * er mønsteret som i dag (se `magnetiskeStriper`).
+   * Tid i millioner år siden start: platene har flyttet seg fart · t. Hva det gjør med figuren, avhenger av typen:
+   * - spredning og transform (standard 5): bølgene på havbunnen og de magnetiske stripene følger med; stripene viser
+   *   havbunnen som er dannet siden start for 5 millioner år siden, så ved t = 5 er mønsteret som i dag
+   *   (`magnetiskeStriper`).
+   * - subduksjon (standard 5): bølgene på havbunnsplata følger med inn mot grøfta.
+   * - kollisjon (standard 50): fjellkjeden og fjellrota vokser med sammenskyvingen S = fart · t · 10 km som
+   *   1 − e^(−S/500); ved t = 0 har kontinentene akkurat møttes.
+   * - varmt punkt (standard 5): vulkankjeden vokser; det er alltid minst én aktiv vulkan over plumen.
    */
   t?: number;
-  /** Relativ fart mellom platene i cm per år (spredningsfart, konvergens). Standard etter typen (`PLATE_FART`). */
+  /**
+   * Relativ fart mellom platene i cm per år (full spredningsfart, konvergens eller farten over et varmt punkt); ved en
+   * spredningsrygg flytter hver side seg med fart/2. Standard etter typen (`PLATE_FART`).
+   */
   fart?: number;
   /** Hvor mange km bredden svarer til (vannrett målestokk). Standard etter typen (`PLATE_BREDDE_KM`). */
   breddeKm?: number;
@@ -2228,7 +2434,7 @@ function Smeltesone({ p, seed }: { p: readonly P[]; seed: number }) {
       {drapper.map(([x, y], i) => (
         <g key={i}>
           <ellipse cx={r2(x)} cy={r2(y)} rx={r2(2.6 * k)} ry={r2(1.9 * k)} fill={GEO.magma.fill} />
-          <circle cx={r2(x - 0.8 * k)} cy={r2(y - 0.6 * k)} r={r2(0.7 * k)} fill={mix(GEO.magma.fill, GEO.lava.fill, 0.7)} />
+          <circle cx={r2(x - 0.8 * k)} cy={r2(y - 0.6 * k)} r={r2(0.7 * k)} fill={MAGMA_GLOD.kjerne} />
         </g>
       ))}
     </g>
@@ -2253,14 +2459,38 @@ function Strompil({ p }: { p: readonly P[] }) {
   );
 }
 
-/** Jordskjelv: små stjerner (hyposentre). */
-function Skjelv({ p }: { p: readonly P[] }) {
+/** Props til `SkjelvStjerne`. */
+export interface SkjelvStjerneProps {
+  /** Midten (hyposenteret eller episenteret) i figurens koordinater. */
+  x: number;
+  y: number;
+  /** Radius ytterst på takkene før `useGeoScale` (standard 4,6, så stjerna blir ca. 7 enheter på telefon). */
+  r?: number;
+  /** Fyllfarge (standard `GEO.fare[1]`, gul); kanten er alltid `VIZ.ink`. */
+  farge?: string;
+  /** Halvgjennomsiktig (eldre skjelv, eller skjelv bak noe annet). */
+  dim?: boolean;
+}
+
+/**
+ * Jordskjelvsymbolet som `Plategrense` bruker: en liten femtakket stjerne med mørk kant, som på lærebokkart over
+ * hyposentre og episentre. Størrelsen ganges med `useGeoScale`, så den synes på mobil. Ankerpunkt: (x, y) er midten.
+ *   <SkjelvStjerne x={g.ankere.skjelvsone.x} y={g.ankere.skjelvsone.y} />
+ *   {liste.map((p, i) => <SkjelvStjerne key={i} x={p.x} y={p.y} r={3 + p.styrke} farge={GEO.fare[3]} />)}
+ */
+export function SkjelvStjerne({ x, y, r = 4.6, farge = GEO.fare[1], dim }: SkjelvStjerneProps) {
   const k = useGeoScale();
   const s = useGeoStroke();
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(r) || !(r > 0)) return null;
+  return <path d={stjerneSti(x, y, r * k)} fill={farge} stroke={VIZ.ink} strokeWidth={0.8 * s} strokeLinejoin="round" opacity={dim ? 0.45 : undefined} />;
+}
+
+/** Jordskjelv: små stjerner (hyposentre). */
+function Skjelv({ p }: { p: readonly P[] }) {
   return (
     <g>
       {p.map(([x, y], i) => (
-        <path key={i} d={stjerneSti(x, y, 4.6 * k)} fill={GEO.fare[1]} stroke={VIZ.ink} strokeWidth={0.8 * s} strokeLinejoin="round" />
+        <SkjelvStjerne key={i} x={x} y={y} />
       ))}
     </g>
   );
@@ -2302,7 +2532,7 @@ function PlateBlokk(props: PlategrenseProps) {
     [type, variant, w, h, t, fart, breddeKm, striper, dybde, dx, dy],
   );
   const { piler = true, strom = true, skjelv = true, magma = true, etiketter = false, aldre = true, skygge = true, dim, children } = props;
-  const geo = geometriFra(inn, mod, etiketter, skygge, f);
+  const geo = geometriFra(inn, mod, valgFra(props, w), f);
   const ft = frontToppFor(mod);
   const kjegler = magma ? mod.kjegler : mod.kjegler.map((kj) => ({ ...kj, glo: 0 }));
 
@@ -2312,8 +2542,8 @@ function PlateBlokk(props: PlategrenseProps) {
     havskorpe: `url(#${uid}-hav)`,
     litosfare: GEO.litosfare.fill,
     astenosfare: GEO.astenosfare.fill,
-    normal: GEO.polaritet.normal,
-    omvendt: GEO.polaritet.omvendt,
+    normal: GEO.polaritet.normal.fill,
+    omvendt: GEO.polaritet.omvendt.fill,
     sediment: monstre.fyll('leirskifer').fill,
   };
   const LINJE: Record<Fyll, string> = {
@@ -2322,8 +2552,8 @@ function PlateBlokk(props: PlategrenseProps) {
     havskorpe: GEO.skorpeHav.line,
     litosfare: GEO.litosfare.line,
     astenosfare: GEO.astenosfare.line,
-    normal: GEO.skorpeHav.line,
-    omvendt: GEO.skorpeHav.line,
+    normal: GEO.polaritet.normal.line,
+    omvendt: GEO.polaritet.omvendt.line,
     sediment: GEO.bergart.leirskifer.line,
   };
   const side: SideBand[] = mod.side.map((b) =>
@@ -2415,7 +2645,7 @@ function PlateBlokk(props: PlategrenseProps) {
         mod.kanaler.map((kn, i) => (
           <g key={`kn${i}`} fill="none" strokeLinecap="round" strokeLinejoin="round">
             <path d={glattSti(kn.p)} stroke={GEO.magma.line} strokeWidth={kn.b + 2.2 * s} />
-            <path d={glattSti(kn.p)} stroke={mix(GEO.magma.fill, GEO.lava.fill, 0.45)} strokeWidth={kn.b} />
+            <path d={glattSti(kn.p)} stroke={MAGMA_GLOD.kanal} strokeWidth={kn.b} />
           </g>
         ))}
       {magma && <MagmaLinser linser={[...mod.diapirer, ...mod.kamre]} gid={gloId} />}
@@ -2527,11 +2757,7 @@ function PlateBlokk(props: PlategrenseProps) {
           id={gloId}
           fx={0.45}
           fy={0.4}
-          stops={[
-            [0, mix(GEO.magma.fill, GEO.lava.fill, 0.78)],
-            [0.45, mix(GEO.magma.fill, GEO.lava.fill, 0.32)],
-            [1, GEO.magma.fill],
-          ]}
+          stops={MAGMA_GLOD_STOPP}
         />
         <LinearGradient
           id={plumeId}
@@ -2553,6 +2779,7 @@ function PlateBlokk(props: PlategrenseProps) {
           frontTopp={ft}
           hav={mod.hav}
           toppFarge={mod.topp}
+          toppSkygge={!(type === 'spredning' && striper)}
           vannAlfa={striper ? 0.4 : 0.6}
           side={sideMedAsteno}
           kjegler={kjegler}
@@ -2575,7 +2802,7 @@ function TransformKart(props: PlategrenseProps) {
   const { x, y, w, h, fart, t, breddeKm } = inn;
   const mod = useMemo(() => modellTransform({ w, h, fart, t, kmPerPx: breddeKm / w, striper: false, variant: 'hav-kontinent', dybde: 0 }), [w, h, fart, t, breddeKm]);
   const { piler = true, skjelv = true, etiketter = false, dim, children } = props;
-  const geo = geometriFra(inn, mod, false, false, f);
+  const geo = geometriFra(inn, mod, { ...valgFra(props, w), skygge: false }, f);
   const { xa, xb, yf } = transformMaal(w, h);
   const kmPerPx = breddeKm / w;
   const vh = (5 * fart) / kmPerPx;
@@ -2586,7 +2813,7 @@ function TransformKart(props: PlategrenseProps) {
   const farge = (avst: number): string => {
     const km = avst * kmPerPx;
     const st = striper.find((p) => km >= p.fra && km < p.til);
-    if (st) return st.normal ? GEO.polaritet.normal : GEO.polaritet.omvendt;
+    if (st) return st.normal ? GEO.polaritet.normal.fill : GEO.polaritet.omvendt.fill;
     return mix(grunt, dypt, Math.round(Math.sqrt(Math.min(1, avst / (0.45 * w))) * 12) / 12);
   };
   const steg = Math.max(1.5, w / 220);
@@ -2756,6 +2983,8 @@ export interface VulkanGeometri {
   kanal: { x: number; y: number } | null;
   /** Fronten av lavastrømmen og toppen av askeskya eller lavafontenen (når de vises). */
   lavastrom: { x: number; y: number } | null;
+  /** Midt på lavastrømmen (til en etikett eller pil som peker på strømmen). */
+  lavastromMidt: { x: number; y: number } | null;
   askesky: { x: number; y: number } | null;
   lavafontene: { x: number; y: number } | null;
   /** Snittet foran (eller omrisset fra siden) ved figurens x: y på flanken (Infinity utenfor foten). */
@@ -2853,6 +3082,23 @@ function vulkanModell(v: VulkanValg): VulkanModell {
   };
 }
 
+/** Punktet midt på en polylinje (etter lengden), flyttet (x, y). */
+function midtPaa(p: readonly P[], x: number, y: number): { x: number; y: number } | null {
+  if (p.length === 0) return null;
+  let total = 0;
+  for (let i = 1; i < p.length; i++) total += Math.hypot(p[i]![0] - p[i - 1]![0], p[i]![1] - p[i - 1]![1]);
+  let igjen = total / 2;
+  for (let i = 1; i < p.length; i++) {
+    const a = p[i - 1]!;
+    const b = p[i]!;
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (l >= igjen && l > 0) return { x: x + a[0] + ((b[0] - a[0]) * igjen) / l, y: y + a[1] + ((b[1] - a[1]) * igjen) / l };
+    igjen -= l;
+  }
+  const sist = p[p.length - 1]!;
+  return { x: x + sist[0], y: y + sist[1] };
+}
+
 /** Punktene på kraterkanten foran (y) og kraterbunnen. */
 function vulkanKrater(m: VulkanModell): { kant: number; bunn: number } {
   return { kant: kjegleY(m.kjegle, m.kjegle.krater?.u ?? 0), bunn: kjegleMedKrater(m.kjegle, 0) };
@@ -2909,6 +3155,7 @@ export function vulkanGeometri(v: VulkanValg): VulkanGeometri | null {
     magmakammer: m.kammer ? { x: x + m.kammer.x, y: y + m.kammer.y, rx: m.kammer.rx, ry: m.kammer.ry } : null,
     kanal: m.kammer ? { x, y: y + (m.kammer.y - m.kammer.ry + kanalTopp) / 2 } : null,
     lavastrom: ls ? { x: x + ls.front[0], y: y + ls.front[1] } : null,
+    lavastromMidt: ls ? midtPaa(ls.midt, x, y) : null,
     askesky: m.aske ? { x: x + m.vind * spredning * 0.5, y: y + askeTopp } : null,
     lavafontene: m.fontene ? { x, y: y + fonteneTopp } : null,
     profil: (fx) => y + kjegleFront(m.kjegle, fx - x),
@@ -3220,7 +3467,7 @@ export function Vulkan(props: VulkanProps) {
     const lagH = m.H / n;
     const kammer = m.kammer!;
     const kb = Math.max(4, (m.type === 'strato' ? 0.045 : 0.035) * m.R);
-    const kanalFyll = aktiv ? mix(GEO.magma.fill, GEO.lava.fill, 0.45) : monstre.fyll('diabas').fill;
+    const kanalFyll = aktiv ? MAGMA_GLOD.kanal : monstre.fyll('diabas').fill;
     const kanalKant = aktiv ? GEO.magma.line : GEO.bergart.diabas.line;
     const kanal = (p: P[], b: number, key: string) => (
       <g key={key} fill="none" strokeLinecap="round" strokeLinejoin="round">
@@ -3283,11 +3530,7 @@ export function Vulkan(props: VulkanProps) {
           id={kraterGlo}
           fx={0.45}
           fy={0.4}
-          stops={[
-            [0, mix(GEO.magma.fill, GEO.lava.fill, 0.78)],
-            [0.45, mix(GEO.magma.fill, GEO.lava.fill, 0.32)],
-            [1, GEO.magma.fill],
-          ]}
+          stops={MAGMA_GLOD_STOPP}
         />
         <Blokk
           w={bb}
@@ -3313,10 +3556,13 @@ export function Vulkan(props: VulkanProps) {
   if (etiketter) {
     if (geo.askesky) etikettListe.push({ x: geo.askesky.x, y: (geo.askesky.y + geo.topp.y) / 2, tekst: 'Askesky' });
     if (geo.lavafontene) etikettListe.push({ x: x + m.fonteneH * 0.12, y: geo.krater.y - m.fonteneH * 0.55, tekst: 'Lavafontene' });
-    if (krater) etikettListe.push({ x: x + m.R * (kj.krater?.u ?? 0) * 0.7, y: geo.topp.y, tekst: 'Krater' });
-    if (geo.lavastrom) etikettListe.push({ x: geo.lavastrom.x, y: geo.lavastrom.y, tekst: 'Lavastrøm' });
+    // Punktene spres så strekene ikke samles nær toppen: kraterkanten, midt på lavastrømmen og laget langt ut i flanken
+    if (krater) etikettListe.push({ x: x + m.R * (kj.krater?.u ?? 0) * 1.05, y: geo.topp.y, tekst: 'Krater' });
+    if (geo.lavastromMidt) etikettListe.push({ x: geo.lavastromMidt.x, y: geo.lavastromMidt.y, tekst: 'Lavastrøm' });
     if (m.snitt) {
-      etikettListe.push({ x: x + 0.42 * m.R, y: y - m.H * 0.18, tekst: m.type === 'strato' ? 'Lag av lava og aske' : 'Lavalag' });
+      const xl = x + 0.66 * m.R;
+      const yf = geo.profil(xl);
+      etikettListe.push({ x: xl, y: Number.isFinite(yf) ? y + 0.5 * (yf - y) : y - m.H * 0.1, tekst: m.type === 'strato' ? 'Lag av lava og aske' : 'Lavalag' });
       if (geo.kanal) etikettListe.push({ x, y: geo.kanal.y, tekst: 'Hovedkanal' });
       if (geo.magmakammer) etikettListe.push({ x: x + geo.magmakammer.rx * 0.5, y: geo.magmakammer.y, tekst: 'Magmakammer' });
     }

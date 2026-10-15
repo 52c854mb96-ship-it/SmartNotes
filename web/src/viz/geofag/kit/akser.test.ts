@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { logEtikett, logTicks, scaleLog, scaleLogInvert, tierpotens } from './akser';
+import { fmtTall, logEtikett, logTicks, scaleLog, scaleLogInvert, tierpotens } from './akser';
 
 describe('scaleLog', () => {
   it('er lineær i log₁₀', () => {
@@ -121,5 +121,18 @@ describe('etiketter på norsk', () => {
     for (const v of [...logTicks(1e-6, 1e8).major, ...logTicks(1e-6, 1e8).minor]) {
       expect(logEtikett(v)).not.toMatch(/NaN|Infinity|undefined|e[+-]/);
     }
+  });
+});
+
+describe('fmtTall', () => {
+  const t = (s: string) => s.replace(/[  ]/g, ' ');
+  it('skriver tusenskille først fra fem sifre, etter avrundingen', () => {
+    expect(fmtTall(3788)).toBe('3788');
+    expect(fmtTall(999.6)).toBe('1000');
+    expect(t(fmtTall(10800))).toBe('10 800');
+    expect(t(fmtTall(9999.6))).toBe('10 000');
+    expect(fmtTall(-2500)).toBe('−2500');
+    expect(fmtTall(2.5, 1)).toBe('2,5');
+    expect(fmtTall(Number.NaN)).toBe('–');
   });
 });

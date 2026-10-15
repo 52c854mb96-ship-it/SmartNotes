@@ -22,7 +22,8 @@ import {
   plotteposisjon,
   plotteposisjoner,
   porefart,
-  reisetid,
+  reisetidDarcy,
+  reisetidFraFart,
   sannsynlighetIPerioden,
   SEK_PER_DOGN,
   senkning,
@@ -131,23 +132,23 @@ describe('grunnvann', () => {
     expect(i).toBeCloseTo(0.006, 12);
     const v = porefart(darcy(4e-4, i)!, 0.25)!;
     expect(mPerDogn(v)!).toBeCloseTo(0.83, 2);
-    expect(reisetid(400, v)! / SEK_PER_DOGN).toBeGreaterThan(470);
-    expect(reisetid(400, v)! / SEK_PER_DOGN).toBeLessThan(490);
+    expect(reisetidFraFart(400, v)! / SEK_PER_DOGN).toBeGreaterThan(470);
+    expect(reisetidFraFart(400, v)! / SEK_PER_DOGN).toBeLessThan(490);
     expect(mPerAar(v)! / mPerDogn(v)!).toBeCloseTo(365.25, 10);
   });
 
   it('gir mye lengre reisetid i leire enn i grus', () => {
     const tid = (id: 'grus' | 'leire') => {
       const m = grunnmateriale(id)!;
-      return reisetid(100, porefart(darcy(m.K, 0.01)!, m.effektivPorositet)!)!;
+      return reisetidFraFart(100, porefart(darcy(m.K, 0.01)!, m.effektivPorositet)!)!;
     };
     expect(tid('leire') / tid('grus')).toBeGreaterThan(1e5);
   });
 
   it('gir aldri Infinity når avstanden, gradienten eller porøsiteten er 0', () => {
-    expect(reisetid(0, 0)).toBe(0);
-    expect(reisetid(100, 0)).toBeNull();
-    expect(reisetid(100, -1)).toBeNull();
+    expect(reisetidFraFart(0, 0)).toBe(0);
+    expect(reisetidFraFart(100, 0)).toBeNull();
+    expect(reisetidFraFart(100, -1)).toBeNull();
     expect(porefart(1e-6, 0)).toBeNull();
     expect(hydrauliskGradient(10, 9, 0)).toBeNull();
     expect(darcy(-1, 0.01)).toBeNull();
@@ -252,3 +253,24 @@ describe('flomfrekvens', () => {
     expect(flomMedGjentaksintervall(like, 200)).toBe(100);
   });
 });
+
+describe('reisetidDarcy', () => {
+  it('gir døgn fra K, gradienten og porøsiteten, som reisetidFraFart med porefarten', () => {
+    const sand = MATERIALER.find((m) => m.id === 'sand')!;
+    const v = porefart(darcy(sand.K, 0.01)!, sand.effektivPorositet)!;
+    expect(reisetidDarcy(60, 0.01, sand.K, sand.effektivPorositet)).toBeCloseTo(reisetidFraFart(60, v)! / SEK_PER_DOGN, 6);
+    expect(reisetidDarcy(60, 0.01, 1e-4, 0.25)).toBeCloseTo(173.6, 0);
+  });
+  it('gir 0 for L = 0 og null der vannet aldri kommer fram', () => {
+    expect(reisetidDarcy(0, 0.01, 1e-4, 0.25)).toBe(0);
+    expect(reisetidDarcy(60, 0, 1e-4, 0.25)).toBeNull();
+    expect(reisetidDarcy(60, 0.01, 0, 0.25)).toBeNull();
+    expect(reisetidDarcy(60, 0.01, 1e-4, 0)).toBeNull();
+    expect(reisetidDarcy(Number.NaN, 0.01, 1e-4, 0.25)).toBeNull();
+    expect(reisetidDarcy(-5, 0.01, 1e-4, 0.25)).toBeNull();
+  });
+  it('har et eget løsmassemønster for silt', () => {
+    expect(MATERIALER.find((m) => m.id === 'silt')!.monster).toBe('silt');
+  });
+});
+

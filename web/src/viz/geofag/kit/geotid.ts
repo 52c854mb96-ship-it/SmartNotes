@@ -9,7 +9,7 @@
  *   fmtAlder(66, { siden: true })  // '66 millioner år siden'
  *   tilDognet(0.3)?.klokke         // 'kl. 23.59.54' (moderne mennesker de siste sekundene)
  */
-import { fmt } from '../../kit/format';
+import { fmtTall } from './akser';
 
 /** Nivå i tidsskalaen, fra størst til minst. */
 export type TidsNiva = 'eon' | 'era' | 'periode' | 'epoke';
@@ -57,10 +57,11 @@ function lag(niva: TidsNiva, rader: Rad[]): TidsIntervall[] {
 
 /*
  * Kilde: International Chronostratigraphic Chart, International Commission on Stratigraphy (ICS), versjon 2023/09
- * (stratigraphy.org), basene i millioner år: devon 419,62 ± 1,36, silur 443,1 ± 0,9, ordovicium 486,85 ± 1,5,
- * kambrium 538,8 ± 0,2, trias 251,902 ± 0,024, jura 201,4 ± 0,2, kritt ~143,1 (ikke fastsatt), kryogenium ~720 og
- * ediacara ~635. Silur og ordovicium er kontrollert mot oppslagsverk som følger kartet; karbon er ført som 358,9 ± 0,4
- * (noen kartversjoner har 358,86 ± 0,19, forskjellen syns ikke i figurene). Holocen begynner 11 700 år før år 2000,
+ * (stratigraphy.org), basene i millioner år: karbon 358,86 ± 0,19, devon 419,62 ± 1,36, silur 443,1 ± 0,9,
+ * ordovicium 486,85 ± 1,5, kambrium 538,8 ± 0,2, trias 251,902 ± 0,024, jura 201,4 ± 0,2, kritt ~143,1 (ikke
+ * fastsatt), kryogenium ~720 og ediacara ~635. Basene i devon og karbon kom inn i kartet sammen (fra Geologic Time
+ * Scale 2020); tidligere versjoner hadde 419,2 ± 3,2 og 358,9 ± 0,4. Silur og ordovicium er kontrollert mot
+ * oppslagsverk som følger kartet. Holocen begynner 11 700 år før år 2000,
  * arkeikum 4031 ± 3, og hadeikum begynner med jordas dannelse, 4567 millioner år. Norske navn som i Store norske
  * leksikon (kambrium, ordovicium, silur, devon, karbon, perm, trias, jura, kritt, paleogen, neogen, kvartær).
  */
@@ -98,8 +99,8 @@ const PERIODER = lag('periode', [
   ['kambrium', 'kambrium', 'Kam', 538.8, 486.85, 'paleozoikum', { symbol: 'Є', usikkerhet: 0.2 }],
   ['ordovicium', 'ordovicium', 'Ord', 486.85, 443.1, 'paleozoikum', { symbol: 'O', usikkerhet: 1.5 }],
   ['silur', 'silur', 'Sil', 443.1, 419.62, 'paleozoikum', { symbol: 'S', usikkerhet: 0.9 }],
-  ['devon', 'devon', 'Dev', 419.62, 358.9, 'paleozoikum', { symbol: 'D', usikkerhet: 1.36 }],
-  ['karbon', 'karbon', 'Kar', 358.9, 298.9, 'paleozoikum', { symbol: 'C', usikkerhet: 0.4 }],
+  ['devon', 'devon', 'Dev', 419.62, 358.86, 'paleozoikum', { symbol: 'D', usikkerhet: 1.36 }],
+  ['karbon', 'karbon', 'Kar', 358.86, 298.9, 'paleozoikum', { symbol: 'C', usikkerhet: 0.19 }],
   ['perm', 'perm', 'Per', 298.9, 251.902, 'paleozoikum', { symbol: 'P', usikkerhet: 0.15 }],
   ['trias', 'trias', 'Tri', 251.902, 201.4, 'mesozoikum', { symbol: 'T', usikkerhet: 0.024 }],
   ['jura', 'jura', 'Jur', 201.4, 143.1, 'mesozoikum', { symbol: 'J', usikkerhet: 0.2 }],
@@ -324,24 +325,32 @@ function rundSig(v: number, sig: number): number {
 /**
  * En alder i millioner år som norsk tekst: `fmtAlder(66)` → «66 millioner år», `fmtAlder(4567)` → «4,57 milliarder
  * år», `fmtAlder(0.0117)` → «11 700 år», `fmtAlder(1)` → «1 million år». Skriver aldri forkortelsen «Ma» (bruk
- * `kort` for «mill. år» i smale etiketter). Negative og ugyldige tall gir «–».
+ * `kort` for «mill. år» i smale etiketter). Enheten velges etter avrundingen (999,9 → «1 milliard år»), og tallet
+ * skrives med `fmtTall`: tusenskille først fra fem sifre («3500 år», «11 700 år»). Negative og ugyldige tall gir «–».
  */
 export function fmtAlder(millionerAar: number, valg: FmtAlderValg = {}): string {
   const { siden = false, desimaler, enhet = 'auto', kort = false } = valg;
   if (!Number.isFinite(millionerAar) || millionerAar < 0) return '–';
   if (millionerAar === 0 && siden) return 'i dag';
   const hale = siden ? ' siden' : '';
-  const valgt = enhet !== 'auto' ? enhet : millionerAar >= 1000 ? 'milliarder' : millionerAar >= 1 ? 'millioner' : 'år';
+  const auto = enhet === 'auto';
+  let valgt: 'milliarder' | 'millioner' | 'år' = !auto ? enhet : millionerAar >= 1000 ? 'milliarder' : millionerAar >= 1 ? 'millioner' : 'år';
 
+  // Enheten velges etter avrundingen, så 999,9 millioner blir «1 milliard år» og 999 999,9 år «1 million år»
   if (valgt === 'år') {
     const aar = millionerAar * 1e6;
     const v = desimaler === undefined ? rundSig(aar, 3) : aar;
     const d = desimaler ?? autoDesimaler(v, 3);
-    return `${fmt(v, d)} år${hale}`;
+    if (!(auto && Number(v.toFixed(d)) >= 1e6)) return `${fmtTall(v, d)} år${hale}`;
+    valgt = 'millioner';
+  }
+  if (valgt === 'millioner' && auto) {
+    const d = desimaler ?? autoDesimaler(millionerAar, 3);
+    if (Number(millionerAar.toFixed(d)) >= 1000) valgt = 'milliarder';
   }
   const v = valgt === 'milliarder' ? millionerAar / 1000 : millionerAar;
   const d = desimaler ?? autoDesimaler(v, 3);
-  const tekst = fmt(v, d);
+  const tekst = fmtTall(v, d);
   const en = tekst === '1';
   const ord =
     valgt === 'milliarder'

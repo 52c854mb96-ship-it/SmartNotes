@@ -14,6 +14,23 @@
  */
 import { fmt, superscript } from '../../kit/format';
 
+/**
+ * Et tall på norsk etter tusenskille-regelen i geofag: desimalkomma, ekte minus og mellomrom som tusenskille først fra
+ * fem sifre (1000 og 2500 uten mellomrom, 10 000 med), som siunitx i PDF-malen «Atlas» og `logEtikett` på aksene. Bruk
+ * den (ikke `fmt`) for tall i tekst, Readouts og etiketter i geofag, så samme tall skrives likt overalt. Ugyldige tall
+ * gir «–».
+ *   fmtTall(3788)   // '3788'
+ *   fmtTall(10800)  // '10 800'
+ *   fmtTall(-2.5, 1) // '−2,5'
+ */
+export function fmtTall(v: number, desimaler = 0): string {
+  const t = fmt(v, desimaler);
+  if (!Number.isFinite(v)) return t;
+  // Tallet slik det faktisk skrives (etter avrunding) avgjør om det har fire sifre
+  const heltall = Math.abs(Number(v.toFixed(Math.max(0, Math.min(20, desimaler)))));
+  return heltall >= 1000 && heltall < 10_000 ? t.replace(/[\s\u00a0\u202f]/g, '') : t;
+}
+
 function gyldigDomene(domain: readonly [number, number]): boolean {
   const [a, b] = domain;
   return Number.isFinite(a) && Number.isFinite(b) && a > 0 && b > 0 && a !== b;

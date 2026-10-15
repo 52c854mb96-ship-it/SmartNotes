@@ -211,7 +211,7 @@ export interface GrunnLag {
 const STANDARD_LAG: readonly GrunnLag[] = [{ type: 'sand' }];
 
 /** Løsmassene: vannet fyller porene (klar blåfarge). I berggrunnen står vannet i sprekker (gråere blå). */
-const LOSMASSE: ReadonlySet<MonsterId> = new Set<MonsterId>(['morene', 'breelv', 'leire', 'kvikkleire', 'sand', 'grus', 'torv', 'ur', 'aske']);
+const LOSMASSE: ReadonlySet<MonsterId> = new Set<MonsterId>(['morene', 'breelv', 'leire', 'kvikkleire', 'silt', 'sand', 'grus', 'torv', 'ur', 'aske']);
 
 /** Props til `Grunnvannssnitt`. Alle y-verdier er i snittets koordinater (0 = toppen av boksen, y nedover). */
 export interface GrunnvannssnittProps {
@@ -242,9 +242,16 @@ export interface GrunnvannssnittProps {
   speilMerke?: number | false;
   /**
    * Sonenavnene: 'hoyre' (kolonne til høyre for blokka fra x + w + dx + 16, med lagnavnene; trenger ca. 160 enheter,
-   * mer på mobil), 'inne' (i sonene ved `etikettX`, og «Grunnvannsspeil» ved symbolet) eller false (standard).
+   * mer på mobil), 'inne' (i sonene ved `etikettX`, og «Grunnvannsspeil» like over speilet der det er flatt og ledig,
+   * borte fra `unnga` og sonenavnene; uten ledig plass står den like under speilet, ellers sløyfes den) eller false
+   * (standard).
    */
   etiketter?: 'hoyre' | 'inne' | false;
+  /**
+   * X-er i snittet (brønner, hus, piler) som «Grunnvannsspeil» skal holde seg unna med `etiketter="inne"`, f.eks.
+   * brønnenes x fra `bronnPunkter`.
+   */
+  unnga?: readonly number[];
   /** Hvor etikettene peker (x i snittet). Standard nær høyre kant ('hoyre') eller venstre kant ('inne'). */
   etikettX?: number;
   /** Hvor langt blokka går innover (standard 0,08 · w, høyst 70). 0 gir et flatt snitt. */
@@ -263,7 +270,9 @@ export interface GrunnvannssnittProps {
 /**
  * Grunnvann i snitt, som i læreboka: lagene (sand, grus, morene, fjell …) med mønster, umettet sone (porer med luft),
  * kapillærsone, grunnvannsspeilet (blå linje med ▽) og mettet sone (blå), gress på toppen i svakt perspektiv og innsjø
- * eller elv der speilet står over bakken. Speilet kan være et tall, en skråning eller en senkningstrakt.
+ * eller elv der speilet står over bakken. Speilet kan være et tall, en skråning eller en senkningstrakt. Bakken og
+ * speilet kan være nye pilfunksjoner i hver render (en trakt som følger pumperaten): geometrien huskes etter verdiene
+ * langs snittet, ikke etter hvilken funksjon det er.
  *
  * Ankerpunkt: (x, y) er øverste venstre hjørne av snittet foran, som i Snittblokk. Et punkt (sx, sy) i snittet står i
  * (x + sx, y + sy); bakkanten er forskjøvet (dx, −dy) fra `snittblokkPerspektiv(dybde, vinkel)`. Bruk
@@ -289,6 +298,7 @@ export function Grunnvannssnitt({
   speilMerke,
   etiketter = false,
   etikettX,
+  unnga,
   dybde,
   vinkel,
   skygge = true,
@@ -301,7 +311,10 @@ export function Grunnvannssnitt({
   const k = useGeoScale();
   const monstre = useLagMonstre('gv');
   const uid = useSvgId('gv');
-  const g = useMemo(() => grunnvannGeometri({ w, h, overflate, speil, kapillar }), [w, h, overflate, speil, kapillar]);
+  // Geometrien huskes etter verdiene til bakken og speilet (65 punkter), ikke etter hvilken funksjon de er, så nye
+  // pilfunksjoner i hver ramme (en senkningstrakt som følger pumperaten) ikke regner alt på nytt
+  const kurver = `${kurveNokkel(overflate, w)}|${kurveNokkel(speil, w)}`;
+  const g = useMemo(() => grunnvannGeometri({ w, h, overflate, speil, kapillar }), [w, h, kapillar, kurver]); // eslint-disable-line react-hooks/exhaustive-deps
   const lagListe = lag.length > 0 ? lag : STANDARD_LAG;
   const typerNokkel = lagListe.map((l) => l.type).join(',');
   const typer = useMemo(() => [...new Set(lagListe.map((l) => l.type))], [typerNokkel]);
@@ -384,9 +397,9 @@ export function Grunnvannssnitt({
   const fs = 17 * f;
   const etiketterListe: SnittEtikett[] = [];
   const inneTekster: { x: number; y: number; tekst: string; size: number }[] = [];
-  // Med etikettene inne står «Grunnvannsspeil» til høyre for sonenavnene, så de ikke overlapper
+  // Med etikettene inne står ▽ til høyre for sonenavnene, så de ikke overlapper
   const etterInne = etiketter === 'inne' ? clamp(fin(etikettX, 10 * f), 0, w) + 12 * 0.58 * 17 * 0.74 * f + 22 * f : 0;
-  const merkeX = speilMerke === false ? null : velgMerkeX(speilMerke, xs, w, g, innsjoVed, 16 * k + (etiketter === 'inne' ? 140 * f : 0), etterInne);
+  const merkeX = speilMerke === false ? null : velgMerkeX(speilMerke, xs, w, g, innsjoVed, 16 * k, etterInne);
   if (etiketter === 'hoyre') {
     // Uten etikettX peker etikettene på sideflaten (sonene lengst inne, lagnavnene nærmere snittet), ellers på snittet
     const ex = clamp(fin(etikettX, w), 0, w);
@@ -423,6 +436,10 @@ export function Grunnvannssnitt({
     const mettetBunn = tett ? lagTopp[tett.i]!(ex) : h;
     if (mettetBunn - spe > lh * 1.4) inneTekster.push({ x: ex, y: (spe + Math.min(mettetBunn, spe + 3 * lh)) / 2 + lh * 0.35, tekst: 'Mettet sone', size });
   }
+  const speilTekst =
+    etiketter === 'inne' && soner
+      ? plasserSpeilTekst({ w, h, f, k, xs, ov, sp, innsjoVed, hindre: [...(unnga ?? []), ...(merkeX !== null ? [merkeX] : [])], tekster: inneTekster })
+      : null;
 
   const front = sti([...xs.map((sx): P => [sx, topp(sx)]), [w, h], [0, h]], true);
   const lysId = `${uid}-lys`;
@@ -581,8 +598,8 @@ export function Grunnvannssnitt({
           {t.tekst}
         </Txt>
       ))}
-      {etiketter === 'inne' && soner && merkeX !== null && (
-        <Txt x={r2(merkeX + 10 * k)} y={r2(sp(merkeX) - 7 * k)} anchor="start" size={0.74} color={GEO.grunnvann.line} weight={700}>
+      {speilTekst && (
+        <Txt x={r2(speilTekst.x)} y={r2(speilTekst.y)} anchor="start" size={0.74} color={GEO.grunnvann.line} weight={700}>
           Grunnvannsspeil
         </Txt>
       )}
@@ -592,6 +609,79 @@ export function Grunnvannssnitt({
       )}
     </g>
   );
+}
+
+/** En nøkkel for en kurve (tall, eller 65 verdier langs 0–w), til memo på verdiene i stedet for funksjonen. */
+function kurveNokkel(k: SnittKurve | undefined, w: number): string {
+  if (typeof k !== 'function') return String(k);
+  const W = Number.isFinite(w) && w > 0 ? w : 1;
+  let ut = '';
+  for (let i = 0; i <= 64; i++) {
+    const v = k((i * W) / 64);
+    ut += `${Number.isFinite(v) ? Math.round(v * 10) / 10 : 'x'},`;
+  }
+  return ut;
+}
+
+/**
+ * Plassen til «Grunnvannsspeil» med etikettene inne: like over speilet der det er nesten flatt over hele teksten (så
+ * linja ikke krysser den), med plass under bakken, borte fra hindrene (brønner, ▽) og sonenavnene. Uten ledig plass
+ * over speilet prøves like under det; ellers null (teksten sløyfes).
+ */
+function plasserSpeilTekst(v: {
+  w: number;
+  h: number;
+  f: number;
+  k: number;
+  xs: readonly number[];
+  ov: Fn;
+  sp: Fn;
+  innsjoVed: (x: number) => GrunnvannInnsjo | undefined;
+  hindre: readonly number[];
+  tekster: readonly { x: number; y: number; tekst: string; size: number }[];
+}): { x: number; y: number } | null {
+  const { w, h, f, k, ov, sp, innsjoVed, hindre, tekster } = v;
+  const px = 17 * 0.74 * f;
+  const tb = 'Grunnvannsspeil'.length * 0.58 * px;
+  const luft = 5 * k;
+  const bokser = tekster.map((t) => {
+    const p = 17 * t.size * f;
+    return { x0: t.x - 3, x1: t.x + t.tekst.length * 0.58 * p + 3, y0: t.y - p * 0.85, y1: t.y + p * 0.25 };
+  });
+  const fri = (x0: number, y0: number, x1: number, y1: number) => !bokser.some((b) => x0 < b.x1 && b.x0 < x1 && y0 < b.y1 && b.y0 < y1);
+  type Kandidat = { x: number; y: number; kost: number };
+  let best: Kandidat | null = null;
+  const steg = Math.max(4, w / 80);
+  for (const under of [false, true]) {
+    for (let x0 = 0.03 * w; x0 + tb <= 0.97 * w; x0 += steg) {
+      const x1 = x0 + tb;
+      let minSp = Infinity;
+      let maxSp = -Infinity;
+      let maxOv = -Infinity;
+      let gyldig = true;
+      for (let i = 0; i <= 12; i++) {
+        const x = x0 + (i / 12) * tb;
+        if (innsjoVed(x)) gyldig = false;
+        minSp = Math.min(minSp, sp(x));
+        maxSp = Math.max(maxSp, sp(x));
+        maxOv = Math.max(maxOv, ov(x));
+      }
+      if (!gyldig || !(minSp > maxOv + 2)) continue;
+      const y = under ? maxSp + px * 0.85 + luft : minSp - luft;
+      const y0 = y - px * 0.85;
+      const y1 = y + px * 0.25;
+      if (under ? y1 > h - 2 : y0 < maxOv + 2) continue;
+      if (!fri(x0 - 4, y0, x1 + 4, y1)) continue;
+      // Avstanden til nærmeste hinder (brønn, ▽) langs x; for nær gir ugyldig plass
+      const avst = hindre.length ? Math.min(...hindre.map((hx) => (hx < x0 ? x0 - hx : hx > x1 ? hx - x1 : 0))) : w;
+      if (avst < 14 * k) continue;
+      const skraa = maxSp - minSp;
+      const kost = skraa * 3 + Math.max(0, 60 - avst) + (under ? 40 : 0) + x0 * 0.02;
+      if (!best || kost < best.kost) best = { x: x0, y, kost };
+    }
+    if (best) break;
+  }
+  return best ? { x: best.x, y: best.y } : null;
 }
 
 /** Helningstrinn −3 … 3 for toppflaten (positiv = vender mot lyset fra venstre). */

@@ -7,13 +7,13 @@ import {
   LogPlot,
   brytTekst,
   flaggEtiketter,
-  fmtTall,
   klimaAkser,
   tekstBredde,
   tidslinjeGeometri,
   type FlaggInn,
 } from './diagram';
 import { GEO_HENDELSER, JORDAS_ALDER } from './geotid';
+import { fmtTall } from './akser';
 import { seededRandom } from '../../kjemi/kit/random';
 
 const svg = (child: ReturnType<typeof createElement>) => renderToStaticMarkup(createElement('svg', null, child));
